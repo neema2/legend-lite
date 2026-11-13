@@ -1383,7 +1383,8 @@ class PlannedSqlTest {
             Map.entry("datacube/src/data-host.ts", List.of("runLoad(", "runLoad(")),
             // 2026-11-13 (the DataCube stream's step 2): the tab's engine runs a write's ONE plan (Boundary.outputPlan) its
             // planner answered, in the plan's own transaction (engines/tab-engine.ts write)
-            Map.entry("datacube/src/engines/tab-engine.ts", List.of("runPlan(")),
+            // and (step 3, 2026-11-13) a query's rows copied behind a handle, the snapCopy plan its planner answered
+            Map.entry("datacube/src/engines/tab-engine.ts", List.of("runPlan(", "runPlan(")),
             Map.entry("datacube/src/table-output.ts", List.of("runPlan(")),
             Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),

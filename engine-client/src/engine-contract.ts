@@ -21,7 +21,7 @@ export type CallName =
   | 'capabilities' | 'open' | 'close'
   | 'addSource' | 'describe' | 'drop'
   | 'typeOf' | 'query' | 'write' | 'cancel'
-  | 'parse' | 'print' | 'elements';
+  | 'parse' | 'print' | 'elements' | 'bindSecret';
 
 /** A request's id, the client's: what `cancel` names. */
 export type RequestId = string;
@@ -86,15 +86,21 @@ export interface QueryAnswer {
   readonly receipt?: Receipt;
 }
 
-/** A source to add: bytes a person gave, a URL, a remote reference, or a grid's query (a Snap's pull, Q5). */
+/** A source to add: bytes a person gave, a file the engine holds, a URL, a remote reference, or a grid's query. */
 export type SourceAsk =
   | { readonly upload: { readonly name: string; readonly bytes: Uint8Array } }
+  /** A file this engine already holds, by the handle it issued for it (Q12): never a path. */
+  | { readonly held: Handle }
   | { readonly url: string }
-  /** A table or object the engine reaches by its own connection (a warehouse table, an S3 object): any secret it
-   *  needs is bound by name inside the engine (R5). */
-  | { readonly remote: { readonly kind: string; readonly ref: string } }
-  /** A query's rows copied into a table of the engine's own: `how` is 'snap' alone. The pull, never SQL (B3). */
+  /** A file the engine reaches by a reference that needs a secret: a bearer URL (`kind` 'bearer', `ref` the address as
+   *  a person may see it, the secret's field URL the address that reads it) or an S3 object (`kind` 's3', `ref` its
+   *  s3:// URL, the secret's fields its keys). The secret by its NAME, bound earlier (bindSecret: R5, Q13). */
+  | { readonly remote: { readonly kind: 'bearer' | 's3'; readonly ref: string; readonly secret: string } }
+  /** A query's rows copied into a table of the engine's own: `how` is 'snap' alone. The pull, never SQL (B3, Q5). */
   | { readonly query: QueryAsk };
+
+/** A secret's field, as the hosts' runner binds one (host-operations.ts SecretField). */
+export type SecretField = 'KEY_ID' | 'SECRET' | 'SESSION_TOKEN' | 'REGION' | 'ENDPOINT' | 'URL_STYLE' | 'USE_SSL' | 'URL';
 
 /** How a source is added: read in place (`live`, a mount) or copied into the engine's database (`snap`). */
 export type SourceHow = 'live' | 'snap';
@@ -102,10 +108,13 @@ export type SourceHow = 'live' | 'snap';
 /** What `addSource` answers: the handle, what it is, and the model the ENGINE wrote over it (Q3). */
 export interface SourceAnswer {
   readonly handle: Handle;
+  /** The id the engine's door minted for the source's plan run (its load, mount or copy). */
+  readonly executionId: string;
   readonly name: string;
-  /** The bytes' SHA-256, lower-case hex (an upload's; a remote's as the engine read it). */
-  readonly digest: string;
-  readonly size: number;
+  /** A file's bytes' SHA-256, lower-case hex, and their size: an upload's or a held file's (none for a remote file or a
+   *  query's rows, whose bytes the engine does not hold). */
+  readonly digest?: string;
+  readonly size?: number;
   /** The model over the source, as Pure text, and the runtime (by name) it is read through: what a QueryAsk sends. */
   readonly model: string;
   readonly runtime: string;
@@ -156,13 +165,15 @@ export interface Capabilities {
     readonly parse: boolean;
     readonly print: boolean;
     readonly elements: boolean;
+    /** bindSecret: a secret held by name for this session (Q13). */
+    readonly bindSecret: boolean;
     readonly addSource?: { readonly sources: readonly SourceKind[]; readonly how: readonly SourceHow[] };
     readonly write?: { readonly modes: readonly WriteModeName[] };
   };
 }
 
 /** A source's kind, by name. */
-export type SourceKind = 'upload' | 'url' | 'remote' | 'query';
+export type SourceKind = 'upload' | 'held' | 'url' | 'remote' | 'query';
 
 /** A write mode, by name. */
 export type WriteModeName = 'create' | 'overwrite' | 'append' | 'deleteAppend' | 'merge';
@@ -189,6 +200,12 @@ export interface EngineSession {
   print(query: Lambda, style?: PrintStyle, o?: CallOptions): Promise<string>;
   /** A model's elements as the compiler reads them: a saved query's project (compile-only). */
   elements(model: string, o?: CallOptions): Promise<unknown[]>;
+  /**
+   * A secret held under `name` for this session, its fields as a person gave them (Q13): WRITE-ONLY -- it answers nothing,
+   * and nothing ever echoes it back (no answer, error, receipt, explain text or plan); dropped when the session closes. A
+   * plan carries its name alone; the engine binds the value at run. The caller keeps no copy.
+   */
+  bindSecret(name: string, fields: Readonly<Partial<Record<SecretField, string | boolean>>>, o?: CallOptions): Promise<void>;
   /** Best effort; an unknown request is no error, and an answer already streamed stays valid. */
   cancel(request: RequestId): Promise<void>;
   close(): Promise<void>;
@@ -301,6 +318,7 @@ export function refusalOf(caps: Capabilities, call: CallName, option?: { readonl
     case 'parse':
     case 'print':
     case 'elements':
+    case 'bindSecret':
       return caps.calls[call] ? undefined : not(call, 'its capabilities do not list it');
     case 'addSource': {
       const offered = caps.calls.addSource;
@@ -322,6 +340,7 @@ export function refusalOf(caps: Capabilities, call: CallName, option?: { readonl
 /** A source ask's kind, by name. */
 export function sourceKind(source: SourceAsk): SourceKind {
   if ('upload' in source) return 'upload';
+  if ('held' in source) return 'held';
   if ('url' in source) return 'url';
   if ('remote' in source) return 'remote';
   return 'query';

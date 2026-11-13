@@ -9,7 +9,8 @@
 import { colSpecs, fn, lambda, lit, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import {
   ENGINE_CONTRACT_VERSION, isEngineError, refusalOf, requireContract,
-  type Capabilities, type Engine, type EngineError, type EngineSession, type QueryAsk, type ResultColumn,
+  type Capabilities, type Engine, type EngineError, type EngineSession, type Handle, type QueryAsk, type ResultColumn,
+  type SourceAnswer,
 } from '../src/engine-contract.ts';
 
 /** A source the engine serves, as the engine modelled it, and what the suite expects of it. */
@@ -30,14 +31,28 @@ export interface ConformanceFixture {
   readonly store: string;
   /** A table of the engine's database no source is: where the write cases write (made by the first). */
   readonly writeTarget: string;
+  /** A CSV of `id,name` an upload carries, and how many rows it holds. */
+  readonly upload: { readonly name: string; readonly text: string; readonly rows: number };
+  /** A text a secret is made to hold (a bearer URL's query): it must never come back, anywhere the suite reads. */
+  readonly sentinel: string;
+  /** A file the engine already holds, by the handle it issued (an engine that offers `held`). */
+  readonly held?: Handle;
+  /** Where a remote file the engine reads is served (`<base>/remote.csv`, `upload`'s rows; `<base>/gone.csv` is not):
+   *  absent where the engine's database makes no request from this test (DuckDB-WASM in Node), and the remote cases
+   *  then say they did not run, and why. */
+  readonly served?: { readonly base: string };
 }
 
-/** One case's outcome. */
+/** One case's outcome: passed, failed (its error), or not run here (why: its host's test pins each). */
 export interface CaseResult {
   readonly name: string;
   readonly ok: boolean;
   readonly error?: string;
+  readonly notRun?: string;
 }
+
+/** A case that cannot run against this fixture, by its reason: reported, never passed silently. */
+class NotRun extends Error {}
 
 interface Case {
   readonly name: string;
@@ -230,6 +245,118 @@ const WRITES: readonly Case[] = [
   },
 ];
 
+const offers = (caps: Capabilities, kind: 'upload' | 'held' | 'url' | 'remote' | 'query'): boolean =>
+  caps.calls.addSource?.sources.includes(kind) ?? false;
+const over = (a: SourceAnswer, query: Lambda['body'][number] = a.relation): QueryAsk =>
+  ({ model: a.model, runtime: a.runtime, query: lambda([], query) });
+const bytes = (text: string): Uint8Array => new TextEncoder().encode(text);
+/** Nothing the suite reads holds the sentinel. */
+const clean = (f: ConformanceFixture, what: string, value: unknown): void =>
+  check(!JSON.stringify(value ?? null).includes(f.sentinel), `${what} holds the secret`);
+
+const SOURCES: readonly Case[] = [
+  {
+    name: 'C14 an upload: a handle the engine issued, described, queried over the model the engine wrote, dropped',
+    async run(_e, s, caps, f) {
+      if (!offers(caps, 'upload')) {
+        await rejects(() => s.addSource({ upload: { name: f.upload.name, bytes: bytes(f.upload.text) } }, 'snap'), 'refused', 'an upload, not offered', 'upload');
+        return;
+      }
+      const added = await s.addSource({ upload: { name: f.upload.name, bytes: bytes(f.upload.text) } }, 'snap');
+      check(added.handle.handle.length > 0 && added.executionId.length > 0, 'a handle and an execution id');
+      equal(added.size, bytes(f.upload.text).length, 'its size');
+      check(!added.model.includes('###Connection') && !added.model.includes('###Runtime'), 'R3a (c): its model names its runtime alone');
+      equal((await s.describe(added.handle)).columns.map((c) => c.name), ['id', 'name'], 'its columns');
+      equal((await rowsOf(s, over(added))).count, f.upload.rows, 'its rows');
+      await rejects(() => s.addSource({ upload: { name: f.upload.name, bytes: bytes(f.upload.text) } }, 'live'), 'refused', 'a file added live', 'live');
+      await s.drop(added.handle);
+      await rejects(() => s.describe(added.handle), 'refused', 'a dropped handle', added.handle.handle);
+      await rejects(() => rowsOf(s, over(added)), 'refused', "a dropped source's runtime", added.runtime);
+    },
+  },
+  {
+    name: 'C15 a held file by the handle the engine issued; a foreign or path-shaped handle refused by name',
+    async run(_e, s, caps, f) {
+      if (!offers(caps, 'held')) {
+        await rejects(() => s.addSource({ held: { handle: 'held-none' } }, 'snap'), 'refused', 'a held file, not offered', 'held');
+        return;
+      }
+      if (f.held === undefined) throw new NotRun('the engine offers held files, and the fixture holds none');
+      const added = await s.addSource({ held: f.held }, 'snap');
+      equal((await rowsOf(s, over(added))).count, f.upload.rows, "the held file's rows");
+      for (const handle of ['held-none', '/etc/passwd']) await rejects(() => s.addSource({ held: { handle } }, 'snap'), 'refused', `the handle '${handle}'`, handle);
+      await s.drop(added.handle);
+    },
+  },
+  {
+    name: 'C16 bindSecret is write-only: it answers nothing, a bad field refused without its value, a secret unknown by name refused',
+    async run(_e, s, caps, f) {
+      if (!caps.calls.bindSecret) {
+        await rejects(() => s.bindSecret('s', { URL: f.sentinel }), 'refused', 'bindSecret, not offered', 'bindSecret');
+        return;
+      }
+      equal(await s.bindSecret('conformance_url', { URL: `https://example.invalid/remote.csv?sig=${f.sentinel}` }), undefined, 'its answer');
+      const bad = await rejects(() => s.bindSecret('bad', { PASSWORD: f.sentinel } as never), 'refused', 'a field no secret has', 'PASSWORD');
+      clean(f, 'the refusal of a bad field', { message: bad.message });
+      if (offers(caps, 'remote')) {
+        await rejects(() => s.addSource({ remote: { kind: 'bearer', ref: 'https://example.invalid/x.csv', secret: 'no_such_secret' } }, 'live'), 'refused', 'an unknown secret', 'no_such_secret');
+      }
+    },
+  },
+  {
+    name: "C17 a remote file by its secret's name, read live; its secret never echoed, the database's own words included; dropped with its session",
+    async run(engine, s, caps, f) {
+      if (!offers(caps, 'remote')) return;
+      const served = f.served;
+      if (served === undefined) throw new NotRun("the engine's database makes no request from this test: no served file to read");
+      await s.bindSecret('remote_url', { URL: `${served.base}/remote.csv?sig=${f.sentinel}` });
+      const added = await s.addSource({ remote: { kind: 'bearer', ref: `${served.base}/remote.csv`, secret: 'remote_url' } }, 'live');
+      clean(f, 'the source', added);
+      const answer = await s.query(over(added));
+      clean(f, 'the explain text and receipt', { explain: answer.explain, receipt: answer.receipt });
+      let n = 0;
+      for await (const b of answer.rows) n += b.numRows;
+      equal(n, f.upload.rows, "the remote file's rows");
+      await s.bindSecret('gone_url', { URL: `${served.base}/gone.csv?sig=${f.sentinel}` });
+      const e = await rejects(() => s.addSource({ remote: { kind: 'bearer', ref: `${served.base}/gone.csv`, secret: 'gone_url' } }, 'live'), 'run', 'a remote file that is not there');
+      clean(f, "the database's words", { message: e.message });
+      const other = await engine.open();
+      try {
+        await rejects(() => other.addSource({ remote: { kind: 'bearer', ref: `${served.base}/remote.csv`, secret: 'remote_url' } }, 'live'), 'refused', "another session's secret", 'remote_url');
+      } finally {
+        await other.close();
+      }
+      await s.drop(added.handle);
+    },
+  },
+  {
+    name: "C18 a query's rows snapped behind a handle (the pull, never SQL); a query's rows added live refused",
+    async run(_e, s, caps, f) {
+      if (!offers(caps, 'query')) return;
+      const added = await s.addSource({ query: ask(f, lambda([], f.source)) }, 'snap');
+      equal((await s.describe(added.handle)).columns.map((c) => ({ name: c.name, type: c.type })), f.columns.map((c) => ({ name: c.name, type: c.type })), 'its columns');
+      equal((await rowsOf(s, over(added))).count, f.rowCount, 'its rows');
+      await rejects(() => s.addSource({ query: ask(f, lambda([], f.source)) }, 'live'), 'refused', "a query's rows added live", 'live');
+      await s.drop(added.handle);
+    },
+  },
+  {
+    name: "C19 a closed session's sources are dropped with it: another session finds its runtime gone",
+    async run(engine, _s, caps, f) {
+      if (!offers(caps, 'upload')) return;
+      const one = await engine.open();
+      const added = await one.addSource({ upload: { name: f.upload.name, bytes: bytes(f.upload.text) } }, 'snap');
+      await one.close();
+      const two = await engine.open();
+      try {
+        await rejects(() => rowsOf(two, over(added)), 'refused', "a closed session's source", added.runtime);
+      } finally {
+        await two.close();
+      }
+    },
+  },
+];
+
 /** A case run alone on a session of its own, then that session closed: and, closed, the session refuses a call. */
 const CLOSED: Case = {
   name: 'C9 close: a closed session refuses its calls by name',
@@ -251,11 +378,15 @@ export async function runConformance(engine: Engine, fixture: ConformanceFixture
   }
   const session = await engine.open();
   try {
-    for (const c of [...CASES, ...WRITES, CLOSED]) {
+    for (const c of [...CASES, ...WRITES, ...SOURCES, CLOSED]) {
       try {
         await c.run(engine, session, caps, fixture);
         out.push({ name: c.name, ok: true });
       } catch (e) {
+        if (e instanceof NotRun) {
+          out.push({ name: c.name, ok: true, notRun: e.message });
+          continue;
+        }
         out.push({ name: c.name, ok: false, error: e instanceof Error ? `${e.name}: ${e.message}` : String(e) });
       }
     }

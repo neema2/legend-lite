@@ -14,9 +14,12 @@ the schema's (``legend.contract``: the execution id, the schema as the compiler 
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import threading
 import uuid
+from pathlib import Path
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
@@ -69,13 +72,15 @@ def refused(call: str, what: str, why: str, **extra: Any) -> ContractError:
     return ContractError('refused', call, f'{ENGINE_NAME} refuses {what}: {why}', what=what, engine=ENGINE_NAME, **extra)
 
 
-# what this engine does, by the contract's names (engine-contract.ts Capabilities). Step 1 (2026-11-13): the reading
-# calls, typeOf and query; step 2, write; describe, drop and addSource follow with step 3, refused by name until then.
+# what this engine does, by the contract's names (engine-contract.ts Capabilities): step 1 (2026-11-13), the reading
+# calls, typeOf and query; step 2, write; step 3, sources behind handles, describe, drop and bindSecret.
 CAPABILITIES: dict[str, Any] = {
     'contract': VERSION,
     'engine': {'name': ENGINE_NAME, 'databaseType': 'DuckDB'},
-    'calls': {'typeOf': True, 'query': True, 'cancel': True, 'describe': False, 'drop': False,
-              'parse': True, 'print': True, 'elements': True,
+    'calls': {'typeOf': True, 'query': True, 'cancel': True, 'describe': True, 'drop': True,
+              'parse': True, 'print': True, 'elements': True, 'bindSecret': True,
+              # step 3 (2026-11-13): sources, behind handles this engine issues
+              'addSource': {'sources': ['upload', 'held', 'url', 'remote', 'query'], 'how': ['live', 'snap']},
               # step 2 (2026-11-13): DataCube's five table-output modes (Q10), one call, the engine's transaction
               'write': {'modes': ['create', 'overwrite', 'append', 'deleteAppend', 'merge']}},
 }
@@ -102,11 +107,33 @@ class OwnRuntime:
     text: str
 
 
+@dataclass(frozen=True)
+class _Source:
+    """A source a session added, behind the handle it issued: the table (or view) it is in, the model the engine wrote
+    over it (whole, and as DataCube is handed it), its runtime by name, and the relation that reads it."""
+
+    table: str
+    view: bool
+    model: str
+    handed: str
+    runtime: str
+    relation: Any
+
+
 @dataclass
 class _Session:
-    """A session: the handles it issued (none until step 3), dropped when it closes."""
+    """A session: the sources it added, by the handles it issued, and the secrets bound to it by name (Q13) -- both
+    dropped when it closes."""
 
-    handles: set[str] = field(default_factory=set)
+    handles: dict[str, _Source] = field(default_factory=dict)
+    secrets: dict[str, dict[str, Any]] = field(default_factory=dict)
+
+
+# a secret's fields, as the hosts' runner binds them (host-operations.ts SecretField)
+SECRET_FIELDS = frozenset({'KEY_ID', 'SECRET', 'SESSION_TOKEN', 'REGION', 'ENDPOINT', 'URL_STYLE', 'USE_SSL', 'URL'})
+
+# a file's format, by its name's ending
+_FORMATS = {'.csv': 'csv', '.parquet': 'parquet', '.json': 'json'}
 
 
 class EngineSide:
@@ -126,6 +153,28 @@ class EngineSide:
     def write(self, plan: Any) -> str:
         raise NotImplementedError
 
+    def add_file(self, path: str, name: str, digest: str, size: int, file_format: str) -> dict[str, Any]:
+        """A file this engine holds read into a table of its own (a planned fileLoad): its model, runtime, source and
+        table."""
+        raise NotImplementedError
+
+    def mount(self, asked: str, request: dict[str, Any], secrets: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+        """A remote file mounted as a view (a planned remoteMount), what it binds by name bound from ``secrets``: its
+        model, runtime, source and view."""
+        raise NotImplementedError
+
+    def snap(self, model: str, runtime: str, query: Any) -> dict[str, Any]:
+        """A query's rows copied into a table of its own (a planned snapCopy): its model, runtime, source and table."""
+        raise NotImplementedError
+
+    def drop(self, table: str, view: bool) -> None:
+        """A source's table or view dropped, its model served no more."""
+        raise NotImplementedError
+
+    def spool(self, name: str, data: bytes) -> str:
+        """A person's upload kept as a file this engine holds: its path, never handed out."""
+        raise NotImplementedError
+
 
 class ContractDoor:
     """THE CONTRACT'S DOOR ON PYTHON: each call answered by name; a query's run given its execution id HERE, once per
@@ -142,6 +191,8 @@ class ContractDoor:
         # to the whole model it was written as (c)
         self._runtimes: dict[str, OwnRuntime] = {}
         self._served: dict[tuple[str, str], str] = {}
+        # the files this engine holds, by the handles it issued for them (hold)
+        self._held: dict[str, str] = {}
 
     # ---- R3a: the engine owns its runtimes
 
@@ -190,7 +241,9 @@ class ContractDoor:
 
     def answer(self, call: str, body: str, over: Any = None) -> Said:
         """``call`` (the path's last part) answered over ``body`` (JSON) -- ``over``, the read of the frames it was made
-        in (D15), where a call reads the database. Never raises: a failure is a ContractError's JSON."""
+        in (D15), where a call reads the database. Never raises: a failure is a ContractError's JSON, every secret its
+        session holds taken out of its words (Q13: nothing echoes a secret, the database's own words included)."""
+        asked: Any = {}
         try:
             asked = json.loads(body) if body else {}
             if not isinstance(asked, dict):
@@ -201,7 +254,33 @@ class ContractDoor:
                 raise refused('capabilities', f"the call '{call}'", 'the contract names no such call')
             return handler(self, asked, over)
         except ContractError as failure:
-            return failure.said()
+            return self._redacted(failure, asked).said()
+
+    def _redacted(self, failure: ContractError, asked: Any) -> ContractError:
+        name = asked.get('session') if isinstance(asked, dict) else None
+        with self._lock:
+            session = self._sessions.get(name) if isinstance(name, str) else None
+            values = sorted({str(v) for s in (session.secrets.values() if session else ()) for v in s.values()
+                             if isinstance(v, str) and v}, key=len, reverse=True)
+        if not values:
+            return failure
+
+        def clean(text: str) -> str:
+            for v in values:
+                text = text.replace(v, '<redacted>')
+            return text
+        return ContractError(failure.kind, failure.call, clean(failure.message),
+                             **{k: clean(v) if isinstance(v, str) else v for k, v in failure.extra.items()})
+
+    # ---- the files this engine holds (Q12)
+
+    def hold(self, path: str) -> dict[str, str]:
+        """A file this engine holds, given a handle DataCube's code may name it by (``{held: handle}``): the handle
+        only this engine resolves -- never a path handed out."""
+        handle = f'held-{uuid.uuid4().hex}'
+        with self._lock:
+            self._held[handle] = str(path)
+        return {'handle': handle}
 
     # ---- sessions
 
@@ -212,9 +291,21 @@ class ContractDoor:
         return _json({'session': session})
 
     def _close(self, asked: Mapping[str, Any], over: Any) -> Said:
+        """A session closed: what it made dropped -- each source's table or view -- and its secrets let go of."""
         with self._lock:
-            self._sessions.pop(_session_of(asked, 'close'), None)
+            session = self._sessions.pop(_session_of(asked, 'close'), None)
+        if session is not None:
+            session.secrets.clear()
+            for source in session.handles.values():
+                self._forget(source)
+            session.handles.clear()
         return _json({})
+
+    def _forget(self, source: _Source) -> None:
+        self._side.drop(source.table, source.view)
+        with self._lock:
+            self._served.pop((source.handed, source.runtime), None)
+            self._runtimes.pop(source.runtime, None)
 
     def _session(self, asked: Mapping[str, Any], call: str) -> _Session:
         name = _session_of(asked, call)
@@ -355,25 +446,163 @@ def _tables_of(model: str) -> list[dict[str, Any]]:
     return out
 
 
+def _bind_secret(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
+    """A secret held under its name for this session (Q13): WRITE-ONLY -- it answers nothing and nothing ever echoes it
+    back; its fields as the hosts' runner binds them; dropped when the session closes. A plan names it alone."""
+    session = door._session(asked, 'bindSecret')
+    name, fields = asked.get('name'), asked.get('fields')
+    if not isinstance(name, str) or not name.replace('_', '').isalnum():
+        raise refused('bindSecret', 'a secret with no plain name', "a secret is named by letters, digits and '_'")
+    if not isinstance(fields, dict) or not fields:
+        raise refused('bindSecret', f"the secret '{name}' with no field", 'a secret is held as its fields')
+    for k, v in fields.items():
+        if k not in SECRET_FIELDS or not isinstance(v, (str, bool)):
+            # the field's name alone, never its value
+            raise refused('bindSecret', f"the field '{k}' of the secret '{name}'",
+                          f"a secret's fields are {', '.join(sorted(SECRET_FIELDS))}, each text or a boolean")
+    session.secrets[name] = dict(fields)
+    return Said(204, 'application/json', b'')
+
+
+def _add_source(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
+    """A SOURCE ADDED (step 3): an upload, a file this engine holds by its handle, a URL, a remote file by its secret's
+    name, or a query's rows -- planned and run here (a fileLoad, a remoteMount, a snapCopy), the model over it written
+    by this engine (Q3) and handed DataCube as R3a has it, behind a handle this session issued. Its execution id minted
+    once for the plan run; in no read of the frames."""
+    session = door._session(asked, 'addSource')
+    source, how = asked.get('source'), asked.get('how')
+    if over is not None:
+        raise refused('addSource', 'a source added in a read of the frames', 'a read sees the database as it was when '
+                      'it began: a source is added in no read')
+    if not isinstance(source, dict) or len(source) != 1 or how not in ('live', 'snap'):
+        raise refused('addSource', 'a source that is not one SourceAsk and how', 'addSource is asked a source and how')
+    (kind, given), = source.items()
+    execution = uuid.uuid4().hex
+    digest = size = None
+    try:
+        if kind in ('upload', 'held'):
+            if how != 'snap':
+                raise refused('addSource', f"a file added '{how}'", "a file is read into a table of this engine's own "
+                              '(snap)')
+            if kind == 'upload':
+                name, data = given.get('name'), given.get('bytes')
+                if not isinstance(name, str) or not isinstance(data, str):
+                    raise refused('addSource', 'an upload with no name or bytes', 'an upload is its name and bytes')
+                raw = base64.b64decode(data)
+                path = door._side.spool(name, raw)
+            else:
+                handle = given.get('handle') if isinstance(given, dict) else None
+                with door._lock:
+                    path = door._held.get(handle) if isinstance(handle, str) else None
+                if path is None:
+                    raise refused('addSource', f"the handle {json.dumps(handle)}", 'it is no file this engine holds')
+                raw = Path(path).read_bytes()
+                name = Path(path).name
+            file_format = _FORMATS.get(Path(name).suffix.lower())
+            if file_format is None:
+                raise refused('addSource', f"the file '{name}'", f"a file is read as {', '.join(sorted(_FORMATS))}")
+            digest, size = hashlib.sha256(raw).hexdigest(), len(raw)
+            made = door._side.add_file(path, name, digest, size, file_format)
+        elif kind in ('url', 'remote'):
+            if how != 'live':
+                raise refused('addSource', f"a remote file added '{how}'", "a remote file is mounted live; its rows are "
+                              "snapped as a query's ({query})")
+            made = door._side.mount(*_mount_of(session, kind, given))
+        elif kind == 'query':
+            if how != 'snap':
+                raise refused('addSource', f"a query's rows added '{how}'", "a query's rows are added as a snap alone")
+            pull = _query_ask({'ask': given}, 'addSource')
+            made = door._side.snap(door._model_for(pull, 'addSource'), pull['runtime'], pull['query'])
+        else:
+            raise refused('addSource', f"a source of kind '{kind}'", 'a source is an upload, a held file, a url, a '
+                          'remote file or a query')
+    except ContractError:
+        raise
+    except compiler.LegendError as failure:
+        raise ContractError('compile', 'addSource', failure.message, executionId=execution) from None
+    except Exception as failure:
+        raise ContractError('run', 'addSource', f'{type(failure).__name__}: {failure}', executionId=execution) from None
+    handed, runtime = door.served(made['model'], made['runtime'])
+    handle = f'h-{uuid.uuid4().hex}'
+    session.handles[handle] = _Source(made['table'], kind in ('url', 'remote'), made['model'], handed, runtime,
+                                      made['source'])
+    return _json({'handle': {'handle': handle}, 'name': made['table'], 'model': handed, 'runtime': runtime,
+                  'relation': made['source'], 'executionId': execution,
+                  **({'digest': digest, 'size': size} if digest is not None else {})})
+
+
+def _mount_of(session: _Session, kind: str, given: Any) -> tuple[str, dict[str, Any], dict[str, dict[str, Any]]]:
+    """A URL's or a remote file's mount request, and the secrets it binds by name (Q13: the plan names them alone)."""
+    if kind == 'url':
+        url = given if isinstance(given, str) else None
+        if url is None:
+            raise refused('addSource', 'a url that is not text', 'a url source is its address')
+        return 'remote', {'location': {'url': url}, 'format': _remote_format(url)}, {}
+    if not isinstance(given, dict) or set(given) != {'kind', 'ref', 'secret'} or given['kind'] not in ('bearer', 's3'):
+        raise refused('addSource', 'a remote source that is not its kind, ref and secret',
+                      "a remote source is a bearer URL or an s3 object, and its secret's name")
+    secret = session.secrets.get(given['secret'])
+    if secret is None:
+        raise refused('addSource', f"the secret '{given['secret']}'", 'no secret of that name is bound to this session')
+    ref = given['ref']
+    if given['kind'] == 'bearer':
+        if set(secret) != {'URL'}:
+            raise refused('addSource', f"the secret '{given['secret']}' for a bearer URL", 'a bearer URL is held as its '
+                          'field URL alone')
+        request = {'location': {'bearer': given['secret'], 'shown': ref}, 'format': _remote_format(ref)}
+    else:
+        request = {'location': {'url': ref}, 'format': _remote_format(ref),
+                   'credentials': {'name': given['secret'], 'fields': sorted(secret)}}
+    return 'remote', request, {given['secret']: secret}
+
+
+def _remote_format(url: str) -> str:
+    path = url.partition('?')[0].lower()
+    for ending, fmt in (('.csv', 'csv'), ('.parquet', 'parquet')):
+        if path.endswith(ending):
+            return fmt
+    raise refused('addSource', f"the remote file {url.partition('?')[0]!r}", 'a remote file is read as csv or parquet')
+
+
+def _source_of(door: ContractDoor, asked: Mapping[str, Any], call: str) -> tuple[_Session, str, _Source]:
+    session = door._session(asked, call)
+    given = asked.get('handle')
+    handle = given.get('handle') if isinstance(given, dict) else None
+    source = session.handles.get(handle) if isinstance(handle, str) else None
+    if source is None:
+        raise refused(call, f'the handle {json.dumps(handle)}', 'it is no handle this session issued, or it was dropped')
+    return session, handle, source
+
+
+def _describe(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
+    """A source's columns, as the compiler types the relation that reads it (compile-only)."""
+    _, _, source = _source_of(door, asked, 'describe')
+    query = {'_type': 'lambda', 'parameters': [], 'body': [source.relation]}
+    columns = _compiled('describe', lambda: compiler.relation_type(source.model, query))
+    return _json({'columns': [_column(c, 'describe') for c in columns]})
+
+
+def _drop(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
+    """A source dropped: its table or view, its model served no more, its handle refused from now on."""
+    session, handle, source = _source_of(door, asked, 'drop')
+    if over is not None:
+        raise refused('drop', 'a source dropped in a read of the frames', 'a source is dropped in no read')
+    del session.handles[handle]
+    try:
+        door._forget(source)
+    except Exception as failure:
+        raise ContractError('run', 'drop', f'{type(failure).__name__}: {failure}') from None
+    return _json({})
+
+
 _CALLS: dict[str, Callable[[ContractDoor, Mapping[str, Any], Any], Said]] = {
     'capabilities': ContractDoor._capabilities, 'open': ContractDoor._open, 'close': ContractDoor._close,
     'cancel': ContractDoor._cancel, 'parse': ContractDoor._parse, 'print': ContractDoor._print,
     'elements': ContractDoor._elements, 'typeOf': ContractDoor._type_of, 'query': ContractDoor._query,
-    'write': _write,
+    'write': _write, 'bindSecret': _bind_secret, 'addSource': _add_source, 'describe': _describe, 'drop': _drop,
 }
 
 
-
-def _not_offered(call: str) -> Callable[[ContractDoor, Mapping[str, Any], Any], Said]:
-    """A call the contract names that this engine does not do yet: refused by name (its capabilities say so)."""
-    def refuse(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said:
-        raise refused(call, call, 'its capabilities do not list it')
-    return refuse
-
-
-# these follow with step 3
-for _call in ('addSource', 'describe', 'drop'):
-    _CALLS[_call] = _not_offered(_call)
 
 
 def _sections(text: str, names: tuple[str, ...]) -> str:

@@ -4,8 +4,13 @@ engine owns its runtimes), the execution id minted once per plan run -- and engi
 contract's R7) run in Python's V8, against Python's engine, through the V8 bridge (engine-wire.ts bridge: the host's
 ``engine`` call, answered by Engine.answer_over over the call's read)."""
 
+import base64
+import functools
+import http.server
 import json
 import os
+import tempfile
+import threading
 import unittest
 from pathlib import Path
 
@@ -18,6 +23,28 @@ from legend_lite.engine import Engine
 from legend_lite.frames import Frames
 
 ROWS = pa.table({'id': [1, 2, 3, 4], 'name': ['a', 'b', 'c', 'd']})
+CSV = 'id,name\n1,a\n2,b\n3,c\n'
+SENTINEL = 'SENTINEL-held-4f1c'
+
+
+class _Served_Files:
+    """A folder served over HTTP on 127.0.0.1: what a remote source reads (a URL's query string ignored)."""
+
+    def __init__(self):
+        self.folder = tempfile.TemporaryDirectory()
+        Path(self.folder.name, 'remote.csv').write_text(CSV, encoding='utf-8')
+
+        class Quiet(http.server.SimpleHTTPRequestHandler):
+            def log_message(self, *_):
+                pass
+        self.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0),
+                                                      functools.partial(Quiet, directory=self.folder.name))
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.base = f'http://127.0.0.1:{self.server.server_address[1]}'
+
+    def close(self):
+        self.server.shutdown()
+        self.folder.cleanup()
 
 
 class _Served(unittest.TestCase):
@@ -33,7 +60,7 @@ class _Served(unittest.TestCase):
     def call(self, name, body):
         said = self.engine.contract.answer(name, json.dumps(body))
         if said.content_type == 'application/json':
-            return said.status, json.loads(said.body)
+            return said.status, json.loads(said.body) if said.body else None
         return said.status, said.body
 
     def session(self):
@@ -49,6 +76,8 @@ class TheDoorTest(_Served):
         self.assertEqual(caps['engine'], {'name': 'Python', 'databaseType': 'DuckDB'})
         self.assertTrue(caps['calls']['query'] and caps['calls']['typeOf'])
         self.assertEqual(caps['calls']['write'], {'modes': ['create', 'overwrite', 'append', 'deleteAppend', 'merge']})
+        self.assertEqual(caps['calls']['addSource'], {'sources': ['upload', 'held', 'url', 'remote', 'query'],
+                                                      'how': ['live', 'snap']})
 
     def test_a_model_handed_to_datacube_holds_no_connection_or_runtime_and_names_its_runtime(self):
         self.assertNotIn('###Connection', self.model)
@@ -128,6 +157,84 @@ class TheDoorTest(_Served):
             'mode': 'create'}}), over=object())
         self.assertIn('a write made in a read', json.loads(said.body)['error']['message'])
 
+    def add(self, s, source, how):
+        return self.call('addSource', {'session': s, 'source': source, 'how': how})
+
+    def test_an_upload_is_a_handle_described_queried_and_dropped(self):
+        s = self.session()
+        status, said = self.add(s, {'upload': {'name': 'up.csv', 'bytes': base64.b64encode(CSV.encode()).decode()}}, 'snap')
+        self.assertEqual(status, 200, said)
+        handle = said['handle']
+        self.assertTrue(handle['handle'].startswith('h-') and said['executionId'] and said['size'] == len(CSV))
+        self.assertNotIn('###Connection', said['model'])
+        status, described = self.call('describe', {'session': s, 'handle': handle})
+        self.assertEqual(described['columns'], [{'name': 'id', 'type': 'Integer'}, {'name': 'name', 'type': 'String'}])
+        query = {'_type': 'lambda', 'parameters': [], 'body': [said['relation']]}
+        status, body = self.call('query', {'session': s, 'ask': {'model': said['model'], 'runtime': said['runtime'],
+                                                                  'query': query}})
+        self.assertEqual(pyarrow.ipc.open_stream(pa.py_buffer(body)).read_all().num_rows, 3)
+        self.assertEqual(self.call('drop', {'session': s, 'handle': handle}), (200, {}))
+        self.assertEqual(self.call('describe', {'session': s, 'handle': handle})[1]['error']['kind'], 'refused')
+        status, said = self.call('query', {'session': s, 'ask': {'model': said['model'], 'runtime': said['runtime'],
+                                                                  'query': query}})
+        self.assertIn('no runtime this engine owns', said['error']['message'])
+
+    def test_a_held_file_is_named_by_the_handle_the_engine_issued(self):
+        s = self.session()
+        folder = Path(tempfile.mkdtemp())
+        (folder / 'held.csv').write_text(CSV, encoding='utf-8')
+        held = self.engine.contract.hold(str(folder / 'held.csv'))
+        self.assertNotIn(str(folder), json.dumps(held))
+        status, said = self.add(s, {'held': held}, 'snap')
+        self.assertEqual(status, 200, said)
+        for foreign in ({'handle': str(folder / 'held.csv')}, {'handle': 'held-none'}):
+            self.assertEqual(self.add(s, {'held': foreign}, 'snap')[1]['error']['kind'], 'refused')
+        self.assertIn("a file added 'live'", self.add(s, {'held': held}, 'live')[1]['error']['message'])
+
+    def test_a_secret_is_write_only_bound_by_name_and_never_echoed(self):
+        served = _Served_Files()
+        self.addCleanup(served.close)
+        s = self.session()
+        said = self.engine.contract.answer('bindSecret', json.dumps({'session': s, 'name': 'r_url', 'fields': {
+            'URL': f'{served.base}/remote.csv?sig={SENTINEL}'}}))
+        self.assertEqual((said.status, said.body), (204, b''), 'nothing answered')
+        status, added = self.add(s, {'remote': {'kind': 'bearer', 'ref': f'{served.base}/remote.csv', 'secret': 'r_url'}},
+                                 'live')
+        self.assertEqual(status, 200, added)
+        self.assertNotIn(SENTINEL, json.dumps(added))
+        query = {'_type': 'lambda', 'parameters': [], 'body': [added['relation']]}
+        status, body = self.call('query', {'session': s, 'ask': {'model': added['model'], 'runtime': added['runtime'],
+                                                                  'query': query}})
+        self.assertEqual(status, 200, body)
+        self.assertNotIn(SENTINEL.encode(), body)
+        # a remote file that is not there: the database's words, the secret taken out of them
+        self.call('bindSecret', {'session': s, 'name': 'gone_url', 'fields': {'URL': f'{served.base}/gone.csv?sig={SENTINEL}'}})
+        status, said = self.add(s, {'remote': {'kind': 'bearer', 'ref': f'{served.base}/gone.csv', 'secret': 'gone_url'}},
+                                'live')
+        self.assertEqual(said['error']['kind'], 'run')
+        self.assertNotIn(SENTINEL, json.dumps(said))
+        self.assertIn('<redacted>', said['error']['message'])
+        # a secret this session holds none of, and a field no secret has: refused by name, no value said
+        self.assertIn("the secret 'none'", self.add(s, {'remote': {'kind': 'bearer', 'ref': 'x.csv', 'secret': 'none'}},
+                                                     'live')[1]['error']['message'])
+        status, said = self.call('bindSecret', {'session': s, 'name': 'bad', 'fields': {'PASSWORD': SENTINEL}})
+        self.assertNotIn(SENTINEL, json.dumps(said))
+        # dropped with its session: another session holds none of it
+        self.call('close', {'session': s})
+        t = self.session()
+        self.assertIn("the secret 'r_url'", self.add(t, {'remote': {'kind': 'bearer', 'ref': 'x.csv', 'secret': 'r_url'}},
+                                                      'live')[1]['error']['message'])
+
+    def test_a_querys_rows_snapped_and_a_closed_sessions_sources_dropped(self):
+        s = self.session()
+        status, said = self.add(s, {'query': {'model': self.model, 'runtime': self.runtime, 'query': self.query}}, 'snap')
+        self.assertEqual(status, 200, said)
+        table = said['name']
+        self.assertEqual(self.frames.connection._con.execute(f'SELECT count(*) FROM {table}').fetchone(), (4,))
+        self.call('close', {'session': s})
+        self.assertEqual(self.frames.connection._con.execute(
+            f"SELECT count(*) FROM information_schema.tables WHERE table_name = '{table}'").fetchone(), (0,))
+
     def test_parameters_are_refused_by_name_until_step_6(self):
         s = self.session()
         status, said = self.call('query', {'session': s, 'ask': {'model': self.model, 'runtime': self.runtime,
@@ -140,7 +247,13 @@ class ConformanceSuiteTest(_Served):
 
     def test_python_headless_conforms(self):
         script = Path(os.environ['LEGEND_LITE_ENGINE_CONFORMANCE']).read_text(encoding='utf-8')
-        fixture = {'model': self.model, 'runtime': self.runtime, 'source': self.table.source,
+        served = _Served_Files()
+        self.addCleanup(served.close)
+        held_file = Path(served.folder.name, 'held.csv')
+        held_file.write_text(CSV, encoding='utf-8')
+        fixture = {
+                   'upload': {'name': 'up.csv', 'text': CSV, 'rows': 3}, 'sentinel': SENTINEL,
+                   'held': self.engine.contract.hold(str(held_file)), 'served': {'base': served.base},'model': self.model, 'runtime': self.runtime, 'source': self.table.source,
                    'columns': [{'name': 'id', 'type': 'Integer'}, {'name': 'name', 'type': 'String'}],
                    'rowCount': ROWS.num_rows, 'textColumn': 'name', 'keyColumn': 'id', 'ownTable': 'conformance_t',
                    'store': 'conformance_t::DB', 'writeTarget': 'conformance_out'}
@@ -151,8 +264,9 @@ class ConformanceSuiteTest(_Served):
             results = json.loads(h.evaluate(f'legendLiteConformance.run({json.dumps(json.dumps(fixture))})'))
         for r in results:
             print(f"{'ok  ' if r['ok'] else 'FAIL'} {r['name']}{'' if r['ok'] else ': ' + r.get('error', '')}", flush=True)
-        self.assertGreaterEqual(len(results), 13)
+        self.assertGreaterEqual(len(results), 19)
         self.assertEqual([r for r in results if not r['ok']], [])
+        self.assertEqual([r for r in results if r.get('notRun')], [], 'every case runs against Python headless')
 
 
 if __name__ == '__main__':

@@ -36,6 +36,7 @@ import http.server
 import json
 import os
 import re
+import tempfile
 import secrets
 import socket
 import socketserver
@@ -65,7 +66,7 @@ from ._library import library
 from ._pool import _on_compiler_threads, _workers
 from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
 from .keeper import PageKeeper, Refused
-from .projects import ProjectDatabases, run_host_load, run_plan, run_write
+from .projects import HostFile, ProjectDatabases, run_host_load, run_plan, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
 _API = '/api/pure/v1/'
@@ -490,6 +491,8 @@ class _ContractSide(contract.EngineSide):
 
     def __init__(self, engine: Engine) -> None:
         self._engine = weakref.ref(engine)
+        # a person's uploads, kept as files this engine holds (spool)
+        self._spool: Path | None = None
 
     def _of(self) -> Engine:
         engine = self._engine()
@@ -522,6 +525,86 @@ class _ContractSide(contract.EngineSide):
 
         with frames.using_connection():
             return run_plan(plan, run, 'DuckDB')
+
+    # ---- sources (step 3, 2026-11-13): each planned and run here, its model written here, kept by the frames as a
+    # page's file is (served from now on: a query over it reads it through every read's cursor, its held values out of
+    # a failure's words)
+
+    def _model(self, name: str, convertible: bool) -> dict[str, Any]:
+        frames = self._of().frames
+        columns = [dict(zip(('name', 'dataType', 'logicalType', 'precision', 'scale', 'notNull'), r))
+                   for r in send(frames.connection, compiler.catalog_columns_sql('main', name)).fetchall()]
+        written = compiler.table_model({'table': name, 'pkg': name, 'convertible': convertible, 'databaseType': 'DuckDB',
+                                        'columns': columns})
+        if convertible and written['conversions']:
+            # rewritten in place, each conversion the platform's to write from the columns' catalog (convert)
+            _host.run(frames.connection, {'op': 'relation', 'kind': 'table', 'target': _host.name(name), 'replace': True,
+                                          'convert': columns, 'from': {'relation': _host.name(name)}})
+        return {'model': written['model'], 'runtime': written['runtime'], 'source': written['source'], 'table': name}
+
+    def add_file(self, path: str, name: str, digest: str, size: int, file_format: str) -> dict[str, Any]:
+        frames = self._of().frames
+        stem = re.sub(r'[^A-Za-z0-9_]', '_', Path(name).stem) or 'file'
+        with frames.reading_file(stem if stem[0].isalpha() else f'f_{stem}') as table:
+            plan = compiler.file_load({'databaseType': 'DuckDB', 'file': {'name': name, 'digest': digest, 'size': size,
+                                                                          'format': file_format}, 'into': {'table': table}})
+            run_host_load(plan, frames.connection, files=(HostFile(name, digest, size, str(path)),))
+            made = self._model(table, convertible=True)
+            frames.keep_file(table, made)
+        return made
+
+    def mount(self, asked: str, request: dict[str, Any], secrets: Mapping[str, Mapping[str, Any]]) -> dict[str, Any]:
+        engine = self._of()
+        frames = engine.frames
+        extensions = duckdb_extensions()
+        if extensions is None or not frames.owns_connection:
+            raise contract.refused('addSource', 'a remote file', 'this engine reads none: DuckDB\'s httpfs is not in '
+                                   'the package, or the database is not one legend-lite made')
+        held = tuple(str(v) for fields in secrets.values() for v in fields.values() if isinstance(v, str) and v)
+        with frames.reading_file(asked, view=True) as view:
+            engine._extensions_here(extensions)
+            plan = compiler.remote_mount({'databaseType': 'DuckDB', 'view': view, **request})
+            ran = run_host_load(plan, frames.connection, secrets=secrets)
+            settings = tuple((s['sql'], tuple(_bound(b, secrets) for b in s['binds'])) for s in ran.settings)
+            made = self._model(view, convertible=False)
+            frames.keep_file(view, made, view=True, settings=settings, held=held)
+        return made
+
+    def snap(self, model: str, runtime: str, query: Any) -> dict[str, Any]:
+        frames = self._of().frames
+        with frames.reading_file('snap') as table:
+            plan = compiler.snap_copy({'databaseType': 'DuckDB', 'model': model, 'runtime': runtime,
+                                       'lambda': json.dumps(query), 'table': table})
+            run_write(plan, frames.connection)
+            made = self._model(table, convertible=True)
+            frames.keep_file(table, made)
+        return made
+
+    def drop(self, table: str, view: bool) -> None:
+        frames = self._of().frames
+        with frames.holding():
+            _host.run(frames.connection, {'op': 'drop', 'kind': 'view' if view else 'table',
+                                          'target': _host.name(table, schema='main')})
+        frames.forget_file(table)
+
+    def spool(self, name: str, data: bytes) -> str:
+        if self._spool is None:
+            self._spool = Path(tempfile.mkdtemp(prefix='legend-lite-uploads-'))
+        folder = Path(tempfile.mkdtemp(dir=self._spool))
+        path = folder / Path(name).name
+        path.write_bytes(data)
+        return str(path)
+
+
+def _bound(bind: Mapping[str, Any], secrets: Mapping[str, Mapping[str, Any]]) -> Any:
+    """A kept setting's bind, its value: the plan's own, or what the secrets hold by its name and field."""
+    if bind.get('_type') == 'value':
+        return bind['text']
+    value = secrets.get(bind.get('name'), {}).get(bind.get('field'))
+    if value is None:
+        raise ValueError(f"a remote file's setting binds {bind.get('name')}.{bind.get('field')}, which this session holds "
+                         'nothing for')
+    return value
 
 
 class Engine:

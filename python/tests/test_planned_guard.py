@@ -168,7 +168,9 @@ _NETWORK_ROOTS = {'urllib', 'http', 'requests', 'urllib3', 'socket', 'httpx', 'a
 # load (projects.py), a snapshot's stream (engine.py), a frame's attach (frames.py)
 # 2026-11-12 (the final audit's item 1(b)): engine.py 1 -> 2, a served snap's copy run by run_write (the plan of writes
 # alone the planner makes of its pull: Boundary.snapCopy)
-RUNNERS = {'projects.py': 1, 'engine.py': 2, 'frames.py': 1}
+# 2026-11-13 (the DataCube stream's step 3): engine.py 2 -> 5, the engine contract's sources each one planned run --
+# an upload's or a held file's load, a remote mount (run_host_load), a query's rows copied (run_write)
+RUNNERS = {'projects.py': 1, 'engine.py': 5, 'frames.py': 1}
 RUNNER_NAMES = {'run_load', 'run_host_load', 'run_write'}
 
 # EVERY uuid4 MINT, by module and the function it is made in (the DataCube stream's step 1, 2026-11-13: the orchestrator's
@@ -180,6 +182,10 @@ UUID_MINTS = {
     ('_headless.py', 'hand_out'): 1,
     ('contract.py', '_open'): 1,
     ('contract.py', '_query'): 1,
+    # 2026-11-13 (step 3): a source's execution id and its handle (_add_source), a held file's handle (hold) -- names,
+    # never an execution's but the one per plan run
+    ('contract.py', '_add_source'): 2,
+    ('contract.py', 'hold'): 1,
     # 2026-11-13 (step 2): a write's execution id, its door's one mint for that plan run
     ('contract.py', '_write'): 1,
     ('page.py', '_saved'): 1,

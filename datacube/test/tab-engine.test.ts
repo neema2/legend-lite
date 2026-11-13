@@ -18,9 +18,10 @@ import { unplanned } from '../../engine-client/test/unplanned.ts';
 describe("the tab's engine, held to the engine contract's conformance suite", () => {
   let engine: DuckDbEngine;
   let planner: LitePlanner;
+  let db: Awaited<ReturnType<typeof openDatabase>>;
 
   before(async () => {
-    const db = await openDatabase();
+    db = await openDatabase();
     engine = new DuckDbEngine(db.connection);
     planner = plannerFor('', 'local::RT');
     for (const t of ['conformance_t', 'conformance_out']) await engine.run(unplanned(`DROP TABLE IF EXISTS ${t}`), 0);
@@ -34,7 +35,7 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
   });
 
   it('passes every case', async () => {
-    const tab = tabEngine({ database: engine, planner, owns: (t) => t.toLowerCase() === 'conformance_t' });
+    const tab = tabEngine({ database: engine, planner, owns: (t) => t.toLowerCase() === 'conformance_t', files: db.files });
     const written = await planner.tableModel(await catalogColumns(engine, planner, 'conformance_t'),
       { table: 'conformance_t', pkg: 'conformance_t', convertible: true, databaseType: 'DuckDB' });
     const { model, runtime } = await tab.served(written.model, written.runtime);
@@ -44,10 +45,16 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
       columns: [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }],
       rowCount: 4, textColumn: 'name', keyColumn: 'id', ownTable: 'conformance_t', store: 'conformance_t::DB',
       writeTarget: 'conformance_out',
+      upload: { name: 'up.csv', text: 'id,name\n1,a\n2,b\n3,c\n', rows: 3 },
+      sentinel: 'SENTINEL-held-4f1c',
+      // no `served`: DuckDB-WASM in Node makes no request (engine-client node-require.ts), so the remote case says so
     };
     const results = await runConformance(tab, fixture);
-    assert.ok(results.length >= 13, `${results.length} cases ran`);
+    assert.ok(results.length >= 19, `${results.length} cases ran`);
     assert.deepEqual(results.filter((r) => !r.ok), []);
+    // the one case not run here, by name and why: a remote file over HTTP (run against Python headless instead)
+    assert.deepEqual(results.filter((r) => r.notRun !== undefined).map((r) => [r.name.slice(0, 3), r.notRun]),
+      [['C17', "the engine's database makes no request from this test: no served file to read"]]);
     const rows = await engine.exclusive((held) => held.rows(unplanned('SELECT id, name FROM conformance_out ORDER BY id'), []));
     assert.deepEqual(rows.map((r) => [Number(r[0]), r[1]]), [[1, 'a'], [2, 'b'], [3, 'c'], [4, 'd']], 'the last write, merged by its key');
   });

@@ -38,7 +38,8 @@ and a runner as data (G11), but always inside one engine; they never come back f
 |---|---|---|---|
 | `capabilities()` | -- | the calls and options this engine supports, the contract version | DataCube adapts its menus; anything not listed is refused by name if asked |
 | `session.open()` / `close()` | -- | a session | handles live in a session; `close` drops what it made |
-| `addSource(source, how)` | bytes (an upload), a URL, a remote reference (a warehouse table, an S3 object), or a grid's query (a Snap: the pull, never SQL, `how` snap alone); `how` is **live** (a mount, read in place) or **snap** (a planned copy into the engine's database), DataCube's two kinds today | an opaque **handle**, its name, digest and size, and the model the ENGINE wrote over it (its runtime by name, the relation a query starts from) | the engine issues and resolves handles; DataCube never sends a path back |
+| `addSource(source, how)` | bytes (an upload), a file the engine already holds (`held`, by the handle it issued: Q12), a URL, a remote reference by its secret's name (a bearer URL, an S3 object: Q13), or a grid's query (a Snap: the pull, never SQL, `how` snap alone); `how` is **live** (a mount, read in place) or **snap** (a planned copy into the engine's database), DataCube's two kinds today | an opaque **handle**, its name, digest and size, and the model the ENGINE wrote over it (its runtime by name, the relation a query starts from) | the engine issues and resolves handles; DataCube never sends a path back |
+| `bindSecret(name, fields)` | a secret's fields as a person gave them (a bearer URL, S3 keys), under a name | nothing | WRITE-ONLY (Q13): nothing ever echoes it back (no answer, error, receipt, explain text or plan; the database's own words redacted); scoped to the session, dropped on close; a plan names it alone, the engine binds the value at run; DataCube forwards the dialog's fields at once and keeps no copy |
 | `describe(handle)` | a handle | its columns and types | the engine's catalog, by the engine's planner |
 | `drop(handle)` | a handle | done | |
 | `typeOf(query)` | Pure, a runtime | the result type (columns, types) without running | DataCube's builder and typeahead |
@@ -174,4 +175,11 @@ today); the UI's look.
 - **Q11 a write's tables (step 2):** (a) the engine derives the box's source tables from the WriteAsk's model; they are
   never sent. (b) The page's-own-tables rule holds on both sides: DataCube's check stays as UI policy, and the engine
   refuses, by name, a target that is one of its own tables -- the engine is the authority.
+- **Q12 a file the engine holds (step 3):** `{ held: Handle }`, by the handle the engine issued for it; an unknown or
+  foreign handle refused by name.
+- **Q13 secrets (step 3):** `bindSecret(name, fields)`, write-only, session-scoped, the plan carrying the name alone;
+  a remote source names its secret (`{ remote: { kind, ref, secret } }`). Warehouse sign-in (Q8) stays a construction
+  step, a different lifetime.
+- **Q14 the tab's own tables (step 3):** the ones it issued handles for -- Q11 (b)'s rule; the page's held check stays
+  UI policy.
 - **Q9 Arrow:** `RecordBatch` objects in-process for the tab; IPC bytes only on the wire transports.

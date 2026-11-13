@@ -57,7 +57,12 @@ function wireSession(send: WireSend, where: string, caps: Capabilities, session:
   const json = async (name: CallName, body: Record<string, unknown>, o?: CallOptions,
     option?: Parameters<typeof refusalOf>[2]): Promise<unknown> => JSON.parse(text(await call(name, body, o, option)));
   return {
-    addSource: async (source, how: SourceHow, o) => (await json('addSource', { source, how }, o, { source: sourceKind(source), how })) as SourceAnswer,
+    // an upload's bytes cross as base64 (a wire carries JSON)
+    addSource: async (source, how: SourceHow, o) => (await json('addSource', {
+      source: 'upload' in source ? { upload: { name: source.upload.name, bytes: base64(source.upload.bytes) } } : source, how,
+    }, o, { source: sourceKind(source), how })) as SourceAnswer,
+    // write-only: the engine answers nothing, and this client keeps nothing of it
+    bindSecret: async (name, fields, o) => { await call('bindSecret', { name, fields }, o); },
     describe: async (handle, o) => (await json('describe', { handle }, o)) as Described,
     drop: async (handle, o) => { await call('drop', { handle }, o); },
     typeOf: async (ask, o) => (await json('typeOf', { ask }, o)) as ResultType,
@@ -142,6 +147,12 @@ function queryAnswer(bytes: Uint8Array, where: string): QueryAnswer {
     ...(facts.explain !== undefined ? { explain: facts.explain } : {}),
     ...(facts.receipt !== undefined ? { receipt: facts.receipt } : {}),
   };
+}
+
+function base64(bytes: Uint8Array): string {
+  let s = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(s);
 }
 
 function text(bytes: Uint8Array): string {
