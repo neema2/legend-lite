@@ -220,6 +220,21 @@ public final class MongoDb extends AnsiSqlRenderer {
         return List.of(SharedRelationsInPlace.all(), new CarrierStrategies(CAPS));
     }
 
+    /** {@inheritDoc} Yes: a pipeline holds no WITH, so each read of a relation the statement reads more than once is
+     *  its own copy, computed again ({@link SharedRelationsInPlace}); the planner refuses one that picks its rows by no
+     *  order, as on Trino and BigQuery (the tenet audit of PR #81 and the user's ruling, 2026-11-13: MongoDB had
+     *  answered it, its two reads free to pick other rows; S360). */
+    @Override
+    public boolean writesEachReadOfAWithAgain() {
+        return true;
+    }
+
+    /** {@inheritDoc} No: the platform makes no collection of a query's rows on MongoDB. */
+    @Override
+    public boolean stagesSharedRelations() {
+        return false;
+    }
+
     /** {@inheritDoc} A collection's {@code _id} declared {@code OTHER} (an objectId) is read as its hex text. */
     @Override
     protected boolean readsStored(com.legend.sql.SqlDdl.ColumnType t) {

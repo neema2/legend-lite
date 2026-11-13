@@ -380,12 +380,8 @@ public final class PlanRunner {
         ExecutionPlan.Target target = null;
         int results = 0;
         boolean changes = false;
-        boolean writes = false;
         ExecutionPlan.Keyed.Snapshot snapshot = null;
         for (ExecutionPlan.Node step : sequence.steps()) {
-            if (step instanceof ExecutionPlan.Update) {
-                writes = true;
-            }
             if (step instanceof ExecutionPlan.Constant) {
                 // a value the program wrote: the answer, with nothing sent
                 results++;
@@ -456,18 +452,6 @@ public final class PlanRunner {
         ExecutionPlan.Target on = Objects.requireNonNull(target, "a sequence has a step");
         try (Sessions.Session session = changes ? sessions.openToChange(on) : sessions.open(on)) {
             Statements st = opened(session, on, sessions.mark());
-            if (!st.takesTransactions()) {
-                // a database that takes no transaction (ClickHouse): a sequence that changes only its session's own
-                // tables (its effects: a statement's shared relations staged, made and dropped) runs each step as
-                // sent; a write or a keyed snapshot needs the bracket it cannot have, refused by name (the final
-                // review of PR #81, 2026-11-09: they had run unbracketed, a failure part-way keeping earlier writes)
-                if (writes || snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE) {
-                    throw new NotImplementedException("a plan that " + (writes ? "writes" : "reads under a snapshot")
-                            + " on a database that takes no transaction: its steps cannot commit or read as one");
-                }
-                steps(sequence, checked, session, st, held);
-                return;
-            }
             if (snapshot != null && snapshot != ExecutionPlan.Keyed.Snapshot.NONE && st.ownsTransaction()) {
                 // a keyed step's snapshot is the sequence's own transaction, at the isolation the step asks, set
                 // before its first statement (Postgres refuses an isolation changed mid-transaction); a transaction a

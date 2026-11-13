@@ -338,12 +338,12 @@ final class JdbcStatements implements Statements {
     /** Whether the session's database takes a transaction ({@link DatabaseConnector#takesTransactions}): the plan
      *  target's connector's ({@link #check}); for an owner's bracket opened before any statement named its target
      *  ({@code Sessions.Session.inTransaction}), the connector its driver reports, a session no built connector
-     *  reports refused by name -- never bracketed by default (the checkpoint tenets audit's 2, 2026-11-10). The plan
-     *  runner asks it of a sequence's session too ({@link Statements#takesTransactions}: PR #81's staged relations on
-     *  ClickHouse, a write or a keyed snapshot there refused by name; one method since main's #95 merged in,
-     *  2026-11-13). */
-    @Override
-    public boolean takesTransactions() {
+     *  reports refused by name -- never bracketed by default (the checkpoint tenets audit's 2, 2026-11-10). Both
+     *  runners' brackets come here, so a program of steps runs each its own where the database takes no transaction
+     *  (ClickHouse; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 1), as upstream runs them: PR #81's refusal of a
+     *  write there in the query runner alone went, the user's ruling of 2026-11-13 ("agree", after the correctness
+     *  audit found the two runners answering otherwise). */
+    private boolean takesTransactions() {
         if (declared != null) {
             return declared.takesTransactions();
         }

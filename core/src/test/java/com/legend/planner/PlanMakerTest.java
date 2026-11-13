@@ -215,8 +215,8 @@ class PlanMakerTest {
     private static final String GRAPH = "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)"
             + "->serialize(#{s::Item{id, name, price}}#)";
 
-    /** #81's final review, item 14k (9), 2026-11-10: where a database computes a WITH again at each read and has no
-     *  table to compute a shared relation once in,  one that picks its rows by no order (a limit with no sort,
+    /** #81's final review, item 14k (9), 2026-11-10, and S360 (MongoDB, 2026-11-13): where a database computes a WITH
+     *  again at each read and has no table to compute a shared relation once in, one that picks its rows by no order (a limit with no sort,
      *  here or in a WITH it reads) is refused; one that is the same rows each time, or sorted, stays a WITH. */
     @Test
     void aSharedRelationPickedByNoOrderIsRefusedWhereEachReadComputesItAgain() {
@@ -231,10 +231,12 @@ class PlanMakerTest {
         java.util.function.Function<com.legend.sql.SqlQuery, com.legend.sql.SqlWith> shared = body ->
                 new com.legend.sql.SqlWith(List.of(new com.legend.sql.SqlWith.Cte("__let0", body)),
                         com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
-        // the databases that compute a WITH again at each read and have no table to stage one in, by their facts
-        List<com.legend.sql.dialect.SqlDialect> unstaged = Databases.relational().stream().map(Databases::dialect)
+        // the databases that compute a WITH again at each read and have no table to stage one in, by their facts:
+        // Trino, BigQuery, and MongoDB, whose pipeline writes each read in place (the user's ruling, 2026-11-13, S360)
+        List<com.legend.sql.dialect.SqlDialect> unstaged = Databases.implemented().stream().map(Databases::dialect)
                 .filter(d -> d.writesEachReadOfAWithAgain() && !d.stagesSharedRelations()).toList();
-        assertFalse(unstaged.isEmpty(), "some database computes each read of a WITH again and stages none");
+        assertEquals(java.util.Set.of("Trino", "BigQuery", "MongoDb"), unstaged.stream()
+                .map(d -> d.getClass().getSimpleName()).collect(java.util.stream.Collectors.toSet()));
         for (com.legend.sql.dialect.SqlDialect d : unstaged) {
             var refused = assertThrows(com.legend.error.NotImplementedException.class,
                     () -> PlanMaker.stagedShared(d, shared.apply(limited), target, 0));
