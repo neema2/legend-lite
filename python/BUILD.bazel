@@ -306,31 +306,6 @@ py_test(
     ],
 )
 
-# A THROWAWAY PROBE (2026-11-13, the orchestrator's (b); reverted in the commit after it): mini-racer's V8 on the
-# Linux warehouse lane's new image, scenario by scenario (tests/test_v8_probe.py). It fails on purpose to print its report.
-py_test(
-    name = "v8_probe_test",
-    size = "medium",
-    srcs = [
-        "tests/main.py",
-        "tests/test_v8_probe.py",
-    ],
-    args = ["test_v8_probe"],
-    data = [
-        ":wheel_duckdb",
-        "//datacube:headless_bundle",
-        "//native:compiler",
-    ],
-    env = _ENV | _HEADLESS_ENV,
-    main = "tests/main.py",
-    target_compatible_with = _PLATFORMS,
-    deps = [
-        ":headless",
-        ":legend_lite",
-        "@rules_python//python/runfiles",
-    ],
-)
-
 # INTO A PROJECT (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B4; docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D4, Z4-Z7): a
 # page's grids made classes, an association and a data space by DataCube's model actions run headless (model-changes/
 # through the host's fetch) into this user's model home. `MODEL_CHANGES_RECORD=1 bazel run //python:model_test` records
