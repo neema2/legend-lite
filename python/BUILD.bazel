@@ -36,6 +36,7 @@ py_library(
             "legend_lite/keeper.py",
             "legend_lite/notebook.py",
             "legend_lite/page.py",
+            "legend_lite/scalar_parallel/**/*.py",
         ],
     ),
     # the package is typed (PEP 561): an editor or a type checker reads its annotations
@@ -71,7 +72,7 @@ py_library(
         "legend_lite/keeper.py",
         # a DataCube page built in Python (docs/DATACUBE_PYTHON_PAGES_DESIGN_2026_10_09.md)
         "legend_lite/page.py",
-    ],
+    ] + glob(["legend_lite/scalar_parallel/**/*.py"]),
     imports = ["."],
     deps = [
         ":compiler",
@@ -225,11 +226,125 @@ py_test(
     ],
 )
 
+# GENERIC COMPUTATION IN PURE (legend_lite/scalar_parallel: the compute tree, the interpolation basis, the dynamic basis in
+# Pure): traced formulas differentiated and expanded into dynamic Pure models and tables, their queries planned for
+# every database the module names and run on DuckDB, held to Python's own evaluation. No domain.
+py_test(
+    name = "compute_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_compute.py",
+    ],
+    args = ["test_compute"],
+    data = [
+        "//native:compiler",
+    ],
+    env = _ENV,
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # what the headless test is given: DataCube's bundle, and DuckDB's extensions as the wheel carries them
 _HEADLESS_ENV = {
     "LEGEND_LITE_DATACUBE": "$(rlocationpath //datacube:headless_bundle)",
     "LEGEND_LITE_DUCKDB_EXTENSIONS": "$(rlocationpath :wheel_duckdb)",
 }
+
+# INTEREST-RATE PRICING on legend_lite.scalar_parallel (pricing/): a zero curve, swaps, a fitter, a portfolio's risk, a DataCube
+# dashboard (pricing.demo.dashboard) and its demo (bazel run //python:irs_demo). Not in the wheel: legend_lite stays domain-free.
+py_library(
+    name = "pricing",
+    srcs = glob(["pricing/**/*.py"]),
+    imports = ["."],
+    deps = [":legend_lite"],
+)
+
+py_binary(
+    name = "irs_demo",
+    srcs = ["pricing/demo/irs_pricing.py"],
+    data = [
+        ":wheel_duckdb",
+        "//datacube:dist",
+        "//datacube:headless_bundle",
+        "//native:compiler",
+    ],
+    env = _ENV | _HEADLESS_ENV | {
+        "LEGEND_LITE_SITE": "$(rlocationpath //datacube:dist)",
+    },
+    main = "pricing/demo/irs_pricing.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":pricing",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+py_binary(
+    name = "irs_workbench",
+    srcs = ["pricing/demo/irs_workbench.py"],
+    data = [
+        ":wheel_duckdb",
+        "//datacube:dist",
+        "//datacube:headless_bundle",
+        "//native:compiler",
+    ],
+    env = _ENV | _HEADLESS_ENV | {
+        "LEGEND_LITE_SITE": "$(rlocationpath //datacube:dist)",
+    },
+    main = "pricing/demo/irs_workbench.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":pricing",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+py_binary(
+    name = "irs_scaling",
+    srcs = ["pricing/demo/irs_scaling.py"],
+    data = [
+        ":wheel_duckdb",
+        "//datacube:dist",
+        "//datacube:headless_bundle",
+        "//native:compiler",
+    ],
+    env = _ENV | _HEADLESS_ENV | {
+        "LEGEND_LITE_SITE": "$(rlocationpath //datacube:dist)",
+    },
+    main = "pricing/demo/irs_scaling.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":pricing",
+        "@rules_python//python/runfiles",
+    ],
+)
+
+py_test(
+    name = "pricing_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_pricing.py",
+    ],
+    args = ["test_pricing"],
+    data = [
+        ":wheel_duckdb",
+        "//datacube:headless_bundle",
+        "//native:compiler",
+    ],
+    env = _ENV | _HEADLESS_ENV,
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":pricing",
+        "@rules_python//python/runfiles",
+    ],
+)
 
 # the screen's cube documents, case by case, which Python's Page and Grid are held to (datacube/test/parity-screen.test.ts)
 _PARITY_ENV = {"LEGEND_LITE_PARITY": "$(rlocationpath //datacube:test/fixtures/parity/parity.json)"}
@@ -307,7 +422,7 @@ py_test(
     name = "host_sql_test",
     size = "small",
     srcs = ["tests/test_host_sql.py"],
-    data = glob(["legend_lite/*.py"]) + ["//tools/guards:host_sql.txt"],
+    data = glob(["legend_lite/**/*.py"]) + ["//tools/guards:host_sql.txt"],
     env = {
         "HOST_SQL_PACKAGE": "$(rlocationpath legend_lite/__init__.py)",
         "HOST_SQL_RULE": "$(rlocationpath //tools/guards:host_sql.txt)",

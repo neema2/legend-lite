@@ -92,6 +92,9 @@ public enum CoreFn {
     /** {@code $r->read(~col)} &mdash; a row's column through a column spec written at the call, as {@code $r.col} is (lite
      *  surface; Pure.Lite.READ, 2026-10-27). */
     READ("read"),
+    /** {@code diff({x | expr}, point)} &mdash; symbolic differentiation of a univariate numeric lambda at {@code point}
+     *  (lite surface; Pure.Lite.DIFF). */
+    DIFF("diff"),
     /** Relation {@code distinct} / {@code distinct(~[cols])} &mdash; row dedup, optionally narrowing. */
     DISTINCT("distinct"),
     /** Relation {@code concatenate} &mdash; UNION ALL of two same-schema relations. */
@@ -312,6 +315,8 @@ public enum CoreFn {
                 "meta::legend::lite::without"));
         m.put(READ, java.util.Set.of(
                 "meta::legend::lite::read"));
+        m.put(DIFF, java.util.Set.of(
+                "meta::legend::lite::diff"));
         m.put(DISTINCT, java.util.Set.of(
                 "meta::pure::functions::collection::distinct",
                 "meta::pure::functions::relation::distinct",

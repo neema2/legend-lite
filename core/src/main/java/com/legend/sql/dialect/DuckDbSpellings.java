@@ -104,4 +104,17 @@ final class DuckDbSpellings {
     static SqlWriter intDivide(SqlWriter writer, List<SqlExpr> a) {
         return writer.append("(").expr(a.get(0), 6).append(" // ").expr(a.get(1), 6).append(")");
     }
+
+    private static final SqlExpr ERF_BOUND_BODY = ErfMath.ofBound(
+            SqlExpr.Column.of(null, "__erf_x", com.legend.sql.SqlType.Scalar.DOUBLE, true,
+                    com.legend.sql.OutputCol.Origin.DERIVED));
+
+    /** {@code erf(x)} evaluated once via DuckDB's list-lambda binding without derived-table subselect staging. */
+    static SqlWriter erf(SqlWriter writer, List<SqlExpr> a) {
+        return writer.append("list_extract(list_transform([CAST(")
+                .expr(a.get(0), 0)
+                .append(" AS DOUBLE)], __erf_x -> ")
+                .expr(ERF_BOUND_BODY, 0)
+                .append("), 1)");
+    }
 }

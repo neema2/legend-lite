@@ -528,7 +528,7 @@ final class Scalars {
                 Map.entry(Pure.AT_MATH_CBRT, SqlFn.CBRT),
                 Map.entry(Pure.AT_MATH_EXP, SqlFn.EXP), Map.entry(Pure.AT_MATH_LOG, SqlFn.LN),
                 Map.entry(Pure.AT_MATH_LOG10, SqlFn.LOG10), Map.entry(Pure.AT_MATH_POW, SqlFn.POW),
-                Map.entry(Pure.AT_MATH_PI, SqlFn.PI),
+                Map.entry(Pure.AT_MATH_PI, SqlFn.PI), Map.entry(Pure.AT_LEGEND_LITE_ERF, SqlFn.ERF),
                 Map.entry(Pure.AT_MATH_SIN, SqlFn.SIN), Map.entry(Pure.AT_MATH_COS, SqlFn.COS),
                 Map.entry(Pure.AT_MATH_TAN, SqlFn.TAN), Map.entry(Pure.AT_MATH_ASIN, SqlFn.ASIN),
                 // acos/asin: the engine's spec cell is the BARE function

@@ -603,6 +603,15 @@ public final class Pure {
          *  its caller names without renaming it first. Upstream reads a column only as a reflected {@code Column}
          *  evaluated on a row ({@code $rel->columns()}, typed {@code Any}); a {@code ColSpec} there is a name alone. */
         public static final String READ = PKG + "read";
+        /** Symbolic differentiation of a univariate numeric lambda at an evaluation point:
+         *  {@code diff({x | expr}, point)} expands to the analytic derivative {@code d(expr)/dx} evaluated at
+         *  {@code point} during whole-program inlining (Phase G½, SymbolicDiff), so the database evaluates the
+         *  closed-form derivative expression in SQL. */
+        public static final String DIFF = PKG + "diff";
+        /** Error function {@code erf(x) = (2 / sqrt(pi)) * integral_0^x exp(-t^2) dt}:
+         *  differentiates analytically to {@code (2.0 / sqrt(pi())) * exp(-x^2)} in Phase G½ (SymbolicDiff) and
+         *  lowers to {@code SqlFn.ERF} across all SQL dialects. */
+        public static final String ERF = PKG + "erf";
 
         private Lite() {
         }
@@ -665,22 +674,26 @@ public final class Pure {
                     liteLocalName(Lite.UPDATE),
                     liteLocalName(Lite.MERGE),
                     liteLocalName(Lite.WITHOUT),
-                    liteLocalName(Lite.READ));
+                    liteLocalName(Lite.READ),
+                    liteLocalName(Lite.DIFF),
+                    liteLocalName(Lite.ERF));
 
     /** The same surface by FUNCTION ID: each bare name ({@link #LITE_SURFACE}) and the lite overloads it stands for,
      *  the catalog's generated AT_ groups. EngineHandlers adds them to the engine surface, joined by id like the
      *  engine's own rows. A method, not a field: the AT_ groups are initialized after this point in the class. */
     public static java.util.Map<String, List<com.legend.model.FunctionId>> liteSurfaceFunctions() {
-        return java.util.Map.of(
-                liteLocalName(Lite.NAVIGATE), AT_LEGEND_LITE_NAVIGATE,
-                liteLocalName(Lite.SOURCE_URL), AT_LEGEND_LITE_SOURCE_URL,
-                liteLocalName(Lite.JOIN_WITH_PREFIX), AT_LEGEND_LITE_JOIN_WITH_PREFIX,
-                liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX,
-                liteLocalName(Lite.DELETE), AT_LEGEND_LITE_DELETE,
-                liteLocalName(Lite.UPDATE), AT_LEGEND_LITE_UPDATE,
-                liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE,
-                liteLocalName(Lite.WITHOUT), AT_LEGEND_LITE_WITHOUT,
-                liteLocalName(Lite.READ), AT_LEGEND_LITE_READ);
+        return java.util.Map.ofEntries(
+                java.util.Map.entry(liteLocalName(Lite.NAVIGATE), AT_LEGEND_LITE_NAVIGATE),
+                java.util.Map.entry(liteLocalName(Lite.SOURCE_URL), AT_LEGEND_LITE_SOURCE_URL),
+                java.util.Map.entry(liteLocalName(Lite.JOIN_WITH_PREFIX), AT_LEGEND_LITE_JOIN_WITH_PREFIX),
+                java.util.Map.entry(liteLocalName(Lite.AS_OF_JOIN_WITH_PREFIX), AT_LEGEND_LITE_AS_OF_JOIN_WITH_PREFIX),
+                java.util.Map.entry(liteLocalName(Lite.DELETE), AT_LEGEND_LITE_DELETE),
+                java.util.Map.entry(liteLocalName(Lite.UPDATE), AT_LEGEND_LITE_UPDATE),
+                java.util.Map.entry(liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE),
+                java.util.Map.entry(liteLocalName(Lite.WITHOUT), AT_LEGEND_LITE_WITHOUT),
+                java.util.Map.entry(liteLocalName(Lite.READ), AT_LEGEND_LITE_READ),
+                java.util.Map.entry(liteLocalName(Lite.DIFF), AT_LEGEND_LITE_DIFF),
+                java.util.Map.entry(liteLocalName(Lite.ERF), AT_LEGEND_LITE_ERF));
     }
 
     /** Every registered native in the lite-internal package — the
@@ -1064,6 +1077,8 @@ public final class Pure {
     public static final NativeFunctionDefinition DECODE_BASE64__STRING_1 = signature("native function meta::pure::functions::string::decodeBase64(string:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::String[1];");
     public static final NativeFunctionDefinition DENSE_RANK__RELATION_1__WINDOW_1__T_1 = signature("native function meta::pure::functions::relation::denseRank<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition DESCENDING__COL_SPEC_1 = signature("native function meta::pure::functions::relation::descending<T>(column:meta::pure::metamodel::relation::ColSpec<T>[1]):meta::pure::functions::relation::SortInfo<T>[1];");
+    // diff (Lite.DIFF, lite surface): symbolic differentiation of a univariate numeric lambda at an evaluation point
+    public static final NativeFunctionDefinition DIFF__FUNCTION_1__NUMBER_1 = signature("native function meta::legend::lite::diff(fn:meta::pure::metamodel::function::Function<{meta::pure::metamodel::type::Float[1]->meta::pure::metamodel::type::Number[1]}>[1], x:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     public static final NativeFunctionDefinition DISTINCT__RELATION_1 = signature("native function meta::pure::functions::relation::distinct<T>(rel:meta::pure::metamodel::relation::Relation<T>[1]):meta::pure::metamodel::relation::Relation<T>[1];");
     public static final NativeFunctionDefinition DISTINCT__RELATION_1__COL_SPEC_ARRAY_1 = signature("native function meta::pure::functions::relation::distinct<X,T>(rel:meta::pure::metamodel::relation::Relation<T>[1], columns:meta::pure::metamodel::relation::ColSpecArray<X⊆T>[1]):meta::pure::metamodel::relation::Relation<X>[1];");
     public static final NativeFunctionDefinition IS_NUMERIC__STRING_0_1 = signature("native function meta::legend::lite::isNumeric(str:meta::pure::metamodel::type::String[0..1]):meta::pure::metamodel::type::Boolean[0..1];");
@@ -1123,6 +1138,8 @@ public final class Pure {
     // of the contract (identity/primitive/collection/model-defined equality).
     public static final NativeFunctionDefinition EQUAL__ANY_MANY__ANY_MANY = signature("native function meta::pure::functions::boolean::equal(left:meta::pure::metamodel::type::Any[*], right:meta::pure::metamodel::type::Any[*]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition EQ__ANY_1__ANY_1 = signature("native function meta::pure::functions::boolean::eq(left:meta::pure::metamodel::type::Any[1], right:meta::pure::metamodel::type::Any[1]):meta::pure::metamodel::type::Boolean[1];");
+    // erf (Lite.ERF, lite surface): Gaussian error function erf(x) = (2/sqrt(pi)) * int_0^x exp(-t^2) dt
+    public static final NativeFunctionDefinition ERF__NUMBER_1 = signature("native function meta::legend::lite::erf(x:meta::pure::metamodel::type::Number[1]):meta::pure::metamodel::type::Float[1];");
     // Identity (pointer equality) — real pure essential/boolean/equality/
     // is.pure:23 (<<PCT.platformOnly>>). NO SQL lowering: the assertIs
     // K-arm adjudicates identity in World 1 for statically-identified
@@ -2516,8 +2533,10 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DATE_TIME_OF_TEXT = com.legend.model.FunctionId.ofAll(DATE_TIME_OF_TEXT__STRING_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DELETE = com.legend.model.FunctionId.ofAll(DELETE__ACCESSOR_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DELETE_INSTANCES = com.legend.model.FunctionId.ofAll(DELETE_INSTANCES__RELATION_1__CLASS_1__COL_SPEC_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIFF = com.legend.model.FunctionId.ofAll(DIFF__FUNCTION_1__NUMBER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_DIVIDE_ROUND = com.legend.model.FunctionId.ofAll(DIVIDE_ROUND__NUMBER_1__NUMBER_1__INTEGER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ELEMENT_ID = com.legend.model.FunctionId.ofAll(ELEMENT_ID__ANY_0_1, ELEMENT_ID__ANY_MANY);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ERF = com.legend.model.FunctionId.ofAll(ERF__NUMBER_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN = com.legend.model.FunctionId.ofAll(GREATER_THAN_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GREATER_THAN_EQUAL = com.legend.model.FunctionId.ofAll(GREATER_THAN_EQUAL_ANY__ANY_1__ANY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_GROUP_BY_COMPUTED_KEYS = com.legend.model.FunctionId.ofAll(GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_1, GROUP_BY_COMPUTED_KEYS__RELATION_1__FUNC_COL_SPEC_ARRAY_1__AGG_COL_SPEC_ARRAY_1);

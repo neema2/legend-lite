@@ -93,6 +93,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
         super(LEXICON);
     }
 
+    @Override
+    protected boolean spellsErf() {
+        return true;
+    }
+
     // ==================================================================
     // Session and structure
     // ==================================================================
@@ -1614,6 +1619,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case ERF -> writer.function("erf", c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());

@@ -1541,6 +1541,9 @@ public final class UserCallInliner {
                     }
                     yield new TypedMap(args.get(0), lam, c.info());
                 }
+                if (com.legend.builtin.Pure.AT_LEGEND_LITE_DIFF.contains(c.callee().id())) {
+                    yield SymbolicDiff.differentiate(specs.ctx(), args);
+                }
                 // untouched subtrees keep identity (F13 leans on it: the
                 // instance-identity site key is the NODE — a gratuitous
                 // rebuild would re-mint a let-bound instance per side)

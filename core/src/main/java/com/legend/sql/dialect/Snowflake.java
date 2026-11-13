@@ -1365,6 +1365,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case MOD -> modFloored(writer, c.args());
             case REM -> modTruncated(writer, c.args());
             case FLOAT_CANON -> floatCanon(writer, a.get(0));
+            case ERF -> erfApprox(writer, c.args(), parentPrec);
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);

@@ -76,13 +76,13 @@ class HostSqlTest(unittest.TestCase):
 
     def test_no_module_of_pythons_host_spells_sql_but_the_sites_kept(self):
         r = rule()
-        # the package's modules, beside its __init__.py
+        # the package's modules, beside its __init__.py and in its subpackages
         package = Path(FILES.Rlocation(os.environ['HOST_SQL_PACKAGE'])).parent
-        modules = sorted(package.glob('*.py'))
+        modules = sorted(package.rglob('*.py'))
         self.assertGreater(len(modules), 10, f'{package} holds {len(modules)} modules: the guard is not looking')
         found, used = [], []
         for module in modules:
-            name = f'{r["python"][0]}/{module.name}'
+            name = f'{r["python"][0]}/{module.relative_to(package).as_posix()}'
             for line, text in literals(module.read_text(encoding='utf-8')):
                 if not r['statement'].match(text):
                     continue

@@ -128,6 +128,11 @@ public final class DuckDb extends AnsiSqlRenderer {
         return writer.function("strftime", args);
     }
 
+    @Override
+    protected boolean spellsErf() {
+        return true;
+    }
+
     /** {@inheritDoc} DuckDB's: one giant INSERT cost most of a 61 s first query (its loader, the Appender, stages the
      *  rows as text, and one INSERT ... SELECT casts them). */
     @Override
@@ -538,6 +543,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "error");
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case ERF -> DuckDbSpellings.erf(writer, c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

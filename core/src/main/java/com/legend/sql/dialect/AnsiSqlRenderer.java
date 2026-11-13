@@ -128,6 +128,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             ps.add(new FloatCanonText.Expansion(bindsFloatText()));
         }
         ps.addAll(passes());
+        if (!spellsErf()) {
+            ps.add(new ErfMath.Expansion(bindsFloatText()));
+        }
         ps.add(new StoredReads(this::readsStored));
         return java.util.List.copyOf(ps);
     }
@@ -1094,6 +1097,16 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         throw new IllegalStateException("a date call's first argument is its part, not " + e
                 + ": the lowering's bug");
+    }
+
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#ERF} natively; else it is expanded via {@link ErfMath}. */
+    protected boolean spellsErf() {
+        return false;
+    }
+
+    /** Portable Chebyshev rational minimax rendering of {@link com.legend.sql.SqlFn#ERF}. */
+    protected final SqlWriter erfApprox(SqlWriter writer, List<SqlExpr> a, int parentPrec) {
+        return writer.expr(ErfMath.of(a.get(0)), parentPrec);
     }
 
     /** A Float's literal spelling: the portable decomposition over the double's text (a dialect whose double text is

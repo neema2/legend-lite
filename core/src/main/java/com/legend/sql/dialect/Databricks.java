@@ -92,6 +92,11 @@ public final class Databricks extends AnsiSqlRenderer {
         super(LEXICON);
     }
 
+    @Override
+    protected boolean spellsErf() {
+        return true;
+    }
+
     // ==================================================================
     // Session and structure
     // ==================================================================
@@ -1018,6 +1023,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "raise_error");
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case ERF -> writer.function("erf", c.args());
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());

@@ -202,7 +202,12 @@ class NativeCatalogGovernanceTest {
         // +1 2026-10-27 (the user's "look at legend-pure first but yeah lets def build some primitive like that",
         // docs/SEMANTICS_REGISTER.md S114): read -- a row's column through a column spec, typed as $r.col; upstream's
         // ColSpec is a name alone and a column is read only as a reflected Column evaluated on a row (typed Any)
-        assertTrue(Pure.LITE_SURFACE.size() <= 9,
+        // +1 2026-11-10 (symbolic differentiation in Pure, Pure.Lite.DIFF): diff -- compile-time symbolic derivative
+        // of a univariate numeric lambda evaluated at a point, rewritten to closed-form SQL arithmetic in Phase G½
+        // +1 2026-11-10 (Gaussian error function in Pure, Pure.Lite.ERF): erf -- closed-form error function with exact
+        // analytic derivative in SymbolicDiff and Cody IEEE-754 portable SQL expansion in ErfMath; upstream math package
+        // stops at exp/log/sqrt/cbrt/trig
+        assertTrue(Pure.LITE_SURFACE.size() <= 11,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

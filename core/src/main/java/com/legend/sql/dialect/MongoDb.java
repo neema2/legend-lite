@@ -1161,6 +1161,7 @@ public final class MongoDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case ERF -> erfApprox(writer, a, parentPrec);
             // ---- raising
             case ERROR -> raise(writer, a);
         };

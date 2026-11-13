@@ -50,6 +50,7 @@ H2	H2	call	LN	spelled	ln		3
 H2	H2	call	LOG10	spelled	log10		2
 H2	H2	call	POW	spelled	power		9
 H2	H2	call	PI	spelled	pi		1
+H2	H2	call	ERF	emulated	erfApprox		0
 H2	H2	call	SIN	spelled	sin		3
 H2	H2	call	COS	spelled	cos		3
 H2	H2	call	TAN	spelled	tan		2
@@ -272,6 +273,7 @@ Postgres	Postgres	call	LN	emulated	ln(CAST(… AS DOUBLE PRECISION))		3
 Postgres	Postgres	call	LOG10	emulated	log10(CAST(… AS DOUBLE PRECISION))		2
 Postgres	Postgres	call	POW	emulated	power(CAST(… AS DOUBLE PRECISION), CAST(… AS DOUBLE PRECISION))		9
 Postgres	Postgres	call	PI	spelled	pi		1
+Postgres	Postgres	call	ERF	emulated	erfApprox		0
 Postgres	Postgres	call	SIN	spelled	sin		3
 Postgres	Postgres	call	COS	spelled	cos		3
 Postgres	Postgres	call	TAN	spelled	tan		2
@@ -494,6 +496,7 @@ Snowflake	Snowflake	call	LN	spelled	ln		3
 Snowflake	Snowflake	call	LOG10	emulated	LOG(10, …)		2
 Snowflake	Snowflake	call	POW	spelled	power		9
 Snowflake	Snowflake	call	PI	spelled	pi		1
+Snowflake	Snowflake	call	ERF	emulated	erfApprox		0
 Snowflake	Snowflake	call	SIN	spelled	sin		3
 Snowflake	Snowflake	call	COS	spelled	cos		3
 Snowflake	Snowflake	call	TAN	spelled	tan		2
@@ -716,6 +719,7 @@ Trino	Trino	call	LN	spelled	ln		3
 Trino	Trino	call	LOG10	spelled	log10		2
 Trino	Trino	call	POW	spelled	power		9
 Trino	Trino	call	PI	spelled	pi		1
+Trino	Trino	call	ERF	emulated	erfApprox		0
 Trino	Trino	call	SIN	spelled	sin		3
 Trino	Trino	call	COS	spelled	cos		3
 Trino	Trino	call	TAN	spelled	tan		2
@@ -938,6 +942,7 @@ BigQuery	BigQuery	call	LN	emulated	LN(CAST(… AS FLOAT64))		3
 BigQuery	BigQuery	call	LOG10	emulated	LOG10(CAST(… AS FLOAT64))		2
 BigQuery	BigQuery	call	POW	emulated	POW(CAST(… AS FLOAT64), CAST(… AS FLOAT64))		9
 BigQuery	BigQuery	call	PI	emulated	ACOS(-1)		1
+BigQuery	BigQuery	call	ERF	emulated	erfApprox		0
 BigQuery	BigQuery	call	SIN	spelled	SIN		3
 BigQuery	BigQuery	call	COS	spelled	COS		3
 BigQuery	BigQuery	call	TAN	spelled	TAN		2
@@ -1160,6 +1165,7 @@ Databricks	Databricks	call	LN	spelled	ln		3
 Databricks	Databricks	call	LOG10	spelled	log10		2
 Databricks	Databricks	call	POW	spelled	power		9
 Databricks	Databricks	call	PI	spelled	pi		1
+Databricks	Databricks	call	ERF	spelled	erf		0
 Databricks	Databricks	call	SIN	spelled	sin		3
 Databricks	Databricks	call	COS	spelled	cos		3
 Databricks	Databricks	call	TAN	spelled	tan		2
@@ -1382,6 +1388,7 @@ DuckDb	DuckDB	call	LN	spelled	ln		3
 DuckDb	DuckDB	call	LOG10	spelled	log10		2
 DuckDb	DuckDB	call	POW	spelled	power		9
 DuckDb	DuckDB	call	PI	spelled	pi		1
+DuckDb	DuckDB	call	ERF	emulated	erfApprox		0
 DuckDb	DuckDB	call	SIN	spelled	sin		3
 DuckDb	DuckDB	call	COS	spelled	cos		3
 DuckDb	DuckDB	call	TAN	spelled	tan		2
@@ -1604,6 +1611,7 @@ ClickHouse	ClickHouse	call	LN	emulated	(log2(toFloat64(…)) / log2(e()))		3
 ClickHouse	ClickHouse	call	LOG10	spelled	log10		2
 ClickHouse	ClickHouse	call	POW	spelled	pow		9
 ClickHouse	ClickHouse	call	PI	spelled	pi		1
+ClickHouse	ClickHouse	call	ERF	spelled	erf		0
 ClickHouse	ClickHouse	call	SIN	spelled	sin		3
 ClickHouse	ClickHouse	call	COS	spelled	cos		3
 ClickHouse	ClickHouse	call	TAN	spelled	tan		2
@@ -1826,6 +1834,7 @@ SQLite	SQLite	call	LN	spelled	ln		3
 SQLite	SQLite	call	LOG10	spelled	log10		2
 SQLite	SQLite	call	POW	spelled	pow		9
 SQLite	SQLite	call	PI	spelled	pi		1
+SQLite	SQLite	call	ERF	emulated	erfApprox		0
 SQLite	SQLite	call	SIN	spelled	sin		3
 SQLite	SQLite	call	COS	spelled	cos		3
 SQLite	SQLite	call	TAN	spelled	tan		2
@@ -2048,6 +2057,7 @@ MariaDb	MariaDB	call	LN	spelled	ln		3
 MariaDb	MariaDB	call	LOG10	spelled	log10		2
 MariaDb	MariaDB	call	POW	spelled	POW		9
 MariaDb	MariaDB	call	PI	emulated	(PI() + 0.0E0)		1
+MariaDb	MariaDB	call	ERF	emulated	erfApprox		0
 MariaDb	MariaDB	call	SIN	spelled	sin		3
 MariaDb	MariaDB	call	COS	spelled	cos		3
 MariaDb	MariaDB	call	TAN	spelled	tan		2
@@ -2270,6 +2280,7 @@ MySql	MySQL	call	LN	spelled	ln	as MariaDb	3
 MySql	MySQL	call	LOG10	spelled	log10	as MariaDb	2
 MySql	MySQL	call	POW	spelled	POW	as MariaDb	9
 MySql	MySQL	call	PI	emulated	(PI() + 0.0E0)	as MariaDb	1
+MySql	MySQL	call	ERF	emulated	erfApprox	as MariaDb	0
 MySql	MySQL	call	SIN	spelled	sin	as MariaDb	3
 MySql	MySQL	call	COS	spelled	cos	as MariaDb	3
 MySql	MySQL	call	TAN	spelled	tan	as MariaDb	2
@@ -2492,6 +2503,7 @@ MongoDb	MongoDB	call	LN	emulated	op1: $ln		0
 MongoDb	MongoDB	call	LOG10	emulated	op1: $log10		0
 MongoDb	MongoDB	call	POW	emulated	guarded: {"$pow": [{"$toDouble": , }, , ]}		0
 MongoDb	MongoDB	call	PI	emulated	{"$numberDouble": "3.141592653589793"}		0
+MongoDb	MongoDB	call	ERF	emulated	erfApprox		0
 MongoDb	MongoDB	call	SIN	emulated	op1: $sin		0
 MongoDb	MongoDB	call	COS	emulated	op1: $cos		0
 MongoDb	MongoDB	call	TAN	emulated	op1: $tan		0
@@ -2714,6 +2726,7 @@ EngineStyleH2	-	call	LN	spelled	ln		-
 EngineStyleH2	-	call	LOG10	spelled	log10		-
 EngineStyleH2	-	call	POW	spelled	power		-
 EngineStyleH2	-	call	PI	spelled	pi		-
+EngineStyleH2	-	call	ERF	emulated	erfApprox		-
 EngineStyleH2	-	call	SIN	spelled	sin		-
 EngineStyleH2	-	call	COS	spelled	cos		-
 EngineStyleH2	-	call	TAN	spelled	tan		-
@@ -2936,6 +2949,7 @@ EngineStyleDB2	-	call	LN	spelled	ln	as EngineStyleH2	-
 EngineStyleDB2	-	call	LOG10	spelled	log10	as EngineStyleH2	-
 EngineStyleDB2	-	call	POW	spelled	power	as EngineStyleH2	-
 EngineStyleDB2	-	call	PI	spelled	pi	as EngineStyleH2	-
+EngineStyleDB2	-	call	ERF	emulated	erfApprox	as EngineStyleH2	-
 EngineStyleDB2	-	call	SIN	spelled	sin	as EngineStyleH2	-
 EngineStyleDB2	-	call	COS	spelled	cos	as EngineStyleH2	-
 EngineStyleDB2	-	call	TAN	spelled	tan	as EngineStyleH2	-
@@ -3158,6 +3172,7 @@ EngineStyleComposite	-	call	LN	spelled	ln	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	LOG10	spelled	log10	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	POW	spelled	power	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	PI	spelled	pi	as EngineStyleDB2, as EngineStyleH2	-
+EngineStyleComposite	-	call	ERF	emulated	erfApprox	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	SIN	spelled	sin	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	COS	spelled	cos	as EngineStyleDB2, as EngineStyleH2	-
 EngineStyleComposite	-	call	TAN	spelled	tan	as EngineStyleDB2, as EngineStyleH2	-
