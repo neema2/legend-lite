@@ -1150,7 +1150,8 @@ public class Trino extends AnsiSqlRenderer {
 
     /** The {@code ERROR} arm of {@link #call}. */
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
-        List<SqlExpr> a = c.args();
+        // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence)
+        List<SqlExpr> a = raised(c).args();
         writer.append("fail(chr(31) || ");
         if (a.size() > 1) {
             writer.expr(a.get(1), 0).append(" || chr(30) || ");

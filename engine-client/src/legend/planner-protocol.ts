@@ -23,6 +23,8 @@ export const REQUEST_KINDS = [
   'fileLoad',
   'remoteMount',
   'snapStream',
+  'snapCopy',
+  'outputPlan',
   'synthesize',
   'authored',
   'sessionSetup',
@@ -60,8 +62,15 @@ export type RequestBody =
   // a remote file mounted, as a plan (B3's Q3): the request's JSON, names and fields only (Boundary.remoteMount)
   | { readonly kind: 'remoteMount'; readonly request: string }
   // a snapshot from a remote plane, as a plan (the user's ruling of 2026-11-11): the request's JSON, the plane by name,
-  // its statement and the table it lands in (Boundary.snapStream)
+  // the pull the planner plans in the call -- never a statement (the user's ruling of 2026-11-12) -- and the table it
+  // lands in (Boundary.snapStream)
   | { readonly kind: 'snapStream'; readonly request: string }
+  // a snapshot's local copy, as a plan (the final audit's item 1(b), 2026-11-12): the request's JSON, the pull the
+  // planner plans in the call and the table it is copied into -- never a statement (Boundary.snapCopy)
+  | { readonly kind: 'snapCopy'; readonly request: string }
+  // a table Output, as one plan (the final audit's item 2, 2026-11-12): the request's JSON, the box's tables, the
+  // output, its rows as a lambda -- never a statement (Boundary.outputPlan)
+  | { readonly kind: 'outputPlan'; readonly request: string }
   // rows the database generates into a declared table, as a plan (SYNTHESIZE, the user's ruling of 2026-11-12): the
   // request's JSON, the table and its knobs, never a row (Boundary.synthesize)
   | { readonly kind: 'synthesize'; readonly request: string }

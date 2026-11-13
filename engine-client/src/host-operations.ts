@@ -4,7 +4,7 @@
 // HostOperations in Java, by the database's type) as the statements the database runs. The page spells no SQL; a
 // database without an operation refuses it by name. Python's host writes the same JSON (compiler.host_operations).
 
-import type { PlannedSql } from './planned-sql.ts';
+import type { PlannedSql, PlanText } from './planned-sql.ts';
 
 /** A relation's name. `declared`: a model's own table, spelled as its seed made it; any other name is quoted. */
 export interface HostName {
@@ -14,23 +14,32 @@ export interface HostName {
   readonly declared?: boolean;
 }
 
-/** Where a relation's rows come from. */
-export type HostSource =
-  | { readonly relation: HostName }
-  // a person's own file is read by a planned load (B3: the planner's fileLoad, run by plan-runner.ts runLoad), never by
-  // an operation naming it; a remote file likewise (B3's Q3: the planner's remoteMount)
-  /** A query a planner wrote, for this database: a PlannedSql, made where its plan was read (the C final audit's H2,
-   *  2026-11-12: until then any text compiled here, and the platform pasted it into the operation's statement). */
-  | { readonly query: PlannedSql };
+/**
+ * Where a relation's rows come from: a relation of the database. A host operation takes NO SQL (the final audit's item
+ * 1, 2026-11-12: the user's ruling, no planner door takes SQL but the playground's): a query's rows are counted and
+ * copied by the planner's plan of its pull (a snapshot's count, its snapCopy), never by its statement handed back; a
+ * person's own file is read by a planned load (the planner's fileLoad), a remote file likewise (its remoteMount).
+ */
+export type HostSource = { readonly relation: HostName };
+
+/** A column as the database's catalog holds it (Boundary.tableModel's columns): what a copy's conversions are written
+ *  from by the platform (`convert`), never a select list a host hands back. */
+export interface CatalogColumn {
+  readonly name: string;
+  readonly dataType: string;
+  readonly logicalType?: string | null;
+  readonly precision?: number | null;
+  readonly scale?: number | null;
+  readonly notNull?: boolean;
+}
 
 export type HostOperation =
-  /** A relation made: replacing one of its name or not; its columns the planner's copy select list, or every column
-   *  with `replacing`'s replaced (the planner's expressions), or every column. */
+  /** A relation made: replacing one of its name or not; every column, or -- `convert`, the source's columns as its
+   *  catalog holds them -- each the platform converts to hold what its model declares (CatalogModel's conversions,
+   *  written by the database's own select list: the final audit's item 1(d), 2026-11-12). */
   | {
     readonly op: 'relation'; readonly kind: 'table' | 'view'; readonly target: HostName; readonly replace?: boolean;
-    // the planner's own text (its table model's copy select list, its expressions): PlannedSql, made where its answer
-    // is read (H2), never a string a host wrote
-    readonly selectList?: PlannedSql; readonly replacing?: readonly { readonly column: string; readonly sql: PlannedSql }[];
+    readonly convert?: readonly CatalogColumn[];
     readonly from: HostSource;
   }
   | { readonly op: 'drop'; readonly kind: 'table' | 'view'; readonly target: HostName }
@@ -100,29 +109,50 @@ export interface RemoteMountRequest {
 /** Where a remote file's mount's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface RemoteMountSource {
   /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad), binding what it names. */
-  remoteMount(request: RemoteMountRequest): Promise<string>;
+  remoteMount(request: RemoteMountRequest): Promise<PlanText>;
 }
 
 /**
  * A SNAPSHOT'S STREAM, as the planner is asked for its plan (Boundary.snapStream, the user's ruling of 2026-11-11: a
  * snapshot from a remote plane is a planned load whose source is a stream): the host's database's type, the name this
- * host holds the remote plane under, the statement that plane runs (the planner's, for the plane's own database) and the
- * table of this host's database it lands in. Never a row: the planner refuses any other key.
+ * host holds the remote plane under, the PULL -- the grid's base query as its model, runtime and lambda, which the
+ * planner plans in the same call for the plane's own database (the user's ruling of 2026-11-12, "that is a real off
+ * platform problem": a request carries no statement) -- and the table of this host's database it lands in. Never a
+ * row, never SQL: the planner refuses any other key by name.
  */
-export interface SnapStreamRequest {
+export interface SnapStreamRequest extends SnapPull {
   readonly databaseType: string;
   readonly plane: string;
-  /** The statement the remote plane runs: its planner's, as its plan carries it (a PlannedSql: the C final audit's H3,
-   *  2026-11-12), never a host's text. */
-  readonly sql: PlannedSql;
   readonly schema?: string;
   readonly table: string;
 }
 
-/** Where a snapshot's stream's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
+/** A pull, as a planner that plans it where its rows are is asked (its planRequest): the model's text, the runtime it
+ *  runs through, and the query as a lambda's protocol JSON. */
+export interface SnapPull {
+  readonly model: string;
+  readonly runtime: string;
+  readonly lambda: string;
+}
+
+/**
+ * A SNAPSHOT'S LOCAL COPY, as the planner is asked for its plan (Boundary.snapCopy, the final audit's item 1(b),
+ * 2026-11-12): the host's database's type, the PULL, which the planner plans in the call, and the table it is copied
+ * into. Never SQL: the planner refuses any other key by name.
+ */
+export interface SnapCopyRequest extends SnapPull {
+  readonly databaseType: string;
+  readonly schema?: string;
+  readonly table: string;
+}
+
+/** Where a snapshot's stream's and copy's plans come from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface SnapStreamSource {
   /** The plan, PlanJson's text: one HOST_SESSION load whose stream step the hosts' runner runs (runLoad). */
-  snapStream(request: SnapStreamRequest): Promise<string>;
+  snapStream(request: SnapStreamRequest): Promise<PlanText>;
+  /** The plan, PlanJson's text: one write -- its schema, the table there before dropped, the table made from the pull
+   *  (its data: payloads bound by digest) -- in its target's transaction, which the hosts' runner runs (runPlan). */
+  snapCopy?(request: SnapCopyRequest): Promise<PlanText>;
 }
 
 /**
@@ -149,7 +179,7 @@ export type SynthesizeKnob =
 /** Where a synthesized table's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface SynthesizeSource {
   /** The plan, PlanJson's text: one HOST_SESSION load (the table made as declared, then one statement filling it). */
-  synthesize(request: SynthesizeRequest): Promise<string>;
+  synthesize(request: SynthesizeRequest): Promise<PlanText>;
 }
 
 /** What answers a host's operations: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */

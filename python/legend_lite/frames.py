@@ -29,6 +29,7 @@ Integer or a Boolean with nulls stays an integer or a boolean (pandas' nullable 
 from __future__ import annotations
 
 import contextlib
+import copy
 import re
 import sys
 import threading
@@ -200,18 +201,21 @@ class Table:
             if not self.live:
                 self._arrow = None
         rows = send(con, compiler.catalog_columns_sql('main', self.name)).fetchall()
+        columns = [dict(zip(_CATALOG_FIELDS, row)) for row in rows]
         written = compiler.table_model({
             'table': self.name,
             'pkg': self.name,
             # a frame is ours to convert: the view applies the conversions as it reads, the copy as it is made
             'convertible': True,
             'databaseType': 'DuckDB',
-            'columns': [dict(zip(_CATALOG_FIELDS, row)) for row in rows],
+            'columns': columns,
         })
         if written['conversions']:
             source = _host.name(self._registered) if self.live else self._target
+            # its columns as the catalog holds them: the platform writes each conversion (the final audit's item 1(d),
+            # 2026-11-12: never the planner's select list handed back)
             _host.run(con, {'op': 'relation', 'kind': kind, 'target': self._target, 'replace': True,
-                            'selectList': written['copySelectList'], 'from': {'relation': source}})
+                            'convert': columns, 'from': {'relation': source}})
         self.model = written['model']
         self.runtime = written['runtime']
         self.source = written['source']
@@ -324,10 +328,12 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     out = redact_held(said, held)
     if out == said:
         return None
-    try:
-        return type(failure)(out)
-    except Exception:  # an error type that takes no message: said as the database's error
-        return duckdb.Error(out)
+    # of its type, as raised, by a copy: no traceback, cause or context of the original's, its attributes cleared, its
+    # words the redacted ones (2026-11-12, the re-audit's S4: no value's own type is called outside _planned.py)
+    redacted = copy.copy(failure)
+    redacted.__dict__.clear()
+    redacted.args = (out,)
+    return redacted
 
 
 def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
@@ -451,6 +457,9 @@ class Frames:
         # the views a page's remote files are read through (remote.json; docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md
         # §4.3) and the snaps' copies, each by its name (_File)
         self._files: dict[str, _File] = {}
+        # the names a copy is being filled under with the frames let go (``streaming_file``): no frame, file or other
+        # copy takes one until it is kept or dropped
+        self._reserved: set[str] = set()
         # the models a page sent that read only what Python serves (model_for), each held with the tables it declares
         # (checked again at each use: a table no longer served is no longer read), while recent: a page's project, most
         # recent last
@@ -478,6 +487,8 @@ class Frames:
             if key in self._files:
                 raise ValueError(f'a page\'s file was read into a table named {self._files[key].name!r}: '
                                  'a frame takes another name')
+            if key in self._reserved:
+                raise ValueError(f'a snap is being copied into a table named {name!r}: a frame takes another name')
             if old is not None:
                 old._drop()
             elif self._exists(name):
@@ -640,6 +651,44 @@ class Frames:
                                             'target': _host.name(name, schema='main')})
                 raise
 
+    @contextlib.contextmanager
+    def streaming_file(self, asked: str) -> Iterator[tuple[str, Database]]:
+        """A NAME RESERVED, AND A SESSION OF ITS OWN, FOR A TABLE FILLED WITH THE FRAMES LET GO (the final audit's item 3,
+        2026-11-12: a warehouse snap streamed its rows holding the frames' lock and the headless turn, so a slow
+        warehouse held every other read and every other call into DataCube's code). The name is taken as
+        ``reading_file`` takes it, under the lock, and held reserved -- no frame, file or other copy takes it -- while the
+        caller fills the table on the session yielded (a cursor of the connection, set up as a read's is) with the lock
+        free; then it keeps it with ``keep_file`` (taking the lock). A fill that fails leaves nothing under the name: what
+        it made is dropped, under the lock, and the name freed."""
+        if not _NAME.match(asked) or asked in _LITERALS:
+            raise ValueError(f"a file's table is named by a plain identifier (letters, digits, '_'), not {asked!r}")
+        if asked.lower().startswith(_OWN):
+            raise ValueError(f'a name beginning {_OWN} is legend-lite\'s own, not a file\'s: {asked!r}')
+        self._writing()
+        with self._lock:
+            name, n = asked, 2
+            while self._taken(name):
+                name, n = f'{asked}_{n}', n + 1
+            self._reserved.add(name.lower())
+        cursor: Database | None = None
+        try:
+            cursor = self.connection.cursor()
+            for statement in self._setup:
+                send(cursor, statement)
+            yield name, cursor
+        except BaseException:
+            with self._lock:
+                dropped = self._files.pop(name.lower(), None)
+                if dropped is not None:
+                    dropped.held.close()
+                _host.run(self.connection, {'op': 'drop', 'kind': 'table', 'target': _host.name(name, schema='main')})
+            raise
+        finally:
+            if cursor is not None:
+                cursor.close()
+            with self._lock:
+                self._reserved.discard(name.lower())
+
     def keep_file(self, name: str, made: Mapping[str, Any], view: bool = False,
                   settings: tuple[tuple[str, tuple[Any, ...]], ...] = (), held: tuple[str, ...] = ()) -> None:
         """The table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy
@@ -698,7 +747,7 @@ class Frames:
     def _taken(self, name: str) -> bool:
         """Whether a file's table may not take ``name``: a frame's, a file's, or any table or view in the database."""
         key = name.lower()
-        if key in self._tables or key in self._files:
+        if key in self._tables or key in self._files or key in self._reserved:
             return True
         # this database's own and its temporary ones, which a bare name reads: a project's database attached beside it
         # (C5) holds none of the names a file may take
@@ -707,7 +756,7 @@ class Frames:
     def taken(self, name: str) -> bool:
         """Whether ``name`` is a frame's or a page's file's table: a frame of that name cannot be registered."""
         with self._lock:
-            return name.lower() in self._tables or name.lower() in self._files
+            return name.lower() in self._tables or name.lower() in self._files or name.lower() in self._reserved
 
     def _exists(self, name: str) -> bool:
         return _host.count(self.connection, {'op': 'relationExists', 'name': _host.name(name, schema='main')}) > 0
@@ -814,10 +863,12 @@ class Frames:
                 'remotes': {f.leaf['url']: f.hosted() for f in read if 'url' in f.leaf}}
 
     def owned(self) -> list[str]:
-        """The tables and views of this database a page's grids read -- each frame's, each page's file's -- none of which a
-        flow's table Output may write (DataCube's table writer refuses them by name)."""
+        """The tables and views of this database a page's grids read -- each frame's, each page's file's -- and each name a
+        snap's copy is being filled under (``streaming_file``'s reservation), none of which a flow's table Output may
+        write (DataCube's table writer refuses them by name). A reserved name left out let an Output make the table the
+        snap's copy then dropped and replaced (the closing audit's item 1, 2026-11-13)."""
         with self._lock:
-            return [t.name for t in self._tables.values()] + list(self._files)
+            return [t.name for t in self._tables.values()] + list(self._files) + sorted(self._reserved)
 
     def read_files(self) -> dict[str, str]:
         """Each page's file this database read in, by its bytes' hash (its ``leaf``'s): the table it was read into."""

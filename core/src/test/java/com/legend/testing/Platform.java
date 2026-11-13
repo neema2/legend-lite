@@ -4,7 +4,7 @@
 package com.legend.testing;
 
 import com.legend.model.ParsedModel;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.door.ModelFromText;
 import com.legend.parser.SpecParser;
 import com.legend.protocol.spec.ValueSpecification;
@@ -22,7 +22,7 @@ import java.util.List;
 public final class Platform {
 
     /** The platform regime's level. */
-    public static final Dialect SUITE = Dialect.LEGEND_PLATFORM;
+    public static final GrammarLevel SUITE = GrammarLevel.LEGEND_PLATFORM;
 
     private Platform() {
     }

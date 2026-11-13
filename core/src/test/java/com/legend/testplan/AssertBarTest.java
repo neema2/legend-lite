@@ -226,8 +226,8 @@ class AssertBarTest {
     void aFailingAssertsMessageThatRaisesRaisesItsOwnError() throws Exception {
         try (Connection c = TestBackends.platform().open()) {
             for (com.legend.testplan.PlanningOptions.JudgeMode mode : JUDGES) {
-                assertEquals("DataError: The system is trying to get an element at offset 5 where the collection is"
-                                + " of size 2",
+                // the product's kind, in lite's words (D1.1)
+                assertEquals("DataError: " + com.legend.error.ErrorKind.INDEX_OUT_OF_BOUNDS.sentence(),
                         outcome(c, "{|let x = [1, 2]; assertEmpty([1], | $x->at(5)->toString());}", mode),
                         mode.toString());
             }

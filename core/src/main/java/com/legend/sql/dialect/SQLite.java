@@ -470,9 +470,9 @@ public class SQLite extends AnsiSqlRenderer {
             return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.OR,
                     SqlExpr.Call.of(SqlFn.GREATER, e, new SqlExpr.IntLit(Long.MAX_VALUE)),
                     SqlExpr.Call.of(SqlFn.LESS, e, new SqlExpr.IntLit(Long.MIN_VALUE))),
-                    SqlExpr.Call.of(SqlFn.ERROR,
-                            new SqlExpr.StringLit("an integer past 64 bits has no SQLite value")))),
-                    e, SqlExpr.Reason.DIALECT);
+                    SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                            List.of(new SqlExpr.StringLit("an integer past 64 bits has no SQLite value")))))),
+                    e, SqlExpr.Reason.RAISE);
         }
         return e;
     }
@@ -1684,8 +1684,9 @@ public class SQLite extends AnsiSqlRenderer {
             // past SQLite's years 0000-9999 a date function answers NULL (measured): raised, never a NULL value
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("(CASE WHEN ").expr(a.get(1), 4)
                     .append(" IS NULL OR ").expr(a.get(2), 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                    .piece(addInterval(a, c)).append(", ").piece(raise(List.of(new SqlExpr.StringLit(
-                            "a date past the years 0000-9999 has no SQLite value")))).append(") END)");
+                    .piece(addInterval(a, c)).append(", ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                            com.legend.sql.RaiseKind.VALUE_NOT_HELD, List.of(new SqlExpr.StringLit(
+                            "a date past the years 0000-9999 has no SQLite value")))))).append(") END)");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC text: UTC's wall time is the instant's, either way
@@ -1733,8 +1734,9 @@ public class SQLite extends AnsiSqlRenderer {
                 .append("(").expr(a.get(0), 0).append("), ")
                 // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
                 // engine's answer), and says so -- not DuckDB's words
-                .piece(raise(List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
-                        + " of a value outside [-1, 1] is NaN, which this database cannot hold"))))
+                .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                        List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
+                        + " of a value outside [-1, 1] is NaN, which this database cannot hold"))))))
                 .append(") END)");
     }
 
@@ -1853,9 +1855,8 @@ public class SQLite extends AnsiSqlRenderer {
         return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN ").piece(digits)
                 .append(" <> '' AND ").piece(digits).append(" NOT GLOB '*[^0-9]*' AND length(trim(").expr(s, 0)
                 .append(")) - length(").piece(digits).append(") <= 1 THEN CAST(trim(").expr(s, 0)
-                .append(") AS INTEGER) ELSE ").piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT,
-                        new SqlExpr.StringLit("Could not convert string '"), s,
-                        new SqlExpr.StringLit("' to INT64"))))).append(" END)");
+                .append(") AS INTEGER) ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))))).append(" END)");
     }
 
     /** GREATEST/LEAST over the arguments, each replaced by the next non-NULL one when it is NULL: NULL only when every
@@ -2353,9 +2354,8 @@ public class SQLite extends AnsiSqlRenderer {
      *  that is no date raises. */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
         return w -> w.append("(SELECT CASE WHEN date(substr(__pp.t, 1, 10)) = substr(__pp.t, 1, 10) AND (length(__pp.t)"
-                + " = 10 OR substr(__pp.t, 11, 1) = ' ') THEN __pp.t ELSE ").piece(raise(List.of(SqlExpr.Call.of(
-                        SqlFn.CONCAT, new SqlExpr.StringLit("Could not parse '"), x,
-                        new SqlExpr.StringLit("' as a date"))))).append(" END FROM (SELECT ")
+                + " = 10 OR substr(__pp.t, 11, 1) = ' ') THEN __pp.t ELSE ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))))).append(" END FROM (SELECT ")
                 .piece(padded(dateTimeText(w2 -> w2.expr(x, 0)))).append(" AS t) AS __pp)");
     }
 
@@ -3218,6 +3218,8 @@ public class SQLite extends AnsiSqlRenderer {
                     + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            // (a host's copy: refused by the base, every host copying into its own DuckDB)
+            case com.legend.sql.SqlDml.CreateTableAs ct -> super.render(ct);
             // (the store writes: refused by the base until SQLite's spelling is measured)
             case com.legend.sql.SqlDml.InsertSelect is -> super.render(is);
             case com.legend.sql.SqlDml.Update u -> super.render(u);

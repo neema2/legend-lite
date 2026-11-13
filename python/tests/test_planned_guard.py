@@ -38,10 +38,14 @@ IMPORTS = {
     '_headless.py': {'Answered', 'Database', 'across_the_bridge', 'connect', 'send'},
     '_host.py': {'PlannedSql', 'send'},
     # 2026-11-12 (the C final audit's H2): require, a host operation's planner text and a snapshot's stream checked
-    'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan', 'require'},
+    # 2026-11-12 (the final audit's item 1): require gone -- a host operation takes no SQL, so none is checked here
+    'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan',
+                    # 2026-11-12 (the re-audit's M1): the plan the planner answered, typed as read
+                    'PlanText', 'plan_from_answer'},
     'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan', 'send'},
     'frames.py': {'Database', 'PlannedSql', 'Result', 'connect', 'send'},
-    'projects.py': {'PlannedSql', 'all_from_plan', 'from_plan', 'send'},
+    # 2026-11-12 (M1): the runners read only a plan the planner answered (read_plan)
+    'projects.py': {'PlannedSql', 'PlanText', 'all_from_plan', 'from_plan', 'read_plan', 'send'},
     'warehouse.py': {'PlannedSql', 'require'},
 }
 
@@ -61,11 +65,13 @@ SENDS = {
 
 # The bridge's crossings by module. 2026-11-12 (C3): the hosted DataCube's query and statement (_headless.py), and a
 # remote file's settings its plan runner kept (engine.py).
-BRIDGE = {'_headless.py': 2, 'engine.py': 1}
+BRIDGE = {
+    # 2026-11-12 (the re-audit's S9): the hosted code's HTTP to a SQL API, its `sql` crossing as a query's does
+    '_headless.py': 3, 'engine.py': 1}
 
-# Each call of a value's own type, by module and text: none makes a PlannedSql. 2026-11-12: a database error rebuilt of
-# its own type with a held value taken out of its words (frames.py redacted), never a statement.
-TYPE_CALLS = {('frames.py', 'type(failure)(out)')}
+# (TYPE_CALLS -- frames.py's `type(failure)(out)`, a database error rebuilt of its own type: GONE 2026-11-12, the
+# re-audit's S4. Outside _planned.py a value's type is named (`type(x).__name__`) or compared (`type(x) is T`), never
+# called, bound or handed on, and `__class__` is never reached: `T = type(p); T(text)` made a PlannedSql unseen.)
 
 # DuckDB's ways to run text or load data, on any receiver (2026-11-12, the second audit: from_arrow(...).create landed a
 # planned stream step outside the one send): each pinned by module and receiver (SENDS), or refused
@@ -75,12 +81,17 @@ SEND_METHODS = {'execute', 'executemany', 'sql', 'query', 'from_query', 'from_ar
                 # view, inserted, written out
                 'create', 'create_view', 'insert_into', 'insert', 'to_table', 'to_view', 'write_csv', 'write_parquet',
                 'to_csv', 'to_parquet'}
-MINT_NAMES = {'from_plan', 'all_from_plan'}
+MINT_NAMES = {'from_plan', 'all_from_plan', 'plan_from_answer'}
 
 # Each mint's uses by module (2026-11-12, the C final audit's H4, measured: an import is pinned by IMPORTS, a new call
 # of a mint in a pinned module was not): the compiler's readers (its plans, catalog, host operations, table model's copy
 # select list -- H2's), the load runners, execute's plan half. A use added or gone moves its count, dated.
-MINT_REFERENCES = {'compiler.py': 6, 'engine.py': 2, 'projects.py': 9}
+MINT_REFERENCES = {
+    # 2026-11-12, 6 -> 9 (M1): the compiler's three plan answers (snap_stream, frame_load, project_data's load) typed;
+    # (the final audit's item 1, 2026-11-12) compiler.py 9: the copy select list's typing gone, snap_copy's plan typed;
+    # projects.py 9 -> 14: run_write, a snapshot's copy's plan of writes alone -- its effects' statements and its
+    # target's session and transaction statements, typed as read
+    'compiler.py': 9, 'engine.py': 2, 'projects.py': 14}
 
 # A send method's name reached and not called, by module, name and receiver (H4, measured 2026-11-12): each a field of a
 # plan (its sql), a URL (its query) or a view (page.py's), none a method handed on. A method handed on -- `run =
@@ -140,8 +151,25 @@ _NETWORK_ROOTS = {'urllib', 'http', 'requests', 'urllib3', 'socket', 'httpx', 'a
 # request kind ('authored' -> the native library's 'lite_authored') and its library declares the export, and no module
 # asks it (DataCube's python-host.ts refuses the kind unasked). Its spellings -- the kind's text, the export's, a name or
 # an attribute named authored -- each counted.
+# THE PLAN RUNNERS' CALLERS (the re-audit's M1, 2026-11-12): run_load and run_host_load take a plan the planner
+# answered alone (PlanText, read_plan); each call is pinned by module, its plan the compiler's: a project's database's
+# load (projects.py), a snapshot's stream (engine.py), a frame's attach (frames.py)
+# 2026-11-12 (the final audit's item 1(b)): engine.py 1 -> 2, a served snap's copy run by run_write (the plan of writes
+# alone the planner makes of its pull: Boundary.snapCopy)
+RUNNERS = {'projects.py': 1, 'engine.py': 2, 'frames.py': 1}
+RUNNER_NAMES = {'run_load', 'run_host_load', 'run_write'}
+
 AUTHORED_NAMES = {'authored', 'lite_authored'}
-AUTHORED = {'_planner.py': 2, '_library.py': 1}
+# 2026-11-12 (the orchestrator's ruling: the unwalked door deleted -- its KINDS row, its arity, the native export):
+# _planner.py names the kind once, among the kinds this host refuses by name (REFUSED)
+AUTHORED = {'_planner.py': 1}
+
+
+def _named_or_compared(call: ast.Call, parents: dict) -> bool:
+    """Whether a one-argument ``type(...)`` is only named (``.__name__``, ``.__qualname__``) or compared (``is``, ``==``)."""
+    up = parents.get(id(call))
+    return (isinstance(up, ast.Attribute) and up.attr in ('__name__', '__qualname__')) or \
+        (isinstance(up, ast.Compare) and all(isinstance(o, (ast.Is, ast.IsNot, ast.Eq, ast.NotEq)) for o in up.ops))
 
 
 def census(name: str, source: str) -> dict:
@@ -152,11 +180,24 @@ def census(name: str, source: str) -> dict:
     sends: set[tuple[str, str, str]] = set()
     references: set[tuple[str, str, str]] = set()
     attaches: set[tuple[str, str, str]] = set()
-    crossings = mints = authored = submits = 0
+    crossings = mints = authored = submits = runner_calls = runner_names = 0
     network: set[str] = set()
     own = name == '_planned.py'
     called = {id(n.func) for n in ast.walk(tree) if isinstance(n, ast.Call)}
+    parents = {id(c): p for p in ast.walk(tree) for c in ast.iter_child_nodes(p)}
     for node in ast.walk(tree):
+        # M1 (the re-audit): a runner's calls, and every reference to it (a runner handed on is a reference no call)
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in RUNNER_NAMES:
+            runner_calls += 1
+        if isinstance(node, ast.Name) and node.id in RUNNER_NAMES:
+            runner_names += 1
+        # S4 (the re-audit, 2026-11-12): a class reached through a value, called or not
+        if isinstance(node, ast.Attribute) and node.attr == '__class__' and not own:
+            refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a class reached through a value')
+        # M2 (the re-audit, 2026-11-12): the Database's own run, called or handed on, is _planned.send's alone
+        if isinstance(node, ast.Attribute) and node.attr == '_send_planned' and not own:
+            refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: the Database\'s own run is _planned.send\'s'
+                           ' alone (send, which requires a PlannedSql)')
         # H4 and H1, on every node: a mint's use, a send method reached, an attach, the authored door's spellings
         if isinstance(node, ast.Name) and node.id in MINT_NAMES and not own:
             mints += 1
@@ -213,19 +254,21 @@ def census(name: str, source: str) -> dict:
             refused.append(f'line {node.lineno}: _planned.{node.attr}: _planned reached as a module')
         elif isinstance(node, ast.ClassDef) and not own:
             for base in node.bases:
-                if isinstance(base, ast.Name) and base.id == 'PlannedSql' or 'PlannedSql' in ast.unparse(base):
+                if isinstance(base, ast.Name) and base.id in ('PlannedSql', 'PlanText') or 'PlannedSql' in ast.unparse(base) \
+                        or 'PlanText' in ast.unparse(base):
                     refused.append(f'line {node.lineno}: class {node.name} subclasses PlannedSql')
         elif isinstance(node, ast.Attribute) and not own and isinstance(node.value, ast.Name) \
-                and node.value.id == 'PlannedSql':
+                and node.value.id in ('PlannedSql', 'PlanText'):
             refused.append(f'line {node.lineno}: PlannedSql.{node.attr}: the type is used as itself, never reached into')
         elif isinstance(node, ast.Call):
             f = node.func
-            if not own and isinstance(f, ast.Name) and f.id == 'PlannedSql':
-                refused.append(f'line {node.lineno}: PlannedSql constructed outside _planned.py')
-            if not own and isinstance(f, ast.Call) and isinstance(f.func, ast.Name) and f.func.id == 'type' \
-                    and (name, ast.unparse(node)) not in TYPE_CALLS:
-                refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a value\'s own type called')
-            if not own and isinstance(f, ast.Attribute) and f.attr in ('__class__', '__new__'):
+            if not own and isinstance(f, ast.Name) and f.id in ('PlannedSql', 'PlanText'):
+                refused.append(f'line {node.lineno}: {f.id} constructed outside _planned.py')
+            if not own and isinstance(f, ast.Name) and f.id == 'type' and len(node.args) == 1 and not _named_or_compared(node, parents):
+                refused.append(f'line {node.lineno}: {ast.unparse(parents.get(id(node), node))[:60]!r}: a value\'s type is'
+                               ' named or compared outside _planned.py, never called, bound or handed on')
+
+            if not own and isinstance(f, ast.Attribute) and f.attr == '__new__':
                 refused.append(f'line {node.lineno}: {ast.unparse(node)[:60]!r}: a class reached through a value')
             if not own and isinstance(f, ast.Attribute) and f.attr == 'connect' and isinstance(f.value, ast.Name) \
                     and f.value.id == 'duckdb':
@@ -236,7 +279,7 @@ def census(name: str, source: str) -> dict:
                 crossings += 1
     return {'imported': imported, 'refused': refused, 'sends': sends, 'crossings': crossings, 'mints': mints,
             'references': references, 'attaches': attaches, 'authored': authored, 'submits': submits,
-            'network': network}
+            'network': network, 'runner_calls': runner_calls, 'runner_names': runner_names}
 
 
 class PlannedGuardTest(unittest.TestCase):
@@ -282,6 +325,21 @@ class PlannedGuardTest(unittest.TestCase):
                        'client.authored(r)', 'def authored(r):\n    pass']:
             self.assertEqual(1, census('m.py', source)['authored'], f'the census does not see: {source!r}')
 
+    def test_the_census_sees_the_re_audits_forms(self):
+        """S4 and M2 (the re-audit, 2026-11-12): each form planted, and refused; a type named or compared is not."""
+        for source in ['T = type(p)\nT(text)', 'type(p)(text)', 'make(type(p), text)', 'p.__class__', 'k = p.__class__',
+                       'db._send_planned(text, None)', 'run = db._send_planned']:
+            self.assertTrue(census('m.py', source)['refused'], f'the census does not refuse: {source!r}')
+        for source in ["f'{type(e).__name__}: {e}'", 'type(x) is int', 'type(a) == type(b)']:
+            self.assertEqual([], census('m.py', source)['refused'], source)
+
+    def test_the_census_sees_the_plan_runners_forms(self):
+        """M1 (the re-audit, 2026-11-12): a PlanText made outside _planned.py refused; a runner called, and handed on."""
+        for source in ['PlanText(text)', 'class Mine(PlanText):\n    pass', 'PlanText.__new__(PlanText, t)']:
+            self.assertTrue(census('m.py', source)['refused'], f'the census does not refuse: {source!r}')
+        c = census('m.py', 'run_load(plan, send)\ngo = run_host_load\ngo(plan, db)')
+        self.assertEqual((c['runner_calls'], c['runner_names']), (1, 2))
+
     def test_the_census_sees_every_transports_forms(self):
         """H13 (2026-11-12): each way past the one choke point, planted, and seen."""
         for source in ["duckdb.sql('DROP TABLE t')", 'duckdb.execute(q)', 'duckdb.append(t, df)', "duckdb.read_csv('x')",
@@ -296,57 +354,108 @@ class PlannedGuardTest(unittest.TestCase):
         self.assertEqual(1, census('m.py', "self._call('submit', {'sql': q})")['submits'])
 
     def test_pythons_host_makes_and_sends_a_planned_statement_only_where_pinned(self):
-        package = Path(FILES.Rlocation(os.environ['PLANNED_PACKAGE'])).parent
-        modules = sorted(package.glob('*.py'))
-        self.assertGreater(len(modules), 10, f'{package} holds {len(modules)} modules: the guard is not looking')
-        imports: dict[str, set[str]] = {}
-        refused: list[str] = []
-        sends: set[tuple[str, str, str]] = set()
-        bridge: dict[str, int] = {}
-        mints: dict[str, int] = {}
-        references: set[tuple[str, str, str]] = set()
-        attaches: set[tuple[str, str, str]] = set()
-        authored: dict[str, int] = {}
-        submits: dict[str, int] = {}
-        network: dict[str, set[str]] = {}
-        for m in modules:
-            c = census(m.name, m.read_text(encoding='utf-8'))
-            refused += [f'{m.name}: {r}' for r in c['refused']]
-            if c['imported']:
-                imports[m.name] = c['imported']
-            sends |= c['sends']
-            if c['crossings'] and m.name != '_planned.py':
-                bridge[m.name] = c['crossings']
-            if c['mints']:
-                mints[m.name] = c['mints']
-            references |= c['references']
-            attaches |= c['attaches']
-            if c['authored']:
-                authored[m.name] = c['authored']
-            if c['submits']:
-                submits[m.name] = c['submits']
-            if c['network']:
-                network[m.name] = c['network']
-        self.assertEqual([], refused, 'a PlannedSql is made by _planned.py alone, and _planned is imported by name')
-        self.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
-                                          ' or the planner\'s answer is read, the one send, the bridge\'s check')
-        self.assertEqual({m for m, names in IMPORTS.items() if names & MINT_NAMES},
-                         {'compiler.py', 'projects.py', 'engine.py'}, 'the mints, by module')
-        self.assertEqual(SENDS, sends, 'every statement Python\'s host sends goes through _planned.send, which refuses'
-                                       ' any text no plan carries (SENDS)')
-        self.assertEqual(BRIDGE, bridge, 'the statements the hosted DataCube hands across are checked at the named'
-                                         ' crossings alone (BRIDGE)')
-        self.assertEqual(MINT_REFERENCES, mints, 'each mint\'s uses, by module (MINT_REFERENCES): a new one is a new'
-                                                 ' place a text is typed as a plan\'s')
-        self.assertEqual(REFERENCES, references, 'a send method reached and not called is a field of a plan, a URL or'
-                                                 ' a view (REFERENCES), never a method handed on')
-        self.assertEqual(ATTACHES, attaches, 'a value attached or a stream imported, by module and receiver (ATTACHES)')
-        self.assertEqual(AUTHORED, authored, 'the authored door, by module (AUTHORED): Python answers the kind, and'
-                                             ' asks it nowhere')
-        self.assertEqual(SUBMITS, submits, 'ONE CHOKE POINT (H13): a SQL API\'s statement is submitted by warehouse.py'
-                                           ' alone, a PlannedSql (SUBMITS)')
-        self.assertEqual(NETWORK, network, 'ONE CHOKE POINT (H13): each module that opens a network client is pinned'
-                                           ' (NETWORK): a new one could carry a statement to a SQL API')
+        pinned_comparison(self, package_modules(self))
+
+    def test_every_pinned_comparison_fails_on_a_planned_violator(self):
+        """CHECK 6 (the final audit's item 5, 2026-11-12): each pin's comparison, run over the package with one violator
+        planted beside its modules, FAILS naming it -- never merely that the census sees the form."""
+        modules = package_modules(self)
+        for what, text in [
+            ('a form refused', 'import legend_lite._planned'),
+            ('IMPORTS', 'from ._planned import send'),
+            ('SENDS', "con.execute('SELECT 1')"),
+            ('BRIDGE', 'across_the_bridge(answered, text)'),
+            ('MINT_REFERENCES', 'statement = from_plan(text)'),
+            ('REFERENCES', 'run = con.execute'),
+            ('ATTACHES', "con.register('t', frame)"),
+            ('AUTHORED', "kind = 'authored'"),
+            ('SUBMITS', "warehouse.call('submit', body)"),
+            ('NETWORK', 'import urllib.request'),
+            ('RUNNERS', 'run_load(plan, send)'),
+            ('a runner handed on', 'go = run_load'),
+        ]:
+            bites(self, pinned_comparison, modules, text, what)
+
+
+def package_modules(case: unittest.TestCase) -> dict[str, str]:
+    """The package's modules, each its text by its file's name."""
+    package = Path(FILES.Rlocation(os.environ['PLANNED_PACKAGE'])).parent
+    modules = sorted(package.glob('*.py'))
+    case.assertGreater(len(modules), 10, f'{package} holds {len(modules)} modules: the guard is not looking')
+    return {m.name: m.read_text(encoding='utf-8') for m in modules}
+
+
+PLANTED = 'planted_violator.py'
+
+
+def bites(case: unittest.TestCase, comparison, modules: dict[str, str], text: str, what: str) -> None:
+    """``comparison`` FAILS over ``modules`` with ``text`` planted as one more module (check 6), naming it."""
+    case.maxDiff = None
+    with case.assertRaises(AssertionError, msg=f'{what}: its pinned comparison passed over a planted violator: {text!r}') \
+            as failed:
+        comparison(case, {**modules, PLANTED: text})
+    case.assertIn(PLANTED, str(failed.exception), f'{what}: failed over the planted violator without naming it')
+
+
+def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
+    """The census over ``modules`` (each module's text by its file's name), compared with every pin."""
+    imports: dict[str, set[str]] = {}
+    refused: list[str] = []
+    sends: set[tuple[str, str, str]] = set()
+    bridge: dict[str, int] = {}
+    mints: dict[str, int] = {}
+    references: set[tuple[str, str, str]] = set()
+    attaches: set[tuple[str, str, str]] = set()
+    authored: dict[str, int] = {}
+    submits: dict[str, int] = {}
+    network: dict[str, set[str]] = {}
+    runners: dict[str, int] = {}
+    handed_on: list[str] = []
+    for name, text in sorted(modules.items()):
+        c = census(name, text)
+        refused += [f'{name}: {r}' for r in c['refused']]
+        if c['imported']:
+            imports[name] = c['imported']
+        sends |= c['sends']
+        if c['crossings'] and name != '_planned.py':
+            bridge[name] = c['crossings']
+        if c['mints']:
+            mints[name] = c['mints']
+        references |= c['references']
+        attaches |= c['attaches']
+        if c['authored']:
+            authored[name] = c['authored']
+        if c['submits']:
+            submits[name] = c['submits']
+        if c['network']:
+            network[name] = c['network']
+        if c['runner_calls']:
+            runners[name] = c['runner_calls']
+        if c['runner_names'] != c['runner_calls']:
+            handed_on.append(name)
+    case.assertEqual([], refused, 'a PlannedSql is made by _planned.py alone, and _planned is imported by name')
+    case.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
+                                      ' or the planner\'s answer is read, the one send, the bridge\'s check')
+    case.assertEqual({m for m, names in IMPORTS.items() if names & MINT_NAMES},
+                     {'compiler.py', 'projects.py', 'engine.py'}, 'the mints, by module')
+    case.assertEqual(SENDS, sends, 'every statement Python\'s host sends goes through _planned.send, which refuses'
+                                   ' any text no plan carries (SENDS)')
+    case.assertEqual(BRIDGE, bridge, 'the statements the hosted DataCube hands across are checked at the named'
+                                     ' crossings alone (BRIDGE)')
+    case.assertEqual(MINT_REFERENCES, mints, 'each mint\'s uses, by module (MINT_REFERENCES): a new one is a new'
+                                             ' place a text is typed as a plan\'s')
+    case.assertEqual(REFERENCES, references, 'a send method reached and not called is a field of a plan, a URL or'
+                                             ' a view (REFERENCES), never a method handed on')
+    case.assertEqual(ATTACHES, attaches, 'a value attached or a stream imported, by module and receiver (ATTACHES)')
+    case.assertEqual(AUTHORED, authored, 'the authored door, by module (AUTHORED): Python answers the kind, and'
+                                         ' asks it nowhere')
+    case.assertEqual(SUBMITS, submits, 'ONE CHOKE POINT (H13): a SQL API\'s statement is submitted by warehouse.py'
+                                       ' alone, a PlannedSql (SUBMITS)')
+    case.assertEqual(NETWORK, network, 'ONE CHOKE POINT (H13): each module that opens a network client is pinned'
+                                       ' (NETWORK): a new one could carry a statement to a SQL API')
+    case.assertEqual(RUNNERS, runners, "THE PLAN RUNNERS' CALLERS (M1): each call of run_load or run_host_load is"
+                                       " pinned by module (RUNNERS), its plan the planner's answer")
+    case.assertEqual([], handed_on, 'a plan runner is called where it is named, never handed on')
 
 
 if __name__ == '__main__':

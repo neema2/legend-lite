@@ -57,6 +57,13 @@ final class DuckDbHostOperations implements HostOperations {
     }
 
     @Override
+    public TransactionStatements transaction() {
+        return new TransactionStatements(statements(new HostOperation.Transaction(HostOperation.Transaction.Step.BEGIN)),
+                statements(new HostOperation.Transaction(HostOperation.Transaction.Step.COMMIT)),
+                statements(new HostOperation.Transaction(HostOperation.Transaction.Step.ROLLBACK)));
+    }
+
+    @Override
     public List<String> statements(HostOperation operation) {
         return switch (operation) {
             case HostOperation.MakeRelation m -> List.of("CREATE " + (m.replace() ? "OR REPLACE " : "") + kind(m.kind())
@@ -176,16 +183,11 @@ final class DuckDbHostOperations implements HostOperations {
         };
     }
 
-    /** A relation made's columns: the planner's copy select list, every column with conversions in place, or all. */
+    /** A relation made's columns: every one, each its copy converts converted in place -- the conversions its columns'
+     *  catalog asks of a copy into DuckDB, DuckDB's select list ({@link DuckDb#copySelectList}); {@code *} when none. */
     private static String columns(HostOperation.MakeRelation m) {
-        if (m.selectList() != null) {
-            return m.selectList();
-        }
-        if (m.replacing().isEmpty()) {
-            return "*";
-        }
-        return "* REPLACE (" + String.join(", ",
-                m.replacing().stream().map(c -> c.sql() + " AS " + quoted(c.column())).toList()) + ")";
+        DuckDb duck = new DuckDb();
+        return duck.copySelectList(CatalogModel.copyConversions(m.convert(), duck));
     }
 
     private static String source(HostOperation.Source source) {
@@ -214,7 +216,6 @@ final class DuckDbHostOperations implements HostOperations {
                     case ICEBERG -> "iceberg_scan(" + at + ")";
                 };
             }
-            case HostOperation.Source.Query q -> "(" + q.sql() + ")";
         };
     }
 

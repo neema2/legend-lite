@@ -17,17 +17,17 @@ public final class Surfaces {
 
     public static ParsedModel platform(String source) {
         return com.legend.door.ModelFromText.parse(source,
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
     }
 
     public static ParsedModel platform(com.legend.lexer.TokenStream tokens) {
         return com.legend.door.ModelFromText.parse(tokens.source(),
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
     }
 
     public static ParsedModel lite(String source) {
         return com.legend.door.ModelFromText.parse(source,
-                com.legend.parser.Dialect.LEGEND_LITE);
+                com.legend.parser.GrammarLevel.LEGEND_LITE);
     }
 
     public static com.legend.protocol.Protocol.PMapping platformMapping(
@@ -35,14 +35,14 @@ public final class Surfaces {
             int sectionStartLine) {
         return com.legend.parser.MappingProtocolParser.parse(tokens,
                 tokenIndex, sectionStartLine,
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
     }
 
     /** A parser positioned at {@code tokenIndex}, engine level. */
     public static com.legend.parser.ElementParser engineAt(
             com.legend.lexer.TokenStream tokens, int tokenIndex) {
         return com.legend.parser.ElementParser.at(tokens, tokenIndex,
-                com.legend.parser.Dialect.LEGEND_ENGINE);
+                com.legend.parser.GrammarLevel.LEGEND_ENGINE);
     }
 
     /** One {@code Database} element at {@code tokenIndex}, engine level
@@ -50,11 +50,11 @@ public final class Surfaces {
     public static com.legend.protocol.Protocol.PDatabase databaseAt(
             com.legend.lexer.TokenStream tokens, int tokenIndex) {
         return com.legend.parser.DatabaseProtocolParser.parse(tokens,
-                tokenIndex, com.legend.parser.Dialect.LEGEND_ENGINE);
+                tokenIndex, com.legend.parser.GrammarLevel.LEGEND_ENGINE);
     }
 
     public static ParsedModel engine(String source) {
         return com.legend.door.ModelFromText.parse(source,
-                com.legend.parser.Dialect.LEGEND_ENGINE);
+                com.legend.parser.GrammarLevel.LEGEND_ENGINE);
     }
 }

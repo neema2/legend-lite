@@ -2282,8 +2282,8 @@ public class BigQuery extends AnsiSqlRenderer {
                                 + " WITH OFFSET AS " + o + " ORDER BY " + o + ")");
                 yield writer.append("(CASE WHEN ").expr(ks, 4).append(" IS NULL OR ").expr(vs, 4)
                         .append(" IS NULL THEN NULL WHEN ARRAY_LENGTH(").expr(ks, 0).append(") <> ARRAY_LENGTH(")
-                        .expr(vs, 0).append(") THEN ERROR('The map key list does not align with the map value list.')"
-                                + " ELSE ").piece(keysChecked(ks, e, e, zipped)).append(" END)");
+                        .expr(vs, 0).append(") THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_MISALIGNED))
+                        .append(" ELSE ").piece(keysChecked(ks, e, e, zipped)).append(" END)");
             }
             // the entries of every map, each key at its first place (map, then offset) with the last map's value
             // (wrapped in a struct: a NULL value is an entry, and an array holds no NULL)
@@ -2315,11 +2315,19 @@ public class BigQuery extends AnsiSqlRenderer {
 
     /** {@code then} when the keys {@code k} (read off each element {@code e} of {@code xs}) are each non-NULL and
      *  distinct; DuckDB's error otherwise. */
-    private static SqlWriter.Piece keysChecked(SqlExpr xs, String e, String k, SqlWriter.Piece then) {
+    private SqlWriter.Piece keysChecked(SqlExpr xs, String e, String k, SqlWriter.Piece then) {
         return w -> w.append("(CASE WHEN (SELECT COUNTIF(" + k + " IS NULL) FROM UNNEST(").expr(xs, 0)
-                .append(") AS " + e + ") > 0 THEN ERROR('Map keys can not be NULL.') WHEN (SELECT COUNT(DISTINCT " + k
+                .append(") AS " + e + ") > 0 THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEY_NULL))
+                .append(" WHEN (SELECT COUNT(DISTINCT " + k
                         + ") FROM UNNEST(").expr(xs, 0).append(") AS " + e + ") < ARRAY_LENGTH(").expr(xs, 0)
-                .append(") THEN ERROR('Map keys must be unique.') ELSE ").piece(then).append(" END)");
+                .append(") THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_NOT_UNIQUE)).append(" ELSE ")
+                .piece(then).append(" END)");
+    }
+
+    /** A map's raise of {@code kind}, inside the platform's envelope (phase D's D1.1; until then these three raised a
+     *  bare ERROR('...') outside it, which exec could not tell for a raise: the brief's defect). */
+    private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
+        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of())), "ERROR");
     }
 
     /** A map cast to another map's key and value types, entry by entry; the empty map {@code MAP_EMPTY} typed. */

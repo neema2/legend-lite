@@ -46,8 +46,6 @@ test_suite(
         # the #SQL{}# island's cases on the embedded Postgres 16: Postgres's own answers, and the islands through the
         # Postgres dialect
         "//core:sql_island_postgres_test",
-        # Snap's preflight count as Postgres's host operations write it, on the embedded Postgres 16 (D5)
-        "//core:host_operations_postgres_test",
         # a CSV file's load on the embedded Postgres 16, its own reader or a refusal by name (A3, 2026-11-10)
         "//core:data_loads_postgres_test",
         # the data delivery matrix on the embedded Postgres 16, unprivileged: every door's data kinds and failure cells
@@ -444,6 +442,11 @@ test_suite(
         # bridge's answered set, a host operation's planner text typed -- ran in the warehouse lane alone, so a session's
         # gate never saw it; it shares the native library the lane above builds
         "//python:planned_test",
+        # 2026-11-12 (the orchestrator's item 3): a page's grid run by DataCube's own code in V8 on Python -- the product's
+        # bridge (the answered set, a hosted fetch's statement, a host operation's texts), the planner's kinds and the
+        # snapshot's pull -- ran in the warehouse lane alone; it shares the native library and the bundle the lanes
+        # above build
+        "//python:headless_test",
     ],
 )
 

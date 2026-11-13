@@ -147,7 +147,7 @@ public final class Pure {
     static ClassDefinition nativeClass(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
         var parsed = ModelFromText.parse(pureSource,
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSource
@@ -318,7 +318,7 @@ public final class Pure {
     static EnumDefinition nativeEnum(String pureSource) {
         // the bootstrap payload is WRITTEN IN platform dialect
         var parsed = ModelFromText.parse(pureSource,
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSource
@@ -874,7 +874,7 @@ public final class Pure {
      */
     private static NativeFunctionDefinition signature(String pureSignature) {
         var parsed = ModelFromText.parse(pureSignature,
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         if (parsed.elements().size() != 1) {
             throw new IllegalStateException(
                     "expected exactly one element parsed from: " + pureSignature

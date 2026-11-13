@@ -179,7 +179,7 @@ public final class BodyDriver {
             }
             com.legend.executionplan.@com.legend.base.Nullable DatabaseType from = besideCatalog(target);
             com.legend.executionplan.@com.legend.base.Nullable DatabaseType to = besideCatalog(other);
-            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(options.dialects().dialect(
+            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(options.spelling().dialect(
                     to != null ? com.legend.planner.ConnectionPlans.model(to)
                             : com.legend.Compiler.executesOn(ctx(), runtimeFqn()).type()));
             return new ExecEnv(p, other, options, verdictBatch, engineText, failureMessage, appealOn,
@@ -397,11 +397,10 @@ public final class BodyDriver {
         return buildFrame(ec, letPrefix, env.verdictBatch() != null, specs, env, stamp);
     }
 
-    /** The stamp of an inline {@code execute(...)}'s activity: an execution of its own (the execution id as upstream,
-     *  the user's ruling of 2026-11-12: upstream's interpreted execute mints a GUID per query it runs), named by its
-     *  call site -- registered on the environment so every statement lowered on it binds it, and bound when the plan
-     *  runs to the id its door minted. Until then ActivityComments' one constant comment under a verdict batch, shared
-     *  by every such execute of every body, and none outside one (an empty comment). */
+    /** The stamp of an inline {@code execute(...)}'s activity, named by its call site -- registered on the environment
+     *  so every statement lowered on it binds it, and bound when the plan runs to the run's one id, its door's (the
+     *  user's ruling of 2026-11-12: one execution id per plan run). Until then ActivityComments' one constant comment
+     *  under a verdict batch, shared by every such execute of every body, and none outside one (an empty comment). */
     private static String inlineStamp(com.legend.compiler.spec.typed.TypedNativeCall ec, ExecEnv env) {
         String stamp = com.legend.planner.ProgramFrames.STAMP + ".execute@"
                 + com.legend.plan.PlanRows.scopeId(ec);

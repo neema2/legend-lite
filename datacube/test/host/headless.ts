@@ -46,7 +46,8 @@ function testCalls(): TestHostCalls {
 
 /** What a test's LitePlanner is given beside its model: a worker of the host's. */
 export function plannerOptions(): Pick<LitePlannerOptions, 'assetBaseUrl' | 'worker'> {
-  return { worker: () => hostWorker(hostCalls()) };
+  const calls = hostCalls();
+  return { worker: () => hostWorker(calls) };
 }
 
 /** The host's database, as the lane's runner lends it to a test. One per host: a test's tables share it, as DuckDB-WASM's

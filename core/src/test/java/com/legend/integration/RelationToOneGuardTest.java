@@ -44,8 +44,9 @@ class RelationToOneGuardTest {
 
     private static void assertSizeError(String model, Connection c, String query, int size) {
         Exception e = assertThrows(Exception.class, () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
-        assertTrue(String.valueOf(e.getMessage()).contains("Cannot cast a collection of size " + size
-                + " to multiplicity [1]"), query + ": " + e.getMessage());
+        // the product's kind, in lite's words (D1.1): the size is legend-pure's sentence's, the edge's
+        assertTrue(String.valueOf(e.getMessage()).contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()), query + " (size " + size + "): "
+                + e.getMessage());
     }
 
     @Test

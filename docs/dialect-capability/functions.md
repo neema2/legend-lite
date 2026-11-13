@@ -1674,14 +1674,14 @@ Database types planned with it: SQLite.
 | `MAKE_DATE` | emulated | `printf('%04d-%02d-%02d', …)` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
-| `ADD_INTERVAL` | emulated | `addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 93 |
+| `ADD_INTERVAL` | emulated | `addInterval, raise, raiseArgs: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | emulated | `… \|\| ' ' \|\| …` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise, raiseArgs: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `micros: (… / 1000000.0)` |  | 0 |
 | `EPOCH_MS` | emulated | `micros: (… / 1000)` |  | 24 |
 | `FROM_EPOCH_SECONDS` | emulated | `datetime(…, 'unixepoch')` |  | 0 |
@@ -1865,14 +1865,14 @@ Database types planned with it: MariaDB.
 | `MAKE_DATE` | emulated | `STR_TO_DATE(CONCAT_WS('-', …), '%Y-%m-%d')` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTrunc` |  | 0 |
-| `ADD_INTERVAL` | emulated | `addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 93 |
+| `ADD_INTERVAL` | emulated | `addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `TIMESTAMP` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `micros: (… / 1000000)` |  | 0 |
 | `EPOCH_MS` | emulated | `micros: (… DIV 1000)` |  | 24 |
 | `FROM_EPOCH_SECONDS` | emulated | `(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (…) * 1000000 MICROSECOND)` |  | 0 |
@@ -2056,14 +2056,14 @@ Database types planned with it: MySQL.
 | `MAKE_DATE` | emulated | `STR_TO_DATE(CONCAT_WS('-', …), '%Y-%m-%d')` | `as MariaDb` | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` | `as MariaDb` | 10 |
 | `DATE_TRUNC` | emulated | `dateTrunc` | `as MariaDb` | 0 |
-| `ADD_INTERVAL` | emulated | `addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` | `as MariaDb` | 93 |
+| `ADD_INTERVAL` | emulated | `addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` | `as MariaDb` | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` | `as MariaDb` | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` | `as MariaDb` | 109 |
 | `TIMEZONE` | emulated | `timezone` | `as MariaDb` | 6 |
 | `DATE_AT_TIME` | spelled | `TIMESTAMP` | `as MariaDb` | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as MariaDb` | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as MariaDb` | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` | `as MariaDb` | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...` | `as MariaDb` | 0 |
 | `EPOCH_SECONDS` | emulated | `micros: (… / 1000000)` | `as MariaDb` | 0 |
 | `EPOCH_MS` | emulated | `micros: (… DIV 1000)` | `as MariaDb` | 24 |
 | `FROM_EPOCH_SECONDS` | emulated | `(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (…) * 1000000 MICROSECOND)` | `as MariaDb` | 0 |

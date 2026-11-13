@@ -105,7 +105,9 @@ class Compiling(unittest.TestCase):
         self.assertEqual(m['runtime'], 'shop::RT')
         self.assertIn('Database shop::DB', m['model'])
         self.assertIn('RelationalDatabaseConnection shop::Conn', m['model'])
-        self.assertEqual(m['copySelectList'], '* REPLACE (CAST("big" AS DECIMAL(20,0)) AS "big")')
+        # a copy's conversions are the platform's, from its columns' catalog (convert): the model carries no select list
+        self.assertEqual([c['column'] for c in m['conversions']], ['big'])
+        self.assertNotIn('copySelectList', m)
         self.assertEqual([(c.name, c.type) for c in ll.relation_type(m['model'], {'_type': 'lambda', 'body': [m['source']], 'parameters': []})],
                          [('id', 'Integer'), ('big', 'Decimal')])
 
@@ -145,7 +147,7 @@ class Compiling(unittest.TestCase):
                     '        open BIT\n    )\n)\n')
         self.assertEqual(m['model'], database + '\n' + connection('Conn', 'RT'))
         self.assertEqual((m['runtime'], m['accessor']), ('shop::RT', '#>{shop::DB.orders}#'))
-        self.assertEqual((m['conversions'], m['copySelectList'], m['excluded'], m['bitColumns']), ([], '*', [], ['open']))
+        self.assertEqual((m['conversions'], m['excluded'], m['bitColumns']), ([], [], ['open']))
 
     def test_a_held_model_is_compiled_once_and_plans_as_a_model_given_each_time(self):
         # docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9: the same answers, the model compiled once
@@ -284,7 +286,7 @@ Data demo::party::PartyData
         self.assertEqual(p['use'], [f'USE "{p["name"]}"'])
         self.assertEqual(p['close'], [f'DETACH DATABASE IF EXISTS "{p["name"]}"'])
         # its rows: the plan's ONCE load, its statements a blob the host checks against its digest (B3, 2026-11-11)
-        load = p['load']['root']
+        load = json.loads(p['load'])['root']
         self.assertEqual((load['_type'], load['cadence']), ('load', 'ONCE'))
         self.assertTrue(any('Meridian Capital' in text for text in load['content'].values()), load)
         self.assertNotIn('fill', p)

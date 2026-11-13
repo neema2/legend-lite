@@ -14,6 +14,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -49,6 +50,37 @@ class DuckDbHostFileLoadTest {
         ExecutionPlan.LoadStep.File f = (ExecutionPlan.LoadStep.File) load.steps().get(load.steps().size() - 1);
         assertEquals(DataRef.Namespace.HOST, f.ref().namespace());
         return ((ExecutionPlan.LoadStep.Delivery.Reads) f.delivery()).statements();
+    }
+
+    /**
+     * A HOST'S TRANSACTION IS THE PLAN'S (the re-audit's S8, 2026-11-12: until then a host's session asked the planner
+     * for its begin and commit at run, and a run never plans, G4): a target on DuckDB carries the statements a host
+     * opens, commits and rolls back a transaction with, and they survive the plan's JSON; a database no host runs a plan
+     * on carries none; a transaction with a key it does not have, or a step with no statement, is refused by name.
+     */
+    @Test
+    void aTargetCarriesTheTransactionAHostOpens() {
+        ExecutionPlan plan = LoadPlanner.hostFile(new DuckDb(), DatabaseType.DuckDB,
+                file("upload_sales.csv", DataRef.DetectedCsv.DETECTED), new LoadPlanner.NewTable("sales"));
+        assertEquals(new ExecutionPlan.Transaction(List.of("BEGIN TRANSACTION"), List.of("COMMIT"), List.of("ROLLBACK")),
+                load(plan).target().transaction());
+        String json = PlanJson.write(plan);
+        String written = "\"transaction\":{\"begin\":[\"BEGIN TRANSACTION\"],\"commit\":[\"COMMIT\"],"
+                + "\"rollback\":[\"ROLLBACK\"]}";
+        assertTrue(json.contains(written), json);
+        // every other database lite runs on carries none: no host runs a plan there (each named by the enumeration,
+        // never by this DuckDB owner: DialectOwnerExclusivityTest, the merge of 2026-11-12)
+        for (var other : com.legend.database.Databases.implemented()) {
+            if (other != com.legend.model.ConnectionDefinition.DatabaseType.DuckDB) {
+                assertNull(Targets.of(new ExecutionPlan.Database.Platform(ConnectionPlans.type(other), null),
+                        com.legend.database.Databases.dialect(other)).transaction(), other.name());
+            }
+        }
+        var unknown = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(json.replace(written,
+                written.substring(0, written.length() - 1) + ",\"savepoint\":[]}")));
+        assertEquals("a target's transaction has no key savepoint", unknown.getMessage());
+        assertThrows(IllegalArgumentException.class, () -> PlanJson.read(json.replace(
+                "\"begin\":[\"BEGIN TRANSACTION\"]", "\"begin\":[]")));
     }
 
     @Test

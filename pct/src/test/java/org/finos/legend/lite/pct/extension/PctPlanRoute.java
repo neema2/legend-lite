@@ -49,7 +49,7 @@ final class PctPlanRoute {
                 PctBackend.executionSource(),
                 PctBackend.planSessions(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features,
                 // the PCT compares against legend-pure's texts: the plan is spelled by the edge (phase D's D1.0)
-                com.legend.edge.PureText.DIALECTS,
+                com.legend.edge.PureText.UPSTREAM_SPELLING,
                 new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY);
         com.legend.result.Collector.Collected c = collector.collected();
         boolean relation = plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION;

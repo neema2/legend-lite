@@ -3,14 +3,14 @@
 
 package com.legend.edge;
 
-import com.legend.database.DialectSource;
+import com.legend.database.SqlSpelling;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.SqlDialect;
 
 /**
  * THE EDGE'S SQL RENDER TARGET (phase D's D1.0; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6.1, Q15: "Pure's exact
  * texts at the edge, as the edge's own SQL render target"): the dialect source the compatibility harnesses and
- * routes hand the planner ({@link #DIALECTS}) -- PCT's channel A, the corpus, pure/v1's upstream routes -- so the
+ * routes hand the planner ({@link #UPSTREAM_SPELLING}) -- PCT's channel A, the corpus, pure/v1's upstream routes -- so the
  * product's typed plan is spelled as legend-pure and legend-engine spell it. Each dialect here SUBCLASSES the
  * product's (open recursion: an arm the product's renderer reaches from inside its own walk is overridden, which a
  * wrapper could not do) and overrides ONLY the arms that spell upstream's text; an override that changes a product
@@ -26,7 +26,7 @@ public final class PureText {
     }
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
-    public static final DialectSource DIALECTS = PureText::dialect;
+    public static final SqlSpelling UPSTREAM_SPELLING = PureText::dialect;
 
     /** The edge's dialect of {@code type}; a database the product has no dialect for refused by name, as the
      *  product's own source refuses it. */

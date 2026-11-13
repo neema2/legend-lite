@@ -43,7 +43,7 @@ before(async () => {
   projectDb = project.name;
   for (const sql of [...project.open, ...project.use]) await engine.run(sql, 0);
   // its rows: the plan's ONCE load, run by the hosts' runner (B3)
-  await runLoad(JSON.stringify(project.load), (sql) => engine.run(sql, 0));
+  await runLoad(project.load!, (sql) => engine.run(sql, 0));
   elements = await parser.modelElements(MODEL) as ModelElement[];
 });
 

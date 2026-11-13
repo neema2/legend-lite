@@ -332,22 +332,190 @@ public final class Boundary {
     }
 
     /**
-     * A SNAPSHOT FROM A REMOTE PLANE, AS A PLAN (the user's ruling of 2026-11-11, "This is the right plan"):
-     * {@code request} is {@code {"databaseType", "plane", "sql", "schema"?, "table"}} -- the host's database's type, the
-     * name the host holds the remote plane under, the statement that plane runs (the snap's source query, as the planner
-     * wrote it for the plane's own database), and the table of the host's database it lands in. Any other key is refused
-     * by name, so no row can ride in one. The answer is the plan (PlanJson's): one HOST_SESSION load whose stream step
-     * the host's runner runs in one transaction ({@code LoadPlanner.snapStream}).
+     * A SNAPSHOT FROM A REMOTE PLANE, AS A PLAN (the user's ruling of 2026-11-11, "This is the right plan"; and of
+     * 2026-11-12, "that is a real off platform problem": the request carries the PULL, never SQL): {@code request} is
+     * {@code {"databaseType", "plane", "model", "runtime", "lambda", "schema"?, "table"}} -- the host's database's type,
+     * the name the host holds the remote plane under, the pull (the model's text, the runtime it runs through, and the
+     * grid's base query as a lambda's protocol JSON, a text), and the table of the host's database it lands in. The pull
+     * is planned HERE, in this call, for the plane's own database (the model held by its text: compiled once), and its
+     * statement is the one the plane runs. Any other key -- a statement ({@code sql}) above all -- is refused by name:
+     * no host hands the planner the text a plane runs, and no row rides in. A pull whose plan does not run as its text
+     * alone (one binding a value) is refused by name: a plane runs its statement as text. The answer is the plan
+     * (PlanJson's): one HOST_SESSION load whose stream step the host's runner runs in one transaction
+     * ({@code LoadPlanner.snapStream}).
      */
     public static String snapStream(String request) {
         com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
-        only(in, "a snapshot's stream", "databaseType", "plane", "sql", "schema", "table");
+        only(in, "a snapshot's stream", "databaseType", "plane", "model", "runtime", "lambda", "schema", "table");
         String databaseType = in.getString("databaseType");
+        String table = in.getString("table");
+        String statement = MODELS.withText(in.getString("model"), ctx -> {
+            com.legend.plan.QueryPlan pulled = com.legend.Compiler.query(ctx,
+                    com.legend.protocol.ProtocolReader.lambda(in.getString("lambda"))).plan(in.getString("runtime"));
+            String beyond = pulled.beyondItsText();
+            if (beyond != null || !pulled.textAlone()) {
+                throw new com.legend.error.NotImplementedException("a remote plane runs its statement as text, and the"
+                        + " pull snapped into " + table + " does not run as its text alone"
+                        + (beyond != null ? ": " + beyond : ": its plan binds values"));
+            }
+            return pulled.sql();
+        });
         return com.legend.executionplan.PlanJson.write(com.legend.planner.LoadPlanner.snapStream(
                 dialectOf(databaseType),
                 com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
-                new com.legend.planner.LoadPlanner.SnapStream(in.getString("plane"), in.getString("sql"),
-                        in.getStringOr("schema", null), in.getString("table"))));
+                new com.legend.planner.LoadPlanner.SnapStream(in.getString("plane"), statement,
+                        in.getStringOr("schema", null), table)));
+    }
+
+    /**
+     * A SNAPSHOT'S COPY, AS A PLAN (the final audit's 1(b), 2026-11-12, the user's ruling; B3's contract): {@code request}
+     * is {@code {"databaseType", "model", "runtime", "lambda", "schema"?, "table"}} -- the host's database's type, the
+     * pull (the model's text, the runtime it runs through -- the host's own store's -- and the grid's base query as a
+     * lambda's protocol JSON, a text), and the table of the host's database it is copied into. The pull is planned HERE,
+     * in this call (the model held by its text: compiled once). Any other key -- a statement ({@code sql}) above all -- is
+     * refused by name. The answer is the plan (PlanJson's): one writing {@code Sequence} on the host's database, its
+     * target carrying the database's transaction -- the schema made where one is named, the table dropped, and the
+     * table made AS the pull's own statement, its {@code data:} payloads bound as the pull binds them
+     * ({@code com.legend.planner.SnapCopy}). Until then the host made the copy as host operations around a query it handed
+     * back as text ({@code HostOperation.Source.Query}, deleted).
+     */
+    public static String snapCopy(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a snapshot's copy", "databaseType", "model", "runtime", "lambda", "schema", "table");
+        String databaseType = in.getString("databaseType");
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        com.legend.executionplan.DatabaseType type =
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(in.getString("model"), ctx ->
+                com.legend.planner.SnapCopy.plan(com.legend.Compiler.query(ctx,
+                        com.legend.protocol.ProtocolReader.lambda(in.getString("lambda"))), in.getString("runtime"),
+                        dialect, type, in.getStringOr("schema", null), in.getString("table"))));
+    }
+
+    /**
+     * A TABLE OUTPUT, AS ONE PLAN (the final audit's item 2, 2026-11-12, the user's ruling (b); B3's contract): a
+     * DataCube box's rows written into a table of the host's own database, made before it runs. {@code request} is
+     * {@code {"databaseType", "tables": [{"table", "convertible", "pkg"?, "columns"}], "output": {"name", "mode",
+     * "keys"?}, "rows", "target"?}} -- the box's tables of the host's database as their catalog answers them (read
+     * before the run), the output's table and how it is written ({@code create}, {@code overwrite}, {@code append},
+     * {@code deleteAppend}, {@code merge} by its keys), the box's rows (a lambda's protocol JSON, a text: one query of
+     * no parameter over the tables' model) and, where the table is there already (append, deleteAppend, merge), its
+     * catalog's columns. Any other key -- a statement ({@code sql}), a shape -- is refused by name. A made table is the
+     * database's own {@code CREATE TABLE ... AS <the rows' statement>}, planned, carrying the rows, so the database types
+     * its columns as it always did (the orchestrator's ruling (e) and proposal, 2026-11-12), its answer the table's rows
+     * counted; a table there is written by the store write the planner plans over one model of the tables and the target.
+     * The answer is the plan (PlanJson's): one writing {@code Sequence}, its answer the count
+     * ({@code com.legend.planner.OutputPlan}). Until then the host made the table from {@code rows LIMIT 0} as a host
+     * operation's query, read its catalog, and asked for the write's plan apart.
+     */
+    public static String outputPlan(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a table output", "databaseType", "tables", "output", "rows", "target");
+        String databaseType = in.getString("databaseType");
+        com.legend.json.Json.Obj output = in.getObj("output");
+        only(output, "a table output's output", "name", "mode", "keys");
+        String name = output.getString("name");
+        com.legend.planner.OutputPlan.Mode mode = com.legend.planner.OutputPlan.Mode.named(output.getString("mode"));
+        java.util.List<String> keys = output.has("keys") ? output.getStringArray("keys") : java.util.List.of();
+        if (mode == com.legend.planner.OutputPlan.Mode.MERGE && keys.isEmpty()) {
+            throw new IllegalArgumentException("a merge names its keys: the columns a row is matched by");
+        }
+        if (mode != com.legend.planner.OutputPlan.Mode.MERGE && output.has("keys")) {
+            throw new IllegalArgumentException("an output's keys are a merge's: " + mode.spelled() + " takes none");
+        }
+        java.util.List<com.legend.json.Json.Node> tables = in.getArr("tables").items();
+        if (tables.isEmpty()) {
+            throw new IllegalArgumentException("its rows are read from none of this page's database's tables: a table"
+                    + " output writes its own database");
+        }
+        for (com.legend.json.Json.Node t : tables) {
+            if (t instanceof com.legend.json.Json.Obj o && o.getString("table").equalsIgnoreCase(name)) {
+                throw new IllegalArgumentException("'" + name + "' is one of this page's own tables (a file's, a"
+                        + " copy's): name the output's table another way");
+            }
+        }
+        if (mode.makes() && in.has("target")) {
+            throw new IllegalArgumentException("a created table's columns are its rows' relation type: the request names"
+                    + " no target");
+        }
+        if (!mode.makes() && !in.has("target")) {
+            throw new IllegalArgumentException("this page's database has no table '" + name + "': write it with Create a"
+                    + " new table first");
+        }
+        com.legend.protocol.spec.LambdaFunction rows = com.legend.protocol.ProtocolReader.lambda(in.getString("rows"));
+        if (!rows.parameters().isEmpty() || rows.body().size() != 1) {
+            throw new IllegalArgumentException("an output's rows are one query of no parameter");
+        }
+        String rowsBody = com.legend.json.Json.toCompact(com.legend.json.Json.parseObject(in.getString("rows"))
+                .getArr("body").items().get(0));
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        java.util.List<Object> withTarget = new java.util.ArrayList<>();
+        for (com.legend.json.Json.Node t : tables) {
+            withTarget.add(com.legend.json.Json.parse(com.legend.json.Json.toCompact(t)));
+        }
+        if (mode.makes()) {
+            // the create carries the data: the rows over the box's tables alone, the database typing the made table's
+            // columns (no column declared, so none refused or mapped)
+            com.legend.json.Json.Obj sources = com.legend.json.Json.parseObject(tablesModel(com.legend.json.Json
+                    .parseObject(com.legend.json.Json.toCompact(java.util.Map.of("databaseType", databaseType,
+                            "tables", withTarget)))));
+            return com.legend.executionplan.PlanJson.write(MODELS.withText(sources.getString("model"), ctx ->
+                    com.legend.planner.OutputPlan.make(ctx, sources.getString("runtime"), in.getString("rows"), mode,
+                            name, dialect)));
+        }
+        java.util.List<Object> targetColumns = new java.util.ArrayList<>();
+        for (com.legend.json.Json.Node c : in.getArr("target").items()) {
+            targetColumns.add(com.legend.json.Json.parse(com.legend.json.Json.toCompact(c)));
+        }
+        java.util.Map<String, Object> target = new java.util.LinkedHashMap<>();
+        target.put("table", name);
+        target.put("convertible", false);
+        target.put("columns", targetColumns);
+        withTarget.add(target);
+        com.legend.json.Json.Obj model = com.legend.json.Json.parseObject(tablesModel(com.legend.json.Json.parseObject(
+                com.legend.json.Json.toCompact(java.util.Map.of("databaseType", databaseType, "tables", withTarget)))));
+        java.util.List<com.legend.json.Json.Node> modelled = model.getArr("tables").items();
+        String into = com.legend.json.Json.toCompact(((com.legend.json.Json.Obj) modelled.get(modelled.size() - 1))
+                .get("source"));
+        String program = outputProgram(rowsBody, into, mode, keys);
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(model.getString("model"), ctx ->
+                com.legend.planner.OutputPlan.write(ctx, model.getString("runtime"), program, mode)));
+    }
+
+    /** The placeholders an output's program's template holds, each a string the template alone writes. */
+    private static final String OUTPUT_ROWS = "__lite_output_rows__";
+    private static final String OUTPUT_INTO = "__lite_output_into__";
+
+    /**
+     * The Pure program that writes {@code rows} into {@code into} (each a protocol node's JSON) as {@code mode} writes,
+     * as a lambda's protocol JSON -- {@code write}, {@code delete} then {@code write}, or {@code merge} by {@code keys}
+     * (as DataCube's table output wrote it) -- its statements the parser's own reading of the program's text, each
+     * placeholder replaced by the rows' or the target's node.
+     */
+    private static String outputProgram(String rows, String into, com.legend.planner.OutputPlan.Mode mode,
+            java.util.List<String> keys) {
+        String r = "'" + OUTPUT_ROWS + "'";
+        String t = "'" + OUTPUT_INTO + "'";
+        String text = switch (mode) {
+            case APPEND -> "|" + r + "->write(" + t + ")";
+            case CREATE, OVERWRITE -> throw new IllegalStateException("an output that makes its table carries its rows"
+                    + " in the making: no write program");
+            case DELETE_APPEND -> "{|" + t + "->delete(r|true); " + r + "->write(" + t + ");}";
+            case MERGE -> "|" + r + "->merge(" + t + ", ~[" + String.join(", ", keys.stream()
+                    .map(k -> "'" + k.replace("\\", "\\\\").replace("'", "\\'") + "'").toList()) + "])";
+        };
+        String json = com.legend.parser.SpecParser.lambdaJson(text, false);
+        return placed(placed(json, OUTPUT_ROWS, rows), OUTPUT_INTO, into);
+    }
+
+    /** {@code json} with every string node holding {@code placeholder} replaced by {@code node}. */
+    private static String placed(String json, String placeholder, String node) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{[^{}]*\"value\"\\s*:\\s*\""
+                + placeholder + "\"[^{}]*\\}").matcher(json);
+        if (!m.find()) {
+            throw new IllegalStateException("an output's program holds no " + placeholder + ": " + json);
+        }
+        return m.replaceAll(java.util.regex.Matcher.quoteReplacement(node));
     }
 
     /**
@@ -494,9 +662,10 @@ public final class Boundary {
      * runtime the planner compiles.
      * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog rows]}}
      * in; {@code {"model", "runtime", "source" (protocol), "accessor" (its Pure text), "conversions":
-     * [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
-     * {@code copySelectList}: the select list the source applies when it is rewritten in place ({@code convertible}),
-     * written by its own database; a read-only source is never rewritten, and has none.
+     * [{"column","sql"}], "excluded": [name], "bitColumns": [name]}} out. A source rewritten in place
+     * ({@code convertible}) is a host operation's copy that names these catalog columns ({@code "convert"}), its select
+     * list written by the platform (the final audit's 1(d), 2026-11-12: until then this answered the select list,
+     * {@code copySelectList}, which the host handed back as text).
      * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
      *
      * <p>SEVERAL TABLES of one database (a join's two sides, read in one place:
@@ -532,9 +701,6 @@ public final class Boundary {
         out.put("source", sourceOf(db));
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
-        if (in.getBool("convertible")) {
-            out.put("copySelectList", dialect.copySelectList(db.conversions()));
-        }
         out.put("excluded", db.excluded());
         out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);

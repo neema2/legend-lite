@@ -218,7 +218,8 @@ public final class Compiler {
     }
 
     /** A snapshot from a remote plane, as a plan ({@code Boundary.snapStream}, the user's ruling of 2026-11-11): the tab's
-     *  {@code snapStreamOrError}, Python's warehouse snap. */
+     *  {@code snapStreamOrError}, Python's warehouse snap -- the request the pull (model, runtime, lambda), planned in
+     *  this call, never a statement (the user's ruling of 2026-11-12). */
     @CEntryPoint(name = "lite_snap_stream")
     static CCharPointer snapStream(IsolateThread thread, CCharPointer request) {
         String a;
@@ -231,14 +232,29 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** A statement a person wrote, as a plan ({@code Boundary.authored}: Studio's SQL playground, the user's ruling of
-     *  2026-11-12): the tab's {@code authoredOrError}, a headless host's. */
-    @CEntryPoint(name = "lite_authored")
-    static CCharPointer authored(IsolateThread thread, CCharPointer request) {
+    /** A snapshot's copy into the host's own database, as one plan ({@code Boundary.snapCopy}, the final audit's 1(b),
+     *  2026-11-12): the tab's {@code snapCopyOrError}, Python's local copy -- the request the pull, planned in this call,
+     *  never a statement. */
+    @CEntryPoint(name = "lite_snap_copy")
+    static CCharPointer snapCopy(IsolateThread thread, CCharPointer request) {
         String a;
         try {
             String r = text(request);
-            a = Folded.of(() -> Boundary.authored(r));
+            a = Folded.of(() -> Boundary.snapCopy(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A DataCube table Output as one plan ({@code Boundary.outputPlan}, the final audit's item 2, 2026-11-12): the tab's
+     *  {@code outputPlanOrError}, Python's headless flow -- the table made before the write, one transaction. */
+    @CEntryPoint(name = "lite_output_plan")
+    static CCharPointer outputPlan(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.outputPlan(r));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }

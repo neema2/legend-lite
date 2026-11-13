@@ -51,14 +51,9 @@ public interface DatabaseConnector {
         }
     }
 
-    /** {@code url}, the URL this connector's {@link #opening} built for a declared connection
-     *  ({@link Sessions.Opening.Url}), with {@code settings} written where the database is opened (the plan's
-     *  target's; null for none: the C final audit's J1, 2026-11-12). Default: a database whose URL takes none, so
-     *  any is refused by name ({@link #noSettings}). */
-    default String urlWith(String url, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
-        noSettings(type(), settings);
-        return url;
-    }
+    // (urlWith, a declared connection's URL with the target's settings written on it, went 2026-11-12 with the third
+    // re-audit's MUST-FIX 2: a declared database is opened as its connection declares it and never modified,
+    // Sessions.open(Opening.Url, ...); it was the C final audit's J1, which wrote H2's settings into the user's database)
 
     /** Whether a plan's target on this database declares the settings its database must have
      *  ({@code ExecutionPlan.Target.settings}): a session checked against a target that declares none where it must,

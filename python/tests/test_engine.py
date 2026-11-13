@@ -14,7 +14,7 @@ import threading
 import time
 import unittest
 
-from legend_lite._planned import Database, from_plan
+from legend_lite._planned import Database, from_plan, plan_from_answer
 import unittest.mock
 from unittest import mock
 from pathlib import Path
@@ -39,6 +39,25 @@ def trades():
         'desk': ['FX', 'EQ', 'FX', 'RATES', 'EQ'],
         'qty': [10.5, 20.0, 30.25, 1.0, 7.5],
     })
+
+
+
+# A snapshot's pull as its request carries it (the user's ruling of 2026-11-12): the model, its runtime and the query,
+# which the planner plans in the call -- never the statement the plane runs
+_SNAP_MODEL = """###Relational
+Database s::DB ( Table t ( id INTEGER, desk VARCHAR(8), qty DOUBLE ) )
+
+###Connection
+RelationalDatabaseConnection s::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
+"""
+
+
+def _snap_pull() -> dict:
+    return {'model': _SNAP_MODEL, 'runtime': 's::RT',
+            'lambda': json.dumps(ll.compiler.parse('|#>{s::DB.t}#->select(~[id, desk, qty])'))}
 
 
 class Served(unittest.TestCase):
@@ -245,11 +264,12 @@ class ProjectQueries(Served):
             con.execute(sql)
         projects.run_load(load, con.execute)
         self.assertEqual(con.execute('SELECT count(*) FROM PARTY.PARTY').fetchone()[0], 2)
-        tampered = json.loads(json.dumps(load))
+        tampered = json.loads(load)
         digest = next(iter(tampered['root']['content']))
         tampered['root']['content'][digest] = tampered['root']['content'][digest].replace('Meridian', 'Kestrel')
         with self.assertRaisesRegex(projects.LoadRefused, 'is not the data it was planned against'):
-            projects.run_load(tampered, duckdb.connect().execute)
+            # tampered by the test, typed as the planner's answer is (the re-audit's M1), so the runner's digest check runs
+            projects.run_load(plan_from_answer(json.dumps(tampered)), duckdb.connect().execute)
 
     def test_the_load_runners_shared_conformance_fixture(self):
         # B3 (2026-11-11): Python's run_load and the tab's runLoad (engine-client plan_runner_test) run one fixture --
@@ -264,22 +284,22 @@ class ProjectQueries(Served):
             con.execute(sql)
         projects.run_load(p['load'], con.execute)
         self.assertEqual([list(r) for r in con.execute(fixture['check']).fetchall()], fixture['rows'])
-        tampered = p['load']
+        tampered = json.loads(p['load'])
         digest = next(iter(tampered['root']['content']))
         tampered['root']['content'][digest] = tampered['root']['content'][digest].replace(fixture['tamper']['from'],
                                                                                        fixture['tamper']['to'])
         sent = []
         with self.assertRaises(projects.LoadRefused) as refused:
-            projects.run_load(tampered, sent.append)
+            projects.run_load(plan_from_answer(json.dumps(tampered)), sent.append)
         self.assertEqual(str(refused.exception), fixture['refused'])
         self.assertFalse(any('INSERT' in s.upper() for s in sent), sent)
         # a plan of another format version, refused in the same words before anything runs (the tenets audit's LOW 1)
-        stale = compiler.project_data(fixture['model'], fixture['databaseType'])['load']
+        stale = json.loads(compiler.project_data(fixture['model'], fixture['databaseType'])['load'])
         words = fixture['version']['refused'].replace('{VERSION}', str(stale['version']))
         stale['version'] = fixture['version']['given']
         sent = []
         with self.assertRaises(projects.LoadRefused) as refused:
-            projects.run_load(stale, sent.append)
+            projects.run_load(plan_from_answer(json.dumps(stale)), sent.append)
         self.assertEqual(str(refused.exception), words)
         self.assertEqual(sent, [])
 
@@ -312,18 +332,19 @@ class ProjectQueries(Served):
                     yield c
 
         def plan(table, schema='main'):
-            # the remote plane's statement, as its planner's plan carries it (the C final audit's H3: a PlannedSql)
-            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse',
-                                         'sql': from_plan('SELECT * FROM t'), 'schema': schema, 'table': table})
+            # the pull, which the planner plans in the call (the user's ruling of 2026-11-12): never the statement
+            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_snap_pull(), 'schema': schema,
+                                         'table': table})
 
         con = duckdb.connect()
         exists = lambda t: con.execute('SELECT count(*) FROM duckdb_tables() WHERE table_name = ?', [t]).fetchone()[0]
-        step = plan('snap')['root']['steps'][0]
+        step = json.loads(plan('snap'))['root']['steps'][0]
         self.assertEqual(sorted(step), ['_type', 'count', 'plane', 'prepare', 'schema', 'sql', 'table', 'transaction'],
                          'the plan names the plane, its statement and the table: never a row')
         source = Plane([chunk(1, 4), chunk(5, 3)])
         (made,) = projects.run_host_load(plan('snap', 'copies'), Database(con), planes={'warehouse': source}).landed
-        self.assertEqual((made.rows, made.receipt['statementId'], source.asked), (7, 's1', ['SELECT * FROM t']))
+        self.assertEqual((made.rows, made.receipt['statementId'], source.asked), (7, 's1', [step['sql']]),
+                         "the plane ran the planner's own statement of the pull")
         self.assertEqual(con.execute("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'snap' "
                                      'ORDER BY column_index').fetchall(),
                          [('id', 'INTEGER'), ('desk', 'VARCHAR'), ('qty', 'DOUBLE')])
@@ -1209,6 +1230,12 @@ class WarehouseOnPython(unittest.TestCase):
         self.count, self.expired, self.principal, self.pulls = 3, False, 'rita', 0
         # a stream tampered (the warehouse counts a row more than it sends) or cut short (its read fails after a chunk)
         self.tampered, self.cut = False, False
+        # a count the warehouse answers with no row (G7: never read as no rows to copy)
+        self.uncounted = False
+        # a slow stream: said when its rows begin, held until let go (the final audit's item 3)
+        self.streaming, self.slow = threading.Event(), None
+        # every statement the warehouse was handed, in order
+        self.asked = []
 
         class Reader:
             def __init__(self, session, catalog='main', clock=None):
@@ -1232,13 +1259,18 @@ class WarehouseOnPython(unittest.TestCase):
                     on_receipt({'statementId': 's1', 'serverRows': 4 if outer.tampered else 3, 'as': self.principal,
                                 'where': 'the warehouse at wh'})
                 outer.pulls += 1
-                rows = (pa.table({'n': pa.array([outer.count], pa.int64())}) if sql.startswith('SELECT count(*)')
+                outer.asked.append(str(sql))
+                rows = (pa.table({'n': pa.array([] if outer.uncounted else [outer.count], pa.int64())})
+                        if 'COUNT(*)' in str(sql).upper()
                         else pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': pa.array([10, 5, 3], pa.int32())}))
                 sink = pa.BufferOutputStream()
                 with pyarrow.ipc.new_stream(sink, rows.schema) as w:
                     w.write_table(rows)
+                if outer.slow is not None and 'COUNT(*)' not in str(sql).upper():
+                    outer.streaming.set()
+                    outer.slow.wait(60)
                 yield sink.getvalue().to_pybytes()
-                if outer.cut and not sql.startswith('SELECT count(*)'):
+                if outer.cut and 'COUNT(*)' not in str(sql).upper():
                     raise warehouse.WarehouseError('the connection was reset', 'RESET')
 
         def connect(url, user, password):
@@ -1524,6 +1556,67 @@ class WarehouseOnPython(unittest.TestCase):
         status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual((status, body.decode()), (422, '10,000,001 rows exceeds the 10,000,000 row snap limit. Narrow the '
                                                           'filter, or stay live.'))
+
+    def test_a_second_read_and_snap_are_served_while_a_slow_warehouse_snap_streams(self):
+        # the final audit's item 3 (2026-11-12): the warehouse snap streamed holding the frames' lock and DataCube's
+        # turn, so a slow warehouse held every read of the frames and every call into DataCube's code meanwhile
+        m = self.opened()
+        frame = self.frames.register('books', pa.table({'title': ['a', 'b'], 'pages': pa.array([10, 20], pa.int64())}))
+        self.slow = threading.Event()
+        snapped: dict = {}
+        streaming = threading.Thread(target=lambda: snapped.update(answer=self.call(
+            {'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')))
+        streaming.start()
+        try:
+            self.assertTrue(self.streaming.wait(60), 'the snap never began streaming')
+            served: dict = {}
+
+            def second():
+                pull = json.dumps(ll.parse('|' + frame.accessor + '->select(~[title, pages])'))
+                served['read'] = self.engine.answer('POST', '/plan-and-run.json', '', json.dumps(
+                    {'lambda': pull, 'model': frame.model, 'runtime': frame.runtime}))
+                served['snap'] = self.call({'op': 'snap', 'model': frame.model, 'runtime': frame.runtime, 'pull': pull},
+                                           '/snap.json')
+
+            reader = threading.Thread(target=second)
+            reader.start()
+            reader.join(60)
+            self.assertFalse(reader.is_alive(), 'a read of the frames waited on the warehouse snap streaming')
+            self.assertEqual(served['read'].status, 200, served['read'].body[:300])
+            status, body = served['snap']
+            self.assertEqual((status, json.loads(body)['rowCount']), (200, 2), body)
+            self.assertTrue(streaming.is_alive(), 'the warehouse snap was still streaming meanwhile')
+            # its name is reserved while it streams: the frame's copy took another
+            self.assertNotEqual(json.loads(body)['table'], 'snap')
+        finally:
+            self.slow.set()
+            streaming.join(60)
+        status, body = snapped['answer']
+        self.assertEqual((status, json.loads(body)['table'], json.loads(body)['rowCount']), (200, 'snap', 3), body)
+
+    def test_a_snaps_count_is_the_planners_plan_of_the_pulls_size(self):
+        # the final audit's item 1 (2026-11-12): the pull's statement was handed back to the planner as a host
+        # operation's query to count; the count is now the planner's own plan of the pull's size()
+        from legend_lite.engine import _count_of
+        m = self.opened()
+        pull = self.query(m)
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': pull}, '/snap.json')
+        self.assertEqual(status, 200, body)
+        counted = ll.plan(m['model'], json.loads(_count_of(pull)), m['runtime'])
+        self.assertEqual(self.asked[0], counted.sql)
+        self.assertIn('COUNT(*)', counted.sql)
+        with self.assertRaises(ValueError) as refused:
+            _count_of(json.dumps({'_type': 'lambda', 'parameters': [], 'body': [{'_type': 'integer', 'value': 1}] * 2}))
+        self.assertEqual(str(refused.exception), "a snap's pull is one expression, not 2")
+
+    def test_a_count_the_warehouse_did_not_answer_copies_nothing(self):
+        # G7 (the final audit's item 4, 2026-11-12): a count of no row was read as 0 rows -- under the limit, copied on
+        m = self.opened()
+        self.uncounted = True
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
+        self.assertEqual((status, body.decode()), (422, "the snap could not be counted: the warehouse answered 0 row(s), "
+                                                          "not its rows' count"))
+        self.assertEqual(self.pulls, 1, 'the count alone was read: nothing streamed')
 
     def test_an_expired_session_said_as_one(self):
         m = self.opened()

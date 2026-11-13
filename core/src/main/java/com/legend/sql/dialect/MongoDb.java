@@ -283,8 +283,7 @@ public class MongoDb extends AnsiSqlRenderer {
                     + " shape yet");
             case SqlExpr.CheckedOne co -> checkedOne(writer, co, parentPrec);
             case SqlExpr.CompactList cl -> compactList(writer, cl, parentPrec);
-            case SqlExpr.RaiseText r -> throw new IllegalStateException("a raise's message (" + r.kind()
-                    + ") reached the renderer outside its raise");
+            case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value reached the renderer: a mixed"
                     + " max, min, greatest, least or mode is returned, compared or printed, and any other consumer"
                     + " of it is not lowered");
@@ -2737,6 +2736,8 @@ public class MongoDb extends AnsiSqlRenderer {
                     + MongoJson.string(collection(da.schema(), da.table())) + ", \"deletes\": [{\"q\": {},"
                     + " \"limit\": 0}]}";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            case com.legend.sql.SqlDml.CreateTableAs ct -> throw new DialectCapability("a host's copy of a query's rows"
+                    + " reached MongoDb: every host copies into its own DuckDB");
             // a program that changes a store (main's writes, docs/WRITES_DESIGN_2026_10_18.md; merged 2026-10-26) is not
             // shaped on MongoDb: its writes are the bulk load alone (docs/MONGODB_PLAN_2026_10_16.md)
             case com.legend.sql.SqlDml.InsertSelect is -> throw new DialectCapability("an insert of a query's rows"

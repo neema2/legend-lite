@@ -39,10 +39,13 @@ public final class TestPlanJson {
      *  seed is the referee's copy as a load ({@code refereeLoad}: its steps and bundle), no longer its texts; 17
      *  (2026-11-11, the JSON pass): no {@code release} -- a body makes no {@code data:} session table to drop, its
      *  payloads bound or inline -- and the product's version 48; 18 (2026-11-12, the C checkpoint's SHOULD-FIX 3): a
-     *  target may carry its database's settings, the product's version 49; 19 (2026-11-13, E-5c, the user's ruling O5;
-     *  PROVISIONAL on claude/total-wall-e, renumbered after main and D's): a side read from its group's fused row,
-     *  {@code fusedCell}. */
-    public static final int VERSION = 19;
+     *  target may carry its database's settings, the product's version 49; 19 (2026-11-12, the re-audit's S8): a target
+     *  may carry its database's transaction statements, the product's version 50; 20 (2026-11-12, the user's ruling on
+     *  a snapshot's pull): the product's version 51; 21 (2026-11-13, phase D's D1.1): the product's version 52; 22 (2026-11-13, E-5c, the user's
+     *  ruling O5, its number after D's): a side read from its group's fused row, {@code fusedCell}, a group's agreements
+     *  one per root ({@code agreements}, each with its {@code root}), and the product's version 53 (E-4: every cast's and
+     *  case's reason). */
+    public static final int VERSION = 22;
 
     private TestPlanJson() {
     }

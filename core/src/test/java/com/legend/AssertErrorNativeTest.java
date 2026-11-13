@@ -45,7 +45,10 @@ class AssertErrorNativeTest {
     }
 
     private static Lean.Result run(String query) throws SQLException {
-        return Program.last(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
+        // legend-pure's own assertError.pure, ported: its messages are legend-pure's, the edge's to spell (phase D's
+        // D1.1: the product raises a kind in lite's words)
+        return Program.last(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn,
+                com.legend.ExecuteOptions.NONE.withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING));
     }
 
     // assertError.pure:36 testSimpleAssertError, verbatim body

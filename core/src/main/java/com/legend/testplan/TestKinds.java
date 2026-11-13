@@ -209,6 +209,9 @@ final class TestKinds implements ProgramKinds {
             case LET_EXECUTE -> "M9 (an execute(...) whose result is the value asked for)";
             case ASSERT -> "M6-M8: an assert its judge planned no verdict step for";
             case ASSERT_ERROR -> "M9, T10";
+            // asked at the product's door alone (QueryDoor.Scan.refusedByTheProduct): never in kinds
+            case RAW_SQL -> throw new IllegalStateException("a statement's own SQL is no test-only kind the test"
+                    + " door's scan reads");
         };
         throw new NotImplementedException(kind.what() + " on the test door's program road: not"
                 + " planned yet (the test-is-the-product plan's " + step + ")");

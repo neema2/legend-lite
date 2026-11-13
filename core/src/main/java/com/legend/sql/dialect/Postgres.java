@@ -223,10 +223,12 @@ public class Postgres extends AnsiSqlRenderer {
         return "ROLLBACK";
     }
 
-    /** {@inheritDoc} Written beside this dialect ({@code PostgresHostOperations}). */
+    /** {@inheritDoc} None written: each refused by name. Its one, a planner's query counted (Snap's preflight on a
+     *  warehouse whose catalog is Postgres), went with {@code HostOperation.Source.Query} (the final audit, 2026-11-12,
+     *  the user's ruling): a count is a Pure query's plan, planned for the warehouse's own runtime. */
     @Override
     public HostOperations hostOperations() {
-        return PostgresHostOperations.INSTANCE;
+        return new HostOperations.Refused("Postgres");
     }
 
     /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
@@ -402,8 +404,7 @@ public class Postgres extends AnsiSqlRenderer {
                         .piece(unnest(p -> p.expr(ks, 0))).append(" WITH ORDINALITY AS __mu(__mk, __mo) ORDER BY __mo)");
                 yield writer.append("(CASE WHEN ").expr(ks, 4).append(" IS NULL OR ").expr(vs, 4)
                         .append(" IS NULL THEN NULL WHEN cardinality(").expr(ks, 0).append(") <> cardinality(")
-                        .expr(vs, 0).append(") THEN ").piece(mapRaise("The map key list does not align with the map"
-                                + " value list.")).append(" ELSE ").piece(keysChecked(entries)).append(" END)");
+                        .expr(vs, 0).append(") THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_MISALIGNED)).append(" ELSE ").piece(keysChecked(entries)).append(" END)");
             }
             // the entries of every map, each key at its first place (map, then position) with the last map's value
             case MAP_CONCAT -> {
@@ -451,15 +452,15 @@ public class Postgres extends AnsiSqlRenderer {
     private SqlWriter.Piece keysChecked(SqlWriter.Piece entries) {
         return w -> w.append("(CASE WHEN (SELECT count(*) FROM ").piece(unnest(entries))
                 .append(" AS __mk(e) WHERE jsonb_typeof(e -> 'key') = 'null') > 0 THEN ")
-                .piece(mapRaise("Map keys can not be NULL.")).append(" WHEN (SELECT count(DISTINCT e -> 'key') FROM ")
+                .piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEY_NULL)).append(" WHEN (SELECT count(DISTINCT e -> 'key') FROM ")
                         .piece(unnest(entries)).append(" AS __mk(e)) < cardinality(").piece(entries)
-                .append(") THEN ").piece(mapRaise("Map keys must be unique.")).append(" ELSE ").piece(entries)
+                .append(") THEN ").piece(mapRaise(com.legend.sql.RaiseKind.MAP_KEYS_NOT_UNIQUE)).append(" ELSE ").piece(entries)
                 .append(" END)");
     }
 
-    /** DuckDB's map error, raised as a map (the CASE's type). */
-    private SqlWriter.Piece mapRaise(String message) {
-        SqlWriter.Piece text = raise(List.of(new SqlExpr.StringLit(message)), null, true);
+    /** A map's raise of {@code kind} (DuckDB's words the edge's, D1.1), raised as a map (the CASE's type). */
+    private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
+        SqlWriter.Piece text = raise(raiseArgs(new SqlExpr.RaiseText(kind, List.of())), null, true);
         return w -> w.append("CAST(").piece(text).append(" AS JSONB[])");
     }
 

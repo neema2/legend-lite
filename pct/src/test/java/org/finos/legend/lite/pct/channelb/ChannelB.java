@@ -130,7 +130,7 @@ public final class ChannelB {
             parseWalls.addAll(modelWalls);
             module = Compiler.parseSources(sources,
                     (name, msg) -> parseWalls.add(name + ": " + msg),
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             try {
                 // TENET #2 / platform-owned doctrine: a parsed NATIVE
                 // declaration is the SPEC of a function the platform
@@ -272,7 +272,7 @@ public final class ChannelB {
                             // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
                             .withEngineCompat(true)
                             // legend-pure's texts, spelled by the edge (phase D's D1.0)
-                            .withDialects(com.legend.edge.PureText.DIALECTS));
+                            .withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING));
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a

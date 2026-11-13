@@ -118,27 +118,6 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         return !(answer() instanceof ExecutionPlan.Constant);
     }
 
-    /**
-     * THE EXECUTIONS THIS PLAN DECLARES (the execution id as upstream, the user's ruling of 2026-11-12): each
-     * {@code execute()} of the body is an execution of its own, as upstream's interpreted execute mints a GUID per query
-     * it runs ({@code relationalMappingExecution.pure:475-492}) -- named by its stamp, the parameter the plan's
-     * statements read its trace comment under (a frame let's eager run and activity rows, an inline execute's activity
-     * rows). The plan's own data: every stamp its statements carry, in the order first met; the door mints one id for
-     * each ({@code com.legend.ExecutionIds}), the run binds them. The same plan for the same body: no id is in it.
-     */
-    public List<String> executions() {
-        java.util.Set<String> out = new java.util.LinkedHashSet<>();
-        for (TestStep step : steps) {
-            switch (step) {
-                case Run r -> ExecutionPlan.stamps(r.node(), out);
-                case FrameRun f -> ExecutionPlan.stamps(f.check(), out);
-                case Verdicts v -> statements(v).forEach(n -> ExecutionPlan.stamps(n, out));
-                case Branch b -> statements(b).forEach(n -> ExecutionPlan.stamps(n, out));
-            }
-        }
-        return List.copyOf(out);
-    }
-
     /** The statements a verdict group or a branch may read, each a typed or keyed result: a group's fused statement,
      *  each verdict's wrapper, base sides and message; a branch's condition and both sides' steps' (whichever side
      *  runs). What the runner's callback for the step declares; a product step or a frame run has none here. */

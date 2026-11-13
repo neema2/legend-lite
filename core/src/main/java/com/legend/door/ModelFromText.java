@@ -6,7 +6,7 @@ package com.legend.door;
 import com.legend.model.ModelFromProtocol;
 import com.legend.model.PackageableElement;
 import com.legend.model.ParsedModel;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.parser.ParseException;
 import com.legend.parser.PmcdParser;
 import com.legend.protocol.Protocol;
@@ -28,10 +28,10 @@ public final class ModelFromText {
     }
 
     /** THE parse entry -- ONE way in: the caller NAMES the level (provenance routing); there is no default and no
-     *  named-entry synonym. {@link Dialect#LEGEND_LITE} is the product surface, {@link Dialect#LEGEND_ENGINE} the
-     *  drop-in/parity surface, {@link Dialect#LEGEND_PLATFORM} the bootstrap/m2 superset (naming it in production
+     *  named-entry synonym. {@link GrammarLevel#LEGEND_LITE} is the product surface, {@link GrammarLevel#LEGEND_ENGINE} the
+     *  drop-in/parity surface, {@link GrammarLevel#LEGEND_PLATFORM} the bootstrap/m2 superset (naming it in production
      *  trips the guardrail; the platform's own declarations are its consumers). */
-    public static ParsedModel parse(String source, Dialect dialect) {
+    public static ParsedModel parse(String source, GrammarLevel dialect) {
         PmcdParser.Parsed parsed = PmcdParser.parse(Objects.requireNonNull(source, "source"),
                 Objects.requireNonNull(dialect, "dialect"));
         List<ParsedModel.UnclaimedSection> unclaimed = new ArrayList<>();

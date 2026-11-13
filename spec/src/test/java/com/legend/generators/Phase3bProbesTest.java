@@ -57,7 +57,7 @@ class Phase3bProbesTest {
             }
         }
         Compiler.ParsedModule module = Compiler.parseSources(sources, (n, err) -> { },
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         Map<String, String> fileOf = module.model().elementSources();
 
         // the system metamodel's own functions, by name
@@ -159,7 +159,7 @@ class Phase3bProbesTest {
         Map<String, java.util.Set<String>> filesOfName = new LinkedHashMap<>();
         for (Compiler.ModelSource src : sources) {
             Compiler.ParsedModule one = Compiler.parseSources(List.of(src), (n, err) -> { },
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             for (PackageableElement e : one.model().elements()) {
                 if (e instanceof FunctionDefinition f) {
                     filesOfName.computeIfAbsent(f.qualifiedName(), k -> new java.util.TreeSet<>()).add(src.name());

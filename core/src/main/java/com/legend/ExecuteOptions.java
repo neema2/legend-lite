@@ -30,7 +30,7 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                PlanningOptions.rules(edge != null), com.legend.database.Databases.DIALECTS), stores);
+                PlanningOptions.rules(edge != null), com.legend.database.Databases.PRODUCT_SPELLING), stores);
     }
 
     public static final ExecuteOptions NONE = new ExecuteOptions(null, com.legend.executionplan.DataStores.none(),
@@ -77,11 +77,11 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
         return new ExecuteOptions(planning.withEngineCompat(on), stores);
     }
 
-    /** THE SPELLING HOOK (phase D's D1.0): the body's statements written in {@code dialects}' dialects -- the
+    /** THE SPELLING HOOK (phase D's D1.0): the body's statements written in {@code spelling}'s dialects -- the
      *  compatibility edge's ({@code com.legend.edge.PureText}) for a harness that compares against upstream's texts;
-     *  the product's own ({@code Databases.DIALECTS}) otherwise, which these options carry from their making. */
-    public ExecuteOptions withDialects(com.legend.database.DialectSource dialects) {
-        return new ExecuteOptions(planning.withDialects(dialects), stores);
+     *  the product's own ({@code Databases.PRODUCT_SPELLING}) otherwise, which these options carry from their making. */
+    public ExecuteOptions withSpelling(com.legend.database.SqlSpelling spelling) {
+        return new ExecuteOptions(planning.withSpelling(spelling), stores);
     }
 
     /** The raw-SQL ledger this execution appends to (Phase 2b) and the data stores its loads resolve through

@@ -1304,8 +1304,9 @@ function readSetUp(given: unknown): GridSetUp | string {
   const pairs = (key: 'measures' | 'sorts', what: string): readonly (readonly [string, string])[] | string => {
     const v = o[key];
     if (!Array.isArray(v)) return `its ${key} are a list of pairs`;
-    const odd = v.find((x) => !Array.isArray(x) || x.length !== 2 || !x.every((y) => typeof y === 'string'));
-    return odd === undefined ? v : `a ${what}, not ${JSON.stringify(odd)}`;
+    const isPair = (x: unknown): x is readonly [string, string] =>
+      Array.isArray(x) && x.length === 2 && x.every((y) => typeof y === 'string');
+    return v.every(isPair) ? v : `a ${what}, not ${JSON.stringify(v.find((x) => !isPair(x)))}`;
   };
   const dimensions = names('dimensions');
   const rows = names('rows');
@@ -1639,15 +1640,6 @@ export async function gridWriteTable(spec: GridSpec, output: string, query: stri
         held: (t) => given.held.some((h) => h.toLowerCase() === t.toLowerCase()),
         models: o.planner,
         hold: (work) => engine.exclusive(work),
-        planOf: (q) => o.planner.plan(q),
-        executionPlan: async (model, runtime, program) => {
-          const p = new LitePlanner({ model, runtime, worker: () => hostWorker(calls) });
-          try {
-            return await p.executionPlan(program);
-          } finally {
-            p.dispose();
-          }
-        },
       });
       return JSON.stringify({ rows });
     } catch (e) {

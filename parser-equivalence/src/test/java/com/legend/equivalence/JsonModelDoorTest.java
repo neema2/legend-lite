@@ -214,7 +214,7 @@ class JsonModelDoorTest {
         // 3. RULE A: the dialects read the text differently -- only by what the engine's parser drops and lite's dialect
         // keeps. Lite's records, written as JSON, are refused by name, or carry it whole and read back exactly.
         com.legend.protocol.Protocol.PureModelContextData liteRecords =
-                PmcdParser.parse(text, com.legend.parser.Dialect.LEGEND_LITE).model();
+                PmcdParser.parse(text, com.legend.parser.GrammarLevel.LEGEND_LITE).model();
         String liteJson;
         try {
             liteJson = com.legend.protocol.ProtocolEmitter.emit(liteRecords);

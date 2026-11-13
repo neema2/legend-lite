@@ -61,7 +61,7 @@ final class TestRun {
      *  our text under (an engine-text assert's, M10c item 8), or null. */
     static void run(TestPlan plan, Map<String, ?> values, PlanSessions.Source sessions,
             com.legend.executionplan.DataStores stores, IntFunction<@Nullable StatementOrigin> textOrigin,
-            Judges judges, ProgramRunner.ProgramSink sink, com.legend.base.Executions execution) throws IOException {
+            Judges judges, ProgramRunner.ProgramSink sink, java.util.UUID execution) throws IOException {
         Handler handler = new Handler(plan, judges);
         try {
             ProgramRunner.run(program(plan, textOrigin), values, sessions, stores, handler, sink, execution);

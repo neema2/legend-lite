@@ -56,15 +56,15 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  was retired to the engine's extractFromSemiStructured —
      *  OWN_CORPUS_DECISIONS §7); it exists so this parser has the same
      *  shape as every other one, and a future lever threads free. */
-    private final Dialect dialect;
+    private final GrammarLevel dialect;
 
     @Override
-    public Dialect dialect() {
+    public GrammarLevel dialect() {
         return dialect;
     }
 
     private DatabaseProtocolParser(TokenStream tokens, int pos, String dbFqn,
-            @com.legend.base.Nullable ScopeCtx scope, Dialect dialect) {
+            @com.legend.base.Nullable ScopeCtx scope, GrammarLevel dialect) {
         this.scope = scope;
         this.tokens = tokens;
         this.pos = pos;
@@ -103,7 +103,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  mappings) that embed relational operations: parse one operation at
      *  {@code start}; the advanced position lands in {@code posOut[0]}. */
     static Protocol.PRelOp operationAt(TokenStream ts, int start,
-            String dbFqn, String schemaCtx, int[] posOut, Dialect dialect) {
+            String dbFqn, String schemaCtx, int[] posOut, GrammarLevel dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, start,
                 dbFqn, null, dialect);
         Protocol.PRelOp op = p.parseOperation(schemaCtx);
@@ -113,7 +113,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
 
     /** Parse one {@code Database qn ( ... )} at {@code tokenIndex}. */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         return parse(ts, tokenIndex, null, dialect);
     }
 
@@ -123,7 +123,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
      *  built from protocol rather than by a second parser
      *  (PARSER_COMPLETENESS_PLAN.md §1). */
     public static Protocol.PDatabase parse(TokenStream ts, int tokenIndex,
-            int @com.legend.base.Nullable [] endOut, Dialect dialect) {
+            int @com.legend.base.Nullable [] endOut, GrammarLevel dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, tokenIndex,
                 "", null, dialect);
         Protocol.PDatabase db = p.parseDatabase();
@@ -773,7 +773,7 @@ public final class DatabaseProtocolParser implements TokenStreamCursor {
     /** One operation under an active {@code scope(...)} header with a
      *  table segment (probe scope-forms). */
     static Protocol.PRelOp scopedOperationAt(TokenStream ts, int start,
-            ScopeCtx scope, int[] posOut, Dialect dialect) {
+            ScopeCtx scope, int[] posOut, GrammarLevel dialect) {
         DatabaseProtocolParser p = new DatabaseProtocolParser(ts, start,
                 scope.db(), scope, dialect);
         Protocol.PRelOp op = p.parseOperation("default");

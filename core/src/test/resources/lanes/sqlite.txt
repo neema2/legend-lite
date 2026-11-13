@@ -47,7 +47,7 @@ StagedRowsTest#aDeleteOfTheRowsAnotherRelationNames	measured 2026-10-29: no corp
 StagedRowsTest#aStagedLetHoldsItsRowsAcrossTheWritesAfterIt	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'
 StoreWritesExecutionTest#aLetTheWritesWouldChangeIsRefusedByName	measured 2026-10-29: no corpus workspace on the test backend 'sqlite'
 TypeConversionCheckerTest$SqlGeneration#testPivotCastFilterSql	measured 2026-10-29: Should contain PIVOT keyword: SELECT t1.city AS city, t1."2011__|__total" AS "2011__|__total", t1."2012__|__total" AS "2
-TypeInferenceIntegrationTest#testHugeIntegerLiteralSubtraction	measured 2026-10-29: an integer past 64 bits has no SQLite value
-TypeInferenceIntegrationTest#testLargeIntegerMultiplication	measured 2026-10-29: an integer past 64 bits has no SQLite value
+TypeInferenceIntegrationTest#testHugeIntegerLiteralSubtraction	measured 2026-11-12: the value is outside the range this database can hold
+TypeInferenceIntegrationTest#testLargeIntegerMultiplication	measured 2026-11-12: the value is outside the range this database can hold
 UnionJoinMappedPropertyTest#joinMappedOnOneMemberOnly	measured 2026-10-29: Cast exception: ux::A is not a ux::B
 WritePlansTest#aProgramThatWritesIsPlannedAsItsSteps	measured 2026-10-29: an INSERT of a query's rows on SQLite: no spelling measured on its database (the store writes run on DuckDB, H2 and Post

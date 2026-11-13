@@ -2054,8 +2054,9 @@ public class MariaDb extends AnsiSqlRenderer {
             // past the years 1000-9999 a date function answers NULL (measured): raised, never a NULL value
             case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("(CASE WHEN ").expr(a.get(1), 4)
                     .append(" IS NULL OR ").expr(a.get(2), 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                    .piece(addInterval(a, c)).append(", ").piece(raise(List.of(new SqlExpr.StringLit(
-                            "a date past the year 9999 has no " + product() + " value")), typeOf(c))).append(") END)");
+                    .piece(addInterval(a, c)).append(", ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                            com.legend.sql.RaiseKind.VALUE_NOT_HELD, List.of(new SqlExpr.StringLit(
+                            "a date past the year 9999 has no " + product() + " value")))), typeOf(c))).append(") END)");
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC date-time: UTC's wall time is the instant's, either way
@@ -2103,8 +2104,9 @@ public class MariaDb extends AnsiSqlRenderer {
                 .append("(").expr(a.get(0), 0).append("), ")
                 // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
                 // engine's answer), and says so -- not DuckDB's words
-                .piece(raise(List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
-                        + " of a value outside [-1, 1] is NaN, which this database cannot hold")),
+                .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                        List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
+                        + " of a value outside [-1, 1] is NaN, which this database cannot hold")))),
                         SqlType.Scalar.DOUBLE))
                 .append(") END)");
     }
@@ -2270,8 +2272,8 @@ public class MariaDb extends AnsiSqlRenderer {
     private SqlWriter.Piece parseInt(SqlExpr s) {
         return w -> w.append("(CASE WHEN ").expr(s, 4).append(" IS NULL THEN NULL WHEN TRIM(").expr(s, 0)
                 .append(") REGEXP '^[+-]?[0-9]+$' THEN CAST(TRIM(").expr(s, 0).append(") AS SIGNED) ELSE ")
-                .piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("Could not convert string '"),
-                        s, new SqlExpr.StringLit("' to INT64"))), SqlType.Scalar.BIGINT)).append(" END)");
+                .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_INTEGER, List.of(s))),
+                        SqlType.Scalar.BIGINT)).append(" END)");
     }
 
     /** GREATEST/LEAST over the arguments, each replaced by the next non-NULL one when it is NULL: NULL only when every
@@ -2780,9 +2782,8 @@ public class MariaDb extends AnsiSqlRenderer {
     /** Pure's parseDate of a text: its date-time ({@link #utcOf}); a text that is no date raises. */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
         return w -> w.append("(CASE WHEN ").expr(x, 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                .piece(utcOf(v -> v.expr(x, 0))).append(", ").piece(raise(List.of(SqlExpr.Call.of(SqlFn.CONCAT,
-                        new SqlExpr.StringLit("Could not parse '"), x, new SqlExpr.StringLit("' as a date"))),
-                        SqlType.Scalar.TIMESTAMP))
+                .piece(utcOf(v -> v.expr(x, 0))).append(", ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
+                        com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))), SqlType.Scalar.TIMESTAMP))
                 .append(") END)");
     }
 

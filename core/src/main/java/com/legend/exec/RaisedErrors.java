@@ -67,7 +67,7 @@ public final class RaisedErrors {
         }
         String inner = message.substring(first + 1, last).replace(QUOTE_MARK, '\'');
         int sep = inner.indexOf(POSITION_SEP);
-        return worded(sep >= 0 ? inner.substring(sep + 1) : inner);
+        return sep >= 0 ? inner.substring(sep + 1) : inner;
     }
 
     /**
@@ -85,44 +85,6 @@ public final class RaisedErrors {
         return null;
     }
 
-    /**
-     * THE PRODUCT'S WORDING OF A RAISE (phase D's D1.1, PROPOSED to the orchestrator 2026-11-12, pending its ruling):
-     * lite's own short sentence of each kind, no value in it. Pure's and the engine's sentences are the edge's
-     * ({@code edge.PureMessages}, written in SQL by the edge's dialects).
-     */
-    public static String sentence(com.legend.sql.RaiseKind kind) {
-        return switch (kind) {
-            case DIVIDE_BY_ZERO -> "division by zero";
-            case SHIFT_OUT_OF_RANGE -> "bit shift outside 0..62";
-            case DATE_PART_ABSENT -> "the date has no such part";
-            case INDEX_OUT_OF_BOUNDS -> "index out of bounds";
-            case INSERT_OUT_OF_BOUNDS -> "insert position out of bounds";
-            case SQRT_OF_NEGATIVE -> "square root of a negative number";
-            case SIZE_NOT_MULTIPLICITY -> "collection size does not match the multiplicity";
-            case SLICE_BOUNDS_INVERTED -> "slice start is after its end";
-            case DATE_COMPONENT_INVALID -> "invalid date component";
-            case CAST_IMPOSSIBLE -> "impossible cast";
-            case RANGE_STEP_ZERO -> "range step is zero";
-            case CONSTRAINT_UNEVALUABLE -> "constraint not evaluable: data not available";
-            case LIST_LENGTHS_DIFFER -> "the two lists differ in length";
-            case MAP_KEYS_MISALIGNED -> "map keys do not align with values";
-            case MAP_KEY_NULL -> "map key is null";
-            case MAP_KEYS_NOT_UNIQUE -> "map keys are not unique";
-            case TEXT_NOT_INTEGER -> "text is not an integer";
-            case TEXT_NOT_DATE -> "text is not a date";
-            case VALUE_NOT_HELD -> "value outside what this database holds";
-            case FRACTION_NOT_KEPT -> "more fraction digits than this database keeps";
-            case CSV_TOO_WIDE -> "CSV record wider than its table";
-            // the user's own message is its text: never the kind's name alone
-            case USER_FAIL -> "fail";
-        };
-    }
-
-    /** {@code text}, a product raise's kind worded ({@link #sentence}); any other text as it is. */
-    private static String worded(String text) {
-        com.legend.sql.RaiseKind kind = kindOf(text);
-        return kind == null ? text : sentence(kind);
-    }
 
     /** A failure that IS a raise (pure's own error, its text the platform's: the sentinel envelope unwrapped), told by
      *  its type wherever a caller asks whether a failure was raised (the B checkpoint's tenets audit, LOW 4,
@@ -131,7 +93,7 @@ public final class RaisedErrors {
         private final com.legend.sql.@com.legend.base.Nullable RaiseKind kind;
 
         Raised(String message, @com.legend.base.Nullable String sqlState, java.sql.SQLException cause) {
-            super(worded(message), sqlState, cause);
+            super(message, sqlState, cause);
             this.kind = kindOf(message);
         }
 
@@ -216,7 +178,24 @@ public final class RaisedErrors {
      *  unwrapped ({@link #unwrapped(java.sql.SQLException)}). Here since D70 (2026-10-30; the plan sessions' until
      *  then): the one class that constructs from a {@code SQLException}. */
     static com.legend.error.DataError dataError(java.sql.SQLException e) {
-        java.sql.SQLException un = unwrapped(e);
+        return dataErrorOf(unwrapped(e));
+    }
+
+    /** A failure whose text is {@code message} (a driver that reports no {@code SQLException}: MongoDB's) as the
+     *  platform's typed error: its raise unwrapped, a product raise by its kind, else the text (or the message). */
+    public static com.legend.error.DataError dataError(String message, Throwable cause) {
+        String text = unwrap(message);
+        com.legend.sql.RaiseKind kind = text == null ? null : kindOf(text);
+        return kind != null ? new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(kind.name()), cause)
+                : new com.legend.error.DataError(text == null ? String.valueOf(message) : text, cause);
+    }
+
+    /** {@code un} as the platform's typed error: a product raise by its kind (the error layer spells its sentence,
+     *  {@code error.ErrorKind}; phase D's D1.1), any other failure by its text. */
+    static com.legend.error.DataError dataErrorOf(java.sql.SQLException un) {
+        if (un instanceof Raised r && r.kind() != null) {
+            return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(r.kind().name()), un);
+        }
         return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
     }
 
@@ -224,7 +203,6 @@ public final class RaisedErrors {
      *  none ({@link #unwrapped(java.sql.SQLException, java.util.function.Supplier)}). */
     static com.legend.error.DataError dataError(java.sql.SQLException e,
             java.util.function.Supplier<@com.legend.base.Nullable String> held) {
-        java.sql.SQLException un = unwrapped(e, held);
-        return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
+        return dataErrorOf(unwrapped(e, held));
     }
 }

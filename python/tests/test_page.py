@@ -3817,6 +3817,25 @@ class Flows(Paged):
             with self.assertRaisesRegex(ValueError, "one of this page's own tables"):
                 flow.run(folder)
 
+    def test_a_table_output_is_refused_a_name_a_streaming_snap_has_reserved(self):
+        # the closing audit's item 1 (2026-11-13): a warehouse snap streams its rows into a name reserved with the frames
+        # let go (frames.streaming_file), and the name was in none of the page's own tables a table Output is refused, so
+        # an Output could make the table the snap's copy then dropped and replaced; refused by name now, nothing written
+        page, flow, _source, big = self.flowed()
+        frames = page._session.frames
+        con = frames.connection._con
+        big.output_table('snap', 'create')
+        with tempfile.TemporaryDirectory() as folder, frames.streaming_file('snap') as (name, _cursor):
+            self.assertEqual(name, 'snap')
+            with self.assertRaisesRegex(ValueError, "'snap' is one of this page's own tables"):
+                flow.run(folder)
+            self.assertEqual(con.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'snap'")
+                             .fetchone()[0], 0, 'the Output wrote nothing under the reserved name')
+        # the snap let go of the name: the Output takes it
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(flow.run(folder), ['table snap'])
+        self.assertEqual(sorted(con.execute('SELECT notional FROM snap').fetchall()), [(100.0,), (250.0,)])
+
     def test_an_output_writes_what_the_box_hands_on(self):
         # one writer (flow-output.ts outputCsv, headless gridOutput; the review of 2026-10-26's B2, C1, C9, C10): every row
         # in its sorts' order, the columns it hands on under their names, in its order, each value as it is -- the tab's

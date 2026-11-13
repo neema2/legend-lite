@@ -29,7 +29,7 @@ public final class Databases {
 
     /** THE PRODUCT'S DIALECT SOURCE (phase D's D1.0): the dialect each declared type's statements are written in by
      *  the product's own doors, {@link #dialect}; the compatibility edge hands its own (G5). */
-    public static final DialectSource DIALECTS = Databases::dialect;
+    public static final SqlSpelling PRODUCT_SPELLING = Databases::dialect;
 
     /** The database the SQL-text replay referee runs on: its ledger records DDL in this database's spelling. */
     public static final DatabaseType REPLAY_REFEREE = DatabaseType.H2;

@@ -65,7 +65,7 @@ public final class FunctionActivatorSectionGrammar
             com.legend.spi.ElementSink out) {
         var c = new SliceCursor(com.legend.lexer.Lexer.tokenize(src.text()),
                 // SPI overlay hosting = the drop-in seam: engine grammar
-                com.legend.parser.Dialect.LEGEND_ENGINE);
+                com.legend.parser.GrammarLevel.LEGEND_ENGINE);
         while (!c.atEnd()) {
             if (c.peek() == TokenType.IMPORT) {
                 SectionImports.parseImport(c);
@@ -348,16 +348,16 @@ public final class FunctionActivatorSectionGrammar
     private static final class SliceCursor implements TokenStreamCursor {
 
         private final com.legend.lexer.TokenStream tokens;
-        private final com.legend.parser.Dialect dialect;
+        private final com.legend.parser.GrammarLevel dialect;
         private int pos;
 
-        SliceCursor(com.legend.lexer.TokenStream tokens, com.legend.parser.Dialect dialect) {
+        SliceCursor(com.legend.lexer.TokenStream tokens, com.legend.parser.GrammarLevel dialect) {
             this.tokens = tokens;
             this.dialect = dialect;
         }
 
         @Override
-        public com.legend.parser.Dialect dialect() {
+        public com.legend.parser.GrammarLevel dialect() {
             return dialect;
         }
 

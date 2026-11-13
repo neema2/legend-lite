@@ -78,7 +78,7 @@ class AuditRound5Test {
     void runtimeDateComponentGuard() {
         Exception e = assertThrows(Exception.class,
                 () -> scalar("|date(2016, [13]->at(0))"));
-        assertTrue(String.valueOf(e.getMessage()).contains("Invalid month: 13"), e.getMessage());
+        assertTrue(String.valueOf(e.getMessage()).contains(com.legend.error.ErrorKind.DATE_COMPONENT_INVALID.sentence()), e.getMessage());
     }
 
     @Test

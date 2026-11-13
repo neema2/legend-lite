@@ -3,7 +3,6 @@
 
 package com.legend.testexec;
 
-import com.legend.base.Executions;
 import com.legend.database.Databases;
 import com.legend.error.AssertFailed;
 import com.legend.exec.StatementOrigin;
@@ -54,7 +53,8 @@ final class AgreementPerRootTest {
     static void setUp() throws SQLException {
         conn = TestBackends.platform().open();
         target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null);
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null,
+                null);
     }
 
     @AfterAll
@@ -138,8 +138,8 @@ final class AgreementPerRootTest {
     }
 
     private static void run(TestPlan plan, Told told) {
-        TestRunner.run(new MintedPlan(plan, Executions.of(UUID.randomUUID(), Map.of())), TestSessions.over(conn),
-                com.legend.executionplan.DataStores.none(), null, told, null, null, StatementOrigin.OTHER);
+        TestRunner.run(plan, TestSessions.over(conn), com.legend.executionplan.DataStores.none(), null, told, null,
+                null, StatementOrigin.OTHER, UUID.randomUUID());
     }
 
     @Test

@@ -2652,7 +2652,7 @@ final class SpecParserTest {
                 new CFloat(1.0, new BigDecimal("1.0000000000000001"), null),
                 com.legend.testing.Platform.spec("1.0000000000000001"));
         assertEquals(new CFloat(1.0), SpecParser.parse(
-                "1.0000000000000001", com.legend.parser.Dialect.LEGEND_ENGINE));
+                "1.0000000000000001", com.legend.parser.GrammarLevel.LEGEND_ENGINE));
     }
 
     // ----- C.7a (RETIRED): the inline 'comparator' expression ----------

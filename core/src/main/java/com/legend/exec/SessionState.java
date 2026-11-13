@@ -52,8 +52,31 @@ public final class SessionState {
      *  for a target whose database's errors carry a raise, or before any check. Plan data, never the connector's. */
     private volatile com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable RaiseReadBack raiseReadBack;
 
+    /** Why this session's database may still hold a raise: its read-back's reset failed (the re-audit's note 8,
+     *  2026-11-12: until then the session went on, and a later failure on it would read the stale raise as its own);
+     *  empty while none failed. Once set it stays: the session refuses every further statement by name
+     *  ({@link #refuseIfRaiseHeld}). */
+    private final java.util.concurrent.atomic.AtomicReference<java.util.Optional<String>> raiseUnreset =
+            new java.util.concurrent.atomic.AtomicReference<>(java.util.Optional.empty());
+
     /** A session no connection keys (a connector's own): its state is its own. */
     public SessionState() {
+    }
+
+    /** The reset of a raise read back on this session failed with {@code why}: it may hold the raise still. */
+    void raiseUnreset(String why) {
+        raiseUnreset.updateAndGet(was -> was.isPresent() ? was : java.util.Optional.of(why));
+    }
+
+    /** Refuses, by name, a statement on a session whose raise reset failed: a failure on it would read the raise held
+     *  there as its own. */
+    void refuseIfRaiseHeld() {
+        java.util.Optional<String> why = raiseUnreset.get();
+        if (why.isPresent()) {
+            throw new IllegalStateException("this session's database may still hold a raise, its reset having failed ("
+                    + why.get() + "): a later failure on it would be told that raise, so the session runs no further"
+                    + " statement");
+        }
     }
 
     /** The read-back the target that checked this session declares ({@code JdbcStatements.check}). */

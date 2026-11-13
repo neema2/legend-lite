@@ -255,12 +255,12 @@ public final class MinimalCorpus {
                     "library/" + f.getFileName(), text);
             List<String> walls = new ArrayList<>();
             Compiler.parseSources(List.of(src), (name, err) -> walls.add(err),
-                    com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             if (walls.isEmpty()) {
                 // library sources contribute MODEL only: their own test
                 // functions (the platform's M2M suites) are not this corpus
                 Compiler.ParsedModule one = Compiler.parseSources(List.of(src),
-                        (name, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                        (name, err) -> { }, com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
                 refusePlatformNamespace(one.model().elements());
                 all.add(src);
                 for (PackageableElement el : one.model().elements()) {
@@ -273,7 +273,7 @@ public final class MinimalCorpus {
         List<String> parseWalls = new ArrayList<>();
         Compiler.ParsedModule parsed = Compiler.parseSources(all,
                 (name, err) -> parseWalls.add(name + " => " + err),
-                com.legend.parser.Dialect.LEGEND_PLATFORM);
+                com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         // EVERY source (the corpus's own files included) is under the
         // platform-namespace guard: nothing the harness loads may define
         // the platform's stdlib
@@ -312,7 +312,7 @@ public final class MinimalCorpus {
         // the shared fixture's own zero-arg functions (parsed apart so
         // their FQNs are known without an element→source index)
         Compiler.ParsedModule sharedParsed = Compiler.parseSources(shared,
-                (name, err) -> { }, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                (name, err) -> { }, com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
         for (PackageableElement el : sharedParsed.model().elements()) {
             // a TEST is never a setup, whatever its effects; a zero-arg
             // fixture function is a setup only when the PLATFORM says its
@@ -345,7 +345,7 @@ public final class MinimalCorpus {
                 discovery.setupsByPackage(), new CorpusObserver(),
                 com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode)
                         // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                        .withDialects(com.legend.edge.PureText.DIALECTS));
+                        .withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -368,7 +368,7 @@ public final class MinimalCorpus {
             List<String> walls = new ArrayList<>();
             Compiler.ParsedModule one = Compiler.parseSources(
                     List.of(new Compiler.ModelSource(name, Files.readString(f))),
-                    (n, err) -> walls.add(err), com.legend.parser.Dialect.LEGEND_PLATFORM);
+                    (n, err) -> walls.add(err), com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
             if (!walls.isEmpty()) {
                 libraryWalls.add(f.getFileName() + " => " + walls.get(0));
                 continue;
@@ -605,7 +605,7 @@ public final class MinimalCorpus {
                     // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
                     .withEngineCompat(true)
                     // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                    .withDialects(com.legend.edge.PureText.DIALECTS);
+                    .withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING);
         }
 
         @Override

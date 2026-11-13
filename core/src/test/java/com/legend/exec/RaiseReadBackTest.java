@@ -105,7 +105,7 @@ class RaiseReadBackTest {
         try (Connection c = RecordingConnection.wrap(TestBackends.of(DatabaseType.H2).open(), sent)) {
             ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
                     com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), readBack,
-                    com.legend.testbackend.TestBackends.settings(DatabaseType.H2));
+                    com.legend.testbackend.TestBackends.settings(DatabaseType.H2), null);
             com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
                     ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
                     PlanSessions.of(Sessions.borrowed(c))));
@@ -186,6 +186,52 @@ class RaiseReadBackTest {
         assertEquals("the raised text", failure(unresettable, new ArrayList<>()));
     }
 
+    /** A session whose reset failed may hold the raise still: it refuses every further statement by name, so a later
+     *  failure on it never reads that stale raise as its own (the re-audit's note 8, 2026-11-12: until then it went on).
+     *  After a read that answered and after one that failed; a reset that succeeds leaves the session as it was; and
+     *  through a plan's run on a borrowed session, whose next plan is refused. */
+    @Test
+    void aSessionWhoseResetFailedRefusesEveryFurtherStatementByName() throws Exception {
+        String noSuchTable = "SELECT * FROM NO_SUCH_TABLE";
+        for (ExecutionPlan.RaiseReadBack readBack : List.of(new ExecutionPlan.RaiseReadBack(MARIADB.read(), noSuchTable),
+                new ExecutionPlan.RaiseReadBack(noSuchTable, noSuchTable), MARIADB)) {
+            try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter();
+                    java.sql.Statement st = c.createStatement()) {
+                st.execute("SET @legend_raise = 'the held text'");
+                SessionState state = new SessionState();
+                state.declareRaiseReadBack(readBack);
+                JdbcStatements.held(c, state, statements());
+                JdbcStatements session = new JdbcStatements(c, state);
+                if (readBack == MARIADB) {
+                    session.execute(com.legend.testbackend.Unplanned.sql("SELECT 1"));   // reset: the session goes on
+                    continue;
+                }
+                IllegalStateException refused = assertThrows(IllegalStateException.class,
+                        () -> session.execute(com.legend.testbackend.Unplanned.sql("SELECT 1")), readBack.toString());
+                assertTrue(refused.getMessage().startsWith("this session's database may still hold a raise, its reset"
+                        + " having failed ("), refused.getMessage());
+            }
+        }
+        // a plan's run: the first fails with the raise read back, its reset failing; the next plan on that session is
+        // refused by name before it sends anything
+        ExecutionPlan.RaiseReadBack unresettable = new ExecutionPlan.RaiseReadBack(MARIADB.read(), noSuchTable);
+        try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
+            ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                    com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null), List.of(), List.of(), unresettable,
+                    com.legend.testbackend.TestBackends.settings(DatabaseType.H2), null);
+            PlanSessions.Source borrowed = PlanSessions.of(Sessions.borrowed(c));
+            com.legend.error.DataError failed = assertThrows(com.legend.error.DataError.class, () -> PlanRunnerTest.run(
+                    ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of(RAISING, target))),
+                    borrowed));
+            assertEquals("the raised text", failed.getMessage());
+            IllegalStateException refused = assertThrows(IllegalStateException.class, () -> PlanRunnerTest.run(
+                    ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(ExecutionPlan.Sql.of("SELECT 'next'", target))),
+                    borrowed));
+            assertTrue(refused.getMessage().startsWith("this session's database may still hold a raise"),
+                    refused.getMessage());
+        }
+    }
+
     @Test
     void aReadTheSessionRefusesIsNoText_theStatementsOwnErrorStands() throws SQLException {
         Connection c = TestBackends.of(DatabaseType.H2).open();
@@ -212,10 +258,12 @@ class RaiseReadBackTest {
         java.lang.reflect.Constructor<?>[] made = ExecutionPlan.Target.class.getDeclaredConstructors();
         assertEquals(1, made.length, "one constructor: the record's own");
         // moved 2026-11-12 (the C checkpoint's SHOULD-FIX 3): the target says its database's settings too, as it says
-        // its read-back, never defaulted
+        // its read-back, never defaulted; and again the same day (the re-audit's S8): its transaction's statements,
+        // which a host's runner opens one with, never asking the planner at run
         assertEquals(List.of(ExecutionPlan.Database.class, List.class, List.class, ExecutionPlan.RaiseReadBack.class,
-                ExecutionPlan.DatabaseSettings.class), List.of(made[0].getParameterTypes()),
-                "the read-back and the settings are said, never defaulted");
+                ExecutionPlan.DatabaseSettings.class, ExecutionPlan.Transaction.class),
+                List.of(made[0].getParameterTypes()),
+                "the read-back, the settings and the transaction are said, never defaulted");
     }
 
     @Test

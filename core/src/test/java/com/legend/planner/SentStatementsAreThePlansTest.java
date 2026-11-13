@@ -58,7 +58,7 @@ class SentStatementsAreThePlansTest {
                 } catch (com.legend.error.DataError refused) {
                     // a value finer than its slot keeps, refused by the statement's own raise, which was sent as the
                     // plan wrote it (S181, A7, 2026-11-10: DuckDB's microsecond slot and the nanosecond case)
-                    assertTrue(String.valueOf(refused.getMessage()).contains("refused, never cut (S181)"),
+                    assertTrue(String.valueOf(refused.getMessage()).contains(com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()),
                             type + " " + q.withParameters() + ": " + refused.getMessage());
                 }
                 assertFalse(sent.isEmpty(), type + " " + q.withParameters());
@@ -193,9 +193,48 @@ class SentStatementsAreThePlansTest {
                             + " plan does not carry:\n" + statement);
                     checked++;
                 }
+                // and in the plan's order (the third re-audit's SHOULD-FIX 10, 2026-11-12: until then membership alone)
+                inOrder(sent, ordered(plan), b.name() + " " + judge);
             }
         }
         assertTrue(checked > 10, "too few statements checked to prove anything: " + checked);
+    }
+
+    /** The order check refuses a statement sent before one the plan holds ahead of it, and one the plan does not hold;
+     *  it lets a statement the run had no need of go unsent (the third re-audit's SHOULD-FIX 10, 2026-11-12). */
+    @Test
+    void theOrderCheckRefusesAStatementOutOfItsPlansOrder() {
+        List<String> planned = List.of("SET a", "SELECT 1", "SELECT 2");
+        inOrder(List.of("SET a", "SELECT 2"), planned, "a statement skipped");
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> inOrder(List.of("SELECT 2", "SELECT 1"), planned, "out of order"));
+        org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> inOrder(List.of("SELECT 3"), planned, "not the plan's"));
+    }
+
+    /** The witness's connection leads nowhere past it (the third re-audit's SHOULD-FIX 10, 2026-11-12): {@code unwrap}
+     *  is refused by name and {@code isWrapperFor} answers no, on the connection, a statement and the metadata; a
+     *  statement's and the metadata's {@code getConnection} answer the recording connection, whose statements are
+     *  recorded. Until then {@code unwrap} reached the driver beneath, where a statement went unrecorded. */
+    @Test
+    void theRecordingConnectionLeadsNowherePastIt() throws Exception {
+        List<String> sent = new ArrayList<>();
+        try (Connection c = RecordingConnection.wrap(TestBackends.platform().open(), sent)) {
+            for (java.sql.Wrapper w : List.<java.sql.Wrapper>of(c, c.createStatement(), c.prepareStatement("SELECT 1"),
+                    c.getMetaData())) {
+                java.sql.SQLException refused = org.junit.jupiter.api.Assertions.assertThrows(java.sql.SQLException.class,
+                        () -> w.unwrap(Connection.class));
+                assertTrue(refused.getMessage().startsWith("a recording connection refuses unwrap"), refused.getMessage());
+                assertFalse(w.isWrapperFor(Connection.class));
+            }
+            try (java.sql.Statement st = c.createStatement().getConnection().createStatement()) {
+                st.execute("SELECT 2");
+            }
+            try (java.sql.Statement st = c.getMetaData().getConnection().createStatement()) {
+                st.execute("SELECT 3");
+            }
+        }
+        assertEquals(List.of("SELECT 2", "SELECT 3"), sent, "every statement recorded, whichever way it was reached");
     }
 
     /** Every text {@code plan} carries for a session, in the order a run sends it: its target's session statements,
@@ -213,19 +252,75 @@ class SentStatementsAreThePlansTest {
         return out;
     }
 
+    /** Every text {@code plan} carries for a session, in the order its run sends them: the body's session target's
+     *  (its settings' read-back, its session statements, its loads), then each step's statements in the steps' order --
+     *  a product step's node, a frame run's check, a verdict group's or a branch's statements -- each with its own
+     *  target's first. */
+    private static List<String> ordered(com.legend.testexecutionplan.TestPlan plan) {
+        List<String> out = targetTexts(plan.session());
+        for (com.legend.testexecutionplan.TestPlan.TestStep step : plan.steps()) {
+            List<ExecutionPlan.Node> nodes = switch (step) {
+                case com.legend.testexecutionplan.TestPlan.Run r -> List.of(r.node());
+                case com.legend.testexecutionplan.TestPlan.FrameRun f -> List.of(f.check());
+                case com.legend.testexecutionplan.TestPlan.Verdicts v ->
+                        com.legend.testexecutionplan.TestPlan.statements(v);
+                case com.legend.testexecutionplan.TestPlan.Branch br ->
+                        com.legend.testexecutionplan.TestPlan.statements(br);
+            };
+            for (ExecutionPlan.Node node : nodes) {
+                nodeTexts(node, out);
+            }
+        }
+        return out;
+    }
+
+    /** {@code node}'s statements, each with its target's texts first, in the order a run sends them. */
+    private static void nodeTexts(ExecutionPlan.Node node, List<String> out) {
+        switch (node) {
+            case ExecutionPlan.Sequence q -> q.steps().forEach(step -> nodeTexts(step, out));
+            case ExecutionPlan.TdsResult t -> sqlTexts(t.sql(), out);
+            case ExecutionPlan.Keyed k -> {
+                sqlTexts(k.keys(), out);
+                sqlTexts(k.body(), out);
+            }
+            case ExecutionPlan.Update u -> sqlTexts(u.sql(), out);
+            case ExecutionPlan.Check c -> sqlTexts(c.sql(), out);
+            case ExecutionPlan.Effect e -> sqlTexts(e.sql(), out);
+            case ExecutionPlan.Load l -> {
+                out.addAll(targetTexts(l.target().bare()));
+                loadTexts(l, out);
+            }
+            case ExecutionPlan.Constant c -> {
+            }
+        }
+    }
+
+    private static void sqlTexts(ExecutionPlan.Sql sql, List<String> out) {
+        out.addAll(targetTexts(sql.target()));
+        out.add(sql.statement());
+    }
+
     /** {@code target}'s texts in the order a session acquired for it sends them: its session statements, then each
      *  load's statements and staging. */
     private static List<String> targetTexts(ExecutionPlan.Target target) {
         List<String> out = new ArrayList<>();
         // a session the runner did not open is read back for the settings its database must have (H2's: the C
         // checkpoint's SHOULD-FIX 3), the target's own statement
-        if (target.settings() != null) {
+        if (target.settings() != null && target.settings().readBack() != null) {
             out.add(target.settings().readBack());
         }
         out.addAll(target.session());
         for (ExecutionPlan.Load load : target.loads()) {
             out.addAll(load.target().session());
-            for (ExecutionPlan.LoadStep step : load.steps()) {
+            loadTexts(load, out);
+        }
+        return out;
+    }
+
+    /** {@code load}'s statements and staging, in its steps' order. */
+    private static void loadTexts(ExecutionPlan.Load load, List<String> out) {
+        for (ExecutionPlan.LoadStep step : load.steps()) {
+            {
                 switch (step) {
                     case ExecutionPlan.LoadStep.Statement s -> out.add(s.sql());
                     case ExecutionPlan.LoadStep.Statements st -> out.addAll(DataRef.Statements.decode(
@@ -244,7 +339,6 @@ class SentStatementsAreThePlansTest {
                 }
             }
         }
-        return out;
     }
 
     /** {@code sent} is {@code planned} in its order, a statement skipped where the run had no need of it (a session's

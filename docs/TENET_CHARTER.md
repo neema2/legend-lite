@@ -257,7 +257,10 @@ wins.
         `SqlDialect.raiseReadBack`, `JdbcStatements.held`.
     - **H2's settings, on a session lite did not open.**
       - Why: H2 answers some queries differently by its settings (the `MODE`, and the default null ordering). The plan's
-        target declares the settings its SQL assumes. Where lite opens the database, they are written on its URL.
+        target declares the settings its SQL assumes. Where lite CREATES the database (in memory, private), they
+        are written on its URL. A database the user declares (a file, a server) is never modified: its target declares
+        no settings, H2's own defaults (C's final audit, 2026-11-12: a URL setting there would persist in the user's
+        database).
       - On a session lite did not open (a caller's, a borrowed one), the target's declared read-back statement asks the
         DATABASE to compare them. One row comes back for each setting it has otherwise, or does not report. Any row
         refuses the session by name. Exec carries the texts and decides nothing from them.

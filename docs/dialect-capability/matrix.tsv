@@ -1913,14 +1913,14 @@ SQLite	SQLite	call	DATE_TRUNC_DAY	spelled	date		4
 SQLite	SQLite	call	MAKE_DATE	emulated	printf('%04d-%02d-%02d', …)		2
 SQLite	SQLite	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 SQLite	SQLite	call	DATE_TRUNC	emulated	dateTrunc		0
-SQLite	SQLite	call	ADD_INTERVAL	emulated	addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
+SQLite	SQLite	call	ADD_INTERVAL	emulated	addInterval, raise, raiseArgs: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
 SQLite	SQLite	call	DATE_DIFF	emulated	dateDiff		53
 SQLite	SQLite	call	TIME_BUCKET	emulated	timeBucket		109
 SQLite	SQLite	call	TIMEZONE	emulated	timezone		6
 SQLite	SQLite	call	DATE_AT_TIME	emulated	… || ' ' || …		0
 SQLite	SQLite	call	EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 SQLite	SQLite	call	FROM_EPOCH_NS	refused	a nanosecond epoch: SQLite keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
-SQLite	SQLite	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
+SQLite	SQLite	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, raiseArgs: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
 SQLite	SQLite	call	EPOCH_SECONDS	emulated	micros: (… / 1000000.0)		0
 SQLite	SQLite	call	EPOCH_MS	emulated	micros: (… / 1000)		24
 SQLite	SQLite	call	FROM_EPOCH_SECONDS	emulated	datetime(…, 'unixepoch')		0
@@ -2137,14 +2137,14 @@ MariaDb	MariaDB	call	DATE_TRUNC_DAY	spelled	DATE		4
 MariaDb	MariaDB	call	MAKE_DATE	emulated	STR_TO_DATE(CONCAT_WS('-', …), '%Y-%m-%d')		2
 MariaDb	MariaDB	call	MAKE_TIMESTAMP	emulated	makeTimestamp		10
 MariaDb	MariaDB	call	DATE_TRUNC	emulated	dateTrunc		0
-MariaDb	MariaDB	call	ADD_INTERVAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
+MariaDb	MariaDB	call	ADD_INTERVAL	emulated	addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		93
 MariaDb	MariaDB	call	DATE_DIFF	emulated	dateDiff		53
 MariaDb	MariaDB	call	TIME_BUCKET	emulated	timeBucket		109
 MariaDb	MariaDB	call	TIMEZONE	emulated	timezone		6
 MariaDb	MariaDB	call	DATE_AT_TIME	spelled	TIMESTAMP		0
 MariaDb	MariaDB	call	EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
 MariaDb	MariaDB	call	FROM_EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)		0
-MariaDb	MariaDB	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
+MariaDb	MariaDB	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...		0
 MariaDb	MariaDB	call	EPOCH_SECONDS	emulated	micros: (… / 1000000)		0
 MariaDb	MariaDB	call	EPOCH_MS	emulated	micros: (… DIV 1000)		24
 MariaDb	MariaDB	call	FROM_EPOCH_SECONDS	emulated	(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (…) * 1000000 MICROSECOND)		0
@@ -2361,14 +2361,14 @@ MySql	MySQL	call	DATE_TRUNC_DAY	spelled	DATE	as MariaDb	4
 MySql	MySQL	call	MAKE_DATE	emulated	STR_TO_DATE(CONCAT_WS('-', …), '%Y-%m-%d')	as MariaDb	2
 MySql	MySQL	call	MAKE_TIMESTAMP	emulated	makeTimestamp	as MariaDb	10
 MySql	MySQL	call	DATE_TRUNC	emulated	dateTrunc	as MariaDb	0
-MySql	MySQL	call	ADD_INTERVAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	93
+MySql	MySQL	call	ADD_INTERVAL	emulated	addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	93
 MySql	MySQL	call	DATE_DIFF	emulated	dateDiff	as MariaDb	53
 MySql	MySQL	call	TIME_BUCKET	emulated	timeBucket	as MariaDb	109
 MySql	MySQL	call	TIMEZONE	emulated	timezone	as MariaDb	6
 MySql	MySQL	call	DATE_AT_TIME	spelled	TIMESTAMP	as MariaDb	0
 MySql	MySQL	call	EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as MariaDb	0
 MySql	MySQL	call	FROM_EPOCH_NS	refused	a nanosecond epoch: MariaDB keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)	as MariaDb	0
-MySql	MySQL	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	0
+MySql	MySQL	call	ADD_INTERVAL_TEMPORAL	emulated	addInterval, raise, raiseArgs, product, typeOf: (CASE WHEN … IS NULL OR … IS NULL THEN NULL ELSE coalesce(…, …a date past the...	as MariaDb	0
 MySql	MySQL	call	EPOCH_SECONDS	emulated	micros: (… / 1000000)	as MariaDb	0
 MySql	MySQL	call	EPOCH_MS	emulated	micros: (… DIV 1000)	as MariaDb	24
 MySql	MySQL	call	FROM_EPOCH_SECONDS	emulated	(TIMESTAMP '1970-01-01 00:00:00' + INTERVAL (…) * 1000000 MICROSECOND)	as MariaDb	0

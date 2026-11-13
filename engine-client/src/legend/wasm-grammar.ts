@@ -11,10 +11,10 @@ import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { FileLoadRequest } from '../model-data.ts';
-import type { RemoteMountRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
+import type { RemoteMountRequest, SnapCopyRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
-import { allFromPlan, fromPlan, plannedProjectData, type PlannedSql } from '../planned-sql.ts';
+import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../planned-sql.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
@@ -255,24 +255,30 @@ export class WasmGrammar implements Grammar {
    * A host's own file read into its database, as a plan (Boundary.fileLoad, B3): one HOST_SESSION load the hosts'
    * runner runs (plan-runner.ts runLoad), the file a reference the host's store binds -- PlanJson's text.
    */
-  async fileLoad(request: FileLoadRequest): Promise<string> {
-    return unfold(await this.#port.ask({ kind: 'fileLoad', request: JSON.stringify(request) }));
+  async fileLoad(request: FileLoadRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'fileLoad', request: JSON.stringify(request) })));
   }
 
   /**
    * A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): one HOST_SESSION load the hosts' runner runs,
    * binding by name what this host holds (its keys, a bearer URL) -- PlanJson's text, holding no value.
    */
-  async remoteMount(request: RemoteMountRequest): Promise<string> {
-    return unfold(await this.#port.ask({ kind: 'remoteMount', request: JSON.stringify(request) }));
+  async remoteMount(request: RemoteMountRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'remoteMount', request: JSON.stringify(request) })));
   }
 
   /**
    * A snapshot from a remote plane, as a plan (Boundary.snapStream, the user's ruling of 2026-11-11): one HOST_SESSION
    * load whose stream step the hosts' runner runs in one transaction -- PlanJson's text, the plane by name, never a row.
    */
-  async snapStream(request: SnapStreamRequest): Promise<string> {
-    return unfold(await this.#port.ask({ kind: 'snapStream', request: JSON.stringify(request) }));
+  async snapStream(request: SnapStreamRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'snapStream', request: JSON.stringify(request) })));
+  }
+
+  /** A snapshot's local copy, as a plan (Boundary.snapCopy, the final audit's item 1(b)): one write in its target's
+   *  transaction -- the table made from the pull, planned in the call -- PlanJson's text, never the pull's statement. */
+  async snapCopy(request: SnapCopyRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'snapCopy', request: JSON.stringify(request) })));
   }
 
   /**
@@ -280,8 +286,8 @@ export class WasmGrammar implements Grammar {
    * 2026-11-12): one HOST_SESSION load -- the table made as declared, then one statement filling it -- PlanJson's text,
    * never a row.
    */
-  async synthesize(request: SynthesizeRequest): Promise<string> {
-    return unfold(await this.#port.ask({ kind: 'synthesize', request: JSON.stringify(request) }));
+  async synthesize(request: SynthesizeRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'synthesize', request: JSON.stringify(request) })));
   }
 
   /**
@@ -289,7 +295,7 @@ export class WasmGrammar implements Grammar {
    * the person's one text on a database of `databaseType`, carried as written -- never parsed, rewritten or split --
    * PlanJson's text, its answer the relation the database reports (plan-runner.ts runAuthored).
    */
-  async authored(databaseType: string, text: string): Promise<string> {
-    return unfold(await this.#port.ask({ kind: 'authored', request: JSON.stringify({ databaseType, text }) }));
+  async authored(databaseType: string, text: string): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'authored', request: JSON.stringify({ databaseType, text }) })));
   }
 }

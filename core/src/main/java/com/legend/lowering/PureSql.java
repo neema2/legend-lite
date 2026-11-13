@@ -24,7 +24,7 @@ final class PureSql {
      * {@code RaisedErrors} parses it back off — production text stays clean
      * (the funnel strips the whole envelope). A synthesized call (no span)
      * raises position-free, exactly as before. */
-    static com.legend.sql.SqlExpr raise(com.legend.sql.SqlExpr message,
+    static com.legend.sql.SqlExpr raise(com.legend.sql.SqlExpr.RaiseText message,
             com.legend.protocol.@com.legend.base.Nullable SourceInfo pos) {
         return pos == null
                 ? com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, message)

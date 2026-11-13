@@ -186,7 +186,7 @@ public final class LoadPlanner {
         if (mount.view() != null) {
             for (String sql : host.statements(new com.legend.sql.dialect.HostOperation.MakeRelation(
                     com.legend.sql.dialect.HostOperation.Kind.VIEW,
-                    com.legend.sql.dialect.HostOperation.Name.of(mount.view()), true, null, List.of(),
+                    com.legend.sql.dialect.HostOperation.Name.of(mount.view()), true, List.of(),
                     new com.legend.sql.dialect.HostOperation.Source.Remote(at, mount.format())))) {
                 steps.statement(sql);
             }
@@ -285,7 +285,7 @@ public final class LoadPlanner {
             steps.statement(sql);
         }
         for (String sql : host.statements(new com.legend.sql.dialect.HostOperation.MakeRelation(kind, target, false,
-                null, List.of(), new com.legend.sql.dialect.HostOperation.Source.Relation(
+                List.of(), new com.legend.sql.dialect.HostOperation.Source.Relation(
                         com.legend.sql.dialect.HostOperation.Name.of(frame.as()))))) {
             steps.statement(sql);
         }
@@ -351,7 +351,7 @@ public final class LoadPlanner {
         com.legend.sql.dialect.HostOperation read = switch (into) {
             case NewTable n -> new com.legend.sql.dialect.HostOperation.MakeRelation(
                     com.legend.sql.dialect.HostOperation.Kind.TABLE, com.legend.sql.dialect.HostOperation.Name.of(n.table()),
-                    true, null, List.of(), new com.legend.sql.dialect.HostOperation.Source.HostFile(switch (file.format()) {
+                    true, List.of(), new com.legend.sql.dialect.HostOperation.Source.HostFile(switch (file.format()) {
                         case com.legend.executionplan.DataRef.DetectedCsv d -> com.legend.sql.dialect.HostOperation.FileFormat.CSV;
                         case com.legend.executionplan.DataRef.Parquet p -> com.legend.sql.dialect.HostOperation.FileFormat.PARQUET;
                         case com.legend.executionplan.DataRef.Json j -> com.legend.sql.dialect.HostOperation.FileFormat.JSON;
@@ -406,7 +406,7 @@ public final class LoadPlanner {
     /** {@code target} establishing {@code steps} on acquisition (none: the target as it is). */
     public static ExecutionPlan.Target withLoads(ExecutionPlan.Target target, com.legend.setup.LoadSteps steps) {
         return new ExecutionPlan.Target(target.database(), target.session(), targetLoads(steps, target),
-                target.raiseReadBack(), target.settings());
+                target.raiseReadBack(), target.settings(), target.transaction());
     }
 
     /** {@link #withLoads(ExecutionPlan.Target, com.legend.setup.LoadSteps)} for steps that read no blob. */

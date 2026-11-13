@@ -4,12 +4,14 @@
 package com.legend.parser;
 
 /**
- * THE THREE DIALECT LEVELS (user directive 2026-08-12; docs/DIALECT_LEVELS.md).
+ * THE THREE GRAMMAR LEVELS (user directive 2026-08-12; docs/GRAMMAR_LEVELS.md): the language surface a parser accepts,
+ * never a database ("dialect" alone means a database's SQL dialect: renamed from {@code Dialect} 2026-11-12, the user's
+ * "there are two different Dialects").
  * A parser always knows which level it is serving — there is no neutral
  * default a caller can grab by accident.
  *
  * <ol>
- *   <li>{@link #LEGEND_PLATFORM} — legend-lite's OWN legend-pure dialect (m3/m2:
+ *   <li>{@link #LEGEND_PLATFORM} — legend-lite's OWN legend-pure grammar (m3/m2:
  *       {@code #TDS}, {@code ^$x(...)}, {@code native}, generics,
  *       function-type literals, m2 mapping forms). Reachable ONLY from
  *       built-in/bootstrap/platform-source loading and the test harness —
@@ -17,7 +19,7 @@ package com.legend.parser;
  *       jars. Caller-whitelisted ({@code PlatformSurfaceGuardrailTest}).</li>
  *   <li>{@link #LEGEND_ENGINE} — user-facing EXACT legend-engine. The drop-in
  *       surface: PmcdParser, the SPI bridge, byte parity. Refuses BOTH the
- *       platform dialect and the lite extensions, with the engine's own
+ *       platform grammar and the lite extensions, with the engine's own
  *       messages.</li>
  *   <li>{@link #LEGEND_LITE} — {@link #LEGEND_ENGINE} plus the DECLARED lite
  *       extensions (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN families:
@@ -27,7 +29,7 @@ package com.legend.parser;
  *       undeclared rides along.</li>
  * </ol>
  */
-public enum Dialect {
+public enum GrammarLevel {
     LEGEND_PLATFORM,
     LEGEND_LITE,
     LEGEND_ENGINE;

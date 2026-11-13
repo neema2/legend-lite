@@ -773,24 +773,16 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     java.util.List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL,
                                     co.list()),
-                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                                    new SqlExpr.StringLit(
-                                            "Cannot cast a collection of"
-                                            + " size 0 to multiplicity "
-                                            + bound)))),
-                    co.list(), SqlExpr.Reason.DIALECT), parentPrec);
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                                    com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
+                                    java.util.List.of(new SqlExpr.StringLit(bound)))))),
+                    co.list(), SqlExpr.Reason.RAISE), parentPrec);
         }
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
                 co.list());
-        SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR,
-                SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
-                        new SqlExpr.StringLit(
-                                "Cannot cast a collection of size "),
-                        new SqlExpr.Cast(SqlExpr.Call.of(
-                                        com.legend.sql.SqlFn.COALESCE, len,
-                                        new SqlExpr.IntLit(0)),
-                                com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.DIALECT),
-                        new SqlExpr.StringLit(" to multiplicity " + bound)));
+        SqlExpr sizeErr = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, java.util.List.of(new SqlExpr.StringLit(bound),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE, len, new SqlExpr.IntLit(0)))));
         if (co.atLeastOnly()) {
             // toOneMany: at least one — the LIST rides through intact
             return writer.expr(new SqlExpr.Case(
@@ -944,9 +936,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
-            // a raise's message is its raise's (raised): written where the raise is, never on its own
-            case SqlExpr.RaiseText r -> throw new IllegalStateException("a raise's message (" + r.kind()
-                    + ") reached the renderer outside its raise");
+            // a raise's message where a raise is not (a checked graph's defect row: CONSTRAINT_UNEVALUABLE), written as a
+            // raise's is (raiseMessage)
+            case SqlExpr.RaiseText r -> writer.expr(raiseMessage(r), parentPrec);
             // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
             // consuming it reads its channels; no dialect writes it
             case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
@@ -1091,6 +1083,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return new SqlExpr.Call(c.fn(), args);
     }
 
+    /** A raise's arguments as a dialect's own raise helper takes them: {@code r}'s text as this dialect writes it
+     *  ({@link #raiseMessage}). For a raise a dialect writes itself, outside a planned {@code ERROR} call. */
+    protected final List<SqlExpr> raiseArgs(SqlExpr.RaiseText r) {
+        return List.of(raiseMessage(r));
+    }
+
     /**
      * THE PRODUCT'S RAISE TEXT (phase D's D1.1; the user's ruling of 2026-11-10: "a product error is its kind plus where
      * it happened ... never the value"): the kind's name, its operands never written -- no value cast to text, no
@@ -1098,6 +1096,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * message. exec types the raise by that name and words it ({@code exec.RaisedErrors}). The compatibility edge's
      * dialects override this alone, writing legend-pure's sentence from the operands ({@code edge.PureMessages}).
      */
+    @SpellingArm
     protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
         return r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? r.operands().get(0)
                 : new SqlExpr.StringLit(r.kind().name());
@@ -1842,9 +1841,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
         int past = 9 - kept;
         String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
-        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("the " + kind
+        // FRACTION_NOT_KEPT: lite's own sentence the operand, written by the edge alone (D1.1)
+        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, List.of(new SqlExpr.StringLit("the " + kind
                 + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
-                + " keeps (" + kept + "): refused, never cut (S181)"));
+                + " keeps (" + kept + "): refused, never cut (S181)"))));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
                 .append(" AS " + text + ")");
         java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");
@@ -2176,6 +2177,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            case com.legend.sql.SqlDml.CreateTableAs ct -> tableAs(ct).text();
             case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).text();
             case com.legend.sql.SqlDml.Update u -> update(u).text();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
@@ -2203,8 +2205,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected String csvRecordCheck(int width) {
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                 SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
-                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("a record of the CSV"
-                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true), SqlExpr.Reason.DIALECT);
+                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
+                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, List.of(new SqlExpr.StringLit("a record of the CSV"
+                + " file has more cells than its table's " + width + " column(s)")))))), new SqlExpr.BoolLit(true), SqlExpr.Reason.RAISE);
         SqlWriter where = newWriter().expr(check, 0);
         if (where.bound() != 0) {
             throw new IllegalStateException("a CSV load's record check binds no value");
@@ -2238,6 +2241,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.InsertFromTable it -> new RenderedStatement(render(it), List.of());
             case com.legend.sql.SqlDml.DeleteAll da -> new RenderedStatement(render(da), List.of());
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).statement();
+            case com.legend.sql.SqlDml.CreateTableAs ct -> tableAs(ct).statement();
             case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).statement();
             case com.legend.sql.SqlDml.Update u -> update(u).statement();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).statement();
@@ -2403,6 +2407,23 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .append(")");
         }
         return query(head.append(options).append(" AS "), passed(ct.query()), 0).append(";");
+    }
+
+    /** A host's table holding a query's rows (a snapshot's copy, the final audit's 1(b), 2026-11-12): refused unless the
+     *  dialect's database is measured to run {@link #createTableAs} -- every host copies into its own DuckDB. */
+    protected SqlWriter tableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
+        throw new DialectCapability("a snapshot's copy (CREATE TABLE ... AS) on " + getClass().getSimpleName()
+                + ": no spelling measured on its database (every host copies into its own DuckDB)");
+    }
+
+    /** The standard {@code CREATE TABLE [schema.]table AS <query>}, for a dialect whose database runs it: each name
+     *  delimited, the query written as this dialect writes a query statement -- its passes applied, its result's columns
+     *  labeled ({@link #renderStatement(SqlQuery)}'s own root), each plan parameter bound where it is written -- so the
+     *  statement is the query's own under the table's making, and binds what the query alone binds, in its order. */
+    protected final SqlWriter createTableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
+        SqlWriter head = newWriter().append("CREATE TABLE ")
+                .append(ct.schema() == null ? "" : delimited(ct.schema()) + ".").append(delimited(ct.table()));
+        return query(head.append(" AS "), labeled(passed(ct.query())), 0);
     }
 
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every

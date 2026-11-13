@@ -34,6 +34,15 @@ public sealed interface ConnectionSpecification
         return spec instanceof InMemory || spec instanceof LocalH2;
     }
 
+    /** Whether the opener makes the database a connection of {@code spec} names, in this process's memory: one the
+     *  platform makes ({@link #platformMakes}), or an {@code EmbeddedH2}, whose name is the user's -- so it is shared,
+     *  never filled with a project's data -- but which the opener makes here all the same. Such a database is made with
+     *  the settings its dialect declares; any other a connection declares (a file, a server, a warehouse) is the user's,
+     *  run as it is and never modified (the third re-audit's MUST-FIX 2, 2026-11-12). */
+    static boolean madeInProcess(ConnectionSpecification spec) {
+        return platformMakes(spec) || spec instanceof EmbeddedH2;
+    }
+
     /**
      * In-memory database connection (DuckDB / SQLite / H2). No configuration.
      * Pure: {@code specification: InMemory {};}.

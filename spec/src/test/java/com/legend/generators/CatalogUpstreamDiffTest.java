@@ -9,7 +9,7 @@ import com.legend.model.FunctionDefinition;
 import com.legend.model.NativeFunctionDefinition;
 import com.legend.model.PackageableElement;
 import com.legend.model.SignatureMangle;
-import com.legend.parser.Dialect;
+import com.legend.parser.GrammarLevel;
 import com.legend.door.ModelFromText;
 import org.junit.jupiter.api.Test;
 
@@ -82,7 +82,7 @@ class CatalogUpstreamDiffTest {
                 List<PackageableElement> elements;
                 try {
                     elements = ModelFromText.parse(Files.readString(f, StandardCharsets.UTF_8),
-                            Dialect.LEGEND_PLATFORM).elements();
+                            GrammarLevel.LEGEND_PLATFORM).elements();
                 } catch (RuntimeException e) {
                     unreadable.add(root.relativize(f) + "\t" + SpecBodyCensusTest.first(e.getMessage()));
                     continue;

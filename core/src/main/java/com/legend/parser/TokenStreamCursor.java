@@ -183,12 +183,12 @@ public interface TokenStreamCursor {
     }
 
     /** Which of the THREE dialect levels this parse serves
-     *  ({@link Dialect}). ABSTRACT on purpose: there is no default level.
+     *  ({@link GrammarLevel}). ABSTRACT on purpose: there is no default level.
      *  Every cursor names its dialect at construction — island re-lex
      *  cursors inherit the HOST's — so "something quietly parses at
      *  platform level" is unrepresentable (HONEST_DEBT #9, the
      *  collapse). */
-    Dialect dialect();
+    GrammarLevel dialect();
 
     /** Token texts {@code [fromTok, toTok]} joined with NO separators —
      *  the same rendering as ANTLR's {@code ctx.getText()}, which the

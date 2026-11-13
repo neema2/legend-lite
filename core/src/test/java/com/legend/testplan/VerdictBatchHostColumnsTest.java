@@ -34,7 +34,7 @@ class VerdictBatchHostColumnsTest {
 
     private static final ExecutionPlan.Target ON = new ExecutionPlan.Target(
             new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-            List.of(), List.of(), null, null);
+            List.of(), List.of(), null, null, null);
 
     private static final OutputCol V = new OutputCol("v", SqlType.Scalar.INTEGER, false);
 

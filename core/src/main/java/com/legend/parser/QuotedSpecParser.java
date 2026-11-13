@@ -34,11 +34,11 @@ public final class QuotedSpecParser {
      * native. */
     public static com.legend.protocol.spec.@com.legend.base.Nullable QuotedTreeCall
             fold(com.legend.protocol.spec.AppliedFunction call,
-                    Dialect payloadDialect) {
+                    GrammarLevel payloadDialect) {
         return fold(call, payloadDialect, name -> null);
     }
 
-    /** As {@link #fold(com.legend.protocol.spec.AppliedFunction, Dialect)}
+    /** As {@link #fold(com.legend.protocol.spec.AppliedFunction, GrammarLevel)}
      * with {@code constants} resolving a {@code $variable} operand to the
      * literal string its {@code let} bound IN THE SAME BODY (SpecParser's
      * scope stack): {@code let treeString = '#{' + ... ; compileLegend
@@ -48,7 +48,7 @@ public final class QuotedSpecParser {
      * shadowed by a lambda parameter) resolves to null = not foldable. */
     public static com.legend.protocol.spec.@com.legend.base.Nullable QuotedTreeCall
             fold(com.legend.protocol.spec.AppliedFunction call,
-                    Dialect payloadDialect,
+                    GrammarLevel payloadDialect,
                     java.util.function.Function<String, @com.legend.base.Nullable String>
                             constants) {
         if (!(call.function().equals("compileLegendValueSpecification")
@@ -93,7 +93,7 @@ public final class QuotedSpecParser {
         // the payload's records (the parser returns protocol only): functions, each as its lambda
         com.legend.protocol.Protocol.PureModelContextData parsed;
         try {
-            parsed = PmcdParser.parse(src, Dialect.LEGEND_ENGINE).model();
+            parsed = PmcdParser.parse(src, GrammarLevel.LEGEND_ENGINE).model();
         } catch (ParseException notGrammar) {
             return null;
         }
@@ -163,7 +163,7 @@ public final class QuotedSpecParser {
      * text is not a tree literal the grammar carries (callers keep their own loud
      * walls). */
     public static @com.legend.base.Nullable ValueSpecification parseTree(String source,
-            Dialect dialect) {
+            GrammarLevel dialect) {
         try {
             ValueSpecification v = SpecParser.parse(source.trim(), dialect);
             return v instanceof com.legend.protocol.spec.GraphFetchLiteral ? v : null;

@@ -39,7 +39,9 @@ legend_java_library(
         "src/main/java/planner/Folded.java",
         "src/main/java/planner/HostOperationsJson.java",
     ],
-    visibility = ["//native:__pkg__"],
+    # //core: the guard of who reaches the authored door, by class (ArchitectureTest.theAuthoredDoorIsReachedFromTheBoundaryAlone,
+    # the third re-audit's SHOULD-FIX 5, 2026-11-12)
+    visibility = ["//core:__pkg__", "//native:__pkg__"],
     deps = [
         # the plan side only (C2a): the embedded planner carries no execution library, no database, no driver
         "//core:plan_side",
@@ -61,8 +63,9 @@ legend_java_library(
     ],
     resources = ["src/main/resources/META-INF/services/org.teavm.classlib.ResourceSupplier"],
     resource_strip_prefix = "wasm/src/main/resources",
-    # the round trip in the tab: its JVM half asks these same exports (//parser-equivalence:tab_round_trip)
-    visibility = ["//parser-equivalence:__pkg__"],
+    # the round trip in the tab: its JVM half asks these same exports (//parser-equivalence:tab_round_trip); //core:
+    # the guard of who reaches the authored door, by class (the third re-audit's SHOULD-FIX 5, 2026-11-12)
+    visibility = ["//core:__pkg__", "//parser-equivalence:__pkg__"],
     deps = [
         ":boundary",
         "//core:plan_side",

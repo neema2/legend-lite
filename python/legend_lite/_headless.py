@@ -42,7 +42,7 @@ from ._planned import Answered, Database, across_the_bridge, connect, send
 from ._library import Library, library
 from ._pool import library_thread
 
-from ._planner import KINDS, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
+from ._planner import KINDS, REFUSED, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
 
 # WebCrypto's digests, by the names crypto.subtle.digest takes
 _DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512': 'sha512'}
@@ -53,9 +53,56 @@ DEFAULT_MEMORY_LIMIT = 2 * 1024 ** 3
 # a server is given this long to answer one fetch (seconds)
 _FETCH_TIMEOUT = 60
 
+# V8's flags, set once for the process before its first engine: mini-racer's own (--single-threaded) and no memory
+# protection keys. Insurance against the crash seen twice on 20261111.127.1 (ubuntu-24.04 on GitHub's Linux runners,
+# 2026-11-13, gates runs 43370111355 and 43380062329: mini-racer's _make_context segfaulted wherever a process made a
+# second engine); the cause unproven: the probe (gates run 43433798750) reached only .370.1, AMD, no pku, where nothing
+# crashed. The keys are the mechanism that fits: where the CPU and kernel offer PKU, V8 (on by default) tags its code
+# pages with a key only the thread that started V8, and threads it starts after, may read -- and each engine has its own
+# thread, started by whichever thread made it. DataCube's code is the engine's only code, and the bundle legend-lite
+# ships. The user's ruling, 2026-11-13: "agreed on turning protection off then with that error message, parent thread
+# as later follow-up" -- the keys off, V8 started by other code first refused in words, and starting every engine
+# thread from V8's own thread (which would keep the keys) a follow-up.
+_V8_FLAGS = ('--single-threaded', '--no-memory-protection-keys')
+_V8_STARTED = threading.Lock()
+_v8_started = False
+
+
+def _start_v8() -> None:
+    """V8 started for this process with ``_V8_FLAGS``, once, before its first engine. V8 started already by other code
+    in this process (any MiniRacer made first starts it with mini-racer's own flags) is refused in words: its engines
+    would keep the keys."""
+    global _v8_started
+    with _V8_STARTED:
+        if _v8_started:
+            return
+        from py_mini_racer import LibAlreadyInitializedError, init_mini_racer
+
+        try:
+            init_mini_racer(flags=_V8_FLAGS)
+        except LibAlreadyInitializedError as e:
+            raise RuntimeError("V8 was started in this process before DataCube's engine, by other code using "
+                               "mini-racer (a MiniRacer made first), so with its memory protection keys on, which "
+                               "crash DataCube's engines on a CPU that has them: DataCube starts V8 itself, with them "
+                               "off (legend_lite._headless._V8_FLAGS) -- open DataCube first, or restart the Python "
+                               "process") from e
+        _v8_started = True
+
+
 # the paths this host answers a fetch at itself: its model home's SDLC and Depot, and legend-lite's API
 _HOME_APIS = (('/sdlc/api/', 'sdlc'), ('/depot/api/', 'depot'))
 _LITE_API = '/api/lite/v1/'
+
+
+def _statement_in(body: str | None) -> str | None:
+    """The statement a fetch's JSON body carries for a SQL API (its ``sql``, as a warehouse's submit names it), or None."""
+    if body is None:
+        return None
+    try:
+        sent = json.loads(body)
+    except ValueError:
+        return None
+    return sent['sql'] if isinstance(sent, dict) and 'sql' in sent else None
 
 
 def answer_fetch(method: str, url: str, body: str | None) -> tuple[int, str]:
@@ -96,8 +143,9 @@ class InterfaceMismatch(RuntimeError):
 
 
 def check_interface(bundle_kinds: list[str], lib: Library) -> None:
-    """The bundle's request kinds against ``KINDS``, and each function ``KINDS`` names against the library's exports."""
-    sent, answered = set(bundle_kinds), set(KINDS)
+    """The bundle's request kinds against ``KINDS`` and the kinds this host refuses by name (``REFUSED``), and each
+    function ``KINDS`` names against the library's exports."""
+    sent, answered = set(bundle_kinds), set(KINDS) | set(REFUSED)
     missing = sorted(k for k in KINDS if not lib.exports(KINDS[k][0]))
     if sent != answered or missing:
         raise InterfaceMismatch(
@@ -180,6 +228,10 @@ class Headless:
 
     async def _planner(self, request: str) -> str:
         asked = json.loads(request)
+        # a host operation's own texts, each answered already, or the planner is not asked (the re-audit's S3)
+        refused = self._answered.refusal(asked)
+        if refused is not None:
+            return json.dumps({'id': asked.get('id'), 'ok': False, 'error': f'NotPlanned: {refused}'})
         answered = answer(self._lib, asked)
         # what DataCube's code may hand the database from now on: the statements the answer carries, read by the
         # request's kind (_planned.Answered)
@@ -222,6 +274,12 @@ class Headless:
         return base64.b64encode(sink.getvalue()).decode('ascii')
 
     async def _fetch(self, method: str, url: str, body: str | None) -> str:
+        # a statement the hosted code sends a SQL API over HTTP (a warehouse's submit, its JSON's `sql`) crosses the
+        # bridge as a query does: answered by this session's planner, or refused by name and nothing sent (the
+        # re-audit's S9, 2026-11-12: this fetch carried any text to any server)
+        sql = _statement_in(body)
+        if sql is not None:
+            across_the_bridge(sql, f"the hosted DataCube's HTTP request to {url}", self._answered)
         status, text = answer_fetch(method, url, body)
         return json.dumps({'status': status, 'body': text})
 
@@ -258,6 +316,7 @@ class Headless:
     async def _open(self, bundle: str, memory_limit: int) -> None:
         from py_mini_racer import MiniRacer
 
+        _start_v8()
         # made on the engine's loop, so mini-racer runs on it (and never on a caller's)
         self._mr = MiniRacer()
         self._mr.set_hard_memory_limit(memory_limit)

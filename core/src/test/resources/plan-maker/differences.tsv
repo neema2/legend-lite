@@ -52,5 +52,5 @@ duckdb	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->se
 # nanosecond pure type"): a DateTime parameter on DuckDB is upstream's microsecond TIMESTAMP, where lite's own literal
 # keeps a nanosecond digit (TIMESTAMP_NS). 2026-11-10 (S181 RULED, A7): a value of a finer digit than the slot keeps
 # is refused by the statement's own raise, never cut (until A7 it was cut to .123456).
-duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
-duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
+duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: more fraction digits than this database keeps
+duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: more fraction digits than this database keeps

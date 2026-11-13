@@ -45,7 +45,7 @@ async function seed(engine: QueryEngine & { readonly databaseType: string }, pla
   const model = (await Promise.all(files.map(text))).join('\n');
   const { load } = await planner.projectData(model, engine.databaseType);
   if (load === undefined) throw new Error(`the warehouse's seed (${files.join(', ')}) holds no Data rows to load`);
-  await runLoad(JSON.stringify(load), (sql, params) => {
+  await runLoad(load, (sql, params) => {
     if (params.length > 0) throw new Error("a project's Data load binds no value");
     return engine.run(sql, 0);
   });

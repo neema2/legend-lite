@@ -17,9 +17,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * the settings the plan's target declares ({@link #url}: the H2 dialect's {@code MODE=LEGACY} and
  * {@code DEFAULT_NULL_ORDERING=HIGH}, plan data since the C checkpoint's SHOULD-FIX 3, 2026-11-12; until then this
  * connector's {@code SETTINGS}, outside every plan, with the non-keywords that are now the dialect's session
- * statement), and so is a file's or a server's URL ({@link #urlWith}; the C final audit's J1, 2026-11-12: until then it
- * was opened as the connection declares it, read back as H2's defaults, and refused). A target that declares none is
- * refused by name: H2's defaults are other semantics (J4).
+ * statement). A file or a server a connection DECLARES is the user's database: opened as declared, never modified -- its
+ * target declares the database's own settings, none written and none read back (the third re-audit's MUST-FIX 2,
+ * 2026-11-12: J1 had written H2's settings on its URL, and H2 applies them to the whole open database). A target that
+ * declares nothing is refused by name (J4).
  *
  * <p>THE H2 session — the engine's own, VERBATIM (convergence batch C,
  * user-ratified "converge directly", landed 2026-08-29): H2Defaults
@@ -107,6 +108,10 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
                     + " target declares, and it declares none: H2's own defaults would run the plan with other"
                     + " semantics");
         }
+        if (settings.theDatabasesOwn()) {
+            throw new IllegalStateException("an in-memory H2 database the platform makes is made with its dialect's"
+                    + " settings, and the plan's target declares a declared database's own: a planner defect");
+        }
         StringBuilder url = new StringBuilder();
         for (com.legend.executionplan.ExecutionPlan.Setting s : settings.required()) {
             if (!SETTINGS.contains(s.name())) {
@@ -119,13 +124,6 @@ public final class H2Connector implements DatabaseConnector, DatabaseConnector.N
             url.append(';').append(s.name()).append('=').append(s.value());
         }
         return url.toString();
-    }
-
-    /** {@inheritDoc} A file's or a server's URL with the target's settings written on it ({@link #url}), as an
-     *  in-memory database's is (the C final audit's J1, 2026-11-12). */
-    @Override
-    public String urlWith(String url, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
-        return url + url(settings);
     }
 
     /** {@inheritDoc} Yes: the H2 dialect's two (J4). */

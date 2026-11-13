@@ -36,6 +36,31 @@ class NotPlanned(TypeError):
     """A text sent to a database that no plan carries: refused, never run."""
 
 
+class PlanText(str):
+    """A PLAN, AS THE PLANNER ANSWERED IT (PlanJson's text; the re-audit's M1, 2026-11-12: the runners took any dict, so a
+    plan a host wrote ran, its statements typed as planned by the runner that read them). The hosts' runners
+    (projects.run_load, run_host_load) take this and no other; it is made where the compiler reads the planner's answer
+    (:func:`plan_from_answer`, compiler.py), and it is text, so editing it makes a plain string again."""
+
+    __slots__ = ()
+
+
+def plan_from_answer(text: str) -> PlanText:
+    """``text``, the plan the planner answered, as its answer was READ -- called by the compiler's readers alone (the
+    guard, python/tests/test_planned_guard.py, holds it so)."""
+    if type(text) is not str:
+        raise TypeError(f"a planner's answer is text, not {type(text).__name__}")
+    return PlanText(text)
+
+
+def read_plan(plan: Any, where: str) -> dict:
+    """``plan``'s JSON, if it is a plan the planner answered; else refused by name, ``where`` naming what was to run it."""
+    if type(plan) is not PlanText:
+        raise NotPlanned(f"not a plan the planner answered, so not run by {where}: a {type(plan).__name__} (a host runs only"
+                         ' what the planner answered: _planned.py)')
+    return json.loads(plan)
+
+
 def from_plan(text: str) -> PlannedSql:
     """``text`` as the plan or the planner's answer it was READ from carries it: called by the plan readers alone (the
     guard, tools/guards/PlannedSqlTest.java, holds it so). The text is never edited, only typed."""
@@ -84,7 +109,8 @@ class Answered:
     CAPACITY = 4096
     KEYED_CAPACITY = 256
     # an answer whose statements DataCube's code hands the database, by the request's kind
-    PLANS = frozenset({'executionPlan', 'planJson', 'planModel', 'fileLoad', 'remoteMount', 'snapStream', 'synthesize'})
+    PLANS = frozenset({'executionPlan', 'planJson', 'planModel', 'fileLoad', 'remoteMount', 'snapStream', 'snapCopy',
+                       'outputPlan', 'synthesize'})
     # a plan's fields that hold a statement or a list of them (PlanJson's spellings)
     _STATEMENT_FIELDS = frozenset({'statement', 'sql', 'statements', 'after', 'session', 'read', 'reset', 'prepare',
                                    'count', 'begin', 'commit', 'rollback'})
@@ -114,6 +140,25 @@ class Answered:
                 self._texts.popitem(last=False)
             while len(self._keyed) > max(self.KEYED_CAPACITY, len(self._this_keyed)):
                 self._keyed.popitem(last=False)
+
+    def refusal(self, asked: dict) -> str | None:
+        """Why a request the hosted code makes of the planner is refused, or None: a host operation takes NO SQL (the
+        final audit's item 1, 2026-11-12, the user's ruling: no planner door takes SQL but the playground's; until then
+        the re-audit's S3 let one carry a text this session's planner had answered) -- a source ``query``, a
+        ``selectList``, a ``replacing`` expression, each refused by name here, the planner never asked (the platform
+        refuses each too: HostOperationsJson)."""
+        if asked.get('kind') != 'hostOperations':
+            return None
+        operations = asked.get('operations')
+        for op in json.loads(operations) if isinstance(operations, str) else []:
+            source = op.get('from') if isinstance(op, dict) else None
+            keys = ['query'] if isinstance(source, dict) and 'query' in source else []
+            keys += [k for k in ('selectList', 'replacing') if isinstance(op, dict) and k in op]
+            if keys:
+                return (f"a host operation ({op.get('op')}) takes no SQL, and its {keys[0]} is SQL: a query is planned from"
+                        ' its pull, a copy\'s conversions are the platform\'s from its columns\' catalog (convert)'
+                        ' (_planned.py Answered.refusal)')
+        return None
 
     def _record(self, kind: str, payload: str) -> None:
         if kind == 'catalogColumnsSql':
@@ -241,8 +286,10 @@ def _keyed_text(body: str, regions: tuple[dict, ...], n: int) -> str | None:
 
 
 def require(statement: Any, where: str) -> PlannedSql:
-    """``statement`` if it is a plan's; else refused by name, ``where`` saying what it was about to be sent to."""
-    if isinstance(statement, PlannedSql):
+    """``statement`` if it is a plan's; else refused by name, ``where`` saying what it was about to be sent to. The type
+    exactly (2026-11-12, the re-audit's S4: an isinstance check passed a str subclass whose ``__class__`` claimed to be
+    PlannedSql)."""
+    if type(statement) is PlannedSql:
         return statement
     shown = statement if isinstance(statement, str) else type(statement).__name__
     if isinstance(shown, str) and len(shown) > 120:
@@ -336,7 +383,10 @@ class Database:
                 raise NotPlanned(f"a stream lands in a table named plainly (letters, digits, '_'), not {name!r}")
         self._con.from_arrow(reader).create(table if schema is None else f'{schema}.{table}')
 
-    def _run(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:
+    def _send_planned(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:
+        # the one send's own check, here too (the re-audit's M2, 2026-11-12: this, `_run` until then, sent whatever it
+        # was handed, and the guard refused no call of it -- it refuses any reference to it outside this module now)
+        sql = require(sql, 'the database')
         return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql))
 
 
@@ -353,4 +403,4 @@ def send(target: Database, statement: Any, params: Sequence[Any] | None = None) 
     if not isinstance(target, Database):
         raise NotPlanned(f"the one send runs on the host's Database, not on a {type(target).__name__}")
     sql = require(statement, 'the database')
-    return target._run(sql, params)
+    return target._send_planned(sql, params)

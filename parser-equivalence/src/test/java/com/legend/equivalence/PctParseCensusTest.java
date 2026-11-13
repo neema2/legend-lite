@@ -49,7 +49,7 @@ class PctParseCensusTest {
                 // front door is LEGEND_PLATFORM, the dialect that already
                 // parses every native signature at class-load
                 com.legend.door.ModelFromText.parse(text,
-                        com.legend.parser.Dialect.LEGEND_PLATFORM);
+                        com.legend.parser.GrammarLevel.LEGEND_PLATFORM);
                 parsed++;
             } catch (RuntimeException e) {
                 String msg = String.valueOf(e.getMessage());

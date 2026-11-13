@@ -159,7 +159,7 @@ class TestPlanJsonRoundTripTest {
     /** Any database's target: the round trip does not depend on which. */
     private static ExecutionPlan.Target anyTarget() {
         return new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(DatabaseType.values()[0], null), List.of(),
-                List.of(), null, null);
+                List.of(), null, null, null);
     }
 
     private static Appeal rowsAppeal() {

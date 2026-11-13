@@ -75,7 +75,7 @@ public final class RenderCensus {
                     throw e;
                 }
                 ModelContext ctx = (ModelContext) built;
-                var parsed = com.legend.parser.SpecParser.parse(expression, com.legend.parser.Dialect.LEGEND_LITE);
+                var parsed = com.legend.parser.SpecParser.parse(expression, com.legend.parser.GrammarLevel.LEGEND_LITE);
                 List<com.legend.protocol.spec.ValueSpecification> statements =
                         parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
                                 ? lf.body() : List.of(parsed);

@@ -39,14 +39,19 @@ export function planParams(plan: unknown): readonly string[] {
 
 /** The values `statement`'s slots bind (planParams' rule), in its placeholders' order. */
 export function statementParams(statement: Statement): readonly string[] {
-  const content = statement.content ?? {};
-  return (statement.slots ?? []).map((slot) => {
+  // what the planner always writes, required (the re-audit's S7, G7, 2026-11-12: `slots ?? []` ran a statement whose
+  // slots were missing as one that binds nothing, and `digest ?? ''` looked a payload up by no digest)
+  if (statement.slots === undefined) throw new PlanParamsRefusal("this plan's statement does not carry its slots");
+  return statement.slots.map((slot) => {
     if (slot.binding._type !== 'payload') {
       throw new PlanParamsRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell"
         : slot.binding._type === 'source' ? "a file source's path" : slot.binding._type === 'array' ? 'a list'
           : 'a value the run supplies'}, which a host running the plan's text does not bind`);
     }
-    return payloadValue(content, slot.binding.digest ?? '');
+    // a payload slot names its digest, and its statement carries the content: either missing, the payload is not carried
+    const { digest } = slot.binding;
+    if (digest === undefined || statement.content === undefined) throw new PlanParamsRefusal(`'${slot.parameter}' binds a payload its statement does not carry`);
+    return payloadValue(statement.content, digest);
   });
 }
 

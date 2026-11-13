@@ -5,7 +5,7 @@ package com.legend.integration;
 
 import com.legend.Compiler;
 import com.legend.database.Databases;
-import com.legend.database.DialectSource;
+import com.legend.database.SqlSpelling;
 import com.legend.edge.PureText;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.PlanJson;
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE SPELLING HOOK (phase D's D1.0, the design the orchestrator approved 2026-11-12): a plan's dialect comes from the
- * door's {@link DialectSource} -- the product's own ({@code Databases::dialect}) or the edge's ({@link PureText}).
+ * door's {@link SqlSpelling} -- the product's own ({@code Databases::dialect}) or the edge's ({@link PureText}).
  * Pinned here: a plan made through one door is never served to the other (the orchestrator's addition 1: a memo of
  * anything a dialect wrote keys on its dialect); the edge's dialects are the product's own, subclassed, overriding ONLY
  * the arms the pin names (addition 2: shrink-only toward the floor compatibility needs -- D1.2 to D1.5 grow it, each
@@ -62,7 +62,7 @@ class EdgeSpellingHookTest {
         }
     }
 
-    private static final DialectSource LOWER = type -> type == DatabaseType.DuckDB ? new Lower()
+    private static final SqlSpelling LOWER = type -> type == DatabaseType.DuckDB ? new Lower()
             : Databases.dialect(type);
 
     private static String sql(ExecutionPlan plan) {
@@ -107,6 +107,50 @@ class EdgeSpellingHookTest {
             Map.entry("DuckDb", D1_1), Map.entry("H2", D1_1), Map.entry("MariaDb", D1_1),
             Map.entry("MongoDb", D1_1), Map.entry("MySql", D1_1), Map.entry("Postgres", D1_1),
             Map.entry("SQLite", D1_1), Map.entry("Snowflake", D1_1), Map.entry("Trino", D1_1)));
+
+    /** The methods {@code c} declares that override a product dialect's method which is neither a
+     *  {@link com.legend.sql.dialect.SpellingArm} nor an {@link com.legend.sql.dialect.EdgeMayOverride}: a decision the
+     *  edge must not take. */
+    static List<String> decisionsOverridden(Class<?> c) {
+        List<String> out = new java.util.ArrayList<>();
+        for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
+            if (m.isSynthetic() || java.lang.reflect.Modifier.isStatic(m.getModifiers())) {
+                continue;
+            }
+            java.lang.reflect.Method overridden = null;
+            for (Class<?> up = c.getSuperclass(); up != null && overridden == null; up = up.getSuperclass()) {
+                try {
+                    overridden = up.getDeclaredMethod(m.getName(), m.getParameterTypes());
+                } catch (NoSuchMethodException next) {
+                    // keep climbing
+                }
+            }
+            if (overridden == null || !(overridden.isAnnotationPresent(com.legend.sql.dialect.SpellingArm.class)
+                    || overridden.isAnnotationPresent(com.legend.sql.dialect.EdgeMayOverride.class))) {
+                out.add(c.getSimpleName() + "." + m.getName());
+            }
+        }
+        return out;
+    }
+
+    /** The edge overrides SPELLING, never a DECISION (the orchestrator's guard, 2026-11-12): each method an edge dialect
+     *  declares overrides a product method marked {@code @SpellingArm} or {@code @EdgeMayOverride}. */
+    @Test
+    void theEdgesDialectsOverrideSpellingOnly() {
+        List<String> decisions = new java.util.ArrayList<>();
+        for (Class<?> c : PureText.class.getDeclaredClasses()) {
+            decisions.addAll(decisionsOverridden(c));
+        }
+        assertEquals(List.of(), decisions, "an edge dialect overriding a decision: planning would be a mode");
+    }
+
+    /** The rule bites an edge class overriding a decision ({@code edge.PlantedEdgeDecision}, a test class planted for
+     *  this alone: the raise read-back). */
+    @Test
+    void theSpellingOnlyRuleBitesAPlantedDecision() {
+        assertEquals(List.of("PlantedEdgeDecision.raiseReadBack"),
+                decisionsOverridden(com.legend.edge.PlantedEdgeDecision.class));
+    }
 
     @Test
     void theEdgesDialectsOverrideOnlyThePinnedArms() {

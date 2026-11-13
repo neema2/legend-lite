@@ -35,7 +35,7 @@ class PlanRunnerDuckDbTest {
         ExecutionPlan.DatabaseSettings settings = new ExecutionPlan.DatabaseSettings(
                 List.of(new ExecutionPlan.Setting("MODE", "LEGACY")), "SELECT 1 WHERE FALSE");
         ExecutionPlan.Target withSettings = new ExecutionPlan.Target(duck.database(), duck.session(), List.of(), null,
-                settings);
+                settings, null);
         try (java.sql.Connection c = com.legend.testbackend.TestBackends.of(DatabaseType.DuckDB).open();
                 var run = com.legend.base.RunScope.enter()) {
             JdbcStatements st = new JdbcStatements(c, new SessionState());
@@ -63,7 +63,7 @@ class PlanRunnerDuckDbTest {
             com.legend.setup.RowLoad load = new com.legend.setup.RowLoad(null, "K", com.legend.sql.NameQuoting.BARE,
                     List.of("A", "B"), java.util.Set.of(), 2, List.of(e.getKey()));
             ExecutionPlan p = plan(read, com.legend.planner.LoadPlanner.withLoads(new ExecutionPlan.Target(duck,
-                    List.of(), List.of(), null, null), com.legend.setup.LoadSteps.of(List.of(statement(
+                    List.of(), List.of(), null, null, null), com.legend.setup.LoadSteps.of(List.of(statement(
                             "CREATE TABLE K (A VARCHAR, B VARCHAR)"))).then(com.legend.setup.LoadSteps.rows(load,
                             com.legend.database.Databases.dialect(DatabaseType.DuckDB)))));
             assertEquals(e.getValue(), run(p, PlanSessions.shared()), String.valueOf(e.getKey()));

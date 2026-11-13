@@ -12,7 +12,6 @@ none."""
 
 from __future__ import annotations
 
-import contextlib
 import hashlib
 import json
 import re
@@ -23,7 +22,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import compiler
-from ._planned import PlannedSql, all_from_plan, from_plan, send
+from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, read_plan, send
 
 # the kinds the compiler names a model's failure to read as a model by (planner.Folded, PureV1Api.refusal): such a
 # model is no project's, and is refused where a model is; any other refusal of a project's database (a Data element
@@ -34,7 +33,7 @@ _NOT_A_MODEL = frozenset({'PARSER', 'COMPILATION'})
 # the plan format this host runs: the planner's (PlanJson.VERSION), as the tab's runner's is (plan-runner.ts PLAN_VERSION,
 # held equal by PlanVersionsAgreeTest); a stale one here refuses every fresh plan, which the shared conformance fixture
 # runs (test_engine) -- so the two cannot drift apart unseen
-PLAN_VERSION = 50
+PLAN_VERSION = 53
 
 
 class LoadRefused(ValueError):
@@ -42,9 +41,11 @@ class LoadRefused(ValueError):
     database refused (its words, the data named): refused by name."""
 
 
-def _load_of(plan: Any) -> dict[str, Any]:
-    """``plan``'s root load, refused by name unless it is a legend-lite plan of the version this host runs with a load at
-    its root."""
+def _load_of(given: PlanText) -> dict[str, Any]:
+    """``given``'s root load, refused by name unless it is a plan the planner answered (the re-audit's M1, 2026-11-12: a
+    PlanText; a dict or a string a host wrote is no plan) and a legend-lite plan of the version this host runs with a
+    load at its root."""
+    plan = read_plan(given, "the hosts' runner")
     if not isinstance(plan, dict) or plan.get('format') != 'legend-lite-plan' or plan.get('version') != PLAN_VERSION:
         # the tab's runner's words (plan-runner.ts read), the shared fixture's (the tenets audit's LOW 1, 2026-11-11)
         said = {'format': plan.get('format'), 'version': plan.get('version')} if isinstance(plan, dict) else {}
@@ -56,7 +57,7 @@ def _load_of(plan: Any) -> dict[str, Any]:
     return root
 
 
-def run_load(plan: Any, execute: Callable[[PlannedSql], Any]) -> None:
+def run_load(plan: PlanText, execute: Callable[[PlannedSql], Any]) -> None:
     """A plan whose root is the ONCE load a project's database is made with (the native library's ``load``: the platform's
     LoadPlanner.projectData, the load a server's project plan carries), run by ``execute`` on the database Python made
     for it: its steps in order -- a statement as it is; a content blob of statements, its bytes checked against the
@@ -123,7 +124,50 @@ class HostLoad:
     landed: tuple[Landed, ...]
 
 
-def run_host_load(plan: Any, connection: Any, *, values: Callable[[str], Any] | None = None,
+def run_write(plan: PlanText, connection: Any) -> None:
+    """A PLAN OF WRITES THAT ANSWERS NOTHING, run on ``connection`` (the final audit's item 1(b), 2026-11-12: a
+    snapshot's copy, the native library's Boundary.snapCopy): its effects in order, each binding its data: payloads from
+    its statement's content by digest (``compiler.statement_params``), in its target's own transaction -- a failure
+    rolled back by the plan's own statement and raised, a rollback that fails too said with it. Any other plan is
+    refused by name. The rule is engine-client's plan-runner.ts ``runPlan`` for a plan of writes alone (the tab's)."""
+    p = read_plan(plan, "the hosts' runner")
+    if not isinstance(p, dict) or p.get('format') != 'legend-lite-plan' or p.get('version') != PLAN_VERSION:
+        said = {'format': p.get('format'), 'version': p.get('version')} if isinstance(p, dict) else {}
+        raise LoadRefused(f'not a legend-lite execution plan of version {PLAN_VERSION}: '
+                          f"{json.dumps(said, separators=(',', ':'))}")
+    if p.get('parameters'):
+        raise LoadRefused('a plan that takes parameters is not run here: its program binds none')
+    root = p.get('root') or {}
+    steps = root.get('steps') if root.get('_type') == 'sequence' else [root]
+    for step in steps:
+        if step.get('_type') != 'effect' or step.get('script') is not None:
+            raise LoadRefused(f"a plan of writes alone is effects of one statement each, not a {step.get('_type')}")
+    targets = {json.dumps(step['sql']['target'], sort_keys=True) for step in steps}
+    if len(targets) != 1:
+        raise LoadRefused("a plan's steps run on one database: these name several")
+    target = steps[0]['sql']['target']
+    if target.get('transaction') is None:
+        raise LoadRefused("a plan's writes run in its target's transaction, and its target declares none")
+    for sql in all_from_plan(target['session']):
+        send(connection, sql)
+    for sql in all_from_plan(target['transaction']['begin']):
+        send(connection, sql)
+    try:
+        for step in steps:
+            send(connection, from_plan(step['sql']['statement']), list(compiler.statement_params(step['sql'])))
+        for sql in all_from_plan(target['transaction']['commit']):
+            send(connection, sql)
+    except BaseException as failure:
+        # the database's own undo, the plan's statement; a rollback that fails too is said with the failure (G7)
+        try:
+            for sql in all_from_plan(target['transaction']['rollback']):
+                send(connection, sql)
+        except Exception as rollback:
+            raise LoadRefused(f'{failure} -- and rolling its transaction back failed: {rollback}') from failure
+        raise
+
+
+def run_host_load(plan: PlanText, connection: Any, *, values: Callable[[str], Any] | None = None,
                   planes: Mapping[str, Any] | None = None) -> HostLoad:
     """A HOST_SESSION load run on ``connection`` (duckdb-python's) -- the user's ruling of 2026-11-11, "This is the right
     plan": a statement as it is; a value this host holds ATTACHED BY NAME (``values``: a Python frame by its name; one it
@@ -222,11 +266,14 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
         for sql in all_from_plan(step['transaction']['commit']):
             send(connection, sql)
         return Landed(step['plane'], schema, table, counted, dict(receipt))
-    except BaseException:
-        # the database's own undo: the table made in the transaction goes with it, one there before is as it was
-        for sql in all_from_plan(step['transaction']['rollback']):
-            with contextlib.suppress(Exception):
+    except BaseException as failure:
+        # the database's own undo: the table made in the transaction goes with it, one there before is as it was; a
+        # rollback that fails too is said with the failure, never swallowed (G7; the final audit, 2026-11-12)
+        try:
+            for sql in all_from_plan(step['transaction']['rollback']):
                 send(connection, sql)
+        except Exception as rollback:
+            raise LoadRefused(f'{failure} -- and rolling its transaction back failed: {rollback}') from failure
         raise
     finally:
         # a read that ended early lets its plane free the statement (the warehouse's: closed or cancelled)

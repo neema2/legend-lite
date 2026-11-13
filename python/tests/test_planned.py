@@ -11,8 +11,9 @@ import duckdb
 from legend_lite import _host, compiler, projects, warehouse
 from legend_lite._library import library
 from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
-                                  from_plan, send)
+                                  from_plan, plan_from_answer, send)
 from legend_lite._planner import answer
+from legend_lite.compiler import LegendError
 from legend_lite.frames import execute_redacted
 
 
@@ -92,7 +93,8 @@ class OneSendTest(unittest.TestCase):
                 'root': {'_type': 'load', 'identity': 'L', 'cadence': 'ONCE', 'connection': 'c',
                          'steps': [{'_type': 'statement', 'sql': 'CREATE TABLE a (x INT)'}]}}
         try:
-            projects.run_load(plan, seen.append)
+            # a plan the test wrote, typed as the planner's answer is (the re-audit's M1: a runner takes no other)
+            projects.run_load(plan_from_answer(json.dumps(plan)), seen.append)
         except projects.LoadRefused as refused:  # a plan shape this runner reads differently: say so
             self.fail(f'the load was refused: {refused}')
         self.assertEqual([type(s) for s in seen], [PlannedSql])
@@ -103,6 +105,49 @@ class OneSendTest(unittest.TestCase):
         with self.assertRaises(NotPlanned) as refused:
             next(engine.arrow_chunks('SELECT 1'))
         self.assertIn('the warehouse', str(refused.exception))
+
+
+class TheReAuditsSendTest(unittest.TestCase):
+    """The re-audit's M2 and S4 (2026-11-12): the Database's own send requires a plan's statement, as the one send does;
+    and only a PlannedSql itself is one -- a str subclass claiming the class is refused."""
+
+    def test_the_databases_own_send_requires_a_plans_statement(self):
+        recording = _Recording()
+        with self.assertRaises(NotPlanned):
+            Database(recording)._send_planned('DROP TABLE t', None)
+        self.assertEqual(recording.sent, [], "nothing reached the database")
+
+    def test_a_string_claiming_to_be_planned_is_not(self):
+        class Spoof(str):
+            @property
+            def __class__(self):
+                return PlannedSql
+
+        spoof = Spoof('DROP TABLE t')
+        self.assertIsInstance(spoof, PlannedSql, 'isinstance is fooled: the check must not be isinstance')
+        with self.assertRaises(NotPlanned):
+            send(Database(_Recording()), spoof)
+
+
+class APlanThePlannerAnsweredTest(unittest.TestCase):
+    """The re-audit's M1 (2026-11-12): the runners take a plan the planner answered (PlanText) and no other -- a plan a
+    host wrote, as a dict or as text, is refused by name before anything runs."""
+
+    def test_a_hand_written_plan_runs_nothing(self):
+        written = {'format': 'legend-lite-plan', 'version': projects.PLAN_VERSION,
+                   'root': {'_type': 'load', 'identity': 'L', 'cadence': 'ONCE', 'connection': 'c',
+                            'steps': [{'_type': 'statement', 'sql': 'DELETE FROM trades'}]}}
+        for plan in (written, json.dumps(written)):
+            sent = []
+            with self.assertRaisesRegex(NotPlanned, 'not a plan the planner answered'):
+                projects.run_load(plan, sent.append)
+            with self.assertRaisesRegex(NotPlanned, 'not a plan the planner answered'):
+                projects.run_host_load(plan, Database(_Recording()))
+            self.assertEqual(sent, [])
+
+    def test_the_compiler_answers_plan_text(self):
+        plan = compiler.frame_load({'databaseType': 'DuckDB', 'held': 'f', 'as': 'x', 'live': True, 'relation': 'f'})
+        self.assertIs(type(plan), projects.PlanText)
 
 
 class _Witness:
@@ -160,7 +205,7 @@ class WitnessTest(unittest.TestCase):
         witness.received.clear()
         projects.run_load(project['load'], lambda statement: send(db, statement))
         self.assertGreater(len(witness.received), 1)
-        self.assertEqual(witness.received, _statements_of(project['load']['root']))
+        self.assertEqual(witness.received, _statements_of(json.loads(project['load'])['root']))
 
     def test_a_stream_hands_the_database_its_statements_and_its_import_alone(self):
         import pyarrow as pa
@@ -176,13 +221,128 @@ class WitnessTest(unittest.TestCase):
                 on_receipt({'statementId': 's1', 'serverRows': 3, 'as': 'rita', 'where': 'a stand-in'})
                 yield sink.getvalue().to_pybytes()
 
-        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': from_plan('SELECT * FROM t'),
-                                     'table': 'witnessed'})
-        step = plan['root']['steps'][0]
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'witnessed'})
+        step = json.loads(plan)['root']['steps'][0]
         witness = _Witness(duckdb.connect())
         projects.run_host_load(plan, Database(witness), planes={'warehouse': Plane()})
         self.assertEqual(witness.received, [*step['transaction']['begin'], *step['prepare'], '<from_arrow>', step['count'],
                                             *step['transaction']['commit']])
+
+    def test_a_streams_failed_rollback_is_said_with_its_failure(self):
+        # G7 (the final audit's item 4, 2026-11-12): a rollback that failed too was suppressed, the failure said alone
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None):
+                raise ConnectionResetError('the connection was reset')
+                yield b''
+
+        class NoRollback(_Witness):
+            def execute(self, sql, params=None):
+                if str(sql).upper().startswith('ROLLBACK'):
+                    raise RuntimeError('the rollback was refused')
+                return super().execute(sql, params)
+
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'unrolled'})
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_host_load(plan, Database(NoRollback(duckdb.connect())), planes={'warehouse': Plane()})
+        self.assertEqual(str(refused.exception), 'the connection was reset -- and rolling its transaction back failed: '
+                                                 'the rollback was refused')
+        self.assertIsInstance(refused.exception.__cause__, ConnectionResetError)
+
+    def test_a_statement_missing_what_the_planner_always_writes_is_refused_by_name(self):
+        # G7 (the final audit's item 4, 2026-11-12): `slots or []` ran a statement missing its slots as one binding
+        # nothing, and `content or {}` / `get('digest', '')` looked a payload up by no digest
+        with self.assertRaises(compiler.PlanParamsRefused) as refused:
+            compiler.statement_params({'statement': 'SELECT 1'})
+        self.assertEqual(str(refused.exception), "this plan's statement does not carry its slots")
+        payload = {'parameter': 'p', 'binding': {'_type': 'payload', 'digest': 'ab'}}
+        for statement in ({'slots': [payload]}, {'slots': [{**payload, 'binding': {'_type': 'payload'}}], 'content': {}}):
+            with self.assertRaises(compiler.PlanParamsRefused) as refused:
+                compiler.statement_params(statement)
+            self.assertEqual(str(refused.exception), "'p' binds a payload its statement does not carry")
+
+
+# A SNAPSHOT'S PULL (the user's ruling of 2026-11-12, "that is a real off platform problem"): a stream's request carries
+# the model, its runtime and the query, which the planner plans in the call; never the statement the plane runs
+_PULL_MODEL = """###Relational
+Database s::DB ( Table t ( id INTEGER, desk VARCHAR(8), qty DOUBLE ) )
+
+###Connection
+RelationalDatabaseConnection s::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
+"""
+
+
+def _pull() -> dict:
+    """A grid's base query as a snapshot's request carries it: its model, its runtime and its lambda's JSON."""
+    return {'model': _PULL_MODEL, 'runtime': 's::RT', 'lambda': json.dumps(compiler.parse('|#>{s::DB.t}#->select(~[id, desk, qty])'))}
+
+
+class ASnapshotsCopyTest(unittest.TestCase):
+    """A SNAPSHOT'S LOCAL COPY (the final audit's item 1(b), 2026-11-12): the native library's snap_copy answers the pull
+    and a table with ONE plan of writes -- the table there before dropped, the table made from the pull -- in its
+    target's transaction, run by projects.run_write; never the pull's statement handed back to the planner."""
+
+    def setUp(self):
+        self.con = duckdb.connect()
+        self.con.execute("CREATE TABLE t (id INTEGER, desk VARCHAR, qty DOUBLE)")
+        self.con.execute("INSERT INTO t VALUES (1, 'FX', 1.5), (2, 'EQ', 2.5)")
+
+    def test_the_database_is_handed_exactly_the_plans_statements_in_its_transaction(self):
+        plan = compiler.snap_copy({'databaseType': 'DuckDB', **_pull(), 'table': 'copied'})
+        root = json.loads(plan)['root']
+        self.assertEqual([s['_type'] for s in root['steps']], ['effect', 'effect'])
+        target = root['steps'][0]['sql']['target']
+        witness = _Witness(self.con)
+        projects.run_write(plan, Database(witness))
+        self.assertEqual(witness.received, [*target['session'], *target['transaction']['begin'],
+                                            *[s['sql']['statement'] for s in root['steps']],
+                                            *target['transaction']['commit']])
+        self.assertEqual(self.con.execute('SELECT * FROM copied ORDER BY id').fetchall(),
+                         [(1, 'FX', 1.5), (2, 'EQ', 2.5)])
+
+    def test_a_copy_that_fails_after_its_drop_rolls_back_and_the_table_before_is_as_it_was(self):
+        self.con.execute("CREATE TABLE kept AS SELECT 9 AS id, 'z' AS desk, CAST(9.5 AS DOUBLE) AS qty")
+        plan = compiler.snap_copy({'databaseType': 'DuckDB', **_pull(), 'table': 'kept'})
+
+        class Refusing(_Witness):
+            def execute(self, sql, params=None):
+                if str(sql).startswith('CREATE TABLE'):
+                    raise duckdb.Error('the copy was refused')
+                return super().execute(sql, params)
+
+        witness = Refusing(self.con)
+        with self.assertRaisesRegex(duckdb.Error, 'the copy was refused'):
+            projects.run_write(plan, Database(witness))
+        self.assertEqual(witness.received[-1], 'ROLLBACK')
+        self.assertEqual(self.con.execute('SELECT * FROM kept').fetchall(), [(9, 'z', 9.5)])
+
+    def test_any_other_plan_and_a_request_carrying_a_statement_are_refused_by_name(self):
+        with self.assertRaises(LegendError) as refused:
+            compiler.snap_copy({'databaseType': 'DuckDB', **_pull(), 'sql': 'SELECT 1', 'table': 't'})
+        self.assertIn("a snapshot's copy has no key sql", str(refused.exception))
+        stream = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'x'})
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_write(stream, Database(self.con))
+        self.assertIn('a plan of writes alone is effects of one statement each, not a load', str(refused.exception))
+
+
+class TheAuthoredDoorIsNotPythonsTest(unittest.TestCase):
+    """2026-11-12 (the orchestrator's ruling): a person's own statement is Studio's SQL playground's alone. Python's
+    planner protocol refuses the kind by name, the native library exports no lite_authored, and the headless check
+    still agrees with the bundle, which names the kind for the tab."""
+
+    def test_the_kind_is_refused_by_name_and_the_library_exports_none(self):
+        from legend_lite import _headless, _planner
+        said = answer(library(), {'id': 7, 'kind': 'authored', 'request': '{"databaseType": "DuckDB", "text": "DROP TABLE t"}'})
+        self.assertEqual((said['id'], said['ok']), (7, False))
+        self.assertRegex(said['error'], "Studio's SQL playground alone")
+        self.assertNotIn('authored', _planner.KINDS)
+        self.assertFalse(library().exports('lite_authored'), 'the native library exports no authored door')
+        _headless.check_interface([*_planner.KINDS, 'authored'], library())
+        with self.assertRaises(_headless.InterfaceMismatch):
+            _headless.check_interface([*_planner.KINDS], library())
 
 
 class KeyedExpansionFixtureTest(unittest.TestCase):
@@ -202,25 +362,30 @@ class KeyedExpansionFixtureTest(unittest.TestCase):
 
 
 class HostOperationsTextTest(unittest.TestCase):
-    """THE C FINAL AUDIT'S H2 (2026-11-12): a host operation's planner text -- a source query, a select list, a
-    replacement -- is a PlannedSql, made where its plan or the planner's answer was read; a host's own text is refused by
-    name before the planner is asked, so it is never pasted into a statement."""
+    """A HOST OPERATION TAKES NO SQL (the final audit's item 1, 2026-11-12; until then the C final audit's H2 let one carry
+    a PlannedSql the planner had answered): a source query, a select list, a replacement -- each refused by name by the
+    platform, even a planner's own statement; a copy's conversions are the platform's, written from its columns' catalog
+    (``convert``)."""
 
-    def test_a_hosts_own_text_in_an_operation_is_refused_by_name(self):
-        for op in ({'op': 'count', 'from': {'query': 'SELECT 1'}},
+    def test_an_operation_carrying_sql_is_refused_by_name_even_the_planners_own(self):
+        for op in ({'op': 'count', 'from': {'query': from_plan('SELECT 1 AS a')}},
                    {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*', 'from': {'relation': {'name': 's'}}},
                    {'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
                     'replacing': [{'column': 'a', 'sql': 'a'}]}):
-            with self.subTest(op=op), self.assertRaises(NotPlanned):
+            with self.subTest(op=op), self.assertRaises(LegendError) as refused:
                 compiler.host_operations('DuckDB', [op])
-        (counted,) = compiler.host_operations('DuckDB', [{'op': 'count', 'from': {'query': from_plan('SELECT 1 AS a')}}])
-        self.assertIn('SELECT 1 AS a', counted[0])
+            self.assertTrue('a query is planned from its pull' in str(refused.exception)
+                            or 'a host operation takes no SQL' in str(refused.exception), str(refused.exception))
 
-    def test_the_planners_copy_select_list_is_typed_as_its_answer_is_read(self):
+    def test_a_copys_conversions_are_written_from_its_columns_catalog(self):
         model = compiler.table_model({'table': 't', 'convertible': True, 'databaseType': 'DuckDB', 'columns': [
             {'name': 'big', 'dataType': 'UBIGINT', 'logicalType': 'UBIGINT'}]})
-        self.assertIsInstance(model['copySelectList'], PlannedSql)
-        self.assertIn('DECIMAL(20,0)', model['copySelectList'])
+        self.assertNotIn('copySelectList', model)
+        ((copy,),) = compiler.host_operations('DuckDB', [{'op': 'relation', 'kind': 'table', 'target': {'name': 't'},
+                                                         'replace': True, 'from': {'relation': {'name': 't'}},
+                                                         'convert': [{'name': 'big', 'dataType': 'UBIGINT',
+                                                                      'logicalType': 'UBIGINT'}]}])
+        self.assertIn('CAST("big" AS DECIMAL(20,0))', copy)
 
 
 class TheBridgeTest(unittest.TestCase):
@@ -284,12 +449,12 @@ class TheBridgeTest(unittest.TestCase):
         """The C final audit's H3 (2026-11-12): a snapshot's stream step carries the REMOTE plane's statement (its
         ``sql``) and an update step names the value a later step binds (its ``count``): neither is a statement this
         database runs, so neither is admitted -- the stream's own local statements are."""
-        sent = from_plan('SELECT * FROM remote_t')
-        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': sent, 'table': 'snap_t'})
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'snap_t'})
         answered = Answered()
-        answered.record('snapStream', 'OK\n' + json.dumps(plan))
-        stream = plan['root']['steps'][0]
+        answered.record('snapStream', 'OK\n' + plan)
+        stream = json.loads(plan)['root']['steps'][0]
         self.assertEqual(stream['_type'], 'stream')
+        sent = stream['sql']
         self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
         for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
             self.assertIn(local, answered, local)
@@ -298,10 +463,16 @@ class TheBridgeTest(unittest.TestCase):
         self.assertIn('INSERT INTO t SELECT 1', answered)
         self.assertNotIn('written', answered, "an update's count names a value, never a statement")
 
-    def test_a_snapshots_stream_takes_the_planes_statement_alone(self):
-        # H3: the plane's statement is a PlannedSql, made where its plan was read; any other text is refused by name
-        with self.assertRaisesRegex(NotPlanned, "a snapshot's stream"):
-            compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': 'DROP TABLE t', 'table': 'snap_t'})
+    def test_a_snapshots_stream_is_asked_by_its_pull_never_its_statement(self):
+        # the user's ruling of 2026-11-12: the request carries the pull, which the planner plans in the call -- its
+        # stream's statement is the planner's own plan of it, and a request carrying a statement is refused by name
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'snap_t'})
+        pull = _pull()
+        planned = compiler.plan(pull['model'], json.loads(pull['lambda']), pull['runtime'])
+        self.assertEqual(json.loads(plan)['root']['steps'][0]['sql'], str(planned.sql))
+        for given in ({'sql': 'DROP TABLE t'}, {**_pull(), 'sql': str(planned.sql)}):
+            with self.assertRaisesRegex(LegendError, "a snapshot's stream has no key sql"):
+                compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **given, 'table': 'snap_t'})
 
     def test_an_answer_bigger_than_the_bound_is_kept_whole(self):
         """The audit's NOTE: an answer of more than CAPACITY statements evicted its own first ones before any was sent;
@@ -314,6 +485,21 @@ class TheBridgeTest(unittest.TestCase):
         answered.record('catalogColumnsSql', 'OK\nSELECT -1')
         self.assertEqual(len(answered), Answered.CAPACITY)
         self.assertIn('SELECT -1', answered)
+
+    def test_a_host_operation_carrying_sql_is_refused_by_name_even_an_answered_statement(self):
+        """The final audit's item 1 (2026-11-12; until then the re-audit's S3 admitted a text this session's planner had
+        answered): a host operation takes no SQL -- a source query, a select list, a replacement -- whatever it is."""
+        answered = Answered()
+        ops = lambda op: {'kind': 'hostOperations', 'databaseType': 'DuckDB', 'operations': json.dumps([op])}
+        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT * FROM t'}))
+        for op, key in (({'op': 'count', 'from': {'query': 'SELECT * FROM t'}}, 'query'),
+                        ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*',
+                          'from': {'relation': {'name': 't'}}}, 'selectList'),
+                        ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'from': {'relation': {'name': 's'}},
+                          'replacing': [{'column': 'a', 'sql': 'DROP TABLE t'}]}, 'replacing')):
+            self.assertIn(f'takes no SQL, and its {key} is SQL', answered.refusal(ops(op)))
+        self.assertIsNone(answered.refusal(ops({'op': 'count', 'from': {'relation': {'name': 't'}}})))
+        self.assertIsNone(answered.refusal({'kind': 'plan', 'query': 'anything'}), 'another kind carries no host text')
 
     def test_the_set_is_bounded(self):
         answered = Answered()

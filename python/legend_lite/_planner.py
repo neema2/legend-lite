@@ -30,8 +30,9 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'fileLoad': ('lite_file_load', lambda m: (m['request'],)),
     'remoteMount': ('lite_remote_mount', lambda m: (m['request'],)),
     'snapStream': ('lite_snap_stream', lambda m: (m['request'],)),
+    'snapCopy': ('lite_snap_copy', lambda m: (m['request'],)),
+    'outputPlan': ('lite_output_plan', lambda m: (m['request'],)),
     'synthesize': ('lite_synthesize', lambda m: (m['request'],)),
-    'authored': ('lite_authored', lambda m: (m['request'],)),
     'sessionSetup': ('lite_session_setup', lambda m: (m['databaseType'],)),
     'projectData': ('lite_project_data', lambda m: (m['model'], m['databaseType'])),
     'hostOperations': ('lite_host_operations', lambda m: (m['databaseType'], m['operations'])),
@@ -39,9 +40,20 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
 }
 
 
+# THE KINDS THIS HOST REFUSES (2026-11-12, the orchestrator's ruling: the authored door -- a person's own statement
+# carried as written -- is Studio's SQL playground's alone, and no headless host walked it; its KINDS row, its library
+# arity and the native library's lite_authored export are deleted): the protocol still names it (the tab answers it), so
+# this host refuses a request of it by name, the planner never asked
+REFUSED: dict[str, str] = {
+    'authored': "a person's own statement is planned for Studio's SQL playground alone: this host carries none",
+}
+
+
 def answer(lib: Library, request: dict[str, Any]) -> dict[str, Any]:
     """One planner request answered as planner-worker.ts answers it: the function's tagged answer (a refusal is one too),
-    or, when the call itself fails, the worker's failure."""
+    or, when the call itself fails, the worker's failure. A kind this host refuses (``REFUSED``) is refused by name."""
+    if request.get('kind') in REFUSED:
+        return {'id': request.get('id'), 'ok': False, 'error': f"NotImplemented: {REFUSED[request['kind']]}"}
     try:
         name, args = KINDS[request['kind']]
         return {'id': request.get('id'), 'ok': True, 'answer': lib.call(name, *args(request))}
