@@ -12,6 +12,7 @@ import static com.legend.server.ModelChanges.identifier;
 import static com.legend.server.ModelChanges.isIdentifier;
 import static com.legend.server.ModelChanges.literal;
 import static com.legend.server.ModelChanges.objOf;
+import static com.legend.server.ModelChanges.only;
 import static com.legend.server.ModelChanges.quoted;
 import static com.legend.server.ModelChanges.quotedIfNeeded;
 import static com.legend.server.ModelChanges.refused;
@@ -89,11 +90,13 @@ final class CreateClass {
      * {@code where.as} is the place's name ({@code Browser}).
      */
     static Made apply(ModelChanges m, String pkg, Json.Obj spec, String source) {
+        only(spec, "a class to make", "lambda", "source", "name", "documentation", "columns", "where");
         String name = spec.getString("name");
         if (!isIdentifier(name)) {
             throw refused("a class's name is a Pure name (letters, digits and _, not led by a digit): '" + name + "'");
         }
         Json.Obj where = spec.getObj("where");
+        only(where, "a class's place", "from", "as", "samples", "runtime");
         String from = where.getString("from");
         String as = where.getString("as");
         if (!isIdentifier(as)) {
@@ -171,6 +174,13 @@ final class CreateClass {
             m.put(mm);
         }
         Json.Obj samples = objOf(where, "samples");
+        // each sample a table's the relation reads, by its name (2026-11-13, with the closure of these routes' bodies:
+        // until then a sample naming another table was passed over, its rows read by nothing)
+        for (String sampled : samples.fields().keySet()) {
+            if (read.stream().noneMatch(t -> t[1].equals(sampled))) {
+                throw refused("a sample of the table '" + sampled + "', which the relation does not read");
+            }
+        }
         for (AddedTable table : addedTables) {
             Json.Obj sample = samples.getObjOr(table.name(), null);
             if (sample != null) {
@@ -244,6 +254,8 @@ final class CreateClass {
             if (!names.contains(k)) {
                 throw refused("the relation has no column '" + k + "'");
             }
+            Json.Obj choice = objOf(asked, k);
+            only(choice, "a column's choice", "as", "name", "documentation");
         }
         // the properties the caller names first, so a name made by the rule never takes one of theirs
         Set<String> taken = new HashSet<>();
@@ -382,6 +394,7 @@ final class CreateClass {
     /** The sample rows as relational CSV: a header of the table's columns, a line per row; a value holding a line
      *  break cannot be a CSV line here, and its row is left out, said in {@code notes}. */
     private static String dataText(String data, AddedTable table, Json.Obj sample, List<String> notes) {
+        only(sample, "a table's sample", "columns", "rows");
         List<String> columns = sample.getStringArray("columns");
         if (!columns.equals(table.columns())) {
             throw new IllegalArgumentException("the sample of " + table.name() + " has the columns " + columns

@@ -342,28 +342,31 @@ class PlannerSurfaceTest {
                     LAMBDA, "hashStrings", OPTION, "mapping", NAME, "model", MODEL_TEXT, "name", NAME,
                     "parameterValues", VALUE, "query", LAMBDA, "rowIdentifiers", OBJECT, "runtime", NAME, "schema",
                     NAME, "table", NAME, "tableRowIdentifiers", OBJECT, "value", VALUE)),
-            "ModelChanges.java", new TreeMap<>(fields("_type", OPTION, "association", NAME, "associations", OBJECT,
-                    "class", NAME, "classMappings", OBJECT, "classes", OBJECT, "column", NAME, "dataSpace", OBJECT,
-                    "elements", MODEL_TEXT, "endColumn", VALUE, "endLine", VALUE, "genericType", OBJECT, "name", NAME,
-                    "package", NAME, "path", NAME, "project", NAME, "properties", OBJECT, "property", NAME,
-                    "propertyMappings", OBJECT, "pureCode", MODEL_TEXT, "relationFunction", OBJECT, "runtimeValue",
-                    OBJECT, "source", MODEL_TEXT, "sourceInformation", OBJECT, "startColumn", VALUE, "startLine",
-                    VALUE, "type", NAME)),
+            // the lite routes, closed (CLOSED_ROUTE_FILES, 2026-11-13): INTERNAL keys are the project's own elements as
+            // the route's parse of its text writes them, never the request's
+            "ModelChanges.java", new TreeMap<>(fields("_type", OPTION, "association", OBJECT, "associations", OBJECT,
+                    "class", OBJECT, "classMappings", INTERNAL, "classes", OBJECT, "code", MODEL_TEXT, "column",
+                    INTERNAL, "dataSpace", OBJECT, "elements", INTERNAL, "endColumn", INTERNAL, "endLine", INTERNAL,
+                    "genericType", INTERNAL, "name", NAME, "package", NAME, "path", INTERNAL, "project", OBJECT,
+                    "properties", INTERNAL, "property", INTERNAL, "propertyMappings", INTERNAL, "pureCode", INTERNAL,
+                    "relationFunction", INTERNAL, "runtimeValue", INTERNAL, "source", OBJECT, "sourceInformation",
+                    INTERNAL, "startColumn", INTERNAL, "startLine", INTERNAL, "type", INTERNAL)),
             "ModelInput.java", new TreeMap<>(fields("_type", OPTION, "code", MODEL_TEXT, "model", MODEL_TEXT)),
             // a class made from a grid: its sample rows a Data element's CSV in the model, never a statement
             "CreateClass.java", new TreeMap<>(fields("_type", OPTION, "as", NAME, "body", LAMBDA, "columns", OBJECT,
-                    "connection", NAME, "connectionValue", OBJECT, "connections", OBJECT, "data", OBJECT,
-                    "databaseType", NAME, "datasourceSpecification", OBJECT, "documentation", VALUE, "from", NAME,
-                    "includedMappings", NAME, "lambda", LAMBDA, "mappings", NAME, "name", NAME, "package", NAME,
-                    "parameters", LAMBDA, "path", NAME, "rows", VALUE, "runtime", NAME, "runtimeValue", OBJECT,
-                    "samples", OBJECT, "schema", NAME, "schemas", OBJECT, "store", NAME, "storeConnections", OBJECT,
-                    "table", NAME, "tables", OBJECT, "type", NAME, "value", VALUE, "where", OBJECT)),
+                    "connection", INTERNAL, "connectionValue", INTERNAL, "connections", INTERNAL, "data", INTERNAL,
+                    "databaseType", INTERNAL, "datasourceSpecification", INTERNAL, "documentation", VALUE, "from", NAME,
+                    "includedMappings", INTERNAL, "lambda", LAMBDA, "mappings", INTERNAL, "name", NAME, "package",
+                    NAME, "parameters", LAMBDA, "path", INTERNAL, "rows", VALUE, "runtime", NAME, "runtimeValue",
+                    INTERNAL, "samples", OBJECT, "schema", INTERNAL, "schemas", INTERNAL, "source", OBJECT, "store",
+                    INTERNAL, "storeConnections", INTERNAL, "table", INTERNAL, "tables", INTERNAL, "type", LAMBDA,
+                    "value", LAMBDA, "where", OBJECT)),
             // an association's ends: on is a property's name of its class
-            "CreateAssociation.java", new TreeMap<>(fields("_type", OPTION, "associationMappings", OBJECT, "class",
+            "CreateAssociation.java", new TreeMap<>(fields("_type", OPTION, "associationMappings", INTERNAL, "class",
                     NAME, "ends", OBJECT, "multiplicity", OPTION, "name", NAME, "on", NAME, "package", NAME,
-                    "properties", OBJECT, "unique", OPTION)),
+                    "properties", INTERNAL, "unique", OPTION)),
             "CreateDataSpace.java", new TreeMap<>(fields("_type", OPTION, "classes", NAME, "description", VALUE,
-                    "executionContexts", OBJECT, "name", NAME, "path", NAME, "title", VALUE))));
+                    "executionContexts", INTERNAL, "name", NAME, "path", INTERNAL, "title", VALUE))));
 
     /** THE HTTP SERVER'S ROUTES ({@code LegendHttpServer}): each the pure/v1 dispatcher's (the routes above), or a
      *  service that plans nothing, with what it is instead. */
@@ -387,8 +390,8 @@ class PlannerSurfaceTest {
      *  rule takes (register S29): closed, not open. What holds an open door safe is that no field of it reaches a
      *  statement as text: {@code com.legend.sql.dialect.UpstreamProtocolFieldsTest}, every payload of the injection
      *  fuzz in every position of each body, on every route that plans a statement from one. A door whose body is a
-     *  route's ({@link Kind#ROUTE_BODY}), or a route file, that this row and {@link #LITE_ROUTES_OPEN} do not name
-     *  fails, and so does a row that names no such door. */
+     *  route's ({@link Kind#ROUTE_BODY}), or a route file, that this row and {@link #CLOSED_ROUTE_FILES} do not
+     *  name fails, and so does a row that names no such door. */
     static final Map<String, String> UPSTREAM_PROTOCOL = new TreeMap<>(Map.of(
             "pureV1(body)", "a pure/v1 route's body, dispatched by its path (ROUTES)",
             "executePlan(body)", "an ExecuteInput, planned as its plan half in upstream's Arrow format",
@@ -398,16 +401,15 @@ class PlannerSurfaceTest {
                     + "identifiers",
             "ModelInput.java", "a request's model: a PureModelContextText or a PureModelContextData"));
 
-    /** THE LITE ROUTES' BODIES, OPEN (the C worker's finding of 2026-11-13, posed to the user; this row names it until
-     *  the ruling): legend-lite's own model changes ({@code /api/lite/v1/model/*}) read their bodies as the pure/v1
-     *  routes do, any key no reader takes passed over -- but their shapes are lite's, not upstream's, so
-     *  {@link #UPSTREAM_PROTOCOL}'s reason does not cover them. They plan only to check the model text they write (the
-     *  plan is dropped), and send nothing. */
-    static final Map<String, String> LITE_ROUTES_OPEN = new TreeMap<>(Map.of(
-            "ModelChanges.java", "a project's model and the changes to make",
-            "CreateClass.java", "a class to make, from a grid's query or a table",
-            "CreateAssociation.java", "an association to make between two classes",
-            "CreateDataSpace.java", "a data space to make over the made classes"));
+    /** THE LITE ROUTES' BODIES, CLOSED (the orchestrator's ruling (a) of 2026-11-13, on the C worker's finding that
+     *  they were open: their shapes are lite's own, the model writer's wire, so nothing upstream keeps them open):
+     *  legend-lite's own model changes ({@code /api/lite/v1/model/*}) close each object of their requests with
+     *  {@code only(...)}, as the boundary's request doors do. Every key such a file reads is one an {@code only(...)}
+     *  of the four admits; or the route's own parse of a model's text ({@link Kind#INTERNAL} in {@link #SERVER_FIELDS}:
+     *  the project's elements as protocol JSON, never the request's); or a field of the class's relation, a lambda's
+     *  protocol JSON ({@link Kind#LAMBDA}), which the protocol reader closes (register S29). */
+    static final Set<String> CLOSED_ROUTE_FILES = Set.of("ModelChanges.java", "CreateClass.java",
+            "CreateAssociation.java", "CreateDataSpace.java");
 
     /** The fields named for a statement that are the plan's own, read back: where, and why. */
     private static final Set<String> PLAN_STATEMENTS = Set.of("PureV1Api.java.planned.sql");
@@ -670,27 +672,53 @@ class PlannerSurfaceTest {
         listedAs(out, "a route file", routeFiles.keySet(), SERVER_FIELDS.keySet());
         routeFiles.forEach((file, text) -> {
             if (SERVER_FIELDS.containsKey(file)) {
-                compare(out, file, keys(text, Map.of(), Set.of(), new java.util.HashSet<>(),
-                        INTERNAL_RECEIVERS.getOrDefault(file, Set.of())), SERVER_FIELDS.get(file).keySet());
+                Set<String> internal = INTERNAL_RECEIVERS.getOrDefault(file, Set.of());
+                compare(out, file, keys(text, Map.of(), Set.of(), new java.util.HashSet<>(), internal),
+                        SERVER_FIELDS.get(file).keySet());
+            }
+        });
+        // the closed route files, as one: a request's object is closed in the file that reads it first (a class's
+        // source in ModelChanges, its keys in CreateClass), so a key one admits is admitted for all four
+        Set<String> admitted = new TreeSet<>();
+        routeFiles.forEach((file, text) -> {
+            if (CLOSED_ROUTE_FILES.contains(file)) {
+                admitted.addAll(keys(text, Map.of(), Set.of(), new java.util.HashSet<>(), Set.of(), Scan.ADMITS));
+            }
+        });
+        routeFiles.forEach((file, text) -> {
+            if (CLOSED_ROUTE_FILES.contains(file) && SERVER_FIELDS.containsKey(file)) {
+                Map<String, Kind> declared = SERVER_FIELDS.get(file);
+                for (String k : keys(text, Map.of(), Set.of(), new java.util.HashSet<>(), Set.of(), Scan.READS)) {
+                    Kind kind = declared.get(k);
+                    if (!admitted.contains(k) && kind != INTERNAL && kind != LAMBDA) {
+                        out.add(file + " reads the field " + k + ", which none of the closed routes' only(...) lists"
+                                + " admits");
+                    }
+                }
+                for (String k : keys(text, Map.of(), Set.of(), new java.util.HashSet<>(), Set.of(), Scan.ADMITS)) {
+                    if (declared.get(k) == INTERNAL) {
+                        out.add(file + " admits the field " + k + ", which its row names INTERNAL");
+                    }
+                }
             }
         });
         listedAs(out, "an HTTP route", found(httpSource, "route\\(\"([^\"]+)\""), HTTP_ROUTES.keySet());
         return out;
     }
 
-    /** Every open door {@link #UPSTREAM_PROTOCOL} and {@link #LITE_ROUTES_OPEN} do not name, and every row that names
-     *  no open door: the open doors are {@code boundary}'s parameters of kind {@link Kind#ROUTE_BODY} ({@code
-     *  door(param)}) and the server's route files ({@code routeFiles}), each read open. */
+    /** Every door {@link #UPSTREAM_PROTOCOL} and {@link #CLOSED_ROUTE_FILES} do not name, and every row that names no
+     *  such door: the doors are {@code boundary}'s parameters of kind {@link Kind#ROUTE_BODY} ({@code door(param)}) and
+     *  the server's route files ({@code routeFiles}) -- each open by upstream's reason, or closed. */
     static List<String> openViolations(Map<String, Door> boundary, Set<String> routeFiles) {
         List<String> out = new ArrayList<>();
         Set<String> open = new TreeSet<>(routeFiles);
         boundary.forEach((name, d) -> d.params().stream().filter(p -> p.kind() == ROUTE_BODY)
                 .forEach(p -> open.add(name + "(" + p.name() + ")")));
         for (String o : open) {
-            if (!UPSTREAM_PROTOCOL.containsKey(o) && !LITE_ROUTES_OPEN.containsKey(o)) {
+            if (!UPSTREAM_PROTOCOL.containsKey(o) && !CLOSED_ROUTE_FILES.contains(o)) {
                 out.add("an open door no row names: " + o);
-            } else if (UPSTREAM_PROTOCOL.containsKey(o) && LITE_ROUTES_OPEN.containsKey(o)) {
-                out.add("an open door named twice: " + o);
+            } else if (UPSTREAM_PROTOCOL.containsKey(o) && CLOSED_ROUTE_FILES.contains(o)) {
+                out.add("a door named open and closed: " + o);
             }
         }
         for (String row : UPSTREAM_PROTOCOL.keySet()) {
@@ -698,9 +726,9 @@ class PlannerSurfaceTest {
                 out.add("UPSTREAM_PROTOCOL names a door that is not open: " + row);
             }
         }
-        for (String row : LITE_ROUTES_OPEN.keySet()) {
+        for (String row : CLOSED_ROUTE_FILES) {
             if (!open.contains(row)) {
-                out.add("LITE_ROUTES_OPEN names a door that is not open: " + row);
+                out.add("CLOSED_ROUTE_FILES names a route file the server has not: " + row);
             }
         }
         return out;
@@ -1165,8 +1193,8 @@ class PlannerSurfaceTest {
                 serverViolations(pureV1, files, http));
     }
 
-    /** The open doors are named, each by its reason: every route body and every route file is
-     *  {@link #UPSTREAM_PROTOCOL}'s or {@link #LITE_ROUTES_OPEN}'s, and each row names an open door. */
+    /** The open doors are named, each by its reason: every route body and every route file is open by
+     *  {@link #UPSTREAM_PROTOCOL}'s reason or closed ({@link #CLOSED_ROUTE_FILES}), and each row names such a door. */
     @Test
     void theOpenDoorsAreNamedByTheirReason() {
         assertEquals(List.of(), openViolations(BOUNDARY, routeFiles().keySet()), "an open door is not named");
@@ -1185,6 +1213,20 @@ class PlannerSurfaceTest {
                 "an open door no row names: runBody(body)",
                 "UPSTREAM_PROTOCOL names a door that is not open: executePlan(body)"),
                 openViolations(boundary, files));
+    }
+
+    /** The check names a field a closed route file reads past its closure: CreateDataSpace's source spliced with its
+     *  data space's {@code title} left out of its {@code only(...)} -- that field named, and nothing else. */
+    @Test
+    void aFieldAClosedRouteReadsPastItsClosureIsNamed() {
+        Map<String, String> files = routeFiles();
+        String closure = "\"name\", \"title\", \"description\", \"classes\");";
+        assertTrue(files.get("CreateDataSpace.java").contains(closure), "the splice's anchor");
+        files.put("CreateDataSpace.java", files.get("CreateDataSpace.java").replace(closure,
+                "\"name\", \"description\", \"classes\");"));
+        assertEquals(List.of("CreateDataSpace.java reads the field title, which none of the closed routes' only(...)"
+                + " lists admits"),
+                serverViolations(files.get("PureV1Api.java"), files, read(HTTP_SOURCE)));
     }
 
     /** The root doors are closed: every public method of the five listed, by signature, its parameters' kinds. */

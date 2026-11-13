@@ -53,6 +53,7 @@ public final class ModelChanges {
 
     /** {@code createClass}: {@code {"project", "package", "class"}} -- one class ({@link CreateClass}'s request). */
     public static Map<String, Object> createClass(Json.Obj request) {
+        only(request, "a createClass request", "project", "package", "class");
         return made(request, List.of(request.getObj("class")), List.of(), null);
     }
 
@@ -62,22 +63,28 @@ public final class ModelChanges {
      * start).
      */
     public static Map<String, Object> createAssociation(Json.Obj request) {
+        only(request, "a createAssociation request", "project", "package", "classes", "association");
         Json.Obj association = request.getObjOr("association", null);
         return made(request, items(request, "classes"), association == null ? List.of() : List.of(association), null);
     }
 
     /** {@code createDataSpace}: {@code {"project", "package", "classes"?, "associations"?, "dataSpace"}}. */
     public static Map<String, Object> createDataSpace(Json.Obj request) {
+        only(request, "a createDataSpace request", "project", "package", "classes", "associations", "dataSpace");
         return made(request, items(request, "classes"), items(request, "associations"), request.getObj("dataSpace"));
     }
 
     private static Map<String, Object> made(Json.Obj request, List<Json.Obj> classes, List<Json.Obj> associations,
             @com.legend.base.Nullable Json.Obj dataSpace) {
         String pkg = packagePath(request.getString("package"));
-        ModelChanges m = new ModelChanges(PureV1Api.modelText(request.getObj("project")));
+        Json.Obj project = request.getObj("project");
+        only(project, "a project's model", "_type", "code");
+        ModelChanges m = new ModelChanges(PureV1Api.modelText(project));
         List<CreateClass.Made> madeClasses = new ArrayList<>();
         for (Json.Obj c : classes) {
-            madeClasses.add(CreateClass.apply(m, pkg, c, PureV1Api.modelText(c.getObj("source"))));
+            Json.Obj source = c.getObj("source");
+            only(source, "a class's source model", "_type", "code");
+            madeClasses.add(CreateClass.apply(m, pkg, c, PureV1Api.modelText(source)));
         }
         List<CreateAssociation.Made> madeAssociations = new ArrayList<>();
         for (Json.Obj a : associations) {
@@ -592,6 +599,22 @@ public final class ModelChanges {
     static String literal(String text) {
         return "'" + text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
                 .replace("\t", "\\t") + "'";
+    }
+
+    /**
+     * {@code o}'s keys among {@code keys}, any other refused by name ({@code what} names the object): each object of a
+     * request closes itself, as the boundary's request doors do (the orchestrator's ruling (a) of 2026-11-13: these
+     * routes' shapes are lite's own, their writer's wire, model-changes/src/wire.ts, so nothing upstream keeps them
+     * open; until then a key no reader took was passed over).
+     */
+    static void only(Json.Obj o, String what, String... keys) {
+        Set<String> allowed = Set.of(keys);
+        for (String key : o.fields().keySet()) {
+            if (!allowed.contains(key)) {
+                throw new IllegalArgumentException(what + " has no key " + key + " (names and fields only, never a"
+                        + " value)");
+            }
+        }
     }
 
     static LegendCompileException refused(String message) {

@@ -65,12 +65,15 @@ final class CreateAssociation {
      * "multiplicity"?, "unique"?}, {...}]}} -- each class one of the project's (or made in the same request).
      */
     static Made apply(ModelChanges m, String pkg, Json.Obj spec) {
+        ModelChanges.only(spec, "an association to make", "name", "ends");
         List<Json.Node> given = spec.getArr("ends").items();
         if (given.size() != 2) {
             throw new IllegalArgumentException("an association has two ends, not " + given.size());
         }
         Json.Obj a = (Json.Obj) given.get(0);
         Json.Obj b = (Json.Obj) given.get(1);
+        ModelChanges.only(a, "an association's end", "class", "on", "name", "multiplicity", "unique");
+        ModelChanges.only(b, "an association's end", "class", "on", "name", "multiplicity", "unique");
         String aType = keyType(m, pkg, a);
         String bType = keyType(m, pkg, b);
         if (!aType.equals(bType)) {
