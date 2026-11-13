@@ -32,7 +32,7 @@ import org.junit.jupiter.api.Test;
  */
 class InjectionFuzzTest {
 
-    private static final String MARK = "ZQXMARK";
+    static final String MARK = "ZQXMARK";
 
     /** The payloads, each carrying the marker. */
     static final List<String> PAYLOADS = List.of(

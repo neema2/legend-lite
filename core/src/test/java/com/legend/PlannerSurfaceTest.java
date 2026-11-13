@@ -109,7 +109,8 @@ class PlannerSurfaceTest {
         OBJECT,
         /** A listed pure/v1 route's path (the server's routes: the item's next commit). */
         ROUTE,
-        /** A listed pure/v1 route's body (the server's routes: the item's next commit). */
+        /** A listed pure/v1 route's body ({@link #ROUTES}): upstream's own protocol, open by the reason
+         *  {@link #UPSTREAM_PROTOCOL} names. */
         ROUTE_BODY,
         /** A host's named operations, each closed by its {@code op} ({@code HostOperationsJson}), their fields declared
          *  in {@link #HOST_OPERATION_FIELDS}. */
@@ -375,6 +376,38 @@ class PlannerSurfaceTest {
             "/health", "the server's health: no planner",
             "/lsp", "the Pure language server: a model's diagnostics and completions, no plan",
             "/", "CORS's preflight, any other path 404: no planner"));
+
+    /** THE OPEN DOORS, BY ONE NAMED REASON: UPSTREAM_PROTOCOL (the orchestrator's ruling of 2026-11-13). A body that is
+     *  upstream's own protocol -- pure/v1's {@code ExecuteInput}, the grammar and compilation inputs, the test-data
+     *  generator's requests, a request's {@code PureModelContext} -- is read as upstream reads it: each key its reader
+     *  takes by name, any other passed over, never refused. Closing it would be a divergence from upstream (the fidelity
+     *  tenet), so these doors stay open, each named here with what it reads. The value specifications inside them --
+     *  a function, a parameter's value, a lambda's JSON on any door ({@code planJson}'s {@code lambdaJson} and its held
+     *  kin, a snap's {@code lambda}, an output's {@code rows}) -- are the protocol reader's, which refuses a field no
+     *  rule takes (register S29): closed, not open. What holds an open door safe is that no field of it reaches a
+     *  statement as text: {@code com.legend.sql.dialect.UpstreamProtocolFieldsTest}, every payload of the injection
+     *  fuzz in every position of each body, on every route that plans a statement from one. A door whose body is a
+     *  route's ({@link Kind#ROUTE_BODY}), or a route file, that this row and {@link #LITE_ROUTES_OPEN} do not name
+     *  fails, and so does a row that names no such door. */
+    static final Map<String, String> UPSTREAM_PROTOCOL = new TreeMap<>(Map.of(
+            "pureV1(body)", "a pure/v1 route's body, dispatched by its path (ROUTES)",
+            "executePlan(body)", "an ExecuteInput, planned as its plan half in upstream's Arrow format",
+            "executeJsonPlan(body)", "an ExecuteInput, planned as its plan half in the engine's JSON",
+            "PureV1Api.java", "the pure/v1 routes' bodies: an ExecuteInput, a lambda's or a model's text or JSON",
+            "TestDataRoutes.java", "the test-data generator's requests: an ExecuteInput, its mapping, its row "
+                    + "identifiers",
+            "ModelInput.java", "a request's model: a PureModelContextText or a PureModelContextData"));
+
+    /** THE LITE ROUTES' BODIES, OPEN (the C worker's finding of 2026-11-13, posed to the user; this row names it until
+     *  the ruling): legend-lite's own model changes ({@code /api/lite/v1/model/*}) read their bodies as the pure/v1
+     *  routes do, any key no reader takes passed over -- but their shapes are lite's, not upstream's, so
+     *  {@link #UPSTREAM_PROTOCOL}'s reason does not cover them. They plan only to check the model text they write (the
+     *  plan is dropped), and send nothing. */
+    static final Map<String, String> LITE_ROUTES_OPEN = new TreeMap<>(Map.of(
+            "ModelChanges.java", "a project's model and the changes to make",
+            "CreateClass.java", "a class to make, from a grid's query or a table",
+            "CreateAssociation.java", "an association to make between two classes",
+            "CreateDataSpace.java", "a data space to make over the made classes"));
 
     /** The fields named for a statement that are the plan's own, read back: where, and why. */
     private static final Set<String> PLAN_STATEMENTS = Set.of("PureV1Api.java.planned.sql");
@@ -642,6 +675,34 @@ class PlannerSurfaceTest {
             }
         });
         listedAs(out, "an HTTP route", found(httpSource, "route\\(\"([^\"]+)\""), HTTP_ROUTES.keySet());
+        return out;
+    }
+
+    /** Every open door {@link #UPSTREAM_PROTOCOL} and {@link #LITE_ROUTES_OPEN} do not name, and every row that names
+     *  no open door: the open doors are {@code boundary}'s parameters of kind {@link Kind#ROUTE_BODY} ({@code
+     *  door(param)}) and the server's route files ({@code routeFiles}), each read open. */
+    static List<String> openViolations(Map<String, Door> boundary, Set<String> routeFiles) {
+        List<String> out = new ArrayList<>();
+        Set<String> open = new TreeSet<>(routeFiles);
+        boundary.forEach((name, d) -> d.params().stream().filter(p -> p.kind() == ROUTE_BODY)
+                .forEach(p -> open.add(name + "(" + p.name() + ")")));
+        for (String o : open) {
+            if (!UPSTREAM_PROTOCOL.containsKey(o) && !LITE_ROUTES_OPEN.containsKey(o)) {
+                out.add("an open door no row names: " + o);
+            } else if (UPSTREAM_PROTOCOL.containsKey(o) && LITE_ROUTES_OPEN.containsKey(o)) {
+                out.add("an open door named twice: " + o);
+            }
+        }
+        for (String row : UPSTREAM_PROTOCOL.keySet()) {
+            if (!open.contains(row)) {
+                out.add("UPSTREAM_PROTOCOL names a door that is not open: " + row);
+            }
+        }
+        for (String row : LITE_ROUTES_OPEN.keySet()) {
+            if (!open.contains(row)) {
+                out.add("LITE_ROUTES_OPEN names a door that is not open: " + row);
+            }
+        }
         return out;
     }
 
@@ -1102,6 +1163,28 @@ class PlannerSurfaceTest {
                 "PureV1Api.java reads the field sql, which no row declares (a field that can carry SQL)",
                 "an HTTP route no row lists: /api/lite/v1/sql (named for a statement)"),
                 serverViolations(pureV1, files, http));
+    }
+
+    /** The open doors are named, each by its reason: every route body and every route file is
+     *  {@link #UPSTREAM_PROTOCOL}'s or {@link #LITE_ROUTES_OPEN}'s, and each row names an open door. */
+    @Test
+    void theOpenDoorsAreNamedByTheirReason() {
+        assertEquals(List.of(), openViolations(BOUNDARY, routeFiles().keySet()), "an open door is not named");
+    }
+
+    /** The check names a door planted with a route's body and a route file planted beside the listed ones, and a row
+     *  whose door is gone (the boundary without {@code executePlan}). */
+    @Test
+    void anOpenDoorNoRowNamesIsNamed() {
+        Map<String, Door> boundary = new TreeMap<>(BOUNDARY);
+        boundary.put("runBody", door("runBody", p("body", ROUTE_BODY)));
+        boundary.remove("executePlan");
+        Set<String> files = new TreeSet<>(routeFiles().keySet());
+        files.add("PlantedRoutes.java");
+        assertEquals(List.of("an open door no row names: PlantedRoutes.java",
+                "an open door no row names: runBody(body)",
+                "UPSTREAM_PROTOCOL names a door that is not open: executePlan(body)"),
+                openViolations(boundary, files));
     }
 
     /** The root doors are closed: every public method of the five listed, by signature, its parameters' kinds. */
