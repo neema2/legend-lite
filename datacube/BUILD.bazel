@@ -287,6 +287,9 @@ _DUCKDB_USERS = [
     "join-open",
     # a box's rows written into a table, planned by the compiler and run by the plan runner (flow mode M6, FL13)
     "table-output",
+    # the product's DataHost driven: a load, operations, a catalog, an output and a refusal of each -- in the headless
+    # lane, the product's intent calls its runner counts against its floor (H7, the DataCube stream, 2026-11-13)
+    "data-host",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -446,6 +449,9 @@ _WASM_TESTS = [
     "join-open",
     # a box's rows written into a table: its write planned by the compiler (flow mode M6, FL13)
     "table-output",
+    # the product's DataHost driven: a load, operations, a catalog, an output and a refusal of each -- in the headless
+    # lane, the product's intent calls its runner counts against its floor (H7, the DataCube stream, 2026-11-13)
+    "data-host",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
@@ -636,6 +642,9 @@ _HEADLESS_TESTS = [
     "join-menu",
     "join-open",
     "table-output",
+    # the product's DataHost driven: a load, operations, a catalog, an output and a refusal of each -- in the headless
+    # lane, the product's intent calls its runner counts against its floor (H7, the DataCube stream, 2026-11-13)
+    "data-host",
     "json-shape",
     "lazily",
     "lite-planner",

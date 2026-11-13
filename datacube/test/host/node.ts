@@ -4,7 +4,10 @@
 // time). The code under test is the same in both: LitePlanner and DuckDbEngine
 // (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6).
 
-import type { ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
+import { DuckDbEngine, type ArrowishConnection } from '../../../engine-client/src/duckdb.ts';
+import { heldDataHost, type DataHost } from '../../src/data-host.ts';
+import type { TableModels } from '../../src/infer.ts';
+import { heldTableOutput, type TableWriteHost } from '../../src/table-output.ts';
 import { startNodeDuckDb } from '../../../engine-client/src/node-require.ts';
 import type { LitePlannerOptions } from '../../src/lite-planner.ts';
 import type { DuckDbFiles } from '../../src/upload.ts';
@@ -39,5 +42,23 @@ export async function openDatabase(): Promise<TestDatabase> {
       registerFileText: async (name, text) => { db.registerFileText(name, text); },
       registerFileBuffer: async (name, buffer) => { db.registerFileBuffer(name, buffer); },
     },
+  };
+}
+
+/**
+ * THE PRODUCT'S DATA HOST over a test's database (test/data-host.test.ts; the H7 floor's lane tests, 2026-11-13): in Node,
+ * the tab's own (data-host.ts heldDataHost, table-output.ts heldTableOutput) on the test's DuckDB-WASM; a file the test
+ * registered is held by the name it was registered under, as the tab holds a picked file.
+ */
+export function productDataHost(db: TestDatabase, planner: Pick<TableModels, 'fileLoad' | 'remoteMount' | 'hostOperations' | 'catalogColumnsSql' | 'outputPlan'>): {
+  readonly host: DataHost;
+  readonly output: Pick<TableWriteHost, 'catalog' | 'output'>;
+  handle(name: string): Promise<string>;
+} {
+  const engine = new DuckDbEngine(db.connection);
+  return {
+    host: heldDataHost(engine, planner),
+    output: heldTableOutput(engine, planner),
+    handle: async (name) => name,
   };
 }

@@ -42,6 +42,20 @@ from legend_lite._library import library  # noqa: E402
 PRODUCT_CALLS = ['planner', 'load', 'operations', 'catalog', 'output', 'digest', 'fetch', 'engine']
 
 
+# THE PRODUCT'S INTENT CALLS the lane must make through the product's DataHost (H7, re-founded on intent by the
+# orchestrator's correction of 2026-11-13: test/data-host.test.ts drives each), and the floor each must reach across the
+# lane's bundles. Measured 2026-11-13 (the DataCube stream, at the H7 floor's re-founding, 104 files): load 2, operations
+# 4, catalog 4, output 2 -- every one of them test/data-host.test.ts's; the floor is the measure (it moves only with a
+# dated note naming the task). A lane that bypasses the product's DataHost is red: TheFloorBites, its planted violator.
+INTENT = ('load', 'operations', 'catalog', 'output')
+FLOOR = {'load': 2, 'operations': 4, 'catalog': 4, 'output': 2}
+
+
+def floor_missed(made: dict[str, int]) -> list[str]:
+    """Each intent call the lane made fewer times than its floor: what H7 refuses."""
+    return [f'{call}: {made.get(call, 0)} made, its floor {FLOOR[call]}' for call in INTENT if made.get(call, 0) < FLOOR[call]]
+
+
 class TestHost(Headless):
     """THE LANE'S HOST: the product's, and a test's own database beside it (test/host/headless.ts, the #6 bridge,
     2026-11-12) -- a test runs its own SQL on Python's DuckDB as written (a fixture's table, a planner's statement it
@@ -50,26 +64,24 @@ class TestHost(Headless):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # the product's intent calls the bundles made (the C final audit's H7, 2026-11-12, kept on the bridge on intent by
-        # the DataCube stream's merge, 2026-11-13: no statement crosses now, so what is counted is the product's own
-        # calls of its database -- a load, operations, a catalog, an output, the engine's plan-and-run): a lane that
-        # stopped making them is red (DataCubeTests)
-        self.crossed = 0
-
-    INTENT = ('load', 'operations', 'catalog', 'output', 'engine')
+        # the product's intent calls the bundles made, by call (the C final audit's H7, 2026-11-12; on the bridge on intent
+        # since the DataCube stream's merge, 2026-11-13: no statement crosses now, so what is counted is the product's own
+        # calls of its database through its DataHost -- a load, operations, a catalog, an output): a lane that stopped
+        # making them is red (DataCubeTests, FLOOR)
+        self.made = {call: 0 for call in INTENT}
 
     def _calls(self):
         calls = super()._calls()
 
-        def counted(call):
+        def counted(name, call):
             async def made(*args):
-                self.crossed += 1
+                self.made[name] += 1
                 return await call(*args)
             return made
 
-        return {**calls, **{k: counted(calls[k]) for k in self.INTENT},
+        return {**calls, **{k: counted(k, calls[k]) for k in INTENT},
                 'testQuery': self._test_query, 'testStatement': self._test_statement,
-                'testRegisterFile': self._test_register_file}
+                'testRegisterFile': self._test_register_file, 'testHandOut': self._test_hand_out}
 
     def _arrow(self, result):
         import pyarrow as pa
@@ -93,6 +105,11 @@ class TestHost(Headless):
             raise ValueError(f"a registered file stays in the engine's folder: {name!r} does not")
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(base64.b64decode(data))
+
+
+    async def _test_hand_out(self, name):
+        # a file the test registered, handed out by the product's own hand_out (its load names it by the handle alone)
+        return self.hand_out(self.folder / name)
 
 
 class Host(unittest.TestCase):
@@ -145,7 +162,7 @@ class Host(unittest.TestCase):
             self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'), PRODUCT_CALLS)
         with TestHost(PRODUCT, folder=TMP) as h:
             self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'),
-                             [*PRODUCT_CALLS, 'testQuery', 'testStatement', 'testRegisterFile'])
+                             [*PRODUCT_CALLS, 'testQuery', 'testStatement', 'testRegisterFile', 'testHandOut'])
 
     def test_every_timeout_fires_as_a_browsers_does(self):
         # HTML's setTimeout: no delay, 0 and a negative one are all 0 (mini-racer's own throws or never fires for them,
@@ -206,7 +223,34 @@ class Host(unittest.TestCase):
             self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'), PRODUCT_CALLS)
         with TestHost(PRODUCT, folder=TMP) as h:
             self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'),
-                             [*PRODUCT_CALLS, 'testQuery', 'testStatement', 'testRegisterFile'])
+                             [*PRODUCT_CALLS, 'testQuery', 'testStatement', 'testRegisterFile', 'testHandOut'])
+
+
+class BypassingHost(TestHost):
+    """A PLANTED VIOLATOR of H7: the lane's host with the product's intent calls answered AROUND the counted ones -- as a
+    lane whose tests reached the database by another road than the product's DataHost would be."""
+
+    def _calls(self):
+        around = Headless._calls(self)
+        return {**super()._calls(), **{k: around[k] for k in INTENT}}
+
+
+class TheFloorBites(unittest.TestCase):
+    """H7's floor bites: the data host's tests run on a host whose intent calls bypass the counted ones, and the floor
+    names each call missed."""
+
+    def test_a_lane_that_bypasses_the_data_host_is_below_its_floor(self):
+        bundle = BUNDLES / 'data-host.test.js'
+        self.assertTrue(bundle.is_file(), f'{bundle}: the data host\'s tests are not in the lane')
+        folder = TMP / 'bypass'
+        folder.mkdir(parents=True, exist_ok=True)
+        os.chdir(folder)
+        with BypassingHost(bundle.read_text(encoding='utf-8'), folder=folder) as h:
+            results = h.evaluate('legendLiteHeadless.run()')
+            made = dict(h.made)
+        self.assertTrue(results and all(r['status'] == 'pass' for r in results), results)
+        missed = floor_missed(made)
+        self.assertEqual([m.split(':')[0] for m in missed], list(INTENT), missed)
 
 
 class DataCubeTests(unittest.TestCase):
@@ -217,7 +261,7 @@ class DataCubeTests(unittest.TestCase):
         self.assertGreater(len(bundles), 40, f'the bundles are not there: {BUNDLES}')
         total = {'pass': 0, 'fail': 0, 'skip': 0}
         failed: list[str] = []
-        crossed = 0
+        made = {call: 0 for call in INTENT}
         for bundle in bundles:
             name = bundle.name[:-len('.test.js')]
             folder = TMP / name
@@ -228,7 +272,8 @@ class DataCubeTests(unittest.TestCase):
             with self.subTest(name):
                 with TestHost(bundle.read_text(encoding='utf-8'), folder=folder) as h:
                     results = h.evaluate('legendLiteHeadless.run()')
-                crossed += h.crossed
+                for call in INTENT:
+                    made[call] += h.made[call]
                 counts = {s: sum(1 for r in results if r['status'] == s) for s in total}
                 for s in total:
                     total[s] += counts[s]
@@ -241,11 +286,10 @@ class DataCubeTests(unittest.TestCase):
                 # none skipped: a test the lane does not run says why in BUILD (its file left out), never by a skip
                 self.assertEqual([r['name'] for r in results if r['status'] == 'skip'], [], f'{name}: skipped')
         print(f'\n{len(bundles)} files: {total["pass"]} pass, {total["fail"]} fail, {total["skip"]} skip; '
-              f"{crossed} of the product's intent calls made", flush=True)
-        # (H7's floor -- the product's statements crossing its bridge, at least 150 -- RETIRED 2026-11-13, the DataCube
-        # stream's merge of the #6 bridge: no statement crosses the bridge on intent, and the lane's test files read their
-        # own database through the test calls, so it counts 0 here, measured; the product's intent calls are exercised by
-        # //python:headless_test (test_headless.py IntentCalls) and refused-SQL by Host above. Their count is printed.)
+              f"the product's intent calls made: {made}", flush=True)
+        # H7: the lane provably runs the product's bridge -- each intent call at least its floor (FLOOR)
+        self.assertEqual(floor_missed(made), [], "the lane no longer makes the product's intent calls through its DataHost "
+                                                 '(test/data-host.test.ts): H7')
         if failed:
             print('\n'.join(failed[:50]), file=sys.stderr)
 
