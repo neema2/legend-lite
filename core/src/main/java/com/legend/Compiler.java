@@ -73,9 +73,13 @@ public final class Compiler {
      * @return the populated, queryable {@link ModelContext}.
      */
     public static ModelContext compileModel(@com.legend.base.Nullable String model) {
+        return buildPositioned(parsedModel(model));
+    }
+
+    /** A model's text as the parsed model the compiler builds from (step B, through the compiler's door). */
+    private static ParsedModel parsedModel(@com.legend.base.Nullable String model) {
         Objects.requireNonNull(model, "model");
-        return buildPositioned(ModelFromText.parse(model,
-                com.legend.parser.Dialect.LEGEND_LITE));
+        return ModelFromText.parse(model, com.legend.parser.Dialect.LEGEND_LITE);
     }
 
     /**
@@ -86,9 +90,14 @@ public final class Compiler {
      * its record carries source information.
      */
     public static ModelContext compileModel(com.legend.protocol.Protocol.PureModelContextData model) {
-        ParsedModel parsed;
+        return buildPositioned(parsedModel(model));
+    }
+
+    /** A model's protocol records as the parsed model the compiler builds from (the one door, {@code
+     *  ModelFromProtocol}). */
+    private static ParsedModel parsedModel(com.legend.protocol.Protocol.PureModelContextData model) {
         try {
-            parsed = com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));
+            return com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));
         } catch (com.legend.model.ModelFromProtocol.Unrepresentable u) {
             // a shape the compiler's model cannot represent: a construct legend-lite does not compile. With its
             // record's position it is the text door's error, word for word and at the same place (2026-10-21, the
@@ -98,7 +107,6 @@ public final class Compiler {
             }
             throw new com.legend.error.NotImplementedException(String.valueOf(u.getMessage()));
         }
-        return buildPositioned(parsed);
     }
 
     /** {@link #buildModel}, an element's error decorated with where the element starts ({@code ParsedModel.position}:
@@ -855,8 +863,27 @@ public final class Compiler {
      * signature-broken walls under the plain FQN.
      */
     public static java.util.Map<String, String> compileAllBodies(ModelContext ctx) {
-        SpecCompiler specs = new SpecCompiler(ctx);
         java.util.Map<String, String> walls = new java.util.LinkedHashMap<>();
+        for (BodyWall wall : bodyWalls(ctx)) {
+            walls.put(wall.key(), wall.message());
+        }
+        return walls;
+    }
+
+    /**
+     * One body that does not type ({@link #compileAllBodies}'s wall): its key, its message, and the key
+     * ({@code ParsedModel.keyOf}) of the element the body was WRITTEN in -- the function itself, or the class, mapping
+     * or service a synthesized function's body site belongs to ({@code FunctionDefinition.synthesizedFrom}); null
+     * where the wall is not one body's (a name whose whole overload set is signature-broken).
+     */
+    private record BodyWall(String key, String message, @com.legend.base.Nullable String element) {
+    }
+
+    /** {@link #compileAllBodies}'s walls, in its order, each with the element its body was written in. A key walled
+     *  twice keeps its first place and its last message, as the map it fills does. */
+    private static java.util.List<BodyWall> bodyWalls(ModelContext ctx) {
+        SpecCompiler specs = new SpecCompiler(ctx);
+        java.util.Map<String, BodyWall> walls = new java.util.LinkedHashMap<>();
         // the MODULE's own bodies: the boot layer's (the system metamodel's
         // functions, the prelude's lifted derived properties and constraints)
         // are compiled once per process and typed by the spec census
@@ -871,7 +898,7 @@ public final class Compiler {
             try {
                 overloads = ctx.findFunction(fqn);
             } catch (RuntimeException e) {
-                walls.put(fqn, String.valueOf(e.getMessage()));
+                walls.put(fqn, new BodyWall(fqn, String.valueOf(e.getMessage()), null));
                 continue;
             }
             for (com.legend.compiler.element.TypedFunction tf : overloads) {
@@ -884,11 +911,14 @@ public final class Compiler {
                 try {
                     specs.compile(tf);
                 } catch (RuntimeException e) {
-                    walls.put(tf.id().qualified(), String.valueOf(e.getMessage()));
+                    String key = tf.id().qualified();
+                    String element = tf.definition() instanceof com.legend.model.FunctionDefinition fd
+                            && fd.synthesizedFrom() != null ? fd.synthesizedFrom().ownerFqn() : key;
+                    walls.put(key, new BodyWall(key, String.valueOf(e.getMessage()), element));
                 }
             }
         }
-        return walls;
+        return java.util.List.copyOf(walls.values());
     }
 
     /**
@@ -896,29 +926,83 @@ public final class Compiler {
      * ({@link #compileModel}, which stops at the first element error), then every body in it
      * ({@link #compileAllBodies}, which collects them all). The messages: the first element error alone, else every
      * body's, in {@code compileAllBodies}' order; empty when the model compiles. Both {@code compilation/compile}
-     * routes answer from it -- legend-engine's with the first error, legend-lite's with all of them -- and the SDLC
-     * checks a tree with it. A failure that is not the model's (a malformed argument, a compiler bug) is thrown, not
-     * listed as one of its errors.
+     * routes answer from it ({@link #placedCompileErrors}, each error with where it is) -- legend-engine's with the
+     * first error, legend-lite's with all of them -- and the SDLC checks a tree with it. A failure that is not the
+     * model's (a malformed argument, a compiler bug) is thrown, not listed as one of its errors.
      */
     public static java.util.List<String> compileErrors(String model) {
-        return compileErrorsOf(() -> compileModel(model));
+        return messages(placedCompileErrors(model));
     }
 
     /** {@link #compileErrors(String)} for a model given as protocol records ({@link
      *  #compileModel(com.legend.protocol.Protocol.PureModelContextData)}, leg 8 step 3: a client's
      *  {@code PureModelContextData}). */
     public static java.util.List<String> compileErrors(com.legend.protocol.Protocol.PureModelContextData model) {
-        return compileErrorsOf(() -> compileModel(model));
+        return messages(placedCompileErrors(model));
     }
 
-    private static java.util.List<String> compileErrorsOf(java.util.function.Supplier<ModelContext> model) {
+    /**
+     * One of a model's compile errors ({@link #placedCompileErrors}): its message, as {@link #compileErrors} lists it
+     * (an element error's led by {@code [line:col]}), and where it is when the model says -- the whole span of the
+     * ELEMENT the error is in, as its record carried it ({@code ParsedModel.span}: the parser's for a text, the
+     * client's {@code sourceInformation} for a model given as records). Element-level: legend-engine places an error
+     * at the offending node inside the element (docs/SEMANTICS_REGISTER.md S400). Null when no position is known --
+     * records without source information, an error about no one element, a body site whose owner is not an element
+     * of the model as given, a text that does not parse (its message alone says where) -- never a made-up one
+     * (AGENTS.md invariant 4).
+     */
+    public record CompileError(String message, com.legend.protocol.@com.legend.base.Nullable SourceInfo at) {
+        public CompileError {
+            Objects.requireNonNull(message, "message");
+        }
+    }
+
+    /** {@link #compileErrors(String)}, each error with where it is ({@link CompileError}). */
+    public static java.util.List<CompileError> placedCompileErrors(String model) {
+        return compileErrorsOf(() -> parsedModel(model));
+    }
+
+    /** {@link #compileErrors(com.legend.protocol.Protocol.PureModelContextData)}, each error with where it is
+     *  ({@link CompileError}). */
+    public static java.util.List<CompileError> placedCompileErrors(
+            com.legend.protocol.Protocol.PureModelContextData model) {
+        return compileErrorsOf(() -> parsedModel(model));
+    }
+
+    private static java.util.List<String> messages(java.util.List<CompileError> errors) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (CompileError e : errors) {
+            out.add(e.message());
+        }
+        return java.util.List.copyOf(out);
+    }
+
+    private static java.util.List<CompileError> compileErrorsOf(java.util.function.Supplier<ParsedModel> read) {
+        // null until the model is read: a model the compiler does not read has no element to place its error by
+        ParsedModel parsed = null;
         ModelContext ctx;
         try {
-            ctx = model.get();
+            parsed = read.get();
+            ctx = buildPositioned(parsed);
         } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException e) {
-            return java.util.List.of(String.valueOf(e.getMessage()));
+            return java.util.List.of(new CompileError(String.valueOf(e.getMessage()), spanOfElement(parsed, e)));
         }
-        return java.util.List.copyOf(compileAllBodies(ctx).values());
+        java.util.List<CompileError> errors = new java.util.ArrayList<>();
+        for (BodyWall wall : bodyWalls(ctx)) {
+            errors.add(new CompileError(wall.message(),
+                    wall.element() == null ? null : parsed.span(wall.element()).orElse(null)));
+        }
+        return java.util.List.copyOf(errors);
+    }
+
+    /** The span of the element {@code e} is about ({@code LegendCompileException.element}), as {@code parsed} carries
+     *  it; null when the failure names no element, the model was not read, or its record carried no span. */
+    private static com.legend.protocol.@com.legend.base.Nullable SourceInfo spanOfElement(
+            @com.legend.base.Nullable ParsedModel parsed, RuntimeException e) {
+        if (parsed == null || !(e instanceof com.legend.error.LegendCompileException c) || c.element() == null) {
+            return null;
+        }
+        return parsed.span(c.element()).orElse(null);
     }
 
 }

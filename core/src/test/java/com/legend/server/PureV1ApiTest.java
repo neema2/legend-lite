@@ -846,6 +846,146 @@ class PureV1ApiTest {
         assertEquals(500, unread.status(), unread.json());
     }
 
+    // ---------------------------------------------------------------------
+    // where a compile error is: legend-engine's sourceInformation (2026-11-13; docs/SEMANTICS_REGISTER.md S400)
+    // ---------------------------------------------------------------------
+
+    /** A class that compiles, then one whose property's type is not found: the second element spans 6:1 to 9:1. */
+    private static final String ELEMENT_ERROR = "Class my::Ok\n{\n  name: String[1];\n}\n\n"
+            + "Class my::Desk\n{\n  name: Strin[1];\n}\n";
+
+    /** The engine's sourceInformation, as its JSON orders the fields (by name). */
+    private static String span(String sourceId, int startLine, int startColumn, int endLine, int endColumn) {
+        return "{\"endColumn\":" + endColumn + ",\"endLine\":" + endLine + ",\"sourceId\":\"" + sourceId
+                + "\",\"startColumn\":" + startColumn + ",\"startLine\":" + startLine + "}";
+    }
+
+    private static String text(String code) {
+        return Json.toCompact(Map.of("_type", "text", "code", code));
+    }
+
+    private static List<Json.Node> liteErrors(String context) {
+        PureV1Api.Answer a = PureV1Api.route("/api/lite/v1/compilation/compile", null, context, NO_RUN);
+        assertEquals(200, a.status(), a.json());
+        return Json.parseObject(a.json()).getArr("errors").items();
+    }
+
+    /** A text model's element error: the engine's error shape, the ELEMENT's whole span beside the message. */
+    @Test
+    void compile_aTextModelsElementError_carriesTheElementsSpan() {
+        PureV1Api.Answer a = PureV1Api.compile(text(ELEMENT_ERROR));
+        assertEquals(400, a.status(), a.json());
+        Json.Obj o = Json.parseObject(a.json());
+        assertEquals("COMPILATION", o.getString("errorType"));
+        assertEquals(span("", 6, 1, 9, 1), Json.toCompact(o.getObj("sourceInformation")), a.json());
+        // the fields, and their order, are the engine's: sourceInformation between message and status
+        assertEquals(List.of("code", "errorType", "message", "sourceInformation", "status"),
+                List.copyOf(o.fields().keySet()), a.json());
+        // the message is as it was: led by where the element starts (lite's own Studio reads it)
+        assertTrue(o.getString("message").startsWith("[6:1] "), a.json());
+
+        // legend-lite's own route: the same span, per error
+        List<Json.Node> errors = liteErrors(text(ELEMENT_ERROR));
+        assertEquals(1, errors.size(), errors.toString());
+        Json.Obj e = (Json.Obj) errors.get(0);
+        assertEquals(o.getString("message"), e.getString("message"));
+        assertEquals(span("", 6, 1, 9, 1), Json.toCompact(e.getObj("sourceInformation")));
+    }
+
+    /** A {@code PureModelContextData} whose records carry source information -- what a client that parsed the text
+     *  with {@code grammarToJson/model?returnSourceInformation=true} sends: the error is placed by the records' own
+     *  span, their source id included. */
+    @Test
+    void compile_aDataModelWithSourceInformation_carriesItsRecordsSpan() {
+        String data = PureV1Api.grammarToJsonModel(ELEMENT_ERROR, true).json();
+        assertTrue(data.startsWith("{\"_type\":\"data\""), data.substring(0, Math.min(80, data.length())));
+        PureV1Api.Answer a = PureV1Api.compile(data);
+        assertEquals(400, a.status(), a.json());
+        // the same answer as its text's, byte for byte
+        assertEquals(PureV1Api.compile(text(ELEMENT_ERROR)).json(), a.json());
+        assertEquals(span("", 6, 1, 9, 1), Json.toCompact(Json.parseObject(a.json()).getObj("sourceInformation")));
+
+        // the span is the RECORD's, not one lite derives: a client's own source id comes back
+        String named = data.replace("\"sourceId\":\"\"", "\"sourceId\":\"my/desk.pure\"");
+        assertNotEquals(data, named);
+        PureV1Api.Answer b = PureV1Api.compile(named);
+        assertEquals(400, b.status(), b.json());
+        assertEquals(span("my/desk.pure", 6, 1, 9, 1),
+                Json.toCompact(Json.parseObject(b.json()).getObj("sourceInformation")), b.json());
+        assertEquals(span("my/desk.pure", 6, 1, 9, 1),
+                Json.toCompact(((Json.Obj) liteErrors(named).get(0)).getObj("sourceInformation")));
+    }
+
+    /** A {@code PureModelContextData} sent without source information: no position is known, so the error carries no
+     *  {@code sourceInformation} -- never a made-up one -- and its message no {@code [line:col]}. */
+    @Test
+    void compile_aDataModelWithoutSourceInformation_carriesNoPosition() {
+        String data = PureV1Api.grammarToJsonModel(ELEMENT_ERROR, false).json();
+        assertFalse(data.contains("sourceInformation"), data);
+        PureV1Api.Answer a = PureV1Api.compile(data);
+        assertEquals(400, a.status(), a.json());
+        Json.Obj o = Json.parseObject(a.json());
+        assertEquals(List.of("code", "errorType", "message", "status"), List.copyOf(o.fields().keySet()), a.json());
+        assertFalse(o.getString("message").startsWith("["), a.json());
+        // the same error as the text's, less where it is
+        String placed = Json.parseObject(PureV1Api.compile(text(ELEMENT_ERROR)).json()).getString("message");
+        assertEquals(placed.substring("[6:1] ".length()), o.getString("message"));
+
+        List<Json.Node> errors = liteErrors(data);
+        assertEquals(1, errors.size(), errors.toString());
+        assertEquals(List.of("message"), List.copyOf(((Json.Obj) errors.get(0)).fields().keySet()));
+    }
+
+    /**
+     * A body that does not type: placed at the element the body is WRITTEN in -- a function's own span, and for a
+     * derived property (a body the compiler lifts into a function of its own) the class's. Every one on legend-lite's
+     * route, the first on legend-engine's; a model given as records is answered as its text is.
+     */
+    @Test
+    void compile_aBodyError_carriesTheSpanOfTheElementItIsWrittenIn() {
+        String code = "Class my::Ok\n{\n  name: String[1];\n  shout() { $this.nope }: String[1];\n}\n\n"
+                + "function my::broken(): String[1]\n{\n  ^my::Ok(name = 'a').nada\n}\n";
+        List<Json.Node> errors = liteErrors(text(code));
+        assertEquals(2, errors.size(), errors.toString());
+        Map<String, String> spanByMessage = new LinkedHashMap<>();
+        for (Json.Node n : errors) {
+            Json.Obj e = (Json.Obj) n;
+            assertTrue(e.has("sourceInformation"), e.toString());
+            spanByMessage.put(e.getString("message"), Json.toCompact(e.getObj("sourceInformation")));
+        }
+        String derived = spanByMessage.keySet().stream().filter(m -> m.contains("nope")).findFirst().orElseThrow();
+        String function = spanByMessage.keySet().stream().filter(m -> m.contains("nada")).findFirst().orElseThrow();
+        assertEquals(span("", 1, 1, 5, 1), spanByMessage.get(derived), "the class the derived property is in");
+        assertEquals(span("", 7, 1, 10, 1), spanByMessage.get(function), "the function");
+
+        // legend-engine's route: the first of them, in its error shape
+        PureV1Api.Answer first = PureV1Api.compile(text(code));
+        assertEquals(400, first.status(), first.json());
+        Json.Obj o = Json.parseObject(first.json());
+        String firstMessage = ((Json.Obj) errors.get(0)).getString("message");
+        assertEquals(firstMessage, o.getString("message"));
+        assertEquals(spanByMessage.get(firstMessage), Json.toCompact(o.getObj("sourceInformation")));
+
+        // and the model given as records with source information is answered as its text is
+        String data = PureV1Api.grammarToJsonModel(code, true).json();
+        assertEquals(first.json(), PureV1Api.compile(data).json());
+        // without: the same errors, unplaced
+        for (Json.Node n : liteErrors(PureV1Api.grammarToJsonModel(code, false).json())) {
+            assertFalse(((Json.Obj) n).has("sourceInformation"), n.toString());
+        }
+    }
+
+    /** A text that does not parse has no element to place the error by: its position stays in the message alone
+     *  (the recorded difference: the engine answers {@code PARSER} with a {@code sourceInformation}). */
+    @Test
+    void compile_aTextThatDoesNotParse_carriesItsPositionInTheMessageAlone() {
+        PureV1Api.Answer a = PureV1Api.compile(text("Class my::Ok\n{\n  name: String[1]\n"));
+        assertEquals(400, a.status(), a.json());
+        Json.Obj o = Json.parseObject(a.json());
+        assertFalse(o.has("sourceInformation"), a.json());
+        assertTrue(o.getString("message").startsWith("["), a.json());
+    }
+
     /**
      * A failure outside a route (the boundary's own operations, which the tab and Python fold) is named as the routes
      * name it: legend-engine's errorType when the text is refused, else the server's status with the failure's class.

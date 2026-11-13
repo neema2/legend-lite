@@ -35,8 +35,8 @@ sealed interface ModelInput {
         }
 
         @Override
-        public List<String> compileErrors() {
-            return com.legend.Compiler.compileErrors(code);
+        public List<com.legend.Compiler.CompileError> compileErrors() {
+            return com.legend.Compiler.placedCompileErrors(code);
         }
 
         @Override
@@ -63,8 +63,8 @@ sealed interface ModelInput {
         }
 
         @Override
-        public List<String> compileErrors() {
-            return com.legend.Compiler.compileErrors(model);
+        public List<com.legend.Compiler.CompileError> compileErrors() {
+            return com.legend.Compiler.placedCompileErrors(model);
         }
 
         @Override
@@ -80,8 +80,9 @@ sealed interface ModelInput {
      *  one), a JSON model's for this use alone. */
     <T> T with(PureV1Api.Models models, java.util.function.Function<com.legend.compiler.element.ModelContext, T> use);
 
-    /** The model compiled whole, every body included: its errors ({@code Compiler.compileErrors}). */
-    List<String> compileErrors();
+    /** The model compiled whole, every body included: its errors, each with where it is when the model says
+     *  ({@code Compiler.placedCompileErrors}). */
+    List<com.legend.Compiler.CompileError> compileErrors();
 
     /** The model's records: a text's as legend-engine reads it (the engine's dialect), a JSON model's as read. */
     Protocol.PureModelContextData records();

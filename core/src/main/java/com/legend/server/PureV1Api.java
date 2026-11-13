@@ -272,39 +272,71 @@ public final class PureV1Api {
     /**
      * C1 {@code compilation/compile}: a model context compiled whole -- its elements, then every
      * body in it (functions, derived properties, service queries) -- as legend-engine compiles
-     * a model before answering ({@code Compiler.compileErrors}, which {@link #compileEveryError} answers whole).
-     * {@code {"message":"OK","defects":[]}}, or the first failure in the engine's error shape, 400 (measured,
-     * 4.145.0, 2026-09-30). Recorded differences: lite reports no {@code defects} (the engine's are warnings, e.g. a
-     * service without a title), and its refusal carries the element in the message, not a
-     * {@code sourceInformation}.
+     * a model before answering ({@code Compiler.placedCompileErrors}, which {@link #compileEveryError} answers
+     * whole). {@code {"message":"OK","defects":[]}}, or the first failure in the engine's error shape, 400 (measured,
+     * 4.145.0, 2026-09-30), with the engine's {@code sourceInformation} beside the message where the model says
+     * where the error's element is ({@link #sourceInformation}; 2026-11-13) -- a text model's from its parse, a
+     * {@code PureModelContextData}'s from its records' own {@code sourceInformation} (as
+     * {@code grammarToJson/model?returnSourceInformation=true} writes them, source id and all), so a client that
+     * parsed the text places the error in it. No position known, no field: records sent without source information,
+     * an error about no one element, a text that does not parse. Recorded differences
+     * (docs/SEMANTICS_REGISTER.md S400): the position is the ELEMENT's whole span, where the engine's is the
+     * offending node's inside it; the message keeps lite's {@code [line:col]} lead, which the engine's does not
+     * carry (lite's own Studio reads it); a text that does not parse is refused as {@code COMPILATION} with its
+     * position in the message alone (the engine: {@code PARSER}, with a {@code sourceInformation}); and lite
+     * reports no {@code defects} (the engine's are warnings, e.g. a service without a title).
      */
     public static Answer compile(String body) {
-        List<String> errors = new ArrayList<>();
+        List<com.legend.Compiler.CompileError> errors = new ArrayList<>();
         Answer a = answer(400, "COMPILATION", () -> {
             errors.addAll(ModelInput.of(request(body)).compileErrors());
             return "{\"message\":\"OK\",\"defects\":[]}";
         });
         // a body's message names its element ("in function '...'")
-        return errors.isEmpty() ? a : error(400, "COMPILATION", errors.get(0));
+        return errors.isEmpty() ? a : error(400, "COMPILATION", errors.get(0).message(), errors.get(0).at());
     }
 
     /**
      * legend-lite's own {@code /api/lite/v1/compilation/compile} (the user's decision, 2026-10-10; legend-engine has
      * no such route, so a client that may be talking to it asks this first and, answered 404, asks
      * {@link #compile}): the model compiled as {@link #compile} compiles it, answered with EVERY error, 200 --
-     * {@code {"errors":[{"message":...}, ...]}}, the list empty when it compiles ({@code Compiler.compileErrors}: the
-     * first element error alone, else every body's). Each error is an object, so where it is can be added beside its
-     * message later (leg 6b) without changing the shape. A request that cannot be read, or a failure that is not the
-     * model's, is answered as {@link #compile} answers it.
+     * {@code {"errors":[{"message":..., "sourceInformation":{...}}, ...]}}, the list empty when it compiles
+     * ({@code Compiler.placedCompileErrors}: the first element error alone, else every body's). Each error is an
+     * object: its message and, where the model says where the error's element is, the same
+     * {@code sourceInformation} {@link #compile} writes ({@link #sourceInformation}; 2026-11-13), absent when no
+     * position is known. A request that cannot be read, or a failure that is not the model's, is answered as
+     * {@link #compile} answers it.
      */
     public static Answer compileEveryError(String body) {
         return answer(400, "COMPILATION", () -> {
             List<Map<String, Object>> errors = new ArrayList<>();
-            for (String message : ModelInput.of(request(body)).compileErrors()) {
-                errors.add(Map.of("message", message));
+            for (com.legend.Compiler.CompileError e : ModelInput.of(request(body)).compileErrors()) {
+                Map<String, Object> error = new LinkedHashMap<>();
+                error.put("message", e.message());
+                if (e.at() != null) {
+                    error.put("sourceInformation", sourceInformation(e.at()));
+                }
+                errors.add(error);
             }
             return Json.toCompact(Map.of("errors", errors));
         });
+    }
+
+    /**
+     * A span as legend-engine writes an error's {@code sourceInformation}: its protocol's {@code SourceInformation}
+     * ({@code sourceId}, {@code startLine}, {@code startColumn}, {@code endLine}, {@code endColumn}; read in the
+     * reference checkout, {@code ExceptionError} and {@code protocol.pure.m3.SourceInformation}, 2026-11-13 -- not
+     * measured on a running engine), its fields in the order the engine's JSON has them everywhere (by name, as
+     * {@code grammarToJson}'s spans are pinned and as the error's own fields were measured).
+     */
+    private static Map<String, Object> sourceInformation(com.legend.protocol.SourceInfo at) {
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("endColumn", at.endColumn());
+        out.put("endLine", at.endLine());
+        out.put("sourceId", at.sourceId());
+        out.put("startColumn", at.startColumn());
+        out.put("startLine", at.startLine());
+        return out;
     }
 
     /**
@@ -1234,12 +1266,22 @@ public final class PureV1Api {
     }
 
     private static Answer error(int status, @com.legend.base.Nullable String errorType, String message) {
+        return error(status, errorType, message, null);
+    }
+
+    /** A failure in the engine's error shape, {@code sourceInformation} beside its message when {@code at} is known
+     *  ({@link #sourceInformation}) and absent when it is not. */
+    private static Answer error(int status, @com.legend.base.Nullable String errorType, String message,
+            com.legend.protocol.@com.legend.base.Nullable SourceInfo at) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("code", -1);
         if (errorType != null) {
             out.put("errorType", errorType);
         }
         out.put("message", message);
+        if (at != null) {
+            out.put("sourceInformation", sourceInformation(at));
+        }
         out.put("status", "error");
         return new Answer(status, Json.toCompact(out));
     }
