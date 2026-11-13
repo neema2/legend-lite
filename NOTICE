@@ -26,7 +26,7 @@ the Apache License, Version 2.0:
     engine's table of which of its dialect extensions register each dynafunction, docs/engine-dynafunctions.tsv
     (//spec:gen_engine_dynafunctions).
   - legend-engine's H2 connection defaults (core/src/main/java/com/legend/exec/H2Connector.java, its SETTINGS) and
-    its classifier path map (sdlc-server/data/classifier-paths.json).
+    its classifier path map (core/src/main/java/com/legend/protocol/ProtocolTypes.java).
   - Test fixtures: parser-equivalence/src/test/resources/composition-pct-stripped.pure and
     engine-grammar-fixtures.jsonl.
 

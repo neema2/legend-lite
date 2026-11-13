@@ -1,7 +1,7 @@
 # SDLC-lite (design S1, S21): legend-sdlc's REST API and lite's text routes, its RULES written once in
 # Java (com.legend.sdlc.Sdlc over a Storage) and run two ways -- by the model home's server (HTTP over a
 # git repository, with Depot-lite beside it) and in the page, compiled to WebAssembly (:page). One
-# conformance suite holds both (sdlc-client/test/conformance.ts). The rules depend on no Pure code: their two
+# conformance suite holds both (sdlc-client/test/conformance.ts). The rules depend on no Pure code: their three
 # Pure questions are answered by //sdlc-server/grammar, the one SDLC package that may see the compiler, which the
 # server and the page wire in (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 7). Never the reverse.
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")

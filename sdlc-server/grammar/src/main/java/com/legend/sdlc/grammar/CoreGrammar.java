@@ -5,13 +5,14 @@ import com.legend.sdlc.Sdlc;
 import java.util.List;
 
 /**
- * The SDLC's two Pure questions answered by legend-lite's own compiler, in process
+ * The SDLC's three Pure questions answered by legend-lite's own compiler, in process
  * (docs/PROTOCOL_PROGRAM_2026_10_05.md, leg 7): the one place the SDLC reaches the compiler, so its rules
  * ({@code //sdlc-server:rules}) depend on no Pure code and the build refuses them any. {@link #modelJson} is the
  * text-to-JSON conversion without source information ({@code PmcdParser.parseDocument(text, false)}, the engine-exact
  * protocol JSON) -- the one the server's {@code grammar/grammarToJson/model} calls; {@link #compile} is the whole-model
- * compile both {@code compilation/compile} routes answer from ({@code Compiler.compileErrors}, leg 6). The SDLC's
- * server and its page wire it in.
+ * compile both {@code compilation/compile} routes answer from ({@code Compiler.compileErrors}, leg 6);
+ * {@link #classifierPath} reads the protocol's one table of element types ({@code ProtocolTypes}, which the server's
+ * {@code protocol/pure/getClassifierPathMap} is served from; 2026-11-13). The SDLC's server and its page wire it in.
  */
 public final class CoreGrammar implements Sdlc.Grammar {
     @Override
@@ -27,5 +28,10 @@ public final class CoreGrammar implements Sdlc.Grammar {
             // a failure that is not the model's (a compiler bug) still keeps the tree from landing
             return List.of(e.getMessage() == null ? e.getClass().getName() : e.getMessage());
         }
+    }
+
+    @Override
+    public @com.legend.base.Nullable String classifierPath(String type) {
+        return com.legend.protocol.ProtocolTypes.classifierPath(type);
     }
 }

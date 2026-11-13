@@ -21,7 +21,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * (docs/UPSTREAM_ENDPOINTS_DESIGN_2026_09_27.md). Carries what {@code /engine/plan}'s test
  * pinned before that made-up endpoint was deleted (2026-09-27): planning never opens the
  * database (the model's connection names a file that does not exist), an honest compile
- * error is an error answer, and only POST is served.
+ * error is an error answer, and only POST is served (but for the engine's two GET routes: {@code ProtocolRoutesTest}).
  */
 class PureV1HttpTest {
 
@@ -117,7 +117,7 @@ class PureV1HttpTest {
     }
 
     @Test
-    @DisplayName("only POST, and only legend-engine's own paths")
+    @DisplayName("only POST (the engine's two GET routes aside: ProtocolRoutesTest), and only legend-engine's own paths")
     void onlyPostAndOnlyUpstreamPaths() throws Exception {
         HttpResponse<String> get = HTTP.send(HttpRequest.newBuilder()
                 .uri(URI.create("http://localhost:" + server.getPort()
