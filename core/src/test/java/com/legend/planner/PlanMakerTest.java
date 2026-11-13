@@ -174,13 +174,15 @@ class PlanMakerTest {
     @Test
     void eachDatabaseWritesItsOwnDatePlaceholder() {
         // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
+        // (ClickHouse's raise as the timeseries branch writes it since #81's final review, 2026-11-09: each ends in an
+        // empty text of a rand(n) of its own, no materialize -- main's #95 merged in 2026-11-13)
         java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
         for (String line : """
                 Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
                 Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
                 BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
-                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
+                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");
             spelled.put(cells[0], new String[] {cells[1], cells[2]});
