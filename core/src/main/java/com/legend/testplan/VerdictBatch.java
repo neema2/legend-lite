@@ -34,10 +34,14 @@ import java.util.Map;
  * raises exactly as before (the runner's first-failure sequencing and gate
  * 11's per-assert ledger keys are unchanged); a root's own steps (an
  * unrolled quantified assert is several statements, a static kind gate is
- * a decided outcome) decide in their order. THE SPLIT RUNG: when the fused
- * statement itself errors (a side the database rejects), the batch is
- * judged statement by statement — today's path, so the error lands on the
- * assert that owns it — counted, never a verdict change. This class sends
+ * a decided outcome) decide in their order. A FUSED STATEMENT THE DATABASE
+ * REJECTS at run (a side it raises on) fails the body by name, the
+ * database's own error first, then the verdicts the statement held: nothing
+ * is retried another way (P1.2, d67cd85c5, 2026-11-07: the run-time split
+ * rung, which judged the batch statement by statement, is deleted). The one
+ * split that remains is at PLANNING: a fused form the dialect cannot spell,
+ * each member then its own statement, or refused alone (see {@link #plan}).
+ * This class plans
  * and orders; the SQL shape is the lowering's, the judgment of a row is
  * the verdict arm's ({@link RootLoops.Judge}), and each statement is sent as a PLAN
  * by the {@link Runner} (the plan path program's step 6, 2026-10-18: a
