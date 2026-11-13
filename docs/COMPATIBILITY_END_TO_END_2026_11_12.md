@@ -289,7 +289,7 @@ layer-2 rows, 17 layer-3 rows.
 | | before (today, d2c8ea7) | after (the frame, D's share built) |
 |---|---|---|
 | compatibility spellings in product files (`CompatSpellingGuardTest`) | 289 hits in 85 files (D1.1 2, D1.2 44, D1.3 16, D1.4 36, D1.5 5, D1.6 19, D1.7 111, D1.8 27, JUDGE 28, STAYS 1) | JUDGE 28 → 0 with E-5c, STAYS 1. **0 in the product** |
-| engine text family (K5) | 4,854 lines, reached by the product planner | the same lines at the edge, or fewer (§5.4, conflict 1) |
+| engine text family (K5) | 4,854 lines, reached by the product planner | (a) the same lines at the edge, or (b) deleted (§5.4, conflict 1: about 1,150 corpus tests assert engine's SQL text; PCT none) |
 | Pure print forms in SQL (`FloatPrintText` 183, the 12 `FLOAT_PRINT` arms, `LiteralSpelling`'s print forms, `Repr` 99, `TaggedLists.print`, P14's repairs in 8 dialects) | in the product, written on every database | **leave the product.** At the edge, kept only for in-query printing: `FloatPrintText` and the date, Decimal and Boolean forms stay, the P14 repairs go |
 | TDS text and `toCSV` (`Render`, 834 lines) | SQL in the product | Java at the edge's presenter (smaller: written once over typed rows, not per database) |
 | writers (`PureV1Writer` 298, `TdsObjectsWriter` 91, `CellText`'s engine half) | the product's result library | the edge's presenter |
@@ -304,13 +304,63 @@ layer-2 rows, 17 layer-3 rows.
 
 ### 5.4 Where D's current plan conflicts with the frame
 
-1. **K5, the EngineStyle printers (parked).**
+1. **K5, the EngineStyle printers (parked). Counted 2026-11-13 at 9525fe6.**
    - The frame puts plan text in layer 3, as translators at planning. The interop design exports a plan in the
      UPSTREAM style with lite's own SQL text, not engine's spelling (§3.2 there).
-   - If `toSQLString` and `planToString` answered the UPSTREAM dialect's text, the 2,892 lines of `EngineStyle*`
-     could go, and the parked move would be wasted.
-   - What decides it: how many PCT and corpus asserts compare engine's exact SQL text. Not measured here.
-   - **The move stays parked until that is counted.**
+   - If `toSQLString` and `planToString` answered the UPSTREAM dialect's text, the engine-text family could go, and
+     the parked move would be wasted. What decides it is how many asserts compare engine's exact SQL or plan text.
+   - **Method.**
+     - For one run, every engine-text printer refused (`EngineText.engineText` and `enginePlanText`), except where
+       the caller was DDL or seed setup. Each call was logged with its caller.
+     - PCT channel A (5 suites) and channel B (5 suites) ran, and both corpora's host passes.
+     - Every corpus assert was compared with the green baseline. Each lost test's body was read in the pinned
+       legend-engine sources for the engine text it names.
+     - Measurement only: the probe is not in the code.
+   - **PCT: 0 tests depend on engine text.** All 10 suites stay green with the printers refusing.
+   - **The corpus (DuckDB: 2,517 tests; H2: 2,404, the same shape).** The printer calls, by caller:
+
+     | caller | calls |
+     |---|---|
+     | `PlanAllocations.activitySql` (an execute frame's activity SQL) | 1,606 |
+     | `EnginePlans.planModel` | 325 |
+     | `EnginePlans.toSqlString` | 120 |
+     | `EnginePlans.sequencePlan` | 60 |
+     | `EnginePlans.planToString` | 57 |
+     | `EnginePlans.engineTestSql` | 32 |
+     | `PlanAllocations.node` | 8 |
+     | the generator's plan text (`BodyDriver`) | 6 |
+     | `EnginePlans.crossDbTdsPlan` | 5 |
+     | DDL and seed setup (`ddlText`, `SeedSqlForms`; allowed) | 65 |
+
+     1,641 passing DuckDB tests (1,615 on H2) lose an assert. The 1,612 DuckDB bodies found in the pinned sources:
+
+     | what the test's body names | tests |
+     |---|---|
+     | the executed statement's SQL (`activities`, `RelationalActivity`, `sqlRemoveFormatting`) | 965 |
+     | plan text (`planToString`, `executionPlan`, `generatePlan`) | 111 |
+     | `toSQLString` | 73 |
+     | none of these | 463 |
+
+     The 463 are collateral: lite writes the activity SQL for every execute frame, whether or not the test reads it.
+     **So about 1,150 corpus tests (46% of 2,517) assert legend-engine's exact SQL or plan text**, almost all of it
+     the executed statement's text.
+   - **The choice (the user rules).**
+     - **(a) Keep the engine printers, moved to the edge** (the parked move). The corpus keeps checking engine's SQL
+       text: fidelity of HOW, in the corpus only.
+       - Cost: the engine-text family stays, about 4,850 lines (`EngineStyle*` 2,892, `EnginePlans` 932,
+         `PlanAllocations` 553, `RawSqlBoundary` 339, `EngineText` 82, `PlanEnvelope` 56), relocated to the edge.
+     - **(b) Engine's SQL text is a non-goal**, by the user's own "fidelity is WHAT, not HOW".
+       - The ~1,150 SQL-text asserts become one register row ("lite does not reproduce legend-engine's SQL or plan
+         text"). The corpus judges those tests by their answers alone.
+       - The engine-text family is deleted, about 4,850 lines.
+       - `toSQLString` and `planToString` answer the UPSTREAM dialect's text, as export writes it.
+       - Cost: the corpus loses its SQL-text checks (about 1,150 tests' text asserts); its answers are still checked.
+       - PCT is unaffected either way.
+   - **D's reading: (b).**
+     - The product owns its SQL, and fidelity is answers: the user's ruling of 2026-11-12.
+     - (b) makes the edge smaller instead of moving it.
+     - It gives up a check the corpus has today, which is why it is the user's call.
+   - **The move stays parked until the user rules.**
 2. **D1.2 and D1.3 (Pure's print forms at the edge).**
    - My plan was edge dialect arms for every print form.
    - The frame says Java presents an answer. §5.2 says that removes only the OUTPUT positions, and those are rare.
