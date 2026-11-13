@@ -158,19 +158,172 @@ final class AgreementAsserts implements TestDoor.Asserts {
      *  decided once. Until then each half held one of its own, and the referee replayed twice. */
     private static void joinAppeals(HostAsserts.Planned p, DatabaseAsserts.@Nullable Each database,
             EngineTextAppeals appeals) {
-        if (database == null
-                || !(HostJudgment.core(p.assertion().check().judgment()) instanceof HostJudgment.EngineText e)
-                || e.appeal() == com.legend.testexecutionplan.RootLoop.NO_APPEAL) {
+        if (database == null) {
             return;
         }
         for (com.legend.testexecutionplan.RootLoop.Root r : database.planned().loop().roots()) {
-            for (com.legend.testexecutionplan.RootLoop.Step s : r.steps()) {
-                if (s instanceof com.legend.testexecutionplan.RootLoop.Row row
-                        && row.appeal() != com.legend.testexecutionplan.RootLoop.NO_APPEAL) {
-                    appeals.join(row.appeal(), e.appeal());
-                }
+            joinAppeals(p, r, appeals);
+        }
+    }
+
+    /** {@link #joinAppeals(HostAsserts.Planned, DatabaseAsserts.Each, EngineTextAppeals)} for one root of the
+     *  database half's loop, the assert {@code p}'s. */
+    private static void joinAppeals(HostAsserts.Planned p, com.legend.testexecutionplan.RootLoop.Root r,
+            EngineTextAppeals appeals) {
+        if (!(HostJudgment.core(p.assertion().check().judgment()) instanceof HostJudgment.EngineText e)
+                || e.appeal() == com.legend.testexecutionplan.RootLoop.NO_APPEAL) {
+            return;
+        }
+        for (com.legend.testexecutionplan.RootLoop.Step s : r.steps()) {
+            if (s instanceof com.legend.testexecutionplan.RootLoop.Row row
+                    && row.appeal() != com.legend.testexecutionplan.RootLoop.NO_APPEAL) {
+                appeals.join(row.appeal(), e.appeal());
             }
         }
+    }
+
+    // ---- both judges over the DATABASE judge's real program (E-5c step 6, the user's ruling O5 of 2026-11-13) ----
+
+    /**
+     * {@code typed}'s asserts planned for both judges as the DATABASE judge's real program (E-5c step 6, the user's
+     * ruling O5 of 2026-11-13; the same parameters as {@link #plan}): the host half as the host judge plans it, then
+     * the database judge's segments of fused verdict groups with the host's half attached
+     * ({@link DatabaseAsserts#planWithHost}) -- each root's host verdict on its first fused row, its single-value sides
+     * columns of that row ({@link TestPlan.Side.FusedCell}), each segment's closing group pairing its roots
+     * ({@link #fusedSegment}). No frame runs at its let: the frames' readers read their CTEs in the fused statements,
+     * as the database judge's do. Null where the host half plans none, or the database judge no program. Not yet the
+     * test planner's: {@link #plan} still is.
+     */
+    static TestDoor.@Nullable Asserts planFused(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            BodyDriver.@Nullable ExecEnv bodyEnv, boolean systemRouted) {
+        BodyDriver.ExecEnv hostEnv = env.withOptions(env.options().withJudgeMode(PlanningOptions.JudgeMode.HOST));
+        HostAsserts host = HostAsserts.plan(typed, runtime, hostEnv, bodyEnv == null ? null
+                : bodyEnv.withOptions(bodyEnv.options().withJudgeMode(PlanningOptions.JudgeMode.HOST)));
+        if (host == null) {
+            return null;
+        }
+        BodyDriver.ExecEnv databaseEnv = env.withOptions(env.options().withJudgeMode(
+                PlanningOptions.JudgeMode.DATABASE));
+        DatabaseAsserts database = DatabaseAsserts.planWithHost(typed, runtime, databaseEnv, systemRouted,
+                bodyEnv == null ? null
+                        : bodyEnv.withOptions(bodyEnv.options().withJudgeMode(PlanningOptions.JudgeMode.DATABASE)),
+                host);
+        return database == null ? null : new Fused(database);
+    }
+
+    /** The asserts {@link #planFused} planned: the database judge's program, judged by both. */
+    private static final class Fused implements TestDoor.Asserts {
+        private final DatabaseAsserts database;
+
+        Fused(DatabaseAsserts database) {
+            this.database = database;
+        }
+
+        @Override
+        public @Nullable List<? extends TestPlan.TestStep> at(int statement) {
+            return database.at(statement);
+        }
+
+        @Override
+        public @Nullable String frameStamp(int statement) {
+            return database.frameStamp(statement);
+        }
+
+        @Override
+        public boolean runsFrames() {
+            return false;
+        }
+
+        @Override
+        public TestPlan.Judge judge() {
+            return TestPlan.Judge.AGREEMENT;
+        }
+    }
+
+    /**
+     * One segment's groups for both judges (E-5c step 6): {@code planned}, the database judge's batch, its roots
+     * {@code roots} in root order. Each root's CARRIER verdict ({@link VerdictBatch.Planned#hostCarriers}) becomes the
+     * host's verdict on the database's row -- its id the carrier's, its host facts, name, arm and message the host's,
+     * its base the host's with each single-value side a {@link TestPlan.Side.FusedCell} of the carrier's row -- every
+     * other verdict the database's; the segment's last group carries the root loop and one agreement per root, in root
+     * order; each root's engine-text appeal joined to its database rows' ({@link #joinAppeals}).
+     */
+    static List<TestPlan.Verdicts> fusedSegment(VerdictBatch.Planned planned, List<DatabaseAsserts.HostRoot> roots,
+            BodyDriver.ExecEnv env) {
+        if (planned.groups().isEmpty()) {
+            throw new IllegalStateException("a segment with the host's half attached and no verdict group");
+        }
+        Map<Integer, Integer> rootOf = new java.util.HashMap<>();
+        List<com.legend.testexecutionplan.Agreement> agreements = new ArrayList<>(roots.size());
+        for (int k = 0; k < roots.size(); k++) {
+            Integer carrier = planned.hostCarriers().get(k);
+            if (carrier == null) {
+                throw new IllegalStateException(roots.get(k).host().assertion().listenerName() + ": an agreement root"
+                        + " with no carrier verdict and not uncarried");
+            }
+            rootOf.put(carrier, k);
+            agreements.add(new com.legend.testexecutionplan.Agreement(k, carrier,
+                    com.legend.testexecutionplan.RootLoop.NO_VERDICT));
+        }
+        List<TestPlan.Verdicts> steps = new ArrayList<>(planned.groups().size());
+        for (VerdictBatch.Group g : planned.groups()) {
+            TestPlan.Verdicts step = g.step();
+            List<TestPlan.Verdict> verdicts = new ArrayList<>(step.verdicts().size());
+            for (TestPlan.Verdict v : step.verdicts()) {
+                Integer k = rootOf.get(v.id());
+                verdicts.add(k == null ? v : carried(v, roots.get(k), g, env));
+            }
+            steps.add(new TestPlan.Verdicts(verdicts, step.fused(), step.savepoint(), step.rules()));
+        }
+        int last = steps.size() - 1;
+        steps.set(last, steps.get(last).withRoots(planned.loop()).withAgreements(agreements));
+        for (int k = 0; k < roots.size(); k++) {
+            joinAppeals(roots.get(k).host(), planned.loop().roots().get(k), env.appeals());
+        }
+        return steps;
+    }
+
+    /** The carrier verdict {@code v} of root {@code r}, in group {@code g}, as the host's verdict on the database's
+     *  row: refused by name where the host half reads no side (its verdict is a raise or an outcome the host decided,
+     *  which no fused row carries) or a fused side reads a store on another session than the group's. */
+    private static TestPlan.Verdict carried(TestPlan.Verdict v, DatabaseAsserts.HostRoot r, VerdictBatch.Group g,
+            BodyDriver.ExecEnv env) {
+        TestPlan.Verdict hv = r.host().verdict();
+        String name = r.host().assertion().listenerName();
+        if (hv.base().isEmpty()) {
+            throw new com.legend.error.NotImplementedException(name + ": an agreement root whose host half reads no"
+                    + " side, carried by a fused statement (E-5c)");
+        }
+        if (r.storeBound() && !g.on().equals(env.target())) {
+            throw new com.legend.error.NotImplementedException(name + ": an agreement root whose host columns read the"
+                    + " body's store, its fused row on another session (E-5c)");
+        }
+        List<TestPlan.Side> base = new ArrayList<>(hv.base().size());
+        for (int j = 0; j < hv.base().size(); j++) {
+            List<com.legend.executionplan.ExecutionPlan.Column> cell = r.cells().get(j);
+            base.add(cell == null ? hv.base().get(j) : new TestPlan.Side.FusedCell(cell));
+        }
+        return new TestPlan.Verdict(v.id(), hv.name(), hv.arm(), base, v.wrapper(), hv.message()).withHost(hv.host());
+    }
+
+    /** An assertError's steps for both judges over the database judge's program (E-5c step 6), as {@link #assemble}
+     *  plans them: the host's step and the database's raising verdict ({@link One}); the host's alone where the host
+     *  half planned no comparison of an error; null -- the body refused, as the database judge refuses it -- where it
+     *  is an assertError whose raising verdict the database judge cannot plan. */
+    static @Nullable List<TestPlan.Verdicts> assertErrorSteps(HostAsserts.Planned p, TypedSpec statement,
+            List<TypedSpec> lets, com.legend.compiler.spec.SpecCompiler specs, BodyDriver.ExecEnv env) {
+        boolean assertError = HostJudgment.core(p.assertion().check().judgment()) instanceof HostJudgment.AssertError;
+        TestPlan.Verdicts raising = assertError ? DatabaseAsserts.errorVerdictFor(p, statement, lets, specs, env)
+                : null;
+        if (raising != null) {
+            return new One(p, raising).steps;
+        }
+        if (assertError && p.assertion().beforeTheArm() == null) {
+            com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", p.assertion().listenerName(),
+                    "the database judge cannot plan this assertError as its verdict");
+            return null;
+        }
+        return new One(p, (DatabaseAsserts.Each) null).steps;
     }
 
     @Override

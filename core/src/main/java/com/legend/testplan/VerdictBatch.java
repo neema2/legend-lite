@@ -149,6 +149,9 @@ public final class VerdictBatch {
          *  column facts, each named as its SQL's output. None under the database judge alone. */
         List<com.legend.lowering.VerdictSql.HostColumn> hostSql = List.of();
         List<ExecutionPlan.Column> hostColumns = List.of();
+        /** Whether the agreement judge attached the host's half to this root ({@link #host}), host columns or none: its
+         *  first fused row then carries the host's verdict ({@link Planned#hostCarriers}; E-5c step 6, 2026-11-13). */
+        boolean hosted;
 
         Root(String listenerName) {
             this.listenerName = listenerName;
@@ -213,7 +216,8 @@ public final class VerdictBatch {
      * reads each single-value side as typed columns of the database judge's fused row): {@code sql}, each column's
      * expression under its output, and {@code columns}, their facts, named alike and in the same order. The root's first
      * row that joins a fused statement carries them ({@link Planned#hostCarriers}); a root whose rows join none carries
-     * none ({@link Planned#hostUncarried}), for the planner to decide.
+     * none ({@link Planned#hostUncarried}), for the planner to decide. Called with no columns, the root still has its
+     * carrier: the row the host's verdict rides (E-5c step 6, 2026-11-13).
      */
     public void host(List<com.legend.lowering.VerdictSql.HostColumn> sql, List<ExecutionPlan.Column> columns) {
         if (roots.isEmpty() || current != null) {
@@ -232,6 +236,13 @@ public final class VerdictBatch {
         Root r = roots.get(roots.size() - 1);
         r.hostSql = List.copyOf(sql);
         r.hostColumns = List.copyOf(columns);
+        r.hosted = true;
+    }
+
+    /** The roots opened since the batch was last planned (E-5c step 6: the agreement judge's planner attaches the
+     *  host's half to the root an assert opened, by its index in the segment). */
+    int rootCount() {
+        return roots.size();
     }
 
     public boolean active() {
@@ -510,12 +521,12 @@ public final class VerdictBatch {
             }
             messages.put(k, sideOf(java.util.Objects.requireNonNull(a.plan())));
         }
-        // E-5c: each root with host columns, its first row (in the batch's order) the one that carries them, by the
+        // E-5c: each root the host's half was attached to (host columns or none, step 6), its first row (in the batch's order) the one that carries them, by the
         // row's ix; a root whose carrier row joins no fused statement (keyed, the split rung) is left uncarried
         Map<Integer, Integer> carriers = new HashMap<>();   // a carrier row's ix -> its root's index in the batch
         for (int k = 0; k < batch.size(); k++) {
             Root r = batch.get(k);
-            if (r.hostSql.isEmpty()) {
+            if (!r.hosted) {
                 continue;
             }
             for (Step s : r.steps) {
@@ -600,7 +611,7 @@ public final class VerdictBatch {
         List<Group> placed = carried(batch, out, members, messages);
         java.util.Set<Integer> uncarried = new java.util.TreeSet<>();
         for (int k = 0; k < batch.size(); k++) {
-            if (!batch.get(k).hostSql.isEmpty() && !hostCarriers.containsKey(k)) {
+            if (batch.get(k).hosted && !hostCarriers.containsKey(k)) {
                 uncarried.add(k);
             }
         }

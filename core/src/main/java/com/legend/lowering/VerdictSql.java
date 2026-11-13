@@ -1516,6 +1516,87 @@ public final class VerdictSql {
         }
     }
 
+    /**
+     * A host side's planned statement {@code side} as the HOST columns of a fused verdict row (E-5c step 6, the user's
+     * ruling O5 of 2026-11-13), each projection's expression under its name in {@code names} -- where, and only where,
+     * the side is a SINGLE VALUE OF NO FROM, decided from the tree: a select of {@link SqlSource.Dual} with no filter,
+     * grouping, window filter, distinct, order, limit or offset (so it answers exactly one row, as the fused row does),
+     * one projection per name, and no expression that aggregates, windows or reads a row of an enclosing source outside
+     * a subquery (the expression moves into the verdict row's own select, which may read and group a source). Every
+     * alias inside it is prefixed by {@code aliasPrefix} ({@link com.legend.sql.AliasPrefix}: a subquery's aliases unique
+     * in the fused statement). Null otherwise: the side keeps its own statement.
+     */
+    public static @com.legend.base.Nullable List<HostColumn> singleValueColumns(SqlQuery side, String aliasPrefix,
+            List<String> names) {
+        if (!(side instanceof SqlSelect s) || !(s.from() instanceof SqlSource.Dual) || s.distinct()
+                || s.where() != null || !s.groupBy().isEmpty() || s.having() != null || s.qualify() != null
+                || !s.orderBy().isEmpty() || s.limit() != null || s.offset() != null
+                || s.projections().size() != names.size() || s.outputs().size() != names.size()) {
+            return null;
+        }
+        if (!(com.legend.sql.AliasPrefix.apply(aliasPrefix, s) instanceof SqlSelect prefixed)) {
+            throw new IllegalStateException("an alias prefix made a select no select");
+        }
+        List<HostColumn> out = new ArrayList<>(names.size());
+        for (int p = 0; p < names.size(); p++) {
+            SqlExpr value = prefixed.projections().get(p).expr();
+            if (RowBound.of(SubqueriesOut.of(value))) {
+                return null;
+            }
+            OutputCol o = s.outputs().get(p);
+            out.add(new HostColumn(value, new OutputCol(names.get(p), o.type(), o.nullable(), OutputCol.Origin.DERIVED)));
+        }
+        return out;
+    }
+
+    /** An expression with each subquery taken out (E-5c step 6): a scalar subquery or an EXISTS a NULL, an IN or a
+     *  quantified comparison its value -- what is left is what the expression computes in its own select. */
+    private static final class SubqueriesOut extends com.legend.sql.SqlRewriter {
+        static SqlExpr of(SqlExpr e) {
+            return new SubqueriesOut().rewriteExpr(e);
+        }
+
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            if (e instanceof SqlExpr.ScalarSubquery || e instanceof SqlExpr.Exists) {
+                return new SqlExpr.NullLit();
+            }
+            if (e instanceof SqlExpr.InSubquery in) {
+                return in.value();
+            }
+            if (e instanceof SqlExpr.Quantified q) {
+                return q.value();
+            }
+            return e;
+        }
+    }
+
+    /** Whether an expression aggregates, windows, or reads a row of a source (a qualified column, a star, a row's
+     *  order, a keyed region's cell, a spliced temp table) -- what would change meaning in another select (E-5c step
+     *  6). Anything that still holds a query is walked whole, so a nested reader counts too: the answer errs toward
+     *  the side's own statement. */
+    private static final class RowBound extends com.legend.sql.SqlRewriter {
+        /** The row-bound nodes the walk met. */
+        private final List<SqlExpr> met = new ArrayList<>();
+
+        static boolean of(SqlExpr e) {
+            RowBound r = new RowBound();
+            r.rewriteExpr(e);
+            return !r.met.isEmpty();
+        }
+
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            if (e instanceof SqlAgg.Reducer || e instanceof SqlExpr.OrderedListAgg || e instanceof SqlExpr.JsonArrayAgg
+                    || e instanceof SqlExpr.WindowCall || e instanceof SqlExpr.RowOrder || e instanceof SqlExpr.KeyCell
+                    || e instanceof SqlExpr.TempTableInSplice || e instanceof SqlExpr.Star
+                    || e instanceof SqlExpr.StarExcept || e instanceof SqlExpr.Column c && c.table() != null) {
+                met.add(e);
+            }
+            return e;
+        }
+    }
+
     /** One verdict statement of a batch and the host columns its row carries (none under the database judge alone). */
     public record Member(SqlQuery statement, List<HostColumn> host) {
         public Member {

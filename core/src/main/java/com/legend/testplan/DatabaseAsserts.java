@@ -82,7 +82,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  database: such a body is the walk's (M10b). */
     static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             boolean systemRouted) {
-        return plan(typed, runtime, env, systemRouted, null, List.of(), "");
+        return plan(typed, runtime, env, systemRouted, null, List.of(), "", null);
     }
 
     /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv, boolean)} for a SYSTEM-ROUTED body ({@code bodyEnv}
@@ -91,14 +91,55 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  item 10), the database judge's since 2026-11-06 (the walk deletion's step 3). */
     static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
             BodyDriver.@Nullable ExecEnv bodyEnv) {
-        return plan(typed, runtime, env, bodyEnv != null, bodyEnv, List.of(), "");
+        return plan(typed, runtime, env, bodyEnv != null, bodyEnv, List.of(), "", null);
+    }
+
+    /**
+     * The AGREEMENT judge's host half attached to the database judge's real program (E-5c step 6, the user's ruling O5
+     * of 2026-11-13): {@code host}, the host judge's asserts planned for this body (a branch side's for a side), whose
+     * frame stamps the frame lets take, so both halves read one execution of each frame.
+     */
+    record HostAttach(HostAsserts host) {
+        HostAttach {
+            java.util.Objects.requireNonNull(host, "host");
+        }
+    }
+
+    /**
+     * One root of a segment planned with the host's half attached (E-5c step 6): its statement, the host's planned
+     * assert, and each of the host's base sides read from the fused row -- its index in the host's base to its columns
+     * as the fused statement answers them. {@code storeBound}: such a side reads a store, so its row must run on the
+     * body's session.
+     */
+    record HostRoot(int statement, HostAsserts.Planned host, Map<Integer, List<ExecutionPlan.Column>> cells,
+            boolean storeBound) {
+        HostRoot {
+            java.util.Objects.requireNonNull(host, "host");
+            cells = Collections.unmodifiableMap(new LinkedHashMap<>(cells));
+        }
+    }
+
+    /**
+     * {@code typed}'s asserts planned as the DATABASE judge's real program -- its segments of fused verdict groups, a
+     * root loop on each segment's last group -- with the HOST judge's half attached ({@code host}, planned on the same
+     * body; E-5c step 6, the user's ruling O5 of 2026-11-13): each frame let under the host's stamp, each root's
+     * single-value host sides columns of its fused row, its other sides as the host planned them, each segment's
+     * groups assembled for both judges ({@link AgreementAsserts#fusedSegment}). Null where the database judge plans
+     * no program for the body (as {@link #plan(TypedQuery, String, BodyDriver.ExecEnv, BodyDriver.ExecEnv)}).
+     */
+    static @Nullable DatabaseAsserts planWithHost(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
+            boolean systemRouted, BodyDriver.@Nullable ExecEnv bodyEnv, HostAsserts host) {
+        return plan(typed, runtime, env, systemRouted, bodyEnv, List.of(), "", new HostAttach(host));
     }
 
     /** {@link #plan(TypedQuery, String, BodyDriver.ExecEnv, boolean)} over a body whose statements follow {@code lets}
      *  (a branch's side: the value lets before the branch, the outer body's, already planned there), its segments'
-     *  stamps named under {@code place} (the side's place in the outer body: no two fused statements share a stamp). */
+     *  stamps named under {@code place} (the side's place in the outer body: no two fused statements share a stamp);
+     *  {@code attach}: the agreement judge's host half (E-5c step 6), null for the database judge alone, whose plan it
+     *  leaves exactly as it was. */
     private static @Nullable DatabaseAsserts plan(TypedQuery typed, String runtime, BodyDriver.ExecEnv env,
-            boolean systemRouted, BodyDriver.@Nullable ExecEnv bodyEnv, List<TypedSpec> lets, String place) {
+            boolean systemRouted, BodyDriver.@Nullable ExecEnv bodyEnv, List<TypedSpec> lets, String place,
+            @Nullable HostAttach attach) {
         SpecCompiler specs = typed.specs();
         if (!plannable(typed, systemRouted)) {
             com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "the body reaches a lineage scan");
@@ -118,6 +159,8 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         Map<Integer, String> frameStamps = new LinkedHashMap<>();
         // the walk's fragment map: a frame's CTE name to the let it came from, so a split rung's reason names it
         Map<String, String> fragments = new LinkedHashMap<>();
+        // the roots of the open segment with the host's half attached (E-5c step 6); null for the database judge alone
+        List<HostRoot> hostRoots = attach == null ? null : new ArrayList<>();
         int segment = 0;
         VerdictBatch batch = BodyDriver.newVerdictBatch(env);
         BodyDriver.ExecEnv benv = env.withVerdictBatch(batch);
@@ -141,7 +184,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     // the frame as the walk builds it under the batch: not run, its CTE defined when a reader splices
                     // it; its activity comment its own execution's stamp, bound when the plan runs (the execution id as
                     // upstream, 2026-11-12: until then the segment's fused statement's, shared by its frames)
-                    String stamp = stampOfFrameLet(place, i);
+                    // -- with the host's half attached, the host's stamp: both halves read one execution (E-5c step 6)
+                    String stamp = attach == null ? stampOfFrameLet(place, i) : java.util.Objects.requireNonNull(
+                            attach.host().frameStamp(i), "the host half minted no stamp for the frame let");
                     frameStamps.put(i, stamp);
                     frames.put(let.name(), BodyDriver.plannedFrame((TypedNativeCall) LetPlanner.rhs(let), letPrefix,
                             specs, benv, stamp));
@@ -167,7 +212,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // the walk flushes before an effect runs: the segment closes here, the next opens with a fresh batch
                 if (!walled) {
                     batch.fragments(fragments);
-                    if (!close(batch, place, segment, lastAssert, env, byStatement)) {
+                    if (!close(batch, place, segment, lastAssert, env, byStatement, hostRoots)) {
                         return null;
                     }
                     segment++;
@@ -196,18 +241,33 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     return null;
                 }
                 batch.fragments(fragments);
-                if (!close(batch, place, segment, lastAssert, env, byStatement)) {
+                if (!close(batch, place, segment, lastAssert, env, byStatement, hostRoots)) {
                     return null;
                 }
                 segment++;
                 batch = BodyDriver.newVerdictBatch(env);
                 benv = env.withVerdictBatch(batch);
-                TestPlan.Side condition = JudgePlans.plannedSide(parts.condition(), letPrefix, specs, env, false,
-                        false, null).side();
+                TestPlan.Side condition;
+                HostAttach thenHost = null;
+                HostAttach otherwiseHost = null;
+                if (attach == null) {
+                    condition = JudgePlans.plannedSide(parts.condition(), letPrefix, specs, env, false, false, null)
+                            .side();
+                } else {
+                    // the host half's branch: its condition, and each side's asserts attached to that side's segments
+                    HostAsserts.Branched hb = attach.host().branch(i);
+                    if (hb == null) {
+                        throw new IllegalStateException("statement " + (i + 1) + ": a branch the host half did not"
+                                + " plan as one");
+                    }
+                    condition = hb.condition();
+                    thenHost = new HostAttach(hb.then());
+                    otherwiseHost = new HostAttach(hb.otherwise());
+                }
                 DatabaseAsserts then = plan(AssertBranch.body(typed, parts.then()), runtime, env, systemRouted,
-                        bodyEnv, letPrefix, place + i + "t.");
+                        bodyEnv, letPrefix, place + i + "t.", thenHost);
                 DatabaseAsserts otherwise = then == null ? null : plan(AssertBranch.body(typed, parts.otherwise()),
-                        runtime, env, systemRouted, bodyEnv, letPrefix, place + i + "e.");
+                        runtime, env, systemRouted, bodyEnv, letPrefix, place + i + "e.", otherwiseHost);
                 if (then == null || otherwise == null) {
                     return null;
                 }
@@ -224,12 +284,24 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     continue;
                 }
                 batch.fragments(fragments);
-                if (!close(batch, place, segment, lastAssert, env, byStatement)) {
+                if (!close(batch, place, segment, lastAssert, env, byStatement, hostRoots)) {
                     return null;
                 }
                 segment++;
                 batch = BodyDriver.newVerdictBatch(env);
                 benv = env.withVerdictBatch(batch);
+                if (attach != null) {
+                    // both judges (E-5c step 6): the assertError's steps as the agreement judge plans them
+                    // (AgreementAsserts.One: the host's step, the database's raising verdict), outside any segment
+                    List<TestPlan.Verdicts> steps = AgreementAsserts.assertErrorSteps(java.util.Objects.requireNonNull(
+                            attach.host().planned(i), "the host half planned no assertError at a statement the"
+                                    + " database half reads as one"), statement, letPrefix, specs, env);
+                    if (steps == null) {
+                        return null;
+                    }
+                    byStatement.put(i, steps);
+                    continue;
+                }
                 HostAsserts.Planned step = HostAsserts.planAssertError(statement, Lets.bare(statement), letPrefix,
                         frames, specs, env);
                 if (step == null) {
@@ -266,6 +338,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             BodyDriver.ExecEnv at = BodyDriver.frameReplaceEnv(statement, frames, benv, letPrefix, specs);
             AssertVerdicts.SpliceHook hook = BodyDriver.spliceHook(frames, letPrefix, specs, benv)::apply;
             AssertVerdicts.DatabasePlan outcome;
+            int rootsBefore = batch.rootCount();
             try {
                 if (bodyEnv != null) {
                     // a system-routed body (above): an engine-text assert's appeal planned on the body's environment
@@ -285,11 +358,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 // first; kept as the guard behind it): the walk runs the body
                 return null;
             }
+            if (attach != null) {
+                attachHost(attach, i, batch, rootsBefore, env, java.util.Objects.requireNonNull(hostRoots));
+            }
             byStatement.put(i, List.of());
             lastAssert = i;
             if (outcome == AssertVerdicts.DatabasePlan.WALLED) {
                 batch.fragments(fragments);
-                if (!close(batch, place, segment, lastAssert, env, byStatement)) {
+                if (!close(batch, place, segment, lastAssert, env, byStatement, hostRoots)) {
                     return null;
                 }
                 walled = true;
@@ -297,7 +373,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         }
         if (!walled) {
             batch.fragments(fragments);
-            if (!close(batch, place, segment, lastAssert, env, byStatement)) {
+            if (!close(batch, place, segment, lastAssert, env, byStatement, hostRoots)) {
                 return null;
             }
         }
@@ -727,13 +803,42 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  them (the plan-as-data design's step 5, 2026-11-08: judged at run from the plan once that group's last verdict is
      *  in); false where the walk keeps the body: a group on another session than the body's, or a keyed member. */
     private static boolean close(VerdictBatch batch, String place, int segment, int lastAssert,
-            BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.Verdicts>> byStatement) {
+            BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.Verdicts>> byStatement,
+            @Nullable List<HostRoot> hostRoots) {
         VerdictBatch.Planned planned = batch.plan();
+        List<HostRoot> roots = hostRoots == null ? null : List.copyOf(hostRoots);
+        if (hostRoots != null) {
+            hostRoots.clear();
+        }
         if (planned == null) {
+            if (roots != null && !roots.isEmpty()) {
+                throw new IllegalStateException("a segment's roots with the host's half attached, and no batch");
+            }
             return true;
         }
         if (lastAssert < 0) {
             throw new IllegalStateException("a verdict batch planned with no assert in its segment");
+        }
+        if (roots != null) {
+            // both judges (E-5c step 6): every root's host verdict rides its first fused row; a root whose rows ride
+            // none -- a keyed member, the split rung, an outcome decided at planning -- awaits the owner's ruling
+            if (planned.loop().roots().size() != roots.size()) {
+                throw new IllegalStateException("a segment of " + planned.loop().roots().size() + " roots, and the"
+                        + " host's half attached to " + roots.size());
+            }
+            if (!planned.hostUncarried().isEmpty()) {
+                int k = planned.hostUncarried().iterator().next();
+                throw new com.legend.error.NotImplementedException(roots.get(k).host().assertion().listenerName()
+                        + ": an agreement root whose rows ride no fused statement (E-5c, pending the ruling"
+                        + " Q-E5c-1)");
+            }
+            for (VerdictBatch.Group g : planned.groups()) {
+                if (!placed(g, env)) {
+                    return false;
+                }
+            }
+            byStatement.put(lastAssert, AgreementAsserts.fusedSegment(planned, roots, env));
+            return true;
         }
         if (planned.groups().isEmpty()) {
             // every root of the segment decided at planning (a statically identified assertIs: the compiler compares
@@ -762,6 +867,75 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         steps.set(last, steps.get(last).withRoots(planned.loop()));
         byStatement.put(lastAssert, steps);
         return true;
+    }
+
+    /**
+     * The host's half of the assert at {@code statement} attached to the root its database arm just opened in
+     * {@code batch} (E-5c step 6, the user's ruling O5 of 2026-11-13): each of the host's base sides that is a SINGLE
+     * VALUE OF NO FROM ({@link com.legend.lowering.VerdictSql#singleValueColumns}: decided from the side's planned tree,
+     * a one-row select of values on the body's session or on none, never from its text) becomes columns of the root's
+     * first fused row, each named {@code __h<statement>_<side>_<column>} with the side's own column facts; the root
+     * recorded in {@code hostRoots}, in root order.
+     */
+    private static void attachHost(HostAttach attach, int statement, VerdictBatch batch, int rootsBefore,
+            BodyDriver.ExecEnv env, List<HostRoot> hostRoots) {
+        if (batch.rootCount() != rootsBefore + 1) {
+            throw new IllegalStateException("statement " + (statement + 1) + ": the database judge's arm opened "
+                    + (batch.rootCount() - rootsBefore) + " roots, the agreement judge pairs one with the host's assert");
+        }
+        HostAsserts.Planned hp = attach.host().planned(statement);
+        if (hp == null) {
+            throw new IllegalStateException("statement " + (statement + 1) + ": the host half planned no assert where"
+                    + " the database half planned one");
+        }
+        List<TestPlan.Side> base = hp.verdict().base();
+        List<JudgePlans.PlannedSide> sides = hp.sides().sides();
+        List<com.legend.lowering.VerdictSql.HostColumn> sql = new ArrayList<>();
+        List<ExecutionPlan.Column> facts = new ArrayList<>();
+        Map<Integer, List<ExecutionPlan.Column>> cells = new LinkedHashMap<>();
+        boolean storeBound = false;
+        for (int k = 0; k < base.size(); k++) {
+            if (k >= sides.size() || sides.get(k).side() != base.get(k)) {
+                throw new IllegalStateException("statement " + (statement + 1) + ": the host's base side " + k
+                        + " is not its planned side's");
+            }
+            JudgePlans.PlannedSide side = sides.get(k);
+            BodyDriver.WrappedSide w = side.wrapped();
+            if (side.kind() != JudgePlans.Kind.VALUES || w == null
+                    || !(side.side() instanceof TestPlan.Side.Rows rows)
+                    || !w.storeFree() && !w.target().equals(env.target())) {
+                continue;
+            }
+            List<ExecutionPlan.Column> columns = rows.result().columns();
+            List<com.legend.sql.OutputCol> outputs = w.plan().outputs();
+            if (outputs.size() != columns.size()) {
+                continue;
+            }
+            List<String> names = new ArrayList<>(columns.size());
+            boolean byName = true;
+            for (int c = 0; c < columns.size(); c++) {
+                byName &= outputs.get(c).name().equals(columns.get(c).name());
+                names.add("__h" + statement + "_" + k + "_" + c);
+            }
+            List<com.legend.lowering.VerdictSql.HostColumn> hc = !byName ? null
+                    : com.legend.lowering.VerdictSql.singleValueColumns(w.plan(), "__h" + statement + "_" + k + "_",
+                            names);
+            if (hc == null) {
+                continue;
+            }
+            List<ExecutionPlan.Column> renamed = new ArrayList<>(columns.size());
+            for (int c = 0; c < columns.size(); c++) {
+                ExecutionPlan.Column col = columns.get(c);
+                renamed.add(new ExecutionPlan.Column(names.get(c), col.type(), col.multiplicity(), col.slot(),
+                        col.store(), col.precision()));
+            }
+            sql.addAll(hc);
+            facts.addAll(renamed);
+            cells.put(k, renamed);
+            storeBound |= !w.storeFree();
+        }
+        batch.host(sql, facts);
+        hostRoots.add(new HostRoot(statement, hp, cells, storeBound));
     }
 
     /** The stamp parameter of the frame let at {@code statement} of the body at {@code place}: the stamp prefix (the
