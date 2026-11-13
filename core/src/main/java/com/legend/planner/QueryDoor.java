@@ -14,6 +14,7 @@ import com.legend.compiler.spec.typed.ExecutionContext;
 import com.legend.compiler.spec.typed.TypedFrom;
 import com.legend.compiler.spec.typed.TypedLet;
 import com.legend.compiler.spec.typed.TypedNativeCall;
+import com.legend.compiler.spec.typed.TypedRawSqlRelation;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.error.NotImplementedException;
 import com.legend.model.FunctionId;
@@ -30,7 +31,8 @@ import java.util.Map;
  * {@code from()}'s inline test data, or the test data of a named runtime OTHER than the plan's own (the plan's own
  * runtime's test data is its target's setup already, {@code PlanMaker.target}: M3a found 47 working server queries
  * naming it); a let-bound {@code execute(...)} (Pure runs it at the let, a test's eager run; an inline lazy read stays
- * the product's, D15, R17 C12); an assert; an {@code assertError}. {@code fail} is a raise, not a verdict here: a
+ * the product's, D15, R17 C12); an assert; an {@code assertError}; and, asked at the product's door alone, a statement's
+ * own SQL text, {@code executeInDb}'s read (2026-11-13: the test road's). {@code fail} is a raise, not a verdict here: a
  * Cypher write's guard calls it, and the product plans it as a check step (M3a: the 16 queries that reach it). A
  * refusal is an error, not an output spelling (R17 C8).
  */
@@ -46,7 +48,14 @@ public final class QueryDoor {
         LET_EXECUTE("a let-bound execute(...)",
                 "Pure runs it at the let, a test's eager run; a query reads an execute(...)'s result inline"),
         ASSERT_ERROR("an assertError", "asserts are a test's"),
-        ASSERT("an assert", "asserts are a test's");
+        ASSERT("an assert", "asserts are a test's"),
+        /** A statement's own SQL text, {@code executeInDb('<SQL>', $conn)}'s read (a {@link TypedRawSqlRelation}; its
+         *  writes are {@link #EFFECT}s): the TEST road's -- PCT and the corpus run it -- and refused on every product
+         *  door (2026-11-13, the user's ruling (a) on the orchestrator's item 5: until then a product query planned it,
+         *  its text sent as written). Asked by the product's door alone ({@link Scan#refusedByTheProduct}): the test
+         *  planner's classes read {@link Scan#kinds}, which does not hold it, so a test's program plans it as before. */
+        RAW_SQL("an executeInDb's SQL", "a statement's own SQL text is the test road's (PCT and the corpus); the"
+                + " product's one authored SQL is the playground");
 
         private final String what;
         private final String why;
@@ -69,6 +78,7 @@ public final class QueryDoor {
         private final Map<FunctionId, Boolean> effects = new HashMap<>();
         private final Map<FunctionId, Boolean> catches = new HashMap<>();
         private final Map<FunctionId, Boolean> verdicts = new HashMap<>();
+        private final Map<FunctionId, Boolean> rawSql = new HashMap<>();
 
         /** A scan of {@code query}'s statements, {@code runtime} the plan's own. */
         public Scan(TypedQuery query, @Nullable String runtime) {
@@ -80,6 +90,18 @@ public final class QueryDoor {
         public @Nullable TestOnly of(TypedSpec statement) {
             EnumSet<TestOnly> kinds = kinds(statement);
             return kinds.isEmpty() ? null : kinds.iterator().next();
+        }
+
+        /** The first kind {@code statement} holds that the product's query door refuses: a kind only a test's program
+         *  holds ({@link #of}), or a statement's own SQL text ({@link TestOnly#RAW_SQL}) -- an {@code executeInDb}'s
+         *  read the statement reaches, in its own body or a function it calls. */
+        public @Nullable TestOnly refusedByTheProduct(TypedSpec statement) {
+            TestOnly kind = of(statement);
+            if (kind != null) {
+                return kind;
+            }
+            return StatementEffects.reaches(statement, n -> n instanceof TypedRawSqlRelation, query.specs(), rawSql)
+                    ? TestOnly.RAW_SQL : null;
         }
 
         /** Every kind {@code statement} holds, in the scan's order. */
@@ -126,7 +148,7 @@ public final class QueryDoor {
     public static void refuseTestOnly(TypedQuery query, @Nullable String runtime) {
         Scan scan = new Scan(query, runtime);
         for (TypedSpec statement : query.body()) {
-            TestOnly kind = scan.of(statement);
+            TestOnly kind = scan.refusedByTheProduct(statement);
             if (kind != null) {
                 throw new NotImplementedException(kind.what + " in a query: " + kind.why
                         + ", and the product's query door plans none");
