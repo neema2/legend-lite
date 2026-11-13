@@ -87,6 +87,11 @@ public final class DuckDb extends AnsiSqlRenderer {
     }
 
     @Override
+    protected boolean expandsErfInline() {
+        return true;
+    }
+
+    @Override
     public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
         return null;   // none the database must have that a session statement cannot set
     }
@@ -578,6 +583,7 @@ public final class DuckDb extends AnsiSqlRenderer {
             case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
+            case ERF -> erfApprox(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,

@@ -51,7 +51,7 @@ public enum SqlFn {
     LIST_FLATTEN,
     JSON_MERGE_PATCH,   // json_merge_patch(obj, patch) — null patch keys DROP (RFC 7386)
     // Math (ROUND is HALF-EVEN — Pure's banker's rounding — per the contract)
-    SQRT, CBRT, EXP, LN, LOG10, POW, PI,
+    SQRT, CBRT, EXP, LN, LOG10, POW, PI, ERF,
     SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
     CEILING, FLOOR, ROUND, SIGN, XOR,
     BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT,
