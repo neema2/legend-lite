@@ -130,17 +130,35 @@ class KnowledgeLayerTest {
 
     /** The names fixes, item 7 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 29): a qualified property
      * returning a type that names no class is refused with the type's kind in words -- it was spelled by the record's
-     * Java {@code toString()} ({@code FunctionType[parameters=[...], ...]}). */
+     * Java {@code toString()} ({@code FunctionType[parameters=[...], ...]}). The function type is set on the records, as a
+     * model given as protocol records can carry it: the engine's grammar refuses a function type there ("not supported
+     * yet"), and the own-corpus guards keep that grammar to the declared hosts (2026-11-13, the names fixes). */
     @Test
     @DisplayName("no unique owning end: a type that names no class is refused by its kind, never a record's toString")
     void noClassReturnTypeIsRefusedByItsKind() {
-        ModelException e = assertThrows(ModelException.class,
-                () -> KnowledgeLayer.adoptAssociationQualifiedProperties(NameResolver.resolve(
-                        com.legend.testing.Own.model("""
-                                Class a::P {}
-                                Class a::F {}
-                                Association a::PF { p: a::P[*]; f: a::F[1]; q() { [] }: {String[1]->Varchar(8)[1]}[1]; }
-                                """)), null));
+        ParsedModel parsed = NameResolver.resolve(com.legend.testing.Own.model("""
+                Class a::P {}
+                Class a::F {}
+                Association a::PF { p: a::P[*]; f: a::F[1]; q() { [] }: a::P[1]; }
+                """));
+        TypeExpression.TypedParameter one = new TypeExpression.TypedParameter(new TypeExpression.NameRef("String"),
+                com.legend.protocol.Multiplicity.Concrete.PURE_ONE);
+        TypeExpression function = new TypeExpression.FunctionType(List.of(one), one);
+        List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>();
+        for (com.legend.model.PackageableElement el : parsed.elements()) {
+            if (el instanceof com.legend.model.AssociationDefinition a) {
+                List<com.legend.protocol.DerivedPropertyDefinition> qps = new java.util.ArrayList<>();
+                for (com.legend.protocol.DerivedPropertyDefinition q : a.derivedProperties()) {
+                    qps.add(new com.legend.protocol.DerivedPropertyDefinition(q.name(), q.parameters(), q.realization(),
+                            function, q.multiplicity(), q.stereotypes(), q.taggedValues(), q.pos()));
+                }
+                el = new com.legend.model.AssociationDefinition(a.qualifiedName(), a.property1(), a.property2(), qps,
+                        a.stereotypes(), a.taggedValues());
+            }
+            elements.add(el);
+        }
+        ModelException e = assertThrows(ModelException.class, () -> KnowledgeLayer.adoptAssociationQualifiedProperties(
+                new ParsedModel(elements, parsed.imports()), null));
         assertEquals("association 'a::PF' qualified property 'q' returns a function type, which does not identify"
                 + " a unique owning end", e.getMessage());
     }
