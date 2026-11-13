@@ -274,7 +274,7 @@ class TestDataRoutesTest {
      *  microsecond alone, so the key silently matched another row or none, and S181's refusal of a lost digit was
      *  bypassed; it is the column type's typed literal now, which DuckDB writes {@code TIMESTAMP_NS '<text>'}). */
     @Test
-    void aNanosecondKeyFindsItsRowOnDuckDb() throws Exception {
+    void aNanosecondKeyFindsItsOwnRow() throws Exception {
         Path file = Files.createTempFile("tdg-nanos-", ".duckdb");
         Files.delete(file);
         String nanos = """
