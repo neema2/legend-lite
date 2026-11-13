@@ -350,9 +350,9 @@ class ModelTextInjectionFuzzTest {
         assertEquals(KNOWN, found, counts + "; one example each:\n" + String.join("\n", examples));
     }
 
-    /** The oracle bites: a read-back whose CSV gained a row, and one whose text no longer holds the payload. */
+    /** The read-back bites: a sample CSV read as its rows and cells, and one that gained a row is another shape. */
     @Test
-    void theOracleReadsASamplesRowsAndCells() {
+    void theReadBackHoldsASamplesRowsAndCells() {
         assertEquals(List.of(List.of("a", "b,c"), List.of("d", "e\"f")), csv("a,\"b,c\"\nd,\"e\"\"f\"\n"));
         assertTrue(!shape(List.of(Json.parse("{\"values\":\"a,b\\nc,d\\n\"}")), null)
                 .equals(shape(List.of(Json.parse("{\"values\":\"a,b\\nc,d\\ne,f\\n\"}")), null)));
