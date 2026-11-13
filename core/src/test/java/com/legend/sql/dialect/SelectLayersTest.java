@@ -86,7 +86,7 @@ class SelectLayersTest {
 
     @Test
     void twoWordsIdenticalWindowsAreOneWindowAtTheLowestLevel() throws SQLException {
-        SqlQuery out = new SelectLayers().rewriteRoot(twoWords());
+        SqlQuery out = new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(twoWords());
         List<SqlSelect> levels = levels(out);
         assertEquals(2, levels.size(), "the mean at the first level, the double and the mean read at the second");
         assertEquals(List.of("SYMBOL", "DAY", "b", "c"),
@@ -111,7 +111,7 @@ class SelectLayersTest {
                         "l"));
         SqlSelect l4 = level(below(l3, "t3"), as(col("t3", "SYMBOL"), "SYMBOL"), as(col("t3", "DAY"), "DAY"),
                 as(SqlExpr.Call.of(SqlFn.PLUS, col("t3", "l"), new SqlExpr.IntLit(1)), "m"));
-        assertEquals(3, levels(new SelectLayers().rewriteRoot(l4)).size(),
+        assertEquals(3, levels(new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(l4)).size(),
                 "the mean; the lag of its double; the lag's sum, a level above the lag");
         assertEquals(answer("SELECT SYMBOL, DAY, LAG(m * 2, 1) OVER (PARTITION BY SYMBOL ORDER BY DAY) + 1 AS m FROM"
                 + " (SELECT SYMBOL, DAY, AVG(CLOSE) OVER (PARTITION BY SYMBOL ORDER BY DAY) AS m FROM PRICES)"),
@@ -131,7 +131,7 @@ class SelectLayersTest {
                 as(SqlExpr.Call.of(SqlFn.PLUS, col("t2", "zz"), new SqlExpr.IntLit(1)), "r"));
         SqlSelect l4 = level(below(l3, "t3"), as(col("t3", "SYMBOL"), "SYMBOL"), as(col("t3", "DAY"), "DAY"),
                 as(col("t3", "r"), "r"));
-        SqlQuery out = new SelectLayers().rewriteRoot(l4);
+        SqlQuery out = new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(l4);
         assertEquals(3, levels(out).size(), "the mean; the difference and its mean; the sum");
         String sql = new DuckDb().render(out);
         assertEquals(answer("SELECT SYMBOL, DAY, AVG(z) OVER (PARTITION BY SYMBOL ORDER BY DAY) + 1 AS r FROM"
@@ -146,7 +146,7 @@ class SelectLayersTest {
                 as(SqlExpr.Call.of(SqlFn.PLUS, col("t0", "CLOSE"), col("t0", "CLOSE")), "x"));
         SqlSelect l2 = level(below(l1, "t1"), as(col("t1", "SYMBOL"), "SYMBOL"),
                 as(SqlExpr.Call.of(SqlFn.PLUS, col("t1", "x"), col("t1", "x")), "y"));
-        assertSame(l2, new SelectLayers().rewriteRoot(l2));
+        assertSame(l2, new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(l2));
     }
 
     @Test
@@ -157,11 +157,11 @@ class SelectLayersTest {
                 null, List.of());
         SqlSelect over = level(below(cut, "t1"), as(col("t1", "SYMBOL"), "SYMBOL"),
                 as(over("t1", avg(col("t1", "a"))), "aa"));
-        assertSame(over, new SelectLayers().rewriteRoot(over), "a LIMIT's rows are its level's own");
+        assertSame(over, new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(over), "a LIMIT's rows are its level's own");
         SqlSelect filtered = level(below(l1, "t1"), as(col("t1", "SYMBOL"), "SYMBOL"),
                 as(over("t1", avg(col("t1", "a"))), "aa")).withWhere(SqlExpr.Call.of(SqlFn.GREATER, col("t1", "a"),
                         new SqlExpr.IntLit(1)));
-        assertSame(filtered, new SelectLayers().rewriteRoot(filtered), "a filter over a window's value is a level");
+        assertSame(filtered, new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(filtered), "a filter over a window's value is a level");
     }
 
     @Test
@@ -174,7 +174,7 @@ class SelectLayersTest {
                     as(SqlExpr.Call.of(draw), "r"), as(col("t0", "CLOSE"), "CLOSE"));
             SqlSelect l2 = level(below(l1, "t1"), as(col("t1", "r"), "a"), as(col("t1", "r"), "b"),
                     as(over("t1", avg(col("t1", "CLOSE"))), "s"));
-            assertSame(l2, new SelectLayers().rewriteRoot(l2), draw + ": its draw a column of its own level");
+            assertSame(l2, new SelectLayers(java.util.function.UnaryOperator.identity()).rewriteRoot(l2), draw + ": its draw a column of its own level");
         }
     }
 

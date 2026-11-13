@@ -46,17 +46,26 @@ import java.util.Map;
  */
 final class SelectMerge extends SqlRewriter {
 
+    /** How the database labels a column it reads by a bare name: the name as written (DuckDB, SQLite, ClickHouse),
+     *  folded to lower case (Postgres) or to upper case (Snowflake, H2). A projection of a table's own column keeps its
+     *  alias only where that label differs from the name (namedAs; PR #81, 2026-11-13). */
+    private final java.util.function.UnaryOperator<String> bareLabel;
+
+    SelectMerge(java.util.function.UnaryOperator<String> bareLabel) {
+        this.bareLabel = bareLabel;
+    }
+
     @Override
     protected SqlQuery select(SqlSelect s) {
         SqlSelect out = s;
-        for (SqlSelect next = merged(out); next != null; next = merged(out)) {
+        for (SqlSelect next = merged(out, bareLabel); next != null; next = merged(out, bareLabel)) {
             out = next;
         }
         return out;
     }
 
     /** {@code s} merged with its one subselect, or null where the merge could change the answer. */
-    private static @Nullable SqlSelect merged(SqlSelect s) {
+    private static @Nullable SqlSelect merged(SqlSelect s, java.util.function.UnaryOperator<String> bareLabel) {
         if (!(s.from() instanceof SqlSource.Subselect sub) || !(sub.inner() instanceof SqlSelect in)
                 || in.projections().isEmpty() || in.distinct() || !in.orderBy().isEmpty() || in.limit() != null
                 || in.offset() != null) {
@@ -117,7 +126,7 @@ final class SelectMerge extends SqlRewriter {
                 return null;
             }
             SqlExpr e = sub2.apply(p.expr());
-            boolean named = namedAs(e, name);
+            boolean named = namedAs(e, name, bareLabel);
             ps.add(new SqlSelect.Projection(e, named ? null : name, p.out()));
         }
         SqlExpr outerWhere = s.where() == null ? null : sub2.apply(s.where());
@@ -140,14 +149,18 @@ final class SelectMerge extends SqlRewriter {
                 s.offset(), s.outputs());
     }
 
-    /** Whether {@code e} is a column a select answers under {@code name} with no alias: a DERIVED column, or a table's
-     *  column declared quoted, which every dialect writes quoted, as named. A table's own column is written as its declaration spells it -- bare, folded by
-     *  the database (Postgres to lower case, Snowflake to upper) -- so its alias is kept (the merge of main's #95,
-     *  2026-11-13: PostgresArmTest's seed read {@code "_d"."CODE"} of a select that answered {@code code}). */
-    static boolean namedAs(SqlExpr e, String name) {
-        return e instanceof SqlExpr.Column c && c.name().equals(name)
-                && (c.origin() == com.legend.sql.OutputCol.Origin.DERIVED
-                || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED);
+    /** Whether {@code e} is a column a select answers under {@code name} with no alias, so the alias may go: a DERIVED
+     *  column or one declared quoted, which every dialect writes quoted as named; or a table's own column written bare
+     *  where the database labels that bare name as the name itself ({@code bareLabel}: DuckDB's {@code t_id} is
+     *  {@code t_id}, Postgres's {@code CODE} is {@code code}). Else the alias stays (main's #95 merged in, 2026-11-13:
+     *  PostgresArmTest's seed read {@code "_d"."CODE"} of a select that answered {@code code}). */
+    static boolean namedAs(SqlExpr e, String name, java.util.function.UnaryOperator<String> bareLabel) {
+        if (!(e instanceof SqlExpr.Column c) || !c.name().equals(name)) {
+            return false;
+        }
+        com.legend.sql.OutputCol.Origin o = c.origin();
+        return o == com.legend.sql.OutputCol.Origin.DERIVED || o == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED
+                || o == com.legend.sql.OutputCol.Origin.PHYSICAL && bareLabel.apply(name).equals(name);
     }
 
     /** Whether {@code e} reads no column: a constant, whatever its spelling. */

@@ -235,7 +235,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
                 // laid out again, each value once (W9, 2026-11-06, as on the other dialects: the timeseries documents'
                 // 26 runnable examples the same answers, most 2-8x faster -- guide-14 22.8 -> 3.6 s, spec-14 23.0 ->
                 // 3.9 s -- with the filter push-down off, SETTINGS)
-                new SelectMerge(), new SelectLayers(), new ConstantKeysAsExpressions(), new RootNumericTypes());
+                new SelectMerge(java.util.function.UnaryOperator.identity()), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
     /**

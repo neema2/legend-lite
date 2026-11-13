@@ -56,9 +56,18 @@ final class SelectLayers extends SqlRewriter {
      *  {@code (reads - 1) * size}, as the lowering's fold bounds its own (Fold.Budget). */
     private static final int INLINE = 24;
 
+    /** How the database labels a column it reads by a bare name: the name as written (DuckDB, SQLite, ClickHouse),
+     *  folded to lower case (Postgres) or to upper case (Snowflake, H2). A projection of a table's own column keeps its
+     *  alias only where that label differs from the name (namedAs; PR #81, 2026-11-13). */
+    private final java.util.function.UnaryOperator<String> bareLabel;
+
+    SelectLayers(java.util.function.UnaryOperator<String> bareLabel) {
+        this.bareLabel = bareLabel;
+    }
+
     @Override
     protected SqlQuery select(SqlSelect s) {
-        SqlSelect out = laidOut(s);
+        SqlSelect out = laidOut(s, bareLabel);
         return out == null ? s : out;
     }
 
@@ -104,7 +113,7 @@ final class SelectLayers extends SqlRewriter {
     }
 
     /** {@code top} and the chain below it laid out again, or null where it is not a chain or has no fewer levels. */
-    private static @Nullable SqlSelect laidOut(SqlSelect top) {
+    private static @Nullable SqlSelect laidOut(SqlSelect top, java.util.function.UnaryOperator<String> bareLabel) {
         // the chain, top first: levels each over the next as its one subselect, keeping its rows
         List<SqlSelect> chain = new ArrayList<>();
         if (!keepsRows(top, false)) {
@@ -259,7 +268,7 @@ final class SelectLayers extends SqlRewriter {
                     SqlSelect.Projection p = outputs.get(i);
                     SqlExpr e = Math.max(1, d.level) == levels ? write(d, k, alias, defs) : columnOf(d, alias);
                     String name = java.util.Objects.requireNonNull(p.outputName());
-                    boolean named = SelectMerge.namedAs(e, name);
+                    boolean named = SelectMerge.namedAs(e, name, bareLabel);
                     ps.add(new SqlSelect.Projection(e, named ? null : name, p.out()));
                 }
             }

@@ -26,6 +26,15 @@ import java.util.Map;
  */
 final class ProjectionWrapsFold extends SqlRewriter {
 
+    /** How the database labels a column it reads by a bare name: the name as written (DuckDB, SQLite, ClickHouse),
+     *  folded to lower case (Postgres) or to upper case (Snowflake, H2). A projection of a table's own column keeps its
+     *  alias only where that label differs from the name (namedAs; PR #81, 2026-11-13). */
+    private final java.util.function.UnaryOperator<String> bareLabel;
+
+    ProjectionWrapsFold(java.util.function.UnaryOperator<String> bareLabel) {
+        this.bareLabel = bareLabel;
+    }
+
     @Override
     protected SqlQuery select(SqlSelect s) {
         if (!(s.from() instanceof SqlSource.Subselect sub) || !(sub.inner() instanceof SqlSelect inner)
@@ -55,7 +64,7 @@ final class ProjectionWrapsFold extends SqlRewriter {
             if (reads.merge(c.name(), 1, Integer::sum) > 1 && !(source.expr() instanceof SqlExpr.Column)) {
                 return s;
             }
-            boolean named = SelectMerge.namedAs(source.expr(), name);
+            boolean named = SelectMerge.namedAs(source.expr(), name, bareLabel);
             folded.add(new SqlSelect.Projection(source.expr(), named ? null : name, p.out()));
         }
         // a column the wrap does not read is dropped only where it keeps the rows and raises nothing: no UNNEST (a

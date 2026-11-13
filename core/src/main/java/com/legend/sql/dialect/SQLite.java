@@ -253,7 +253,7 @@ public final class SQLite extends AnsiSqlRenderer {
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
                 // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
-                new QualifyToSubselect(true), new SelectMerge(), new SelectLayers(), new ConstantKeysAsExpressions(),
+                new QualifyToSubselect(true), new SelectMerge(java.util.function.UnaryOperator.identity()), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(),
                 new CommonSubexpressions());
     }
 

@@ -46,7 +46,7 @@ class ProjectionWrapsFoldTest {
 
     @Test
     void aRenameOfASubselectsColumnsIsThatSubselectUnderTheNewNames() {
-        SqlQuery out = new ProjectionWrapsFold().rewriteRoot(wrap(inner()));
+        SqlQuery out = new ProjectionWrapsFold(java.util.function.UnaryOperator.identity()).rewriteRoot(wrap(inner()));
         SqlSelect s = assertInstanceOf(SqlSelect.class, out);
         assertSame(PRICES, s.from(), "one level: the subselect's own source");
         assertEquals(inner().where(), s.where(), "its condition kept");
@@ -58,12 +58,12 @@ class ProjectionWrapsFoldTest {
     void aWrapThatFiltersOrDedupsOrASubselectThatOrdersOrCutsIsKept() {
         SqlSelect filtered = wrap(inner()).withWhere(SqlExpr.Call.of(SqlFn.GREATER,
                 ref("t1", "CLOSE"), ref("t1", "CLOSE")));
-        assertSame(filtered, new ProjectionWrapsFold().rewriteRoot(filtered), "a filter over the subselect's rows");
+        assertSame(filtered, new ProjectionWrapsFold(java.util.function.UnaryOperator.identity()).rewriteRoot(filtered), "a filter over the subselect's rows");
         SqlSelect deduped = wrap(inner().withDistinct());
-        assertSame(deduped, new ProjectionWrapsFold().rewriteRoot(deduped), "a narrowed DISTINCT is other rows");
+        assertSame(deduped, new ProjectionWrapsFold(java.util.function.UnaryOperator.identity()).rewriteRoot(deduped), "a narrowed DISTINCT is other rows");
         SqlSelect cut = wrap(new SqlSelect(inner().projections(), false, PRICES, null, List.of(), null, null, List.of(),
                 5L, null, List.of()));
-        assertSame(cut, new ProjectionWrapsFold().rewriteRoot(cut), "a LIMIT's rows are the subselect's own");
+        assertSame(cut, new ProjectionWrapsFold(java.util.function.UnaryOperator.identity()).rewriteRoot(cut), "a LIMIT's rows are the subselect's own");
     }
 
     @Test
@@ -75,12 +75,12 @@ class ProjectionWrapsFoldTest {
                 new SqlSelect.Projection(drawn, "R", null), col("t0", "CLOSE", null)));
         SqlSelect readTwice = SqlSelect.starOf(new SqlSource.Subselect(randomInner, "t1", null))
                 .withProjections(List.of(col("t1", "R", "R"), col("t1", "R", "R2")));
-        assertSame(readTwice, new ProjectionWrapsFold().rewriteRoot(readTwice), "a draw read twice");
+        assertSame(readTwice, new ProjectionWrapsFold(java.util.function.UnaryOperator.identity()).rewriteRoot(readTwice), "a draw read twice");
         SqlSelect flatInner = SqlSelect.starOf(PRICES).withProjections(List.of(col("t0", "SYMBOL", null),
                 new SqlSelect.Projection(SqlExpr.Call.of(SqlFn.UNNEST, ref("t0", "CLOSE")), "E", null)));
         SqlSelect unread = SqlSelect.starOf(new SqlSource.Subselect(flatInner, "t1", null))
                 .withProjections(List.of(col("t1", "SYMBOL", null)));
-        assertSame(unread, new ProjectionWrapsFold().rewriteRoot(unread), "an unread UNNEST keeps its rows");
+        assertSame(unread, new ProjectionWrapsFold(java.util.function.UnaryOperator.identity()).rewriteRoot(unread), "an unread UNNEST keeps its rows");
     }
 
     @Test
