@@ -16,9 +16,9 @@ import java.util.List;
  * what the lane's DRIVER answers for a date and a date-time before Christ, and for an AD control, by each getter the
  * decode could use -- the default object, {@code getObject} as {@code LocalDate}, {@code LocalDateTime} and
  * {@code OffsetDateTime}, {@code getString}, and an array's leaves -- so the lane can tell whether a typed getter (or
- * the database's own text) gives the proleptic-Gregorian value with no Java repair. (An array's leaves are read where
- * a cell is an array; a list answer is written per element, so no case here makes one: the array leaf arm's measure
- * needs a column of a list type, the lane's own.) The value is planned by lite for
+ * the database's own text) gives the proleptic-Gregorian value with no Java repair. An array's leaves are read where a cell
+ * is an array: the {@code list([...])} cases make an {@code ARRAY<DATE>} and an {@code ARRAY<TIMESTAMP>} column (a
+ * bare list answer is written per element, so it makes none). The value is planned by lite for
  * the lane's own database (no SQL spelled here); each line is printed as {@code [bc-probe]}, and the test always
  * passes: it decides nothing. Run per lane: {@code bazel test //pct:pct_bc_date_probe_<lane> --test_output=all}.
  */
@@ -29,7 +29,10 @@ class BcDateProbeTest {
             "|meta::pure::functions::date::date(-43, 3, 15)",
             "|meta::pure::functions::date::date(-43, 3, 15, 10, 30, 0)",
             "|meta::pure::functions::date::date(2024, 1, 2)",
-            "|meta::pure::functions::date::date(2024, 1, 2, 10, 30, 0)");
+            "|meta::pure::functions::date::date(2024, 1, 2, 10, 30, 0)",
+            // a list-typed column (ARRAY<DATE>, ARRAY<TIMESTAMP>): its leaves, BC and AD, read by the array arm
+            "|list([%-0043-03-15, %2024-01-02])",
+            "|list([%-0043-03-15T10:30:00, %2024-01-02T10:30:00])");
 
     @Test
     void probe() throws Exception {

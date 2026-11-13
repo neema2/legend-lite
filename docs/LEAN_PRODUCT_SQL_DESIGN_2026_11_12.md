@@ -928,6 +928,14 @@ Each one is measured by this section's commands before and after.
 None of this changes an answer. A change that would is a defect, caught by the existing lanes, and the rewrite
 measurement's "same rows" check stands beside it. No register row is expected.
 
+**Open defects, found and not yet fixed (each waits for its own go):**
+
+- **SQLite spells a BC year with too few digits (found 2026-11-13 by P3 site 4's measurement hook,
+  `BcDateProbeTest`; the orchestrator: note it, do not fix it now).** `date(-43, 3, 15)` planned for SQLite reads back
+  as the text `-043-03-15`. That is `printf('%04d')` of a negative year: the sign takes one of the four places.
+  `java.time` cannot parse it (it wants `-0043`), so the BC date fails at decode. The fix belongs in SQLite's date
+  spelling in the dialect. The answer moves, so a register row comes first.
+
 ## 8. Commands
 
 ```
