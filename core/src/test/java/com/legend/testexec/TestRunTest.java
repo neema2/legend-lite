@@ -314,6 +314,44 @@ final class TestRunTest {
     }
 
     @Test
+    @DisplayName("fused cells (E-5c, O5): the fused statement read once, each verdict's sides from its own row, then"
+            + " the verdicts")
+    void fusedCellSidesAreReadFromTheirVerdictsRow() throws IOException {
+        List<ExecutionPlan.Column> columns = new ArrayList<>();
+        columns.add(col("ix", "Integer", "INTEGER"));
+        columns.addAll(List.of(col("verdict", "Boolean", "BOOLEAN"), col("expected", "String", "VARCHAR"),
+                col("actual", "String", "VARCHAR"), optional("unjudged", "String", "VARCHAR"),
+                col("lenient", "Boolean", "BOOLEAN"), col("holds", "Boolean", "BOOLEAN"),
+                optional("message", "String", "VARCHAR")));
+        ExecutionPlan.Column h0 = optional("__h0_0", "Integer", "INTEGER");
+        ExecutionPlan.Column h1 = optional("__h1_0", "Integer", "INTEGER");
+        columns.add(h0);
+        columns.add(h1);
+        ExecutionPlan.TdsResult fused = relation("SELECT 0 AS ix, TRUE AS verdict, 'x' AS expected, 'x' AS actual,"
+                + " CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient, TRUE AS holds, CAST(NULL AS VARCHAR) AS message,"
+                + " 40 + 2 AS __h0_0, CAST(NULL AS INTEGER) AS __h1_0"
+                + " UNION ALL SELECT 1, FALSE, 'a', 'b', CAST(NULL AS VARCHAR), FALSE, FALSE, CAST(NULL AS VARCHAR),"
+                + " CAST(NULL AS INTEGER), 9", columns);
+        TestPlan.Side own = new TestPlan.Side.Rows(relation("SELECT 3 AS value",
+                List.of(col("value", "Integer", "INTEGER"))));
+        TestPlan.Verdict first = new TestPlan.Verdict(nextVerdictId(), "assertEquals@2", "assertEquals",
+                List.of(new TestPlan.Side.FusedCell(List.of(h0)), own), null);
+        TestPlan.Verdict second = new TestPlan.Verdict(nextVerdictId(), "assertEquals@3", "assertEquals",
+                List.of(new TestPlan.Side.FusedCell(List.of(h1))), null);
+        Recording sink = new Recording();
+        run(plan(TestPlan.Judge.AGREEMENT, new TestPlan.Verdicts(List.of(first, second), fused,
+                TestPlan.JudgingRules.LITE)), sessions(), sink);
+        assertEquals(List.of("fused", "sides assertEquals@2", "sides assertEquals@3", "verdict assertEquals@2",
+                "verdict assertEquals@3"), sink.events);
+        assertEquals(List.of(42L), sink.sides.get(0).get(0).rows().get(0), "the first verdict's own cell");
+        assertEquals("__h0_0", sink.sides.get(0).get(0).columns().get(0).name());
+        assertEquals(List.of(3L), sink.sides.get(0).get(1).rows().get(0), "a side of its own statement, read as today");
+        assertEquals(List.of(9L), sink.sides.get(1).get(0).rows().get(0), "the second verdict's own cell");
+        assertEquals(7, sink.verdictRows.get(0).size(), "the verdict row: the schema's seven cells, no host column");
+        assertEquals(java.util.Arrays.asList(false, "a", "b", null, false, false, null), sink.verdictRows.get(1));
+    }
+
+    @Test
     @DisplayName("a program with an answer: the verdicts, then the result step's rows after the steps")
     void aProgramsAnswerFollowsItsVerdicts() throws IOException {
         Recording sink = new Recording();
