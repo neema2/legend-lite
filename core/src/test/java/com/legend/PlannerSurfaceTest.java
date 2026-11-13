@@ -25,6 +25,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static com.legend.PlannerSurfaceTest.Kind.AUTHORED_SQL;
+import static com.legend.PlannerSurfaceTest.Kind.CALLBACK;
+import static com.legend.PlannerSurfaceTest.Kind.MODEL;
+import static com.legend.PlannerSurfaceTest.Kind.OUTPUT;
+import static com.legend.PlannerSurfaceTest.Kind.SESSION;
 import static com.legend.PlannerSurfaceTest.Kind.CATALOG_ROWS;
 import static com.legend.PlannerSurfaceTest.Kind.DATA_REFERENCE;
 import static com.legend.PlannerSurfaceTest.Kind.HANDLE;
@@ -61,7 +65,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * or is a listed native service that plans nothing. {@link #theSurfaceRefusesAPlantedDoor} and
  * {@link #theSurfaceRefusesAPlantedExport} plant a violator of each kind and see it named.
  *
- * <p>The server's routes, the root doors and Python's planner are the item's next commits.
+ * <p>The server ({@link #ROUTES}, {@link #SERVER_FIELDS}, {@link #HTTP_ROUTES}) and the root doors
+ * ({@link #ROOT_DOORS}: every public method of {@code Compiler}, {@code TypedQuery}, {@code HeldModels},
+ * {@code Execution} and {@code TestExecution}, by signature, a kind per parameter) are closed the same way. Python's
+ * planner is the item's next commit.
  */
 @Tag("census")
 class PlannerSurfaceTest {
@@ -109,6 +116,16 @@ class PlannerSurfaceTest {
         INTERNAL,
         /** A key read only to refuse it by name. */
         REFUSED,
+        /** A model already parsed or compiled (a root door's: {@code ModelContext}, {@code ParsedModel}, the protocol's
+         *  model). */
+        MODEL,
+        /** A caller's function the door calls back with a planning-side value (a held model, a parser's warnings, a
+         *  test's verdicts): never a statement. */
+        CALLBACK,
+        /** A run's database sessions, the caller's (a run door's). */
+        SESSION,
+        /** Where a run's answer is written: a format and a stream, data. */
+        OUTPUT,
         /** A person's own statement: Studio's SQL playground, {@code authored.text}, alone. */
         AUTHORED_SQL
     }
@@ -364,6 +381,104 @@ class PlannerSurfaceTest {
      *  as {@code variable.key}. */
     private static final Map<String, Set<String>> INTERNAL_RECEIVERS = Map.of("PureV1Api.java", Set.of("planned"));
 
+    /** THE ROOT DOORS (AGENTS.md: {@code Compiler}, {@code TypedQuery}, {@code HeldModels} the plan side's,
+     *  {@code Execution} and {@code TestExecution} the runs'): every public method, by its signature, with its
+     *  parameters' kinds. */
+    static final Map<String, List<Kind>> ROOT_DOORS = new TreeMap<>(Map.ofEntries(
+            // Compiler: the planner's steps A..J, each a model's text or a query in, a model or a query out
+            Map.entry("Compiler#parseModel(String)", List.of(MODEL_TEXT)),
+            Map.entry("Compiler#parseQuery(String)", List.of(LAMBDA)),
+            Map.entry("Compiler#compileModel(String)", List.of(MODEL_TEXT)),
+            Map.entry("Compiler#compileModel(Protocol.PureModelContextData)", List.of(MODEL)),
+            Map.entry("Compiler#compileModel(List<Compiler.ModelSource>)", List.of(MODEL_TEXT)),
+            Map.entry("Compiler#parseSources(List<Compiler.ModelSource>)", List.of(MODEL_TEXT)),
+            // the parser's warnings to the caller, and the dialect a section is parsed in
+            Map.entry("Compiler#parseSources(List<Compiler.ModelSource>, BiConsumer<String, String>)",
+                    List.of(MODEL_TEXT, CALLBACK)),
+            Map.entry("Compiler#parseSources(List<Compiler.ModelSource>, BiConsumer<String, String>, Dialect)",
+                    List.of(MODEL_TEXT, CALLBACK, OPTION)),
+            Map.entry("Compiler#buildModel(ParsedModel)", List.of(MODEL)),
+            Map.entry("Compiler#buildModule(ParsedModel)", List.of(MODEL)),
+            Map.entry("Compiler#compileAllBodies(ModelContext)", List.of(MODEL)),
+            Map.entry("Compiler#compileErrors(String)", List.of(MODEL_TEXT)),
+            Map.entry("Compiler#compileErrors(Protocol.PureModelContextData)", List.of(MODEL)),
+            Map.entry("Compiler#query(ModelContext, String)", List.of(MODEL, LAMBDA)),
+            Map.entry("Compiler#query(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),
+            Map.entry("Compiler#queryResolved(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),
+            Map.entry("Compiler#resolveQuery(List<ValueSpecification>, ImportScope, ModelContext)",
+                    List.of(LAMBDA, NAME, MODEL)),
+            Map.entry("Compiler#resolveNames(List<ValueSpecification>, ImportScope, ModelContext)",
+                    List.of(LAMBDA, NAME, MODEL)),
+            Map.entry("Compiler#executesOn(ModelContext, String)", List.of(MODEL, NAME)),
+            Map.entry("Compiler#hasStatementEffects(ValueSpecification, ModelContext)", List.of(LAMBDA, MODEL)),
+            Map.entry("Compiler#programFacts(ValueSpecification, ModelContext)", List.of(LAMBDA, MODEL)),
+            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
+                    List.of(LAMBDA, MODEL, NAME, OPTION)),
+            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean, String)",
+                    List.of(LAMBDA, MODEL, NAME, OPTION, NAME)),
+            // TypedQuery: a query typed once; its plans by a runtime's name and options
+            Map.entry("TypedQuery#withBody(List<TypedSpec>)", List.of(LAMBDA)),
+            Map.entry("TypedQuery#context()", List.of()),
+            Map.entry("TypedQuery#specs()", List.of()),
+            Map.entry("TypedQuery#resolved()", List.of()),
+            Map.entry("TypedQuery#body()", List.of()),
+            Map.entry("TypedQuery#resultType()", List.of()),
+            Map.entry("TypedQuery#parameters()", List.of()),
+            Map.entry("TypedQuery#answersADiagnostic()", List.of()),
+            Map.entry("TypedQuery#expression()", List.of()),
+            Map.entry("TypedQuery#target()", List.of()),
+            Map.entry("TypedQuery#writes()", List.of()),
+            Map.entry("TypedQuery#runtime(String)", List.of(NAME)),
+            // the statement road's lowering, apart from the query door (its callers doored or the test road's: the
+            // test-data routes' seed, 2026-11-13, and testplan.GeneratedTestData)
+            Map.entry("TypedQuery#lower(String, boolean)", List.of(NAME, OPTION)),
+            Map.entry("TypedQuery#lower(String, boolean, List<SqlExpr.PlanParam>, Set<Feature>)",
+                    List.of(NAME, OPTION, PLAN_DATA, OPTION)),
+            Map.entry("TypedQuery#lowerer(boolean, boolean, List<SqlExpr.PlanParam>, Set<Feature>)",
+                    List.of(OPTION, OPTION, PLAN_DATA, OPTION)),
+            Map.entry("TypedQuery#lowerer(boolean, boolean, List<SqlExpr.PlanParam>, Set<Feature>, ObjectSites)",
+                    List.of(OPTION, OPTION, PLAN_DATA, OPTION, PLAN_DATA)),
+            Map.entry("TypedQuery#plan(String)", List.of(NAME)),
+            Map.entry("TypedQuery#executionPlan(String)", List.of(NAME)),
+            Map.entry("TypedQuery#executionPlan(String, Set<Feature>)", List.of(NAME, OPTION)),
+            Map.entry("TypedQuery#projectPlan(String)", List.of(NAME)),
+            // HeldModels: a model's text held by its handle, its compiled model handed to the caller's function
+            Map.entry("HeldModels#hold(String)", List.of(MODEL_TEXT)),
+            Map.entry("HeldModels#release(int)", List.of(HANDLE)),
+            Map.entry("HeldModels#with(int, Function<ModelContext, T>)", List.of(HANDLE, CALLBACK)),
+            Map.entry("HeldModels#withText(String, Function<ModelContext, T>)", List.of(MODEL_TEXT, CALLBACK)),
+            Map.entry("HeldModels#size()", List.of()),
+            // Execution: the product's door, a query planned and its plan run on the caller's sessions
+            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                    + " Output)", List.of(LAMBDA, NAME, SESSION, SESSION, SESSION, OUTPUT)),
+            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                    + " Output, int)", List.of(LAMBDA, NAME, SESSION, SESSION, SESSION, OUTPUT, OPTION)),
+            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                    + " Set<Feature>, Output, int)", List.of(LAMBDA, NAME, SESSION, SESSION, SESSION, OPTION, OUTPUT,
+                    OPTION)),
+            Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output)",
+                    List.of(MODEL_TEXT, LAMBDA, NAME, SESSION, SESSION, OUTPUT)),
+            Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output, int)",
+                    List.of(MODEL_TEXT, LAMBDA, NAME, SESSION, SESSION, OUTPUT, OPTION)),
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)", List.of(LAMBDA, NAME, OUTPUT)),
+            // the sources a server admits: its configuration's text
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
+                    List.of(LAMBDA, NAME, OPTION, OUTPUT)),
+            // TestExecution: a test body planned, then run, its verdicts to the caller's listener and the referee
+            Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", List.of(LAMBDA, NAME, OPTION)),
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+                    + " ExecuteOptions)", List.of(LAMBDA, NAME, SESSION, CALLBACK, CALLBACK, OPTION)),
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+                    + " ExecuteOptions, Output)", List.of(LAMBDA, NAME, SESSION, CALLBACK, CALLBACK, OPTION, OUTPUT)),
+            Map.entry("TestExecution#runBody(TestPlan, Sessions.Session, AssertListener, SqlReplayReferee,"
+                    + " ExecuteOptions, Output)", List.of(PLAN_DATA, SESSION, CALLBACK, CALLBACK, OPTION, OUTPUT)),
+            Map.entry("TestExecution#runFixture(TestPlan, Sessions.Session, ExecuteOptions)",
+                    List.of(PLAN_DATA, SESSION, OPTION))));
+
+    /** The root doors' classes. */
+    private static final List<Class<?>> ROOT_CLASSES = List.of(Compiler.class, TypedQuery.class, HeldModels.class,
+            Execution.class, TestExecution.class);
+
     /** The playground's door and field: the one place a request carries SQL. */
     private static final String PLAYGROUND = "authored.text";
 
@@ -465,6 +580,43 @@ class PlannerSurfaceTest {
             }
         });
         listedAs(out, "an HTTP route", found(httpSource, "route\\(\"([^\"]+)\""), HTTP_ROUTES.keySet());
+        return out;
+    }
+
+    /** A method's signature as the root doors' registry spells it: {@code Class#name(SimpleType, ...)}. */
+    static String signature(Method m) {
+        return m.getDeclaringClass().getSimpleName() + "#" + m.getName() + "(" + String.join(", ",
+                Arrays.stream(m.getGenericParameterTypes()).map(t -> t.getTypeName()
+                        .replaceAll("[\\w$]+\\.", "").replace('$', '.')).toList()) + ")";
+    }
+
+    /** Every violation of the root doors' surface over {@code classes}: each public method listed by its signature,
+     *  its kinds one per parameter, none SQL. */
+    static List<String> rootViolations(List<Class<?>> classes) {
+        List<String> out = new ArrayList<>();
+        Set<String> seen = new TreeSet<>();
+        for (Class<?> c : classes) {
+            for (Method m : c.getDeclaredMethods()) {
+                if (!Modifier.isPublic(m.getModifiers()) || m.isSynthetic() || m.isBridge()) {
+                    continue;
+                }
+                String sig = signature(m);
+                seen.add(sig);
+                List<Kind> kinds = ROOT_DOORS.get(sig);
+                if (kinds == null) {
+                    out.add("a root door no row lists: " + sig);
+                } else if (kinds.size() != m.getParameterCount()) {
+                    out.add("a root door's kinds are not one per parameter: " + sig);
+                } else if (kinds.contains(AUTHORED_SQL)) {
+                    out.add("a root door that carries SQL: " + sig);
+                }
+            }
+        }
+        for (String sig : ROOT_DOORS.keySet()) {
+            if (!seen.contains(sig)) {
+                out.add("a listed root door that is gone: " + sig);
+            }
+        }
         return out;
     }
 
@@ -752,6 +904,20 @@ class PlannerSurfaceTest {
                 "PureV1Api.java reads the field sql, which no row declares (a field that can carry SQL)",
                 "an HTTP route no row lists: /api/lite/v1/sql (named for a statement)"),
                 serverViolations(pureV1, files, http));
+    }
+
+    /** The root doors are closed: every public method of the five listed, by signature, its parameters' kinds. */
+    @Test
+    void theRootDoorsAreClosed() {
+        assertEquals(List.of(), rootViolations(ROOT_CLASSES), "the root doors are not closed");
+    }
+
+    /** The check names a public method of a root door no row lists ({@code planner.PlantedRootDoor}, a test class
+     *  planted for this alone). */
+    @Test
+    void theRootDoorsRefuseAPlantedDoor() {
+        assertTrue(rootViolations(List.of(com.legend.planner.PlantedRootDoor.class))
+                .contains("a root door no row lists: PlantedRootDoor#runSql(String)"));
     }
 
     /** The registry's own rule bites: a field declared SQL away from the playground is named. */
