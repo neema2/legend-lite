@@ -135,7 +135,11 @@ planner	base builtin cache compiler compiler_element_type database door error ex
 # TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md §3.3): `pure_v1` reaches `testdatagen` -- the server's test-data routes
 # (TestDataRoutes) plan the generator's statement and the census, as legend-engine's TestDataGenerationAPI does; the run
 # is the host's door, handed in as for an execute.
-pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json parser plan planner protocol result sql sql_dialect testdatagen
+# 2026-11-13 (F3, the user's ruling on the model-text fuzz's finding): `pure_v1` reaches `model` -- the model writer
+# (server/CreateClass) reads a table's protocol column names as the compiled model reads them (RelationalIdentifier.bare:
+# quotes off, the lexer's backslash escape decoded), where it took the quotes off and kept the escapes; server_lib reaches
+# `model` already.
+pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
 # 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5): `driver` deleted. Its planning classes are

@@ -39,19 +39,10 @@ class ModelTextInjectionFuzzTest {
 
     private static final String MARK = "ZQXMARK";
 
-    /** The defects found, by route and place: shrink-only, each named until fixed.
-     *
-     *  <p>2026-11-13, found by this fuzz and posed to the orchestrator before any fix:
-     *  <ul>
-     *    <li>a key's documentation: a column taken as a key only carries a documentation the route reads and writes
-     *        nowhere (a key is a local property of the mapping, which carries none), so it is dropped unsaid;</li>
-     *    <li>the source's column: a column whose name holds a line break splits its sample's CSV header (a row value
-     *        holding one leaves its row out, said in the notes; the header's cells are not held to that), so the
-     *        sample's table reads a header the table has not and a row of one cell. The Pure text stays whole: the
-     *        literal escapes the break.</li>
-     *  </ul> */
-    static final Map<String, Set<String>> KNOWN = Map.of("createClass", Set.of("a key's documentation",
-            "the source's column"));
+    /** The defects found, by route and place: shrink-only, each named until fixed. Empty since 2026-11-13: its two
+     *  findings (a key's documentation read and written nowhere; a source column whose name holds a line break splitting
+     *  its sample's CSV header) went with the user's rulings F1 (refused by name) and F2 (the sample left out, said). */
+    static final Map<String, Set<String>> KNOWN = Map.of();
 
     /** The payloads: the SQL fuzz's (com.legend.sql.dialect.InjectionFuzzTest), and Pure's own -- a quote, a
      *  backslash, an island's or a block's close, a section's header, a path's separator, white space. */
@@ -103,8 +94,7 @@ class ModelTextInjectionFuzzTest {
     }
 
     private static Map<String, Object> trade(String table, String column, List<Object> row) {
-        Map<String, Object> columns = obj("customer_id", obj("as", "key", "name", "customerId", "documentation",
-                "the customer's id"));
+        Map<String, Object> columns = obj("customer_id", obj("as", "key", "name", "customerId"));
         columns.put(column, obj("as", "property", "name", "amount", "documentation", "the amount"));
         return obj("lambda", relation(table), "source", obj("_type", "text", "code", trades(table, column)),
                 "name", "Trade", "documentation", "the trades", "columns", columns,
@@ -311,7 +301,8 @@ class ModelTextInjectionFuzzTest {
                     counts.merge("written", 1, Integer::sum);
                     List<String> wrong = new ArrayList<>();
                     List<Object> elements = readBack(a.json(), wrong);
-                    boolean leftOut = place.name().equals("a sample's text")
+                    // a line break in a sample's cell leaves its row out; in a column's name, the sample (F2)
+                    boolean leftOut = (place.name().equals("a sample's text") || place.name().equals("the source's column"))
                             && (payload.indexOf('\n') >= 0 || payload.indexOf('\r') >= 0);
                     if (wrong.isEmpty() && !leftOut && !shape(elements, null).equals(baseShape)) {
                         wrong.add("an element added, removed or reshaped");
@@ -321,7 +312,9 @@ class ModelTextInjectionFuzzTest {
                     boolean stripped = place.name().endsWith("title") || place.name().endsWith("description");
                     if (leftOut) {
                         if (Json.parseObject(a.json()).getArr("notes").items().isEmpty()) {
-                            wrong.add("a sample row holding a line break left out, unsaid");
+                            wrong.add("a sample row or a sample holding a line break left out, unsaid");
+                        } else if (place.name().equals("the source's column") && !read.contains(payload)) {
+                            wrong.add("the column's name does not read back as written");
                         }
                     } else if (!read.contains(stripped ? payload.strip() : payload) && !(place.name().equals(
                             "the package") && read.stream().anyMatch(l -> l.startsWith(payload + "::")))) {
@@ -348,6 +341,36 @@ class ModelTextInjectionFuzzTest {
         Map<String, Set<String>> found = fuzz(routes(), counts, examples);
         assertTrue(counts.getOrDefault("read back exactly", 0) > 0, "nothing was written: " + counts);
         assertEquals(KNOWN, found, counts + "; one example each:\n" + String.join("\n", examples));
+    }
+
+    /** F1 (the user's ruling of 2026-11-13): a key's documentation, which no file would hold, is refused by name --
+     *  until then read and dropped unsaid. */
+    @Test
+    void aKeysDocumentationIsRefusedByName() {
+        Map<String, Object> cls = trade("trades", "notional", ROW);
+        at(cls, "columns", "customer_id").put("documentation", "the customer's id");
+        PureV1Api.Answer a = route("createClass", request("class", cls));
+        assertEquals(400, a.status(), a.json());
+        assertEquals("the column 'customer_id' is taken as a key only, and a documentation is written on a property"
+                + " alone: take it off, or take the column as a property", Json.parseObject(a.json()).getString("message"));
+    }
+
+    /** F3 (the user's ruling of 2026-11-13): a source column whose name holds a quote and a backslash -- declared
+     *  quoted, its escapes the lexer's -- takes its sample: the route reads the protocol's name as the compiled model
+     *  does, and the sample's header names the column exactly. Until then the route kept the escapes, and the sample was
+     *  refused as naming another column. */
+    @Test
+    void aColumnNamedWithAQuoteAndABackslashTakesItsSample() {
+        String name = "a\"b\\c";
+        PureV1Api.Answer a = route("createClass", request("class", trade("trades", name, ROW)));
+        assertEquals(200, a.status(), a.json());
+        List<String> wrong = new ArrayList<>();
+        List<Object> elements = readBack(a.json(), wrong);
+        assertEquals(List.of(), wrong);
+        Set<String> read = new TreeSet<>();
+        strings(elements, null, read);
+        assertTrue(read.contains(name), "the sample's header and the mapping name the column exactly: " + read);
+        assertTrue(Json.parseObject(a.json()).getArr("notes").items().isEmpty(), a.json());
     }
 
     /** The read-back bites: a sample CSV read as its rows and cells, and one that gained a row is another shape. */

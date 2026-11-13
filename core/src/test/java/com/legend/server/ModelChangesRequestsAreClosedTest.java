@@ -62,9 +62,10 @@ class ModelChangesRequestsAreClosedTest {
     }
 
     private static Map<String, Object> trade() {
-        return cls(TRADES, "trades", "Trade", obj("customer_id", obj("as", "key", "name", "customerId",
-                "documentation", "the customer's id")), List.of("trade_id", "customer_id", "notional"),
-                List.of(1, 7, 2.5));
+        // a key's documentation is refused by name (F1, 2026-11-13): the documentation is a property's
+        return cls(TRADES, "trades", "Trade", obj("customer_id", obj("as", "key", "name", "customerId"), "notional",
+                obj("as", "property", "name", "amount", "documentation", "the amount")),
+                List.of("trade_id", "customer_id", "notional"), List.of(1, 7, 2.5));
     }
 
     private static Map<String, Object> customer() {
@@ -171,10 +172,11 @@ class ModelChangesRequestsAreClosedTest {
         assertEquals(EXPECTED_OBJECTS, refused, "the objects walked");
     }
 
-    /** The objects walked: createClass 7 (the request, the project, and the class's 5: itself, its source, its column's
-     *  choice, its place, its sample); createAssociation 15 (the request, the project, two classes of 5, the
-     *  association and its two ends); createDataSpace 16 (those, the association one of a list, and the data space). */
-    private static final int EXPECTED_OBJECTS = 7 + 15 + 16;
+    /** The objects walked: createClass 8 (the request, the project, and the class's 6: itself, its source, its two
+     *  columns' choices, its place, its sample); createAssociation 16 (the request, the project, the trade class's 6 and
+     *  the customer's 5, the association and its two ends); createDataSpace 17 (those, the association one of a list,
+     *  and the data space). */
+    private static final int EXPECTED_OBJECTS = 8 + 16 + 17;
 
     /** A sample of a table the relation does not read is refused by name: its rows would be read by nothing. */
     @Test
