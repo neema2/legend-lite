@@ -21,7 +21,7 @@ import type { EngineSession, Handle, ProjectCoordinates, RevisionCoordinates, Wr
 import { EngineRun, type EngineSource } from '../engine-run.ts';
 import { writesModels, type ModelWriter } from '../model-writer.ts';
 import type { ModelOptions } from '../planner.ts';
-import type { QueryRunner } from '../runner.ts';
+import { PlanThenRun, type QueryRunner } from '../runner.ts';
 import { dataHost, forgetUpload, ingestFile, mountRemoteView, type DuckDbFiles } from '../upload.ts';
 import { browserBasics, tabTitle } from './browser-basics.ts';
 import type {
@@ -150,8 +150,9 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       },
       database: { ...tabDatabase(o.duckdb, o.planner.tables), ...tabSnaps(session, (m, r) => tabEngine().then((t) => t.served(m, r))) },
       // the model actions: the tab's module writes (beside whichever planner the page chose), the tab's DuckDB answers
-      // a project's facts read through the tab's engine, as every grid's rows are (4b)
-      ...(writesModels(o.planner.tables) ? { modelWriting: tabModelWriting(o.planner.tables, (m, r) => engineRows(tabEngine().then((t) => t.served(m, r))).runner) } : {}),
+      // the model actions: the module writes; a project's facts are planned by it over the page's model project and run on
+      // the tab's DuckDB -- model writing, held where it is until the user's ruling on moving it behind the engine (Q32)
+      ...(writesModels(o.planner.tables) ? { modelWriting: tabModelWriting(o.planner.tables, (m, r) => new PlanThenRun(o.planner.tables.withModel(m, r), o.duckdb.engine)) } : {}),
       local: {
         planner: o.planner.planner,
         another: (model, runtime, how) => o.planner.models.another(model, runtime, how),
@@ -176,7 +177,7 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
   };
 }
 
-/** The model actions in this tab: the module's writer, and a project's facts read through the tab's engine. */
+/** The model actions in this tab: the module's writer, and a project's facts (Q32: held as they were). */
 function tabModelWriting(writer: ModelWriter, rows: (model: string, runtime: string) => QueryRunner): ModelWriting {
   return { place: 'Browser', writer, rows };
 }
