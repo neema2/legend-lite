@@ -67,8 +67,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *
  * <p>The server ({@link #ROUTES}, {@link #SERVER_FIELDS}, {@link #HTTP_ROUTES}) and the root doors
  * ({@link #ROOT_DOORS}: every public method of {@code Compiler}, {@code TypedQuery}, {@code HeldModels},
- * {@code Execution} and {@code TestExecution}, by signature, a kind per parameter) are closed the same way. Python's
- * planner is the item's next commit.
+ * {@code Execution} and {@code TestExecution}, by signature, a kind per parameter) are closed the same way, and so is
+ * Python ({@link #PY_KINDS}: each planner kind a listed native export's, its fields its door's parameters; every native
+ * name the package spells; {@link #BRIDGE_CALLS}: the hosted DataCube's calls, a statement's passing
+ * {@code across_the_bridge}).
  */
 @Tag("census")
 class PlannerSurfaceTest {
@@ -479,6 +481,54 @@ class PlannerSurfaceTest {
     private static final List<Class<?>> ROOT_CLASSES = List.of(Compiler.class, TypedQuery.class, HeldModels.class,
             Execution.class, TestExecution.class);
 
+    /** PYTHON'S PLANNER PROTOCOL ({@code _planner.KINDS}): each request kind, the native export answering it, and the
+     *  request's fields in that export's argument order -- each field's kind its door's parameter's
+     *  ({@link #BOUNDARY}), read through {@link #NATIVE_EXPORTS}. */
+    static final Map<String, List<String>> PY_KINDS = new TreeMap<>(Map.ofEntries(
+            Map.entry("hold", List.of("lite_hold_model", "model")),
+            Map.entry("release", List.of("lite_release_model", "handle")),
+            Map.entry("plan", List.of("lite_plan_text_held", "handle", "query", "runtime")),
+            Map.entry("relationType", List.of("lite_relation_type_text_held", "handle", "query")),
+            Map.entry("tableModel", List.of("lite_table_model", "table")),
+            Map.entry("catalogColumnsSql", List.of("lite_catalog_columns_sql", "schema", "table")),
+            Map.entry("planJson", List.of("lite_plan_json_held", "handle", "lambda", "runtime")),
+            Map.entry("executionPlan", List.of("lite_execution_plan_json_held", "handle", "lambda", "runtime")),
+            Map.entry("planModel", List.of("lite_plan_json", "model", "lambda", "runtime")),
+            Map.entry("pureV1", List.of("lite_pure_v1", "path", "query", "body")),
+            Map.entry("executePlan", List.of("lite_execute_json_plan", "body", "models")),
+            Map.entry("executeAnswer", List.of("lite_execute_json_answer", "plan", "rows")),
+            Map.entry("fileLoad", List.of("lite_file_load", "request")),
+            Map.entry("remoteMount", List.of("lite_remote_mount", "request")),
+            Map.entry("snapStream", List.of("lite_snap_stream", "request")),
+            Map.entry("snapCopy", List.of("lite_snap_copy", "request")),
+            Map.entry("outputPlan", List.of("lite_output_plan", "request")),
+            Map.entry("synthesize", List.of("lite_synthesize", "request")),
+            Map.entry("sessionSetup", List.of("lite_session_setup", "databaseType")),
+            Map.entry("projectData", List.of("lite_project_data", "model", "databaseType")),
+            Map.entry("hostOperations", List.of("lite_host_operations", "databaseType", "operations")),
+            Map.entry("warm", List.of("lite_warm_model", "model"))));
+
+    /** The kinds Python's planner refuses by name ({@code _planner.REFUSED}). */
+    static final Set<String> PY_REFUSED = Set.of("authored");
+
+    /** The native names Python spells by a pattern, each with what it expands to. */
+    static final Map<String, Set<String>> PY_PATTERNS = Map.of("lite_{kind}_handle",
+            Set.of("lite_sdlc_handle", "lite_depot_handle"));
+
+    /** THE BRIDGE: the calls DataCube's hosted code makes of Python ({@code _headless._calls}), each with what it
+     *  carries; a call that carries a statement passes it {@code across_the_bridge} -- a statement this session's
+     *  planner answered, else refused by name and nothing sent. */
+    static final Map<String, String> BRIDGE_CALLS = new TreeMap<>(Map.of(
+            "planner", "a planner request (PY_KINDS)",
+            "query", "a statement this session's planner answered (across_the_bridge)",
+            "statement", "a statement this session's planner answered (across_the_bridge), its values bound",
+            "fetch", "an HTTP request; a statement in its body crosses as a query does (across_the_bridge)",
+            "engine", "a call of the engine's own routes, answered over a read",
+            "digest", "a digest of bytes"));
+
+    /** The bridge's calls that carry a statement: each body passes it {@code across_the_bridge}. */
+    static final Set<String> BRIDGE_STATEMENTS = Set.of("query", "statement", "fetch");
+
     /** The playground's door and field: the one place a request carries SQL. */
     private static final String PLAYGROUND = "authored.text";
 
@@ -618,6 +668,84 @@ class PlannerSurfaceTest {
             }
         }
         return out;
+    }
+
+    /** Every violation of Python's closed surface: its planner protocol ({@code plannerSource}), every native name its
+     *  package spells ({@code packageSources}) and the bridge's calls ({@code headlessSource}). */
+    static List<String> pythonViolations(String plannerSource, List<String> packageSources, String headlessSource) {
+        List<String> out = new ArrayList<>();
+        Map<String, List<String>> rows = new TreeMap<>();
+        Matcher row = Pattern.compile("(?m)^    '(\\w+)': \\('(lite_\\w+)', lambda m: \\((.*)\\)\\),$")
+                .matcher(plannerSource);
+        while (row.find()) {
+            List<String> r = new ArrayList<>(List.of(row.group(2)));
+            Matcher f = Pattern.compile("m\\['(\\w+)'\\]").matcher(row.group(3));
+            while (f.find()) {
+                r.add(f.group(1));
+            }
+            rows.put(row.group(1), r);
+        }
+        listedAs(out, "a Python planner kind", rows.keySet(), PY_KINDS.keySet());
+        rows.forEach((kind, r) -> {
+            if (PY_KINDS.containsKey(kind) && !PY_KINDS.get(kind).equals(r)) {
+                out.add("a Python planner kind's row differs from its listing: " + kind + " " + r);
+            }
+        });
+        PY_KINDS.forEach((kind, r) -> {
+            String door = NATIVE_EXPORTS.get(r.get(0));
+            if (door == null || !BOUNDARY.containsKey(door)) {
+                out.add("a Python planner kind answered by no listed door: " + kind + " (" + r.get(0) + ")");
+            } else if (BOUNDARY.get(door).params().size() != r.size() - 1) {
+                out.add("a Python planner kind's fields are not its door's parameters: " + kind + " -> " + door);
+            } else {
+                for (int i = 1; i < r.size(); i++) {
+                    sqlRule(out, "python " + kind + "." + r.get(i), r.get(i),
+                            BOUNDARY.get(door).params().get(i - 1).kind());
+                }
+            }
+        });
+        listedAs(out, "a Python refused kind", found(plannerSource.substring(plannerSource.indexOf("REFUSED")),
+                "\\n    '(\\w+)': \""), PY_REFUSED);
+        // every native name the package spells
+        Set<String> names = new TreeSet<>();
+        for (String text : packageSources) {
+            names.addAll(found(text, "['\"](lite_[a-z_{}]+)['\"]"));
+        }
+        for (String name : names) {
+            Set<String> expands = PY_PATTERNS.getOrDefault(name, Set.of(name));
+            for (String e : expands) {
+                if (!NATIVE_EXPORTS.containsKey(e) && !NATIVE_SERVICES.containsKey(e)) {
+                    out.add("a native name Python spells that no row lists: " + name);
+                }
+            }
+        }
+        // the bridge
+        String calls = pythonBody(headlessSource, headlessSource.indexOf("def _calls("));
+        listedAs(out, "a bridge call", found(calls, "'(\\w+)': self\\._\\w+"), BRIDGE_CALLS.keySet());
+        for (String call : BRIDGE_STATEMENTS) {
+            int at = headlessSource.indexOf("async def _" + call + "(");
+            String body = at < 0 ? "" : pythonBody(headlessSource, at);
+            if (!body.contains("across_the_bridge(")) {
+                out.add("a bridge call that carries a statement and passes it no across_the_bridge: " + call);
+            }
+        }
+        return out;
+    }
+
+    /** A Python function's body: its lines until the next line indented no deeper than its {@code def}. */
+    private static String pythonBody(String source, int defAt) {
+        int lineStart = source.lastIndexOf('\n', defAt) + 1;
+        int indent = defAt - lineStart;
+        StringBuilder out = new StringBuilder();
+        String[] lines = source.substring(source.indexOf('\n', defAt) + 1).split("\n", -1);
+        for (String line : lines) {
+            int lead = line.length() - line.stripLeading().length();
+            if (!line.isBlank() && lead <= indent) {
+                break;
+            }
+            out.append(line).append('\n');
+        }
+        return out.toString();
     }
 
     private static Set<String> found(String source, String regex) {
@@ -918,6 +1046,47 @@ class PlannerSurfaceTest {
     void theRootDoorsRefuseAPlantedDoor() {
         assertTrue(rootViolations(List.of(com.legend.planner.PlantedRootDoor.class))
                 .contains("a root door no row lists: PlantedRootDoor#runSql(String)"));
+    }
+
+    private static List<String> pythonPackage() {
+        List<String> out = new ArrayList<>();
+        for (var f : SourceFiles.under("python/legend_lite")) {
+            if (f.getFileName().toString().endsWith(".py")) {
+                try {
+                    out.add(Files.readString(f, StandardCharsets.UTF_8));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        }
+        assertTrue(out.size() > 10, "Python's package read: " + out.size());
+        return out;
+    }
+
+    private static final String PY_PLANNER = "python/legend_lite/_planner.py";
+    private static final String PY_HEADLESS = "python/legend_lite/_headless.py";
+
+    /** Python's surface is closed: every planner kind a listed native export's, its fields its door's parameters;
+     *  every native name the package spells listed; every bridge call listed, a statement's across the bridge. */
+    @Test
+    void pythonsSurfaceIsClosed() {
+        assertEquals(List.of(), pythonViolations(read(PY_PLANNER), pythonPackage(), read(PY_HEADLESS)),
+                "Python's planner surface is not closed");
+    }
+
+    /** The check names a planner kind no row lists, a native name no row lists, a bridge call no row lists, and a
+     *  statement-carrying bridge call that skips the bridge's check. */
+    @Test
+    void pythonsSurfaceRefusesAPlantedKindAndCall() {
+        String planner = read(PY_PLANNER).replace("    'warm': (", "    'runSql': ('lite_run_sql', lambda m: (m['sql'],)),\n"
+                + "    'warm': (");
+        String headless = read(PY_HEADLESS).replace("'engine': self._engine}", "'engine': self._engine,"
+                + " 'run': self._run}").replace("statement = across_the_bridge(sql, \"the hosted DataCube's query\","
+                + " self._answered)", "statement = sql");
+        List<String> found = pythonViolations(planner, pythonPackage(), headless);
+        assertEquals(List.of("a Python planner kind no row lists: runSql (named for a statement)",
+                "a bridge call no row lists: run",
+                "a bridge call that carries a statement and passes it no across_the_bridge: query"), found);
     }
 
     /** The registry's own rule bites: a field declared SQL away from the playground is named. */
