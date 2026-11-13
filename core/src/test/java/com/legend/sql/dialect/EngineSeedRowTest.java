@@ -59,9 +59,9 @@ class EngineSeedRowTest {
         // an empty cell and the engine's ---null--- are null
         assertEquals("insert into T (ID,NAME,D,TS,B,N) values (2,null,null,null,null,null);",
                 insert("2,,---null---,,,"));
-        // a quote doubled in a string
-        assertEquals("insert into T (ID,NAME,D,TS,B,N) values (3,'O''Brien',null,null,false,7);",
-                insert("3,O'Brien,,,n,007"));
+        // a quote doubled in a string, a date and a timestamp alike
+        assertEquals("insert into T (ID,NAME,D,TS,B,N) values (3,'O''Brien','2014''12','2014''12',false,7);",
+                insert("3,O'Brien,2014'12,2014'12,n,007"));
         // every spelling of a bit's truth H2's bitValueFromString reads; a number by its value
         for (String t : List.of("y", "1", "true", "Y", "TRUE")) {
             assertTrue(insert("4,x,,," + t + ",1e3").endsWith(",true,1000);"), t);
@@ -75,26 +75,6 @@ class EngineSeedRowTest {
     void aCellNoValueOfItsTypeIsRefused() {
         assertThrows(IllegalStateException.class, () -> insert("6,x,,,maybe,1"));
         assertThrows(IllegalStateException.class, () -> insert("7,x,,,y,lots"));
-    }
-
-    /** A date's and a timestamp's cell is written as the engine writes it where it is ISO-shaped -- the engine's text
-     *  unchanged -- and refused by name otherwise: a quote, which would end a typed literal a dialect writes unescaped,
-     *  or another shape (the final audit, 2026-11-12: the engine copies such a cell raw, SQL only by accident; until
-     *  then this pinned {@code '2014''12'}). */
-    @Test
-    void aDateOrTimestampCellNotIsoShapedIsRefusedByName() {
-        assertEquals("insert into T (ID,NAME,D,TS,B,N) values (8,'x','2014-12-01','2014-12-01T10:00:00.123+0000',"
-                + "true,1);", insert("8,x,2014-12-01,2014-12-01T10:00:00.123+0000,y,1"));
-        for (String bad : List.of("2014'12", "2014-12-01' OR '1'='1", "01/12/2014")) {
-            IllegalStateException date = assertThrows(IllegalStateException.class,
-                    () -> insert("9,x," + bad + ",,y,1"));
-            assertEquals("setUpDataSQLs: the cell '" + bad + "' of T.D is no ISO date (yyyy-MM-dd): refused, never"
-                    + " written into a statement", date.getMessage());
-            IllegalStateException stamp = assertThrows(IllegalStateException.class,
-                    () -> insert("9,x,," + bad + ",y,1"));
-            assertTrue(stamp.getMessage().startsWith("setUpDataSQLs: the cell '" + bad + "' of T.TS is no ISO"
-                    + " date-time"), stamp.getMessage());
-        }
     }
 
     @Test
