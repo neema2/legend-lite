@@ -167,10 +167,17 @@ class LeanSqlCorpusTest {
         long bothOnly = 0;
         long bodies = 0;
         List<String> bothOnlyNames = new ArrayList<>();
+        // Q-E5c-1's categories (the user's question, 2026-11-13): (A) decided at planning, no row; (B) a keyed member,
+        // its own wrapper; (C) the split rung, its own wrapper -- each count with a first example
+        long[] categories = new long[4];
+        String[] examples = new String[4];
         for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
             bodies++;
             TestPlan both = plan(corpus, t, com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
             TestPlan db = plan(corpus, t, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+            if (db != null) {
+                categorize(db.steps(), t.fqn(), categories, examples);
+            }
             if (both != null) {
                 walkHost(both.steps(), host);
             }
@@ -180,7 +187,7 @@ class LeanSqlCorpusTest {
             if (both != null && db == null) {
                 bothOnly++;
                 if (bothOnlyNames.size() < 15) {
-                    bothOnlyNames.add(t.fqn());
+                    bothOnlyNames.add(t.fqn() + " -- " + refusal(corpus, t));
                 }
             }
         }
@@ -191,6 +198,86 @@ class LeanSqlCorpusTest {
                 + database[1]);
         System.out.println("e5c bodies BOTH plans and DATABASE refuses: " + bothOnly);
         bothOnlyNames.forEach(n -> System.out.println("e5c   " + n));
+        String[] what = {"(A) decided at planning, no row", "(B) keyed, its own wrapper", "(C) split rung, its own wrapper",
+            "(D) no wrapper (an assertError's or host step)"};
+        for (int k = 0; k < 4; k++) {
+            System.out.println("e5c " + what[k] + ": " + categories[k] + (examples[k] == null ? "" : "; e.g. " + examples[k]));
+        }
+    }
+
+    /** The DATABASE judge's refusal of {@code t}'s body, its first line (Q-E5c-2's why). */
+    private static String refusal(MinimalCorpus corpus, com.legend.test.PureTests.TestCase t) {
+        // the judge-declines diagnostic names the body it declines in ([judge-decline] ... <test> ...)
+        System.setProperty("legend.test.current", "REFUSED:" + t.fqn());
+        try {
+            var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
+            com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved), MinimalCorpus.RUNTIME,
+                    com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
+            return "planned";
+        } catch (RuntimeException | StackOverflowError e) {
+            String m = String.valueOf(e.getMessage());
+            return e.getClass().getSimpleName() + ": " + m.lines().findFirst().orElse("").substring(0,
+                    Math.min(300, m.lines().findFirst().orElse("").length()));
+        }
+    }
+
+    /** The DATABASE plan's verdicts with no fused row, by Q-E5c-1's category: (A) a root's step decided at planning or
+     *  a row refused at planning (no verdict); (B) a verdict of a group with no fused statement whose wrapper is keyed;
+     *  (C) one whose wrapper is a typed result (the split rung). */
+    private static void categorize(List<TestPlan.TestStep> steps, String test, long[] c, String[] ex) {
+        for (TestPlan.TestStep step : steps) {
+            switch (step) {
+                case TestPlan.Verdicts v -> {
+                    if (v.fused() == null) {
+                        for (TestPlan.Verdict verdict : v.verdicts()) {
+                            int k = verdict.wrapper() instanceof com.legend.executionplan.ExecutionPlan.Keyed ? 1 : 2;
+                            if (verdict.wrapper() == null) {
+                                k = 3;
+                            }
+                            c[k]++;
+                            if (ex[k] == null) {
+                                ex[k] = test + " / " + verdict.name();
+                            }
+                        }
+                    }
+                    if (v.roots() != null) {
+                        for (com.legend.testexecutionplan.RootLoop.Root r : v.roots().roots()) {
+                            for (com.legend.testexecutionplan.RootLoop.Step s : r.steps()) {
+                                boolean decided = s instanceof com.legend.testexecutionplan.RootLoop.Decided
+                                        || (s instanceof com.legend.testexecutionplan.RootLoop.Row row
+                                                && row.verdict() == com.legend.testexecutionplan.RootLoop.NO_VERDICT);
+                                if (decided) {
+                                    c[0]++;
+                                    if (ex[0] == null) {
+                                        ex[0] = test + " / " + r.listenerName() + " -- " + describe(s);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                case TestPlan.Branch b -> {
+                    categorize(b.then(), test, c, ex);
+                    categorize(b.otherwise(), test, c, ex);
+                }
+                case TestPlan.Run r -> {
+                }
+                case TestPlan.FrameRun f -> {
+                }
+            }
+        }
+    }
+
+    private static String describe(com.legend.testexecutionplan.RootLoop.Step s) {
+        com.legend.testexecutionplan.Failure f = switch (s) {
+            case com.legend.testexecutionplan.RootLoop.Decided d -> d.failure();
+            case com.legend.testexecutionplan.RootLoop.Row row -> row.refusal();
+        };
+        if (f == null) {
+            return "refused at planning";
+        }
+        String m = String.valueOf(f.message());
+        return f.kind() + ": " + m.substring(0, Math.min(160, m.length())).replace('\n', ' ');
     }
 
     private static @com.legend.base.Nullable TestPlan plan(MinimalCorpus corpus, com.legend.test.PureTests.TestCase t,
