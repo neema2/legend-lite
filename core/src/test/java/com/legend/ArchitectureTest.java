@@ -1935,7 +1935,12 @@ final class ArchitectureTest {
      */
     @Test
     void rawSqlSourceIsConstructedOnlyAtTheCharteredSeam() {
-        noClasses()
+        RAW_SQL_AT_THE_SEAM.check(CORE_PROD_CLASSES);
+    }
+
+    /** The RawSql quarantine (the rule of {@link #rawSqlSourceIsConstructedOnlyAtTheCharteredSeam}): a construction by
+     *  a call or by a reference ({@link #constructs}). */
+    static final com.tngtech.archunit.lang.ArchRule RAW_SQL_AT_THE_SEAM = noClasses()
             .that().haveNameNotMatching(
                     // sql.AliasPrefix (leg 3.4 step 2): re-aliases an EXISTING RawSql
                     // node — the authored text rides through verbatim (RawSqlAdapt is gone, 2026-10-13: the
@@ -1945,20 +1950,11 @@ final class ArchitectureTest {
                     // (GridProbe's LIMIT-0 probe deleted 2026-10-30, the planner-driver seam program's S3c: a raw grid's
                     // columns are the ones its result reports, read when the plan runs)
                     "com\\.legend\\.(lowering\\.Lowerer|sql\\.AliasPrefix|executionplan\\.MirJson)(\\$.*)?")
-            .should().callConstructorWhere(
-                    com.tngtech.archunit.core.domain.JavaCall.Predicates
-                            .target(com.tngtech.archunit.core.domain
-                                    .properties.HasOwner.Predicates.With
-                                    .owner(com.tngtech.archunit.core
-                                            .domain.properties.HasName
-                                            .Predicates.name(
-                                                    "com.legend.sql.SqlSource$RawSql"))))
+            .should().accessTargetWhere(constructs("com\\.legend\\.sql\\.SqlSource\\$RawSql"))
             .as("Phase 1 quarantine: SqlSource.RawSql is constructed"
                     + " ONLY by the chartered seam (the Lowerer's"
                     + " TypedRawSqlRelation case) — it carries authored text, never"
-                    + " platform-composed SQL")
-            .check(CORE_PROD_CLASSES);
-    }
+                    + " platform-composed SQL");
 
     @Test
     void reflectionIsBannedInProduction() {
@@ -2105,7 +2101,8 @@ final class ArchitectureTest {
             .should().callMethod(java.util.UUID.class, "randomUUID")
             // an id made any other way (the re-audit's note 6, 2026-11-12: the rule caught randomness alone, so an id
             // built from two longs, parsed from text or named from bytes passed it)
-            .orShould().callConstructor(java.util.UUID.class, long.class, long.class)
+            // by a call or a reference (UUID::new; 2026-11-13, the orchestrator's completion B)
+            .orShould().accessTargetWhere(constructs("java\\.util\\.UUID"))
             .orShould().callMethod(java.util.UUID.class, "fromString", String.class)
             .orShould().callMethod(java.util.UUID.class, "nameUUIDFromBytes", byte[].class)
             .orShould().callMethod(Math.class, "random")
@@ -2250,7 +2247,9 @@ final class ArchitectureTest {
                 com.legend.testexec.PlantedRunValue.class, com.legend.result.PlantedWriterValue.class,
                 // an id built, parsed or named (the re-audit's note 6, 2026-11-12)
                 com.legend.exec.PlantedRandomUuid.Built.class, com.legend.exec.PlantedRandomUuid.Parsed.class,
-                com.legend.exec.PlantedRandomUuid.Named.class)) {
+                com.legend.exec.PlantedRandomUuid.Named.class,
+                // an id built by the constructor's reference (2026-11-13, the orchestrator's completion B)
+                com.legend.exec.PlantedRandomUuid.BuiltByReference.class)) {
             bites(EXEC_MAKES_NO_VALUE, planted);
         }
     }
@@ -3198,15 +3197,35 @@ final class ArchitectureTest {
     static final com.tngtech.archunit.lang.ArchRule ONLY_THE_LOAD_PLANNER_MAKES_A_LOAD = noClasses()
             .that().resideInAPackage("com.legend..")
             .and().haveNameNotMatching(makers(LOAD_MAKERS))
-            .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
-                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
-                                    .name("com.legend.executionplan.ExecutionPlan$Load"))))
+            .should().accessTargetWhere(constructs("com\\.legend\\.executionplan\\.ExecutionPlan\\$Load"))
             .as("P2: a plan's load is made by the load planner alone (one identity scheme); the JSON reader rebuilds");
 
     /** A pattern matching each of {@code classes} and the classes nested in it. */
     private static String makers(java.util.List<String> classes) {
         return "(" + String.join("|", classes.stream().map(java.util.regex.Pattern::quote).toList()) + ")(\\$.*)?";
+    }
+
+    /**
+     * An access that CONSTRUCTS a class {@code owner} matches: a constructor's call, or its reference ({@code X::new}),
+     * which {@code callConstructorWhere} and {@code callConstructor} do not see -- ArchUnit reads a constructor's
+     * reference as an access of its own ({@code JavaConstructorReference}), so a maker writing
+     * {@code SqlExpr.DateLit::new} passed every constructor rule (2026-11-13, the orchestrator's completion B, found on
+     * item 2's fix). Every rule that keeps a constructor to its makers reads its accesses through this, and
+     * {@link #theConstructorRulesBiteAReference} plants a reference for each.
+     */
+    static com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaAccess<?>> constructs(
+            String owner) {
+        return com.tngtech.archunit.base.DescribedPredicate.describe("construct " + owner + " (by a call or a ::new"
+                + " reference)", a -> (a instanceof com.tngtech.archunit.core.domain.JavaConstructorCall
+                        || a instanceof com.tngtech.archunit.core.domain.JavaConstructorReference)
+                        && a.getTargetOwner().getName().matches(owner));
+    }
+
+    /** Whether {@code c} constructs a class {@code owner} matches, by a call or a reference ({@link #constructs}). */
+    private static boolean constructsAny(com.tngtech.archunit.core.domain.JavaClass c, String owner) {
+        com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaAccess<?>> made =
+                constructs(owner);
+        return c.getAccessesFromSelf().stream().anyMatch(made::test);
     }
 
     /** No name on the makers' lists is dead (the final audit, 2026-11-12: the step makers' list named six classes that
@@ -3222,8 +3241,7 @@ final class ArchitectureTest {
                 boolean makes = false;
                 for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
                     if (c.getName().equals(name) || c.getName().startsWith(name + "$")) {
-                        makes |= c.getConstructorCallsFromSelf().stream()
-                                .anyMatch(call -> call.getTargetOwner().getName().matches(made));
+                        makes |= constructsAny(c, made);
                     }
                 }
                 org.junit.jupiter.api.Assertions.assertTrue(makes, name + " is on the makers' list of " + made
@@ -3281,10 +3299,7 @@ final class ArchitectureTest {
             .and().haveNameNotMatching(makers(TEMPORAL_LITERAL_MAKERS))
             // the records' own constructors, delegating one to another
             .and().haveNameNotMatching(TEMPORAL_LITERAL)
-            .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
-                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
-                                    .nameMatching(TEMPORAL_LITERAL))))
+            .should().accessTargetWhere(constructs(TEMPORAL_LITERAL))
             .as("a typed temporal literal is made from checked text: the lexer's, a constant's, a checked shape's or a"
                     + " plan's own (the final audit, 2026-11-12)");
 
@@ -3308,8 +3323,7 @@ final class ArchitectureTest {
         boolean makes = false;
         for (com.tngtech.archunit.core.domain.JavaClass c : CORE_PROD_CLASSES) {
             if (c.getName().equals(name) || c.getName().startsWith(name + "$")) {
-                makes |= c.getConstructorCallsFromSelf().stream()
-                        .anyMatch(call -> call.getTargetOwner().getName().matches(made));
+                makes |= constructsAny(c, made);
             }
         }
         org.junit.jupiter.api.Assertions.assertTrue(makes, name + " is on " + list + " list and makes none");
@@ -3322,6 +3336,35 @@ final class ArchitectureTest {
     void theLoadMakersRulesBiteAPlantedMaker() {
         bites(ONLY_THE_LOAD_PLANNER_MAKES_A_LOAD, com.legend.planner.PlantedLoadMaker.class);
         bites(ONLY_THE_PLANNERS_MAKERS_MAKE_A_LOAD_STEP, com.legend.planner.PlantedLoadMaker.class);
+    }
+
+    /** Every rule that keeps a constructor to its makers fails on a class that names the constructor BY REFERENCE
+     *  ({@code X::new}) and never calls it (2026-11-13, the orchestrator's completion B: {@code callConstructorWhere}
+     *  saw calls alone; the planted classes {@code planner.PlantedConstructorReference}, {@code exec.PlantedLoad
+     *  .ByReference} and {@code exec.PlantedRandomUuid.BuiltByReference}, test classes planted for this alone). */
+    @Test
+    void theConstructorRulesBiteAReference() {
+        java.util.Map<com.tngtech.archunit.lang.ArchRule, Class<?>> planted = new java.util.LinkedHashMap<>();
+        planted.put(ONLY_CHECKED_SITES_MAKE_A_TEMPORAL_LITERAL,
+                com.legend.planner.PlantedConstructorReference.TemporalLiteral.class);
+        planted.put(ONLY_THE_LOAD_PLANNER_MAKES_A_LOAD, com.legend.planner.PlantedConstructorReference.Load.class);
+        planted.put(ONLY_THE_PLANNERS_MAKERS_MAKE_A_LOAD_STEP,
+                com.legend.planner.PlantedConstructorReference.LoadStep.class);
+        planted.put(EXEC_MAKES_NO_LOAD, com.legend.exec.PlantedLoad.ByReference.class);
+        planted.put(RAW_SQL_AT_THE_SEAM, com.legend.planner.PlantedConstructorReference.RawSql.class);
+        planted.put(CALLS_BUILT_BY_THE_BUILDER, com.legend.planner.PlantedConstructorReference.Call.class);
+        planted.put(EXEC_MAKES_NO_VALUE, com.legend.exec.PlantedRandomUuid.BuiltByReference.class);
+        // every rule tried, each that does not bite named
+        java.util.List<String> blind = new java.util.ArrayList<>();
+        planted.forEach((rule, violator) -> {
+            try {
+                bites(rule, violator);
+            } catch (AssertionError e) {
+                blind.add(violator.getName());
+            }
+        });
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), blind,
+                "a constructor rule blind to a ::new reference");
     }
 
     /**
@@ -3342,10 +3385,7 @@ final class ArchitectureTest {
     static final com.tngtech.archunit.lang.ArchRule ONLY_THE_PLANNERS_MAKERS_MAKE_A_LOAD_STEP = noClasses()
             .that().resideInAPackage("com.legend..")
             .and().haveNameNotMatching(makers(LOAD_STEP_MAKERS))
-            .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
-                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
-                                    .nameMatching("com\\.legend\\.executionplan\\.ExecutionPlan\\$LoadStep\\$.*"))))
+            .should().accessTargetWhere(constructs("com\\.legend\\.executionplan\\.ExecutionPlan\\$LoadStep\\$.*"))
             .as("P2: a load's steps are made by the planner's makers (LoadSteps, EffectPlanner); the JSON reader rebuilds");
 
     /** Exec makes no load and no load step: it runs the plan's (the wall's data half; P2, 2026-11-09). */
@@ -3357,10 +3397,7 @@ final class ArchitectureTest {
     /** P2 (the rule of {@link #execMakesNoLoad}). */
     static final com.tngtech.archunit.lang.ArchRule EXEC_MAKES_NO_LOAD = noClasses()
             .that().resideInAnyPackage("com.legend.exec..", "com.legend.testexec..")
-            .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
-                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
-                                    .nameMatching("com\\.legend\\.executionplan\\.ExecutionPlan\\$(Load|LoadStep\\$.*)"))))
+            .should().accessTargetWhere(constructs("com\\.legend\\.executionplan\\.ExecutionPlan\\$(Load|LoadStep\\$.*)"))
             .as("P2: exec runs a plan's loads and makes none");
 
     /** {@link #execMakesNoLoad} fails on a class of exec's package that makes a load's step ({@code exec.PlantedLoad},
@@ -3514,16 +3551,18 @@ final class ArchitectureTest {
      */
     @Test
     void callsAreBuiltOnlyByTheBuilder() {
-        noClasses()
+        CALLS_BUILT_BY_THE_BUILDER.check(CORE_PROD_CLASSES);
+    }
+
+    /** L7 step 3 (the rule of {@link #callsAreBuiltOnlyByTheBuilder}): a call's construction by a call or a reference
+     *  ({@link #constructs}). */
+    static final com.tngtech.archunit.lang.ArchRule CALLS_BUILT_BY_THE_BUILDER = noClasses()
             .that().resideInAPackage("com.legend..")
             // the parser and the protocol readers build calls before resolution; the test runners spell a test
             // call before resolveQuery; the resolver records; the builder is the one place after the resolver
             .and().resideOutsideOfPackages("com.legend.parser..", "com.legend.protocol..", "com.legend.test..")
             .and().haveNameNotMatching("com\\.legend\\.compiler\\.(spec\\.Calls|NameResolver)(\\$.*)?")
-            .should().callConstructorWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
-                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
-                                    .name("com.legend.protocol.spec.AppliedFunction"))))
+            .should().accessTargetWhere(constructs("com\\.legend\\.protocol\\.spec\\.AppliedFunction"))
             .orShould().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.properties.HasName.Predicates
@@ -3534,9 +3573,7 @@ final class ArchitectureTest {
             .as("L7 step 3: a call built after the resolver is built by com.legend.compiler.spec.Calls, with its"
                     + " record; no other class constructs an AppliedFunction or calls its parser-side factories"
                     + " (infixRun, list, tableReference), the parser, the protocol readers and the test runners"
-                    + " excepted (they build before resolution) and the resolver excepted (it records)")
-            .check(CORE_PROD_CLASSES);
-    }
+                    + " excepted (they build before resolution) and the resolver excepted (it records)");
 
     @Test
     void protocolNodesAreConstructedOnlyByTheParserAndTheNormalizer() {
@@ -3552,10 +3589,12 @@ final class ArchitectureTest {
                 continue;
             }
             int n = 0;
-            for (com.tngtech.archunit.core.domain.JavaConstructorCall call
-                    : c.getConstructorCallsFromSelf()) {
-                String target = call.getTargetOwner().getPackageName();
-                if (target.equals("com.legend.protocol") || target.startsWith("com.legend.protocol.")) {
+            // a construction by a call or a reference (constructs; 2026-11-13, the orchestrator's completion B: no
+            // protocol node is named by ::new outside these packages, so the pins did not move)
+            for (com.tngtech.archunit.core.domain.JavaAccess<?> access : c.getAccessesFromSelf()) {
+                String target = access.getTargetOwner().getPackageName();
+                if (constructs(".*").test(access)
+                        && (target.equals("com.legend.protocol") || target.startsWith("com.legend.protocol."))) {
                     n++;
                 }
             }

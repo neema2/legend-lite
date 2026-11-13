@@ -19,4 +19,15 @@ public final class PlantedLoad {
     public static ExecutionPlan.LoadStep made() {
         return new ExecutionPlan.LoadStep.Statement("INSERT INTO T VALUES ('exec wrote this')");
     }
+
+    /** A load's step named by its constructor's reference, never called (2026-11-13, the orchestrator's completion B:
+     *  {@code callConstructorWhere} saw calls alone). */
+    public static final class ByReference {
+        private ByReference() {
+        }
+
+        public static java.util.function.Function<String, ExecutionPlan.LoadStep> maker() {
+            return ExecutionPlan.LoadStep.Statement::new;
+        }
+    }
 }
