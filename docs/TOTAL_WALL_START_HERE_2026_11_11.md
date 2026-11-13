@@ -945,6 +945,57 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 
 E1's items 1, 2 and 4 come after D1.
 
+### 6.1 After A/B/C merges: the next PR's queue (the user, 2026-11-13: "make sure we don't lose other follow-ups like single datacube API to all backends")
+
+In order. Nothing here is in the A/B/C PR.
+
+1. **Separation made foolproof** (the final audits of 2026-11-12/13; ruled as the next PR's first work). The one-time
+   probe found 0 product violations; these pieces make it permanent:
+   - **A closed planner surface.** One test enumerates every planner door (Java, wasm, native, Python, the server's
+     routes) with each request field's declared kind. A field that can carry SQL fails the build, the playground alone
+     excepted.
+   - **A standing global witness in every test.**
+     - Every harness (Java, TypeScript, Python) records each planner call and each send.
+     - It fails a test on a planner call inside an open run, or a send not read from a plan.
+     - C4's probe of 2026-11-13 is the prototype.
+     - DataCube's grid road gets a run marker first: today it has none, so planner-during-run is unmeasured there.
+   - **Injection fuzzing.** Quotes, backslashes and malformed values in every route's and planner door's fields, each
+     refused by name or escaped.
+2. **DataCube's engine contract: one intent API, every engine behind it** (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`,
+   branch `claude/datacube-engine-contract`, PROPOSED, for the user's ratification).
+   - It is consolidated with the bridge on intent (branch `claude/total-wall-bridge` @ 77c084e8a: `DataHost`) as §5.5
+     records, and runs in parallel with D and E.
+   - DataCube is a pure client of intent: the tab, Python and the Java server are each a planner, a runner and a
+     database behind one contract.
+3. **The D/E decision batch for the user**, before D or E builds more:
+   - **The end-to-end compatibility document:**
+     - the frame, `docs/COMPATIBILITY_END_TO_END_2026_11_12.md` on `claude/total-wall-docs`;
+     - D's §5 on `claude/total-wall-d`;
+     - E's §6 on `claude/total-wall-e`;
+     - its PROPOSED principle: adopt upstream's computation wherever sane; keep the product's simple print forms.
+   - **Mixed lists keep kinds as upstream** (E-R1 to E-R3, reversing the hybrid's promotions). Kind rank, then value,
+     for sort, equality and distinct. E-R4 is already ruled.
+   - **Engine SQL text:** (a) keep the EngineStyle printers at the edge, or (b) a non-goal, about 4,850 lines deleted
+     and ~1,150 corpus SQL-text asserts given up (D recommends b).
+   - **D-1's browser shape:** the four lite-owned exports, and a lazily loaded TypeScript compatibility module.
+   - **`indexOf` and `average([])`:** legend-pure's answer in the product, the engine's kept at the edge.
+   - **E-5c**, the fused judge, about 8 statements a test down to 2.
+   - **The engine-interop defaults** (§5 of `ENGINE_PLAN_INTEROP_2026_11_12.md`).
+4. **The plan format's version, renumbered after main:** D merges main and takes the next number, then E takes the one
+   after.
+5. **D3, engine plans in and out.** This also restores Snap for grids an engine plans: ruled 2026-11-13, the demo's
+   legend-engine and remote-lite planner modes snap again once an engine plan imports as a lite plan.
+6. **The clients switch** to `/api/lite/v1/query` (D-1).
+7. **E's held work**, each after its ruling:
+   - E-2, the mixed lists on D's hook;
+   - E-5b and E-5d (the judge pins);
+   - FLOAT_PRINT staging, if anything is left after the print-form ruling;
+   - E-3's forcing `WHERE`, after its lane probe.
+8. **CI watch:** macOS's `sdlc` job was cancelled with no log at 49 minutes on 549c018d7 (runner loss suspected). If it
+   recurs, it is investigated, never rerun blindly.
+
+§10's later list stands as it is.
+
 ## 7. How to work (the runbook)
 
 ### 7.1 Roles
