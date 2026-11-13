@@ -817,6 +817,63 @@ So BOTH does every side's work twice: once for the host and once inside the data
 
 Each one is measured by this section's commands before and after.
 
+### 5.10 A decimal's scale in every output (a1): measured, and a design for the user's register row (2026-11-13)
+
+**The defect.** One query gives three answers. The query is `{p: Decimal[1]| T->extend(~[p: r|$p, x: r|$r.ID * $p])}`
+with p = 2.50. Lite answers:
+
+| output | H2 | DuckDB |
+|---|---|---|
+| JSON | 2.5 / 2.5, 5, 7.5 | 2.50 / 2.50, 5.00, 7.50 |
+| CSV | 2.5 / 2.5, 5, 7.5 | 2.50 / 2.50, 5.00, 7.50 |
+| Arrow | decimal128(38,18): 2.500000000000000000 / ... | the same as H2 |
+
+Arrow's scale is the dialect's slot, `DECIMAL(38,18)` (ArrowWriter.java:143-146). The text outputs carry the
+driver's cell as it came back.
+
+**Upstream (legend-engine 4.145.0, asked through tools/engine-runner, read with pyarrow, 2026-11-13).**
+- The parameter form is REFUSED at planning on both databases: `pureToSQLQuery.pure:6720`, "Match failure:
+  VariableExpressionObject instanceof VariableExpression".
+- The same query with a literal (`2.50D`) or a `let` answers the same on H2 and DuckDB, in DEFAULT (JSON), CSV,
+  CSV_TRANSFORMED, PURE_TDSOBJECT and ARROW_IPC: p = 2.50 and x = 2.5000000000000000. Its SQL is `2.50 as p` and
+  `ID * cast(2.50 as DECIMAL(32,16))`.
+- Arrow is p decimal128(3,2) and x decimal128(38,16): the JDBC result metadata's precision and scale. **Upstream's rule:
+  every output carries the scale the DATABASE gave the column.**
+
+**What the metadata says for lite's own statements (measured, the in-process databases, 2026-11-13).**
+- DuckDB: `? AS p` reports DECIMAL(3,2); `ID * ?` reports DECIMAL(13,2). The cells match.
+- H2: lite binds a bare Decimal as `CAST(? AS DECFLOAT)`. The metadata reports DECFLOAT, precision 100000, **scale 0**,
+  so it states no scale. The cells come back normalized (2.5, 5).
+- SQLite: no decimal type. Lite's carrier is `printf('%.18f', ...)` text, so the 18 places are lite's own, and the
+  metadata states nothing.
+- Postgres, Snowflake, Databricks, BigQuery, Trino, MariaDB: **not measured**. Each lane measures before the design
+  lands. Postgres's NUMERIC with no typmod is the case to watch.
+
+**The design to propose (the orchestrator's direction).**
+1. Every output, and decode where a driver drops zeros (BigQuery's flag), takes a decimal column's scale from the
+   database's result metadata, as upstream does. Never from lite's slot, never from the Pure type: the Pure type
+   cannot tell a stated scale from an inferred one, as the IQ parity lane showed (`CAST(int AS NUMERIC)` typed
+   `Decimal(38,18)`).
+2. Exec reads `ResultSetMetaData` precision and scale after the statement runs. It hands the writer each column with
+   its answered precision and scale, a run-time fact, so `sink.columns` moves after `executeQuery`.
+3. JSON and CSV write each cell at that scale: padded, never rounded, and a cell with more nonzero places is refused by
+   name. Arrow writes decimal128 at that precision and scale. BigQuery's decode pads to it, and the flag is deleted.
+4. **Where the metadata states no scale, the design must choose; no fallback.** These cases are H2's DECFLOAT and
+   SQLite's text, and possibly Postgres's unconstrained NUMERIC. Options:
+   (i) the dialect plans a scaled type where Pure knows the value's scale. For a parameter it does not: its value
+       arrives at run.
+   (ii) the column is carried as text (DECIMAL_TEXT) in Arrow, and its cells as the database gave them in JSON and CSV.
+   (iii) refused by name in Arrow alone.
+   Upstream has no answer for the parameter form, so this is lite's own choice: a register row either way.
+5. Cost: about 2-3 days, plus a measurement pass on each lane. The answers that move:
+   - Arrow everywhere: no longer 38,18.
+   - H2's text only if (i) is chosen.
+   - DuckDB's text: none.
+
+Nothing here is built; the register row goes to the user first. BigQuery's flag stays as it is until then (the
+orchestrator's (a2-ii), 2026-11-13: the (a2) build, padding to the Pure type's scale, changed the IQ Postgres lane's
+answer and was not landed).
+
 ## 6. The guard: a product-SQL size baseline, shrink-only (G3)
 
 > **BUILT (2026-11-12, ruled by the orchestrator: its own target in `//gates:local`, all 11 dialects).**
