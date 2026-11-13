@@ -47,7 +47,7 @@ import pyarrow as pa
 
 from . import _host, compiler
 from ._planned import Database, PlannedSql, Result, connect, send
-from ._runframe import exempt, runs
+from ._runframe import runs
 from .projects import LoadRefused, run_host_load
 from ._types import UnknownType, is_integer
 
@@ -392,27 +392,36 @@ class Reading:
         self.models = models
         # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
         self.held_values = held
+        # the first failure of a query of this read, in its words (``execute``): the read's end, where it aborted it
+        self.ended_by: str | None = None
 
     def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
-        overflow) aborts DuckDB's transaction: begun again then, and pinned, so the read's next query runs -- seeing the
-        database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was.
-        A failure's words name no value the engine holds (an expired presigned link's read repeats its URL: M2)."""
+        overflow) aborts DuckDB's transaction, and the read ENDS there: the call shows that failure, and its later
+        queries do not run -- DuckDB refuses each, said in words naming the failure that ended the read -- and the next
+        call opens a fresh read (the user's ruling of 2026-11-13, (1b)). Until then the read began and pinned another
+        transaction (F36), which planned the pin's statement inside the read's run (G4: a run plans nothing) and moved
+        the read, unsaid, to the database as it was then (G7: no silent snapshot switch). One refused before it ran (a
+        table not there) leaves the read as it was: DuckDB's transaction stands. A failure's words name no value the
+        engine holds (an expired presigned link's read repeats its URL: M2)."""
         failure: BaseException | None = None
         try:
             # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
             return send(self.cursor, sql, params)
+        except duckdb.TransactionException as e:
+            if self.ended_by is None:
+                failure = redacted(e, self.held_values)
+                if failure is None:
+                    raise
+            else:
+                failure = RuntimeError(f'this read ended at its first failure as a query ran ({self.ended_by}): DuckDB'
+                                       " aborts the read's transaction there, so the call's later queries do not run;"
+                                       ' the next call reads the database afresh')
         except duckdb.Error as e:
-            # a known crossing, named until fixed (_runframe.EXEMPTIONS): the pin's statement is planned here
-            with exempt("a read's re-pin after its statement failed"):
-                try:
-                    _pin(self.cursor)
-                except duckdb.TransactionException:
-                    with contextlib.suppress(duckdb.Error):
-                        self.cursor.rollback()
-                    self.cursor.begin()
-                    _pin(self.cursor)
             failure = redacted(e, self.held_values)
+            # the read's first failure, in its words: a later query refused because it aborted the read names it
+            if self.ended_by is None:
+                self.ended_by = (str(failure) if failure is not None else str(e)).splitlines()[0]
             if failure is None:
                 raise
         raise failure

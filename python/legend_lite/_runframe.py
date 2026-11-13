@@ -44,13 +44,10 @@ def runs(what: str) -> Callable[[F], F]:
 
 # THE KNOWN CROSSINGS, each a planner call a run is known to make, named until it is fixed (shrink-only; each entry
 # dated and reported): the witness steps out of the run for it alone (``exempt``), and refuses any exemption not listed.
-EXEMPTIONS = frozenset({
-    # found by the witness on 2026-11-13 (test_engine.PlanAndRunRoutes.test_sql_the_database_refuses_is_answered_with_
-    # its_plan): a read whose statement fails re-pins its cursor, and the pin's statement is asked of the planner then
-    # (frames.Reading.execute -> _pin -> _host.count -> compiler.host_operations); the fix -- the pin planned when the
-    # read begins -- awaits the orchestrator's word
-    "a read's re-pin after its statement failed",
-})
+# Empty since 2026-11-13: its one entry, "a read's re-pin after its statement failed" (found by the witness that day:
+# frames.Reading.execute re-pinned a read whose statement failed, the pin's statement asked of the planner inside the
+# read's run), went with the user's ruling (1b): a read ends at its first failure as a query runs, re-pinned never.
+EXEMPTIONS: frozenset[str] = frozenset()
 
 
 @contextlib.contextmanager

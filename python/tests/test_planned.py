@@ -431,18 +431,17 @@ class RunFrameTest(unittest.TestCase):
             other.join()
         self.assertEqual(seen, [(None, True)])
 
-    def test_the_known_crossings_are_named_and_no_other_is_exempt(self):
-        # shrink-only: each a crossing the witness found, reported, and named until it is fixed
+    def test_no_crossing_is_known_and_none_is_exempt(self):
+        # shrink-only, and empty since 2026-11-13: the read's re-pin, its one entry, went with the user's ruling (1b)
         from legend_lite._runframe import EXEMPTIONS, exempt
-        self.assertEqual(EXEMPTIONS, frozenset({"a read's re-pin after its statement failed"}))
+        self.assertEqual(EXEMPTIONS, frozenset())
         with in_run("a test's run"):
-            with exempt("a read's re-pin after its statement failed"):
-                self.assertIsNone(current_run())
+            for crossing in ("a read's re-pin after its statement failed", 'a crossing of my own'):
+                with self.assertRaisesRegex(ValueError, 'no known crossing is named'):
+                    with exempt(crossing):
+                        pass
+            with self.assertRaisesRegex(RuntimeError, 'inside a run'):
                 planning('plan')
-            self.assertEqual(current_run(), "a test's run")
-            with self.assertRaisesRegex(ValueError, 'no known crossing is named'):
-                with exempt('a crossing of my own'):
-                    pass
 
     def test_each_runner_sends_inside_its_run(self):
         import os

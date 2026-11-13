@@ -1079,11 +1079,24 @@ class OneRead(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "is not a directory: DataCube's pages are not in this install"):
             ll.show(TRADES, 'not_shown', browser=False, inline=False)
 
-    def test_a_query_that_fails_as_it_runs_leaves_the_reads_next_query_able_to_run(self):
-        # F36: a value that does not convert aborts DuckDB's transaction; the read begins another, so its next query runs
+    def test_a_query_that_fails_as_it_runs_ends_the_read_and_the_next_call_reads_afresh(self):
+        # the user's ruling of 2026-11-13, (1b): a value that does not convert aborts DuckDB's transaction, and the read
+        # ends there -- the call's later queries do not run, said in words naming that failure -- with no statement
+        # planned inside the read's run (G4) and no silent move to a newer snapshot (G7); until then (F36) the read began
+        # and pinned another transaction, and its next query ran
         with self.frames.reading():
             with self.assertRaisesRegex(Exception, 'Conversion'):
                 self.rows("SELECT CAST('x' AS INTEGER) AS n")
+            with self.assertRaisesRegex(Exception, r"this read ended at its first failure as a query ran \(Conversion"):
+                self.rows('SELECT count(*) AS n FROM trades')
+        with self.frames.reading():
+            self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 6}])
+
+    def test_a_query_refused_before_it_runs_leaves_the_read_as_it_was(self):
+        # a table not there is refused before the statement runs: DuckDB's transaction stands, and the read goes on
+        with self.frames.reading():
+            with self.assertRaisesRegex(Exception, 'Catalog'):
+                self.rows('SELECT * FROM no_such_table')
             self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 6}])
 
     def test_what_a_call_asks_of_the_engine_is_answered_on_datacubes_thread_over_its_read(self):
