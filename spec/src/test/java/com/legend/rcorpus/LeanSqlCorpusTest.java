@@ -153,9 +153,113 @@ class LeanSqlCorpusTest {
                 + String.join("\n  ", drift));
     }
 
+    /** E-5c's step 1 (O5, ruled 2026-11-13; a measurement, nothing pinned): every corpus body planned under the
+     *  DATABASE judge and under BOTH. Under BOTH, the host's base sides by class -- a no-FROM single value (a fused
+     *  column's candidate), rows over a FROM, keyed rows, a planning-time constant. Under DATABASE, the verdicts with no
+     *  fused row (a keyed member, the split rung, a verdict decided at planning) and with one. And the bodies BOTH
+     *  plans that DATABASE refuses (under E-5c each becomes a whole-body refusal, the map's risk 5). */
+    static void e5c() throws IOException {
+        MinimalCorpus corpus = new MinimalCorpus();
+        long[] host = new long[4];
+        long[] database = new long[2];
+        long bothOnly = 0;
+        long bodies = 0;
+        List<String> bothOnlyNames = new ArrayList<>();
+        for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
+            bodies++;
+            TestPlan both = plan(corpus, t, com.legend.testplan.PlanningOptions.JudgeMode.BOTH);
+            TestPlan db = plan(corpus, t, com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+            if (both != null) {
+                walkHost(both.steps(), host);
+            }
+            if (db != null) {
+                walkDatabase(db.steps(), database);
+            }
+            if (both != null && db == null) {
+                bothOnly++;
+                if (bothOnlyNames.size() < 15) {
+                    bothOnlyNames.add(t.fqn());
+                }
+            }
+        }
+        System.out.println("e5c " + MinimalCorpus.BACKEND.type().name() + ": bodies " + bodies);
+        System.out.println("e5c host sides under BOTH: single value, no FROM " + host[0] + "; rows over a FROM "
+                + host[1] + "; keyed rows " + host[2] + "; constants " + host[3]);
+        System.out.println("e5c verdicts under DATABASE: in a fused group " + database[0] + "; no fused row "
+                + database[1]);
+        System.out.println("e5c bodies BOTH plans and DATABASE refuses: " + bothOnly);
+        bothOnlyNames.forEach(n -> System.out.println("e5c   " + n));
+    }
+
+    private static @com.legend.base.Nullable TestPlan plan(MinimalCorpus corpus, com.legend.test.PureTests.TestCase t,
+            com.legend.testplan.PlanningOptions.JudgeMode mode) {
+        try {
+            var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
+            return com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
+                    MinimalCorpus.RUNTIME, com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
+        } catch (RuntimeException | StackOverflowError e) {
+            return null;
+        }
+    }
+
+    private static void walkHost(List<TestPlan.TestStep> steps, long[] host) {
+        for (TestPlan.TestStep step : steps) {
+            switch (step) {
+                case TestPlan.Verdicts v -> {
+                    for (TestPlan.Verdict verdict : v.verdicts()) {
+                        if (verdict.host() == null) {
+                            continue;
+                        }
+                        for (TestPlan.Side side : verdict.base()) {
+                            switch (side) {
+                                case TestPlan.Side.Rows r -> host[noFrom(r.result().sql().statement()) ? 0 : 1]++;
+                                case TestPlan.Side.KeyedRows k -> host[2]++;
+                                case TestPlan.Side.Constant c -> host[3]++;
+                            }
+                        }
+                    }
+                }
+                case TestPlan.Branch b -> {
+                    walkHost(b.then(), host);
+                    walkHost(b.otherwise(), host);
+                }
+                case TestPlan.Run r -> {
+                }
+                case TestPlan.FrameRun f -> {
+                }
+            }
+        }
+    }
+
+    private static void walkDatabase(List<TestPlan.TestStep> steps, long[] database) {
+        for (TestPlan.TestStep step : steps) {
+            switch (step) {
+                case TestPlan.Verdicts v -> database[v.fused() != null ? 0 : 1] += v.verdicts().size();
+                case TestPlan.Branch b -> {
+                    walkDatabase(b.then(), database);
+                    walkDatabase(b.otherwise(), database);
+                }
+                case TestPlan.Run r -> {
+                }
+                case TestPlan.FrameRun f -> {
+                }
+            }
+        }
+    }
+
+    /** A statement with no FROM at its top level (a measurement's reading of the text: a select of one value). */
+    private static boolean noFrom(String sql) {
+        String upper = sql.toUpperCase(java.util.Locale.ROOT);
+        return !upper.contains(" FROM ") && !upper.contains("\nFROM ") && !upper.startsWith("WITH");
+    }
+
     /** {@code bazel run //spec:update_lean_sql_corpus_<lane>}: this backend's rows measured again and written over
-     *  the source tree's pins, the other backends' rows kept. */
+     *  the source tree's pins, the other backends' rows kept ({@code -- e5c}: E-5c's measurement printed instead). */
     public static void main(String[] args) throws IOException {
+        if (args.length == 1 && args[0].equals("e5c")) {
+            e5c();
+            return;
+        }
         String workspace = System.getenv("BUILD_WORKSPACE_DIRECTORY");
         if (workspace == null) {
             throw new IllegalStateException("run it with bazel run //spec:update_lean_sql_corpus_<lane>");
