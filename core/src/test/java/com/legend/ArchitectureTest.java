@@ -3259,6 +3259,10 @@ final class ArchitectureTest {
             "com.legend.setup.Ddl",
             // a milestoning date: a date literal the lexer parsed (TestDataGenerationNatives.dateField)
             "com.legend.testdatagen.TestDataGenerator",
+            // a row identifier's value checked against its column type's ISO shape first (iso: digits, separators and
+            // an offset, never a quote), so a TIMESTAMP_NS key keeps its nanoseconds (2026-11-13, the orchestrator's
+            // item 2: it was cast to TIMESTAMP, truncated to the microsecond)
+            "com.legend.testdatagen.TestDataPlanner",
             // a plan's own literal, read back from the plan's JSON
             "com.legend.executionplan.MirJson",
             // a literal's own text, re-spelled to the millisecond
