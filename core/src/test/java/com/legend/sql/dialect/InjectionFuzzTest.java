@@ -85,6 +85,51 @@ class InjectionFuzzTest {
     /** The defects found, by database and place: shrink-only, each named until fixed. */
     static final Map<String, Set<String>> KNOWN = Map.of();
 
+    /** The places where a payload is refused, but not by name (by database): shrink-only, each named until fixed.
+     *  2026-11-13 (the C4 audit's M3, measured): a date format's text whose payload closes its quote is refused by
+     *  {@code DateFormats} with a bare IllegalStateException ("unsupported date-format token", "unterminated quote"),
+     *  which the server answers 500 as a bug; reported to the orchestrator for the user's word, not fixed here. */
+    static final Map<String, Set<String>> UNNAMED_KNOWN = unnamedKnown();
+
+    private static Map<String, Set<String>> unnamedKnown() {
+        Map<String, Set<String>> out = new TreeMap<>();
+        for (DatabaseType type : com.legend.database.Databases.relational()) {
+            if (!com.legend.database.Databases.dialect(type).getClass().getSimpleName().equals("MongoDb")) {
+                out.put(type.name(), Set.of("a date format's text"));
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Whether {@code e} is LITE'S NAMED REFUSAL (the C4 audit's M3, 2026-11-13: until then every fuzz counted any
+     * RuntimeException "refused", so a NullPointerException a payload provoked passed as a refusal): a refusal of the
+     * text in lite's own vocabulary -- what the server answers with an errorType ({@code PureV1Api.refusal}: a
+     * LegendCompileException, a NotImplementedException, a DialectCapability) -- or a malformed request said as one, an
+     * IllegalArgumentException of exactly that class thrown by lite's own code (a class of {@code com.legend} or the
+     * boundary's {@code planner}; the server answers it 500 as a malformed request, never logged as a bug). Anything
+     * else -- an IllegalStateException, an index out of bounds, a JDK's own IllegalArgumentException (a
+     * NumberFormatException, a {@code List.of} duplicate) -- is no refusal, and the fuzz fails naming its payload, its
+     * place and its database.
+     */
+    static boolean namedRefusal(RuntimeException e) {
+        if (!com.legend.server.PureV1Api.refusal(e).kind().equals("500")) {
+            return true;
+        }
+        if (e.getClass() != IllegalArgumentException.class || e.getStackTrace().length == 0) {
+            return false;
+        }
+        String thrower = e.getStackTrace()[0].getClassName();
+        return thrower.startsWith("com.legend.") || thrower.startsWith("planner.");
+    }
+
+    /** {@code e} as a finding's words: its class and the first line of its message. */
+    static String unnamed(RuntimeException e) {
+        String m = String.valueOf(e.getMessage());
+        return "refused, but not by name: " + e.getClass().getName() + ": " + m.lines().findFirst().orElse("")
+                + (e.getStackTrace().length == 0 ? "" : " (at " + e.getStackTrace()[0] + ")");
+    }
+
     static String model(DatabaseType type) {
         return """
                 ###Relational
@@ -295,11 +340,33 @@ class InjectionFuzzTest {
         assertTrue(finding("SELECT 'it''s ' ZQXMARK", databricks).startsWith("the marker in the statement's code"));
     }
 
+    /** The refusal rule counts lite's own refusals alone (the C4 audit's M3, 2026-11-13). */
+    @Test
+    void aRefusalCountsOnlyWhenLiteNamesIt() {
+        assertTrue(namedRefusal(new com.legend.error.NotImplementedException("not designed")));
+        assertTrue(namedRefusal(new com.legend.sql.DialectCapability("not on this database")));
+        assertTrue(namedRefusal(assertThrowsFrom(() -> new com.legend.executionplan.DataRef(
+                com.legend.executionplan.DataRef.Namespace.RESOURCE, "a.csv", "not a digest", 0L,
+                new com.legend.executionplan.DataRef.Parquet()))), "lite's own IllegalArgumentException");
+        assertTrue(!namedRefusal(new NullPointerException("a payload's crash")));
+        assertTrue(!namedRefusal(new IllegalStateException("a bare state")));
+        assertTrue(!namedRefusal(new IndexOutOfBoundsException("a bare index")));
+        assertTrue(!namedRefusal(assertThrowsFrom(() -> Integer.parseInt("x"))), "a JDK's NumberFormatException");
+        assertTrue(!namedRefusal(assertThrowsFrom(() -> Set.of(1, 1))), "a JDK's own IllegalArgumentException");
+    }
+
+    private static RuntimeException assertThrowsFrom(java.util.function.Supplier<?> call) {
+        return org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, call::get);
+    }
+
     // ---- the fuzz
 
     @Test
     void noPersonsTextChangesAStatementsStructureOnAnyDatabase() {
         Map<String, Set<String>> found = new TreeMap<>();
+        Map<String, Set<String>> unnamed = new TreeMap<>();
+        Map<String, Integer> byDatabase = new TreeMap<>();
+        Map<String, Integer> byPlace = new TreeMap<>();
         List<String> examples = new ArrayList<>();
         int planned = 0;
         int refused = 0;
@@ -316,11 +383,18 @@ class InjectionFuzzTest {
                     String json;
                     try {
                         json = com.legend.executionplan.PlanJson.write(Compiler.query(ctx, query).executionPlan("s::RT"));
-                    } catch (RuntimeException refusedByName) {
+                    } catch (RuntimeException refusal) {
+                        if (!namedRefusal(refusal)
+                                && unnamed.computeIfAbsent(type.name(), k -> new TreeSet<>()).add(place.getKey())) {
+                            examples.add(type.name() + ", " + place.getKey() + ", " + payload.replace("\n", "\\n")
+                                    + ": " + unnamed(refusal));
+                        }
                         refused++;
                         continue;
                     }
                     planned++;
+                    byDatabase.merge(type.name(), 1, Integer::sum);
+                    byPlace.merge(place.getKey(), 1, Integer::sum);
                     for (String statement : statements(json)) {
                         String wrong = finding(statement, r, payload.equals(MARK));
                         if (wrong != null) {
@@ -334,7 +408,41 @@ class InjectionFuzzTest {
             }
         }
         assertTrue(planned > 0, "nothing planned");
-        assertEquals(KNOWN, found, "planned " + planned + ", refused " + refused + "; one example each:\n"
-                + String.join("\n", examples));
+        String said = "planned " + planned + ", refused " + refused + "; one example each:\n" + String.join("\n", examples);
+        assertEquals(KNOWN, found, said);
+        assertEquals(UNNAMED_KNOWN, unnamed, said);
+        // the coverage, pinned (the C4 audit's M3, 2026-11-13): the payloads each database and each place PLANS, so a
+        // change that refuses a place's payloads wholesale -- and so finds nothing there -- fails here, never passes
+        assertEquals(PLANNED_BY_DATABASE, byDatabase, "the payloads planned, by database");
+        assertEquals(PLANNED_BY_PLACE, byPlace, "the payloads planned, by place");
     }
+
+    /** The payloads each database plans, of every place's (measured 2026-11-13, the C4 audit's M3; a move is dated and
+     *  names its task). */
+    static final Map<String, Integer> PLANNED_BY_DATABASE = java.util.Map.ofEntries(
+            Map.entry("BigQuery", 259),
+            Map.entry("ClickHouse", 259),
+            Map.entry("Databricks", 259),
+            Map.entry("DuckDB", 259),
+            Map.entry("H2", 259),
+            Map.entry("MariaDB", 259),
+            Map.entry("MySQL", 259),
+            Map.entry("Postgres", 259),
+            Map.entry("SQLite", 259),
+            Map.entry("Snowflake", 259),
+            Map.entry("Trino", 259));
+
+    /** The payloads each place plans, on every database (measured 2026-11-13, the C4 audit's M3). */
+    static final Map<String, Integer> PLANNED_BY_PLACE = java.util.Map.ofEntries(
+            Map.entry("a LIKE pattern (contains)", 264),
+            Map.entry("a LIKE pattern (endsWith)", 264),
+            Map.entry("a LIKE pattern (startsWith)", 264),
+            Map.entry("a column's name (aggregate)", 264),
+            Map.entry("a column's name (extend)", 264),
+            Map.entry("a column's name (rename)", 264),
+            Map.entry("a date format's text", 209),
+            Map.entry("a filter's value", 264),
+            Map.entry("a format's template", 264),
+            Map.entry("a separator", 264),
+            Map.entry("a string literal", 264));
 }

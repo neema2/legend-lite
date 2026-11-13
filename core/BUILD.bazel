@@ -741,17 +741,24 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "guardrail",
     "stress",
     "arrow",       # the Arrow writer's round-trip gate (track A, 2026-10-29): :arrow_writer_test, with its pyarrow judge
-    "probe",       # a live cloud's measurement, asked by hand (2026-11-13): :identifier_escaping_cloud_probe
 ]
+
+# THE MANUAL PROBES, each excluded from its package's suites BY NAME (the C4 audit's M3, 2026-11-13: until then by a
+# "probe" tag, which any future test could take and leave every suite silently): a live cloud's measurement asked by
+# hand, each its own manual target (:identifier_escaping_cloud_probe). A class not listed here runs in its package.
+_CORE_MANUAL_PROBES = {
+    "sql": [".*IdentifierEscapingCloudProbeTest"],
+}
 
 [junit_test(
     name = "core_tests_" + p,
     memory_mb = _CORE_TEST_MEMORY_MB,
     size = "large" if p in _CORE_TEST_LARGE else "medium",
+    # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared; a manual probe
+    # in its own target
     select = ["--select-package=com.legend." + p] + (
-        # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
-    ),
+    ) + ["--exclude-classname=" + c for c in _CORE_MANUAL_PROBES.get(p, [])],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     runtime_deps = [
         ":core_tests_lib",
@@ -862,7 +869,7 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
-    ),
+    ) + ["--exclude-classname=" + c for c in _CORE_MANUAL_PROBES.get(p, [])],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     tags = ["ci-linux-only"],
     runtime_deps = [

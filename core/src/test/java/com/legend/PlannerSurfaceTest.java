@@ -423,6 +423,25 @@ class PlannerSurfaceTest {
      *  parameters' kinds. */
     static final Map<String, List<Kind>> ROOT_DOORS = new TreeMap<>(Map.ofEntries(
             // Compiler: the planner's steps A..J, each a model's text or a query in, a model or a query out
+            // Compiler's public nested types (2026-11-13, the C4 audit's M3: read by no row until then), each a record a
+            // door answers or takes: their constructors and accessors
+            Map.entry("Compiler.BuiltModule#new(ModelContext, Map<String, String>)", List.of(MODEL, MESSAGE)),
+            Map.entry("Compiler.BuiltModule#context()", List.of()),
+            Map.entry("Compiler.BuiltModule#walls()", List.of()),
+            Map.entry("Compiler.LoweredQuery#new(SqlQuery, TypedSpec, ModelContext)", List.of(PLAN_DATA, LAMBDA, MODEL)),
+            Map.entry("Compiler.LoweredQuery#plan()", List.of()),
+            Map.entry("Compiler.LoweredQuery#root()", List.of()),
+            Map.entry("Compiler.LoweredQuery#ctx()", List.of()),
+            Map.entry("Compiler.ModelSource#new(String, String)", List.of(NAME, MODEL_TEXT)),
+            Map.entry("Compiler.ModelSource#name()", List.of()),
+            Map.entry("Compiler.ModelSource#text()", List.of()),
+            Map.entry("Compiler.ParsedModule#new(ParsedModel, List<String>, Map<String, String>)",
+                    List.of(MODEL, NAME, MODEL_TEXT)),
+            Map.entry("Compiler.ParsedModule#model()", List.of()),
+            Map.entry("Compiler.ParsedModule#duplicateElements()", List.of()),
+            Map.entry("Compiler.ParsedModule#sourceTexts()", List.of()),
+            Map.entry("Compiler.Target#new(String)", List.of(NAME)),
+            Map.entry("Compiler.Target#store()", List.of()),
             Map.entry("Compiler#parseModel(String)", List.of(MODEL_TEXT)),
             Map.entry("Compiler#parseQuery(String)", List.of(LAMBDA)),
             Map.entry("Compiler#compileModel(String)", List.of(MODEL_TEXT)),
@@ -729,11 +748,36 @@ class PlannerSurfaceTest {
         return out;
     }
 
-    /** A method's signature as the root doors' registry spells it: {@code Class#name(SimpleType, ...)}. */
+    /** A method's signature as the root doors' registry spells it: {@code Class#name(SimpleType, ...)}, a nested
+     *  type's class spelled with its enclosing ones ({@code Compiler.ModelSource#text()}). */
     static String signature(Method m) {
-        return m.getDeclaringClass().getSimpleName() + "#" + m.getName() + "(" + String.join(", ",
-                Arrays.stream(m.getGenericParameterTypes()).map(t -> t.getTypeName()
-                        .replaceAll("[\\w$]+\\.", "").replace('$', '.')).toList()) + ")";
+        return signature(m.getDeclaringClass(), m.getName(), m.getGenericParameterTypes());
+    }
+
+    /** A public constructor's signature: {@code Class#new(SimpleType, ...)}. */
+    static String signature(java.lang.reflect.Constructor<?> c) {
+        return signature(c.getDeclaringClass(), "new", c.getGenericParameterTypes());
+    }
+
+    private static String signature(Class<?> owner, String name, java.lang.reflect.Type[] parameters) {
+        String type = owner.getSimpleName();
+        for (Class<?> e = owner.getEnclosingClass(); e != null; e = e.getEnclosingClass()) {
+            type = e.getSimpleName() + "." + type;
+        }
+        return type + "#" + name + "(" + String.join(", ", Arrays.stream(parameters).map(t -> t.getTypeName()
+                .replaceAll("[\\w$]+\\.", "").replace('$', '.')).toList()) + ")";
+    }
+
+    /** {@code c} and every public type nested in it, at any depth: each a door's owner (the C4 audit's M3, 2026-11-13:
+     *  a public nested type's public methods and constructors are doors too, and were read by no row). */
+    static List<Class<?>> withPublicNested(Class<?> c) {
+        List<Class<?>> out = new ArrayList<>(List.of(c));
+        for (Class<?> n : c.getDeclaredClasses()) {
+            if (Modifier.isPublic(n.getModifiers())) {
+                out.addAll(withPublicNested(n));
+            }
+        }
+        return out;
     }
 
     /** Every violation of the root doors' surface over {@code classes}: each public method listed by its signature,
@@ -741,20 +785,35 @@ class PlannerSurfaceTest {
     static List<String> rootViolations(List<Class<?>> classes) {
         List<String> out = new ArrayList<>();
         Set<String> seen = new TreeSet<>();
-        for (Class<?> c : classes) {
-            for (Method m : c.getDeclaredMethods()) {
-                if (!Modifier.isPublic(m.getModifiers()) || m.isSynthetic() || m.isBridge()) {
-                    continue;
+        for (Class<?> top : classes) {
+            for (Class<?> c : withPublicNested(top)) {
+                List<java.lang.reflect.Executable> doors = new ArrayList<>();
+                for (Method m : c.getDeclaredMethods()) {
+                    // a record's own equals, hashCode and toString are no door
+                    boolean recordOwn = c.isRecord() && (m.getName().equals("equals") && m.getParameterCount() == 1
+                            || (m.getName().equals("hashCode") || m.getName().equals("toString")) && m.getParameterCount() == 0);
+                    if (Modifier.isPublic(m.getModifiers()) && !m.isSynthetic() && !m.isBridge() && !recordOwn) {
+                        doors.add(m);
+                    }
                 }
-                String sig = signature(m);
-                seen.add(sig);
-                List<Kind> kinds = ROOT_DOORS.get(sig);
-                if (kinds == null) {
-                    out.add("a root door no row lists: " + sig);
-                } else if (kinds.size() != m.getParameterCount()) {
-                    out.add("a root door's kinds are not one per parameter: " + sig);
-                } else if (kinds.contains(AUTHORED_SQL)) {
-                    out.add("a root door that carries SQL: " + sig);
+                if (c != top) {
+                    for (var k : c.getDeclaredConstructors()) {
+                        if (Modifier.isPublic(k.getModifiers()) && !k.isSynthetic()) {
+                            doors.add(k);
+                        }
+                    }
+                }
+                for (var d : doors) {
+                    String sig = d instanceof Method m ? signature(m) : signature((java.lang.reflect.Constructor<?>) d);
+                    seen.add(sig);
+                    List<Kind> kinds = ROOT_DOORS.get(sig);
+                    if (kinds == null) {
+                        out.add("a root door no row lists: " + sig);
+                    } else if (kinds.size() != d.getParameterCount()) {
+                        out.add("a root door's kinds are not one per parameter: " + sig);
+                    } else if (kinds.contains(AUTHORED_SQL)) {
+                        out.add("a root door that carries SQL: " + sig);
+                    }
                 }
             }
         }
@@ -1124,6 +1183,96 @@ class PlannerSurfaceTest {
                 "the host operations reads the field convert, which none of its only(...) lists admits"), found);
     }
 
+    // ---- each host operation held to its own keys (the C4 audit's M3, 2026-11-13: the census compared the whole
+    // file's reads with the union of every operation's keys, so an arm reading another operation's key passed)
+
+    private static final Pattern ARM = Pattern.compile("\\n {12}case \"(\\w+)\" ->");
+    private static final Pattern OP_ENTRY = Pattern.compile("Map\\.entry\\(\\s*\"(\\w+)\"\\s*,\\s*List\\.of\\(([^)]*)\\)\\)");
+    private static final Pattern READ_ON_O = Pattern.compile("\\b\\w+\\(\\s*o\\s*,\\s*\"(\\w+)\"\\s*\\)|\\bo\\.(?:get\\w*|has)\\(\\s*\"(\\w+)\"");
+    private static final Pattern HELPER_ON_O = Pattern.compile("\\b(\\w+)\\(\\s*o\\s*\\)");
+
+    /** What each operation's arm reads of its own object, and what its KEYS entry admits, compared: each finding named.
+     *  An arm that throws (an operation refused by name) reads nothing and declares nothing. */
+    static List<String> hostOperationKeys(String source) {
+        int sw = source.indexOf("return switch (op) {");
+        int end = source.indexOf("\n            default ->", sw);
+        assertTrue(sw > 0 && end > sw, "the operations' switch is read");
+        Map<String, String> arms = new TreeMap<>();
+        Matcher arm = ARM.matcher(source.substring(sw, end));
+        List<int[]> at = new ArrayList<>();
+        List<String> ops = new ArrayList<>();
+        while (arm.find()) {
+            at.add(new int[] {arm.start(), arm.end()});
+            ops.add(arm.group(1));
+        }
+        String body = source.substring(sw, end);
+        for (int i = 0; i < ops.size(); i++) {
+            arms.put(ops.get(i), body.substring(at.get(i)[1], i + 1 < ops.size() ? at.get(i + 1)[0] : body.length()));
+        }
+        Map<String, Set<String>> declared = new TreeMap<>();
+        Matcher entry = OP_ENTRY.matcher(source);
+        while (entry.find()) {
+            Set<String> keys = new TreeSet<>();
+            Matcher key = Pattern.compile("\"([^\"]*)\"").matcher(entry.group(2));
+            while (key.find()) {
+                keys.add(key.group(1));
+            }
+            declared.put(entry.group(1), keys);
+        }
+        Map<String, List<String>> helpers = methods(source);
+        List<String> out = new ArrayList<>();
+        arms.forEach((op, text) -> {
+            if (text.strip().startsWith("throw")) {
+                if (declared.containsKey(op)) {
+                    out.add(op + ": refused by name, yet it declares keys");
+                }
+                return;
+            }
+            Set<String> read = new TreeSet<>(List.of("op"));
+            List<String> scanned = new ArrayList<>(List.of(text));
+            Matcher helper = HELPER_ON_O.matcher(text);
+            while (helper.find()) {
+                scanned.addAll(helpers.getOrDefault(helper.group(1), List.of()));
+            }
+            for (String s : scanned) {
+                Matcher r = READ_ON_O.matcher(s);
+                while (r.find()) {
+                    read.add(r.group(1) != null ? r.group(1) : r.group(2));
+                }
+            }
+            Set<String> keys = declared.get(op);
+            if (keys == null) {
+                out.add(op + ": its arm reads " + read + ", and it declares no keys");
+            } else if (!keys.equals(read)) {
+                out.add(op + ": its arm reads " + read + ", its keys are " + keys);
+            }
+        });
+        declared.keySet().stream().filter(op -> !arms.containsKey(op)).forEach(op -> out.add(op + ": keys, no arm"));
+        return out;
+    }
+
+    @Test
+    void eachHostOperationReadsExactlyItsOwnKeys() {
+        assertEquals(List.of(), hostOperationKeys(read(HOST_OPERATIONS_SOURCE)));
+    }
+
+    /** The check bites: an arm reading a key its operation does not declare, an operation whose keys are taken out, and
+     *  one whose keys admit what its arm never reads, each named. */
+    @Test
+    void aHostOperationReadPastItsOwnKeysIsNamed() {
+        String ops = read(HOST_OPERATIONS_SOURCE);
+        String drop = "case \"drop\" -> new HostOperation.Drop(kind(string(o, \"kind\")), name(object(o, \"target\")));";
+        String count = "java.util.Map.entry(\"count\", List.of(\"op\", \"from\")),";
+        String platform = "java.util.Map.entry(\"platform\", List.of(\"op\")),";
+        assertTrue(ops.contains(drop) && ops.contains(count) && ops.contains(platform), "the splices' anchors");
+        String planted = ops.replace(drop, drop.replace("kind(string(o, \"kind\"))", "kind(string(o, \"from\"))"))
+                .replace(count, "")
+                .replace(platform, "java.util.Map.entry(\"platform\", List.of(\"op\", \"planted\")),");
+        assertEquals(List.of("count: its arm reads [from, op], and it declares no keys",
+                "drop: its arm reads [from, op, target], its keys are [kind, op, target]",
+                "platform: its arm reads [op], its keys are [op, planted]"), hostOperationKeys(planted));
+    }
+
     /** The check names an export no row lists, on the tab's adapter and on the native library. */
     @Test
     void theSurfaceRefusesAPlantedExport() {
@@ -1239,6 +1388,9 @@ class PlannerSurfaceTest {
         assertTrue(found.contains("a root door no row lists: PlantedRootDoor#runSql(String)"), found.toString());
         assertTrue(found.contains("a root door no row lists: PlantedRootDoor#lower(String, boolean)"),
                 found.toString());
+        // a public nested type's constructor and method are doors too (the C4 audit's M3, 2026-11-13)
+        assertTrue(found.contains("a root door no row lists: PlantedRootDoor.Statement#new(String)"), found.toString());
+        assertTrue(found.contains("a root door no row lists: PlantedRootDoor.Statement#sql()"), found.toString());
     }
 
     private static List<String> pythonPackage() {
@@ -1258,6 +1410,44 @@ class PlannerSurfaceTest {
 
     private static final String PY_PLANNER = "python/legend_lite/_planner.py";
     private static final String PY_HEADLESS = "python/legend_lite/_headless.py";
+    private static final String PY_LIBRARY = "python/legend_lite/_library.py";
+
+    /** The native exports Python's run frame lets through (its {@code _NOT_PLANNING}) that are NO service: each named,
+     *  by its reason. Shrink-only, each entry dated (the C4 audit's M3, 2026-11-13). */
+    static final Map<String, String> PY_NOT_PLANNING_EXEMPT = Map.of(
+            // 2026-11-13: a held model let go plans nothing, and a finalizer may let one go at any point, a run's included
+            "lite_release_model", "a held model let go: a finalizer's, at any point");
+
+    /** The native exports Python's own library code calls past {@code Library.call} (its memory's), so never through
+     *  the run frame's check. */
+    static final Set<String> PY_DIRECT = Set.of("lite_free", "lite_unfreed");
+
+    /** {@code _NOT_PLANNING}'s names, as _library.py writes its frozenset. */
+    static Set<String> pyNotPlanning(String library) {
+        Matcher m = Pattern.compile("_NOT_PLANNING = frozenset\\(\\{([^}]*)\\}\\)", Pattern.DOTALL).matcher(library);
+        assertTrue(m.find(), "_NOT_PLANNING is read");
+        Set<String> out = new TreeSet<>();
+        Matcher name = Pattern.compile("'([^']*)'").matcher(m.group(1));
+        while (name.find()) {
+            out.add(name.group(1));
+        }
+        return out;
+    }
+
+    /** Python's run frame lets through exactly the native library's services and the named exemptions: a planner
+     *  entry added to {@code _NOT_PLANNING} (a planner asked inside a run, unrefused) is named, and so is a service the
+     *  frame would refuse. */
+    @Test
+    void pythonsNotPlanningIsTheServicesAndTheNamedExemptions() {
+        Set<String> expected = new TreeSet<>(NATIVE_SERVICES.keySet());
+        expected.removeAll(PY_DIRECT);
+        expected.addAll(PY_NOT_PLANNING_EXEMPT.keySet());
+        assertEquals(expected, pyNotPlanning(read(PY_LIBRARY)));
+        // the check bites: a planner entry let through is named
+        String planted = read(PY_LIBRARY).replace("'lite_release_model',", "'lite_release_model', 'lite_plan_json_held',");
+        assertTrue(pyNotPlanning(planted).contains("lite_plan_json_held"), "the splice's anchor");
+        assertTrue(!expected.equals(pyNotPlanning(planted)));
+    }
 
     /** Python's surface is closed: every planner kind a listed native export's, its fields its door's parameters;
      *  every native name the package spells listed; every bridge call listed, a statement's across the bridge. */

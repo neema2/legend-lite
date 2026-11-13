@@ -295,10 +295,18 @@ class ModelTextInjectionFuzzTest {
                 for (String payload : PAYLOADS) {
                     PureV1Api.Answer a = route(r.route(), place.request().apply(payload));
                     if (a.status() != 200) {
+                        // refused BY NAME (the C4 audit's M3, 2026-11-13: until then any answer but 200 counted as
+                        // refused, a 500 that is a bug among them): lite's refusal of the text, 400 with its errorType
+                        if (!refusedByName(a)
+                                && found.computeIfAbsent(r.route(), k -> new TreeSet<>()).add(place.name() + " (refused, but not by name)")) {
+                            examples.add(r.route() + ", " + place.name() + ", " + payload.replace("\n", "\\n")
+                                    + ": refused, but not by name: " + a.status() + " " + a.json());
+                        }
                         counts.merge("refused", 1, Integer::sum);
                         continue;
                     }
                     counts.merge("written", 1, Integer::sum);
+                    counts.merge("written at " + r.route() + ", " + place.name(), 1, Integer::sum);
                     List<String> wrong = new ArrayList<>();
                     List<Object> elements = readBack(a.json(), wrong);
                     // a line break in a sample's cell leaves its row out; in a column's name, the sample (F2)
@@ -341,7 +349,46 @@ class ModelTextInjectionFuzzTest {
         Map<String, Set<String>> found = fuzz(routes(), counts, examples);
         assertTrue(counts.getOrDefault("read back exactly", 0) > 0, "nothing was written: " + counts);
         assertEquals(KNOWN, found, counts + "; one example each:\n" + String.join("\n", examples));
+        // the coverage, pinned (the C4 audit's M3, 2026-11-13): the payloads each route's place WRITES, so a change that
+        // refuses a place's payloads wholesale -- and so finds nothing there -- fails here, never passes
+        Map<String, Integer> written = new TreeMap<>();
+        counts.forEach((k, v) -> {
+            if (k.startsWith("written at ")) {
+                written.put(k.substring("written at ".length()), v);
+            }
+        });
+        assertEquals(WRITTEN_BY_PLACE, written, "the payloads written, by route and place");
     }
+
+    /** Whether a route's answer is lite's NAMED refusal of the text: 400 with its errorType (PARSER or COMPILATION), as
+     *  {@code PureV1Api.answer} writes a LegendCompileException, a NotImplementedException or a DialectCapability; a 500
+     *  is a malformed request or a bug, and either here is a finding (the C4 audit's M3, 2026-11-13). */
+    static boolean refusedByName(PureV1Api.Answer a) {
+        if (a.status() != 400) {
+            return false;
+        }
+        String type = com.legend.json.Json.parseObject(a.json()).getStringOr("errorType", "");
+        return type.equals("COMPILATION") || type.equals("PARSER");
+    }
+
+    /** The payloads each route's place writes (measured 2026-11-13, the C4 audit's M3; a move is dated and names its
+     *  task). */
+    static final Map<String, Integer> WRITTEN_BY_PLACE = java.util.Map.ofEntries(
+            Map.entry("createAssociation, an end's name", 1),
+            Map.entry("createAssociation, the association's name", 1),
+            Map.entry("createClass, a key's name", 1),
+            Map.entry("createClass, a property's documentation", 29),
+            Map.entry("createClass, a property's name", 1),
+            Map.entry("createClass, a sample's text", 29),
+            Map.entry("createClass, the class's documentation", 29),
+            Map.entry("createClass, the class's name", 1),
+            Map.entry("createClass, the package", 2),
+            Map.entry("createClass, the place's name", 1),
+            Map.entry("createClass, the source's column", 28),
+            Map.entry("createClass, the source's table", 1),
+            Map.entry("createDataSpace, the data space's description", 29),
+            Map.entry("createDataSpace, the data space's name", 1),
+            Map.entry("createDataSpace, the data space's title", 29));
 
     /** F1 (the user's ruling of 2026-11-13): a key's documentation, which no file would hold, is refused by name --
      *  until then read and dropped unsaid. */

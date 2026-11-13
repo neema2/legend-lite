@@ -307,6 +307,14 @@ class UpstreamProtocolFieldsTest {
                             }
                         }
                         case VALUE -> {
+                            if (o.status() != 200 && !refusedByName(o)) {
+                                // refused BY NAME, or a finding (the C4 audit's M3, 2026-11-13: until then any answer
+                                // but 200 passed here, a 500 that is a bug among them)
+                                out.add(where + "refused, but not by name: " + o.status() + " " + head(o.json()));
+                            }
+                            // every value position counted, a wholly refused one as 0
+                            counts.merge("answered at " + routeName + ", " + position.name(), o.status() == 200 ? 1 : 0,
+                                    Integer::sum);
                             if (o.statements().stream().anyMatch(st -> st.contains(MARK))) {
                                 counts.merge("carried as data", 1, Integer::sum);
                             }
@@ -331,6 +339,26 @@ class UpstreamProtocolFieldsTest {
         return out;
     }
 
+    /** Whether a route's refusal is lite's NAMED one (the C4 audit's M3, 2026-11-13): its refusal of the text, with an
+     *  errorType (PARSER or COMPILATION: a LegendCompileException, a NotImplementedException, a DialectCapability, as
+     *  {@code PureV1Api.answer} writes it); a malformed request said as one, an IllegalArgumentException's words (the
+     *  server's answer for a request it cannot read, never logged as a bug); or upstream's own text for a test-data
+     *  generation given no row identifiers (R3 of B2d.3, as the engine answers it). A 500 of any other class is a bug. */
+    static boolean refusedByName(Outcome o) {
+        if (o.json().startsWith("Row Identifers should be provided for the root table: ")) {
+            return true;
+        }
+        Json.Obj answer;
+        try {
+            answer = Json.parseObject(o.json());
+        } catch (RuntimeException notJson) {
+            return false;
+        }
+        String type = answer.getStringOr("errorType", "");
+        return type.equals("COMPILATION") || type.equals("PARSER")
+                || answer.getStringOr("message", "").startsWith("IllegalArgumentException: ");
+    }
+
     private static String head(String text) {
         return text.length() <= 300 ? text : text.substring(0, 300) + "...";
     }
@@ -340,7 +368,56 @@ class UpstreamProtocolFieldsTest {
         Map<String, Integer> counts = new TreeMap<>();
         assertEquals(List.of(), findings(EXECUTE_INPUT, executeInput(), executeRoutes(), counts), counts.toString());
         assertTrue(counts.getOrDefault("carried as data", 0) > 0, "no value reached a statement: " + counts);
+        assertEquals(EXECUTE_ANSWERED, answered(counts), "the plantings answered, by route and value");
     }
+
+    /** The counts of plantings answered, by route and value position. */
+    private static Map<String, Integer> answered(Map<String, Integer> counts) {
+        Map<String, Integer> out = new TreeMap<>();
+        counts.forEach((k, v) -> {
+            if (k.startsWith("answered at ")) {
+                out.put(k.substring("answered at ".length()), v);
+            }
+        });
+        return out;
+    }
+
+    /** The coverage, pinned (the C4 audit's M3, 2026-11-13; a move is dated and names its task): the plantings each
+     *  execute route answers at each value position, so a change that refuses a value wholesale fails. */
+    static final Map<String, Integer> EXECUTE_ANSWERED = java.util.Map.ofEntries(
+            Map.entry("executeJsonPlan, a parameter's name", 0),
+            Map.entry("executeJsonPlan, a parameter's value", 24),
+            Map.entry("executeJsonPlan, the model's text", 0),
+            Map.entry("executeJsonPlan, the model's type", 0),
+            Map.entry("executeJsonPlan, the runtime's name", 0),
+            Map.entry("executePlan, a parameter's name", 0),
+            Map.entry("executePlan, a parameter's value", 24),
+            Map.entry("executePlan, the model's text", 0),
+            Map.entry("executePlan, the model's type", 0),
+            Map.entry("executePlan, the runtime's name", 0),
+            Map.entry("generatePlan, the model's text", 0),
+            Map.entry("generatePlan, the model's type", 0),
+            Map.entry("generatePlan, the runtime's name", 0));
+
+    /** The same for the test-data routes (measured 2026-11-13, the C4 audit's M3). */
+    static final Map<String, Integer> TEST_DATA_ANSWERED = java.util.Map.ofEntries(
+            Map.entry("generateSeedData, the mapping", 0),
+            Map.entry("generateSeedData, the model's text", 0),
+            Map.entry("generateSeedData, the model's type", 0),
+            Map.entry("generateSeedData, the runtime's name", 0),
+            Map.entry("generateTestData_WithDefaultSeed, the mapping", 0),
+            Map.entry("generateTestData_WithDefaultSeed, the model's text", 0),
+            Map.entry("generateTestData_WithDefaultSeed, the model's type", 0),
+            Map.entry("generateTestData_WithDefaultSeed, the runtime's name", 0),
+            Map.entry("generateTestData_WithSeed, a column-value pair's column", 0),
+            Map.entry("generateTestData_WithSeed, a column-value pair's value", 24),
+            Map.entry("generateTestData_WithSeed, a table's database", 24),
+            Map.entry("generateTestData_WithSeed, a table's name", 0),
+            Map.entry("generateTestData_WithSeed, a table's schema", 0),
+            Map.entry("generateTestData_WithSeed, the mapping", 0),
+            Map.entry("generateTestData_WithSeed, the model's text", 0),
+            Map.entry("generateTestData_WithSeed, the model's type", 0),
+            Map.entry("generateTestData_WithSeed, the runtime's name", 0));
 
     @Test
     void noFieldOfATestDataRequestReachesAStatementAsText() {
@@ -348,6 +425,7 @@ class UpstreamProtocolFieldsTest {
         assertEquals(List.of(), findings(TEST_DATA_INPUT, testDataInput(), testDataRoutes(), counts),
                 counts.toString());
         assertTrue(counts.getOrDefault("carried as data", 0) > 0, "no value reached a statement: " + counts);
+        assertEquals(TEST_DATA_ANSWERED, answered(counts), "the plantings answered, by route and value");
     }
 
     /** The check bites: a planted route that writes a parameter's value into its statement as text, and its request's

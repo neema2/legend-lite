@@ -24,4 +24,9 @@ public final class PlantedRootDoor {
     public static String lower(String runtime, boolean streaming) {
         return runtime + streaming;
     }
+
+    /** A public nested type: its constructor takes a statement, and its accessor is a door too (the C4 audit's M3,
+     *  2026-11-13: the census read the root doors' own methods alone). */
+    public record Statement(String sql) {
+    }
 }

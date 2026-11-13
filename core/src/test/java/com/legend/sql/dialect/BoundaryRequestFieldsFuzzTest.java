@@ -338,8 +338,12 @@ class BoundaryRequestFieldsFuzzTest {
                 InjectionFuzzTest.Rules rules = InjectionFuzzTest.rules(type);
                 try {
                     assertTrue(!c.door().apply(Json.toCompact(base)).isEmpty(), c.name());
-                } catch (RuntimeException refusedByName) {
-                    // a door that plans for one database alone refuses the others by name
+                } catch (RuntimeException refusal) {
+                    // a door that plans for one database alone refuses the others BY NAME (anything else is a finding)
+                    if (!InjectionFuzzTest.namedRefusal(refusal)
+                            && found.computeIfAbsent(type.name(), k -> new TreeSet<>()).add(c.name())) {
+                        examples.add(type.name() + ", " + c.name() + ": " + InjectionFuzzTest.unnamed(refusal));
+                    }
                     counts.merge("a database a door does not plan for", 1, Integer::sum);
                     continue;
                 }
@@ -348,10 +352,32 @@ class BoundaryRequestFieldsFuzzTest {
                         @SuppressWarnings("unchecked")
                         Map<String, Object> request = (Map<String, Object>) planted(base, "$", field, payload);
                         String json = Json.toCompact(request);
-                        List<String> statements;
+                        List<String> statements = List.of();
                         List<String> wrong = new ArrayList<>();
+                        String place = c.name() + " " + field;
+                        String answer;
                         try {
-                            String answer = c.door().apply(json);
+                            answer = c.door().apply(json);
+                        } catch (RuntimeException refusal) {
+                            // refused BY NAME, or a finding naming the payload, the place and the database (the C4
+                            // audit's M3, 2026-11-13: until then any RuntimeException counted as refused)
+                            if (!InjectionFuzzTest.namedRefusal(refusal)) {
+                                String unnamed = place + " (" + InjectionFuzzTest.unnamed(refusal).split(":")[0] + ")";
+                                if (found.computeIfAbsent(type.name(), k -> new TreeSet<>()).add(unnamed)) {
+                                    examples.add(type.name() + ", " + place + ", " + payload.replace("\n", "\\n")
+                                            + ": " + InjectionFuzzTest.unnamed(refusal));
+                                }
+                            }
+                            counts.merge("refused", 1, Integer::sum);
+                            continue;
+                        }
+                        counts.merge("planned", 1, Integer::sum);
+                        counts.merge("planned on " + type.name(), 1, Integer::sum);
+                        counts.merge("planned at " + place, 1, Integer::sum);
+                        // the door's answer read OUTSIDE the refusal (the C4 audit's M3, 2026-11-13): a table model
+                        // the door answered that does not compile, or whose table does not plan through its accessor,
+                        // is a finding -- until then it counted as refused, so a broken model passed
+                        try {
                             if (c.answer() == Answer.TABLE_MODEL) {
                                 List<List<String>> columns = new ArrayList<>();
                                 statements = readThrough(answer, columns);
@@ -362,11 +388,10 @@ class BoundaryRequestFieldsFuzzTest {
                             } else {
                                 statements = statementsOf(answer);
                             }
-                        } catch (RuntimeException refusedByName) {
-                            counts.merge("refused", 1, Integer::sum);
-                            continue;
+                        } catch (RuntimeException broken) {
+                            wrong.add("the door's answer does not read back (" + broken.getClass().getSimpleName()
+                                    + ": " + String.valueOf(broken.getMessage()).lines().findFirst().orElse("") + ")");
                         }
-                        counts.merge("planned", 1, Integer::sum);
                         if (statements.stream().anyMatch(s -> s.contains(MARK))) {
                             counts.merge("carried as data", 1, Integer::sum);
                         }
@@ -377,7 +402,6 @@ class BoundaryRequestFieldsFuzzTest {
                             }
                         }
                         if (!wrong.isEmpty()) {
-                            String place = c.name() + " " + field;
                             if (found.computeIfAbsent(type.name(), k -> new TreeSet<>()).add(place)) {
                                 examples.add(type.name() + ", " + place + ", " + payload.replace("\n", "\\n") + ": "
                                         + wrong.get(0));
@@ -397,7 +421,134 @@ class BoundaryRequestFieldsFuzzTest {
         Map<String, Set<String>> found = fuzz(cases(), counts, examples);
         assertTrue(counts.getOrDefault("carried as data", 0) > 0, "no field reached a statement: " + counts);
         assertEquals(KNOWN, found, counts + "; one example each:\n" + String.join("\n", examples));
+        // the coverage, pinned (the C4 audit's M3, 2026-11-13): the plantings each database and each door's field
+        // PLANS, so a change that refuses a field's payloads wholesale -- and so finds nothing there -- fails here
+        assertEquals(PLANNED_BY_DATABASE, within(counts, "planned on "), "the plantings planned, by database");
+        assertEquals(PLANNED_BY_PLACE, within(counts, "planned at "), "the plantings planned, by door and field");
     }
+
+    /** The counts under {@code prefix}, keyed by what follows it. */
+    private static Map<String, Integer> within(Map<String, Integer> counts, String prefix) {
+        Map<String, Integer> out = new TreeMap<>();
+        counts.forEach((k, v) -> {
+            if (k.startsWith(prefix)) {
+                out.put(k.substring(prefix.length()), v);
+            }
+        });
+        return out;
+    }
+
+    /** The plantings each database plans (measured 2026-11-13, the C4 audit's M3; a move is dated and names its task). */
+    static final Map<String, Integer> PLANNED_BY_DATABASE = Map.of("DuckDB", 2475);
+
+    /** The plantings each door's field plans, on every database (measured 2026-11-13, the C4 audit's M3). */
+    static final Map<String, Integer> PLANNED_BY_PLACE = java.util.Map.ofEntries(
+            Map.entry("catalogColumnsSql $.schema", 24),
+            Map.entry("catalogColumnsSql $.table", 24),
+            Map.entry("databaseFromCatalog $.columns[0].dataType", 24),
+            Map.entry("databaseFromCatalog $.columns[0].name", 24),
+            Map.entry("databaseFromCatalog $.columns[1].dataType", 24),
+            Map.entry("databaseFromCatalog $.columns[1].name", 24),
+            Map.entry("databaseFromCatalog $.columns[2].logicalType", 24),
+            Map.entry("databaseFromCatalog $.columns[2].name", 24),
+            Map.entry("databaseFromCatalog $.path", 23),
+            Map.entry("databaseFromCatalog $.schema", 23),
+            Map.entry("databaseFromCatalog $.table", 23),
+            Map.entry("fileLoad, a declared table $.file.name", 14),
+            Map.entry("fileLoad, a table of its own $.file.name", 14),
+            Map.entry("fileLoad, a table of its own $.into.table", 24),
+            Map.entry("frameLoad $.as", 1),
+            Map.entry("frameLoad $.held", 1),
+            Map.entry("frameLoad $.relation", 24),
+            Map.entry("frameLoad $.schema", 24),
+            Map.entry("frameLoad, a table $.as", 1),
+            Map.entry("frameLoad, a table $.held", 1),
+            Map.entry("frameLoad, a table $.relation", 24),
+            Map.entry("hostOperations count $.from.relation.database", 24),
+            Map.entry("hostOperations count $.from.relation.name", 24),
+            Map.entry("hostOperations count $.from.relation.schema", 24),
+            Map.entry("hostOperations drop $.target.database", 48),
+            Map.entry("hostOperations drop $.target.name", 48),
+            Map.entry("hostOperations drop $.target.schema", 48),
+            Map.entry("hostOperations dropSchema $.database", 24),
+            Map.entry("hostOperations dropSchema $.name", 24),
+            Map.entry("hostOperations dropSecret $.name", 24),
+            Map.entry("hostOperations extensionDirectory $.folder", 24),
+            Map.entry("hostOperations extensionRepository $.url", 24),
+            Map.entry("hostOperations fileSearchPath $.folder", 24),
+            Map.entry("hostOperations icebergDataFiles $.url", 24),
+            Map.entry("hostOperations icebergManifestLists $.url", 24),
+            Map.entry("hostOperations icebergManifests $.lists[0]", 24),
+            Map.entry("hostOperations nameTaken $.name", 24),
+            Map.entry("hostOperations relation $.convert[0].dataType", 24),
+            Map.entry("hostOperations relation $.convert[0].name", 24),
+            Map.entry("hostOperations relation $.convert[1].logicalType", 24),
+            Map.entry("hostOperations relation $.convert[1].name", 24),
+            Map.entry("hostOperations relation $.from.relation.database", 48),
+            Map.entry("hostOperations relation $.from.relation.name", 48),
+            Map.entry("hostOperations relation $.from.relation.schema", 48),
+            Map.entry("hostOperations relation $.target.database", 48),
+            Map.entry("hostOperations relation $.target.name", 48),
+            Map.entry("hostOperations relation $.target.schema", 48),
+            Map.entry("hostOperations relationExists $.name.database", 24),
+            Map.entry("hostOperations relationExists $.name.name", 24),
+            Map.entry("hostOperations relationExists $.name.schema", 24),
+            Map.entry("hostOperations resetVariable $.held", 1),
+            Map.entry("hostOperations schema $.database", 24),
+            Map.entry("hostOperations schema $.name", 24),
+            Map.entry("hostOperations schemaExists $.database", 24),
+            Map.entry("hostOperations schemaExists $.schema", 24),
+            Map.entry("hostOperations tablesIn $.database", 24),
+            Map.entry("hostOperations tablesIn $.schema", 24),
+            Map.entry("outputPlan, a made table $.output.name", 24),
+            Map.entry("outputPlan, a made table $.tables[0].columns[0].dataType", 24),
+            Map.entry("outputPlan, a made table $.tables[0].columns[0].name", 24),
+            Map.entry("outputPlan, a made table $.tables[0].columns[1].dataType", 24),
+            Map.entry("outputPlan, a merged table $.output.name", 23),
+            Map.entry("outputPlan, a merged table $.tables[0].columns[0].dataType", 24),
+            Map.entry("outputPlan, a merged table $.tables[0].columns[1].dataType", 24),
+            Map.entry("outputPlan, a merged table $.target[0].dataType", 24),
+            Map.entry("outputPlan, a merged table $.target[1].dataType", 24),
+            Map.entry("outputPlan, an appended table $.output.name", 23),
+            Map.entry("outputPlan, an appended table $.tables[0].columns[0].dataType", 24),
+            Map.entry("outputPlan, an appended table $.tables[0].columns[1].dataType", 24),
+            Map.entry("outputPlan, an appended table $.target[0].dataType", 24),
+            Map.entry("outputPlan, an appended table $.target[1].dataType", 24),
+            Map.entry("remoteMount $.credentials.name", 1),
+            Map.entry("remoteMount $.location.url", 23),
+            Map.entry("remoteMount $.view", 24),
+            Map.entry("remoteMount, a bearer URL $.location.bearer", 1),
+            Map.entry("remoteMount, a bearer URL $.location.shown", 23),
+            Map.entry("remoteMount, a bearer URL $.view", 24),
+            Map.entry("snapCopy $.schema", 24),
+            Map.entry("snapCopy $.table", 24),
+            Map.entry("snapStream $.plane", 1),
+            Map.entry("snapStream $.schema", 24),
+            Map.entry("snapStream $.table", 24),
+            Map.entry("synthesize $.columns.name.values[0]", 24),
+            Map.entry("synthesize $.columns.name.values[1]", 24),
+            Map.entry("tableModel, one table $.columns[0].dataType", 24),
+            Map.entry("tableModel, one table $.columns[0].name", 24),
+            Map.entry("tableModel, one table $.columns[1].dataType", 24),
+            Map.entry("tableModel, one table $.columns[1].name", 24),
+            Map.entry("tableModel, one table $.columns[2].logicalType", 24),
+            Map.entry("tableModel, one table $.columns[2].name", 24),
+            Map.entry("tableModel, one table $.pkg", 1),
+            Map.entry("tableModel, one table $.schema", 23),
+            Map.entry("tableModel, one table $.table", 23),
+            Map.entry("tableModel, several tables $.connection", 1),
+            Map.entry("tableModel, several tables $.tables[0].columns[0].dataType", 24),
+            Map.entry("tableModel, several tables $.tables[0].columns[0].name", 24),
+            Map.entry("tableModel, several tables $.tables[0].columns[1].dataType", 24),
+            Map.entry("tableModel, several tables $.tables[0].columns[1].name", 24),
+            Map.entry("tableModel, several tables $.tables[0].table", 23),
+            Map.entry("tableModel, several tables $.tables[1].columns[0].dataType", 24),
+            Map.entry("tableModel, several tables $.tables[1].columns[0].name", 24),
+            Map.entry("tableModel, several tables $.tables[1].columns[1].dataType", 24),
+            Map.entry("tableModel, several tables $.tables[1].columns[1].name", 24),
+            Map.entry("tableModel, several tables $.tables[1].pkg", 1),
+            Map.entry("tableModel, several tables $.tables[1].schema", 23),
+            Map.entry("tableModel, several tables $.tables[1].table", 23));
 
     /** The fuzz bites: a door planted to write its table's name into its statement as given, and its view's name
      *  doubled-quoted as ANSI writes one (no backslash escaped), is named at both fields -- on DuckDB the table's name
@@ -416,5 +567,50 @@ class BoundaryRequestFieldsFuzzTest {
         Map<String, Integer> counts = new TreeMap<>();
         assertEquals(Map.of("DuckDB", Set.of("planted $.table")), fuzz(List.of(planted), counts, new ArrayList<>()),
                 counts.toString());
+    }
+
+    /** A host operation no platform names -- none declares its keys -- is refused by name, never read unclosed (the C4
+     *  audit's M3, 2026-11-13: until then it was passed over, and its arm read whatever it was handed); one the platform
+     *  refuses by its own words (a secret) keeps its words. */
+    @Test
+    void aHostOperationNoPlatformNamesIsRefusedByName() {
+        IllegalArgumentException e = org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+                () -> planner.Boundary.hostOperations("DuckDB", Json.toCompact(List.of(obj("op", "frobnicate")))));
+        assertTrue(e.getMessage().contains("a host's operation is not one this platform names (none declares its keys):"
+                + " frobnicate"), e.getMessage());
+        RuntimeException secret = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                () -> planner.Boundary.hostOperations("DuckDB", Json.toCompact(List.of(obj("op", "secret")))));
+        assertTrue(!secret.getMessage().contains("none declares its keys"), secret.getMessage());
+    }
+
+    /** A table model the door answers is read OUTSIDE the refusal (the C4 audit's M3, 2026-11-13): a door planted to
+     *  answer the real door's model with its table's name written into the model's text as given -- a model that no
+     *  longer compiles once the name holds a quote -- is a finding at that field, never a refusal; and a door planted
+     *  to fail with a NullPointerException is a finding too, never a refusal (lite's named refusals alone count). */
+    @Test
+    void theFuzzNamesABrokenModelAndAnUnnamedRefusal() {
+        Map<String, Object> request = obj("table", "people", "schema", "main", "pkg", "x", "databaseType", "DuckDB",
+                "convertible", false, "columns", people());
+        Case broken = new Case("brokenModel", json -> {
+            Map<String, Object> in = new LinkedHashMap<>(asMap(Json.parse(json)));
+            String table = (String) in.put("table", "people");
+            Map<String, Object> out = asMap(Json.parse(planner.Boundary.tableModel(Json.toCompact(in))));
+            out.put("model", ((String) out.get("model")).replace("people", table));
+            return Json.toCompact(out);
+        }, request, Answer.TABLE_MODEL);
+        Map<String, Integer> counts = new TreeMap<>();
+        List<String> examples = new ArrayList<>();
+        Map<String, Set<String>> found = fuzz(List.of(broken), counts, examples);
+        assertTrue(found.getOrDefault("DuckDB", Set.of()).contains("brokenModel $.table"), found + " " + examples);
+        assertTrue(examples.stream().anyMatch(e -> e.contains("does not read back")), String.join("\n", examples));
+        Case unnamed = statements("unnamed", json -> {
+            if (json.contains(MARK)) {
+                throw new NullPointerException("planted");
+            }
+            return Json.toCompact(List.of(List.of("SELECT 1")));
+        }, obj("view", "v"));
+        examples.clear();
+        assertEquals(Map.of(com.legend.database.Databases.PLATFORM.name(), Set.of("unnamed $.view (refused, but not by name)")),
+                fuzz(List.of(unnamed), new TreeMap<>(), examples), String.join("\n", examples));
     }
 }

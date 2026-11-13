@@ -468,6 +468,45 @@ class RunFrameTest(unittest.TestCase):
                 planning('plan')
         self.assertIsNone(current_run())
 
+    def test_each_python_run_sends_inside_its_own_run(self):
+        # Reading.run, Frames.run, run_write and run_host_load (the C4 audit's M3, 2026-11-13: no test asserted these
+        # four, so a run taken off one passed; the run wall pins them by name too): each statement each sends is sent
+        # inside the run it names
+        from unittest import mock
+        import pyarrow as pa
+        from legend_lite import frames as frames_module
+        con = duckdb.connect()
+        con.execute("CREATE TABLE t (id INTEGER, desk VARCHAR, qty DOUBLE)")
+        con.execute("INSERT INTO t VALUES (1, 'FX', 1.5)")
+        witness = _RunWitness(con)
+        projects.run_write(compiler.snap_copy({'databaseType': 'DuckDB', **_pull(), 'table': 'copied'}), Database(witness))
+        self.assertEqual(set(witness.runs), {'a plan of writes'})
+        witness = _RunWitness(duckdb.connect())
+        load = compiler.frame_load({'databaseType': 'DuckDB', 'held': 'h', 'as': '__legend_lite_h', 'live': True,
+                                    'schema': 'main', 'relation': 'h'})
+        projects.run_host_load(load, Database(witness), values=lambda held: pa.table({'x': [1]}))
+        self.assertTrue(witness.runs and set(witness.runs) == {"a host's load"}, witness.runs)
+        frames = frames_module.Frames()
+        table = frames.register('trades', pa.table({'id': [1, 2], 'desk': ['FX', 'EQ']}))
+        seen = []
+        real = frames_module.send
+
+        def recording(*args, **kwargs):
+            seen.append(current_run())
+            return real(*args, **kwargs)
+
+        with mock.patch.object(frames_module, 'send', recording):
+            table.execute('->select(~[desk])')
+            self.assertTrue(seen and set(seen) == {'a plan'}, seen)
+            seen.clear()
+            plan = table.plan('->select(~[desk])')
+            with frames.reading() as read:
+                # what the read's own run sends: the read's session setup, sent as it begins, is no run's (frames at
+                # every send site are the follow-up stream's, C5)
+                seen.clear()
+                read.run(plan)
+                self.assertTrue(seen and set(seen) == {'a read'}, seen)
+
     def test_no_crossing_is_known_and_none_is_exempt(self):
         # shrink-only, and empty since 2026-11-13: the read's re-pin, its one entry, went with the user's ruling (1b)
         from legend_lite._runframe import EXEMPTIONS, exempt

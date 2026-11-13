@@ -48,6 +48,11 @@ final class HostOperationsJson {
         java.util.List<String> keys = KEYS.get(op);
         if (keys != null) {
             only(o, "a host's " + op + " operation", keys);
+        } else if (!REFUSED.contains(op)) {
+            // an operation with no keys declared is refused, never read unclosed (the C4 audit, 2026-11-13: until then
+            // it was passed over, and its arm read whatever it was handed); PlannerSurfaceTest holds each arm to its keys
+            throw new IllegalArgumentException("a host's operation is not one this platform names (none declares its"
+                    + " keys): " + op);
         }
         return switch (op) {
             case "relation" -> new HostOperation.MakeRelation(kind(string(o, "kind")), name(object(o, "target")),
@@ -88,6 +93,9 @@ final class HostOperationsJson {
             default -> throw new IllegalArgumentException("a host's operation is not one this platform names: " + op);
         };
     }
+
+    /** The operations refused by name, each by its own arm's words: they declare no keys. */
+    private static final java.util.Set<String> REFUSED = java.util.Set.of("insert", "secret");
 
     /** Each operation's keys, its {@code op} among them: what {@link #operation} reads of it, and nothing more. An
      *  operation refused by name (insert, secret) or unnamed is refused before its keys are read. */

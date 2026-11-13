@@ -2274,16 +2274,35 @@ final class ArchitectureTest {
     void theServersMintsAreItsHostDoorsAlone() {
         SERVER_MINTS_AT_ITS_HOST_DOORS.check(CORE_PROD_CLASSES);
         // and each door mints once
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("arrowPlan", 1, "jsonPlan", 1),
+                doorMints(CORE_PROD_CLASSES.get("com.legend.server.PureV1Api")),
+                "the server's two host doors, one mint each");
+    }
+
+    /** Each method's mints of {@code c} -- a call of {@code UUID.randomUUID} AND a method reference to it (the C4
+     *  audit's M3, 2026-11-13: the count read the calls alone, so a door minting twice, once by {@code UUID::randomUUID},
+     *  counted one) -- a lambda's counted as its method's. */
+    static java.util.Map<String, Integer> doorMints(com.tngtech.archunit.core.domain.JavaClass c) {
         java.util.Map<String, Integer> mints = new java.util.TreeMap<>();
-        for (com.tngtech.archunit.core.domain.JavaMethodCall call : CORE_PROD_CLASSES.get(
-                "com.legend.server.PureV1Api").getMethodCallsFromSelf()) {
-            if (call.getTargetOwner().isEquivalentTo(java.util.UUID.class) && call.getName().equals("randomUUID")) {
-                mints.merge(call.getOrigin().getName().replaceAll("^lambda\\$(\\w+)\\$\\d+$", "$1"), 1,
+        java.util.List<com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?>> accesses = new java.util.ArrayList<>();
+        accesses.addAll(c.getMethodCallsFromSelf());
+        accesses.addAll(c.getMethodReferencesFromSelf());
+        for (com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?> a : accesses) {
+            if (a.getTargetOwner().isEquivalentTo(java.util.UUID.class) && a.getName().equals("randomUUID")) {
+                mints.merge(a.getOrigin().getName().replaceAll("^lambda\\$(\\w+)\\$\\d+$", "$1"), 1,
                         Integer::sum);
             }
         }
-        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("arrowPlan", 1, "jsonPlan", 1), mints,
-                "the server's two host doors, one mint each");
+        return mints;
+    }
+
+    /** The one-mint count sees a method reference: {@code server.PlantedDoorMints}'s jsonPlan mints once by a call and
+     *  once by {@code UUID::randomUUID}, and is counted twice. */
+    @Test
+    void theDoorMintCountSeesAMethodReference() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("jsonPlan", 2), doorMints(
+                new com.tngtech.archunit.core.importer.ClassFileImporter().importClass(
+                        com.legend.server.PlantedDoorMints.class)));
     }
 
     /** {@link #theServersMintsAreItsHostDoorsAlone} fails on another class of the server's package that mints an id

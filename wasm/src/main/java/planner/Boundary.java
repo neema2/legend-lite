@@ -686,7 +686,7 @@ public final class Boundary {
             return tablesModel(in);
         }
         only(in, "a table's model", "table", "schema", "pkg", "convertible", "databaseType", "columns");
-        String pkg = in.getStringOr("pkg", "local");
+        String pkg = packagePath(in.getStringOr("pkg", "local"), "a table's package");
         String databaseType = in.getString("databaseType");
         java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = catalogColumns(in);
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
@@ -715,7 +715,7 @@ public final class Boundary {
     private static String tablesModel(com.legend.json.Json.Obj in) {
         only(in, "a model of several tables", "databaseType", "connection", "tables");
         String databaseType = in.getString("databaseType");
-        String connection = in.getStringOr("connection", "host");
+        String connection = packagePath(in.getStringOr("connection", "host"), "a model's connection");
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
         // each package's tables, in the order the packages first came
         java.util.Map<String, java.util.List<Integer>> byPkg = new java.util.LinkedHashMap<>();
@@ -725,7 +725,8 @@ public final class Boundary {
                 throw new IllegalArgumentException("a model's table is a JSON object");
             }
             only(t, "a model's table", "table", "schema", "pkg", "convertible", "columns");
-            byPkg.computeIfAbsent(t.getStringOr("pkg", "local"), k -> new java.util.ArrayList<>()).add(tables.size());
+            byPkg.computeIfAbsent(packagePath(t.getStringOr("pkg", "local"), "a table's package"),
+                    k -> new java.util.ArrayList<>()).add(tables.size());
             tables.add(t);
         }
         if (tables.isEmpty()) {
@@ -877,6 +878,21 @@ public final class Boundary {
             conversions.add(m);
         }
         return conversions;
+    }
+
+    /** {@code path} as the model text writes a package: Pure names joined by {@code ::} (letters, digits and
+     *  {@code _}, not led by a digit, no literal's word), any other refused by name, {@code what} naming it (the C4
+     *  audit, 2026-11-13: a table's {@code pkg} and a model's {@code connection} were spliced into the model's text as
+     *  given, so a line break or a brace wrote elements of its own; the rule is the model-change routes', ModelChanges
+     *  .packagePath). */
+    static String packagePath(String path, String what) {
+        for (String part : path.split("::", -1)) {
+            if (!part.matches("[A-Za-z_][A-Za-z0-9_]*") || part.equals("true") || part.equals("false")) {
+                throw new IllegalArgumentException(what + " is Pure names joined by :: (letters, digits and _), not '"
+                        + path + "'");
+            }
+        }
+        return path;
     }
 
     /** A connection of the given type and the runtime that binds the table's Database to it. Every connection is a

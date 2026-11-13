@@ -116,6 +116,7 @@ class IdentifierEscapingTest {
     @Test
     void anAliasHoldingAQuoteAndABackslashIsOneIdentifierSpelledExactlyOnEveryDialect() {
         List<String> wrong = new ArrayList<>();
+        java.util.Set<String> refusing = new java.util.TreeSet<>();
         dialects().forEach((dialect, rules) -> {
             var table = new SqlSource.Table("T", "t0", List.of(ID), false, Map.of(), com.legend.sql.NameQuoting.BARE);
             var select = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("t0", ID), NAME, null)), false,
@@ -124,6 +125,11 @@ class IdentifierEscapingTest {
             try {
                 sql = dialect.render(select);
             } catch (RuntimeException refused) {
+                // refused BY NAME alone (the C4 audit's M3, 2026-11-13: until then any exception passed here)
+                if (!InjectionFuzzTest.namedRefusal(refused)) {
+                    wrong.add(dialect.getClass().getSimpleName() + ": " + InjectionFuzzTest.unnamed(refused));
+                }
+                refusing.add(dialect.getClass().getSimpleName());
                 return;
             }
             try {
@@ -135,5 +141,7 @@ class IdentifierEscapingTest {
             }
         });
         assertEquals(List.of(), wrong);
+        // the coverage, pinned: the dialects that refuse the name (none, measured 2026-11-13: the C4 audit's M3)
+        assertEquals(java.util.Set.of(), refusing, "the dialects refusing the name");
     }
 }
