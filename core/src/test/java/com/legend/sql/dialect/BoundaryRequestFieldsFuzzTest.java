@@ -36,19 +36,11 @@ class BoundaryRequestFieldsFuzzTest {
 
     private static final String MARK = InjectionFuzzTest.MARK;
 
-    /** The defects found, by database and door's field: shrink-only, each named until fixed.
-     *
-     *  <p>2026-11-13, found by this fuzz and posed to the user before any fix: a column whose name holds a line break,
-     *  declared in a schema, is declared under another name. {@code CatalogModel.text} indents a schema's table blocks
-     *  by replacing each line break of their text, the one inside the column's quoted name among them, so the model
-     *  declares {@code "a\n    ZQXMARK"} for the catalog's {@code a\nZQXMARK}. The name stays one quoted identifier
-     *  (no structure changes: the oracle passes every statement), but a query reads a column the database has not. */
-    static final Map<String, Set<String>> KNOWN = Map.of("DuckDB", Set.of(
-            "tableModel, one table $.columns[0].name",
-            "tableModel, one table $.columns[1].name",
-            "tableModel, one table $.columns[2].name",
-            "tableModel, several tables $.tables[1].columns[0].name",
-            "tableModel, several tables $.tables[1].columns[1].name"));
+    /** The defects found, by database and door's field: shrink-only, each named until fixed. Empty since 2026-11-13: its
+     *  first finding (a column whose name holds a line break, declared in a schema, declared under another name:
+     *  CatalogModel.text indented a schema's blocks by replacing each line break of their text) went with the user's
+     *  ruling (a), each block written at its indent as it is built. */
+    static final Map<String, Set<String>> KNOWN = Map.of();
 
     private static final String TABLES = """
             ###Relational
