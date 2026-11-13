@@ -272,8 +272,10 @@ class PlannedSqlTest {
             Map.entry("engine-client/src/legend/planner-answer.ts", 3),
             // Python's page refuses it by name, unasked (python-host.ts NOT_ASKED)
             Map.entry("datacube/src/services/python-host.ts", 1),
-            // the tests of it: the runner's (plan-runner.test.ts) and the tab planner's fake module
-            Map.entry("engine-client/test/plan-runner.test.ts", 17),
+            // the tests of it: the runner's (plan-runner.test.ts) and the tab planner's fake module. 17 -> 19
+            // (2026-11-13, the next PR's item 2, the standing witness: plan-runner.test.ts's roads test runs runAuthored
+            // as one of the runner's six roads, its plan the planner's answer of the kind -- one call, one kind)
+            Map.entry("engine-client/test/plan-runner.test.ts", 19),
             Map.entry("datacube/test/lite-planner.test.ts", 1));
 
     /**

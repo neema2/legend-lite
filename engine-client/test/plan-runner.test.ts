@@ -239,8 +239,8 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     await establish(plan, seeing);
     assert.ok(seen.length > 0 && seen.every((r) => r === "a target's establishing"), String(seen));
     assert.equal(await transacted({ begin: [], commit: [], rollback: [] }, async () => [], async () => currentRun()), 'a transaction');
-    const authored = unplannedPlan(ok(answer(m, { kind: 'authored', request: JSON.stringify({ databaseType: 'DuckDB', text: 'SELECT 1' }) })));
-    assert.equal(await runAuthored(authored, { databaseType: 'DuckDB', run: async () => currentRun() }), 'an authored statement');
+    const written = unplannedPlan(ok(answer(m, { kind: 'authored', request: JSON.stringify({ databaseType: 'DuckDB', text: 'SELECT 1' }) })));
+    assert.equal(await runAuthored(written, { databaseType: 'DuckDB', run: async () => currentRun() }), 'an authored statement');
     if (frameKept) {
       await assert.rejects(transacted({ begin: [], commit: [], rollback: [] }, async () => [], async () => answer(m, { kind: 'hold', model: MODEL })),
         /the planner was asked 'hold' inside a run \(a transaction\)/);

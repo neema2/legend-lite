@@ -1307,7 +1307,7 @@ class WarehouseOnPython(unittest.TestCase):
 
     def query(self, m):
         spec = {'table': 'POSITIONS', 'schema': 'trading', 'convertible': False, 'databaseType': 'DuckDB',
-                'columns': [{**c, 'dataType': c['type']} for c in self.OBJECTS[0]['columns']]}
+                'columns': [{('dataType' if k == 'type' else k): v for k, v in c.items()} for c in self.OBJECTS[0]['columns']]}
         accessor = ll.table_model(spec)['accessor']
         return json.dumps(ll.parse(f'|{accessor}->select(~[desk, qty])'))
 
