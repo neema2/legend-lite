@@ -13,7 +13,7 @@ from legend_lite._library import library
 from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
                                   from_plan, plan_from_answer, send)
 from legend_lite._planner import answer
-from legend_lite._runframe import current_run, in_run, planning
+from legend_lite._runframe import current_run, in_run, planning, runs
 from legend_lite.compiler import LegendError
 from legend_lite.frames import execute_redacted
 
@@ -430,6 +430,43 @@ class RunFrameTest(unittest.TestCase):
             other.start()
             other.join()
         self.assertEqual(seen, [(None, True)])
+
+    def test_a_runs_frame_ends_with_its_call_whether_it_returns_or_raises(self):
+        # the frame `runs` marks is the call's own: after the call -- returned or raised -- the flow is in no run, and
+        # the planner answers again (the orchestrator's condition for the direct set/reset, 2026-11-13)
+        @runs("a test's run")
+        def returns():
+            self.assertEqual(current_run(), "a test's run")
+            return 'answered'
+
+        @runs("a test's run")
+        def raises():
+            self.assertEqual(current_run(), "a test's run")
+            raise KeyError('the run failed')
+
+        self.assertEqual(returns(), 'answered')
+        self.assertIsNone(current_run(), 'the run ended with its call')
+        with self.assertRaisesRegex(KeyError, 'the run failed'):
+            raises()
+        self.assertIsNone(current_run(), 'the run ended with its call, which raised')
+        planning('plan')
+
+    def test_a_run_inside_a_run_names_itself_and_hands_back_the_outer(self):
+        @runs('the inner run')
+        def inner(fail):
+            self.assertEqual(current_run(), 'the inner run')
+            if fail:
+                raise KeyError('the inner run failed')
+
+        with in_run('the outer run'):
+            inner(False)
+            self.assertEqual(current_run(), 'the outer run')
+            with self.assertRaisesRegex(KeyError, 'the inner run failed'):
+                inner(True)
+            self.assertEqual(current_run(), 'the outer run', 'the outer run holds after the inner one raised')
+            with self.assertRaisesRegex(RuntimeError, r"asked 'plan' inside a run \(the outer run\)"):
+                planning('plan')
+        self.assertIsNone(current_run())
 
     def test_no_crossing_is_known_and_none_is_exempt(self):
         # shrink-only, and empty since 2026-11-13: the read's re-pin, its one entry, went with the user's ruling (1b)

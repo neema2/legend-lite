@@ -32,12 +32,19 @@ def in_run(what: str) -> Iterator[None]:
 
 
 def runs(what: str) -> Callable[[F], F]:
-    """A function whose every call is a run that ``what`` names."""
+    """A function whose every call is a run that ``what`` names.
+
+    The variable is set and reset here directly, not through ``in_run``'s generator: the same frame at half the cost per
+    run (measured 2026-11-13, docs/witness-cost-homework: around a real DuckDB statement the generator's enter and exit
+    cost ~5.6 us a run, a direct set and reset ~2 us)."""
     def wrap(f: F) -> F:
         @functools.wraps(f)
         def run(*args: Any, **kwargs: Any) -> Any:
-            with in_run(what):
+            token = _RUN.set(what)
+            try:
                 return f(*args, **kwargs)
+            finally:
+                _RUN.reset(token)
         return run  # type: ignore[return-value]
     return wrap
 
