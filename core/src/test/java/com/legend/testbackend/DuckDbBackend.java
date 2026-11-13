@@ -55,11 +55,6 @@ final class DuckDbBackend extends InProcessBackend {
         return workspaces.open();
     }
 
-    @Override
-    public FixtureAside setFixtureAside(Connection workspace) throws SQLException {
-        return workspaces.setAside(workspace, name());
-    }
-
     /** A DUPLICATE of the session, pointed back at its workspace's catalog (a duplicate starts outside it; reading the
      *  catalog is metadata, safe while the session holds an open streaming result). */
     @Override

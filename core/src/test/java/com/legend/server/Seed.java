@@ -20,7 +20,7 @@ final class Seed {
                 ServerSessions.session(com.legend.Compiler.compileModel(model), runtimeName);
                 var run = com.legend.base.RunScope.enter()) {
             // the harness's seed is a run of its one statement (THE WALL's rule 3, 2026-11-06)
-            session.statements().execute(sql);
+            session.statements().execute(com.legend.testbackend.Unplanned.sql(sql));
         }
     }
 }

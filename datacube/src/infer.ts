@@ -30,7 +30,10 @@
 // makes it no harder.
 
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
+import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
+import type { RemoteMountRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
+import type { PlannedSql, PlanText } from '../../engine-client/src/planned-sql.ts';
 
 /** One column, as its database's catalog describes it (the catalog question's row). */
 export interface CatalogColumn {
@@ -58,12 +61,6 @@ export interface InferredModel {
    * rewrite, a Snap. A read-only source reads such a column (a zoned timestamp) as stored.
    */
   readonly conversions: readonly { readonly column: string; readonly sql: string }[];
-  /**
-   * The select list a copy applies, written by the copy's own database (`* REPLACE (<conversion> AS "<column>",
-   * ...)` on DuckDB, or `*`): present when the table is copied, through the snap runtime or rewritten in place
-   * (`convertible`); a read-only source with no snap has none.
-   */
-  readonly copySelectList?: string;
   /** Columns left out: the source cannot convert them, or no Database type holds them (bytes). */
   readonly excluded: readonly string[];
   /**
@@ -100,6 +97,20 @@ export interface InferOptions {
 }
 
 /** A table of the host's database for a model of several (`TableModels.tablesModel`): its catalog rows. */
+/**
+ * A TABLE OUTPUT, as the planner is asked for its plan (Boundary.outputPlan, the final audit's item 2, 2026-11-12): the
+ * box's tables as the catalog answers them (read before the run), the output's table and how it is written, the box's
+ * rows (a lambda's protocol JSON), and -- a table there already -- its catalog's columns. Never SQL: the planner refuses
+ * any other key by name.
+ */
+export interface OutputRequest {
+  readonly databaseType: string;
+  readonly tables: readonly ModelTable[];
+  readonly output: { readonly name: string; readonly mode: string; readonly keys?: readonly string[] };
+  readonly rows: string;
+  readonly target?: readonly CatalogColumn[];
+}
+
 export interface ModelTable {
   readonly table: string;
   readonly schema?: string;
@@ -136,13 +147,22 @@ export interface TableModels {
   /** The model of several tables of a database of `databaseType` (`TablesModel`); a table given twice is refused. */
   tablesModel(tables: readonly ModelTable[], databaseType: string): Promise<TablesModel>;
   /** THE catalog question for one table of a DuckDB: its rows are `tableModel`'s columns (`catalogColumns`). */
-  catalogColumnsSql(schema: string, table: string): Promise<string>;
+  catalogColumnsSql(schema: string, table: string): Promise<PlannedSql>;
   /**
    * What a session of the database runs before it is queried, so that it answers as the planner's SQL expects: the
    * dialect's own setup (`Boundary.sessionSetup`: a DuckDB session in UTC). A host runs it on the database it opens
    * (services/browser.ts `setUpSession`; Python's Frames, from the same function).
    */
-  sessionSetup(databaseType: string): Promise<readonly string[]>;
+  sessionSetup(databaseType: string): Promise<readonly PlannedSql[]>;
   /** A host's named operations on its own database (D5, engine-client's host-operations.ts): each one's statements. */
-  hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]>;
+  hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]>;
+  /** A host's own file read into its database, as a plan (Boundary.fileLoad, B3): PlanJson's text, run by runLoad. */
+  fileLoad(request: FileLoadRequest): Promise<PlanText>;
+  /** A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): PlanJson's text, run by runLoad. */
+  remoteMount(request: RemoteMountRequest): Promise<PlanText>;
+  /** Rows the database makes in a declared table, as a plan (Boundary.synthesize, S303): PlanJson's text, run by
+   *  runLoad -- the demo's sample (demo/boot.ts synthesizeTrades). */
+  synthesize(request: SynthesizeRequest): Promise<PlanText>;
+  /** A table Output, as ONE plan (Boundary.outputPlan, the final audit's item 2): PlanJson's text, run by runPlan. */
+  outputPlan(request: OutputRequest): Promise<PlanText>;
 }

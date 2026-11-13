@@ -269,11 +269,11 @@ final class SqlTextVerdicts {
         }
     }
 
-    /** Whether {@code fqn} is one of the three ROOT arms' ({@code assertSameSQL}, the generator's {@code assertSqlEquals},
-     *  {@code assertEqualsH2Compatible}). */
+    /** Whether {@code fqn} is one of the two ROOT arms' ({@code assertSameSQL}, {@code assertEqualsH2Compatible}; the
+     *  generator's {@code assertSqlEquals} root went with the TDG appeal, B2d.2, 2026-11-11: its fetch texts are planning
+     *  constants, compared as texts). */
     static boolean isRoot(String fqn) {
         return com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
-                || com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
                 || com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn);
     }
 
@@ -355,8 +355,6 @@ final class SqlTextVerdicts {
         if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall root) {
             return com.legend.compiler.element.type.PlatformTypes.ASSERT_SAME_SQL.equals(fqn)
                     ? tryArmSameSql(root, letPrefix, specs, env, hook)
-                    : com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
-                    ? tryArmTdgRoot(root, letPrefix, specs, env, hook)
                     : tryArmDualGolden(root, letPrefix, specs, env, hook);
         }
         com.legend.builtin.NativeFn.Verdict fn = com.legend.builtin.NativeFn.Verdict.of(
@@ -488,7 +486,7 @@ final class SqlTextVerdicts {
     }
 
     /** Whether {@link #tryArm} may claim an assert of these arguments (the test-is-the-product plan's M6): a static
-     *  superset of its gates -- a toSQLString producer, a test-data generator's fetch text, a SQL read, a plan node's
+     *  superset of its gates -- a toSQLString producer, a SQL read, a plan node's
      *  SQL read (looked through a helper for the plain assert) on either side. The host checks plan such an assert
      *  through {@link #plan} since the plan's M10b ({@code AssertVerdicts.planHost}). */
     static boolean mayArm(String name, boolean wantEqual, List<TypedSpec> args, List<TypedSpec> letPrefix,
@@ -497,7 +495,7 @@ final class SqlTextVerdicts {
             return false;
         }
         for (TypedSpec side : args.subList(0, 2)) {
-            if (findProducer(side, letPrefix) != null || hasTdgProducer(side, letPrefix)
+            if (findProducer(side, letPrefix) != null
                     || findSqlRead(side, letPrefix) != null || findPlanProducer(side, letPrefix) != null
                     || "assertEquals".equals(name) && lookThroughPlanProducer(side, letPrefix, specs) != null) {
                 return true;
@@ -701,8 +699,8 @@ final class SqlTextVerdicts {
         if (resultArg.info().type()
                 == com.legend.compiler.element.type.Type.Primitive.STRING) {
             // the String overload (assertSameSQL(sqlString, result:String)
-            // — `$result->sqlRemoveFormatting()`, a plan text, a TDG
-            // fetch text) takes the SAME exec-read arm assertEquals takes:
+            // — `$result->sqlRemoveFormatting()`, a plan text) takes the
+            // SAME exec-read arm assertEquals takes:
             // an sql() read is a rows verdict, never a text comparison; a
             // plain String pair stays the ordinary string overload
             // (the general arm: a toSQLString producer takes the
@@ -794,15 +792,7 @@ final class SqlTextVerdicts {
                 TypedSide pv = tryArmPlanText(
                         "assertEqualsH2Compatible", goldenSide,
                         actualSide, letPrefix, specs, env, hook);
-                if (pv != null) {
-                    return pv;
-                }
-                // TDG flip: the generator fetch-text spelling
-                // ($tdg.sqls->at(n)->sqlRemoveFormatting()) — the
-                // fetch-text verdict, upgraded golden
-                return tryArmTdgSql("assertEqualsH2Compatible",
-                        goldenSide, actualSide, letPrefix, specs, env,
-                        hook);
+                return pv;
             }
             oursExpr = actualSide;
             resultArg = read.args().get(0);
@@ -891,21 +881,6 @@ final class SqlTextVerdicts {
             String name, List<TypedSpec> args, List<TypedSpec> letPrefix,
             SpecCompiler specs, BodyDriver.ExecEnv env,
             AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        // TDG FIRST: a generator fetch text on exactly one side is the
-        // fetch-text verdict whatever wraps it — the corpus's
-        // assertSqlEquals inlines to assertEquals over
-        // sqlRemoveFormatting on BOTH sides, and that string read used
-        // to claim the side as an exec-read (a Result frame it never
-        // was), so the TDG route below was unreachable for the whole
-        // let-bound cohort.
-        boolean tdg0 = hasTdgProducer(args.get(0), letPrefix);
-        boolean tdg1 = hasTdgProducer(args.get(1), letPrefix);
-        if (tdg0 != tdg1) {
-            return tryArmTdgSql(name,
-                    tdg0 ? args.get(1) : args.get(0),
-                    tdg0 ? args.get(0) : args.get(1),
-                    letPrefix, specs, env, hook);
-        }
         com.legend.compiler.spec.typed.TypedUserCall r0 =
                 findSqlRead(args.get(0), letPrefix);
         com.legend.compiler.spec.typed.TypedUserCall r1 =
@@ -930,8 +905,6 @@ final class SqlTextVerdicts {
                             q0 != null ? args.get(0) : args.get(1),
                             letPrefix, specs, env, hook);
                 }
-                // (the plain-assertEquals TDG spelling routes ABOVE,
-                // before the exec-read claim — one TDG door)
             }
             return null;
         }
@@ -1357,59 +1330,6 @@ final class SqlTextVerdicts {
         return null;
     }
 
-    /** The assertSqlEquals ROOT entry (the TDG family's own assert
-     * function — a USER function reaching the verdict layer
-     * PRE-inline, the assertSameSQL discipline): 2 args, the TDG side
-     * identifies by its producer. Null = not the TDG shape. */
-    static @com.legend.base.Nullable TypedSide tryArmTdgRoot(
-            com.legend.compiler.spec.typed.TypedUserCall root,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env,
-            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        if (root.args().size() != 2) {
-            return null;
-        }
-        boolean t0 = hasTdgProducer(root.args().get(0), letPrefix);
-        boolean t1 = hasTdgProducer(root.args().get(1), letPrefix);
-        if (t0 == t1) {
-            return null;
-        }
-        return tryArmTdgSql("assertSqlEquals",
-                t0 ? root.args().get(1) : root.args().get(0),
-                t0 ? root.args().get(0) : root.args().get(1),
-                letPrefix, specs, env, hook);
-    }
-
-    /** TDG SCORING FLIP (charter burn map): the fetch-text verdict
-     * for {@code assertSqlEquals(golden, $tdg.sqls->at(n))} and the
-     * plain-assertEquals spelling of the same compare. BOTH sides are
-     * generator fetch texts; the SPI executes ours on this session,
-     * replays the golden on the referee, and multiset-compares — the
-     * walk's tdgSqlReplay semantics behind the referee interface. A
-     * decline (ordered fetch, chained temp tables) keeps TEXT as the
-     * contract, counted. Null = not the TDG shape. */
-    private static @com.legend.base.Nullable TypedSide tryArmTdgSql(
-            String name, TypedSpec goldenSide, TypedSpec actualSide,
-            List<TypedSpec> letPrefix, SpecCompiler specs,
-            BodyDriver.ExecEnv env,
-            AssertVerdicts.@com.legend.base.Nullable SpliceHook hook) {
-        if (!hasTdgProducer(actualSide, letPrefix)) {
-            return null;
-        }
-        String golden = readText(goldenSide, letPrefix, specs, env, hook, true);
-        String ours = oursText(actualSide, letPrefix, specs, env, hook);
-        if (golden == null || ours == null) {
-            return null;
-        }
-        boolean textEqual = golden.equals(ours);
-        // TASK #14 LEG 2 (2026-09-21): the TDG fetch-text assert's verdict is the golden fetch text against ours,
-        // string equality; the referee (the fetch replayed on the referee, rows compared) is its APPEAL on a failed
-        // text (decide: a row of the body's statement under the batch, the step's on the program road, now on the walk)
-        return decide(env, name, golden, ours, textEqual, null, new com.legend.testexecutionplan.Appeal(0, name, com.legend.testexecutionplan.Appeal.Kind.TDG, null, null,
-                null, com.legend.testexecutionplan.RootLoop.NO_APPEAL));
-    }
-
-
     /** The engine-session temp table a golden reads for an INLINE in-list
      * (batch 65): the engine numbers {@code tempTableForIn_N} by plan
      * node and fills it with the query's literal collection — so the
@@ -1488,45 +1408,6 @@ final class SqlTextVerdicts {
         return kind == null ? null : new InListSeed(kind, values);
     }
 
-    /** A generateTestData producer under {@code t} — the typed carrier
-     * node, the exact platform FQN, OR the carrier's FOLDED instance
-     * literal (the orchestrator replaces the carrier with its executed
-     * result per statement, so by verdict time a let-bound
-     * {@code $testData} reads as a TestDataGenResult literal — the
-     * 29-test TDG cohort had walled on that, its asserts falling through
-     * to the scalar lowerer as "no scalar lowering for assertEquals"),
-     * LET-AWARE. */
-    private static boolean hasTdgProducer(TypedSpec t,
-            List<TypedSpec> letPrefix) {
-        java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>();
-        work.add(t);
-        java.util.Set<String> seenVars = new java.util.HashSet<>();
-        while (!work.isEmpty()) {
-            TypedSpec cur = work.poll();
-            if (cur instanceof com.legend.compiler.spec.typed
-                    .TypedTestDataGen tg && !"plan".equals(tg.flavor())) {
-                // a TDG PLAN is plan text, not a fetch-text producer
-                return true;
-            }
-            if (cur instanceof TypedNativeCall nc
-                    && nc.callee().qualifiedName().equals(
-                            com.legend.compiler.element.type.PlatformTypes
-                                    .GENERATE_TEST_DATA)) {
-                return true;
-            }
-            if (cur instanceof com.legend.compiler.spec.typed
-                    .TypedVariable tv && seenVars.add(tv.name())) {
-                com.legend.compiler.spec.typed.TypedLet tl =
-                        com.legend.compiler.spec.typed.Lets.binding(letPrefix, tv.name());
-                if (tl != null) {
-                    work.add(tl.value());
-                }
-            }
-            work.addAll(cur.children());
-        }
-        return false;
-    }
-
     /** The SHARED rows leg + verdict policy (§3.5c-§3.7): evaluate
      * {@code rowsRead} through the one router (REFEREE-CLASS
      * execution — wire-census suspended, save/restore), replay the
@@ -1594,21 +1475,20 @@ final class SqlTextVerdicts {
         // ruling, option 1 -- both judges agree; the DuckDB-vs-H2 function divergences a held text used to expose
         // belong to the tests that assert VALUES). One site decides where it goes (decide).
         RowsAhead ahead = rowsAhead(env, textEqual, rowsRead, populationRead, mappingFqn, letPrefix, specs, hook);
-        // the appeal is decided after the body's run (Appeals, P1.2, 2026-11-07): its stores are provided before the
-        // body's run, by the caller, from the plan's data (PlannedAppeals.stores), and its rows read as plans of their
-        // own on the body's sessions
+        // the appeal is decided after the body's run (Appeals, P1.2, 2026-11-07): its rows read as plans of their own
+        // on the body's sessions
         // the referee's in-list temp table, planned: its rows read off the typed query in the frame's own zone (the
         // envelope spliced where a let-bound Result stood); its name, the one the golden reads, at the appeal
         InListSeed seed = ahead != null && temps.isEmpty()
                 ? inListSeed(query != null ? query : rowsRead, letPrefix,
                         frameZone(hook == null ? rowsRead : hook.apply(rowsRead, java.util.Set.of())))
                 : null;
-        // the rows leg as the plan's data (step 8b, 2026-11-08): its reads planned with the assert, its replay facts,
-        // the stores it asks the harness to provide and the target the referee replays on; null where not planned
+        // the rows leg as the plan's data (step 8b, 2026-11-08): its reads planned with the assert, its replay facts
+        // and the target the referee replays on; null where not planned
         com.legend.testexecutionplan.Appeal.Rows rows = ahead == null ? null : new com.legend.testexecutionplan.Appeal.Rows(ahead.rows().data(), ahead.population().data(),
                 replaySqlOrNull, mappingFqn, classFqn, facts.extentSubset(), facts.ordered(), facts.sortKeys(), goldenPlan,
                 planBindings, temps,
-                seed == null ? null : new com.legend.testexecutionplan.Appeal.InListSeed(seed.kind(), seed.values()), ahead.stores(),
+                seed == null ? null : new com.legend.testexecutionplan.Appeal.InListSeed(seed.kind(), seed.values()),
                 (env.appealOn() != null ? java.util.Objects.requireNonNull(env.appealOn()) : env).target(),
                 // the enumerations the referee decodes, read from the model now (hole 1, 2026-11-08)
                 JudgmentFacts.enumsOf(env.ctx(), mappingFqn, classFqn, ahead.rows().data()));
@@ -1617,8 +1497,8 @@ final class SqlTextVerdicts {
     }
 
     /** The appeal's rows for an arm planned under {@code env} under the compatibility rules, whose text may fail --
-     *  not byte-equal, or a text the step reads: planned now, naming each store they read for the harness to provide
-     *  before the body's run (the plan's data, {@code PlannedAppeals.stores}: step 8c and hole 4); else none. Planning
+     *  not byte-equal, or a text the step reads: planned now; else none (2026-11-10: the stores they read were named
+     *  for the harness to provide, until the on-demand fixtures were deleted, census M9). Planning
      *  is never inside a run (the wall's {@code RunScope.plans} refuses it; the full audit, 2026-11-09: the check of a
      *  run in force here could never hold, and read the wall as a channel). */
     private static @com.legend.base.Nullable RowsAhead rowsAhead(BodyDriver.ExecEnv env, boolean textEqual,
@@ -1628,16 +1508,11 @@ final class SqlTextVerdicts {
         if (!appeals(env) || textEqual) {
             return null;
         }
-        // the stores the rows leg reads, named in the plan's data: the harness is asked for their fixtures before the
-        // body's run, and the decision asks again, by name, after it (step 8c, 2026-11-08: the harness's registry was
-        // filled here, while the assert was planned)
-        List<String> stores = mappingFqn == null ? List.of()
-                : List.copyOf(storesOf(env.ctx(), mappingFqn, new java.util.LinkedHashSet<>()));
         // the rows planned where the appeal reads them: the body's own environment for a system-routed body's assert
         // under the database judge (ExecEnv.appealOn), this one otherwise
         BodyDriver.ExecEnv on = env.appealOn() != null ? env.appealOn() : env;
         RowsAhead ahead = new RowsAhead(sideAhead(rowsRead, letPrefix, specs, on, hook),
-                sideAhead(populationRead, letPrefix, specs, on, hook), List.copyOf(stores));
+                sideAhead(populationRead, letPrefix, specs, on, hook));
         return ahead;
     }
 
@@ -1646,7 +1521,7 @@ final class SqlTextVerdicts {
      *  (each setup's program planned), our rows and the page population, each planned as {@link JudgePlans#evalSide}
      *  plans a side, with the assert -- the appeal at the step provides, runs and shapes them, where the walk's appeal
      *  did, and plans nothing. */
-    private record RowsAhead(SideAhead rows, SideAhead population, List<String> stores) {
+    private record RowsAhead(SideAhead rows, SideAhead population) {
     }
 
     /** One side of an appeal planned with its assert, or the failure its planning raised -- raised where the appeal
@@ -1815,26 +1690,5 @@ final class SqlTextVerdicts {
                 instanceof com.legend.compiler.element.type.Type
                         .ClassType ct
                 ? ct.fqn() : null;
-    }
-
-    private static java.util.Set<String> storesOf(com.legend.compiler.element.ModelContext ctx,
-            String mappingFqn, java.util.Set<String> visited) {
-        java.util.Set<String> stores = new java.util.LinkedHashSet<>();
-        if (!visited.add(mappingFqn)) {
-            return stores;
-        }
-        ctx.findMapping(mappingFqn).ifPresent(m -> {
-            for (var b : m.classBindings()) {
-                if (b instanceof com.legend.model.MappingDefinition.ClassBinding.Relational r
-                        && r.source() instanceof com.legend.model.MappingDefinition
-                                .RelationalSource.Table t) {
-                    stores.add(t.database());
-                }
-            }
-            for (var inc : m.includes()) {
-                stores.addAll(storesOf(ctx, inc.mappingPath(), visited));
-            }
-        });
-        return stores;
     }
 }

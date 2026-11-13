@@ -70,10 +70,19 @@ public final class RaisedErrors {
         return sep >= 0 ? inner.substring(sep + 1) : inner;
     }
 
+    /** A failure that IS a raise (pure's own error, its text the platform's: the sentinel envelope unwrapped), told by
+     *  its type wherever a caller asks whether a failure was raised (the B checkpoint's tenets audit, LOW 4,
+     *  2026-11-11: until then the seam compared a failure's message with its database's to tell). */
+    public static class Raised extends java.sql.SQLException {
+        Raised(String message, @com.legend.base.Nullable String sqlState, java.sql.SQLException cause) {
+            super(message, sqlState, cause);
+        }
+    }
+
     /** A raised error whose emission carried its pure source position
      * (the raising call's name-token span — {@code PureSql.raise}) —
      * assertError's position channel. Message is the CLEAN text. */
-    public static final class Positioned extends java.sql.SQLException {
+    public static final class Positioned extends Raised {
         private final int line;
         private final int column;
 
@@ -124,7 +133,7 @@ public final class RaisedErrors {
         String inner = msg.substring(first + 1, last).replace(QUOTE_MARK, '\'');
         int sep = inner.indexOf(POSITION_SEP);
         if (sep < 0) {
-            return new java.sql.SQLException(inner, e.getSQLState(), e);
+            return new Raised(inner, e.getSQLState(), e);
         }
         String pos = inner.substring(0, sep);
         String clean = inner.substring(sep + 1);
@@ -138,7 +147,7 @@ public final class RaisedErrors {
                 // a malformed prefix falls through to the plain strip
             }
         }
-        return new java.sql.SQLException(clean, e.getSQLState(), e);
+        return new Raised(clean, e.getSQLState(), e);
     }
 
     /** A failed statement's or open's error as the {@link com.legend.error.DataError} the platform tells: its raise

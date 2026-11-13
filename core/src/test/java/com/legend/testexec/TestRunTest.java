@@ -55,7 +55,7 @@ final class TestRunTest {
     static void setUp() throws SQLException {
         conn = TestBackends.platform().open();
         target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of());
+                List.of(), List.of(), null, null, null);
     }
 
     @AfterAll
@@ -64,7 +64,7 @@ final class TestRunTest {
     }
 
     private static PlanSessions.Source sessions() {
-        return PlanSessions.setUp(TestSessions.over(conn), target);
+        return PlanSessions.acquired(TestSessions.over(conn), target);
     }
 
     private static ExecutionPlan.Column col(String name, String type, String slot) {
@@ -168,6 +168,11 @@ final class TestRunTest {
         public void end() {
             events.add("end");
         }
+
+        @Override
+        public void writing(int step) {
+            events.add("writing " + step);
+        }
     }
 
     /** {@code steps} as a test plan judged by {@code judge}, read back from its JSON as written. */
@@ -178,7 +183,22 @@ final class TestRunTest {
     }
 
     private static void run(TestPlan plan, PlanSessions.Source sessions, Recording sink) throws IOException {
-        TestRun.run(plan, Map.of(), sessions, com.legend.executionplan.DataStores.none(), step -> null, sink, sink);
+        TestRun.run(plan, Map.of(), sessions, com.legend.executionplan.DataStores.none(), step -> null, sink, sink, java.util.UUID.randomUUID());
+    }
+
+    @Test
+    @DisplayName("a program's own load (AT_STEP) is a write of the body's")
+    void aProgramsOwnLoadIsAWrite() throws IOException {
+        // the runner tells the sink of a write at an AT_STEP load (a live source's session table, SOURCE, no write,
+        // went with the JSON pass, 2026-11-11: a data: payload is bound or inline)
+        ExecutionPlan.Load own = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP, List.of(
+                new ExecutionPlan.LoadStep.Statement("DROP TABLE IF EXISTS temp.legend_own_load"),
+                new ExecutionPlan.LoadStep.Statement("CREATE TEMPORARY TABLE legend_own_load (x INTEGER)")), target);
+        Recording sink = new Recording();
+        run(plan(TestPlan.Judge.HOST, new TestPlan.Run(own),
+                new TestPlan.Run(relation("SELECT 1 AS value", List.of(col("value", "Integer", "INTEGER"))))),
+                sessions(), sink);
+        assertTrue(sink.events.contains("writing 0"), sink.events.toString());
     }
 
     @Test

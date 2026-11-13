@@ -70,12 +70,16 @@ public class Test_LegendLite_BigQuery_EssentialFunctions_PCT extends PCTReportCo
             // code fails it the same way -- this list was last measured on BigQuery on 2026-10-27, before Track L
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
             // BIGQUERY'S OWN LIMIT: a date-time past BigQuery's range (years 1 to 9999) is refused
-            one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInterval field nanoseconds '740740734720000000000' is out of range -316224000000000000000 to 316224000000000000000; error in INTERVAL expression\"")
+            one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInterval field nanoseconds '740740734720000000000' is out of range -316224000000000000000 to 316224000000000000000; error in INTERVAL expression\""),
             // NOTE 2026-10-21 (the plan route on BigQuery, measured by the BigQuery lane session at 6c8de4e and
             // edb7e12b against the merge-base 59b547a5e, where every pin here held): the three folds pass (object
             // identity), their pins removed; testBigFloatAbs prints the double's own digits and
             // testComplexClassToString the object's id, each as on every lane. testNewDateError keeps its pin: the
             // raise in its column's type ("cast_datetime_to_datetime" on the lane) is being measured
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): BigQuery keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

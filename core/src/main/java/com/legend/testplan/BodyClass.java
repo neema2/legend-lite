@@ -42,7 +42,6 @@ import com.legend.model.MappingDefinition;
 import com.legend.planner.BodyPlanner;
 import com.legend.planner.ConnectionLets;
 import com.legend.planner.LetPlanner;
-import com.legend.planner.SystemRoutes;
 import com.legend.planner.FramePlanner;
 import com.legend.planner.ProductStatements;
 import com.legend.compiler.spec.ResultEnvelopeSplice;
@@ -145,7 +144,7 @@ public enum BodyClass {
      *  keeps every assert body on the walk until M8), or null when the walk runs it. */
     public static @Nullable BodyClass of(TypedQuery body, String runtime, boolean oneJudge) {
         // a runtime that declares test data: the test door seeds it as the walk does, a keyed setup step before the
-        // first statement that names it, once per session (TestKinds.seed, Seeds.planned: "the program's runtime";
+        // first statement that names it, once per session (TestKinds.seed, LoadPlanner.seeds: "the program's runtime";
         // M3e) -- the M5 audit's B1 refusal predated that seed (2026-11-04, the core program: JudgesOnPlansTest,
         // ServiceTestProvisionKeyTest, CreateClassTest measured on the program road)
         QueryDoor.Scan scan = new QueryDoor.Scan(body, runtime);
@@ -180,17 +179,14 @@ public enum BodyClass {
      * user store's table, a {@code from()}, an {@code execute} or a handle over a runtime) -- each through the user
      * functions it calls, a lambda literal's body left aside (a lambda is a value: the native that runs one against
      * a store, an execute or a handle, is itself the read the scan names; a lambda handed to a SQL-text generator,
-     * {@code toSQLString(|Product.all()...)}, runs nowhere) -- on a runtime whose engine the platform runs in
-     * process (the system tables keep their names there). The frame, effect and store-write exclusions are the
-     * class's ({@link #of}, {@code assertProgram}), not this predicate's. Such a body's program runs on the graph's
-     * system database, the one session the walk routes each of its sides to; a body mixing the two stores has two
-     * targets and stays on the walk, by name.
+     * {@code toSQLString(|Product.all()...)}, runs nowhere) -- on any runtime (B4, 2026-11-11: until then only one
+     * whose engine the platform runs in process; the store is the process's catalog whatever database holds the
+     * user's data). The frame, effect and store-write exclusions are the class's ({@link #of}, {@code assertProgram}),
+     * not this predicate's. Such a body's program runs on the process's catalog, the one session each of its sides is
+     * routed to; a body mixing the two stores has two targets, each statement routed by its own stores.
      */
     public static boolean systemRouted(TypedQuery query, String runtime) {
         ModelContext ctx = query.context();
-        if (!SystemRoutes.inProcess(ctx, runtime)) {
-            return false;
-        }
         Set<String> systemClasses = systemClasses(ctx);
         Map<FunctionId, Boolean> systemMemo = new HashMap<>();
         Map<FunctionId, Boolean> userMemo = new HashMap<>();
@@ -411,6 +407,9 @@ public enum BodyClass {
         // and its effects and raw reads would have run on the system database)
         return n instanceof TypedFrom
                 || n instanceof TypedRawSqlRelation
+                // a planned statement's value (B2d.2: the test-data generator's text, a comparison over its slice) reads
+                // the body's database
+                || n instanceof com.legend.compiler.spec.typed.TypedPlannedValue
                 || n instanceof com.legend.compiler.spec.typed.TypedCatalogGrid
                 || n instanceof TypedNativeCall call && (NativeFn.Handle.isExecute(call.callee().id())
                         || NativeFn.Handle.runsAFrame(call.callee().id())
@@ -642,8 +641,13 @@ public enum BodyClass {
             // 2026-11-02): run where it stands, its rows dropped, as the walk runs it (the user, 2026-11-06)
             return (statementFrame || !frames.isEmpty()) && answered(query, Lets.bare(last));
         }
+        // a query as the last statement, the query program's answer rule (answersAsTheLastStatement), as the assert
+        // program admits it since 2026-11-05 (B2d.2, 2026-11-11: upstream's loadAndTestExecution ends the test-data
+        // generator's bodies with its frame's non-empty check, `$result.values->isNotEmpty() && ...`, after the
+        // asserts)
         return scan.kinds(last).contains(QueryDoor.TestOnly.ASSERT) || QueryDoor.assertErrorRoot(last, query.specs())
-                || plansNoStep(last, body.subList(0, body.size() - 1), ctx);
+                || plansNoStep(last, body.subList(0, body.size() - 1), ctx)
+                || answersAsTheLastStatement(query, scan, body.size() - 1, systemClasses, ctx);
     }
 
     /** Whether {@code statement} is an {@code execute(...)} at its root (no let): a frame answered whole. */
@@ -1032,11 +1036,12 @@ public enum BodyClass {
          *  {@link TypedCsvCensus}): the program road has no fold for it, so a body holding it is refused by name (its
          *  Java fold went with the walk, 2026-11-06; the tests skipped by a ruled register row). */
         CSV_CENSUS("csv-census"),
-        /** The test-data generator's carrier ({@code generateTestData}, {@code generateSeedDataString}: the checker's
-         *  {@link TypedTestDataGen} of the {@code generate} and {@code seedString} flavours): the program road has no
-         *  step for the generator's fetches, so a body holding it is refused by name (the walk's run of them deleted,
-         *  2026-11-06/07; the tests skipped by a ruled register row). The {@code plan} flavour is a value the
-         *  planner renders ({@code generatorPlanText}) and no kind (M10b). */
+        /** A test-data generator's carrier the program road does not plan (the checker's {@link TypedTestDataGen}): a
+         *  body holding one is refused by name. Since B2d.2 (2026-11-11) a {@code generateTestData} read by its
+         *  {@code sqls} or its {@code dataCsvString} is planned before the body is classed ({@code GeneratedTestData}:
+         *  none reaches the class rules); what remains is {@code generateSeedDataString} (the {@code seedString}
+         *  flavour) and a generator read another way. The {@code plan} flavour is a value the planner renders
+         *  ({@code generatorPlanText}) and no kind (M10b). */
         TDG_GENERATOR("tdg-generator");
 
         private final String tag;

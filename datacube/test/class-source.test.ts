@@ -16,6 +16,7 @@ import { rawRows, type ClassSource } from '../src/cube-document.ts';
 import { gridLens } from '../src/page-filters.ts';
 import type { ClassAction } from '../src/model-writer.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 type Property = NonNullable<ClassElement['properties']>[number];
 const STRING: Property['genericType'] = { rawType: { _type: 'packageableType', fullPath: 'String' } };
@@ -107,8 +108,8 @@ describe('a class made by the writer, read back by its class source', () => {
   before(async () => {
     const db = await openDatabase();
     engine = new DuckDbEngine(db.connection);
-    await engine.run('CREATE TABLE trades (trade_id INTEGER NOT NULL, region VARCHAR, notional DOUBLE)', 0);
-    await engine.run("INSERT INTO trades VALUES (1, 'EMEA', 100.5), (2, 'AMER', 20), (3, 'EMEA', NULL), (4, 'APAC', 7)", 0);
+    await engine.run(unplanned('CREATE TABLE trades (trade_id INTEGER NOT NULL, region VARCHAR, notional DOUBLE)'), 0);
+    await engine.run(unplanned("INSERT INTO trades VALUES (1, 'EMEA', 100.5), (2, 'AMER', 20), (3, 'EMEA', NULL), (4, 'APAC', 7)"), 0);
   });
 
   after(async () => {

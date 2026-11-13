@@ -30,32 +30,55 @@ public interface DatabaseConnector {
      *  ({@link Sessions#openingFor}). */
     Sessions.Opening opening(com.legend.executionplan.Connection def);
 
-    /** Whether it has a private in-process instance ({@link #openPrivate}). A server has none: its system database is
-     *  on a system connection the host configures ({@link Sessions.Opener}). Each connector answers: a default would
-     *  send a new in-process database's system database to the host's connection. */
+    /** Whether it has a private in-process instance ({@link #openPrivate}): the engines the process's catalog is made
+     *  on (B4, 2026-11-11: a server has none, and its statements reading the system store run on the platform's own
+     *  engine's catalog). Each connector answers: a default would make a catalog on a server. */
     boolean inProcess();
 
-    /** A PRIVATE in-memory instance, gone when the connection closes (the system database, the platform's engine);
-     *  refused by name for a database with none ({@link #inProcess} false). */
-    default Connection openPrivate() throws SQLException {
+    /** A PRIVATE in-memory instance, gone when the connection closes (the system database, the platform's engine),
+     *  made with {@code settings}, the ones the plan's target says its database must have (null for none: the C
+     *  checkpoint's SHOULD-FIX 3, 2026-11-12); refused by name for a database with none ({@link #inProcess} false). */
+    default Connection openPrivate(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
         throw new com.legend.error.NotImplementedException("no in-memory instance of database type '" + type() + "'");
     }
 
-    /** How a raise a session holds is read back after a statement failed (docs/CLOUD_BACKENDS_PCT_2026_10_11.md
-     *  §13): where this database's errors cannot carry a raise's text, its dialect keeps the text in the session, and
-     *  these two statements read it and clear it. Declared here as data, run by the seam ({@link JdbcStatements#held};
-     *  D65, 2026-10-29: until then the connector ran them itself). Null for a database whose errors carry the raise.
-     *  Each connector answers: a default would lose a new database's held message without a word. */
-    @com.legend.base.Nullable RaiseRecovery raiseRecovery();
-
-    /** The two statements that read back and clear a raise a session holds: {@code read} selects the one text (one
-     *  row, one column; null where none is held), {@code reset} clears it so a later failure cannot read a stale one. */
-    record RaiseRecovery(String read, String reset) {
-        public RaiseRecovery {
-            java.util.Objects.requireNonNull(read, "read");
-            java.util.Objects.requireNonNull(reset, "reset");
+    /** {@code settings} refused by name for a database whose instance takes none where it is opened: only a target
+     *  that declares none opens it. */
+    static void noSettings(com.legend.executionplan.DatabaseType type, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) {
+        if (settings != null) {
+            throw new com.legend.error.NotImplementedException("a " + type + " database is opened with no settings, and"
+                    + " the plan's target declares " + settings.required() + ": never opened without them");
         }
     }
+
+    // (urlWith, a declared connection's URL with the target's settings written on it, went 2026-11-12 with the third
+    // re-audit's MUST-FIX 2: a declared database is opened as its connection declares it and never modified,
+    // Sessions.open(Opening.Url, ...); it was the C final audit's J1, which wrote H2's settings into the user's database)
+
+    /** Whether a plan's target on this database declares the settings its database must have
+     *  ({@code ExecutionPlan.Target.settings}): a session checked against a target that declares none where it must,
+     *  or some where it takes none, is refused by name (the C final audit's J4, 2026-11-12). Default: none (H2's
+     *  dialect alone declares them). */
+    default boolean takesSettings() {
+        return false;
+    }
+
+    // (raiseRecovery, the two statements that read back a raise a session holds: the PLAN's since C2, 2026-11-12 --
+    // SqlDialect.raiseReadBack, carried by ExecutionPlan.Target.raiseReadBack and sent by the seam after a failure, the
+    // charter's A3(c); a connector declares no statement)
+
+    /** Whether this database ABORTS its whole transaction when a statement in it fails, refusing every statement after
+     *  it until a rollback (DuckDB, Postgres), where another rolls back the failed statement alone (H2, SQLite): a run's
+     *  turn on the catalog is rolled back at once after a failure where it aborts, so the run's next statement runs
+     *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 3, A4). Each connector answers. */
+    boolean abortsTransactionOnError();
+
+    /** Whether this database's driver TAKES a transaction the platform opens across statements (autocommit off, then a
+     *  commit or a rollback). ClickHouse's refuses one ("setAutoCommit(false) is not supported", measured 2026-11-07 on
+     *  the timeseries line, PR #81): there a load's steps and a program's statements run unbracketed, each its own, and
+     *  a load's no-leftovers rule is its drop first and its drop at release (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3
+     *  rule 1, the orchestrator's check of 2026-11-10). Each connector answers. */
+    boolean takesTransactions();
 
     /** The facts of this database's JDBC driver that reading a row back needs and no plan column's slot can say
      *  (D72, 2026-10-30; until then four {@code SqlDialect} hooks the runtime read through the plan side -- a driver's
@@ -103,17 +126,18 @@ public interface DatabaseConnector {
      *  database keeps one by name. */
     interface NamedMemory {
 
-        /** A connection to the named in-memory database {@code name}, which outlives it. */
-        Connection openNamed(String name) throws SQLException;
+        /** A connection to the named in-memory database {@code name}, which outlives it, with {@code settings} (the
+         *  plan's target's; null for none). */
+        Connection openNamed(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException;
 
         /** A connection to the named in-memory database {@code name}, which lives only while a connection to it is
          *  open: its opener keeps this one, and when that one closes with no other open, the database is gone. */
-        Connection openKept(String name) throws SQLException;
+        Connection openKept(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException;
 
         /** Another connection to the kept database {@code name} ({@link #openKept}), which must still be open: one
          *  whose keeper closed is gone, and connecting fails by name rather than making an empty database of that
          *  name. */
-        Connection joinKept(String name) throws SQLException;
+        Connection joinKept(String name, com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException;
     }
 
     /** {@code def}'s specification, refused: this database is not opened from it. */

@@ -192,6 +192,57 @@ public class MariaDb extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
     }
 
+    /** {@inheritDoc} 6: its {@code DATETIME(6)}, its finest (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11): no
+     *  statement but the query's. Its size is bounded by the connection's {@code max_allowed_packet}, a setting the
+     *  database enforces (its refusal reaches the caller). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here by {@code JSON_TABLE} (the JSON pass, 2026-11-11,
+     *  measured on MariaDB 11.4: 100,000 records in 121 ms, {@code 1.50} kept as written): each element its JSON, a
+     *  frame's record its place as the ordinality from 0 (the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.legend_element AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.legend_ord - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM JSON_TABLE(");
+        return bindPayload(writer, u).append(", '$[*]' COLUMNS (legend_ord FOR ORDINALITY,"
+                + " legend_element JSON PATH '$')) AS legend_payload");
+    }
+
+    /** {@inheritDoc} 6: its date-time column is a {@code DATETIME(6)} (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    /** The raise {@link #raise} keeps in {@code @legend_raise}, read back and cleared after a failure (C2, 2026-11-12: the
+     *  plan's target declares them, exec sends them; MySQL's are the same). */
+    @Override
+    public RaiseReadBack raiseReadBack() {
+        return new RaiseReadBack("SELECT @legend_raise", "SET @legend_raise = NULL");
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -1845,6 +1896,9 @@ public class MariaDb extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on MariaDB, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached MariaDB, whose binary collation is not measured");
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1924,6 +1978,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
             case BIT_NOT -> writer.append("CAST(~ ").expr(a.get(0), 7).append(" AS SIGNED)");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads
             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
@@ -2117,8 +2172,8 @@ public class MariaDb extends AnsiSqlRenderer {
      *  and any other is refused, measured), branch taken or not. So the message is kept in the session's user
      *  variable {@code @legend_raise} and a run-time error follows, raised only when evaluated (a CASE branch not
      *  taken raises nothing, measured): a scalar subquery of two rows, "Subquery returns more than 1 row". The
-     *  platform reads the message back from the session it failed on by the two statements its connector declares
-     *  ({@code exec.MariaDbConnector.raiseRecovery}), the seam's read ({@code exec.JdbcStatements.held}). */
+     *  platform reads the message back from the session it failed on by the two statements this dialect declares
+     *  ({@link #raiseReadBack}, carried by the plan's target: C2), the seam's read ({@code exec.JdbcStatements.held}). */
     private SqlWriter.Piece raise(List<SqlExpr> a) {
         return raise(a, null);
     }
@@ -3449,13 +3504,13 @@ public class MariaDb extends AnsiSqlRenderer {
     // Plan parameters
     // ==================================================================
 
+    /** A Date and a DateTime parameter are a {@code DATETIME(6)}, MariaDB's finest, a value of a finer digit refused by
+     *  the statement's own raise, never sent for the database to round (S181, A7; D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME, DATE_TIME_NANOS ->
-                    new RenderedStatement.TypeSpelling("DATETIME(6)", RenderedStatement.Digits.NONE);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("DATETIME(6)", new RenderedStatement.AsText(6));
         };
     }
 

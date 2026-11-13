@@ -32,14 +32,14 @@ final class ReportedColumnsTest {
     @MethodSource("com.legend.testbackend.TestBackends#inProcess")
     void theColumnsAreTheRealRunsAndTheCellsTyped(TestBackend backend) throws Exception {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(backend.type()), null),
-                List.of(), List.of());
+                List.of(), List.of(), null, com.legend.testbackend.TestBackends.settings(backend.type()), null);
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new ExecutionPlan.TdsResult(
                 ExecutionPlan.TdsResult.Shape.RELATION, List.of(),
                 ExecutionPlan.Sql.of("SELECT CAST(7 AS BIGINT) AS N, CAST('a' AS VARCHAR(10)) AS S", target)));
         List<ExecutionPlan.Column> columns = new ArrayList<>();
         List<List<Object>> rows = new ArrayList<>();
         try (Connection c = backend.open()) {
-            PlanRunner.stream(plan, Map.of(), PlanSessions.setUp(TestSessions.over(c), target), new ResultSink() {
+            PlanRunner.stream(plan, Map.of(), PlanSessions.acquired(TestSessions.over(c), target), new ResultSink() {
                 @Override
                 public void columns(List<ExecutionPlan.Column> reported) {
                     columns.addAll(reported);
@@ -59,7 +59,7 @@ final class ReportedColumnsTest {
                 @Override
                 public void end() {
                 }
-            });
+            }, java.util.UUID.randomUUID());
         }
         assertEquals(List.of("N", "S"), columns.stream().map(ExecutionPlan.Column::name).map(String::toUpperCase)
                 .toList());

@@ -8,7 +8,8 @@
 // throws the refusal. What it keeps is the query side's own: the runners,
 // the guard, and the plane (engine-client's snap.ts).
 
-import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
+import type { HostOperationsSource, SnapPull } from '../../engine-client/src/host-operations.ts';
+import type { PlanText } from '../../engine-client/src/planned-sql.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
@@ -38,6 +39,7 @@ import {
 import { planPivot, typeColumns, type PivotPlan, type SchemaChange } from './plan.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import {
+  countQuery,
   HostSnaps,
   SnapManager,
   type HostFrozen,
@@ -128,7 +130,7 @@ export interface Planner {
   parse(text: string, signal?: AbortSignal): Promise<Lambda>;
   /** A program that writes planned as an execution plan, PlanJson's text (an Output into a table: table-output.ts);
    *  absent where the planner plans none (a host that runs a grid's rows itself). */
-  executionPlan?(program: Lambda, signal?: AbortSignal): Promise<string>;
+  executionPlan?(program: Lambda, signal?: AbortSignal): Promise<PlanText>;
   /** A query as Pure text, for a person to read: E4, the compiler's print (PRETTY unless asked). */
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
   /**
@@ -139,6 +141,9 @@ export interface Planner {
   /** Where its queries are planned from: its model and the runtime they run on -- what a class made of its rows reads
    *  its source from (model-writer.ts). */
   source?(): GridSource;
+  /** A query as the pull a snapshot's stream asks the planner to plan where its rows are (LitePlanner's; the user's
+   *  ruling of 2026-11-12: the request carries the pull, never SQL); absent where the planner gives none. */
+  pullRequest?(query: Lambda): Promise<SnapPull>;
 }
 
 export interface CubeView {
@@ -779,15 +784,21 @@ export class CubeController {
     if (!target) {
       throw new CubeRefusal('this cube has no store to freeze a snapshot into.');
     }
-    // the PULL is the live plan: it runs where the rows are, in that database's SQL
-    const sourceSql = (await this.#livePlanner.plan(query)).sql;
+    // the PULL, which the planner plans where the rows are, in that database's SQL, in the copy's own plan (a remote
+    // plane's stream, a local copy) -- never its statement handed back (the final audit's item 1, 2026-11-12)
+    const pull = await this.#livePlanner.pullRequest?.(query);
+    if (pull === undefined) throw new CubeRefusal('this cube\u2019s planner gives no pull to copy: it cannot be snapped');
+    // and its rows counted where they are: the live planner's plan of the pull's count
+    const count = await this.#livePlanner.plan(countQuery(query));
 
     // a copy of its own: modelled as it holds the rows once they land, and planned by its own planner from then on
     const copy = target.copy();
     let planner: Planner | undefined;
     try {
-      await this.#snaps.snap(sourceSql, this.#guard.current, {
+      await this.#snaps.snap(this.#guard.current, {
         ...(label !== undefined ? { label } : {}),
+        pull,
+        count,
         target: {
           table: copy.table,
           landed: async () => {

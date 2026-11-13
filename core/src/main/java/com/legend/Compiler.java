@@ -569,12 +569,13 @@ public final class Compiler {
 
     /**
      * The execution target a query names, as the COMPILER reads it (U3, the plan's
-     * connection): the runtime its {@code ->from(runtime)} binds, and the database its
-     * {@code #>{db...}#} accessor reads -- null for a class query, whose store its mapping
-     * chooses. Read off the typed tree by node type, never by a call's name.
+     * connection): the database its {@code #>{db...}#} accessor reads -- null for a class
+     * query, whose store its mapping chooses. Read off the typed tree by node type, never by a
+     * call's name. The runtime is {@link TypedQuery#runtime}'s (the checkpoint tenets audit's 1,
+     * 2026-11-10: until then this record carried the first from()'s, which one door ran every
+     * statement on).
      */
-    public record Target(@com.legend.base.Nullable String runtime,
-            @com.legend.base.Nullable String store) {
+    public record Target(@com.legend.base.Nullable String store) {
     }
 
     /**

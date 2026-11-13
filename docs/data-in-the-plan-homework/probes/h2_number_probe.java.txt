@@ -1,0 +1,19 @@
+import java.sql.*;
+public class H2Number {
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:x")) {
+            Object[] vals = {1L, 1.5d, new java.math.BigDecimal("2.50")};
+            String[] lits = {"1", "1.5", "2.50"};
+            for (int i = 0; i < vals.length; i++) {
+                for (String expr : new String[] {"%s + 1", "%s", "%s * 2", "%s / 3", "CASE WHEN %s = 1 THEN 'eq' ELSE 'ne' END"}) {
+                    String lit = "SELECT " + expr.formatted(lits[i]);
+                    String par = "SELECT " + expr.formatted("CAST(? AS DECFLOAT)");
+                    String l, p, lt, pt;
+                    try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(lit)) { r.next(); l = r.getString(1); lt = r.getMetaData().getColumnTypeName(1); }
+                    try (PreparedStatement s = c.prepareStatement(par)) { s.setObject(1, vals[i]); try (ResultSet r = s.executeQuery()) { r.next(); p = r.getString(1); pt = r.getMetaData().getColumnTypeName(1); } }
+                    System.out.printf("%-6s %-40s upstream(literal)=%s [%s]  lite(DECFLOAT)=%s [%s]%n", lits[i], expr, l, lt, p, pt);
+                }
+            }
+        }
+    }
+}

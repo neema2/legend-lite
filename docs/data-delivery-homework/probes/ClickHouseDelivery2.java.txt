@@ -1,0 +1,188 @@
+// The data: delivery probe, round 2, for ClickHouse (the user, 2026-11-11: "we need to look at [inline JSON] again
+// especially for databases that actually have temp tables like snowflake and bigquery and clickhouse ... how to
+// represent the data in the plan vs the database mechanism"). To be run by the ClickHouse lane's session, on the
+// embedded lane server (25.8) as round 1 was.
+// Usage: javac ClickHouseDelivery2Probe.java && java -cp <the ClickHouse JDBC driver's jars>:. ClickHouseDelivery2Probe '<jdbc url>' [user] [password]
+//   <jdbc url>: the ORDINARY connection's, as lite's lanes open it (no session). The probe opens a SESSION connection as
+//   the same URL plus clickhouse_setting_session_id=<a new id> (round 1's spelling); if the lanes' system connection
+//   opens its session another way, open it that way instead and say so.
+//
+// Round 1 (ClickHouseDataTable.java.txt) measured: in an HTTP session a TEMPORARY table is made, filled, private, and
+// DROP TEMPORARY TABLE IF EXISTS never touches a user's table and raises nothing when none exists; with no session the
+// table is gone after its own request. So the session table is SAFE where the connection holds a session; ClickHouse is
+// INLINE today only because lite's ordinary connection holds none. This round asks:
+//   A. what a session costs: SELECT 1 on each connection, three times;
+//   B. a third form: the whole payload as ONE bound parameter, split into rows by the database itself
+//      (JSONExtractArrayRaw(?) ARRAY JOINed with its positions): the quote, the line break, the order, the empty array;
+//      and whether the driver sends the parameter inside the statement's text (then max_query_size, 256 KiB by default,
+//      bounds it) or beside it;
+//   C. a fourth form: the database's own JSON reader over the payload, format(JSONAsString, '<payload>') (objects only);
+//   D. the cost and the size limit of each form, for 2, 1,000, 10,000 and 100,000 records: inline (lite's form today:
+//      the values() table function), a session table (make, fill in INSERTs of 1,000 rows, read, drop, on the session
+//      connection), the bound parameter, format(). Each prints its milliseconds, its statement's characters, and a
+//      refusal's first line.
+// Change nothing in the repository; report the whole output.
+import java.sql.*;
+import java.util.*;
+
+public class ClickHouseDelivery2Probe {
+    static final String T = "legend_data_probe2";
+
+    public static void main(String[] a) throws Exception {
+        String url = a[0];
+        String sessionUrl = url + (url.contains("?") ? "&" : "?") + "clickhouse_setting_session_id=probe_" + UUID.randomUUID();
+        try (Connection c = open(url, a); Statement s = c.createStatement();
+                Connection sc = open(sessionUrl, a); Statement ss = sc.createStatement()) {
+            // A
+            for (int i = 0; i < 3; i++) {
+                query("A SELECT 1, ordinary", s, "SELECT 1");
+                query("A SELECT 1, session", ss, "SELECT 1");
+            }
+            query("A the server's max_query_size", s, "SELECT value FROM system.settings WHERE name = 'max_query_size'");
+
+            // B
+            String split = "SELECT a[i] AS data, i - 1 AS ord FROM (SELECT JSONExtractArrayRaw(?) AS a) ARRAY JOIN arrayEnumerate(a) AS i";
+            param("B1 the parameter form", c, "SELECT data, ord, JSONExtractString(data, 't') FROM (" + split + ") ORDER BY ord",
+                    "[{\"t\":\"it's\"},{\"t\":\"a\\nb\"}]");
+            param("B2 the parameter form, empty", c, "SELECT data, ord FROM (" + split + ") ORDER BY ord", "[]");
+            param("B3 the parameter form, nested and typed", c, "SELECT JSONExtractRaw(data, 'n'), JSONType(data, 'n'),"
+                    + " JSONExtractString(data, 'o', 'k'), ord FROM (" + split + ") ORDER BY ord",
+                    "[{\"n\":1.50,\"o\":{\"k\":\"v\"}},{\"n\":null,\"o\":{}}]");
+
+            // C
+            query("C1 format(JSONAsString)", s, "SELECT json, rowNumberInAllBlocks() AS ord, JSONExtractString(json, 't')"
+                    + " FROM format(JSONAsString, '" + lit("[{\"t\":\"it's\"},{\"t\":\"a\\nb\"}]") + "')");
+            query("C2 format(JSONAsString), empty", s, "SELECT json FROM format(JSONAsString, '[]')");
+
+            // D
+            for (int n : new int[] {2, 1000, 10000, 100000}) {
+                List<String> el = elements(n);
+                String array = "[" + String.join(",", el) + "]";
+                StringBuilder v = new StringBuilder();
+                for (int i = 0; i < n; i++) {
+                    v.append(", ('").append(lit(el.get(i))).append("', ").append(i).append(')');
+                }
+                String inline = "SELECT count(), sum(JSONExtractInt(data, 'id')), max(ord) FROM values('data String, ord Int32'" + v + ")";
+                query("D n=" + n + " inline (" + inline.length() + " chars)", s, inline);
+
+                long t0 = System.nanoTime();
+                boolean ok = step("D n=" + n + " table make", ss, "CREATE TEMPORARY TABLE " + T + " (data String, ord Int32)");
+                for (int from = 0; ok && from < n; from += 1000) {
+                    StringBuilder ins = new StringBuilder("INSERT INTO " + T + " VALUES ");
+                    for (int i = from; i < Math.min(n, from + 1000); i++) {
+                        ins.append(i > from ? ", " : "").append("('").append(lit(el.get(i))).append("', ").append(i).append(')');
+                    }
+                    ok = quiet("D n=" + n + " table fill at " + from, ss, ins.toString());
+                }
+                query("D n=" + n + " table read", ss, "SELECT count(), sum(JSONExtractInt(data, 'id')), max(ord) FROM " + T);
+                step("D n=" + n + " table drop", ss, "DROP TEMPORARY TABLE IF EXISTS " + T);
+                System.out.println("D n=" + n + " table total :: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+
+                param("D n=" + n + " parameter (" + array.length() + " chars bound)", c,
+                        "SELECT count(), sum(JSONExtractInt(data, 'id')), max(ord) FROM (" + split + ")", array);
+                String format = "SELECT count(), sum(JSONExtractInt(json, 'id')) FROM format(JSONAsString, '" + lit(array) + "')";
+                query("D n=" + n + " format (" + format.length() + " chars)", s, format);
+            }
+        }
+    }
+
+    /** n records: a quote, an escaped line break, a number and a decimal in each. */
+    static List<String> elements(int n) {
+        List<String> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add("{\"id\":" + i + ",\"name\":\"n'" + i + "\",\"note\":\"a\\nb\",\"x\":" + i + ".5}");
+        }
+        return out;
+    }
+
+    /** A ClickHouse string literal's body: a backslash is an escape there, a quote escaped. */
+    static String lit(String s) {
+        return s.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    static Connection open(String url, String[] a) throws SQLException {
+        return a.length > 1 ? DriverManager.getConnection(url, a[1], a.length > 2 ? a[2] : null) : DriverManager.getConnection(url);
+    }
+
+    static boolean step(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try {
+            s.execute(sql);
+            System.out.println(what + " :: ok :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + shortSql(sql));
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms " + first(e) + " :: " + shortSql(sql));
+            return false;
+        }
+    }
+
+    static boolean quiet(String what, Statement s, String sql) {
+        try {
+            s.execute(sql);
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + first(e) + " :: " + sql.length() + " chars");
+            return false;
+        }
+    }
+
+    static void query(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try (ResultSet r = s.executeQuery(sql)) {
+            System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static void param(String what, Connection c, String sql, String payload) {
+        long t0 = System.nanoTime();
+        try (PreparedStatement p = c.prepareStatement(sql)) {
+            p.setString(1, payload);
+            try (ResultSet r = p.executeQuery()) {
+                System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+            }
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static List<List<String>> rows(ResultSet r) throws SQLException {
+        List<List<String>> out = new ArrayList<>();
+        int n = r.getMetaData().getColumnCount();
+        while (r.next() && out.size() < 20) {
+            List<String> row = new ArrayList<>();
+            for (int i = 1; i <= n; i++) {
+                row.add(r.getString(i));
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    static String first(SQLException e) {
+        return String.valueOf(e.getMessage()).split("\n")[0];
+    }
+
+    static String shortSql(String sql) {
+        return sql.length() > 300 ? sql.substring(0, 300).replace('\n', ' ') + "... (" + sql.length() + " chars)" : sql.replace('\n', ' ');
+    }
+}
+
+// MEASURED 2026-11-11 by the ClickHouse lane at c72fc8765 (clickhouse-jdbc 0.10.0, server 25.8.2.29, the embedded
+// lane server). Probe unchanged. Run twice: on the lane's ordinary URL (which raises max_query_size to 16 MiB) and on a
+// plain URL (the server's default, 256 KiB). The answers:
+//   A. A session costs nothing measurable: SELECT 1 is 2-4 ms on either connection.
+//   B. The driver writes a bound parameter INTO the statement's text (a literal): the parameter form is bounded by
+//      max_query_size as inline is ("Max query size exceeded ... failed at position 132", where the ? sits). The quote,
+//      the line break, the order, the empty array, nested and typed values kept.
+//   C. format(JSONAsString, '<payload>') reads objects correctly, but REFUSES an empty array (NOT_FOUND_COLUMN_IN_BLOCK).
+//   D.   records    inline (values())   session table (1,000-row inserts)   bound parameter   format()
+//        default max_query_size (256 KiB):
+//        1,000      60 ms               59 ms                                10 ms             4 ms
+//        10,000     REFUSED             279 ms                               REFUSED           REFUSED
+//        100,000    REFUSED             2,502 ms                             REFUSED           REFUSED
+//        max_query_size 16 MiB (the lane's URL):
+//        100,000    5,311 ms            2,576 ms (read 11 ms)                488 ms            192 ms
+//      At the default limit only the session table is unbounded; every one-statement form is text, bounded by a
+//      connection setting.

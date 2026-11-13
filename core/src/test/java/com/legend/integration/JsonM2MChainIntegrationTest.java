@@ -354,8 +354,11 @@ class JsonM2MChainIntegrationTest {
 
     // ==================== Helpers ====================
 
+    /** The directories a {@code file:} source may read (L6: a pointer, admitted by the run): the file-source cases'. */
+    private com.legend.exec.SourceAdmission admitted = com.legend.exec.SourceAdmission.none();
+
     private Lean.Result exec(String model, String runtime, String query) throws SQLException {
-        return Lean.run(model, query, runtime, conn);
+        return Lean.run(model, query, runtime, conn, admitted);
     }
 
     private String execGraph(String model, String runtime, String query) throws SQLException {
@@ -958,6 +961,9 @@ class JsonM2MChainIntegrationTest {
             var url = getClass().getClassLoader().getResource(resourcePath);
             assertNotNull(url, resourcePath + " must be on classpath");
             if ("file".equals(url.getProtocol())) {
+                // the run admits the file's directory, as a test admits its resource roots
+                admitted = com.legend.exec.SourceAdmission.of(java.nio.file.Path.of(java.net.URI.create(url.toString()))
+                        .getParent());
                 return url.toString();
             }
             // Packaged as a jar entry (Bazel packs test resources into the test
@@ -972,6 +978,7 @@ class JsonM2MChainIntegrationTest {
                 java.nio.file.Files.copy(in, file);
                 file.toFile().deleteOnExit();
                 dir.toFile().deleteOnExit();
+                admitted = com.legend.exec.SourceAdmission.of(dir);
                 return file.toUri().toString();
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
@@ -1120,6 +1127,19 @@ class JsonM2MChainIntegrationTest {
             var names = col(r, 0);
             assertTrue(names.contains("ALICE SMITH"));
             assertTrue(names.contains("CAROL WHITE"));
+        }
+
+        /** A run that admits no directory reads no file (L6, the user's ruling of 2026-11-10: a source is a pointer, its
+         *  guard the run's admission): refused by name, never read. */
+        @Test
+        @DisplayName("File source: a run admitting nothing refuses the file by name")
+        void aRunAdmittingNothingRefusesTheFile() {
+            String model = fileModel("test-data/persons-ndjson.txt");
+            admitted = com.legend.exec.SourceAdmission.none();
+            var e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> exec(model,
+                    "test::FileRT", "model::StaffMember.all()->project(~[fullName:x|$x.fullName])"));
+            assertTrue(String.valueOf(e.getMessage()).contains("is not a file this run admits"),
+                    e.getMessage());
         }
 
         // ---------- NDJSON (newline-delimited) ----------

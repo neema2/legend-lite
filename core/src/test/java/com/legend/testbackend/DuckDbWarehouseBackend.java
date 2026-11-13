@@ -80,11 +80,6 @@ final class DuckDbWarehouseBackend implements TestBackend {
     }
 
     @Override
-    public FixtureAside setFixtureAside(Connection workspace) throws SQLException {
-        return workspaces.setAside(workspace, name());
-    }
-
-    @Override
     public String toString() {
         return name();
     }

@@ -131,6 +131,59 @@ public final class SQLite extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
     }
 
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
+     *  a session table in its {@code temp} schema its load made and its release dropped). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 3.47: 100,000
+     *  records in 45 ms): each element its JSON text, a frame's record its place as the array's key (from 0, the
+     *  payload's order); an empty array no row. {@code json_each} answers an atom as its SQL value -- a string unquoted,
+     *  a JSON null SQL's NULL, true 1 -- so each is put back as its JSON text (a string quoted, {@code null},
+     *  {@code true}, {@code false}; a number its text, a real as SQLite prints it: {@code 1.50} reads {@code 1.5},
+     *  measured; the element's own text is reachable only by a path lookup per element, quadratic: 19 s at 100,000),
+     *  with no JSON subtype, as a column of JSON text holds it (measured: a {@code CASE} carries none). */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT CASE legend_payload.type WHEN 'text' THEN json_quote(legend_payload.value)"
+                + " WHEN 'null' THEN 'null' WHEN 'true' THEN 'true' WHEN 'false' THEN 'false'"
+                + " ELSE CAST(legend_payload.value AS TEXT) END AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.key AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM json_each(");
+        return bindPayload(writer, u).append(") AS legend_payload");
+    }
+
+    /** {@inheritDoc} 9: a date-time is its text, every digit kept (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 9: a date-time column is TEXT, every digit kept (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 9;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -1485,6 +1538,8 @@ public final class SQLite extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation: BINARY, whatever the column's own (the B2d.3 audit's M4)
+            case BINARY_COLLATE -> writer.append("(").expr(c.args().get(0), 0).append(" COLLATE BINARY)");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
@@ -1560,6 +1615,7 @@ public final class SQLite extends AnsiSqlRenderer {
                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
             case BIT_NOT -> writer.append("(~ ").expr(a.get(0), 7).append(")");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // NULL-skipping, as DuckDB's (SQLite's max/min of several are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("max", a));
@@ -3073,13 +3129,12 @@ public final class SQLite extends AnsiSqlRenderer {
     // Plan parameters: a date or date-time is bound as its text
     // ==================================================================
 
+    /** A Date and a DateTime parameter are bound as their text (SQLite keeps a date as text; D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("TEXT", RenderedStatement.Digits.NONE);
-            case DATE_TIME, DATE_TIME_NANOS ->
-                    new RenderedStatement.TypeSpelling("TEXT", RenderedStatement.Digits.NONE);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TEXT", new RenderedStatement.AsText(null));
         };
     }
 
@@ -3157,6 +3212,8 @@ public final class SQLite extends AnsiSqlRenderer {
                     + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            // (a host's copy: refused by the base, every host copying into its own DuckDB)
+            case com.legend.sql.SqlDml.CreateTableAs ct -> super.render(ct);
             // (the store writes: refused by the base until SQLite's spelling is measured)
             case com.legend.sql.SqlDml.InsertSelect is -> super.render(is);
             case com.legend.sql.SqlDml.Update u -> super.render(u);

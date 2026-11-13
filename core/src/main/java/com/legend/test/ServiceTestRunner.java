@@ -213,15 +213,17 @@ public final class ServiceTestRunner implements AutoCloseable {
         return out;
     }
 
-    private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+    /** The test runtime a suite's test runs on and the program it runs: the parameters as let-bound variables, then
+     *  the service's body. */
+    private record Program(TestRuntime rt, List<ValueSpecification> statements) {
+    }
+
+    private Program program(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
             Protocol.PServiceTestSuite.PSuiteTest test) {
         String runtimeFqn = runtimeOf(svc);
         RuntimeDefinition runtime = ctx.findRuntime(runtimeFqn).orElseThrow(
                 () -> new Skip("runtime '" + runtimeFqn + "' is not in the model"));
-        List<Provision> provisions = provisions(suite, runtime);
-        TestRuntime rt = testRuntime(runtime, provisions);
-
-        // the program: parameters as let-bound variables, then the body
+        TestRuntime rt = testRuntime(runtime, provisions(suite, runtime));
         List<ValueSpecification> statements = new ArrayList<>();
         if (test.parameters() != null) {
             for (Protocol.PServiceTestSuite.PSuiteParam p : test.parameters()) {
@@ -230,9 +232,38 @@ public final class ServiceTestRunner implements AutoCloseable {
             }
         }
         statements.addAll(body(svc.functionBody()));
+        return new Program(rt, statements);
+    }
+
+    /** The TEST PLAN {@code svc}'s test {@code testId} of suite {@code suiteId} runs, as JSON, planned and never run
+     *  (the data-in-the-plan design's M4 guard, 2026-11-09: a suite's data reaches the plan only as a load). */
+    public String planJson(ServiceDefinition svc, String suiteId, String testId) {
+        return planJson(svc, suiteId, testId, com.legend.ExecuteOptions.NONE);
+    }
+
+    /** {@link #planJson(ServiceDefinition, String, String)} planned under {@code options} (an edge's, for one). */
+    public String planJson(ServiceDefinition svc, String suiteId, String testId, com.legend.ExecuteOptions options) {
+        for (Protocol.PServiceTestSuite suite : java.util.Objects.requireNonNull(svc.testSuites())) {
+            for (Protocol.PServiceTestSuite.PSuiteTest test : suite.tests()) {
+                if (suite.id().equals(suiteId) && test.id().equals(testId)) {
+                    Program p = program(svc, suite, test);
+                    ValueSpecification resolved = Compiler.resolveQuery(p.statements(), new ImportScope(List.of()),
+                            p.rt().ctx());
+                    return com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                            Compiler.queryResolved(p.rt().ctx(), resolved), p.rt().runtimeFqn(), options));
+                }
+            }
+        }
+        throw new IllegalArgumentException("no test " + suiteId + "." + testId + " in " + svc.qualifiedName());
+    }
+
+    private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+            Protocol.PServiceTestSuite.PSuiteTest test) {
+        Program program = program(svc, suite, test);
+        TestRuntime rt = program.rt();
         ValueSpecification resolved;
         try {
-            resolved = Compiler.resolveQuery(statements, new ImportScope(List.of()), rt.ctx());
+            resolved = Compiler.resolveQuery(program.statements(), new ImportScope(List.of()), rt.ctx());
         } catch (RuntimeException e) {
             return fail(svc, suite, test, "resolve: " + PureTestRunner.whole(e.getMessage()));
         }
@@ -367,11 +398,21 @@ public final class ServiceTestRunner implements AutoCloseable {
             }
             value = dd.body().value();
         }
-        if (!(value instanceof Protocol.PRelationalCsvData csv)) {
-            throw new Skip("embedded data kind '"
-                    + value.getClass().getSimpleName().substring(1)
-                    + "' is not provisioned by this runner");
-        }
+        // every kind a suite's data may be, classified (B2e, 2026-11-11, census M17: until then a kind but relational CSV
+        // was a skip): a store's relational rows are provisioned; the rest is a feature not implemented yet, by name
+        String feature = "a service test's data for the store " + store;
+        Protocol.PRelationalCsvData csv = switch (value) {
+            case Protocol.PRelationalCsvData r -> r;
+            case Protocol.PDataReference r -> throw new IllegalStateException("a reference resolved above: " + r);
+            case Protocol.PModelStoreData m -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(m, feature));
+            case Protocol.PExternalFormatData e -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(e, feature));
+            case Protocol.PServiceStoreData st -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(st, feature));
+            case Protocol.PRelationData r -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(r, feature));
+        };
         for (Protocol.PRelationalCsvTable t : csv.tables()) {
             if (t.values() == null) {
                 // JSON may leave a table's values out; with no header line there are no columns to seed
@@ -463,6 +504,7 @@ public final class ServiceTestRunner implements AutoCloseable {
         private final java.io.Writer out;
         private final String format;
         private com.legend.result.@com.legend.base.Nullable ResultSink writer;
+        private java.util.@com.legend.base.Nullable UUID execution;
 
         ServiceAnswer(java.io.Writer out, @com.legend.base.Nullable String format) {
             this.out = out;
@@ -482,6 +524,12 @@ public final class ServiceTestRunner implements AutoCloseable {
             writer = new com.legend.result.TdsObjectsWriter(out, shape);
         }
 
+        @Override
+        public void execution(java.util.UUID id) {
+            // told before its shape: handed on to the writer the shape makes
+            execution = id;
+        }
+
         private com.legend.result.ResultSink writer() {
             com.legend.result.ResultSink w = writer;
             if (w == null) {
@@ -493,6 +541,9 @@ public final class ServiceTestRunner implements AutoCloseable {
         @Override
         public void columns(java.util.List<com.legend.executionplan.ExecutionPlan.Column> columns)
                 throws java.io.IOException {
+            if (execution != null) {
+                writer().execution(execution);
+            }
             writer().columns(columns);
         }
 

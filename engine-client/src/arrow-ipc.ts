@@ -1,9 +1,11 @@
 // An Arrow IPC stream read as a DuckDB connection's answer: apache-arrow, the reader DuckDB-WASM's own answers come
 // from. For a connection whose database answers in IPC -- Python's DuckDB under DataCube's headless host
 // (datacube/src/headless/host.ts; docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §3). A module of its own, so a
-// page that never reads IPC this way imports nothing more. And the other way: rows a page makes, written as a stream
-// for a connection's Arrow reader (DuckDbEngine.loadArrow) -- data, never SQL (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md
-// D5).
+// page that never reads IPC this way imports nothing more. And the other way: rows made as a stream for a connection's
+// Arrow reader -- data, never SQL (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5): the tests that hold rows to their types
+// and a snapshot's stream (through the held connection's insertArrow). No page makes rows any more: the demo's sample
+// is made by its database, a planned load (2026-11-12, SYNTHESIZE; DuckDbEngine.loadArrow, which put a page's rows in
+// outside any plan, is deleted).
 
 import { makeData, makeVector, Table, tableFromIPC, tableToIPC, Utf8, type Vector } from 'apache-arrow';
 

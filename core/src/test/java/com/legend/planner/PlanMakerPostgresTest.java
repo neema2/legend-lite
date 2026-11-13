@@ -15,17 +15,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  */
 class PlanMakerPostgresTest {
 
-    /** A DateTime parameter is cast to the type of its value's literal: Postgres's keeps six digits and cuts the rest,
-     *  as its literal writer does (probes/timestamp-results.txt). */
+    /** A DateTime parameter is a TIMESTAMP of six digits of a second, a value of a finer digit raised by the statement,
+     *  as its literal is refused at planning (S181, A7, 2026-11-10: until then the runner cut the text to six, as the
+     *  literal writer cut the literal's; D1, P4). */
     @Test
-    void aDateTimeParameterIsCastToItsLiteralsType() {
-        ExecutionPlan.Binding.One one = PlanMakerTest.dateTimeBinding(DatabaseType.Postgres);
-        assertEquals(java.util.Map.of(
-                ExecutionPlan.ValueKind.DATE_TIME, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                        ExecutionPlan.Digits.NONE),
-                ExecutionPlan.ValueKind.DATE_TIME_NANOS, new ExecutionPlan.TypeSpelling("TIMESTAMP",
-                        ExecutionPlan.Digits.NONE, 6)), one.hole().types());
-        assertEquals(ExecutionPlan.ValueKind.DATE_TIME, one.hole().absent());
-        assertEquals("TIMESTAMP", one.nullType());
+    void aDateTimeParameterIsCastToTimestamp() {
+        assertEquals("CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS VARCHAR)) - 2) <> '000' THEN … WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP) text", PlanMakerTest.dateTimeCast(DatabaseType.Postgres));
     }
 }

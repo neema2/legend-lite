@@ -12,8 +12,11 @@ import java.util.Map;
  * dialect program's decision D5): what the tab and Python's host used to spell as SQL themselves -- a file read into a
  * table, a remote file mounted, a copy made, rows counted, an extension, a secret, a catalog question. A host names the
  * operation and its data; the database's {@link HostOperations} writes the statements (names quoted, values written as
- * literals), and a database without one refuses it by name. Data only: no SQL text here, but a query a planner wrote
- * ({@link Source.Query}) and a select list a planner wrote ({@link MakeRelation#selectList}).
+ * literals), and a database without one refuses it by name. Data only: no SQL text here (the final audit, 2026-11-12,
+ * the user's ruling: until then a query a planner wrote, {@code Source.Query}, and a select list or a column's
+ * conversion a planner wrote, each text a host handed in). A pull is planned -- its copy one plan
+ * ({@code Boundary.snapCopy}), its count a Pure query's plan -- and a copy's conversions are written here from its
+ * columns' catalog ({@link MakeRelation#convert}).
  */
 public sealed interface HostOperation {
 
@@ -49,16 +52,70 @@ public sealed interface HostOperation {
         record Relation(Name name) implements Source {
         }
 
-        /** A file the database reads, by a registered name or a path ({@code at}), in a format. */
-        record File(String at, FileFormat format) implements Source {
+        /**
+         * A HOST'S OWN FILE, in a format, read through the statement's one {@code ?} -- which the host binds to what its
+         * database reads the file by (a registered buffer's name, a path) -- in a planned load (B3, 2026-11-11:
+         * {@code LoadPlanner.hostFile}; until then the file's name or path written into the statement, run outside any
+         * plan, census M14).
+         */
+        record HostFile(FileFormat format) implements Source {
         }
 
-        /** A file the database reads from a remote address, in a format. */
-        record Remote(String url, RemoteFormat format) implements Source {
+        /**
+         * A file the database reads from a remote address, in a format: its {@link Location} written as the address
+         * itself, or read from a session variable a bearer URL is bound to (B3's Q3, 2026-11-11: a presigned link's
+         * token never in a statement's text, nor in a view's).
+         */
+        record Remote(Location location, RemoteFormat format) implements Source {
+            public Remote {
+                java.util.Objects.requireNonNull(location, "location");
+                java.util.Objects.requireNonNull(format, "format");
+            }
+        }
+    }
+
+    /** Where a remote file is: an address written as it is, or a session variable a host binds its bearer URL to. */
+    sealed interface Location {
+        /** An address that carries no token: written as it is. One with a query string carries its token (a presigned
+         *  link's signature), so it is refused by name: the host holds it, and the plan names it ({@link Variable}). */
+        record Url(String url) implements Location {
+            public Url {
+                java.util.Objects.requireNonNull(url, "url");
+                if (url.indexOf('?') >= 0) {
+                    throw new IllegalArgumentException("a URL with a query string carries its token: the host holds it,"
+                            + " and the plan names it");
+                }
+                noUserinfo(url);
+            }
         }
 
-        /** A query a planner wrote, for this database. */
-        record Query(String sql) implements Source {
+        /**
+         * {@code url}, its authority naming no user: an address's {@code user:password@} is a credential, which would
+         * land in the plan and in a view's text (the B checkpoint's tenets audit, LOW 5, 2026-11-11: an address such as
+         * {@code https://u:p@h/f.parquet} was accepted as it is); one that names a user is refused by name, its text
+         * never repeated in the refusal.
+         */
+        static String noUserinfo(String url) {
+            int scheme = url.indexOf("://");
+            if (scheme >= 0) {
+                int end = scheme + 3;
+                while (end < url.length() && "/?#".indexOf(url.charAt(end)) < 0) {
+                    end++;
+                }
+                if (url.substring(scheme + 3, end).indexOf('@') >= 0) {
+                    throw new IllegalArgumentException("an address that names a user (user:password@host) carries a"
+                            + " credential: the host holds its credentials by name, and the plan names none");
+                }
+            }
+            return url;
+        }
+
+        /** The session variable the host binds the address it holds under {@code held} to ({@link SetVariable}), read
+         *  where the file is read. */
+        record Variable(String held) implements Location {
+            public Variable {
+                HostOperation.variable(held);
+            }
         }
     }
 
@@ -72,18 +129,18 @@ public sealed interface HostOperation {
     /** A relation's kind. */
     enum Kind { TABLE, VIEW }
 
-    /** A column replaced as a copy is made (Snap's conversions): its name, and the planner's expression for it. */
-    record Conversion(String column, String sql) {
-    }
-
     /**
-     * A relation made from a source: {@code replace} an existing one of its name or not; its columns the planner's copy
-     * select list ({@code selectList}), or every column with {@code replacing}'s replaced, or every column.
+     * A relation made from a source: {@code replace} an existing one of its name or not; every column of the source, the
+     * ones its database's copy converts converted in place under their names -- {@code convert}, the source's catalog
+     * rows as {@link CatalogModel} reads them (an upload's rewrite, a Snap into the tab: the conversions
+     * {@link CatalogModel#copyConversions}, their select list the database's dialect's, {@link SqlDialect#copySelectList});
+     * empty: every column as it is. Until 2026-11-12 (the final audit's 1(d), the user's ruling) the select list a
+     * planner wrote, or each replaced column's SQL, handed in as text.
      */
-    record MakeRelation(Kind kind, Name target, boolean replace, @com.legend.base.Nullable String selectList,
-            List<Conversion> replacing, Source from) implements HostOperation {
+    record MakeRelation(Kind kind, Name target, boolean replace, List<CatalogModel.Column> convert, Source from)
+            implements HostOperation {
         public MakeRelation {
-            replacing = List.copyOf(replacing);
+            convert = List.copyOf(convert);
         }
     }
 
@@ -96,6 +153,73 @@ public sealed interface HostOperation {
         public Insert {
             columns = List.copyOf(columns);
         }
+    }
+
+    /**
+     * Rows the database GENERATES into a table (the test-data generator's SYNTHESIZE, its simple slice: the user's
+     * ruling of 2026-11-12, "Let's do the most simple thing that will work on duckdb for now - can extend later";
+     * register S303): {@code count} rows, row {@code i} (0, 1, ...) holding each column's {@link Formula} of {@code i},
+     * computed by the database. No row is in the operation, only how each value is made. The planner chooses each
+     * column's formula from its declared type and the request's knob ({@code com.legend.planner.Synthesize}).
+     */
+    record Synthesize(Name target, long count, List<Formula> columns) implements HostOperation {
+        public Synthesize {
+            columns = List.copyOf(columns);
+            if (count < 0 || count > Formula.MOST_ROWS) {
+                throw new IllegalArgumentException("a synthesized table's row count is " + count + ", not 0 to "
+                        + Formula.MOST_ROWS);
+            }
+        }
+    }
+
+    /** A column's value as a formula of the row's number {@code i}, the same on every database that writes it. */
+    sealed interface Formula {
+        /** The prime 2^31 - 1: a spread's row number is first multiplied by its column's multiplier modulo this prime
+         *  (a permutation of the row numbers below it), so no spread column is a function of another's offset or of a
+         *  turn column's index. */
+        long MODULUS = 2_147_483_647L;
+
+        /** The most rows a fill makes: every {@code i * multiplier} stays below 2^63 (a multiplier is below 2^31). */
+        long MOST_ROWS = 1L << 32;
+
+        /** The column the formula fills. */
+        String column();
+
+        /** The values in turn, a digit of the row number in mixed radix: row i's is {@code values[(i / every) mod k]},
+         *  {@code every} the product of the earlier turn columns' sizes. */
+        record Cycle(String column, List<Literal> values, long every) implements Formula {
+            public Cycle {
+                values = List.copyOf(values);
+                if (values.isEmpty()) {
+                    throw new IllegalArgumentException("a cycle of no value for " + column);
+                }
+            }
+        }
+
+        /** {@code <prefix>1} .. {@code <prefix>k} in turn, as a {@link Cycle} of k values: row i's is
+         *  {@code <prefix>(((i / every) mod k) + 1)}. */
+        record Numbered(String column, String prefix, int k, long every) implements Formula {
+        }
+
+        /** A number over {@code [lo, hi]} in steps of {@code 10^-scale}: row i's is
+         *  {@code lo + (((i * multiplier) mod MODULUS) mod n) * 10^-scale}, n the range's values,
+         *  {@code (hi - lo) * 10^scale + 1}, each spread column its own multiplier. */
+        record Spread(String column, java.math.BigDecimal lo, java.math.BigDecimal hi, int scale, long multiplier)
+                implements Formula {
+        }
+
+        /** A day over {@code [from, to]} (ISO dates): row i's is {@code from + (((i * multiplier) mod MODULUS) mod n)}
+         *  days, n the days of the range; to the second where {@code seconds}, n then the range's seconds. */
+        record Days(String column, String from, String to, boolean seconds, long multiplier) implements Formula {
+        }
+
+        /** true and false in turn, as a {@link Cycle} of two: row i's is {@code ((i / every) mod 2) = 0}. */
+        record Alternate(String column, long every) implements Formula {
+        }
+    }
+
+    /** A value of a {@link Formula.Cycle}, as written: a number's digits, or a text. */
+    record Literal(String text, boolean number) {
     }
 
     /** A relation dropped, when it is there. */
@@ -114,10 +238,75 @@ public sealed interface HostOperation {
     record Count(Source from) implements HostOperation {
     }
 
-    /** A secret a remote source's reads use, named, scoped to a path: its credentials by their kind's names. */
-    record Secret(String name, String scope, Map<String, String> credentials) implements HostOperation {
+    /**
+     * A secret a remote source's reads use, named, scoped to a path: its credentials BY NAME (B3, 2026-11-11,
+     * docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "credentials by name ... a guard keeps any secret value out of the
+     * plan"; until then the values themselves, which the statement spelled as literals). {@code fields} names which of
+     * the secret's credentials the host holds (their kind's names: {@code KEY_ID}, {@code SECRET}, ...), never a value:
+     * the statement binds, in order, each field's value and then {@code scope} -- {@link #binds()} -- and the host binds
+     * them from its own store under {@code name}. Measured on DuckDB 1.5.6: every field and the scope bind as parameters
+     * (docs/data-delivery-homework/probes/DuckDbBoundSecret.java.txt).
+     */
+    record Secret(String name, String scope, List<String> fields) implements HostOperation {
         public Secret {
-            credentials = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(credentials));
+            java.util.Objects.requireNonNull(name, "name");
+            java.util.Objects.requireNonNull(scope, "scope");
+            fields = List.copyOf(fields);
+            if (new java.util.HashSet<>(fields).size() != fields.size()) {
+                throw new IllegalArgumentException("a secret names each of its fields once: " + fields);
+            }
+        }
+
+        /** What the statement's {@code ?}s bind, in order: each field's value, then the scope ({@link #SCOPE}). */
+        public List<String> binds() {
+            List<String> out = new java.util.ArrayList<>(fields);
+            out.add(SCOPE);
+            return List.copyOf(out);
+        }
+
+        /** The last bound value's name: the secret's scope, the operation's own (no credential). */
+        public static final String SCOPE = "SCOPE";
+    }
+
+    /** The session variable for the value the host holds under {@code held} (a bearer URL, from its store: B3's Q3),
+     *  set to the statement's one {@code ?}, which the host binds: the connection's own, so a host sets it again on
+     *  every connection it opens. */
+    record SetVariable(String held) implements HostOperation {
+        public SetVariable {
+            HostOperation.variable(held);
+        }
+    }
+
+    /** The session variable for the value held under {@code held} reset, set or not (the connection's own). */
+    record ResetVariable(String held) implements HostOperation {
+        public ResetVariable {
+            HostOperation.variable(held);
+        }
+    }
+
+    /**
+     * The session variable a value the host holds under {@code held} is bound to, as a statement writes it: the
+     * dialect's own spelling, {@code lite_url_} and the hex of the name's UTF-8 bytes -- a word, one name each, so a
+     * plan's set and a host's reset name the same variable and no person's name reaches an identifier. A store's name
+     * is a word itself ({@code [A-Za-z0-9_]+}), refused by name otherwise.
+     */
+    static String variable(String held) {
+        java.util.Objects.requireNonNull(held, "held");
+        if (!held.matches("[A-Za-z0-9_]+")) {
+            throw new IllegalArgumentException("a value a host holds is named by a word of letters, digits and '_', not "
+                    + held);
+        }
+        StringBuilder out = new StringBuilder("lite_url_");
+        for (byte b : held.getBytes(java.nio.charset.StandardCharsets.UTF_8)) {
+            out.append(Character.forDigit((b >> 4) & 0xF, 16)).append(Character.forDigit(b & 0xF, 16));
+        }
+        return out.toString();
+    }
+
+    /** A secret dropped, when it is there (a remote source let go of: its keys go with it). */
+    record DropSecret(String name) implements HostOperation {
+        public DropSecret {
+            java.util.Objects.requireNonNull(name, "name");
         }
     }
 

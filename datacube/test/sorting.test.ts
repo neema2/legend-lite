@@ -12,6 +12,7 @@ import { totalOrderSorts } from '../src/snapshot.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { row } from './lite-compiler.ts';
 import { printLevel } from './lite-compiler.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 let engine: DuckDbEngine;
 
@@ -19,11 +20,11 @@ before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
   await engine.run(
-    `CREATE TABLE t AS SELECT * FROM (VALUES
+    unplanned(`CREATE TABLE t AS SELECT * FROM (VALUES
        ('AMER', 2023,  10.0), ('AMER', 2024, 900.0),
        ('EMEA', 2023, 500.0), ('EMEA', 2024,  20.0),
        ('APAC', 2023, 100.0), ('APAC', 2024, 100.0)
-     ) v(region, yr, amt)`,
+     ) v(region, yr, amt)`),
     0,
   );
 });
@@ -74,8 +75,8 @@ describe('sorting by a pivoted column', () => {
     // 2023: EMEA 500, APAC 100, AMER 10 -- an order no row dimension
     // would produce, so this proves the sort is on the cell value.
     const r = await engine.run(
-      `SELECT * FROM (PIVOT t ON yr IN (2023, 2024) USING sum(amt) AS v
-         GROUP BY region) ORDER BY "2023_v" DESC`,
+      unplanned(`SELECT * FROM (PIVOT t ON yr IN (2023, 2024) USING sum(amt) AS v
+         GROUP BY region) ORDER BY "2023_v" DESC`),
       1,
     );
     assert.deepEqual(r.columns[0]?.values, ['EMEA', 'APAC', 'AMER']);
@@ -84,8 +85,8 @@ describe('sorting by a pivoted column', () => {
   it('a different pivot column gives a different order', async () => {
     // 2024: AMER 900, APAC 100, EMEA 20 -- the reverse of 2023's.
     const r = await engine.run(
-      `SELECT * FROM (PIVOT t ON yr IN (2023, 2024) USING sum(amt) AS v
-         GROUP BY region) ORDER BY "2024_v" DESC`,
+      unplanned(`SELECT * FROM (PIVOT t ON yr IN (2023, 2024) USING sum(amt) AS v
+         GROUP BY region) ORDER BY "2024_v" DESC`),
       1,
     );
     assert.deepEqual(r.columns[0]?.values, ['AMER', 'APAC', 'EMEA']);

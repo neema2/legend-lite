@@ -8,6 +8,7 @@ import com.legend.sql.DialectCapability;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
+import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 
 import java.util.List;
@@ -73,6 +74,28 @@ public final class Postgres extends AnsiSqlRenderer {
     // ==================================================================
     // The catalog: a Postgres table's model, from Postgres's own catalog
     // ==================================================================
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds and ROUNDS a finer digit (59.9999999 becomes the next minute) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds and rounds a finer digit (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
 
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
@@ -200,10 +223,37 @@ public final class Postgres extends AnsiSqlRenderer {
         return "ROLLBACK";
     }
 
-    /** {@inheritDoc} Written beside this dialect ({@code PostgresHostOperations}). */
+    /** {@inheritDoc} None written: each refused by name. Its one, a planner's query counted (Snap's preflight on a
+     *  warehouse whose catalog is Postgres), went with {@code HostOperation.Source.Query} (the final audit, 2026-11-12,
+     *  the user's ruling): a count is a Pure query's plan, planned for the warehouse's own runtime. */
     @Override
     public HostOperations hostOperations() {
-        return PostgresHostOperations.INSTANCE;
+        return new HostOperations.Refused("Postgres");
+    }
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
+     *  a session table in {@code pg_temp} its load made and its release dropped). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 16: 100,000
+     *  records in 259 ms): each element a {@code JSONB}, a frame's record its place as the ordinality from 0 (the
+     *  payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.ordinality - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM jsonb_array_elements(CAST(");
+        return bindPayload(writer, u).append(" AS JSONB)) WITH ORDINALITY AS legend_payload(value, ordinality)");
     }
 
     /** The engine's H2 text in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
@@ -744,8 +794,10 @@ public final class Postgres extends AnsiSqlRenderer {
             case RPAD -> padWithSpaceToInteger(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case BINARY_COLLATE -> writer.append("(").expr(c.args().get(0), 0).append(" COLLATE \"C\")");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
@@ -1394,31 +1446,14 @@ public final class Postgres extends AnsiSqlRenderer {
         return super.expr(writer, e, parentPrec);
     }
 
-    /** A date-time finer than a microsecond is a {@code TIMESTAMP} of its first six digits, the finer ones cut, as its
-     *  literal is ({@link #timestampLit}). */
+    /** A Date and a DateTime parameter are a {@code TIMESTAMP} of six digits of a second, a value of finer ones refused
+     *  by the statement's own raise, as its literal is at planning (S181, A7; D1, P4); a number is bound bare. */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
-        return kind == com.legend.sql.ValueKind.DATE_TIME_NANOS
-                ? new RenderedStatement.TypeSpelling("TIMESTAMP", RenderedStatement.Digits.NONE, 6)
-                : super.holeType(kind);
-    }
-
-    /** Postgres keeps microseconds and ROUNDS finer digits (59.9999999 becomes the next
-     * minute; the 9999-12-31 23:59:59.999999999 sentinel would become year 10000):
-     * finer digits are TRUNCATED, as DuckDB's TIMESTAMP does. */
-    @Override
-    protected String timestampLit(String iso) {
-        int dot = iso.lastIndexOf('.');
-        if (dot >= 0) {
-            int end = dot + 1;
-            while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
-                end++;
-            }
-            if (end - dot - 1 > 6) {
-                iso = iso.substring(0, dot + 7) + iso.substring(end);
-            }
-        }
-        return super.timestampLit(iso);
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(6));
+        };
     }
 
     /** Postgres text cannot hold NUL ({@code chr(0)} raises). */

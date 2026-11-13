@@ -6,7 +6,7 @@
 import { CubeDocumentError, cubeCopied, cubeToJson, readCube } from '../cube-document.ts';
 import {
   gridCopyOf, newPage, noneOpened, NOTHING_TO_SAVE, openedLive, PageDocumentError, pageFile as fileOf, pageToJson, readPage,
-  pageSaving, readSaved, savedPage, suggestedName, type ChartView, type PageDocument,
+  pageSaving, pageWithLinks, freshLinksOfPage, freshLinksWarning, readSaved, savedPage, suggestedName, type ChartView, type PageDocument,
 } from '../page-document.ts';
 import { givenName, type NamedPart } from '../page-names.ts';
 import { SAVED_SORTS, savedSearch, type QuerySearchSortBy } from '../cube-store.ts';
@@ -60,13 +60,37 @@ export function pageSaved(text: string): string {
 }
 
 /**
+ * A PAGE DOCUMENT (JSON text) GIVEN FRESH LINKS (2026-11-11, the user's ruling: a saved page holds no presigned link's
+ * token, its address saved as needing a fresh link): each remote file so saved given the link `linksJson` holds for its
+ * address (`{address: link}`) -- what Python's load(links=) opens the page by -- and the files that still need one.
+ * JSON: `{page, needed: [{name, address}]}`, or `{problems}`, why it is no page.
+ */
+export function pageLinks(text: string, linksJson: string): string {
+  try {
+    const given = JSON.parse(linksJson) as unknown;
+    if (typeof given !== 'object' || given === null || Array.isArray(given)
+      || Object.values(given).some((v) => typeof v !== 'string')) {
+      return JSON.stringify({ problems: ['fresh links are {address: link}, each a text'] });
+    }
+    const page = pageWithLinks(readPage(text, { empty: true }), new Map(Object.entries(given as Record<string, string>)));
+    return JSON.stringify({ page: pageToJson(page), needed: freshLinksOfPage(page) });
+  } catch (e) {
+    if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
+    return JSON.stringify({ problems: [e.message] });
+  }
+}
+
+/**
  * A PAGE DOCUMENT (JSON text) AS A PAGE FILE -- what Python's `save(path)` writes -- by DataCube's one rule, Export ▸
  * Page File's (page-document.ts pageFile, B5). JSON: `{file}`, the file's text, or `{problems}`, why it is none.
  */
 export function pageFile(text: string): string {
   try {
     const made = fileOf(readPage(text, { empty: true }));
-    return JSON.stringify('refused' in made ? { problems: [made.refused] } : { file: made.file });
+    if ('refused' in made) return JSON.stringify({ problems: [made.refused] });
+    // the files written without their links' query strings, said as the tab says them, for Python's save(path) to warn
+    const warning = freshLinksWarning(made.freshLinks);
+    return JSON.stringify({ file: made.file, ...(warning ? { warning } : {}) });
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });
@@ -90,8 +114,11 @@ export function pageRecord(fresh: string, name: string | null, text: string, asN
     const made = pageSaving(name ?? suggestedName(page), page, fresh, asNew);
     if ('refused' in made) return JSON.stringify({ problems: [made.refused] });
     const { record } = made;
+    // the files saved without their links' query strings, said as the tab's Save says them, for Python's save() to warn
+    const warning = freshLinksWarning(made.freshLinks);
     return `{"record":${JSON.stringify(toJson(record))},"id":${JSON.stringify(record.id)},`
-      + `"name":${JSON.stringify(record.name)},"over":${JSON.stringify(made.over)}}`;
+      + `"name":${JSON.stringify(record.name)},"over":${JSON.stringify(made.over)}`
+      + `${warning ? `,"warning":${JSON.stringify(warning)}` : ''}}`;
   } catch (e) {
     if (!(e instanceof PageDocumentError) && !(e instanceof CubeDocumentError)) throw e;
     return JSON.stringify({ problems: [e.message] });

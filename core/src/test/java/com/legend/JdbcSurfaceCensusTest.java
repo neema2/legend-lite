@@ -167,10 +167,12 @@ class JdbcSurfaceCensusTest {
      *  {@code ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam} (every other product class is kept from JDBC
      *  and the drivers in bytecode; until 2026-10-30, D69, the funnel exempted four packages whole). A row moves only
      *  with a dated justification (AGENTS.md: guard files are load-bearing). The tenet's sentence "in core's main
-     *  sources the seam and its bulk loader are the only JDBC senders" is this table's SENDS column: the seam
-     *  ({@code JdbcStatements}, {@code MongoDbStatements}) and DuckDB's appender load.
+     *  sources the seam is the only JDBC sender" is this table's SENDS column: the seam ({@code JdbcStatements},
+     *  {@code MongoDbStatements}); DuckDB's appender load was the other until A2 (2026-11-10).
      *
-     *  <p>Departures, newest first (the files that left this register, each the day its JDBC went): 2026-10-30 (D70,
+     *  <p>Departures, newest first (the files that left this register, each the day its JDBC went): 2026-11-10 (A2,
+     *  docs/DATA_DELIVERY_DESIGN_2026_11_10.md: the model's data is statements in the plan, so the plan's rows step
+     *  and every bulk load went) {@code DuckDbAppenderLoad}, {@code BulkLoad}, {@code BulkLoads} (deleted); 2026-10-30 (D70,
      *  the seam's step A) {@code PlanSessions} (its handle stores keep sessions, its anonymous sessions and its
      *  liveness check the seam's), {@code SystemDatabase} (sessions opened and closed through the seam),
      *  {@code SessionState} (no longer keyed by the driver's connection: the owning session's own) and
@@ -211,8 +213,8 @@ class JdbcSurfaceCensusTest {
                     Act.CHECKS),
             names("core/src/main/java/com/legend/exec/DatabaseConnector.java",
                     "the connector contract: the openers' shapes (a private instance, a named memory) return the"
-                    + " driver's Connection, the raise recovery is two statements declared as data (D65); each"
-                    + " connector opens"),
+                    + " driver's Connection (the raise recovery went to the plan with C2, 2026-11-12: the dialect"
+                    + " declares it, the target carries it); each connector opens"),
             row("core/src/main/java/com/legend/exec/DuckDbConnector.java",
                     "the in-process database's private instance (DriverManager)", Act.OPENS),
             row("core/src/main/java/com/legend/exec/H2Connector.java",
@@ -228,25 +230,16 @@ class JdbcSurfaceCensusTest {
             row("core/src/main/java/com/legend/exec/JdbcStatements.java",
                     "the one JDBC sender (2026-10-17, D12, the Statements seam): prepare, bind, execute; the one"
                     + " getString of the plan path (carriage, C1.2) and a result's columns as the driver reports"
-                    + " them; the bulk load handed to the engine's loader; the transaction bracket; a MariaDB raise"
-                    + " read back from the two statements its connector declares (D65)",
-                    Act.SENDS, Act.LOADS, Act.DECODES, Act.TRANSACTS),
+                    + " them; the transaction bracket; a MariaDB raise read back by the two statements the plan's"
+                    + " target declares (C2, 2026-11-12, the charter's A3(c)); its bulk load went with the plan's"
+                    + " rows step (A2, 2026-11-10)",
+                    Act.SENDS, Act.DECODES, Act.TRANSACTS),
             row("core/src/main/mongodb/com/legend/exec/MongoDbStatements.java",
                     "the pipeline through the driver's cursor and a command run, each row's cells by the plan's"
-                    + " slots (D12); its load REFUSES by name (NotImplementedException: the seam's method spelled,"
-                    + " no document inserted -- the D69 audit's correction of this row)",
-                    Act.SENDS, Act.LOADS, Act.DECODES),
-            row("core/src/main/duckdb/com/legend/exec/DuckDbAppenderLoad.java",
-                    "DuckDB's Appender behind core's BulkLoad seam (2026-09-23; its own target beside the drivers,"
-                    + " core compiles against none): the driver's own connection reached beneath the JDBC one"
-                    + " (unwrap), every cell staged as TEXT and one INSERT ... SELECT casts, so the DATABASE types"
-                    + " each value -- the load's two statements are its own",
-                    Act.OPENS, Act.SENDS, Act.LOADS),
-            row("core/src/main/java/com/legend/exec/BulkLoad.java",
-                    "the bulk load contract: accepts a connection, loads a setup step's rows; no SQL of its own",
-                    Act.LOADS),
-            row("core/src/main/java/com/legend/exec/BulkLoads.java",
-                    "finds the engine's loader (accepts) and hands it the rows", Act.LOADS),
+                    + " slots (D12); its bulk load's refusal went with the seam's method (A2, 2026-11-10); closes the"
+                    + " plan's own cursor (2026-11-12, J3: its one send's answer, Replies, closed with it -- the"
+                    + " cursor's close was the try-with-resources' until then)",
+                    Act.SENDS, Act.DECODES, Act.CLOSES),
             names("core/src/main/java/com/legend/exec/RaisedErrors.java",
                     "rethrows a SQLException with the raised-message envelope removed (B7, the provenance seam):"
                     + " constructs the exception, opens no connection, sends nothing"),

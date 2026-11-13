@@ -84,8 +84,14 @@ class PlanMakerTest {
      *  JSON on SQLite as today now (its four rows removed, -4). 35 -> 26 (2026-10-27, the result boundary program's
      *  phase 3): the streamed JSON output is gone -- every answer streams, written by the writers at the edge -- and
      *  its nine rows with it (-9). 26 -> 18 (2026-10-27, the program's phase 4): the TDS text output is gone -- the
-     *  PCT writes Pure's TDS text from typed rows -- and SQLite's eight list-parameter refusals under it with it (-8). */
-    private static final int MAX_DIFFERENCES = 18;
+     *  PCT writes Pure's TDS text from typed rows -- and SQLite's eight list-parameter refusals under it with it (-8).
+     *  18 -> 26 (2026-11-09, the total wall's M2, P4 under D1 as ruled 2026-11-07: a run-time parameter typed by its
+     *  declared type, the type hole deleted -- H2's Float parameter a FLOAT, its Decimal a DECFLOAT, a Date parameter a
+     *  timestamp on H2 and DuckDB: each case's CSV and JSON, +8; each posted to the user for a register row). 26 -> 28
+     *  (2026-11-09, the correctness re-audit's 1, the user's ruling "Duckdb timestamp is fine": DuckDB's Date and
+     *  DateTime parameter upstream's microsecond TIMESTAMP, so a nanosecond DateTime value's digit is cut where lite's
+     *  literal keeps it -- its CSV and JSON, +2, until the nanosecond Pure type the user named for later). */
+    private static final int MAX_DIFFERENCES = 28;
 
     /** The test methods run in this class, so that unreached rows are judged on a whole run only. */
     private static final java.util.concurrent.atomic.AtomicInteger RAN = new java.util.concurrent.atomic.AtomicInteger();
@@ -132,6 +138,72 @@ class PlanMakerTest {
                 ###Runtime
                 Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
                 """.formatted(type);
+    }
+
+    /** A DateTime parameter read where the connection's time zone applies is that zone's wall time, as its literal is
+     *  (the re-audit's B-2, 2026-11-09): upstream wraps the placeholder in {@code GMTtoTZ}
+     *  ({@code processDatePlaceHolder}), lite's lowering in the database's local-in conversion. A Date parameter there
+     *  is refused by name (upstream's conversion depends on the value's shape); on GMT, nothing is converted. */
+    @Test
+    void aDateTimeParameterInAZoneIsConvertedAsItsLiteral() {
+        TypedQuery dateTime = Compiler.query(Compiler.compileModel(""), "{t: DateTime[1]|$t}");
+        String est = lowered(dateTime, "EST");
+        // (the placeholder the platform database's microsecond slot, its value's finer digit raised: S181, A7)
+        assertTrue(est.contains("timezone('EST', timezone('UTC', " + platformDateTime() + "))"), est);
+        assertEquals("SELECT " + platformDateTime() + " AS value", lowered(dateTime, "GMT").strip());
+        TypedQuery date = Compiler.query(Compiler.compileModel(""), "{d: Date[1]|$d}");
+        var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> lowered(date, "EST"));
+        assertTrue(String.valueOf(refused.getMessage()).contains("time zone is EST"), refused.getMessage());
+    }
+
+    /** {@code query}'s body lowered with its parameters as the statement's slots, in {@code zone}, written for the platform's database. */
+    private static String lowered(TypedQuery query, String zone) {
+        List<com.legend.sql.SqlExpr.PlanParam> slots = query.parameters().stream()
+                .map(QueryParameters.Declared::slot).toList();
+        com.legend.sql.SqlQuery q = query.lowerer(false, false, slots, java.util.Set.of()).withDbTimeZone(zone)
+                .lower(query.body());
+        return Databases.dialect(Databases.PLATFORM).renderStatement(q).sql();
+    }
+
+    /** Each database's placeholder of a Date and of a DateTime parameter, as its dialect writes it from upstream's
+     *  literal processor for the type (the re-audit's B-1 and B-2, 2026-11-09): Trino's {@code Timestamp'%s'} at nine
+     *  digits, ClickHouse lite's own naive UTC {@code DateTime64(6)} read in range or raised (S179, 2026-11-10), BigQuery's
+     *  Date upstream's own {@code PARSE_DATE} (A6, 2026-11-10: S182 withdrawn), Databricks' {@code to_date} and
+     *  {@code to_timestamp}, Snowflake's {@code '…'::timestamp} at nine digits; a dialect that writes none refuses by
+     *  name, never inheriting another's. */
+    @Test
+    void eachDatabaseWritesItsOwnDatePlaceholder() {
+        // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
+        java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
+        for (String line : """
+                Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
+                Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
+                Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
+                BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
+                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
+                """.strip().split("\n")) {
+            String[] cells = line.split("\t");
+            spelled.put(cells[0], new String[] {cells[1], cells[2]});
+        }
+        for (var e : spelled.entrySet()) {
+            String model = model(e.getKey());
+            String[] kinds = {"d: Date[1]", "t: DateTime[1]"};
+            for (int i = 0; i < kinds.length; i++) {
+                String name = kinds[i].substring(0, 1);
+                String query = "{" + kinds[i] + "|#>{s::DB.T}#->extend(~v: r|$" + name + ")->select(~[ID, v])}";
+                if (e.getValue()[i].equals("REFUSED")) {
+                    // a database whose date-time types clamp an out-of-range value in silence refuses the parameter
+                    // by name (the correctness re-audit's 2, 2026-11-09)
+                    var refused = assertThrows(RuntimeException.class,
+                            () -> Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT"));
+                    assertTrue(String.valueOf(refused.getMessage()).contains("clamp"), refused.getMessage());
+                    continue;
+                }
+                ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT");
+                String sql = plan.answerSql().statement();
+                assertTrue(sql.contains(e.getValue()[i]), e.getKey() + " " + kinds[i] + ": " + sql);
+            }
+        }
     }
 
     private static final String RELATION = "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())";
@@ -211,12 +283,14 @@ class PlanMakerTest {
         assertTrue(t.database() instanceof ExecutionPlan.Database.Platform p
                 && p.type() == com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)
                 && p.project() == null, String.valueOf(t.database()));
-        assertEquals(List.of(), t.setup());
+        // no load: the data: source is the statement's own bound parameter (the JSON pass, 2026-11-11; until then a
+        // session table its load made and its release dropped)
+        assertEquals(List.of(), t.loads(), String.valueOf(t.loads()));
         // the server's plan: the project's database, keyed by the model's stores, filled with nothing -- the run
         // finds it from the plan alone
         ExecutionPlan.Target served = target(typed.projectPlan("m::RT"));
         assertTrue(served.database() instanceof ExecutionPlan.Database.Platform q
-                && q.project() != null && q.project().made().isEmpty(), String.valueOf(served.database()));
+                && q.project() != null && served.loads().isEmpty(), String.valueOf(served));
         try (Connection today = TestBackends.platform().open();
              Connection planned = TestBackends.platform().open()) {
             StringWriter out = new StringWriter();
@@ -551,25 +625,55 @@ class PlanMakerTest {
         }
     }
 
-    /** A DateTime parameter is cast to the type of its value's literal on every database (each one's spelling is its
-     *  own test's, {@code PlanMaker<Db>Test}): a type hole, absent a date-time, a null a TIMESTAMP. */
+    /** A DateTime parameter is cast to its DECLARED type's SQL type on every database, written when the plan is made
+     *  and bound as its text (D1, P4, 2026-11-09: each one's spelling is its own test's, {@code PlanMaker<Db>Test});
+     *  absent, a null a TIMESTAMP. No statement has a hole the runner writes into. */
     @Test
-    void aDateTimeParameterIsCastToATypeHoleOnEveryDatabase() {
+    void aDateTimeParameterIsCastToItsDeclaredTypeOnEveryDatabase() {
         for (DatabaseType type : IN_PROCESS) {
-            ExecutionPlan.Binding.One one = dateTimeBinding(type);
-            ExecutionPlan.TypeHole hole = java.util.Objects.requireNonNull(one.hole(), type + ": a type hole");
-            assertEquals(java.util.Set.of(ExecutionPlan.ValueKind.DATE_TIME, ExecutionPlan.ValueKind.DATE_TIME_NANOS),
-                    hole.types().keySet(), type.name());
-            assertEquals(ExecutionPlan.ValueKind.DATE_TIME, hole.absent(), type.name());
+            ExecutionPlan.Sql sql = dateTimeSql(type);
+            ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
+            assertTrue(one.asText() != null, type + ": bound as its text");
+            assertTrue(sql.statement().contains("CAST(? AS "), type + ": " + sql.statement());
             assertEquals("TIMESTAMP", one.nullType(), type.name());
         }
     }
 
-    /** The binding of a DateTime parameter, written as a column's value, on {@code type}. */
-    static ExecutionPlan.Binding.One dateTimeBinding(DatabaseType type) {
-        ExecutionPlan.Sql sql = plan(type, "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)->select(~[ID, t])}",
-                Written.JSON).answerSql();
-        return (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
+    /** The platform database's placeholder of a DateTime parameter named {@code t}: its microsecond TIMESTAMP, a value
+     *  of a finer digit raised by the statement (S181, A7, 2026-11-10). */
+    static String platformDateTime() {
+        return "CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS"
+                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('the DateTime parameter ''t'' has more fraction digits"
+                + " than " + Databases.dialect(Databases.PLATFORM).getClass().getSimpleName() + " keeps (6): refused,"
+                + " never cut (S181)') || chr(31)) WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS"
+                + " VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP)";
+    }
+
+    /** The statement of a DateTime parameter, written as a column's value, on {@code type}. */
+    static ExecutionPlan.Sql dateTimeSql(DatabaseType type) {
+        return plan(type, "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)->select(~[ID, t])}", Written.JSON)
+                .answerSql();
+    }
+
+    /** The cast a DateTime parameter's placeholder is written with on {@code type}, and how it is bound: a slot that
+     *  keeps fewer than nine digits of a second its guard (S181, A7), the raise elided. */
+    static String dateTimeCast(DatabaseType type) {
+        ExecutionPlan.Sql sql = dateTimeSql(type);
+        String text = sql.statement();
+        int guard = text.indexOf("CAST(CASE WHEN LENGTH(");
+        int at = guard >= 0 ? guard : text.indexOf("CAST(? AS ");
+        int end = at + "CAST(".length();
+        for (int depth = 1; depth > 0; end++) {
+            depth += text.charAt(end) == '(' ? 1 : text.charAt(end) == ')' ? -1 : 0;
+        }
+        String cast = text.substring(at, end);
+        if (guard >= 0) {
+            // the raise elided: the guard's test and the kept digits' read are the spelling pinned
+            int then = cast.indexOf(" THEN ");
+            cast = cast.substring(0, then) + " THEN …" + cast.substring(cast.indexOf(" WHEN ", then));
+        }
+        ExecutionPlan.AsText asText = ((ExecutionPlan.Binding.One) sql.slots().get(0).binding()).asText();
+        return cast + " " + (asText == null ? "bare" : "text");
     }
 
     /** What a plan does not bind yet is refused when the plan is made, by name (PARK-21): a class instance, an
@@ -620,19 +724,21 @@ class PlanMakerTest {
         List<ExecutionPlan.Column> cols = columns(plan(Databases.PLATFORM, RELATION, Written.CSV));
         assertEquals(List.of("ID", "NAME", "PRICE"), cols.stream().map(ExecutionPlan.Column::name).toList(),
                 cols.toString());
+        // (the store fact typed, spelled here as the relational grammar spells it: the tenets audit's 3)
         assertEquals(List.of("INTEGER", "VARCHAR(20)", "DECIMAL(10,2)"),
-                cols.stream().map(ExecutionPlan.Column::store).toList(), cols.toString());
+                cols.stream().map(c -> com.legend.executionplan.ColumnFacts.store(c.store())).toList(), cols.toString());
         assertEquals("String", cols.get(1).type(), cols.toString());
         assertEquals("VARCHAR", cols.get(1).slot(), cols.toString());
         assertEquals("DECIMAL(10,2)", cols.get(2).slot(), cols.toString());
         List<ExecutionPlan.Column> computed = columns(plan(Databases.PLATFORM,
                 "|#>{s::DB.T}#->extend(~NEXT: r|$r.ID + 1)->select(~[NAME, NEXT])", Written.CSV));
-        assertEquals("VARCHAR(20)", computed.get(0).store(), computed.toString());
+        assertEquals(new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 20), computed.get(0).store(),
+                computed.toString());
         assertEquals(null, computed.get(1).store(), computed.toString());
         assertEquals("Integer", computed.get(1).type(), computed.toString());
         List<ExecutionPlan.Column> project = columns(plan(Databases.PLATFORM, PROJECT, Written.CSV));
-        assertEquals(List.of("VARCHAR(20)", "DECIMAL(10,2)"),
-                project.stream().map(ExecutionPlan.Column::store).toList(), project.toString());
+        assertEquals(List.of("VARCHAR(20)", "DECIMAL(10,2)"), project.stream()
+                .map(c -> com.legend.executionplan.ColumnFacts.store(c.store())).toList(), project.toString());
         List<ExecutionPlan.Column> value = columns(plan(Databases.PLATFORM, "|1 + 2", Written.CSV));
         assertEquals(1, value.size(), value.toString());
         assertEquals("value", value.get(0).name(), value.toString());
@@ -671,72 +777,56 @@ class PlanMakerTest {
     private static final String CLASSES = "|meta::pure::metamodel::type::Class.all()->isEmpty()";
 
     /**
-     * The system metamodel store's tables, in the form the plan's database takes (the plan path program's step 9):
-     * on an engine in this process, the target's setup, in their schema (2026-10-18); on a SERVER engine, the
-     * session's own TEMPORARY tables (the legacy system database's form, the user's design of 2026-10-11), made by
-     * the session's statements and read by the query under their session names, with no setup for the user's
-     * database (2026-10-19: every server lane had pinned {@code testBasic} by "the plan has setup for it: never run
-     * on it"); on a server without temporary tables (Trino, MongoDB; 2026-10-20) the tables are the query's own
-     * rows, inline.
+     * The system metamodel store's tables on every relational database are the process's CATALOG (B4, 2026-11-11, the
+     * user's ruling: every statement reading the store runs on the in-process catalog; until then a server's plan
+     * carried the store as its session's temporary tables, or as the query's inline rows, census M6's forms 2 and 3,
+     * deleted): the catalog of the runtime's own engine where the platform runs it in process, DuckDB's for a server,
+     * the query written in that catalog's dialect, its ONCE load making the tables, and nothing of the store in the
+     * user's database or session.
      */
     @Test
-    void theMetamodelStoresTablesAreThePlansSetupInProcessAndTheSessionsOwnTablesOnAServer() throws Exception {
-        // every relational database, each by its dialect's facts (main's merge, 2026-10-22: it named DuckDB, Postgres
-        // and Trino, one of each form)
-        java.util.Set<String> forms = new java.util.TreeSet<>();
+    void theMetamodelStoresTablesAreTheInProcessCatalogsOnEveryDatabase() throws Exception {
+        java.util.Set<DatabaseType> engines = new java.util.TreeSet<>();
         for (DatabaseType type : Databases.relational()) {
             com.legend.sql.dialect.SqlDialect dialect = Databases.dialect(type);
             ExecutionPlan plan = plan(type, CLASSES, Written.CSV);
             com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + CLASSES);
             ExecutionPlan.Target target = target(plan);
             String sql = plan.answerSql().statement();
-            if (dialect.inProcess()) {
-                forms.add("setup");
-                assertTrue(target.setup().stream().anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
-                        && st.sql().contains("classes")), type + ": " + target.setup());
-                assertEquals(dialect.sessionSetup(), target.session(), type.name());
-                assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
-                if (type == Databases.PLATFORM) {
-                    try (Connection c = fresh(type)) {
-                        assertEquals("value\r\nfalse\r\n", csv(plan, c));
-                    }
-                }
-                continue;
-            }
-            assertTrue(target.setup().stream().noneMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
-                    && st.sql().contains("classes")), type + ": " + target.setup());
-            if (!dialect.temporaryTables()) {
-                forms.add("inline");
-                assertTrue(target.session().stream().noneMatch(s -> s.contains("metamodel_classes")),
-                        type + ": " + target.session());
-                assertTrue(sql.contains("VALUES") && !sql.contains("metamodel_classes")
-                        && !sql.contains("metamodel.classes"), type + ": " + sql);
-                continue;
-            }
-            forms.add("session");
-            List<String> session = target.session();
-            // the dialect's own session statements first (a time zone), then the session's tables
-            int create = -1;
-            for (int i = 0; i < session.size(); i++) {
-                if (session.get(i).contains("metamodel_classes")) {
-                    create = i;
-                    break;
-                }
-            }
-            assertTrue(create >= 0, type + ": " + session);
-            String made = session.get(create);
-            assertTrue(made.toLowerCase(java.util.Locale.ROOT).contains("temp"), type + ": " + made);
-            // its rows made with it (a temporary view over VALUES, Databricks') or inserted next
-            if (!made.contains("VALUES")) {
-                assertTrue(create + 1 < session.size(), type + ": " + session);
-                String insert = session.get(create + 1);
-                assertTrue(insert.toUpperCase(java.util.Locale.ROOT).startsWith("INSERT INTO")
-                        && insert.contains("metamodel_classes"), type + ": " + insert.substring(0, Math.min(120,
-                        insert.length())));
-            }
-            assertTrue(sql.contains("metamodel_classes") && !sql.contains("metamodel.classes"), type + ": " + sql);
+            assertTrue(target.database() instanceof ExecutionPlan.Database.System, type + ": " + target);
+            var system = (ExecutionPlan.Database.System) target.database();
+            DatabaseType catalog = ConnectionPlans.model(system.type());
+            engines.add(catalog);
+            assertEquals(dialect.inProcess() ? type : Databases.PLATFORM, catalog, type.name());
+            com.legend.sql.dialect.SqlDialect written = Databases.dialect(catalog);
+            assertTrue(written.inProcess(), type + ": " + catalog);
+            assertEquals(written.sessionSetup(), target.session(), type.name());
+            assertTrue(target.loads().stream().filter(l -> l.cadence() == ExecutionPlan.Load.Cadence.ONCE)
+                    .flatMap(l -> l.steps().stream()).anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
+                    && st.sql().contains("classes")), type + ": " + target.loads());
+            // the store's tables under their own names, never a session's temporary table or the query's own rows
+            assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
+            assertTrue(target.session().stream().noneMatch(s -> s.contains("classes")), type + ": "
+                    + target.session());
+            // the same statement the catalog's own engine plans
+            assertEquals(plan(catalog, CLASSES, Written.CSV).answerSql().statement(), sql, type.name());
         }
-        assertEquals(java.util.Set.of("inline", "session", "setup"), forms);
+        // the in-process engines' own catalogs and none other
+        assertEquals(new java.util.TreeSet<>(Databases.relational().stream().filter(t -> Databases.dialect(t)
+                .inProcess()).toList()), engines);
+    }
+
+    /** A query reading the system metamodel store beside a user's table is refused by name on every database (B4: no
+     *  session holds both; the catalog answers the metamodel alone). */
+    @Test
+    void aQueryReadingTheCatalogBesideAUsersTableIsRefusedOnEveryDatabase() {
+        for (DatabaseType type : Databases.relational()) {
+            var ctx = Compiler.compileModel(model(type.name()));
+            var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(ctx,
+                    "|meta::pure::metamodel::type::Class.all()->size() + s::Item.all()->size()")
+                    .executionPlan("s::RT"), type.name());
+            assertTrue(refused.getMessage().contains("system metamodel store"), type + ": " + refused.getMessage());
+        }
     }
 
     static ExecutionPlan plan(DatabaseType type, String query, Written output) {
@@ -804,11 +894,8 @@ class PlanMakerTest {
         try (Connection today = fresh(type); Connection planned = fresh(type)) {
             var ctx = Compiler.compileModel(model);
             var dialect = Databases.dialect(type);
-            // the declared test data as the plan runner establishes it on a session (the doors, 2026-10-29)
-            com.legend.exec.PlanRunner.setUp(com.legend.setup.CsvSeed.planned(
-                    com.legend.setup.CsvSeed.declaredSteps("s::RT", ctx, dialect), dialect).stream()
-                    .map(com.legend.setup.CsvSeed.Planned::step).toList(),
-                    plan.answerSql().target(), com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(today)), null);
+            // the declared test data: today's door establishes its target's loads on the session it acquires (the M1
+            // tenets audit's finding 7, 2026-11-09: until then this harness seeded the session itself)
             // today's path: the query with its values as lets, run as the server runs it, on the connection its declared
             // test data was established on
             return new String[] {PlanCases.today(model, query, "s::RT", today, output),

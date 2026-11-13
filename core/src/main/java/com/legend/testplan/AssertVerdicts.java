@@ -431,15 +431,6 @@ final class AssertVerdicts {
                 return sv;
             }
         }
-        // TDG scoring flip — the assertSqlEquals root (same discipline)
-        if (com.legend.compiler.element.type.PlatformTypes.ASSERT_SQL_EQUALS_TDG.equals(fqn)
-                && bare instanceof TypedUserCall troot) {
-            TypedSide tv = SqlTextVerdicts.tryArmTdgRoot(troot,
-                    letPrefix, specs, env, hook);
-            if (tv != null) {
-                return tv;
-            }
-        }
         // §8.3d — the dual-golden sibling (same root-arm discipline)
         if (com.legend.compiler.element.type.PlatformTypes.ASSERT_EQUALS_DUAL_GOLDEN.equals(fqn)
                 && bare instanceof TypedUserCall hroot) {

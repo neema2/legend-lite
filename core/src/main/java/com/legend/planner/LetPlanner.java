@@ -113,8 +113,8 @@ public final class LetPlanner {
                     || badAliasIndex(let.value(), n -> true) || aliasOf(let.value(), n -> true) != null
                     || doesNoWork(let.value(), body.subList(0, i), ctx)
                     || rhs instanceof com.legend.compiler.spec.typed.TypedTestDataGen) {
-                // the generator's carrier stays a let until the generator is planned (T8): the walk folds it where a
-                // statement reads it, and no road runs it as a statement yet
+                // a generator's carrier the test road has not planned (B2d.2 plans generateTestData before this:
+                // GeneratedTestData) stays a let, refused by name where the body is classed
                 continue;
             }
             if (com.legend.compiler.spec.typed.FreeVars.ofBodyReadingTrees(body.subList(i + 1, body.size()))

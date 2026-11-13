@@ -75,36 +75,6 @@ public interface TestObserver extends AssertListener {
     default void verdict(String assertName, boolean pass, @com.legend.base.Nullable String detail) {
     }
 
-    /** A fixture whose physical table names CLASH with tables the session
-     *  already holds (the target folds identifiers — the corpus's
-     *  {@code orderTable} and the milestoning {@code OrderTable} are one
-     *  table on DuckDB): the caller may give it a namespace of its own
-     *  for the statements that follow, appended LAST on the session's
-     *  search path once {@link #fixtureIsolated} is called — every name
-     *  stays as written; the session's own tables keep winning. Returns
-     *  the SESSION the fixture runs on (its default namespace is the
-     *  aside, its transaction its own — a body's open attempt may not
-     *  write to a second namespace); null = no such primitive, the runner
-     *  refuses the fixture instead (never a silent clobber). The session returned is the fixture's for the statements
-     *  that follow; the runner never closes it (the caller restores and releases it in {@link #fixtureIsolated}). */
-    default com.legend.exec.Sessions.@com.legend.base.Nullable Session isolateFixture(com.legend.exec.Sessions.Session conn, String setupFqn) {
-        return null;
-    }
-
-    /** Balances a true {@link #isolateFixture}: the fixture ran; the
-     *  session resolves names through its own tables first, the isolated
-     *  namespace last. Runs in the runner's cleanup: a failure here is the
-     *  caller's own (unchecked) wall. */
-    default void fixtureIsolated(com.legend.exec.Sessions.Session conn) {
-    }
-
-    /** The runner seeded {@code storeFqn} on demand by running {@code
-     *  setupFqn} between the body's plan and its run (the stores its
-     *  appeals name, {@code PlannedAppeals.stores}): the rows leg of an
-     *  assert reads a mapping over a store another package's fixture owns. */
-    default void fixtureProvided(String storeFqn, String setupFqn) {
-    }
-
     /** The observer every runner has when a caller attaches nothing. */
     TestObserver NONE = new TestObserver() {
     };

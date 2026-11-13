@@ -106,30 +106,49 @@ public final class TypedQuery {
         return List.copyOf(out);
     }
 
+    /**
+     * Whether the query answers a diagnostic's call ({@code print}, {@code println}): a value the program wrote that
+     * legend-engine refuses when the lambda is built (register S128), where a String or Boolean literal or a model's DDL
+     * text is a value it folds (generatePlan answers upstream's ConstantExecutionNode for those: M5, the user's ruling of
+     * 2026-11-11). Read off the last statement's typed root, as the planner's statement road reads it
+     * ({@code BodyPlanner}'s effect dispatch).
+     */
+    public boolean answersADiagnostic() {
+        List<TypedSpec> b = body();
+        TypedSpec root = b.get(b.size() - 1);
+        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            root = fr.source();
+        }
+        return root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(nc.callee().id());
+    }
+
     /** The query typed as ONE expression (Phase G): its typed HIR, the front half only. */
     public TypedSpec expression() {
         return specs.typeExpression(resolved);
     }
 
-    /** The {@link Compiler.Target} the query names: the runtime its {@code ->from(runtime)} binds and the database its
-     *  {@code #>{db...}#} accessor reads, off the typed tree by node type. */
+    /** The {@link Compiler.Target} the query names: the database its {@code #>{db...}#} accessor reads, off the typed
+     *  tree by node type. Its runtime is {@link #runtime}'s, one rule for every door. */
     public Compiler.Target target() {
-        String runtime = null;
         String store = null;
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body());
         while (!work.isEmpty()) {
             TypedSpec n = work.poll();
-            if (runtime == null && n instanceof com.legend.compiler.spec.typed.TypedFrom f
-                    && f.runtime().isPresent()) {
-                runtime = f.runtime().get().fullPath();
-            }
             if (store == null
                     && n instanceof com.legend.compiler.spec.typed.TypedTableReference r) {
                 store = r.store();
             }
             work.addAll(n.children());
         }
-        return new Compiler.Target(runtime, store);
+        return new Compiler.Target(store);
+    }
+
+    /** The runtime the query runs on: {@code given}, else the one its {@code ->from}s name, a from() inside a function
+     *  it calls included (read after G½); a query naming several and given none is refused by name; null where it
+     *  names none. Every door's one rule ({@code PlanMaker.runtimeOf}; the checkpoint tenets audit's 1, 2026-11-10). */
+    public @com.legend.base.Nullable String runtime(@com.legend.base.Nullable String given) {
+        return com.legend.planner.PlanMaker.runtimeOf(this, given);
     }
 
     /** The query lowered for {@code runtime}: inlined (G½), resolved (H) against the runtime, every touched store
@@ -202,15 +221,32 @@ public final class TypedQuery {
         return false;
     }
 
-    /** The query planned for {@code runtime}: the SQL in the runtime's dialect, the root's type and its result shape —
-     *  what the executor would consume, minus execution. */
+    /**
+     * The query planned for {@code runtime} as a TEXT plan: its execution plan's one answering statement -- its text,
+     * the root's type and its result shape -- with the statement's target (its session statements and the LOADS that
+     * establish it: test data, a project's Data, a {@code data:} source's session table) and its slots (a {@code file:}
+     * source's path the run binds) carried beside it (B3, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "the text plan
+     * renders from the execution plan"; until then it lowered the query again and refused a live source by name). A
+     * query whose plan answers through no one statement (a program that writes, a pivot whose columns the data names, a
+     * value the program wrote) is refused by name: its text would not be what runs.
+     */
     public com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime) {
-        return plan(runtime, false);
-    }
-
-    /** {@link #plan} with the STREAMING graph root: one json_object per row, so a streaming executor stays O(one row). */
-    public com.legend.plan.QueryPlan planStreaming(@com.legend.base.Nullable String runtime) {
-        return plan(runtime, true);
+        com.legend.executionplan.ExecutionPlan plan = executionPlan(runtime);
+        if (!plan.answers() || !plan.sendsTheAnswer() || plan.root() instanceof com.legend.executionplan.ExecutionPlan.Sequence) {
+            throw new com.legend.error.NotImplementedException("a text plan is the statement that answers, and this"
+                    + " query's execution plan " + (!plan.answers() ? "answers nothing"
+                    : !plan.sendsTheAnswer() ? "answers a value the program wrote, sending no statement"
+                    : "is a program of steps (a write)") + ": run the execution plan");
+        }
+        com.legend.compiler.element.type.ExprType root = resultType();
+        com.legend.plan.ResultShape shape = switch (plan.answerShape()) {
+            case OBJECTS -> com.legend.plan.ResultShape.GRAPH;
+            case RELATION -> com.legend.plan.ResultShape.TABULAR;
+            // a value's elements: one or many by the root's multiplicity
+            case VALUE -> root.multiplicity().requireBounded("a text plan").isMany()
+                    ? com.legend.plan.ResultShape.COLLECTION : com.legend.plan.ResultShape.SCALAR;
+        };
+        return new com.legend.plan.QueryPlan(plan, root, shape);
     }
 
     /** The query's TYPED execution plan for {@code runtime} (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §5, step 1):
@@ -250,14 +286,4 @@ public final class TypedQuery {
         }
     }
 
-    private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
-        Compiler.LoweredQuery l = lower(runtime, streaming);
-        String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());
-        com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());
-        // a graph fetch has no columns: its objects are the wire's
-        return new com.legend.plan.QueryPlan(sql, l.root().info(), shape,
-                shape == com.legend.plan.ResultShape.GRAPH ? List.of()
-                        : com.legend.plan.PlanColumns.of(com.legend.lowering.TypedRows.schema(l.root().info()),
-                                l.plan(), com.legend.plan.PlanColumns.shapeOf(l.root().info())));
-    }
 }

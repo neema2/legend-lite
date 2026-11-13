@@ -69,12 +69,46 @@ public sealed interface SqlSource {
     }
 
     /**
-     * An external semi-structured source ({@code sourceUrl('data:...')}) —
-     * ONE {@code data} column of JSON rows; the DIALECT renders the URL
-     * into a complete subquery (scheme-dispatched: {@code data:} inlines,
-     * {@code file:} reads).
+     * An external semi-structured source: a {@code data:} payload, which the planner reads from its plan's session
+     * table, or a {@code file:} the dialect reads. {@code form}: what one row is -- an array's ELEMENT (a
+     * {@code sourceUrl}, its one {@code data} column), or a JSON connection's RECORD and its place (the frame: its
+     * {@code data} column and its place's, {@link #PLACE}; B2a, 2026-11-11 -- marked by its form, never by a column's
+     * name, the B2a audit's note).
      */
-    record SourceUrl(String url, String alias, List<OutputCol> outputs) implements SqlSource {
+    record SourceUrl(String url, String alias, List<OutputCol> outputs, Form form) implements SqlSource {
+        public SourceUrl {
+            java.util.Objects.requireNonNull(form, "form");
+        }
+
+        /** What one row of the source is. */
+        public enum Form {
+            /** One element of the payload's array: its JSON text. */
+            ELEMENTS,
+            /** One record of a JSON connection's payload (an array's object, one object, or a stream's): its JSON text
+             *  and its place in the payload, from 0 ({@link #PLACE}). */
+            RECORDS
+        }
+
+        /** A RECORDS source's column of each record's place. */
+        public static final String PLACE = "u_frame_ord__";
+
+        /** The location of a {@code data:} payload bound by its statement, as the plan's typed tree names it: by its
+         *  SHA-256 ({@code digest}), its text the statement's content (the JSON pass, 2026-11-11). A tree that names a
+         *  payload so is never rendered again: its statement was written when it was planned. */
+        public static String byDigest(String digest) {
+            return "data:application/json;sha256=" + digest + ",";
+        }
+
+        /** Whether this source reads each row's place beside it ({@link #PLACE} among its outputs): a frame's, and an
+         *  array's elements' where a statement orders by their place (the planner's payload order, 2026-11-11). */
+        public boolean placed() {
+            return outputs.stream().anyMatch(o -> o.name().equals(PLACE));
+        }
+
+        /** Whether {@code url} names a payload by its digest ({@link #byDigest}). */
+        public static boolean namesByDigest(String url) {
+            return url.startsWith("data:application/json;sha256=");
+        }
     }
 
     /** A base table &mdash; or, {@code call}, a TABULAR FUNCTION: a named
@@ -157,9 +191,18 @@ public sealed interface SqlSource {
         }
     }
 
-    /** {@code (VALUES (...), (...)) AS alias(col, ...)} &mdash; TDS / instance literals. */
+    /** {@code (VALUES (...), (...)) AS alias(col, ...)} &mdash; TDS / instance literals. {@code payload}: where these
+     *  are the rows of a {@code data:} payload a dialect writes into its statement ({@code SqlDialect.inlineRows}), the
+     *  payload's source named by its digest ({@link SourceUrl#byDigest}), set by the planner: what the typed tree a plan
+     *  carries beside the statement holds in their place (the rows are the statement's text, once -- the JSON pass,
+     *  2026-11-11); null for every other relation of literals. Renderers read no part of it. */
     record Values(List<List<SqlExpr>> rows, List<String> columns, String alias,
-                  List<OutputCol> outputs) implements SqlSource {
+                  List<OutputCol> outputs, @com.legend.base.Nullable SourceUrl payload) implements SqlSource {
+
+        /** Literal rows of no payload. */
+        public Values(List<List<SqlExpr>> rows, List<String> columns, String alias, List<OutputCol> outputs) {
+            this(rows, columns, alias, outputs, null);
+        }
     }
 
     /** An AUTHORED raw SQL text as a relation source —

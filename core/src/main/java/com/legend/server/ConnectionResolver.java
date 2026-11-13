@@ -31,4 +31,14 @@ public final class ConnectionResolver {
      *  (Slice 5, 2026-11-09: the server's session source is exec's, {@code PlanSessions.PROJECT_DATABASES}; the tests'
      *  session for a runtime of a compiled model is the tests' {@code ServerSessions}.) */
     public static final PureV1Api.Runner RUNNER = com.legend.Execution::runOnProjectDatabases;
+
+    /** The product door, its live sources read under the fence {@code admittedSources} names
+     *  ({@code SourceAdmission.configured}'s text: {@code any}; {@code none}; or the directories it lists, separated by
+     *  the platform's path separator). The server builds its own from its startup settings, which fence it to no
+     *  folder when they name none ({@code LegendHttpServer.sources}; the user's ruling of 2026-11-10); {@link #RUNNER},
+     *  the library's door, reads any file (the default, as ruled). */
+    public static PureV1Api.Runner runner(@com.legend.base.Nullable String admittedSources) {
+        return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, admittedSources,
+                output);
+    }
 }

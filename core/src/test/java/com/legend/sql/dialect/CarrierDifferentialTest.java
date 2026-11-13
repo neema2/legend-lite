@@ -647,6 +647,31 @@ class CarrierDifferentialTest {
         }
 
         @Override
+        protected int literalFractionDigits() {
+            return duck.literalFractionDigits();
+        }
+
+        @Override
+        public int timestampColumnDigits() {
+            return duck.timestampColumnDigits();
+        }
+
+        @Override
+        public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+            return null;
+        }
+
+        @Override
+        public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+            return null;
+        }
+
+        @Override
+        public com.legend.sql.SqlSource deliver(SqlDialect.DataPayload payload) {
+            return duck.deliver(payload);
+        }
+
+        @Override
         protected String formatText(SqlExpr.FormatLit fl) {
             return strftimeText(fl);
         }

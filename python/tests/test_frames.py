@@ -3,6 +3,7 @@ as it is at each query, a stream as it was read once; pandas, polars and Arrow a
 conversions hold exact values; an answer is typed by its plan; and what a frame cannot be is refused."""
 
 import datetime
+import json
 import unittest
 from decimal import Decimal
 
@@ -11,6 +12,7 @@ import polars as pl
 import pyarrow as pa
 
 import legend_lite as ll
+from legend_lite._planned import PlannedSql
 
 GROUP = "->filter(x|$x.qty > 5)->groupBy(~[desk], ~[q: x|$x.qty : y|$y->sum()])->sort(~desk->ascending())"
 
@@ -124,6 +126,69 @@ class ReadAtEachQuery(unittest.TestCase):
         self.assertEqual(table.execute('->select(~[id])').to_pylist(), [{'id': 1}, {'id': 2}])
 
 
+class NamedAndAttached(unittest.TestCase):
+    """A frame is a PLANNED LOAD naming it, attached at run (the user's ruling of 2026-11-11, "This is the right plan"):
+    the plan names the frame -- held by the host under its name -- never its bytes; the host attaches it by that name on
+    the connection and on every read's cursor, so every query reads the frame live; a plan naming a frame the host does
+    not hold is refused by name."""
+
+    def test_the_plan_names_the_frame_never_its_bytes(self):
+        from unittest import mock
+        from legend_lite import frames as module
+        ran = []
+        real = module.run_host_load
+
+        def recording(plan, connection, **kw):
+            ran.append(plan)
+            return real(plan, connection, **kw)
+
+        df = trades()
+        df.loc[0, 'desk'] = 'SENTINEL_7f3a'
+        with mock.patch.object(module, 'run_host_load', recording):
+            live = ll.Frames().register('trades', df)
+            once = ll.Frames().register('streamed', streamed(df))
+        self.assertEqual(len(ran), 2)
+        for plan in ran:
+            self.assertNotIn('SENTINEL_7f3a', plan, 'no row of the frame is in its plan')
+        # each the plan the planner answered, as its text (the re-audit's M1)
+        ran = [json.loads(plan) for plan in ran]
+        attach = [s for s in ran[0]['root']['steps'] if s['_type'] == 'attach']
+        self.assertEqual(attach, [{'_type': 'attach', 'held': 'trades', 'as': '__legend_lite_trades', 'reach': 'CONNECTION'}])
+        self.assertEqual([s['_type'] for s in ran[1]['root']['steps']], ['attach', 'statement', 'statement'])
+        self.assertEqual(ran[1]['root']['steps'][0]['reach'], 'DATABASE', 'a stream read once is attached for the load alone')
+        self.assertEqual(live.execute('->filter(x|$x.id == 1)->select(~[desk])').to_pylist(), [{'desk': 'SENTINEL_7f3a'}])
+        self.assertEqual(once.execute('->filter(x|$x.id == 1)->select(~[desk])').to_pylist(), [{'desk': 'SENTINEL_7f3a'}])
+
+    def test_a_frame_queried_twice_sees_its_change_between_the_queries_on_each_reads_cursor(self):
+        df = trades()
+        frames = ll.Frames()
+        frames.register('trades', df)
+        # the test's own question, no plan's: typed by name as a plan's statement (_planned.py)
+        total = PlannedSql('SELECT sum(qty) FROM main.trades')
+        with frames.reading() as read:
+            before = read.execute(total).fetchone()[0]
+        df.loc[0, 'qty'] = 1000.0
+        with frames.reading() as read:
+            after = read.execute(total).fetchone()[0]
+        self.assertEqual((before, after), (69.25, 1058.75), 'each read attaches the frame by its name, as it is then')
+
+    def test_a_plan_naming_a_frame_the_host_does_not_hold_is_refused_by_name(self):
+        from legend_lite import compiler, projects
+        frames = ll.Frames()
+        plan = compiler.frame_load({'databaseType': 'DuckDB', 'held': 'ghost', 'as': '__legend_lite_ghost', 'live': True,
+                                    'schema': 'main', 'relation': 'ghost'})
+        with self.assertRaises(projects.LoadRefused) as refused:
+            projects.run_host_load(plan, frames.connection, values=lambda held: None)
+        self.assertEqual(str(refused.exception), "'ghost' is not a value this host holds: nothing is attached as "
+                                                 '__legend_lite_ghost')
+        self.assertEqual(frames.connection._con.execute(
+            "SELECT count(*) FROM duckdb_views() WHERE view_name = 'ghost'").fetchone()[0], 0, 'nothing ran after it')
+        # a key that could carry the frame's rows is refused by the planner by name
+        with self.assertRaisesRegex(ll.LegendError, 'has no key rows'):
+            compiler.frame_load({'databaseType': 'DuckDB', 'held': 'f', 'as': 'x', 'live': True, 'relation': 'f',
+                                 'rows': [[1]]})
+
+
 class Names(unittest.TestCase):
     def test_registering_a_name_again_replaces_its_table_a_view_or_a_streams_table(self):
         frames = ll.Frames()
@@ -145,10 +210,10 @@ class Names(unittest.TestCase):
 
     def test_a_table_frames_did_not_make_is_never_replaced(self):
         frames = ll.Frames()
-        frames.connection.execute('CREATE TABLE ledger (id INTEGER)')
+        frames.connection._con.execute('CREATE TABLE ledger (id INTEGER)')
         with self.assertRaises(ValueError):
             frames.register('Ledger', trades())
-        self.assertEqual(frames.connection.execute('SELECT count(*) FROM ledger').fetchone(), (0,))
+        self.assertEqual(frames.connection._con.execute('SELECT count(*) FROM ledger').fetchone(), (0,))
 
     def test_a_frame_that_cannot_be_served_leaves_its_name_free(self):
         # a column of nothing but nulls (no type a Pure column can have), a frame of no columns, a stream of none:
@@ -168,8 +233,8 @@ class Names(unittest.TestCase):
         with self.assertRaises(ValueError):
             one.execute('->select(~[id])')
         frames.close()
-        left = frames.connection.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name IN ('one', 'two')").fetchone()
-        views = frames.connection.execute("SELECT count(*) FROM duckdb_views() WHERE view_name IN ('one', 'two')").fetchone()
+        left = frames.connection._con.execute("SELECT count(*) FROM duckdb_tables() WHERE table_name IN ('one', 'two')").fetchone()
+        views = frames.connection._con.execute("SELECT count(*) FROM duckdb_views() WHERE view_name IN ('one', 'two')").fetchone()
         self.assertEqual((left, views), ((0,), (0,)))
 
     def test_a_pure_literal_cannot_name_a_frame(self):
@@ -204,7 +269,7 @@ class Names(unittest.TestCase):
 class Session(unittest.TestCase):
     def test_the_session_answers_in_utc_on_any_machine(self):
         frames = ll.Frames()
-        self.assertEqual(frames.connection.execute("SELECT current_setting('TimeZone')").fetchone(), ('UTC',))
+        self.assertEqual(frames.connection._con.execute("SELECT current_setting('TimeZone')").fetchone(), ('UTC',))
 
     def test_a_given_connection_is_set_the_same_way(self):
         import duckdb
@@ -383,6 +448,55 @@ class ModelFor(unittest.TestCase):
             first.handle  # let go of (closed)
         # asked again, held again
         self.assertIsNotNone(self.frames.model_for(self.project(0)))
+
+
+class JsonConnection(unittest.TestCase):
+    """A JSON connection's query (the tenets audit's M3, 2026-11-11; the user's ruling "make json work everywhere"): its
+    frame a data: source whose payload DuckDB binds as one parameter (the JSON pass) -- read from the plan beside the
+    text by its digest, verified once (compiler.plan_params), and bound where Python runs the plan."""
+
+    # a quote, a backslash, a line break, in an order no sort would give
+    RECORDS = [{'name': "it's"}, {'name': 'back\\slash'}, {'name': 'two\nlines'}, {'name': 'a'}]
+    QUERY = '|m::P.all()->project(~[name: p|$p.name])'
+
+    @staticmethod
+    def model(records):
+        # the payload as JSON, written into the Pure string literal of its data: URL ('\\' and "'" escaped)
+        url = ('data:application/json,' + json.dumps(records)).replace('\\', '\\\\').replace("'", "\\'")
+        return (
+            'Class m::Raw { name: String[1]; }\nClass m::P { name: String[1]; }\n###Mapping\n'
+            'Mapping m::MM ( *m::P: Pure { ~src m::Raw name: $src.name } )\n###Runtime\n'
+            'Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonModelConnection {\n'
+            f"    class: m::Raw; url: '{url}'; }} }}# ] ]; }}\n")
+
+    def test_its_records_are_read_back_exactly_in_payload_order(self):
+        plan = ll.plan(self.model(self.RECORDS), ll.parse(self.QUERY), 'm::RT')
+        self.assertIn('?', plan.sql)
+        self.assertNotIn('back', plan.sql)
+        self.assertEqual([json.loads(p) for p in plan.params], [self.RECORDS])
+        frames = ll.Frames()
+        self.assertEqual(frames.run(plan).column('name').to_pylist(), [r['name'] for r in self.RECORDS])
+        with frames.reading() as read:
+            self.assertEqual(read.run(plan).column('name').to_pylist(), [r['name'] for r in self.RECORDS])
+        # an empty array: no record, no row
+        empty = ll.plan(self.model([]), ll.parse(self.QUERY), 'm::RT')
+        self.assertEqual(frames.run(empty).num_rows, 0)
+
+    def test_a_payload_that_is_not_its_digest_or_another_slot_is_refused_by_name(self):
+        from legend_lite import compiler
+        model = self.model(self.RECORDS)
+        planned = json.loads(compiler._answer(compiler.library().call('lite_plan_json', model, compiler._json.dumps(ll.parse(self.QUERY)),
+                                                                      'm::RT')))
+        statement = planned['plan']['root']['sql']
+        digest = next(iter(statement['content']))
+        statement['content'][digest] = statement['content'][digest].replace('back', 'BACK')
+        with self.assertRaises(compiler.PlanParamsRefused) as refused:
+            compiler.plan_params(planned['plan'])
+        self.assertIn("the data: source's payload is not the data it was planned against", str(refused.exception))
+        statement['slots'][0]['binding'] = {'_type': 'source', 'location': 'file:///x.json'}
+        with self.assertRaises(compiler.PlanParamsRefused) as refused:
+            compiler.plan_params(planned['plan'])
+        self.assertIn("binds a file source's path, which a host running the plan's text does not bind", str(refused.exception))
 
 
 class Refusals(unittest.TestCase):

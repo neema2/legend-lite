@@ -7,6 +7,8 @@ The bundles are //datacube:headless_test_bundles (the test files, bundled with t
 node:test and node:assert stand-ins); the product's is //datacube:headless_bundle.
 """
 
+import base64
+import io
 import json
 import os
 import sys
@@ -33,8 +35,72 @@ BUNDLES = located('HEADLESS_TEST_BUNDLES')
 PRODUCT = located('HEADLESS_BUNDLE').read_text(encoding='utf-8')
 TMP = Path(os.environ['TEST_TMPDIR'])
 
-from legend_lite._headless import KINDS, Headless, InterfaceMismatch, check_interface  # noqa: E402 -- after the library's path
+from legend_lite._headless import KINDS, REFUSED, Headless, InterfaceMismatch, check_interface  # noqa: E402 -- after the library's path
 from legend_lite._library import library  # noqa: E402
+
+# the product host's calls (calls.ts HostCalls): a test's own database is none of them
+PRODUCT_CALLS = ['planner', 'query', 'statement', 'digest', 'fetch', 'engine']
+
+
+class TestHost(Headless):
+    """THE LANE'S HOST (2026-11-12, the total wall): the product's, and a test's own database beside it
+    (test/host/headless.ts) -- a test runs its own SQL on Python's DuckDB as written (a fixture's table, a planner's
+    statement it checks), which the product's host never takes (its bridge admits only what its planner answered,
+    _planned.py across_the_bridge); and registers a file its database reads by name. Its calls are the lane's, on the
+    same global; the product's bundle has none of them."""
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # the product's statements that crossed the product's bridge (the C final audit's H7, 2026-11-12): a test's own
+        # go to the test calls, every other one to the product's `query` and `statement`, checked there as the
+        # bundle's are -- counted, so a lane that stopped crossing it is red (DataCubeTests)
+        self.crossed = 0
+
+    def _calls(self):
+        return {**super()._calls(), 'testQuery': self._test_query, 'testStatement': self._test_statement,
+                'testRegisterFile': self._test_register_file}
+
+    async def _planner(self, request):
+        """A host operation's texts a test typed itself (test/host/headless.ts `testsOwn`): its fake planner's answers,
+        recorded as the session's planner's before the request is checked (the re-audit's S3). The lane's alone: the
+        product's host reads no such field."""
+        asked = json.loads(request)
+        for text in asked.pop('testsOwn', []):
+            self.answered.record('plan', 'OK\n' + json.dumps({'sql': text}))
+        return await super()._planner(json.dumps(asked))
+
+    async def _query(self, sql):
+        answered = await super()._query(sql)
+        self.crossed += 1
+        return answered
+
+    async def _statement(self, sql, params):
+        answered = await super()._statement(sql, params)
+        self.crossed += 1
+        return answered
+
+    def _arrow(self, result):
+        import pyarrow as pa
+
+        table = result.to_arrow_table() if result.description is not None else pa.table({})
+        sink = io.BytesIO()
+        with pa.ipc.new_stream(sink, table.schema) as writer:
+            writer.write_table(table)
+        return base64.b64encode(sink.getvalue()).decode('ascii')
+
+    async def _test_query(self, sql):
+        return self._arrow(self._db._con.execute(sql))
+
+    async def _test_statement(self, sql, params):
+        return self._arrow(self._db._con.execute(sql, json.loads(params)))
+
+    async def _test_register_file(self, name, data):
+        root = self.folder
+        target = (root / name).resolve()
+        if root not in target.parents:
+            raise ValueError(f"a registered file stays in the engine's folder: {name!r} does not")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(base64.b64decode(data))
 
 
 class Host(unittest.TestCase):
@@ -43,7 +109,8 @@ class Host(unittest.TestCase):
     def test_the_bundle_and_the_library_agree_on_every_request_kind(self):
         with Headless(PRODUCT, folder=TMP) as h:
             kinds = h.evaluate('legendLiteHeadless.REQUEST_KINDS')
-        self.assertEqual(sorted(kinds), sorted(KINDS), "the bundle's kinds are the host's table's")
+        # the host's table, and the kinds it refuses by name (REFUSED: the authored door, Studio's alone, 2026-11-12)
+        self.assertEqual(sorted(kinds), sorted([*KINDS, *REFUSED]), "the bundle's kinds are the host's table's and its refusals'")
         for kind, (function, _args) in KINDS.items():
             self.assertTrue(library().exports(function), f'{kind}: the library exports {function}')
 
@@ -61,7 +128,9 @@ class Host(unittest.TestCase):
         model = ('###Relational\nDatabase a::DB ( Table t ( x INTEGER, s VARCHAR(8) ) )\n###Connection\n'
                  'RelationalDatabaseConnection a::C { store: a::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }\n'
                  '###Runtime\nRuntime a::RT { mappings: []; connections: [ a::DB: [ c: a::C ] ]; }')
-        with Headless(PRODUCT, folder=TMP) as h:
+        with TestHost(PRODUCT, folder=TMP) as h:
+            # the test's own table, through its own host's call; the planner's statement through the product's
+            h.evaluate("legendLiteHost.testQuery(\"CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) v(x, s)\")")
             h.execute("globalThis.planned = (async (model) => {"
                       " const w = legendLite.worker();"
                       " const ask = (m) => new Promise((ok) => { w.onmessage = (e) => ok(e.data); w.postMessage(m); });"
@@ -70,7 +139,6 @@ class Host(unittest.TestCase):
                       " const plan = await ask({ id: 2, kind: 'plan', handle, query: '|#>{a::DB.t}#->filter(r|$r.x > 1)->select(~[s])', runtime: 'a::RT' });"
                       " const refused = await ask({ id: 3, kind: 'plan', handle, query: '|#>{a::DB.t}#', runtime: 'a::NoSuch' });"
                       " const db = legendLite.database.connection;"
-                      " await db.query(\"CREATE TABLE t AS SELECT * FROM (VALUES (1, 'a'), (2, 'b'), (3, 'c')) v(x, s)\");"
                       " const t = await db.query(JSON.parse(plan.answer.slice(3)).sql);"
                       " const rows = []; for (let i = 0; i < t.numRows; i++) rows.push(t.getChildAt(0).get(i));"
                       " return { rows, refused: [refused.ok, refused.answer.split('\\n')[0]] };"
@@ -105,11 +173,42 @@ class Host(unittest.TestCase):
             self.assertEqual(h.evaluate('1 + 1'), 2)
 
     def test_a_registered_file_stays_in_the_folder(self):
-        with Headless(PRODUCT, folder=TMP / 'files') as h:
-            refused = h.evaluate("legendLite.database.registerFileText('../out.csv', 'a').then(() => 'written', (e) => String(e))")
+        with TestHost(PRODUCT, folder=TMP / 'files') as h:
+            refused = h.evaluate("legendLiteHost.testRegisterFile('../out.csv', btoa('a')).then(() => 'written', (e) => String(e))")
             self.assertIn("stays in the engine's folder", refused)
-            self.assertEqual(h.evaluate("legendLite.database.registerFileText('in.csv', 'a\\n1\\n').then(() => 'written')"), 'written')
+            self.assertEqual(h.evaluate("legendLiteHost.testRegisterFile('in.csv', btoa('a\\n1\\n')).then(() => 'written')"), 'written')
         self.assertEqual((TMP / 'files' / 'in.csv').read_text(), 'a\n1\n')
+
+    def test_the_products_host_hands_the_planner_no_sql_in_a_host_operation(self):
+        # the final audit's item 1 (2026-11-12; until then the re-audit's S3 admitted a text the planner had answered): a
+        # host operation takes no SQL, so the product's host refuses one carrying any -- whatever else the request names
+        # (the lane's own `testsOwn` is its TestHost's alone)
+        with Headless(PRODUCT, folder=TMP) as h:
+            said = h.evaluate("(async () => { const w = legendLite.worker();"
+                              " const ask = (m) => new Promise((ok) => { w.onmessage = (e) => ok(e.data); w.postMessage(m); });"
+                              " return ask({ id: 1, kind: 'hostOperations', databaseType: 'DuckDB', testsOwn: ['DROP TABLE t'],"
+                              " operations: JSON.stringify([{ op: 'count', from: { query: 'DROP TABLE t' } }]) }); })()")
+            self.assertFalse(said['ok'])
+            self.assertIn('takes no SQL, and its query is SQL', said['error'])
+
+    def test_the_hosted_codes_http_to_a_sql_api_crosses_the_bridge(self):
+        # the re-audit's S9 (2026-11-12): a fetch whose JSON carries a statement (a warehouse's submit) is refused by
+        # name unless the session's planner answered it -- before any connection is made (the port below is closed)
+        with Headless(PRODUCT, folder=TMP) as h:
+            said = h.evaluate("legendLiteHost.fetch('POST', 'http://127.0.0.1:9/sql/v1/statements',"
+                              " JSON.stringify({ sql: 'DROP TABLE t', catalog: 'c' })).then(() => 'sent', (e) => String(e))")
+            self.assertIn("not a statement this session's planner answered", said)
+
+    def test_a_tests_own_database_is_no_call_of_the_products(self):
+        # 2026-11-12: the tests' setup SQL is the lane's own host's; the product's host takes only what its planner
+        # answered, and refuses a test's statement by name
+        with Headless(PRODUCT, folder=TMP) as h:
+            self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'), PRODUCT_CALLS)
+            refused = h.evaluate("legendLite.database.connection.query('CREATE TABLE u (x INTEGER)').then(() => 'run', (e) => String(e))")
+            self.assertIn("not a statement this session's planner answered", refused)
+        with TestHost(PRODUCT, folder=TMP) as h:
+            self.assertEqual(h.evaluate('Object.keys(legendLiteHost)'),
+                             [*PRODUCT_CALLS, 'testQuery', 'testStatement', 'testRegisterFile'])
 
 
 class DataCubeTests(unittest.TestCase):
@@ -120,6 +219,7 @@ class DataCubeTests(unittest.TestCase):
         self.assertGreater(len(bundles), 40, f'the bundles are not there: {BUNDLES}')
         total = {'pass': 0, 'fail': 0, 'skip': 0}
         failed: list[str] = []
+        crossed = 0
         for bundle in bundles:
             name = bundle.name[:-len('.test.js')]
             folder = TMP / name
@@ -128,8 +228,9 @@ class DataCubeTests(unittest.TestCase):
             os.chdir(folder)
             start = time.monotonic()
             with self.subTest(name):
-                with Headless(bundle.read_text(encoding='utf-8'), folder=folder) as h:
+                with TestHost(bundle.read_text(encoding='utf-8'), folder=folder) as h:
                     results = h.evaluate('legendLiteHeadless.run()')
+                crossed += h.crossed
                 counts = {s: sum(1 for r in results if r['status'] == s) for s in total}
                 for s in total:
                     total[s] += counts[s]
@@ -141,7 +242,14 @@ class DataCubeTests(unittest.TestCase):
                 self.assertEqual(bad, [])
                 # none skipped: a test the lane does not run says why in BUILD (its file left out), never by a skip
                 self.assertEqual([r['name'] for r in results if r['status'] == 'skip'], [], f'{name}: skipped')
-        print(f'\n{len(bundles)} files: {total["pass"]} pass, {total["fail"]} fail, {total["skip"]} skip', flush=True)
+        print(f'\n{len(bundles)} files: {total["pass"]} pass, {total["fail"]} fail, {total["skip"]} skip; '
+              f"{crossed} of the product's statements crossed its bridge", flush=True)
+        # the lane exercises the product's bridge (H7): the product's statements are checked there, as the bundle's are.
+        # Measured 2026-11-12: 205 crossed (0 with every statement sent to the test calls, as before H7); the floor
+        # leaves the tests room to change
+        self.assertGreater(crossed, 150, "the product's statements no longer cross the product's bridge: the lane's "
+                                          'database sends a test\'s own statements alone to the test calls '
+                                          '(test/host/headless.ts)')
         if failed:
             print('\n'.join(failed[:50]), file=sys.stderr)
 

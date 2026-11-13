@@ -118,6 +118,22 @@ class PureV1ApiTest {
         assertEquals("COMPILATION", Json.parseObject(type.json()).getString("errorType"));
     }
 
+    /** The server's product door refuses an {@code executeInDb}'s read by name (2026-11-13, the user's ruling (a) on the
+     *  orchestrator's item 5: a statement's own SQL text is the test road's; QueryDoorTest pins every planning door):
+     *  generatePlan answers the refusal, never a plan carrying the text. */
+    @Test
+    void generatePlanRefusesAnExecuteInDbsReadByName() {
+        String raw = PureV1Api.grammarToJsonLambda("{|let c = ^meta::external::store::relational::runtime"
+                + "::TestDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2);\n"
+                + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).columnNames;}", false).json();
+        PureV1Api.Answer plan = PureV1Api.generatePlan("{\"clientVersion\":\"vX_X_X\",\"function\":" + raw
+                + ",\"model\":" + textModel() + ",\"runtime\":{\"runtime\":\"trades::h2::RT\"},"
+                + "\"context\":{\"_type\":\"BaseExecutionContext\"}}");
+        assertTrue(plan.status() != 200, plan.json());
+        assertTrue(plan.json().contains("an executeInDb\\u0027s SQL in a query") || plan.json().contains(
+                "an executeInDb's SQL in a query"), plan.json());
+    }
+
     @Test
     void e5_lambdaRelationType_isTheEnginesAnswer() throws IOException {
         String request = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";
@@ -147,6 +163,40 @@ class PureV1ApiTest {
 
         // everything else: the whole plan, the recorded differences applied
         assertEquals(Json.toCompact(comparable(engine)), Json.toCompact(comparable(lite)));
+    }
+
+    /**
+     * M5, constants (the user's ruling of 2026-11-11: "Shouldn't that route to database unless boolean or string constant
+     * fold?"): a folded value -- a String or a Boolean literal -- answers legend-engine's own ConstantExecutionNode,
+     * written as its protocol writes one (4.145.0: transfers/executionPlan.pure:70-75, transformAny, ObjectMapperFactory's
+     * alphabetical fields, no template function); a value the database computes answers a statement; print stays refused,
+     * as legend-engine refuses it (S128). Register S199.
+     */
+    @Test
+    void m5_aFoldedConstantIsTheEnginesConstantNode_aComputedOneASqlPlan_printRefused() {
+        java.util.function.Function<String, PureV1Api.Answer> generate = text -> PureV1Api.generatePlan(
+                "{\"clientVersion\":\"vX_X_X\",\"function\":" + PureV1Api.grammarToJsonLambda(text, false).json()
+                + ",\"model\":" + textModel() + ",\"runtime\":{\"runtime\":\"trades::h2::RT\"},"
+                + "\"context\":{\"_type\":\"BaseExecutionContext\"}}");
+        PureV1Api.Answer hello = generate.apply("|'hello'");
+        assertEquals(200, hello.status(), hello.json());
+        assertEquals("{\"_type\":\"simple\",\"authDependent\":false,\"rootExecutionNode\":{\"_type\":\"constant\","
+                + "\"authDependent\":false,\"executionNodes\":[],\"resultType\":{\"_type\":\"dataType\",\"dataType\":"
+                + "\"String\"},\"values\":{\"_type\":\"string\",\"value\":\"hello\"}},\"serializer\":{\"name\":\"pure\","
+                + "\"version\":\"vX_X_X\"},\"templateFunctions\":[]}", hello.json());
+        PureV1Api.Answer yes = generate.apply("|true");
+        assertEquals(200, yes.status(), yes.json());
+        Json.Obj root = Json.parseObject(yes.json()).getObj("rootExecutionNode");
+        assertEquals("constant", root.getString("_type"));
+        assertEquals("{\"_type\":\"boolean\",\"value\":true}", Json.toCompact(root.getObj("values")));
+        assertEquals("Boolean", root.getObj("resultType").getString("dataType"));
+        // a value the database computes: lite's statement, the engine's own plan shape around it
+        PureV1Api.Answer sum = generate.apply("|1+1");
+        assertEquals(200, sum.status(), sum.json());
+        assertEquals("sql", sqlNode(Json.parseObject(sum.json())).getString("_type"), sum.json());
+        // print: refused, as the engine refuses it
+        PureV1Api.Answer printed = generate.apply("|print('x', 1)");
+        assertEquals(500, printed.status(), printed.json());
     }
 
     @Test
@@ -524,14 +574,28 @@ class PureV1ApiTest {
         String request = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
                 + ",\"model\":" + textModel()
                 + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
-        PureV1Api.Answer a = PureV1Api.jsonPlan(request, List.of(model));
+        // a host runs one statement and none of its target's loads (until B3): a connection's test data is refused by
+        // name, never left for the host's database to fail on (the A checkpoint's finding of B3's prep, 2026-11-10)
+        PureV1Api.Answer loading = PureV1Api.jsonPlan(request, List.of(model));
+        assertEquals(500, loading.status(), loading.json());
+        assertTrue(loading.json().contains("reads what its target loads first"), loading.json());
+        // the host's own model holds its data itself (the tab's tables, Python's frames): the same model with no test
+        // data, whose statement is the server's
+        String hosted = withoutTestData(model);
+        String hostedRequest = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda
+                + ",\"model\":" + Json.toCompact(Map.of("_type", "text", "code", hosted))
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        PureV1Api.Answer a = PureV1Api.jsonPlan(hostedRequest, List.of(hosted));
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
-        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder", "activities", "columns"),
+        // 2026-11-12 (C1's second half): the host's execution's id, minted with the plan half it runs ("execution")
+        assertEquals(List.of("sql", "run", "shape", "resultColumns", "execution", "builder", "activities", "columns"),
                 new ArrayList<>(plan.fields().keySet()));
         assertEquals("RELATION", plan.getString("shape"));
         Json.Obj activity = (Json.Obj) plan.getArr("activities").items().get(0);
         assertEquals(plan.getString("sql"), activity.getString("sql"));
+        assertEquals("-- \"executionTraceID\" : \"" + plan.getString("execution") + "\"", activity.getString("comment"),
+                "the plan half's activity names the host's execution");
         // the run statement on the same database the server's runner reads: its rows, as a host's driver reads them,
         // written by the server's writer, are the server's text
         List<String> setup = sqlNode(Json.parseObject(resource("upstream-api/e9-groupby-sort.json")))
@@ -540,10 +604,12 @@ class PureV1ApiTest {
         String hostRows = hostRows(setup, plan.getString("run"));
         PureV1Api.Answer answered = PureV1Api.jsonAnswer(a.json(), hostRows);
         assertEquals(200, answered.status(), answered.json());
+        assertTrue(answered.json().contains(plan.getString("execution")),
+                "the answer written from the host's rows reports the same execution: " + answered.json());
         java.util.function.UnaryOperator<String> traced = t -> t.replaceAll("executionTraceID\\\\\" : \\\\\"[0-9a-f-]{36}", "ID");
         assertEquals(traced.apply(execute(request).json()), traced.apply(answered.json()));
         // its host's models only, as the Arrow half
-        assertEquals(500, PureV1Api.jsonPlan(request, List.of(model + "\n")).status());
+        assertEquals(500, PureV1Api.jsonPlan(hostedRequest, List.of(hosted + "\n")).status());
         // a plan that is not jsonPlan's: refused, never cast
         assertEquals(500, PureV1Api.jsonAnswer("{\"builder\":5}", "[]").status());
         // a value's answer (one value, or a list of them), which the server's execute refuses, is refused by both plan
@@ -557,7 +623,7 @@ class PureV1ApiTest {
             }
         }
 
-        String trading = resource("upstream-api/query-app/trading.pure");
+        String trading = withoutTestData(resource("upstream-api/query-app/trading.pure"));
         String fetch = PureV1Api.grammarToJsonLambda("|demo::trading::Trade.all()->graphFetch(#{demo::trading::Trade{tradeId}}#)"
                 + "->serialize(#{demo::trading::Trade{tradeId}}#)->from(demo::trading::TradingMapping, demo::trading::H2Runtime)", false).json();
         PureV1Api.Answer graph = PureV1Api.jsonPlan("{\"function\":" + fetch + ",\"model\":"
@@ -871,6 +937,15 @@ class PureV1ApiTest {
             out.add(row);
         }
         return out;
+    }
+
+    /** {@code model} with no connection's declared test data: a host's model, whose data the host holds itself. */
+    private static String withoutTestData(String model) {
+        String stripped = model.replaceAll("testDataSetupSqls\\s*:\\s*\\[[\\s\\S]*?\\];", "");
+        // (the model's comment names the field; a declaration is the name and a colon)
+        assertTrue(!stripped.equals(model) && !stripped.matches("(?s).*testDataSetup\\w*\\s*:.*"),
+                "the model's test data stripped");
+        return stripped;
     }
 
     private String textModel() {

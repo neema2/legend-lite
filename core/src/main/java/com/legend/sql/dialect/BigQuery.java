@@ -112,6 +112,38 @@ public final class BigQuery extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
     }
 
+    /** {@inheritDoc} 6: its {@code DATETIME} keeps microseconds (a literal of nine digits is refused, measured) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its date-time column is a {@code DATETIME}, of microseconds (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
+    /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
+     *  2026-11-11, on round 2's measurement, probes/BigQueryDelivery2.java.txt): it reads 100,000 records (7.6 s) where
+     *  the statement's own rows are refused, past BigQuery's 1 MB of query text; a {@code TEMP} table needs a session,
+     *  which doubles each query's latency, and took 105 s; the quote, the line break, the order and the empty array
+     *  kept. */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -621,6 +653,23 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** No VALUES clause: the rows as a typed array of structs, unnested ({@code STRUCT(...)} rows coerce to the
      *  array's declared field types, so a NULL cell is typed; a single-column row needs STRUCT, a bare tuple of one is
      *  a parenthesized value -- measured). */
+    /** A {@code data:} payload bound as one parameter, split here (round 2, 2026-11-11, measured): each element a JSON
+     *  value, a frame's record its place as the array's offset (from 0, the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload AS ").append(ident(payloadColumn(u).name()));
+        boolean frame = u.placed();
+        if (frame) {
+            writer.append(", legend_place AS ").append(ident(placeColumn(u).name()));
+        }
+        writer.append(" FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(");
+        bindPayload(writer, u).append("))) AS legend_payload");
+        return frame ? writer.append(" WITH OFFSET AS legend_place") : writer;
+    }
+
     @Override
     protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
         if (v.outputs().size() != v.columns().size()) {
@@ -689,22 +738,11 @@ public final class BigQuery extends AnsiSqlRenderer {
         return sb.append('\'').toString();
     }
 
-    /** A naive date-time is a DATETIME; it holds microseconds (a literal with nine digits is refused, measured), so
-     *  finer digits are TRUNCATED as DuckDB's TIMESTAMP does. */
+    /** A naive date-time is a DATETIME; it holds microseconds (a literal with nine digits is refused, measured), and
+     *  a literal of a finer digit is refused at planning ({@link #literalFractionDigits}; S181, A7). */
     @Override
     protected String timestampLit(String iso) {
-        String t = iso.replace('T', ' ');
-        int dot = t.lastIndexOf('.');
-        if (dot >= 0) {
-            int end = dot + 1;
-            while (end < t.length() && Character.isDigit(t.charAt(end))) {
-                end++;
-            }
-            if (end - dot - 1 > 6) {
-                t = t.substring(0, dot + 7) + t.substring(end);
-            }
-        }
-        return "DATETIME '" + t + "'";
+        return "DATETIME '" + iso.replace('T', ' ') + "'";
     }
 
     /** NUMERIC CHARTER Rule 1: a Float literal is typed exact-decimal by the database -- {@code 1.5} alone is a
@@ -1484,6 +1522,9 @@ public final class BigQuery extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on BigQuery, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached BigQuery, whose binary collation is not measured");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
@@ -1569,6 +1610,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             case PARSE_INT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS INT64)");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
             // in for itself, or for another when NULL, so only all-NULL is NULL
@@ -2972,15 +3014,33 @@ public final class BigQuery extends AnsiSqlRenderer {
     // Plan parameters
     // ==================================================================
 
-    /** A date-time parameter is cast to DATETIME (the naive type); finer than a microsecond, its first six digits. */
+    /** A Date parameter is a {@code DATE}, as upstream's BigQuery extension writes it ({@code PARSE_DATE}); a
+     *  DateTime a {@code DATETIME} (the naive type) of six digits of a second, a value of finer ones refused by the
+     *  statement's own raise (S181, A7; D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME -> new RenderedStatement.TypeSpelling("DATETIME", RenderedStatement.Digits.NONE);
-            case DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("DATETIME", RenderedStatement.Digits.NONE, 6);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            // (a Date's placeholder is upstream's own PARSE_DATE, placeholder() below; its text bound as a date's)
+            case DATE -> new ParameterType("DATE", new RenderedStatement.AsText(null));
+            case DATE_TIME -> new ParameterType("DATETIME", new RenderedStatement.AsText(6));
         };
+    }
+
+    /**
+     * A Date parameter's placeholder as upstream's BigQuery extension writes a Date's and a StrictDate's literal:
+     * {@code PARSE_DATE('%Y-%m-%d', '%s')} ({@code bigQueryExtension.pure} lines 45-47), the value bound as its date text
+     * -- so a date-time given for it fails as upstream's does, in BigQuery's words for that function (A6, 2026-11-10:
+     * S182 withdrawn, a {@code CAST(? AS DATE)} until then). Read from the pinned sources, unverified on BigQuery (none
+     * here). Every other parameter as the base writes it.
+     */
+    @Override
+    protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
+        if (p.declared() == com.legend.sql.DeclaredKind.DATE) {
+            return writer.append("PARSE_DATE('%Y-%m-%d', ").bind(textBind(p, new RenderedStatement.AsText(null)))
+                    .append(")");
+        }
+        return super.placeholder(writer, p);
     }
 
     // ==================================================================

@@ -33,6 +33,7 @@ import type { ModelWriter } from '../model-writer.ts';
 import type { PlanAndRun } from '../runner.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { UploadResult } from '../upload.ts';
+import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
 
 /** Everything a host gives the app. */
 export interface Services {
@@ -145,7 +146,7 @@ export interface LocalEngine {
   /** A project's own databases in the host's (C5, engine-client's project-data.ts): a saved query's rows by name. */
   projects(): Promise<ProjectDatabases>;
   /** Where a grid over one of the database's tables runs, its database type the model's connection names. */
-  readonly engine: QueryEngine & { readonly databaseType: string; run(sql: string, epoch: number): Promise<unknown>;
+  readonly engine: QueryEngine & { readonly databaseType: string; run(sql: PlannedSql, epoch: number): Promise<unknown>;
     /** The database held for a write alone, one transaction (engine-client duckdb.ts exclusive: a table Output's). */
     exclusive?<T>(work: (held: HeldConnection) => Promise<T>): Promise<T> };
 }

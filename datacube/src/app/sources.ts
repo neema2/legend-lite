@@ -1080,20 +1080,28 @@ export function pageSources(d: SourcesOf): PageSources {
 
   /**
    * A saved (or shared) cube over a REMOTE FILE, reopened: read straight away when the file is public; refused (a
-   * private bucket), the Remote section asks for its keys, the URL filled in.
+   * private bucket), the Remote section asks for its keys, the URL filled in. One saved needing a fresh link (its link's
+   * query string -- a presigned link's token -- never saved: the user's ruling of 2026-11-11) asks for that link first,
+   * its address filled in, and reads the file from the link given (its token bound by name, as every mount's is).
    */
   async function reopenRemote(src: RemoteSource, saved: CubeDocument, several = false): Promise<Opened | undefined> {
-    let refusal: string;
-    try {
-      return await openedRemote(src.url, undefined, saved, several);
-    } catch (e) {
-      refusal = e instanceof Error ? e.message : String(e);
+    let reason: string;
+    if (src.freshLink) {
+      reason = `“${saved.name}” reads ${src.name}, whose link was saved without its query string (a presigned link's token`
+        + ' is never saved): give a fresh link to it.';
+    } else {
+      try {
+        return await openedRemote(src.url, undefined, saved, several);
+      } catch (e) {
+        const refusal = e instanceof Error ? e.message : String(e);
+        reason = `“${saved.name}” reads ${src.name}, which did not open without its keys (${refusal.slice(0, 160)}).`;
+      }
     }
     let got: Opened | undefined;
     const done = await pickSource<boolean>(document, {
       purpose: 'open',
       start: 'remote',
-      reason: `“${saved.name}” reads ${src.name}, which did not open without its keys (${refusal.slice(0, 160)}).`,
+      reason,
       sections: {
         remote: {
           detect: detectFormat,
@@ -1208,7 +1216,7 @@ export function pageSources(d: SourcesOf): PageSources {
       const first = lambda([], from(source).limit(1).node);
       try {
         if (rows.runner) await rows.runner.host.planAndRun(first, 0);
-        else await rows.engine.run((await rows.planner.plan(first)).sql, 0);
+        else { const p = await rows.planner.plan(first); await rows.engine.run(p.sql, 0, undefined, p.params); }
       } catch (e) {
         throw new Error(`“${name}” cannot read its rows here (${e instanceof Error ? e.message : String(e)}): a class reads `
           + 'the tables the page that made it opened -- open that page, or its file, first');

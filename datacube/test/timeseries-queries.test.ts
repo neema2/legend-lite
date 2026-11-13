@@ -29,6 +29,7 @@ import type { FileSource } from '../src/cube-document.ts';
 import { catalogColumns } from '../src/upload.ts';
 import { asc, col as column, collection, colSpec, fn as call, from, functionsCalled, lambda, lit, minus, Relation, toJson } from '../../pure-protocol/src/index.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 // -- the prices: two instruments over 40 weekdays from 2024-01-01, and a third trading on fewer days --
 
@@ -2875,10 +2876,10 @@ describe('a series combining two grids, planned over one model of their tables (
   };
 
   before(async () => {
-    await engine.run('CREATE TABLE px_t (symbol VARCHAR, day DATE, close DOUBLE)', 0);
-    await engine.run(`INSERT INTO px_t VALUES ${DAYS.flatMap((d, i) => [`('AAA', '${d}', ${AAA[i]})`, `('BBB', '${d}', ${BBB[i]})`]).join(', ')}`, 0);
-    await engine.run('CREATE TABLE rates_t (tenor VARCHAR, obs_date DATE, yield DOUBLE)', 0);
-    await engine.run(`INSERT INTO rates_t VALUES ${RATE_DAYS.flatMap((d, i) => [`('10Y', '${d}', ${TEN[i]})`, `('2Y', '${d}', ${TWO[i]})`]).join(', ')}, ('10Y', '2024-12-31', 9)`, 0);
+    await engine.run(unplanned('CREATE TABLE px_t (symbol VARCHAR, day DATE, close DOUBLE)'), 0);
+    await engine.run(unplanned(`INSERT INTO px_t VALUES ${DAYS.flatMap((d, i) => [`('AAA', '${d}', ${AAA[i]})`, `('BBB', '${d}', ${BBB[i]})`]).join(', ')}`), 0);
+    await engine.run(unplanned('CREATE TABLE rates_t (tenor VARCHAR, obs_date DATE, yield DOUBLE)'), 0);
+    await engine.run(unplanned(`INSERT INTO rates_t VALUES ${RATE_DAYS.flatMap((d, i) => [`('10Y', '${d}', ${TEN[i]})`, `('2Y', '${d}', ${TWO[i]})`]).join(', ')}, ('10Y', '2024-12-31', 9)`), 0);
     const models = plannerFor('', 'local::RT');
     const opening: JoinOpening = {
       here: TAB_TABLES, tables: ['px_t', 'rates_t'], models, databaseType: 'DuckDB',

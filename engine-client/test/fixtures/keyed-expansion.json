@@ -1,0 +1,182 @@
+{
+  "about": "THE KEYED EXPANSION, ONE FIXTURE FOR EVERY RUNNER (the total wall's C final audit, H8, 2026-11-12): the one text a runner writes at run (the charter's A3(a)) -- a keyed body's text outside its regions as it is, each region once per key (its lead before the first copy, its separator between copies, the key's position at each counter), its empty form for no key -- written by Java's PlanRunner.expand, the tab's expandKeyed and Python's _keyed_text alike, each reading these cases. A case's params are each key's cells in its region's slots' order; Python's reader checks the text alone.",
+  "cases": [
+    {
+      "name": "one region, a key per copy, its position written at the copy's end",
+      "body": {
+        "statement": "SELECT g, max(CASE WHEN k = ? THEN v END) AS c_ FROM t GROUP BY g",
+        "slots": [
+          {
+            "parameter": "k",
+            "binding": {
+              "_type": "key",
+              "cell": 0
+            }
+          }
+        ],
+        "regions": [
+          {
+            "start": 10,
+            "end": 47,
+            "lead": "",
+            "separator": ", ",
+            "empty": "NULL AS none",
+            "firstSlot": 0,
+            "slotCount": 1,
+            "counters": [
+              47
+            ]
+          }
+        ]
+      },
+      "keys": [
+        [
+          "NYC"
+        ],
+        [
+          "SAN"
+        ]
+      ],
+      "statement": "SELECT g, max(CASE WHEN k = ? THEN v END) AS c_0, max(CASE WHEN k = ? THEN v END) AS c_1 FROM t GROUP BY g",
+      "params": [
+        "NYC",
+        "SAN"
+      ]
+    },
+    {
+      "name": "no key: the region's empty form",
+      "body": {
+        "statement": "SELECT g, max(CASE WHEN k = ? THEN v END) AS c_ FROM t GROUP BY g",
+        "slots": [
+          {
+            "parameter": "k",
+            "binding": {
+              "_type": "key",
+              "cell": 0
+            }
+          }
+        ],
+        "regions": [
+          {
+            "start": 10,
+            "end": 47,
+            "lead": "",
+            "separator": ", ",
+            "empty": "NULL AS none",
+            "firstSlot": 0,
+            "slotCount": 1,
+            "counters": [
+              47
+            ]
+          }
+        ]
+      },
+      "keys": [],
+      "statement": "SELECT g, NULL AS none FROM t GROUP BY g",
+      "params": []
+    },
+    {
+      "name": "two regions, a lead, a position inside a copy, two cells per key",
+      "body": {
+        "statement": "SELECT gmin(CASE WHEN k = ? AND j = ? THEN v END) AS m__x FROM t GROUP BY g HAVING true AND count(CASE WHEN k = ? THEN 1 END) >= 0",
+        "slots": [
+          {
+            "parameter": "k",
+            "binding": {
+              "_type": "key",
+              "cell": 0
+            }
+          },
+          {
+            "parameter": "j",
+            "binding": {
+              "_type": "key",
+              "cell": 1
+            }
+          },
+          {
+            "parameter": "k2",
+            "binding": {
+              "_type": "key",
+              "cell": 0
+            }
+          }
+        ],
+        "regions": [
+          {
+            "start": 8,
+            "end": 57,
+            "lead": ", ",
+            "separator": ", ",
+            "empty": ", NULL AS m_none",
+            "firstSlot": 0,
+            "slotCount": 2,
+            "counters": [
+              55
+            ]
+          },
+          {
+            "start": 87,
+            "end": 130,
+            "lead": "",
+            "separator": "",
+            "empty": "",
+            "firstSlot": 2,
+            "slotCount": 1,
+            "counters": []
+          }
+        ]
+      },
+      "keys": [
+        [
+          "A",
+          "x"
+        ],
+        [
+          "B",
+          "y"
+        ]
+      ],
+      "statement": "SELECT g, min(CASE WHEN k = ? AND j = ? THEN v END) AS m_0_x, min(CASE WHEN k = ? AND j = ? THEN v END) AS m_1_x FROM t GROUP BY g HAVING true AND count(CASE WHEN k = ? THEN 1 END) >= 0 AND count(CASE WHEN k = ? THEN 1 END) >= 0",
+      "params": [
+        "A",
+        "x",
+        "B",
+        "y",
+        "A",
+        "B"
+      ]
+    },
+    {
+      "name": "no key and no empty form: refused",
+      "body": {
+        "statement": "SELECT g, max(CASE WHEN k = ? THEN v END) AS c_ FROM t GROUP BY g",
+        "slots": [
+          {
+            "parameter": "k",
+            "binding": {
+              "_type": "key",
+              "cell": 0
+            }
+          }
+        ],
+        "regions": [
+          {
+            "start": 10,
+            "end": 47,
+            "lead": "",
+            "separator": ", ",
+            "empty": null,
+            "firstSlot": 0,
+            "slotCount": 1,
+            "counters": [
+              47
+            ]
+          }
+        ]
+      },
+      "keys": [],
+      "refused": "a dynamic pivot with no fixed column found no key: its relation has no column"
+    }
+  ]
+}

@@ -41,6 +41,27 @@ public interface HostOperations {
      */
     List<String> statements(HostOperation operation);
 
+    /**
+     * The statements that open, commit and roll back a transaction on the database as a host sends them -- the
+     * {@link HostOperation.Transaction} operation's three steps, written into every plan's target for its database (the
+     * re-audit's S8, 2026-11-12: a host's runner opens one around a plan's writes from its plan alone, never asking at
+     * run) -- or null where no host runs a plan on the database (its operations not written): such a target carries
+     * none, and a host's runner refuses a transaction it would need by name.
+     */
+    @com.legend.base.Nullable TransactionStatements transaction();
+
+    /** A transaction's statements, each step's in order: none of the three empty. */
+    record TransactionStatements(List<String> begin, List<String> commit, List<String> rollback) {
+        public TransactionStatements {
+            begin = List.copyOf(begin);
+            commit = List.copyOf(commit);
+            rollback = List.copyOf(rollback);
+            if (begin.isEmpty() || commit.isEmpty() || rollback.isEmpty()) {
+                throw new IllegalArgumentException("a transaction's three steps each have a statement at least");
+            }
+        }
+    }
+
     /** The host operations of {@code dialect}'s database, as its dialect answers ({@link SqlDialect#hostOperations}:
      *  DuckDB's, Postgres's count, a warehouse's catalog), or each refused, naming the database. */
     static HostOperations of(SqlDialect dialect) {
@@ -74,6 +95,12 @@ public interface HostOperations {
         @Override
         public List<String> statements(HostOperation operation) {
             throw HostOperations.refusal(operation, database);
+        }
+
+        @Override
+        public @com.legend.base.Nullable TransactionStatements transaction() {
+            // no host runs a plan on this database: its targets carry no transaction
+            return null;
         }
 
         private DialectCapability refused() {

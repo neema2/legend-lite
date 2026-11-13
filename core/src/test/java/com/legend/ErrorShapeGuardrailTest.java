@@ -63,6 +63,11 @@ class ErrorShapeGuardrailTest {
             // on garbage and the set is the reader's business, not the
             // gate's)
             Map.entry("TdsChecker.java", 1),
+            // 0 -> 1 (2026-11-11, the B checkpoint's correctness audit, C8): a run's catalog turns end in one loop
+            // (SystemDatabase.endTurns) that releases EVERY turn whatever a turn's end throws, marks the catalog
+            // broken where it failed, and rethrows the first failure with the later ones suppressed -- a release that
+            // never rescues (catching DataError alone left the turns after any other failure locked)
+            Map.entry("SystemDatabase.java", 1),
             Map.entry("ClassSources.java", 1),
             Map.entry("Compiler.java", 2),
             Map.entry("FunctionCompiler.java", 1),
@@ -192,6 +197,10 @@ class ErrorShapeGuardrailTest {
             // one, handed to the caller once the savepoint is rolled back to (TestRun 1 -> 0, ProgramRunner 0 -> 2:
             // the work without a savepoint and with one); a savepoint statement's own failure is the program's
             Map.entry("ProgramRunner.java", 2),
+            // 2026-11-11, the A delta audit's note 11 (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 2): a file load's
+            // reading undoes what it set on the session (H2's path variable) on every exit, its failure of any kind
+            // rethrown with an undo's failure kept beside it -- nothing swallowed
+            Map.entry("PlanRunner.java", 1),
             // contract program (2026-08-23): the wire census's
             // INSTRUMENT-ISOLATION catch — measurement must never throw
             // into execution (the Dual.alias lesson); an unreadable

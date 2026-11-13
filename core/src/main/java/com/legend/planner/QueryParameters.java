@@ -64,7 +64,7 @@ public final class QueryParameters {
             com.legend.sql.TypeFact value = valueType();
             if (multiplicity instanceof Multiplicity.Bounded b && Integer.valueOf(1).equals(b.upper())) {
                 return new com.legend.sql.SqlExpr.PlanParam(name, com.legend.lowering.PlanParams.kindOf(type),
-                        optional(), null, value, valueTyping());
+                        optional(), null, value, declaredKind());
             }
             // a list: ONE array of its values, its element type named for the driver
             if (!(value instanceof com.legend.sql.TypeFact.Typed element)) {
@@ -104,28 +104,19 @@ public final class QueryParameters {
             };
         }
 
-        /** How one value is typed when its value decides its literal's type: a Float's literal is a decimal of its own
-         *  digits, or a floating number at an extreme magnitude (the numeric charter's Rule 1); a Decimal's a decimal of
-         *  its digits; a Number's an integer or a Float's; a DateTime's a date-time to the microsecond or finer (DuckDB
-         *  types a finer one's literal TIMESTAMP_NS); a Date's a date or a DateTime's. An absent value is a null decimal
-         *  (a Date's a null date, a DateTime's a null date-time). Null for every other type, whose type is its fact. */
-        private com.legend.sql.@com.legend.base.Nullable ValueTyping valueTyping() {
+        /** The declared type a database types this parameter's placeholder by, where its SQL type differs by
+         *  database (D1: a Float's, a Decimal's, a Number's, a Date's, a DateTime's); null for every other type, whose
+         *  type is its fact. */
+        private com.legend.sql.@com.legend.base.Nullable DeclaredKind declaredKind() {
             if (!(type instanceof Type.Primitive primitive)) {
                 return null;
             }
             return switch (primitive) {
-                case FLOAT -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.DECIMAL,
-                        com.legend.sql.ValueKind.FLOATING), com.legend.sql.ValueKind.DECIMAL);
-                case DECIMAL -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.DECIMAL),
-                        com.legend.sql.ValueKind.DECIMAL);
-                case DATE -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.DATE,
-                        com.legend.sql.ValueKind.DATE_TIME, com.legend.sql.ValueKind.DATE_TIME_NANOS),
-                        com.legend.sql.ValueKind.DATE);
-                case DATE_TIME -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.DATE_TIME,
-                        com.legend.sql.ValueKind.DATE_TIME_NANOS), com.legend.sql.ValueKind.DATE_TIME);
-                case NUMBER -> new com.legend.sql.ValueTyping(List.of(com.legend.sql.ValueKind.INTEGER,
-                        com.legend.sql.ValueKind.DECIMAL, com.legend.sql.ValueKind.FLOATING),
-                        com.legend.sql.ValueKind.DECIMAL);
+                case FLOAT -> com.legend.sql.DeclaredKind.FLOAT;
+                case DECIMAL -> com.legend.sql.DeclaredKind.DECIMAL;
+                case NUMBER -> com.legend.sql.DeclaredKind.NUMBER;
+                case DATE -> com.legend.sql.DeclaredKind.DATE;
+                case DATE_TIME -> com.legend.sql.DeclaredKind.DATE_TIME;
                 case INTEGER, STRING, BOOLEAN, STRICT_DATE, BYTE, LATEST_DATE, STRICT_TIME -> null;
             };
         }

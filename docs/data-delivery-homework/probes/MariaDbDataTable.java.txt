@@ -1,0 +1,85 @@
+// The data: session-table probe for MariaDB (B, the orchestrator's item (b) of 2026-11-11; to be run by the MariaDB lane's
+// session at the B checkpoint's lane round). Usage: java -cp <the MariaDB JDBC driver>:. MariaDbDataTableProbe '<jdbc url>' [user] [password]
+// What it asks, in order, each answer printed (a refusal printed, never hidden):
+//   1. a USER's permanent table of the session table's name, holding the user's row;
+//   2. the session table made as lite would make it (below), two records filled -- a quote and a line break in their
+//      JSON text -- and read back ordered by their place;
+//   3. the session table dropped as lite would drop it, then the user's table read: its row must be there;
+//   4. the drop run again where the session holds no table of the name: it must raise nothing and drop nothing of
+//      the user's; and a second connection must not see the session's table while it lives.
+// The SQL is the candidate spelling, written from the database's documentation before it was measured (its output below)
+// decides SqlDialect.dataTable for MariaDB, or its refusal by name (a register row).
+// MariaDB's TEMPORARY drop names the session's temporary table alone; a backslash is an escape in its string literals unless NO_BACKSLASH_ESCAPES, so the JSON's \n is written \\n here: the probe shows which the server reads.
+import java.sql.*;
+
+public class MariaDbDataTableProbe {
+    static final String USER_TABLE = "CREATE TABLE legend_data_probe (data LONGTEXT)";
+    static final String[] MAKE = new String[] {"DROP TEMPORARY TABLE IF EXISTS legend_data_probe", "CREATE TEMPORARY TABLE legend_data_probe (data LONGTEXT, u_frame_ord__ INT)"};
+    static final String[] INSERT = new String[] {"INSERT INTO legend_data_probe VALUES ('{\"t\":\"it''s\"}', 0), ('{\"t\":\"a\\\\nb\"}', 1)"};
+    static final String READ = "SELECT data, u_frame_ord__, JSON_VALUE(data, '$.t') FROM legend_data_probe ORDER BY u_frame_ord__";
+    static final String DROP = "DROP TEMPORARY TABLE IF EXISTS legend_data_probe";
+
+    public static void main(String[] a) throws Exception {
+        try (Connection c = a.length > 1 ? DriverManager.getConnection(a[0], a[1], a.length > 2 ? a[2] : null)
+                : DriverManager.getConnection(a[0]); Statement s = c.createStatement()) {
+            step("1 the user's table", s, USER_TABLE);
+            step("1 the user's row", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "INSERT INTO legend_lite_probe.legend_data_probe VALUES ('the user''s row')"
+                    : "INSERT INTO legend_data_probe VALUES ('the user''s row')");
+            for (String m : MAKE) step("2 make", s, m);
+            for (String i : INSERT) step("2 fill", s, i);
+            query("2 read", s, READ);
+            try (Connection other = a.length > 1 ? DriverManager.getConnection(a[0], a[1], a.length > 2 ? a[2] : null)
+                    : DriverManager.getConnection(a[0]); Statement o = other.createStatement()) {
+                query("4 another connection reads it (must be refused)", o, READ);
+            }
+            step("3 drop", s, DROP);
+            query("3 the user's table", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "SELECT data FROM legend_lite_probe.legend_data_probe" : "SELECT data FROM legend_data_probe");
+            step("4 drop again (the session holds none)", s, DROP);
+            query("4 the user's table again", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "SELECT data FROM legend_lite_probe.legend_data_probe" : "SELECT data FROM legend_data_probe");
+        }
+    }
+
+    static void step(String what, Statement s, String sql) {
+        try {
+            s.execute(sql);
+            System.out.println(what + " :: ok :: " + sql);
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + e.getMessage().split("\n")[0] + " :: " + sql);
+        }
+    }
+
+    static void query(String what, Statement s, String sql) {
+        try (ResultSet r = s.executeQuery(sql)) {
+            StringBuilder rows = new StringBuilder();
+            int n = r.getMetaData().getColumnCount();
+            while (r.next()) {
+                rows.append('[');
+                for (int i = 1; i <= n; i++) {
+                    rows.append(i > 1 ? " | " : "").append(r.getString(i));
+                }
+                rows.append(']');
+            }
+            System.out.println(what + " :: " + rows);
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + e.getMessage().split("\n")[0]);
+        }
+    }
+}
+
+// MEASURED 2026-11-11 on MariaDB 11.4.13 (the embedded lane's server), its JDBC driver mariadb-java-client 3.5.10; its output:
+//   1 the user's table :: ok :: CREATE TABLE legend_data_probe (data LONGTEXT)
+//   1 the user's row :: ok :: INSERT INTO legend_data_probe VALUES ('the user''s row')
+//   2 make :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   2 make :: ok :: CREATE TEMPORARY TABLE legend_data_probe (data LONGTEXT, u_frame_ord__ INT)
+//   2 fill :: ok :: INSERT INTO legend_data_probe VALUES ('{"t":"it''s"}', 0), ('{"t":"a\\nb"}', 1)
+//   2 read :: [{"t":"it's"} | 0 | it's][{"t":"a\nb"} | 1 | a
+//   b]
+//   [ WARN] (main) Error: 1054-42S22: Unknown column 'u_frame_ord__' in 'SELECT'
+//   4 another connection reads it (must be refused) :: REFUSED (conn=5) Unknown column 'u_frame_ord__' in 'SELECT'
+//   3 drop :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   3 the user's table :: [the user's row]
+//   4 drop again (the session holds none) :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   4 the user's table again :: [the user's row]

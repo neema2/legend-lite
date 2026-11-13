@@ -16,6 +16,10 @@ import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { pageApply, pageFilter } from '../src/headless/page.ts';
 import { corpus } from './fixtures/pages/make.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 const TRADE = 'trades::domain::Trade';
 const classOver = (columns: ClassSource['columns']): ClassSource => ({
   _type: 'class', name: 'Trade', class: TRADE, project: 'datacube:trades', workspace: 'datacube', revision: '3',
@@ -152,7 +156,7 @@ describe('page filters set and taken off by page commands, kept by the page docu
     assert.deepEqual(without.page.filters?.map((f) => f.id), ['filter-2']);
     const back = readPage(pageToJson(d.page));
     assert.deepEqual(back.filters, d.page.filters);
-    const raw = JSON.parse(pageToJson(d.page));
+    const raw = looseJson(pageToJson(d.page));
     assert.throws(() => readPage(JSON.stringify({ ...raw, filters: [] })), /'filters' is an empty list/);
     assert.throws(() => readPage(JSON.stringify({ ...raw, filters: [{ ...raw.filters[0], from: 'chart-9' }] })),
       /which is no chart of the page/);
@@ -160,7 +164,7 @@ describe('page filters set and taken off by page commands, kept by the page docu
 
   it('read from JSON as the same command (Python\'s, a live channel\'s)', () => {
     for (const c of [set(EMEA, 'chart', 'filter-1'), set(BIG), { kind: 'removePageFilter', filter: 'filter-1' } as PageCommand]) {
-      assert.deepEqual(readPageCommand(JSON.parse(JSON.stringify(c))), c);
+      assert.deepEqual(readPageCommand(looseJson(JSON.stringify(c))), c);
     }
     refused(() => readPageCommand({ kind: 'setPageFilter', class: TRADE, condition: EMEA }), /the chart a page filter came from is text/);
   });
@@ -200,7 +204,7 @@ describe("a chart's mark on a grid over a class (classPick: the screen's click's
 describe("a chart's mark picked (chartPicked: the screen's click and chip, Python's chart.select)", () => {
   const over = classOver([{ name: 'region', type: 'String' }, { name: 'notional', type: 'Float' }]);
   const OWN: FilterNode = { kind: 'condition', column: 'double', operator: 'greaterThan', value: 1 };
-  const reread = (c: FilterNode): FilterNode => JSON.parse(JSON.stringify(Object.fromEntries(Object.entries(c).reverse()))) as FilterNode;
+  const reread = (c: FilterNode): FilterNode => looseJson(JSON.stringify(Object.fromEntries(Object.entries(c).reverse()))) as FilterNode;
   const pick = (o: Partial<Parameters<typeof chartPicked>[0]>): ReturnType<typeof chartPicked> => chartPicked({
     source: undefined, chart: 'chart-1', conditions: null, old: [], filters: [], toggle: true, ...o,
   });
@@ -240,7 +244,7 @@ describe("a chart's mark picked (chartPicked: the screen's click and chip, Pytho
 
 describe('a page filter as Python asks for one (headless pageFilter): the command the screen\'s Add a Filter makes', () => {
   const text = pageToJson(classPage);
-  const ask = (given: unknown): { command?: PageCommand; problems?: string[] } => JSON.parse(pageFilter(text, JSON.stringify(given)));
+  const ask = (given: unknown): { command?: PageCommand; problems?: string[] } => looseJson(pageFilter(text, JSON.stringify(given)));
 
   it('its class by name or path, its condition as Python writes one, typed by the class\'s properties, applied by pageApply', () => {
     const { command } = ask({ class: 'Trade', filter: ['region', 'in', ['EMEA', 'AMER']] });
@@ -248,7 +252,7 @@ describe('a page filter as Python asks for one (headless pageFilter): the comman
       condition: { kind: 'condition', column: 'region', operator: 'in', value: ['EMEA', 'AMER'] }, from: null });
     assert.deepEqual(ask({ class: TRADE, filter: ['qty', 'greaterThan', 5] }).command,
       { kind: 'setPageFilter', class: TRADE, condition: { kind: 'condition', column: 'qty', operator: 'greaterThan', value: 5 }, from: null });
-    const done = JSON.parse(pageApply(text, JSON.stringify(idsOf(classPage)), JSON.stringify([command]))) as { page: string; commands: PageCommand[] };
+    const done = looseJson(pageApply(text, JSON.stringify(idsOf(classPage)), JSON.stringify([command]))) as { page: string; commands: PageCommand[] };
     assert.deepEqual(readPage(done.page).filters?.map((f) => f.id), ['filter-1']);
   });
 
@@ -263,7 +267,7 @@ describe('a page filter as Python asks for one (headless pageFilter): the comman
     assert.match(ask({ class: 'Trade', filter: { kind: 'condition', column: 'qty', operator: 'greaterThan', operand: 5 } }).problems![0]!,
       /a filter is a condition \(column, operator, value\)/);
     const frameText = pageToJson(frames);
-    assert.match((JSON.parse(pageFilter(frameText, JSON.stringify({ class: 'Trade', filter: ['region', 'equal', 'EMEA'] }))) as { problems: string[] }).problems[0]!,
+    assert.match((looseJson(pageFilter(frameText, JSON.stringify({ class: 'Trade', filter: ['region', 'equal', 'EMEA'] }))) as { problems: string[] }).problems[0]!,
       /none reads a class/);
   });
 });

@@ -5528,7 +5528,10 @@ class DuckDBIntegrationTest extends AbstractDatabaseTest {
 
         // Verify the SQL includes both aggregations
         assertTrue(sql.contains("SUM("), "SQL should contain SUM function");
-        assertTrue(sql.contains("SUM(1)"), "SQL should contain SUM(1) for count");
+        // the keyed body (B3, 2026-11-11: the text plan is the execution plan's, a keyed result on every database): the
+        // count a SUM of the literal 1 where the row is the key's (until then DuckDB's native SUM(1))
+        assertTrue(sql.replace("\"", "").matches("(?s).*SUM\\(CASE WHEN .* = \\? THEN 1 END\\).*"),
+                "SQL should contain a SUM of 1 per key for count: " + sql);
 
         var result = executeRelation(pureQuery);
         System.out.println("Pivot count result: " + result.rows());

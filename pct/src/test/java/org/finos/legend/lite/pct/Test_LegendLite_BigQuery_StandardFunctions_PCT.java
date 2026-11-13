@@ -32,6 +32,16 @@ public class Test_LegendLite_BigQuery_StandardFunctions_PCT extends PCTReportCon
     // First measured 2026-10-11 on the account (BigQuery, 206 tests); burned down the same day: every
     // row is the platform's own (pinned on the DuckDB lane too) or a measured limit of BigQuery.
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): BigQuery keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

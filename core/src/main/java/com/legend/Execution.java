@@ -21,6 +21,11 @@ import java.util.Set;
  * text compiled, then planned), or a call of another of them -- no logic, no state
  * ({@code ArchitectureTest.theDoorsOnlyCompose}, {@code JavaEvalLedgerTest.theDoorsHoldNoLogic}). Its own library ({@code //core:execution}); a test body's door
  * is {@link TestExecution}, its own.
+ *
+ * <p>EACH CALL IS ONE EXECUTION (a query run; the user's ruling of 2026-11-12, "Do the exec id as part
+ * of C"): the door mints its id ({@code java.util.UUID.randomUUID}) and hands it to exec, which binds it to the
+ * statements' stamps and tells it to the listener, and makes no value of its own
+ * ({@code ArchitectureTest.execMakesNoValueOfItsOwn}). No caller supplies an id.
  */
 public final class Execution {
 
@@ -39,7 +44,7 @@ public final class Execution {
             SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
             Output output) throws IOException {
         return ProductRun.run(typed.executionPlan(runtimeFqn), sessions, planSessions, establish, output,
-                Batcher.DEFAULT_CAPACITY);
+                Batcher.DEFAULT_CAPACITY, java.util.UUID.randomUUID());
     }
 
     /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Output)} with the
@@ -47,7 +52,8 @@ public final class Execution {
     public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
             SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
             Output output, int batchRows) throws IOException {
-        return ProductRun.run(typed.executionPlan(runtimeFqn), sessions, planSessions, establish, output, batchRows);
+        return ProductRun.run(typed.executionPlan(runtimeFqn), sessions, planSessions, establish, output, batchRows,
+                java.util.UUID.randomUUID());
     }
 
     /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Output, int)} under
@@ -59,7 +65,7 @@ public final class Execution {
             Set<com.legend.platform.Feature> features, Output output, int batchRows)
             throws IOException {
         return ProductRun.run(typed.executionPlan(runtimeFqn, features), sessions, planSessions, establish, output,
-                batchRows);
+                batchRows, java.util.UUID.randomUUID());
     }
 
     /** A query run as legend-lite's server runs it (legend-engine's {@code pure/v1/execution/execute}): planned, then
@@ -68,16 +74,27 @@ public final class Execution {
      *  plan-then-run is gone). */
     public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
             @com.legend.base.Nullable String runtimeFqn, Output output) throws IOException {
-        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), output);
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), output, java.util.UUID.randomUUID());
+    }
+
+    /** {@link #runOnProjectDatabases(TypedQuery, String, Output)}, its live sources read under the fence the host's
+     *  configuration names, {@code admittedSources} ({@code SourceAdmission.configured}'s text: null, any file; the A
+     *  checkpoint's tenets audit, 11). */
+    public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, @com.legend.base.Nullable String admittedSources,
+            Output output) throws IOException {
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), admittedSources, output,
+                java.util.UUID.randomUUID());
     }
 
     /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Output)} for a
-     *  model's text and a query's text, the session as the caller set it up. */
+     *  model's text and a query's text, the target's loads established on the session it acquires. */
     public static ExecutionPlan run(String model, String query,
             @com.legend.base.Nullable String runtimeFqn, SessionSource sessions,
             PlanSessions.Source planSessions, Output output) throws IOException {
         return ProductRun.run(Compiler.query(Compiler.compileModel(model), query).executionPlan(runtimeFqn), sessions,
-                planSessions, ProductRun.Establish.AS_GIVEN, output, Batcher.DEFAULT_CAPACITY);
+                planSessions, ProductRun.Establish.DECLARED_SETUP, output, Batcher.DEFAULT_CAPACITY,
+                java.util.UUID.randomUUID());
     }
 
     /** {@link #run(String, String, String, SessionSource, PlanSessions.Source, Output)} in batches of up to
@@ -87,6 +104,6 @@ public final class Execution {
             PlanSessions.Source planSessions, Output output, int batchRows)
             throws IOException {
         return ProductRun.run(Compiler.query(Compiler.compileModel(model), query).executionPlan(runtimeFqn), sessions,
-                planSessions, ProductRun.Establish.AS_GIVEN, output, batchRows);
+                planSessions, ProductRun.Establish.DECLARED_SETUP, output, batchRows, java.util.UUID.randomUUID());
     }
 }

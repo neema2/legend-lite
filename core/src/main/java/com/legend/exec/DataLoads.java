@@ -7,35 +7,30 @@ import com.legend.error.DataError;
 import com.legend.executionplan.DataRef;
 import com.legend.executionplan.DataStores;
 
-import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.List;
 
 /**
  * A FILE'S LOAD, ITS DATA (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.7, 2026-11-09): the reference resolved through the
- * stores the run was given, the bytes refused unless their size and digest are the plan's, then made ready as the
- * plan's delivery says -- the runner's own copy of the verified bytes for a database that reads it, or their cells for
- * one the runner streams them to. The plan runner sends the statement ({@code PlanRunner.seed}: it is the one caller of a
- * session's statements); nothing here touches a session.
+ * stores the run was given, the bytes refused unless their size and digest are the plan's, then written to a copy of the
+ * runner's own, which the database reads with its own reader (the user's ruling, 2026-11-09: no streamer of lite's own;
+ * until then the runner split the text into cells and streamed them). The plan runner sends the statements
+ * ({@code PlanRunner.seed}: it is the one caller of a session's statements); nothing here touches a session.
  */
 final class DataLoads {
 
     private DataLoads() {
     }
 
-    /** The runner's own copy of verified bytes, deleted when closed: what the database reads is what was verified, at
-     *  a short path of the runner's (a store's path may be long: Windows refuses past 260 characters). */
+    /** The runner's own copy of verified bytes, deleted when closed: what the database reads is what was verified, at a
+     *  short path of the runner's (a store's path may be long: Windows refuses past 260 characters). */
     static final class Staged implements AutoCloseable {
-        private final Path path;
+        private final java.nio.file.Path path;
 
-        private Staged(Path path) {
+        private Staged(java.nio.file.Path path) {
             this.path = path;
         }
 
-        /** The copy's path, bound to the statement's one {@code ?}. */
+        /** The copy's path, bound to each load statement's {@code ?}. */
         String path() {
             return path.toString();
         }
@@ -43,37 +38,31 @@ final class DataLoads {
         @Override
         public void close() {
             try {
-                Files.deleteIfExists(path);
-            } catch (IOException e) {
-                // the copy is the runner's scratch; a delete that fails leaves it to the temporary directory's own
+                java.nio.file.Files.deleteIfExists(path);
+            } catch (java.io.IOException e) {
+                // the copy is the runner's scratch: a delete that fails leaves it to the temporary directory's own
                 // cleaning, and the load stands
                 path.toFile().deleteOnExit();
             }
         }
     }
 
-    /** {@code bytes} in a new file of the runner's own. */
-    static Staged stage(byte[] bytes) {
+    /** {@code ref}'s verified {@code bytes}, within the load's size limit ({@code sizeLimitMegabytes}: the plan's, again
+     *  on the bytes the run read, D-b), in a new file of the runner's own. */
+    static Staged stage(DataRef ref, byte[] bytes, int sizeLimitMegabytes) {
         try {
-            Path staged = Files.createTempFile("legend-load-", ".csv");
-            Files.write(staged, bytes);
+            com.legend.base.DataSize.requireSize(ref.namespace() == DataRef.Namespace.RESOURCE ? "/" + ref.name()
+                    : ref.name(), bytes, sizeLimitMegabytes);
+        } catch (com.legend.base.DataSize.TooLarge e) {
+            throw new DataError(String.valueOf(e.getMessage()), e);
+        }
+        try {
+            java.nio.file.Path staged = java.nio.file.Files.createTempFile("legend-load-", ".csv");
+            java.nio.file.Files.write(staged, bytes);
             return new Staged(staged);
-        } catch (IOException e) {
+        } catch (java.io.IOException e) {
             throw new UncheckedIOException(e);
         }
-    }
-
-    /** {@code bytes}' data rows, each {@code columns} wide, split by the platform's CSV rule ({@code base.CsvCells}):
-     *  refused by name unless the header names {@code columns} columns, as the database refuses a load whose columns
-     *  differ in number. */
-    static List<List<String>> cells(DataRef ref, byte[] bytes, int columns) {
-        List<List<String>> rows = com.legend.base.CsvCells.rows(new String(bytes, StandardCharsets.UTF_8));
-        if (rows.isEmpty() || rows.get(0).size() != columns) {
-            throw new DataError("the file '" + ref.name() + "' names " + (rows.isEmpty() ? 0 : rows.get(0).size())
-                    + " column(s) in its header, and its load takes " + columns,
-                    new IllegalArgumentException(ref.name()));
-        }
-        return com.legend.base.CsvCells.body(rows, columns);
     }
 
     /** {@code ref}'s bytes, read through {@code stores} and refused by name unless their size and SHA-256 are the

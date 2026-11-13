@@ -108,8 +108,8 @@ trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineErr
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 trino	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
 trino	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
-# the metamodel's tables as a session's own: Trino has no temporary tables, where channel A reads them inline (a WIRE-BUG pinned since 2026-10-20, the engine's Trino manifest fails it too)
-trino	Grammar	meta::pure::functions::collection::tests::getAll::testBasic	DialectCapability: a session's own table reached Trino, which has no temporary tables: metamodel_classes
+# (getAll::testBasic left 2026-11-11, B4: the system metamodel store is the process's in-process catalog on every
+# database, so Trino no longer makes its tables a session's own -- the lane round at 0b9bae2 measured it passing)
 
 # h2: measured by its lane session at fb8ee3da (2026-11-03, round 14)
 # H2 has no list encoding (a list operation on a cell, a list-valued aggregate), no LATERAL and no UNNEST placement: 21 fail on channel A too (its ledger), 16 pass there where the interpreter computes the list in Java (true wire bugs pinned since 2026-10-20)
@@ -369,3 +369,52 @@ databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistin
 databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
 databricks	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`str` cannot be resolved.
 databricks	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds3`.`id` cannot be resolved.
+
+# 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after total
+# separation complete"): refused, never cut (S181): the lane's database keeps 6 digits of a second; pending the
+# nanosecond type (design §9). Each test's date-time literal has 7 to 9 digits
+postgres	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; Postgres keeps 6: refused, never cut (S181)
+mysql	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; MySql keeps 6: refused, never cut (S181)
+mariadb	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+bigquery	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+databricks	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; Databricks keeps 6: refused, never cut (S181)

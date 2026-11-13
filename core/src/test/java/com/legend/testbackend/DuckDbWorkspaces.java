@@ -8,10 +8,6 @@ import java.lang.reflect.Proxy;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.IdentityHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -64,10 +60,6 @@ final class DuckDbWorkspaces {
     private final AtomicInteger ids = new AtomicInteger();
     private final Set<String> live = new TreeSet<>();
 
-    /** The ASIDE catalogs a workspace attached for clashing fixtures ({@link #setAside}), by the proxied connection:
-     *  names stay as written; the workspace's own tables resolve first, the asides last, once the fixture has run. */
-    private final Map<Connection, List<String>> asides = new IdentityHashMap<>();
-    private final Map<Connection, String> wsOf = new IdentityHashMap<>();
 
     DuckDbWorkspaces(Instance instance) {
         this.instance = instance;
@@ -110,89 +102,12 @@ final class DuckDbWorkspaces {
         return root;
     }
 
-    /** Attaches a fresh aside catalog to {@code workspace} and gives the fixture a connection of its own using it: a
-     *  DuckDB transaction writes to one attached database only, and a body's attempt may hold the workspace's, so the
-     *  fixture's unqualified DDL, drops and inserts see the aside alone, never the workspace's same-named tables. */
-    synchronized FixtureAside setAside(Connection workspace, String backend) throws SQLException {
-        String ws = wsOf.get(workspace);
-        if (ws == null) {
-            throw new IllegalArgumentException("not a " + backend + " workspace: a fixture is set aside only in a"
-                    + " workspace its backend opened");
-        }
-        String aside = ws + "_aside_" + asides.getOrDefault(workspace, List.of()).size();
-        // ATTACH is instance-global and refuses to run inside an open transaction (a body's attempt may be one): it
-        // rides the ROOT, like the workspace attach
-        try (Statement st = root().createStatement()) {
-            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-            st.execute("ATTACH ':memory:' AS " + aside);
-        }
-        asides.computeIfAbsent(workspace, c -> new ArrayList<>()).add(aside);
-        Connection own = instance.another(root());
-        try (Statement st = own.createStatement()) {
-            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-            st.execute("USE " + aside);
-            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-            st.execute("SET TimeZone='UTC'");
-        } catch (SQLException e) {
-            own.close();
-            throw e;
-        }
-        List<String> held = List.copyOf(asides.get(workspace));
-        return new FixtureAside() {
-            @Override
-            public String name() {
-                return aside;
-            }
-
-            @Override
-            public Connection connection() {
-                return own;
-            }
-
-            @Override
-            public List<String> held() {
-                return held;
-            }
-
-            @Override
-            public void restore() throws SQLException {
-                own.close();
-                readOwnFirst(workspace);
-            }
-        };
-    }
-
-    /** The workspace first, every aside after it, in attach order. */
-    private synchronized void readOwnFirst(Connection workspace) throws SQLException {
-        String ws = wsOf.get(workspace);
-        List<String> path = new ArrayList<>();
-        path.add(ws + ".main");
-        for (String a : asides.getOrDefault(workspace, List.of())) {
-            path.add(a + ".main");
-        }
-        try (Statement st = workspace.createStatement()) {
-            com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
-            st.execute("SET search_path = '" + String.join(",", path) + "'");
-        }
-    }
-
     private Connection closeDetaches(Connection inner, String ws) {
-        Connection[] self = new Connection[1];
         InvocationHandler h = (proxy, method, args) -> {
             if ("close".equals(method.getName())) {
                 try {
                     inner.close();
                 } finally {
-                    List<String> held;
-                    synchronized (this) {
-                        held = asides.remove(self[0]);
-                        wsOf.remove(self[0]);
-                    }
-                    if (held != null) {
-                        for (String a : held) {
-                            detach(a);
-                        }
-                    }
                     detach(ws);
                 }
                 return null;
@@ -203,13 +118,8 @@ final class DuckDbWorkspaces {
                 throw e.getCause();
             }
         };
-        Connection proxied = (Connection) Proxy.newProxyInstance(DuckDbWorkspaces.class.getClassLoader(),
+        return (Connection) Proxy.newProxyInstance(DuckDbWorkspaces.class.getClassLoader(),
                 new Class<?>[] {Connection.class}, h);
-        self[0] = proxied;
-        synchronized (this) {
-            wsOf.put(proxied, ws);
-        }
-        return proxied;
     }
 
     private synchronized void detach(String ws) {

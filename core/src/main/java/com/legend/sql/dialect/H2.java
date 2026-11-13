@@ -31,6 +31,83 @@ import java.util.Set;
  */
 public class H2 extends AnsiSqlRenderer {
 
+    /** The words H2 2.x reserves that legend-engine's own H2 session frees ({@code NON_KEYWORDS}: H2Manager's list,
+     *  4.145.0), so a golden replayed here reads as it did in the engine's run. A session's setting, which commits no
+     *  transaction: H2's session statement ({@link #sessionSetup}). */
+    public static final String NON_KEYWORDS = "ANY,ASYMMETRIC,AUTHORIZATION,CAST,CURRENT_PATH,CURRENT_ROLE,DAY,DEFAULT,"
+            + "ELSE,END,HOUR,KEY,MINUTE,MONTH,SECOND,SESSION_USER,SET,SOME,SYMMETRIC,SYSTEM_USER,TO,UESCAPE,USER,VALUE,"
+            + "WHEN,YEAR,OVER";
+
+    /** H2's session statement: the engine's non-keywords, set on every connection (a session's setting; measured on
+     *  2.5.252: it commits no open transaction). */
+    static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
+
+    /** The settings an H2 database must have, the engine's own (H2Manager / H2Defaults, 4.145.0): {@code MODE=LEGACY},
+     *  and {@code DEFAULT_NULL_ORDERING=HIGH}, the engine's null placement (null is largest -- ascending nulls last,
+     *  descending first), which its printer leaves bare because the database already orders that way. Both are the
+     *  database's, and their {@code SET} commits an open transaction (measured on 2.5.252), so they are the target's
+     *  data, written on the URL of an in-memory database exec opens and read back from a session it did not
+     *  ({@code INFORMATION_SCHEMA.SETTINGS} reports each as written: {@code LEGACY}, {@code HIGH}; the read-back's rows
+     *  are the settings it has otherwise, the database comparing, {@link #differing}). */
+    static final DatabaseSettings DATABASE_SETTINGS = differing(List.of(new Setting("MODE", "LEGACY"),
+            new Setting("DEFAULT_NULL_ORDERING", "HIGH")));
+
+    /** {@code required} with the statement answering each of them the database does NOT have, as one text
+     *  ({@code NAME=VALUE}, by name; {@code NAME=(not reported)} for one it does not report at all): none where it has
+     *  them all. The required settings are the statement's own rows, each joined to what the database reports (the C
+     *  final audit's J4, 2026-11-12: until then a setting the database did not report answered no row, so it passed).
+     *  Measured on 2.5.252: a bare database answers {@code DEFAULT_NULL_ORDERING=LOW} and {@code MODE=REGULAR}, a name
+     *  it does not have {@code (not reported)}. */
+    static DatabaseSettings differing(List<Setting> required) {
+        StringBuilder sql = new StringBuilder("SELECT R.SETTING || '=' || COALESCE(S.SETTING_VALUE, '(not reported)')"
+                + " FROM (VALUES ");
+        for (int i = 0; i < required.size(); i++) {
+            sql.append(i > 0 ? ", " : "").append("('").append(required.get(i).name()).append("', '")
+                    .append(required.get(i).value()).append("')");
+        }
+        return new DatabaseSettings(required, sql.append(") AS R(SETTING, REQUIRED) LEFT JOIN INFORMATION_SCHEMA.SETTINGS"
+                + " S ON S.SETTING_NAME = R.SETTING WHERE S.SETTING_VALUE IS NULL OR S.SETTING_VALUE <> R.REQUIRED"
+                + " ORDER BY R.SETTING").toString());
+    }
+
+
+    /** {@inheritDoc} The statement's own rows (the JSON pass, the user's ruling of 2026-11-11: "for h2 should we also
+     *  inline so we can get rid of all the temp table code completely?"): H2 refuses an array parameter of more than
+     *  65,536 elements, so a payload is not bound here; its rows took 460 ms for 100,000 records (measured). */
+    @Override
+    public com.legend.sql.SqlSource deliver(SqlDialect.DataPayload payload) {
+        return inlineRows(payload);
+    }
+
+    /** {@inheritDoc} 9: its {@code TIMESTAMP '...'} literal keeps the digits it is written with, nine at most (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP}'s default precision (measured on 2.5.252: a finer digit is rounded) (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    /** {@inheritDoc} H2's non-keywords ({@link #SESSION_SETUP}). */
+    @Override
+    public List<String> sessionSetup() {
+        return SESSION_SETUP;
+    }
+
+    /** {@inheritDoc} {@code MODE=LEGACY}, {@code DEFAULT_NULL_ORDERING=HIGH} ({@link #DATABASE_SETTINGS}). */
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return DATABASE_SETTINGS;
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -44,7 +121,9 @@ public class H2 extends AnsiSqlRenderer {
             case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
-            case TIMESTAMPTZ -> "TIMESTAMPTZ";
+            // H2 names a zoned timestamp so, to the nanosecond as its TIMESTAMP(9) is (A6, 2026-11-10: "TIMESTAMPTZ" is
+            // no H2 type, so a zoned literal's cast failed at run)
+            case TIMESTAMPTZ -> "TIMESTAMP(9) WITH TIME ZONE";
             case JSON -> "JSON";
             // to the nanosecond: H2's TIME keeps no fraction of a second (its default precision is 0, measured
             // 2.1.214; the independent review, 2026-10-18)
@@ -112,6 +191,32 @@ public class H2 extends AnsiSqlRenderer {
                     java.util.stream.Stream.of("right"))
                     .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(java.util.LinkedHashSet::new), java.util.Collections::unmodifiableSet)));
 
+    /** H2 2.5.252's OWN keywords that the engine's list ({@link #ENGINE_LEXICON}) leaves bare: exactly the engine's
+     *  {@link #NON_KEYWORDS} but {@code OVER}, which that list quotes. H2's keywords are its driver's
+     *  ({@code org.h2.command.Token}, 89 of them; {@code H2KeywordsTest} reads them there and holds every one quoted). A
+     *  bare name that is one of these is quoted IN UPPER CASE -- the identifier H2 makes of the bare name, which it
+     *  folds to upper case -- so it names the same column as before and a session without the engine's non-keywords
+     *  parses it too (the third re-audit's MUST-FIX 2(c), 2026-11-12: a store's column {@code key} was written bare,
+     *  which such a session refuses). */
+    static final Set<String> FREED_BY_THE_ENGINE = java.util.Arrays.stream(NON_KEYWORDS.split(","))
+            .map(w -> w.toLowerCase(java.util.Locale.ROOT))
+            .filter(w -> !ENGINE_LEXICON.reservedWords().contains(w))
+            .collect(java.util.stream.Collectors.collectingAndThen(java.util.stream.Collectors.toCollection(
+                    java.util.TreeSet::new), java.util.Collections::unmodifiableSet));
+
+    /** {@code name} is a plain name H2 reserves and the engine's session frees ({@link #FREED_BY_THE_ENGINE}). */
+    private static boolean freedByTheEngine(String name) {
+        return name.matches("[A-Za-z_][A-Za-z0-9_$]*")
+                && FREED_BY_THE_ENGINE.contains(name.toLowerCase(java.util.Locale.ROOT));
+    }
+
+    /** {@inheritDoc} A name H2 reserves that the engine's session frees, quoted as the upper-case identifier H2 makes
+     *  of it bare ({@link #FREED_BY_THE_ENGINE}). */
+    @Override
+    protected String ident(String name) {
+        return freedByTheEngine(name) ? delimited(name.toUpperCase(java.util.Locale.ROOT)) : super.ident(name);
+    }
+
     /** H2: no native lists, no correlated explosion (the ONLY probed
      * backend without it), JSON constructors only. */
     public static final CarrierStrategies.Caps CAPS = new CarrierStrategies.Caps(false, false, false, false);
@@ -168,13 +273,40 @@ public class H2 extends AnsiSqlRenderer {
         return InformationSchemaCatalog.write(writer, c, this, CATALOG_GRID_TYPES);
     }
 
-    /** {@inheritDoc} The runner streams the cells, one row's insert each (2026-11-09): H2's {@code CSVREAD}, which
-     *  read the file until then, takes no bound path (measured 2026-11-09), and a path written into the statement is a
-     *  machine's path in the plan. The runner splits the text by {@code CSVREAD}'s own rule ({@code base.CsvCells}),
-     *  which differs from upstream's reader (register row S172) until the design's L2. */
+    /** {@inheritDoc} H2's own reader, {@code CSVREAD}, over the runner's copy (docs/DATA_DELIVERY_DESIGN_2026_11_10.md
+     *  §1.3, A3: "H2 reads CSV in process with CSVREAD, its SQL checks refusing malformed records"): it takes no bound
+     *  path itself, so the copy's path is bound to a session variable first ({@code SET @legend_csv = ?}, measured
+     *  2026-11-10 on 2.5.252), then read in the declared delimiter and quote, a quote doubled within a quoted cell,
+     *  every cell's text kept whole ({@code preserveWhitespace}), the columns named so the header is skipped unread
+     *  whatever its width, an empty cell NULL; each cell cast into its column by the INSERT. One column more than the
+     *  table's: a record with a cell there is refused in the database, as upstream refuses a wide record. CSVREAD reads
+     *  an empty cell as NULL, as it reads a cell the record lacks (its {@code nullString} option changes neither,
+     *  measured), so three cases read as valid records, each a register row (S186): a short record, a record wide by
+     *  one empty cell, a quote left open (the rest of the file its cell). A delimiter or a quote that is white space is
+     *  not expressible in CSVREAD's options, refused by name. */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
-        return csvStreamed(load);
+        for (char c : new char[] {load.delimiter(), load.quote()}) {
+            if (Character.isWhitespace(c)) {
+                throw new DialectCapability("a CSV file whose delimiter or quote is white space: H2's CSVREAD takes"
+                        + " none in its options");
+            }
+        }
+        int width = load.columns().size();
+        // the names are split by the field separator (measured 2026-11-10 on 2.5.252: 'C0,C1,C2' under ';' is one
+        // column), so they are joined with it (the correctness audit's note)
+        StringBuilder names = new StringBuilder();
+        for (int i = 0; i <= width; i++) {
+            names.append(i == 0 ? "" : String.valueOf(load.delimiter())).append("C").append(i);
+        }
+        String options = "charset=UTF-8 fieldSeparator=" + load.delimiter() + " fieldDelimiter=" + load.quote()
+                + " escape=" + load.quote() + " preserveWhitespace=true";
+        return new CsvLoad(List.of("SET @legend_csv = ?", csvInsertInto(load) + " SELECT " + csvCells(width)
+                + " FROM (SELECT * FROM CSVREAD(@legend_csv, " + stringLit(names.toString()) + ", "
+                + stringLit(options) + ") OFFSET 1 ROW) AS x WHERE " + csvRecordCheck(width)),
+                // the session keeps no path of the runner's copy once the load has read it or failed to (§3: no
+                // leftovers): run on every exit
+                List.of("SET @legend_csv = NULL"));
     }
 
     /** {@inheritDoc} H2 runs the standard spelling: the test-data generator's sessions prove it (the corpus's
@@ -232,6 +364,16 @@ public class H2 extends AnsiSqlRenderer {
      * case-sensitive session a bare invented name would uppercase in
      * result-set LABELS and break label-reading consumers (the PCT
      * minted-name decode saw 'ID' for 'id' — the batch-C blocker). */
+    /** {@inheritDoc} A column the source declares PHYSICAL (a {@code data:} payload's rows, {@link #inlineRows}: its
+     *  queries read the element bare, as a table's column) is spelled as a reference to it is ({@link #columnName}),
+     *  so the case-sensitive session names one column (the JSON pass, 2026-11-11). */
+    @Override
+    protected String valuesColumn(com.legend.sql.SqlSource.Values v, int i) {
+        String name = v.columns().get(i);
+        return v.outputs().stream().anyMatch(o -> o.name().equals(name)
+                && o.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL) ? execPart(name) : aliasIdent(name);
+    }
+
     @Override
     protected String aliasIdent(String name) {
         if (name.length() > 1 && name.charAt(0) == '"'
@@ -294,6 +436,10 @@ public class H2 extends AnsiSqlRenderer {
                 && part.endsWith("\"")) {
             return part;
         }
+        if (freedByTheEngine(part)) {
+            // H2's own keyword the engine's session frees: the upper-case identifier H2 makes of it bare
+            return delimited(part.toUpperCase(java.util.Locale.ROOT));
+        }
         if (!part.matches("[A-Za-z_][A-Za-z0-9_$]*")
                 || reservedWords()
                         .contains(part.toLowerCase(java.util.Locale.ROOT))) {
@@ -340,24 +486,14 @@ public class H2 extends AnsiSqlRenderer {
      *  ({@code Unknown data type}) — so every placeholder is written typed, as a literal of the parameter's value is,
      *  which answers as the literal does (docs/execution-plan-boundary-2026-10-05/probes/literal-results.txt). A
      *  parameter of one type is cast to it, a date-time to the nanosecond (a plain {@code TIMESTAMP} keeps six digits
-     *  and rounds the rest, where the literal keeps nine). A parameter whose value decides its type (a Float's, a
-     *  Decimal's, a Date's, a Number's) is cast to a TYPE HOLE the runner fills when the value is known, with the type
-     *  H2 gives a literal of that value: a decimal of its own precision and scale, a floating decimal of its own digits,
-     *  a date, a date-time to the nanosecond; and a whole number a BIGINT, as an Integer parameter is (the literal of a
-     *  small one is an INTEGER: the same text, and Pure's Integer is 64 bits). A date-time is passed as its text, as on
-     *  every database. Measured, every value against its literal, alone, in arithmetic, compared and in the answer's
-     *  JSON (probes/value-typed-cast-results.txt). */
+     *  and rounds the rest, where the literal keeps nine); a parameter of a declared kind (a Float's, a Decimal's, a
+     *  Number's, a Date's, a DateTime's) to its declared kind's fixed type ({@link #parameterType}: D1, P4, 2026-11-09 --
+     *  until then a TYPE HOLE the runner filled with the type of the value's literal). */
     @Override
     protected SqlWriter placeholder(SqlWriter writer, com.legend.sql.SqlExpr.PlanParam p) {
-        com.legend.sql.ValueTyping byValue = p.byValue();
-        if (byValue != null) {
-            java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types =
-                    new java.util.EnumMap<>(com.legend.sql.ValueKind.class);
-            for (com.legend.sql.ValueKind kind : byValue.kinds()) {
-                types.put(kind, holeType(kind));
-            }
-            return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").typeHole(types, byValue.absent())
-                    .append(")");
+        com.legend.sql.DeclaredKind declared = p.declared();
+        if (declared != null) {
+            return super.placeholder(writer, p);
         }
         if (!(p.type() instanceof com.legend.sql.TypeFact.Typed t)) {
             throw new DialectCapability("plan parameter '" + p.name() + "' has no type and is not typed by its value,"
@@ -372,17 +508,18 @@ public class H2 extends AnsiSqlRenderer {
         return t == com.legend.sql.SqlType.Scalar.TIMESTAMP ? "TIMESTAMP(9)" : castTypeName(t);
     }
 
-    /** The type H2 gives a literal of a value of {@code kind}, spelled with the value's own digits where it takes them:
-     *  every kind, H2 typing every placeholder when it prepares it. */
+    /** H2 types a placeholder when it prepares it, so each declared kind is cast to the closest fixed type (D1, ruled
+     *  2026-11-07; P4): a Float {@code FLOAT} (upstream's own), a Decimal and a Number {@code DECFLOAT} (exact), a Date
+     *  and a DateTime a {@code TIMESTAMP(9)}, bound as text. Until P4 the runner wrote the type of each value's literal
+     *  into a hole. The Decimal and the Number arms are PENDING THE USER'S RULING (R2, drafted row S175): upstream writes
+     *  both bare, so a Decimal keeps its scale ({@code 2.50}) and a whole Number stays an integer, where a
+     *  {@code DECFLOAT} keeps neither. */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case INTEGER -> new RenderedStatement.TypeSpelling("BIGINT", RenderedStatement.Digits.NONE);
-            case DECIMAL -> new RenderedStatement.TypeSpelling("NUMERIC", RenderedStatement.Digits.PRECISION_AND_SCALE);
-            case FLOATING -> new RenderedStatement.TypeSpelling("DECFLOAT", RenderedStatement.Digits.PRECISION);
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME, DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("TIMESTAMP(9)",
-                    RenderedStatement.Digits.NONE);
+            case FLOAT -> new ParameterType("FLOAT", null);
+            case DECIMAL, NUMBER -> new ParameterType("DECFLOAT", null);
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP(9)", new RenderedStatement.AsText(null));
         };
     }
 
@@ -462,6 +599,14 @@ public class H2 extends AnsiSqlRenderer {
                     .append(")) = ").expr(a.get(1), 0).append(")");
             // boolean text (P7): H2 CAST prints 'TRUE' — the reference
             // prints 'true'; NULL stays NULL through the CASE.
+            // a Decimal's or a Number's text in plain digits, as upstream prints the number (the user's ruling of
+            // 2026-11-09, S175: "use decfloat ... h2 has a string printer"): H2's own number printer, TO_CHAR, whose
+            // leading zero before a fraction is written back (measured on 2.5.252: 100, 1000, 2.5, 0.000001, -0.5,
+            // 1E+40 plain), where its VARCHAR cast of a DECFLOAT writes 1E+2 -- for every operand the Lowerer marks by
+            // its Pure type (the tenets audit's M-6, A6, 2026-11-10: until then this dialect walked the operand's shape,
+            // decfloatShaped, and missed an if, a max, a let and a computed column)
+            case DECIMAL_TO_TEXT -> writer.append("REGEXP_REPLACE(TO_CHAR(").expr(c.args().get(0), 0)
+                    .append("), '^(-?)\\.', '$10.')");
             case BOOL_TO_TEXT -> writer.append("CASE WHEN ").expr(a.get(0), 0).append(" THEN 'true' WHEN NOT ")
                     .expr(a.get(0), 0).append(" THEN 'false' END");
             // full-regexp match (P7): REGEXP_LIKE anchored '^(?:p)$' —
@@ -510,6 +655,9 @@ public class H2 extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation: this database compares texts by their code points already (measured 2026-11-12,
+            // the B2d.3 audit's M4), so the order key is the text as it is
+            case BINARY_COLLATE -> writer.expr(c.args().get(0), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
             case RANDOM -> writer.append("RAND()");
@@ -600,7 +748,20 @@ public class H2 extends AnsiSqlRenderer {
             case SHA1 -> digest(writer, "SHA-1", c.args());
             case SHA256 -> digest(writer, "SHA-256", c.args());
             case MAKE_DATE -> writer.function("make_date", c.args());
-            case TIMEZONE -> writer.function("timezone", c.args());
+            // DuckDB's timezone(zone, t), which H2 lacks (the correctness audit's S3, A6, 2026-11-10: a regression from
+            // a58c212b, every DateTime parameter on a zoned connection failed at run). An instant becomes the zone's
+            // wall time: its text in the zone's own offset (FORMATDATETIME prints a zoned value so; a CAST of one goes
+            // through the session's zone), read back as a plain timestamp. A plain value is read as a wall time in the
+            // zone: its text with the zone's name, cast to an instant. Measured on 2.5.252 under a non-UTC session
+            // against DuckDB's timezone(), DST changes included, the nine fraction digits kept (ZonedDateTimeParameterTest)
+            case TIMEZONE -> zonedInstant(a.get(1))
+                    ? writer.append("CAST(FORMATDATETIME((").expr(a.get(1), 0).append(") AT TIME ZONE ")
+                            .expr(a.get(0), 0).append(", 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS TIMESTAMP(9))")
+                    // the operand read as a timestamp first, so a date's text has its time (the A delta audit's note
+                    // 15, 2026-11-11, measured on 2.5.252: '2024-01-01 UTC' does not parse; '2024-01-01 00:00:00 UTC'
+                    // does)
+                    : writer.append("CAST(CONCAT(CAST(CAST(").expr(a.get(1), 0).append(" AS TIMESTAMP(9)) AS VARCHAR),"
+                            + " ' ', ").expr(a.get(0), 0).append(") AS TIMESTAMP(9) WITH TIME ZONE)");
             // H2 adds a date and a time to a timestamp (its datetime arithmetic; designed, not measured here)
             case DATE_AT_TIME -> op(writer, parentPrec, () -> writer.expr(a.get(0), 5).append(" + ")
                     .expr(a.get(1), 6));
@@ -1122,13 +1283,26 @@ public class H2 extends AnsiSqlRenderer {
             return jsonParseCast(writer, c);
         }
         // a scalar cast over a navigation extracts TEXT first: H2 rejects JSON -> number/boolean casts outright and
-        // its VARCHAR cast keeps the JSON quoting (probed) -- TRIM strips it; numbers and booleans carry no quotes
+        // its VARCHAR cast is the value's JSON text (probed). A JSON STRING is that text unquoted and unescaped: H2
+        // normalizes a string when it parses it -- an escaped solidus is a solidus, a backslash-u escape of any but a
+        // control character the character itself -- so its text escapes only a quote, a backslash and a control
+        // character (backslash-b, -f, -n, -r, -t, or backslash-u and four hex digits), each of which STRINGDECODE (the
+        // Java string literal's decoding) reads back exactly, an escaped backslash before a u included (measured on
+        // 2.5.252, the JSON pass's H2 fix, 2026-11-11: until then
+        // TRIM stripped the quotes and kept every escape, so "a\\b" read a\\b, and a string's own edge quotes went
+        // with them). H2 has no JSON_VALUE. A number or a boolean is its text; a JSON null is SQL's NULL (its text the
+        // word null, where a JSON string "null" is quoted); a decimal target takes the text as a scalar one does (the
+        // lane round 33's stress finding, 2026-11-10)
         boolean navigation = c.value() instanceof SqlExpr.Call call
                 && (call.fn() == SqlFn.VARIANT_GET || call.fn() == SqlFn.VARIANT_ELEMENTS)
                 || c.value() instanceof SqlExpr.StructGet;
-        if (navigation && c.target() instanceof com.legend.sql.SqlType.Scalar) {
-            return writer.append("CAST(TRIM(BOTH '\"' FROM CAST(").expr(c.value(), 0).append(" AS VARCHAR)) AS ")
-                    .append(castTypeName(c.target())).append(")");
+        if (navigation && (c.target() instanceof com.legend.sql.SqlType.Scalar
+                || c.target() instanceof com.legend.sql.SqlType.Decimal)) {
+            writer.append("CAST(CASE WHEN CAST(").expr(c.value(), 0).append(" AS VARCHAR) LIKE '\"%' THEN STRINGDECODE(")
+                    .append("SUBSTRING(CAST(").expr(c.value(), 0).append(" AS VARCHAR), 2, LENGTH(CAST(")
+                    .expr(c.value(), 0).append(" AS VARCHAR)) - 2)) ELSE NULLIF(CAST(").expr(c.value(), 0)
+                    .append(" AS VARCHAR), 'null') END AS ");
+            return writer.append(castTypeName(c.target())).append(")");
         }
         // leg 3.1b (the H2 grid canon spelled a BOOLEAN COLUMN as 'FALSE' —
         // two rows the since-deleted byte channel lost): a

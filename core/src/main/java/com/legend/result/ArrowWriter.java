@@ -47,7 +47,9 @@ public final class ArrowWriter implements ResultSink {
     private List<Enc> encoders = List.of();
 
     /** Onto {@code out}; {@code schemaMetadata} the stream's custom metadata (key to value), in order, made from the
-     *  columns the result announces (an envelope of a dynamic pivot's columns is known only then). */
+     *  columns the result announces (an envelope of a dynamic pivot's columns is known only then). An activity in it
+     *  names the execution its maker was given (the door's id, {@code Output.writerFor}: 2026-11-12, the exec-id item --
+     *  until then the run told this writer, and a writer made after the run was told nothing). */
     public ArrowWriter(OutputStream out,
             java.util.function.Function<List<ExecutionPlan.Column>, Map<String, String>> schemaMetadata) {
         this.out = out;

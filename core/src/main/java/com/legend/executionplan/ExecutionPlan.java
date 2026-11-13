@@ -137,6 +137,31 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         return "-- \"executionTraceID\" : \"" + id + "\"";
     }
 
+    /** The prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the trace
+     *  comment of the execution it names ({@link Sql#stamp}, and a slot reading one: an activity row's comment). The
+     *  planner's names spell it ({@code planner.ProgramFrames.STAMP}). */
+    public static final String STAMP = "#stamp";
+
+    /** The executions {@code node}'s statements read, by stamp, in the order first met, added to {@code into}: each
+     *  statement's own stamp and every stamp a slot of it reads (the execution id as upstream, 2026-11-12). */
+    public static void stamps(Node node, java.util.Set<String> into) {
+        switch (node) {
+            case Sequence s -> s.steps().forEach(step -> stamps(step, into));
+            case TdsResult t -> t.sql().stamps(into);
+            case Keyed k -> {
+                k.keys().stamps(into);
+                k.body().stamps(into);
+            }
+            case Update u -> u.sql().stamps(into);
+            case Check c -> c.sql().stamps(into);
+            case Effect e -> e.sql().stamps(into);
+            case Load l -> {
+            }
+            case Constant c -> {
+            }
+        }
+    }
+
     /** {@code [lower..upper]}; {@code upper} null is {@code *}. */
     public record Multiplicity(int lower, @com.legend.base.Nullable Integer upper) {
         public Multiplicity {
@@ -260,6 +285,16 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 }
                 Objects.requireNonNull(bracketed, "bracketed");
             }
+
+            /** The bracketed script, as the plan holds it: what a session sends ({@link PlannedSql}). */
+            public PlannedSql plannedBracketed() {
+                return PlannedSql.fromPlan(bracketed);
+            }
+
+            /** The bracket's abort, as the plan holds it; null where the dialect brackets nothing. */
+            public @com.legend.base.Nullable PlannedSql plannedAbort() {
+                return abort == null ? null : PlannedSql.fromPlan(abort);
+            }
         }
     }
 
@@ -271,13 +306,99 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * it). A test door's step (refused on the product's query door, B6). Until 2026-11-09 the program's seed step
      * ({@code Setup}), the seeds' cadence alone.
      */
-    public record Load(String identity, Cadence cadence, List<LoadStep> steps, Target target) implements Node {
-        /** The identity of the graph's SYSTEM metamodel store's load (the planner's {@code SystemRoutes.seeds}, the
-         *  walker-deletion program, 2026-11-03: planning sends nothing, the plan seeds the store): the one load a plan
-         *  may name the graph's system database for. That database holds the store and nothing else, one per graph per
-         *  engine, so the one identity names its rows unambiguously; the runner refuses any other load there. */
-        public static final String SYSTEM_STORE = "the graph's system metamodel store";
+    public record Load(String identity, Cadence cadence, List<LoadStep> steps, Target target,
+            java.util.Map<String, String> content) implements Node {
+        /** The prefix every load identity carries (the system store's too since L4a, 2026-11-09). */
+        public static final String IDENTITY_PREFIX = "load:";
 
+        /** The statements {@code step}'s blob holds in this load's bundle, each as it is written: what a session sends
+         *  ({@link PlannedSql}). The bundle holds every digest its steps read (checked against their bytes where a plan
+         *  is read, {@code PlanJson.read}). */
+        public List<PlannedSql> plannedStatements(LoadStep.Statements step) {
+            return PlannedSql.allFromPlan(DataRef.Statements.decode(Objects.requireNonNull(content.get(
+                    step.ref().digest()), "a load's bundle holds every digest its steps read")));
+        }
+
+        /** A load's CANONICAL content, the text its identity digests (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.2: one
+         *  scheme for every load): its cadence, then each step's content -- a statement's text, a statements blob's
+         *  name, digest and size (A2: its bytes are its digest), a file's reference (namespace, name, digest, size, format), size limit and delivery -- each field
+         *  length-prefixed and a cell's absence marked, so no two loads that run differently spell one text (the design
+         *  audit's H1, 2026-11-02). Data, no digest: the planner and exec each hash it with their own. */
+        public static String canonical(Cadence cadence, List<LoadStep> steps) {
+            StringBuilder sb = new StringBuilder();
+            field(sb.append('C'), cadence.name());
+            for (LoadStep step : steps) {
+                switch (step) {
+                    case LoadStep.Statement st -> field(sb.append('S'), st.sql());
+                    case LoadStep.Statements st -> field(field(field(sb.append('T'), st.ref().name()),
+                            st.ref().digest()).append(st.ref().size()).append(':'), st.of());
+                    case LoadStep.File f -> {
+                        field(field(field(sb.append('F'), f.ref().namespace().name()), f.ref().name()), f.ref().digest());
+                        sb.append(f.ref().size()).append(':').append(f.sizeLimitMegabytes()).append(':');
+                        switch (f.ref().format()) {
+                            case DataRef.Csv csv -> sb.append("csv").append(csv.delimiter()).append(csv.quote());
+                            case DataRef.Statements statements -> sb.append("statements");
+                            case DataRef.DetectedCsv detected -> sb.append("detectedCsv");
+                            case DataRef.Parquet parquet -> sb.append("parquet");
+                            case DataRef.Json json -> sb.append("json");
+                        }
+                        switch (f.delivery()) {
+                            case LoadStep.Delivery.Reads r -> {
+                                sb.append("reads").append(r.statements().size()).append(':');
+                                for (String statement : r.statements()) {
+                                    field(sb, statement);
+                                }
+                                sb.append("after").append(r.after().size()).append(':');
+                                for (String statement : r.after()) {
+                                    field(sb, statement);
+                                }
+                            }
+                        }
+                    }
+                    case LoadStep.Bound b -> {
+                        // the names a host binds, never their values: a rotated key keeps the load's identity
+                        field(field(sb.append('B'), b.sql()), b.reach().name()).append(b.binds().size()).append(':');
+                        for (LoadStep.Bind bind : b.binds()) {
+                            switch (bind) {
+                                case LoadStep.Bind.Value v -> field(sb.append('V'), v.text());
+                                case LoadStep.Bind.Held h -> field(field(sb.append('H'), h.name()), h.field());
+                            }
+                        }
+                    }
+                    case LoadStep.Stream s -> {
+                        // the plane by its name, the statement and the table: never a row
+                        field(field(field(field(sb.append('R'), s.plane()), s.sql()),
+                                s.schema() == null ? "" : s.schema()), s.table()).append(s.prepare().size()).append(':');
+                        for (String statement : s.prepare()) {
+                            field(sb, statement);
+                        }
+                        field(sb, s.count());
+                        for (List<String> part : List.of(s.transaction().begin(), s.transaction().commit(),
+                                s.transaction().rollback())) {
+                            sb.append(part.size()).append(':');
+                            for (String statement : part) {
+                                field(sb, statement);
+                            }
+                        }
+                    }
+                    case LoadStep.Attach a -> field(field(field(sb.append('A'), a.held()), a.as()), a.reach().name());
+                }
+            }
+            return sb.toString();
+        }
+
+        private static StringBuilder field(StringBuilder sb, String text) {
+            return sb.append(text.length()).append(':').append(text);
+        }
+
+        /**
+         * {@code content}: THE BUNDLE this load reads (L6c, 2026-11-10, decision 1: the model's text above the inline
+         * threshold, beside the plan and never in a statement), each text by its SHA-256 -- exactly the CONTENT digests
+         * its steps name: a bundle that lacks one, or holds one no step reads, is refused by name here. That each text's
+         * bytes are its digest is checked where a plan is READ ({@code PlanJson.read}, the bundle a plan's reader is
+         * handed): the planner made each digest from its bytes, and re-hashing megabytes on every load's construction
+         * (every query's plan) was the checkpoint tenets audit's S-7 (2026-11-10).
+         */
         public Load {
             Objects.requireNonNull(target, "target");
             Objects.requireNonNull(cadence, "cadence");
@@ -289,6 +410,31 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             if (steps.isEmpty()) {
                 throw new IllegalArgumentException("a load with no step: plan none");
             }
+            content = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(content));
+            java.util.Set<String> named = new java.util.TreeSet<>();
+            for (LoadStep step : steps) {
+                if ((step instanceof LoadStep.Bound || step instanceof LoadStep.Stream || step instanceof LoadStep.Attach)
+                        && cadence != Cadence.HOST_SESSION) {
+                    throw new IllegalArgumentException("the load " + identity + " is " + cadence + ": a step the host"
+                            + " runs from what it holds (a bound value, a remote plane's stream, an attached value) is a"
+                            + " HOST_SESSION load's alone");
+                }
+                if (step instanceof LoadStep.File f && f.ref().namespace() == DataRef.Namespace.CONTENT) {
+                    named.add(f.ref().digest());
+                }
+                if (step instanceof LoadStep.Statements st) {
+                    named.add(st.ref().digest());
+                }
+            }
+            for (String digest : named) {
+                if (!content.containsKey(digest)) {
+                    throw new IllegalArgumentException("the load " + identity + " reads the content " + digest
+                            + ", which its bundle lacks");
+                }
+            }
+            if (!named.equals(content.keySet())) {
+                throw new IllegalArgumentException("the load " + identity + "'s bundle holds content no step reads");
+            }
         }
 
         /** When a load runs (the design's 2.2; the cadences a target's loads take arrive with its slice L2). */
@@ -299,7 +445,32 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             BEFORE_STEP,
             /** A program's own load at its place ({@code loadCsvToDbTable}): run every time it is reached, a write as
              *  an effect is, never skipped. */
-            AT_STEP
+            AT_STEP,
+            /** A target's load (a connection's declared test data, L2): established when a session is acquired for the
+             *  target, a write, as legend-engine establishes a test connection on each acquisition. Per source (the
+             *  contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09): a caller's session
+             *  ({@code PlanSessions.acquired}: the product door's, every query) -- once per run, on the run's first open;
+             *  a database the platform makes and keeps for the target ({@code PlanSessions.shared}, the PCT lanes'
+             *  {@code lane}) -- once, when it is made; a private database for a write ({@code openToChange}) -- once,
+             *  when it is made; a source that establishes none (a caller's session as it is) refuses a target that has
+             *  one; a program node of this cadence is refused. */
+            PER_ACQUISITION,
+            /** A project's Data rows (L3, S171): made once, when the platform makes the project's database the target
+             *  names, and kept with it for the process; never run on a database the plan does not make. The system
+             *  catalog's tables and the platform's rows alike (L4b): made once per engine per process. */
+            ONCE,
+            /** A model's registration in the process's system catalog (L4b, docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.5):
+             *  a program's node, run inside the run's own transaction on the catalog -- which is rolled back when the
+             *  run ends, so no other run sees it -- once per run (the seeds' memo, which the rollback clears); refused
+             *  by name on a session that holds no such transaction. */
+            PER_TRANSACTION,
+            /** A HOST'S OWN LOAD, KEPT FOR ITS SESSION (B3, 2026-11-11, the orchestrator's go; the design's §3 rule 4:
+             *  "the browser's uploaded tables live until the person resets them: a load whose lifetime is the host
+             *  session"): a person's file read into the host's database -- a table of its own, or a model's declared
+             *  table in Studio's workspace -- run once when the person puts it in and kept until they reset it. A plan of
+             *  it is the host's alone (a root load its runner runs); exec refuses it by name. (AT_RELEASE, the session
+             *  tables' drop, went with the JSON pass, 2026-11-11.) */
+            HOST_SESSION
         }
     }
 
@@ -481,13 +652,15 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      *  the database answers with (the lowering's typed slot: {@code VARCHAR}, {@code DECIMAL(10,2)},
      *  {@code TIMESTAMP}) -- null when the column has no one slot (a nested column the query flattens into prefixed
      *  outputs; a pivot's generated column whose template carries no type); and {@code store}, the column's declared
-     *  type in its store when the value is a store column read through ({@code VARCHAR(20)}, as the relational
-     *  grammar spells it) -- null when the column is computed. Each null is said, never guessed. A fourth fact,
+     *  type in its store when the value is a store column read through, typed ({@code VARCHAR(20)} a
+     *  {@code SqlDdl.ColumnType.Sized}; the checkpoint tenets audit's 3, 2026-11-10: until then its grammar spelling,
+     *  which exec matched by its text) -- null when the column is computed. Each null is said, never guessed. A fourth fact,
      *  {@code precision} (2026-10-28, the result boundary program's R2 and its S1.4 item 1): how a temporal cell's
      *  WRITTEN precision is known, which the writers spell by ({@link Precision}; the plan's fact, where the writers
      *  matched the slot's spelling for it) -- null when no temporal stands in the column itself. */
     public record Column(String name, String type, Multiplicity multiplicity, @com.legend.base.Nullable String slot,
-            @com.legend.base.Nullable String store, @com.legend.base.Nullable Precision precision) {
+            com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType store,
+            @com.legend.base.Nullable Precision precision) {
         public Column {
             Objects.requireNonNull(name, "name");
             Objects.requireNonNull(type, "type");
@@ -535,36 +708,69 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
     /**
      * One statement, final for its target: the text with bind placeholders, the parameter each placeholder binds and how
-     * (in order), and the target it runs on. Where a placeholder's type is its value's ({@link TypeHole}: H2), the text
-     * has no type at the hole's place, and the runner writes the value's there before it prepares the statement.
+     * (in order), and the target it runs on. The runner sends the text as it is: a placeholder is typed by its declared
+     * type when the plan is made (D1; P4, 2026-11-09 -- until then H2's text had a type hole the runner filled).
      * {@code tree} is the typed SQL tree it was rendered from — metadata for lineage and explanation, never read by the
      * executor; it is not written to the lite JSON yet (a later step), so a plan read back from JSON has none.
      * {@code stamp}, where given, is the parameter the statement's own execution-trace stamp binds (the
      * test-is-the-product plan's M3f, R17 C4): the runner mints the comment the statement is sent under before it sends
      * it and binds it under that name, for the statement's own slots and the steps after (an activity row records the
      * comment of the statement that ran its frame, minted per execution as legend-engine mints it).
+     * {@code content}: the {@code data:} payloads its slots bind ({@link Binding.Payload}), each text by its SHA-256 --
+     * the SAME bundle a load's is (the JSON pass, 2026-11-11, the user's "include the digest reference": the payload's
+     * bytes once in the plan's data, inline in its JSON below {@code PlanJson.INLINE_LIMIT_BYTES}, beside it above,
+     * every text verified against its digest where a plan is read): exactly the digests its slots name, a payload slot
+     * whose digest it lacks or a text no slot binds refused by name here, as a load's bundle is.
      */
     public record Sql(String statement, List<Slot> slots, Target target,
             com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
-            @com.legend.base.Nullable String stamp) {
+            @com.legend.base.Nullable String stamp, java.util.Map<String, String> content) {
         public Sql {
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
             Objects.requireNonNull(target, "target");
             regions = List.copyOf(regions);
             Region.check(statement.length(), slots, regions, s -> s.binding() instanceof Binding.Key);
-            int previous = -1;
+            content = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(content));
+            java.util.Set<String> named = new java.util.TreeSet<>();
             for (Slot slot : slots) {
-                if (slot.binding() instanceof Binding.One one && one.hole() != null) {
-                    int at = one.hole().at();
-                    if (at <= previous || at > statement.length()) {
-                        throw new IllegalArgumentException("type hole of '" + slot.parameter() + "' at " + at + " is not"
-                                + " after the previous one (" + previous + ") within the statement ("
-                                + statement.length() + ")");
+                if (slot.binding() instanceof Binding.Payload payload) {
+                    named.add(payload.digest());
+                    if (!content.containsKey(payload.digest())) {
+                        throw new IllegalArgumentException("a statement binds the payload " + payload.digest()
+                                + ", which its content lacks");
                     }
-                    previous = at;
                 }
             }
+            if (!named.equals(content.keySet())) {
+                throw new IllegalArgumentException("a statement's content holds a payload no slot binds");
+            }
+        }
+
+        /** The statement, as the plan holds it: what a session sends ({@link PlannedSql}). A statement with per-key
+         *  regions is sent as the runner's keyed expansion writes it, never as this. */
+        public PlannedSql planned() {
+            return PlannedSql.fromPlan(statement);
+        }
+
+        /** The executions this statement reads, added to {@code into}: its own stamp, and each slot's that reads one
+         *  ({@link ExecutionPlan#STAMP}). */
+        public void stamps(java.util.Set<String> into) {
+            if (stamp != null) {
+                into.add(stamp);
+            }
+            for (Slot slot : slots) {
+                if (slot.parameter().startsWith(STAMP)) {
+                    into.add(slot.parameter());
+                }
+            }
+        }
+
+        /** A statement binding no payload. */
+        public Sql(String statement, List<Slot> slots, Target target,
+                com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
+                @com.legend.base.Nullable String stamp) {
+            this(statement, slots, target, tree, regions, stamp, java.util.Map.of());
         }
 
         /** A statement whose stamp nothing reads. */
@@ -581,7 +787,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** This statement, its own execution-trace stamp bound under {@code name}. */
         public Sql stamped(String name) {
-            return new Sql(statement, slots, target, tree, regions, name);
+            return new Sql(statement, slots, target, tree, regions, name, content);
+        }
+
+        /** This statement minting no stamp. */
+        public Sql unstamped() {
+            return new Sql(statement, slots, target, tree, regions, null, content);
         }
 
         /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session
@@ -656,20 +867,24 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
     }
 
     /** How a placeholder is bound. */
-    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key {
+    public sealed interface Binding permits Binding.One, Binding.Array, Binding.Key, Binding.Source, Binding.Payload {
 
         /** One value, as the caller's checked value is; an absent one a null of {@code nullType} (a
-         *  {@code java.sql.JDBCType}'s name). {@code hole}: set where the statement must name the value's type (H2 types
-         *  a placeholder when it prepares the statement), the hole the runner writes it into. */
-        record One(String nullType, @com.legend.base.Nullable TypeHole hole) implements Binding {
+         *  {@code java.sql.JDBCType}'s name). {@code asText}: set where the placeholder is a date or date-time cast to
+         *  its declared type's SQL type, which takes the value as its text (D1; P4, 2026-11-09: until then a type hole
+         *  the runner wrote into the statement). */
+        record One(String nullType, @com.legend.base.Nullable AsText asText) implements Binding {
             public One {
                 Objects.requireNonNull(nullType, "nullType");
             }
         }
 
         /** The parameter's whole list, as one array of {@code elementSqlType} (the target's form of a list, e.g.
-         *  {@code = ANY(?)}). */
-        record Array(String elementSqlType) implements Binding {
+         *  {@code = ANY(?)}); {@code fraction}, for a list of dates or date-times, the digits of a second its database
+         *  keeps of an element -- an element of a finer digit is refused by the runner by name, never cut or rounded by
+         *  the driver (S181; the A delta audit's 2, 2026-11-11: an array's elements are the driver's timestamps, which
+         *  no statement's raise reads) -- null where it keeps every digit or the elements are no date. */
+        record Array(String elementSqlType, @com.legend.base.Nullable Integer fraction) implements Binding {
             public Array {
                 Objects.requireNonNull(elementSqlType, "elementSqlType");
             }
@@ -684,78 +899,183 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
                 }
             }
         }
-    }
 
-    /**
-     * Where a placeholder's type is its value's: the statement's text has none at {@code at}, and the runner writes the
-     * value's there, spelled by {@code types} for the value's kind ({@code absent}'s for an absent value) -- the type the
-     * database gives a literal of that value, so the placeholder answers as the literal does.
-     */
-    public record TypeHole(int at, Map<ValueKind, TypeSpelling> types, ValueKind absent) {
-        public TypeHole {
-            if (types.isEmpty()) {
-                throw new IllegalArgumentException("a type hole with no spelling");
-            }
-            // in the kinds' declared order: the order a plan's JSON writes them in
-            types = java.util.Collections.unmodifiableMap(new java.util.EnumMap<>(types));
-            if (!types.containsKey(absent)) {
-                throw new IllegalArgumentException("an absent value's kind " + absent + " has no spelling in " + types);
-            }
-        }
-    }
-
-    /** The kinds of value a parameter typed by its value takes (a Float's, a Decimal's, a Number's, a Date's, a
-     *  DateTime's). */
-    public enum ValueKind {
-        /** A whole number (a {@code Long}). */
-        INTEGER,
-        /** A decimal of its own digits (a {@code BigDecimal}: its precision and scale). */
-        DECIMAL,
-        /** A float at an extreme magnitude (a {@code Double}: its own digits). */
-        FLOATING,
-        /** A date (a {@code LocalDate}). */
-        DATE,
-        /** A date-time to the microsecond (a {@code LocalDateTime}). */
-        DATE_TIME,
-        /** A date-time with digits finer than a microsecond (a {@code LocalDateTime}). */
-        DATE_TIME_NANOS
-    }
-
-    /** A type's spelling for one kind of value: its name, followed by the value's own digits as {@code digits} says.
-     *  {@code fraction}: for a date-time, the digits of a second its value keeps, finer ones cut, as its literal's are
-     *  (Postgres keeps six); null where the value keeps its own. */
-    public record TypeSpelling(String name, Digits digits, @com.legend.base.Nullable Integer fraction) {
-        public TypeSpelling {
-            Objects.requireNonNull(name, "name");
-            Objects.requireNonNull(digits, "digits");
-            if (fraction != null && (fraction < 0 || fraction > 9)) {
-                throw new IllegalArgumentException("a second's fraction of " + fraction + " digits");
+        /** A LIVE SOURCE's location as its model declares it (a {@code file:} URL; L6, the user's ruling of 2026-11-10:
+         *  a pointer, as a table is): bound as the path the run's {@code exec.SourceAdmission} admits, refused by name
+         *  otherwise; the slot names no declared parameter. The location is the source's description, never pasted
+         *  into the statement's text. */
+        record Source(String location) implements Binding {
+            public Source {
+                Objects.requireNonNull(location, "location");
             }
         }
 
-        public TypeSpelling(String name, Digits digits) {
-            this(name, digits, null);
+        /** A {@code data:} payload's one JSON array, the plan's own value, bound as its text to a statement that splits
+         *  it itself (its dialect's delivery, 2026-11-11); named by its SHA-256 {@code digest}, its text the
+         *  statement's {@link Sql#content} (the JSON pass, 2026-11-11: the payload's bytes once in the plan's data, as a
+         *  load's are); the slot names no declared parameter. Census M18: the payload in the plan. {@code label}: what
+         *  the database's refusal of the statement is told under (its digest's head and its size, planned: the B
+         *  checkpoint's tenets audit, LOW 4, 2026-11-11 -- until then the runner wrote it from the bound value). */
+        record Payload(String digest, String label) implements Binding {
+            public Payload {
+                Objects.requireNonNull(digest, "digest");
+                Objects.requireNonNull(label, "label");
+            }
         }
     }
 
-    /** The value's own digits a type spelling takes: none, {@code (precision)}, or {@code (precision,scale)}. */
-    public enum Digits {
-        NONE, PRECISION, PRECISION_AND_SCALE
+    /** A date or date-time bound as its TEXT, every digit, to a placeholder cast to its declared type's SQL type: a
+     *  slot that keeps fewer digits of a second refuses a value of more by the statement's own raise (S181, A7,
+     *  2026-11-10: until then the record carried the digits the runner cut the text to). */
+    public record AsText() {
     }
 
     /**
      * Where a statement runs: the database; the statements every connection to it runs first ({@code session}: its
-     * settings, such as the time zone); and the steps that ESTABLISH it once, when its database is opened, before
-     * anything else ({@code setup}: a connection's declared test data, written at plan time for the target's database).
-     * Two runs share an in-memory database when their targets are equal (decision A,
-     * docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9). No server version: every database's statements are spelled alike
-     * for every version lite runs (2026-11-05, one H2; until then H2's plans named the versions they were written for).
+     * settings, such as the time zone); and the LOADS that establish it when a session is acquired for it, before
+     * anything else ({@code loads}: a connection's declared test data, written at plan time for the target's database;
+     * docs/DATA_IN_THE_PLAN_2026_11_09.md L2, 2026-11-09 -- until then the target's {@code setup} steps). Each is a
+     * {@link Load.Cadence#PER_ACQUISITION} load, after any {@link Load.Cadence#ONCE} one (a project's Data, made with its
+     * database: L3), whose own target is this one's database and session with no load (a
+     * plan's JSON writes each load once, in its load section, and a target names it by identity). Two runs share an
+     * in-memory database when their targets are equal (decision A, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the
+     * loads by their identities, which digest their content. No server version: every database's statements are spelled
+     * alike for every version lite runs (2026-11-05, one H2). {@code raiseReadBack}: the two statements exec sends after a
+     * statement fails, to read back a raise the database keeps in the session (MariaDB's and MySQL's: the charter's A3(c),
+     * C2, 2026-11-12; null where the database's errors carry the raise) -- declared by the dialect, never the connector's.
+     * {@code settings}: the settings the database must have, as values, and the statement that reads them back (H2's
+     * {@code MODE} and {@code DEFAULT_NULL_ORDERING}: the database's, whose {@code SET} commits an open transaction; the
+     * C checkpoint's SHOULD-FIX 3, 2026-11-12; null where the database needs none) -- written by exec where it opens the
+     * database, verified on a session it did not open; declared by the dialect, until then the connector's URL.
+     * {@code transaction}: the statements that open, commit and roll back a transaction on the database, as a host
+     * sends them -- its runner opens one around a plan's writes, a target's loads and a keyed snapshot (the re-audit's
+     * S8, 2026-11-12: until then a host's session asked the planner for them at run, and a run never plans, G4; null
+     * where no host spells them: a host's runner refuses such a plan's transaction by name; Java's exec opens its own on
+     * the connection, as JDBC does).
      */
-    public record Target(Database database, List<String> session, List<LoadStep> setup) {
+    public record Target(Database database, List<String> session, List<Load> loads,
+            @com.legend.base.Nullable RaiseReadBack raiseReadBack, @com.legend.base.Nullable DatabaseSettings settings,
+            @com.legend.base.Nullable Transaction transaction) {
         public Target {
             Objects.requireNonNull(database, "database");
             session = List.copyOf(session);
-            setup = List.copyOf(setup);
+            loads = List.copyOf(loads);
+            java.util.Set<String> identities = new java.util.HashSet<>();
+            boolean acquired = false;
+            for (Load load : loads) {
+                // the project's Data first (made once with the database), then what each acquisition establishes (the
+                // AT_RELEASE cadence went with the data: session tables it dropped: the JSON pass, 2026-11-11)
+                if (load.cadence() == Load.Cadence.PER_ACQUISITION) {
+                    acquired = true;
+                } else if (load.cadence() != Load.Cadence.ONCE || acquired) {
+                    throw new IllegalArgumentException("a target's loads are its ONCE loads, then its PER_ACQUISITION"
+                            + " ones: " + load.identity() + " is " + load.cadence());
+                }
+                if (!load.target().loads().isEmpty() || !load.target().database().equals(database)
+                        || !load.target().session().equals(session)
+                        || !Objects.equals(load.target().raiseReadBack(), raiseReadBack)
+                        || !Objects.equals(load.target().settings(), settings)
+                        || !Objects.equals(load.target().transaction(), transaction)) {
+                    throw new IllegalArgumentException("a target's load loads into the target's own database and"
+                            + " session, and names no load of its own: " + load.identity());
+                }
+                if (!identities.add(load.identity())) {
+                    throw new IllegalArgumentException("a target names a load twice: " + load.identity());
+                }
+            }
+        }
+
+        /** This target with no load: where its loads load. */
+        public Target bare() {
+            return loads.isEmpty() ? this : new Target(database, session, List.of(), raiseReadBack, settings, transaction);
+        }
+
+        /** The session statements, as the plan holds them: what a session sends ({@link PlannedSql}). */
+        public List<PlannedSql> plannedSession() {
+            return PlannedSql.allFromPlan(session);
+        }
+    }
+
+    /**
+     * A database's transaction, as its own statements: each step's, in order -- what a host sends to open one, commit it
+     * and roll it back (a target's, {@link Target#transaction}; a stream's, {@link LoadStep.Stream}). Each step has one
+     * at least: a transaction no statement opens is none.
+     */
+    public record Transaction(List<String> begin, List<String> commit, List<String> rollback) {
+        public Transaction {
+            begin = List.copyOf(begin);
+            commit = List.copyOf(commit);
+            rollback = List.copyOf(rollback);
+            if (begin.isEmpty() || commit.isEmpty() || rollback.isEmpty()) {
+                throw new IllegalArgumentException("a transaction is its database's statements that open, commit and"
+                        + " roll one back: each step has one at least");
+            }
+        }
+    }
+
+    /** The settings a target's database must have ({@link Target#settings}): each a name and its value as the database
+     *  reports them ({@code required}), and {@code readBack}, the statement answering one text for each of them the
+     *  database has otherwise (none where it has them all: the database compares). Plan data: the dialect writes them;
+     *  exec writes the values where it opens a database the platform MAKES and, on a session it did not open, sends
+     *  exactly {@code readBack} and refuses the session where it answers any row.
+     *
+     *  <p>Or {@link #THE_DATABASES_OWN}: none written and none read back -- a DECLARED database the platform does not make
+     *  (an H2 file's or server's) is run as it is (the third re-audit's MUST-FIX 2, 2026-11-12: until then exec wrote its
+     *  settings on the declared database's URL, and H2 applies them to the whole open database -- measured on 2.5.252:
+     *  every other client's null order changed while lite's session was open, and a server database kept open held them
+     *  across the server's restart). The product's answers do not depend on them: it writes every null's order. */
+    public record DatabaseSettings(List<Setting> required, @com.legend.base.Nullable String readBack) {
+        public DatabaseSettings {
+            required = List.copyOf(required);
+            if (required.isEmpty() != (readBack == null)) {
+                throw new IllegalArgumentException("a database's settings are some, read back by one statement, or none"
+                        + " and no read-back (the database's own): " + required + ", " + readBack);
+            }
+        }
+
+        /** A declared database's own settings, as they are: none written, none read back. */
+        public static final DatabaseSettings THE_DATABASES_OWN = new DatabaseSettings(List.of(), null);
+
+        /** Whether these are {@link #THE_DATABASES_OWN}. */
+        public boolean theDatabasesOwn() {
+            return required.isEmpty();
+        }
+
+        /** The read-back, as the plan holds it: what a session sends ({@link PlannedSql}); a database run as it is
+         *  is read back for nothing, refused by name. */
+        public PlannedSql plannedReadBack() {
+            if (readBack == null) {
+                throw new IllegalStateException("a declared database run as it is declares no settings to read back");
+            }
+            return PlannedSql.fromPlan(readBack);
+        }
+    }
+
+    /** One setting a database must have: its name and value, each as the database reports them. */
+    public record Setting(String name, String value) {
+        public Setting {
+            Objects.requireNonNull(name, "name");
+            Objects.requireNonNull(value, "value");
+        }
+    }
+
+    /** The two statements a target declares for reading back a raise its database keeps in the session after a
+     *  statement fails ({@link Target#raiseReadBack}): {@code read} selects the one text (null for none held),
+     *  {@code reset} clears it. Plan data: the dialect writes them, exec sends exactly them (the charter's A3(c), C2). */
+    public record RaiseReadBack(String read, String reset) {
+        public RaiseReadBack {
+            Objects.requireNonNull(read, "read");
+            Objects.requireNonNull(reset, "reset");
+        }
+
+        /** The read, as the plan holds it: what a session sends ({@link PlannedSql}). */
+        public PlannedSql plannedRead() {
+            return PlannedSql.fromPlan(read);
+        }
+
+        /** The reset, as the plan holds it. */
+        public PlannedSql plannedReset() {
+            return PlannedSql.fromPlan(reset);
         }
     }
 
@@ -763,22 +1083,19 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * A PROJECT'S OWN DATABASE (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5; the plan-as-data design's hole 7, the user's
      * go of 2026-11-08): what the database holds when it is made, part of its identity -- named by what it holds, so
      * an edited row or table is a fresh database, and two models whose stores differ never share one (type audit D100).
-     * The runner makes it once with {@code made} and keeps it; the per-query setup is the target's.
+     * What fills it is the target's {@link Load.Cadence#ONCE} load (the project's Data rows,
+     * docs/DATA_IN_THE_PLAN_2026_11_09.md L3, S171): made once where the platform makes the database, and kept; until
+     * L3 the project's own {@code made} steps.
      *
      * @param key  the model's stores' and Data rows' content key ({@code ProjectData.contentKey})
-     * @param made the statements that make and fill it, run once when it is made
      * @param refused why the model's Data rows cannot make it (a table its Databases declare none or more than once
      *                of), or null: raised where the runner would make it, never by a run on another database (the
      *                plan-as-data design's slice 5, 2026-11-09: planned as a failure until then, every query of such
      *                a model refused at planning; before hole 7 the server refused it as it made the database)
      */
-    public record Project(String key, List<LoadStep> made, @com.legend.base.Nullable String refused) {
+    public record Project(String key, @com.legend.base.Nullable String refused) {
         public Project {
             Objects.requireNonNull(key, "key");
-            made = List.copyOf(made);
-            if (refused != null && !made.isEmpty()) {
-                throw new IllegalArgumentException("a project database refused carries no statements to make it");
-            }
         }
     }
 
@@ -811,14 +1128,13 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
         }
 
-        /** THE GRAPH'S SYSTEM DATABASE on {@code type} (the test-is-the-product plan's M10a, the narrow M4,
-         *  2026-11-01): the metamodel store's tables, written once per graph by the one who opens it -- the sessions
-         *  source a caller hands the runner; the runner knows no database (the user ruling of 2026-09-02: separate
-         *  from every user connection). A test body reading the metamodel store runs its program here; the product's
-         *  own metamodel carriage is unchanged (the user, 2026-11-01: a product follow-up). {@code graphKey} names WHICH
-         *  store (the plan-as-data design's step 7, 2026-11-08, 2.6): a hash of the store's content -- every table's
-         *  definition and the graph's rows -- so two plans of one graph name one store, and the plan, not the compiled
-         *  graph object beside it, says which. */
+        /** THE PROCESS'S CATALOG on {@code type} (the test-is-the-product plan's M10a, 2026-11-01; L4b, 2026-11-09;
+         *  B4, 2026-11-11): the system metamodel store's tables and the platform's rows, made once a process on an
+         *  engine the platform runs in process by the target's ONCE load, separate from every user connection (the
+         *  user's ruling of 2026-09-02); a model's own rows are registered in a run's turn. Every statement reading the
+         *  store runs here, whatever database holds the user's data. {@code graphKey} names the catalog: the platform's
+         *  content key ({@code SystemCatalog}'s), the same in every plan (a graph's own store, keyed by its content,
+         *  until L4b). */
         record System(DatabaseType type, String graphKey) implements Database {
             public System {
                 Objects.requireNonNull(type, "type");
@@ -827,51 +1143,48 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
     }
 
-    /** One step of a load or of a target's setup: a statement, rows the database's own bulk loader takes, or a file
-     *  by its reference (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.3; until 2026-11-09 {@code SetupStep}). */
-    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Rows, LoadStep.File {
+    /** Where a host's bound statement's effect lives ({@link LoadStep.Bound}, B3's Q3): the database (run once with its
+     *  load), or the connection (a session variable, replayed on every connection the host opens). */
+    public enum Reach { DATABASE, CONNECTION }
+
+    /** One step of a load or of a target's setup: a statement, the model's data as a content blob of statements (A2,
+     *  2026-11-10: until then rows the database's own bulk loader took), or a file by its reference
+     *  (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.3; until 2026-11-09 {@code SetupStep}). */
+    public sealed interface LoadStep permits LoadStep.Statement, LoadStep.Statements, LoadStep.File, LoadStep.Bound,
+            LoadStep.Stream, LoadStep.Attach {
 
         /** A statement, run as it is. */
         record Statement(String sql) implements LoadStep {
             public Statement {
                 Objects.requireNonNull(sql, "sql");
             }
+
+            /** The statement, as the plan holds it: what a session sends ({@link PlannedSql}). */
+            public PlannedSql planned() {
+                return PlannedSql.fromPlan(sql);
+            }
         }
 
         /**
-         * Rows for the database's bulk loader, every cell TEXT (null is SQL NULL): appended into a staging table of
-         * text columns, then copied into the target table by a statement that casts (the database types every value,
-         * exactly as for a string literal). Every statement is written at plan time, for the target's database.
-         *
-         * @param stagingTable  the staging table the cells are appended to
-         * @param createStaging creates it (temporary, one text column per cell)
-         * @param copy          copies it into the target table, casting
-         * @param dropStaging   drops it
+         * THE MODEL'S DATA AS STATEMENTS (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.1 and §2, A2): the SQL statements
+         * the content blob {@code ref} holds ({@link DataRef.Statements}: DDL-free multi-row INSERTs with the dialect's
+         * typed literals), named by its digest in the load's bundle, each sent as it is written. All model data takes
+         * it -- a connection's test data, a project's Data, the catalog's rows, a seed, a payload's elements -- whatever
+         * its size: where the bytes travel (inside the plan's JSON or beside it) is the plan writer's
+         * ({@code PlanJson.writeBundle}). {@code of} names the data as a refusal names it -- "the data of the table
+         * PEOPLE", "the data: source's payload ..." -- so a statement the database refuses is refused naming its data
+         * (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §3 rule 5, A4), in the database's own words.
          */
-        record Rows(String stagingTable, String createStaging, String copy, String dropStaging,
-                List<List<String>> rows) implements LoadStep {
-            public Rows {
-                Objects.requireNonNull(stagingTable, "stagingTable");
-                Objects.requireNonNull(createStaging, "createStaging");
-                Objects.requireNonNull(copy, "copy");
-                Objects.requireNonNull(dropStaging, "dropStaging");
-                if (rows.isEmpty()) {
-                    throw new IllegalArgumentException("rows for " + stagingTable + ": none (a load of no rows is no step)");
+        record Statements(DataRef ref, String of) implements LoadStep {
+            public Statements {
+                Objects.requireNonNull(ref, "ref");
+                Objects.requireNonNull(of, "of");
+                if (of.strip().isEmpty()) {
+                    throw new IllegalArgumentException("a load's statements name the data they load: " + ref);
                 }
-                int width = rows.get(0).size();
-                if (width == 0) {
-                    throw new IllegalArgumentException("rows for " + stagingTable + ": a row of no cells");
+                if (ref.namespace() != DataRef.Namespace.CONTENT || !(ref.format() instanceof DataRef.Statements)) {
+                    throw new IllegalArgumentException("a load's statements are a CONTENT blob of statements: " + ref);
                 }
-                List<List<String>> copied = new java.util.ArrayList<>(rows.size());
-                for (List<String> row : rows) {
-                    if (row.size() != width) {
-                        throw new IllegalArgumentException("rows for " + stagingTable + ": a row of " + row.size()
-                                + " cells among rows of " + width);
-                    }
-                    // a cell may be null (SQL NULL), so each row is copied as a list that holds nulls
-                    copied.add(java.util.Collections.unmodifiableList(new java.util.ArrayList<>(row)));
-                }
-                rows = java.util.Collections.unmodifiableList(copied);
             }
         }
 
@@ -880,39 +1193,157 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
          * (the design's 2.1 and 2.5, the user's go of 2026-11-09): the runner resolves {@code ref} through the stores
          * it is given, refuses bytes whose digest is not the reference's, and delivers exactly the verified bytes as
          * {@code delivery} says, which the planner chose for the target's database. A CSV file's first line is its
-         * header; its cells are text the database casts into the table's columns, positionally.
+         * header; its cells are text the database casts into the table's columns, positionally. {@code sizeLimitMegabytes}:
+         * the largest file the load admits, refused at planning and again at the run on the bytes it reads (the user's
+         * ruling, 2026-11-09: upstream's {@code loadCsvToDbTable} admits 500 MB).
          */
-        record File(DataRef ref, Delivery delivery) implements LoadStep {
+        record File(DataRef ref, Delivery delivery, int sizeLimitMegabytes) implements LoadStep {
             public File {
                 Objects.requireNonNull(ref, "ref");
                 Objects.requireNonNull(delivery, "delivery");
+                if (sizeLimitMegabytes < 1) {
+                    throw new IllegalArgumentException("a file's load admits at least a megabyte: " + sizeLimitMegabytes);
+                }
             }
         }
 
         /** How a file's verified bytes reach its database: chosen at planning for the target's database, as every
-         *  spelling is; no delivery edits a statement at run (a path is bound, cells are bound). */
-        sealed interface Delivery permits Delivery.DatabaseReads, Delivery.Streamed {
+         *  spelling is; no delivery edits a statement at run (the copy's path is bound). */
+        sealed interface Delivery permits Delivery.Reads {
 
-            /** The DATABASE reads the file itself: {@code sql}'s one {@code ?} is bound to the path of the runner's
-             *  own copy of the verified bytes (DuckDB's {@code read_csv}, which takes its path as a bound parameter:
-             *  measured 2026-11-09). */
-            record DatabaseReads(String sql) implements Delivery {
-                public DatabaseReads {
-                    Objects.requireNonNull(sql, "sql");
+            /**
+             * THE DATABASE READS THE FILE ITSELF (the user's ruling, 2026-11-09: "reject options we cannot support
+             * instead of building our own streamer"): the runner writes the verified bytes to a copy of its own and sends
+             * {@code statements} in order, each {@code ?} in them bound to that copy's path -- its database's own reader
+             * spelled by its dialect, the declared format in that reader's options (DuckDB's {@code read_csv}). A format a
+             * reader cannot express is refused at planning; a database with no reader refuses the file by name
+             * (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.3, option 1, A3: the runner's streamed cells, {@code Streamed},
+             * deleted with the Java splitter). {@code after}: the statements that undo what {@code statements} set on
+             * the session (H2's path variable), run on every exit, a failed load's too (the A checkpoint's tenets
+             * audit, 14).
+             */
+            record Reads(List<String> statements, List<String> after) implements Delivery {
+                public Reads {
+                    statements = List.copyOf(statements);
+                    after = List.copyOf(after);
+                    if (statements.isEmpty()) {
+                        throw new IllegalArgumentException("a file's load of no statement");
+                    }
+                }
+
+                /** The reading statements, as the plan holds them: what a session sends ({@link PlannedSql}). */
+                public List<PlannedSql> plannedStatements() {
+                    return PlannedSql.allFromPlan(statements);
+                }
+
+                /** The undoing statements, as the plan holds them. */
+                public List<PlannedSql> plannedAfter() {
+                    return PlannedSql.allFromPlan(after);
+                }
+            }
+        }
+
+        /**
+         * A STATEMENT WHOSE {@code ?}s THE HOST BINDS (B3's Q3, 2026-11-11, the user's ruling of that day: "Yes do option
+         * 2"; docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md): each bind the plan's own value, never a
+         * credential (a secret's scope), or a value the host holds BY NAME ({@link Bind.Held}: a credential's field, a
+         * bearer URL) -- never a held value itself, so no plan holds a secret. {@code reach}:
+         * {@link ExecutionPlan.Reach#DATABASE}, run once with its load (a secret, which the database instance keeps);
+         * {@link ExecutionPlan.Reach#CONNECTION}, a setting of the connection (a session variable, which DuckDB keeps per
+         * connection: measured 2026-11-11), run with its load and replayed by the host on every connection it opens to
+         * that database afterwards. A host's step alone: only a {@link Load.Cadence#HOST_SESSION} load holds one
+         * ({@link Load}), and exec, which holds no host's store, never meets one.
+         */
+        record Bound(String sql, List<Bind> binds, Reach reach) implements LoadStep {
+            public Bound {
+                Objects.requireNonNull(sql, "sql");
+                Objects.requireNonNull(reach, "reach");
+                binds = List.copyOf(binds);
+                if (sql.strip().isEmpty()) {
+                    throw new IllegalArgumentException("a bound statement of no text");
+                }
+                if (binds.isEmpty()) {
+                    throw new IllegalArgumentException("a bound statement binds a value: plan a statement: " + sql);
+                }
+            }
+        }
+
+        /**
+         * A REMOTE PLANE'S ANSWER STREAMED INTO A TABLE OF THIS DATABASE (the user's ruling, 2026-11-11, "This is the right
+         * plan": a snapshot from a remote plane is a planned load, nothing lost; the orchestrator's simplification of
+         * 2026-11-12: no hash): {@code plane}, the name the host holds a remote plane under (the warehouse a grid reads);
+         * {@code sql}, the statement that plane runs (the snap's source query, in its own database's SQL);
+         * {@code schema} (none: the database's own) and {@code table}, the table it lands in; {@code prepare}, the
+         * statements run before it in the same transaction (its schema made, the table there before dropped);
+         * {@code count}, the statement that counts the table's rows once they are in it (one row, one column
+         * {@code n}: the database counts them); {@code transaction}, the database's own statements that open, commit
+         * and roll back the transaction (the texts are the dialect's, as an effect script's bracket is: the runner
+         * writes none). Never a row: the host streams the plane's Arrow chunks into the table by its database's Arrow
+         * import, the first making it, in ONE transaction, and commits only when the stream completed (the plane's done
+         * step heard, every chunk it names read) and the table holds exactly the rows the plane counted for its
+         * answer; else it rolls back and nothing is left. A host's step alone ({@link Load.Cadence#HOST_SESSION}).
+         */
+        record Stream(String plane, String sql, @com.legend.base.Nullable String schema, String table,
+                List<String> prepare, String count, ExecutionPlan.Transaction transaction) implements LoadStep {
+            public Stream {
+                Objects.requireNonNull(plane, "plane");
+                Objects.requireNonNull(sql, "sql");
+                Objects.requireNonNull(table, "table");
+                Objects.requireNonNull(count, "count");
+                Objects.requireNonNull(transaction, "transaction");
+                prepare = List.copyOf(prepare);
+                if (!plane.matches("[A-Za-z0-9_]+")) {
+                    throw new IllegalArgumentException("a remote plane is named by the name a host holds it under: "
+                            + plane);
+                }
+                if (sql.strip().isEmpty() || table.isEmpty() || count.strip().isEmpty()) {
+                    throw new IllegalArgumentException("a stream's load names its statement, its table and its count");
                 }
             }
 
-            /**
-             * The runner splits the verified text into cells and sends {@code insert}, whose {@code columns}
-             * {@code ?}s take one row's cells, once per row (a database that cannot read the runner's file, or whose
-             * reader takes no bound path: H2's {@code CSVREAD}, measured 2026-11-09). The split is the CSV rule of
-             * {@code com.legend.base.CsvCells}; the database casts every cell.
-             */
-            record Streamed(String insert, int columns) implements Delivery {
-                public Streamed {
-                    Objects.requireNonNull(insert, "insert");
-                    if (columns < 1) {
-                        throw new IllegalArgumentException("a streamed load of no column");
+        }
+
+        /**
+         * A VALUE THE HOST HOLDS, ATTACHED BY NAME (the user's ruling, 2026-11-11, "This is the right plan": a Python
+         * frame is named, never its bytes, and attached at run as a bearer URL's session variable is bound):
+         * {@code held}, the name the host holds the value under (a frame); {@code as}, the relation it is read as.
+         * {@code reach}: {@link ExecutionPlan.Reach#CONNECTION}, kept by the host and attached on every connection or
+         * cursor it opens to the database afterwards, so every query reads the value as it is then;
+         * {@link ExecutionPlan.Reach#DATABASE}, for the load alone (a value read once into a table by the next
+         * statement, let go when the load ends). A host that holds no value of that name refuses it by name. A host's
+         * step alone ({@link Load.Cadence#HOST_SESSION}).
+         */
+        record Attach(String held, String as, Reach reach) implements LoadStep {
+            public Attach {
+                Objects.requireNonNull(held, "held");
+                Objects.requireNonNull(as, "as");
+                Objects.requireNonNull(reach, "reach");
+                if (!held.matches("[A-Za-z0-9_]+") || !as.matches("[A-Za-z0-9_]+")) {
+                    throw new IllegalArgumentException("a held value is attached by its name as a plain relation's: "
+                            + held + " as " + as);
+                }
+            }
+        }
+
+        /** One {@code ?} of a {@link Bound} statement. */
+        sealed interface Bind permits Bind.Value, Bind.Held {
+
+            /** The plan's own value, bound as its text: never a credential (the planner's makers alone make one). */
+            record Value(String text) implements Bind {
+                public Value {
+                    Objects.requireNonNull(text, "text");
+                }
+            }
+
+            /** A value the host holds: its store's entry {@code name}, its field {@code field} (an S3 secret's KEY_ID,
+             *  SECRET, SESSION_TOKEN, REGION, ENDPOINT, URL_STYLE or USE_SSL; URL, a bearer URL). */
+            record Held(String name, String field) implements Bind {
+                public Held {
+                    Objects.requireNonNull(name, "name");
+                    Objects.requireNonNull(field, "field");
+                    if (!name.matches("[A-Za-z0-9_]+") || !field.matches("[A-Z_]+")) {
+                        throw new IllegalArgumentException("a held value is named by a store's name and a field's: "
+                                + name + "." + field);
                     }
                 }
             }

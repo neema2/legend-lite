@@ -58,10 +58,16 @@ public final class MongoDbConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: no JDBC session is a MongoDB's ({@link #ownSessions}), and its errors carry their text. */
+    /** {@inheritDoc} No: a MongoDB session holds no SQL transaction the platform opens. */
     @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} No: MongoDB's statements are its own ({@code MongoDbStatements}), which bracket no plan's steps. */
+    @Override
+    public boolean takesTransactions() {
+        return false;
     }
 
     /** {@inheritDoc} None: a server, whose connection is the engine's MongoDBConnection. */
@@ -131,16 +137,10 @@ public final class MongoDbConnector implements DatabaseConnector {
         }
 
         /** The connector's statements, reached through the session's one guarded door ({@code Session.statements}:
-         *  inside a plan's run alone, THE WALL's rule 3). A MongoDB session's commands carry no SQL comment: no
-         *  execution trace rides them, and the body driver (whose activity rows read the trace) is not designed for
-         *  MongoDB; refused by name. */
+         *  inside a plan's run alone, THE WALL's rule 3). */
         @Override
-        Statements statementsOf(@com.legend.base.Nullable ExecutionTrace trace) {
-            if (trace == null) {
-                return statements;
-            }
-            throw new com.legend.error.NotImplementedException("the body driver's traced statements on MongoDB: its"
-                    + " commands carry no execution-trace comment, and the driver is not designed for MongoDB");
+        Statements statementsOf() {
+            return statements;
         }
 
         @Override

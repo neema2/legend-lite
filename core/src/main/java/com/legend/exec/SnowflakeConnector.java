@@ -36,10 +36,16 @@ final class SnowflakeConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code Snowflake}'s errors carry their raise. */
+    /** {@inheritDoc} No: Snowflake rolls back the failed statement alone; its transaction goes on. */
     @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
     }
 
     /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),

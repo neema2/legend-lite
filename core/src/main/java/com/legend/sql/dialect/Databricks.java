@@ -50,6 +50,78 @@ public final class Databricks extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached Databricks, which has no translation of it");
     }
 
+    /** A Date and a DateTime parameter as upstream's literal processor writes them (databricksExtension.pure): a Date
+     *  {@code to_date('%s')}, a {@code DATE} (a date-time value's time dropped, as upstream's), a DateTime
+     *  {@code to_timestamp('%s')}, a {@code TIMESTAMP} of microseconds, a value of finer digits refused by the
+     *  statement's own raise (S181, A7); each bound as its
+     *  text (D1, P4; the re-audit's B-1, 2026-11-09). A number is bound bare. */
+    @Override
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE -> new ParameterType("DATE", new RenderedStatement.AsText(null));
+            case DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(6));
+        };
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
+    /** The most characters of parameters one statement binds (its driver's refusal: "the combined size of parameters
+     *  is N, exceeding the limit of 1048576 characters", measured by the Databricks lane, 2026-11-11,
+     *  docs/data-delivery-homework/probes/DatabricksDelivery2.java.txt). */
+    static final int MAX_PARAMETER_CHARS = 1_048_576;
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database, while the statement's parameters fit
+     *  its driver's limit TOGETHER ({@link #MAX_PARAMETER_CHARS}: the payloads bound before it in the statement, each
+     *  slot counted, and this one; a statement that binds a value only its run knows, whose size no plan counts, binds
+     *  none); else the statement's own rows (the JSON pass, the user's "Yes on Databricks", 2026-11-11; measured:
+     *  10,000 records bound in 557 ms, 100,000 inline in 4,205 ms, where the session table took 133,808. The B
+     *  checkpoint's correctness audit, C3, 2026-11-11: until then each payload was measured alone, so a payload of
+     *  600,000 characters read twice, or two that each fit, bound 1.2 million and were refused at run). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return !payload.runValues() && payload.boundBefore() + payload.array().length() <= MAX_PARAMETER_CHARS
+                ? payload.bound() : inlineRows(payload);
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured): each element a
+     *  {@code VARIANT}, a frame's record its place as its position from 0 (the payload's order); an empty array no
+     *  row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(pos AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM variant_explode(parse_json(");
+        return bindPayload(writer, u).append("))");
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -232,9 +304,31 @@ public final class Databricks extends AnsiSqlRenderer {
     }
 
     /** An inline table, {@code VALUES (..), (..) AS t(a, b)}: a parenthesized VALUES is a syntax error here
-     *  (measured). */
+     *  (measured). A payload's rows ({@link #inlineRows}, above the parameter limit) are VALUES of the elements' texts,
+     *  which the select over it parses: the lane's measured form (2026-11-11, probes/DatabricksDelivery2.java.txt). */
     @Override
     protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
+        if (!v.rows().isEmpty() && v.rows().stream().allMatch(r -> !r.isEmpty() && jsonText(r.get(0)))) {
+            writer.append("(SELECT parse_json(legend_rows.col1) AS ").append(aliasIdent(v.columns().get(0)));
+            for (int c = 1; c < v.columns().size(); c++) {
+                writer.append(", legend_rows.col").append(String.valueOf(c + 1)).append(" AS ")
+                        .append(aliasIdent(v.columns().get(c)));
+            }
+            writer.append(" FROM VALUES ");
+            for (int r = 0; r < v.rows().size(); r++) {
+                List<SqlExpr> row = v.rows().get(r);
+                writer.append(r > 0 ? ", (" : "(").expr(((SqlExpr.Cast) row.get(0)).value(), 0);
+                for (int c = 1; c < row.size(); c++) {
+                    writer.append(", ").expr(row.get(c), 0);
+                }
+                writer.append(")");
+            }
+            writer.append(" AS legend_rows(");
+            for (int c = 0; c < v.columns().size(); c++) {
+                writer.append(c > 0 ? ", col" : "col").append(String.valueOf(c + 1));
+            }
+            return writer.append(")) AS ").append(aliasIdent(v.alias()));
+        }
         writer.append("VALUES ");
         for (int r = 0; r < v.rows().size(); r++) {
             List<SqlExpr> row = v.rows().get(r);
@@ -252,6 +346,11 @@ public final class Databricks extends AnsiSqlRenderer {
         }
         return writer.append(" AS ").append(aliasIdent(v.alias())).append("(")
                 .append(String.join(", ", v.columns().stream().map(this::aliasIdent).toList())).append(")");
+    }
+
+    /** A JSON text parsed: a payload's element as its inline row holds it. */
+    private static boolean jsonText(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.JSON && c.value() instanceof SqlExpr.StringLit;
     }
 
     private static boolean allNull(SqlSource.Values v, int column) {
@@ -761,47 +860,6 @@ public final class Databricks extends AnsiSqlRenderer {
                 .expr(t, 0).append(")), " + o + " -> " + body + "), 1)");
     }
 
-    /** A session's read-only table is a TEMPORARY VIEW over its rows: a temporary TABLE is not read inside an EXISTS
-     *  (UC_COMMAND_NOT_SUPPORTED, "Data source v2", measured; a scalar or IN subquery reads it), a view is, and it is
-     *  one statement (0.2 s, where a table and its INSERT took 3). Each column is cast to its declared type in the
-     *  view's projection, so a column whose cells are all NULL, or a view with no rows, is still typed (measured). */
-    @Override
-    public List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
-            com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
-        if (!table.temporary()) {
-            throw new IllegalArgumentException("a session table is temporary: " + table.table());
-        }
-        List<com.legend.sql.SqlDdl.Column> cols = table.columns();
-        SqlWriter writer = newWriter().append("CREATE TEMPORARY VIEW ")
-                .append(storedName(table.table(), table.quoting().table()))
-                .append(" AS SELECT ");
-        for (int c = 0; c < cols.size(); c++) {
-            com.legend.sql.SqlDdl.Column col = cols.get(c);
-            writer.append(c > 0 ? ", " : "").append("CAST(").append(rows == null ? "NULL" : "`c" + c + "`")
-                    .append(" AS " + ddlType(col.type()) + ") AS ")
-                    .append(ddlIdentifier(col.name(), col.declaredQuoted()));
-        }
-        if (rows == null) {
-            writer.append(" WHERE FALSE");
-        } else {
-            writer.append(" FROM VALUES ");
-            for (int r = 0; r < rows.rows().size(); r++) {
-                writer.append(r == 0 ? "(" : ", (").list(rows.rows().get(r)).append(")");
-            }
-            writer.append(" AS `t`(");
-            for (int c = 0; c < cols.size(); c++) {
-                writer.append(c > 0 ? ", `c" : "`c").append(c + "`");
-            }
-            writer.append(")");
-        }
-        RenderedStatement view = writer.statement();
-        if (!view.binds().isEmpty()) {
-            throw new DialectCapability("plan parameters " + view.binds() + " in a session table's rows: a row holds"
-                    + " values, and a DDL statement is text");
-        }
-        return List.of(view.sql());
-    }
-
     /** A pure collection holds no empties: {@code array_compact} drops the NULL elements -- not {@code filter}'s lambda,
      *  which Spark refuses around a subquery (no higher-order function's argument may hold one, measured: the mixed
      *  sort's ordered subquery under the PCT root's compaction). The same rows: a NULL list stays NULL, an empty one
@@ -974,6 +1032,19 @@ public final class Databricks extends AnsiSqlRenderer {
             SqlFn.LIST_REVERSE, SqlFn.LIST_TAIL, SqlFn.LIST_INIT, SqlFn.LIST_SLICE, SqlFn.LIST_PRODUCT, SqlFn.LIST_LENGTH,
             SqlFn.LIST_FLATTEN);
 
+    /**
+     * DuckDB's {@code timezone(zone, t)} in its two meanings ({@link #zonedInstant}), the platform's timestamps UTC
+     * instants (the session in UTC): an instant becomes the zone's wall time, {@code from_utc_timestamp}; a plain value
+     * read as a wall time in the zone becomes its instant, {@code to_utc_timestamp}. Measured on the Databricks lane
+     * (runtime 4.2.0, the orchestrator's relay of 2026-11-10 18:19 UTC; A6): equal to DuckDB's on 16 cases, and
+     * java.time's whole rule at a DST change -- a repeated hour read in its earlier offset, a missing one shifted forward.
+     */
+    private SqlWriter timezone(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        return writer.append(zonedInstant(a.get(1)) ? "from_utc_timestamp(" : "to_utc_timestamp(")
+                .expr(a.get(1), 0).append(", ").expr(a.get(0), 0).append(")");
+    }
+
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         List<SqlExpr> a = c.args();
@@ -1009,6 +1080,9 @@ public final class Databricks extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on Databricks, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached Databricks, whose binary collation is not measured");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             // Pure's divide is a Float division: both operands DOUBLE
@@ -1093,6 +1167,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case CONCAT_JOIN -> writer.append("concat_ws('', ").join(a, ", ", this::asText).append(")");
             case INT_DIVIDE -> writer.append("(").expr(a.get(0), 6).append(" div ").expr(a.get(1), 6).append(")");
             // the base spells VARCHAR, which needs a length here
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS BIGINT))");
             // floor without the BIGINT conversion (Spark's floor of a double is a BIGINT: past 2^63 it overflows)
@@ -1148,8 +1223,7 @@ public final class Databricks extends AnsiSqlRenderer {
             case DATE_AT_TIME -> throw new DialectCapability("a time of day: Databricks has no TIME type");
             // the zone's wall time of the instant t (the platform's timestamps are UTC instants): measured by the
             // PCT's format with a zone (13:07:44 UTC is 08:07:44 in EST)
-            case TIMEZONE -> writer.append("from_utc_timestamp(").expr(a.get(1), 0).append(", ").expr(a.get(0), 0)
-                    .append(")");
+            case TIMEZONE -> timezone(writer, c);
             // DuckDB's epoch(ts) is DOUBLE seconds; epoch_ms truncates toward zero
             case EPOCH_SECONDS -> writer.append("(CAST(unix_micros(").expr(a.get(0), 0).append(") AS DOUBLE) / 1000000)");
             case EPOCH_NS, FROM_EPOCH_NS -> throw new DialectCapability("a nanosecond epoch: Databricks keeps"
@@ -1463,10 +1537,22 @@ public final class Databricks extends AnsiSqlRenderer {
         return w -> w.append("CAST(").piece(body).append(" AS BIGINT)");
     }
 
-    /** The floored epoch (in microseconds per unit) of {@code to} less {@code from}'s: floor, before 1970 too. */
+    /** The floored epoch (in microseconds per unit) of {@code to} less {@code from}'s: floor, before 1970 too, in
+     *  exact BIGINT arithmetic (the audit of 862a4d02..2f164ec4, S13, 2026-11-11: Spark's {@code /} answers a DOUBLE,
+     *  exact for a microsecond epoch only to about 2255, as measured on Trino; unmeasured on Databricks itself, the
+     *  lane's). */
     private static SqlWriter.Piece epochBoundaries(SqlWriter.Piece from, SqlWriter.Piece to, long perUnit) {
-        return w -> w.append("(floor(unix_micros(CAST(").piece(to).append(" AS TIMESTAMP)) / " + perUnit
-                + ") - floor(unix_micros(CAST(").piece(from).append(" AS TIMESTAMP)) / " + perUnit + "))");
+        SqlWriter.Piece unit = w -> w.append(String.valueOf(perUnit));
+        return w -> w.append("(").piece(floorDiv(v -> v.append("unix_micros(CAST(").piece(to).append(" AS TIMESTAMP))"),
+                unit)).append(" - ").piece(floorDiv(v -> v.append("unix_micros(CAST(").piece(from)
+                .append(" AS TIMESTAMP))"), unit)).append(")");
+    }
+
+    /** {@code a} divided by the positive {@code b}, floored (before 1970 too), in BIGINT: {@code a} less its
+     *  non-negative remainder ({@code pmod}), divided exactly ({@code div}). */
+    private static SqlWriter.Piece floorDiv(SqlWriter.Piece a, SqlWriter.Piece b) {
+        return w -> w.append("((").piece(a).append(" - pmod(").piece(a).append(", ").piece(b).append(")) div ")
+                .piece(b).append(")");
     }
 
     /** DuckDB's time_bucket: fixed units binned from 1970-01-01 (weeks from the Monday 1969-12-29) in microseconds,
@@ -1478,9 +1564,11 @@ public final class Databricks extends AnsiSqlRenderer {
         SqlWriter.Piece n = w -> w.append("CAST(").expr(a.get(1), 0).append(" AS BIGINT)");
         if (micros != null) {
             long origin = unit == com.legend.sql.DatePart.WEEK ? -3L * 86400000000L : 0L;
-            return w -> w.append("timestamp_micros(CAST(floor((unix_micros(").piece(t).append(") - (" + origin
-                    + ")) / (").piece(n).append(" * " + micros + ")) AS BIGINT) * ").piece(n).append(" * " + micros
-                    + " + (" + origin + "))");
+            // exact BIGINT floor division (S13: Spark's / answers a DOUBLE)
+            SqlWriter.Piece size = w -> w.append("(").piece(n).append(" * " + micros + ")");
+            SqlWriter.Piece since = w -> w.append("(unix_micros(").piece(t).append(") - (" + origin + "))");
+            return w -> w.append("timestamp_micros(").piece(floorDiv(since, size)).append(" * ").piece(size)
+                    .append(" + (" + origin + "))");
         }
         Integer months = unit == com.legend.sql.DatePart.MONTH ? Integer.valueOf(1)
                 : unit == com.legend.sql.DatePart.YEAR ? Integer.valueOf(12) : null;

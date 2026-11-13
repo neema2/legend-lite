@@ -697,11 +697,12 @@ public final class ClassSources {
                         upstreamMapping, contextKey);
             }
             // JSON SOURCE FRAME (XStore §1): an unmapped class carried by a
-            // JsonModelConnection in the execution context realizes as a
-            // typed VALUES relation — the class declaration is the schema.
+            // JsonModelConnection in the execution context realizes as its
+            // payload's data: source relation — the class declaration is the
+            // schema.
             String jsonUrl = jsonSources.get(classFqn);
             if (jsonUrl != null) {
-                return JsonSourceFrame.sourceUrlFrame(ctx, mappingFqn, classFqn,
+                return JsonSourceFrame.frame(ctx, mappingFqn, classFqn,
                         jsonUrl);
             }
             // the recorded reason: the demanded SET's own (the per-set
@@ -959,7 +960,7 @@ public final class ClassSources {
             // SELF-SOURCED M2M whose upstream is the execution context's
             // JsonModelConnection (TradeLinkage cross-store golden): the
             // JSON frame IS the source layer — never this mapping again
-            inner = JsonSourceFrame.sourceUrlFrame(ctx, mappingFqn,
+            inner = JsonSourceFrame.frame(ctx, mappingFqn,
                     srcType.fqn(), jsonUrl);
         } else {
             String srcMapping = !selfSourced

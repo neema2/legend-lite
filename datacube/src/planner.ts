@@ -14,6 +14,7 @@ import { relationColumns, tdsColumns, type Plan, type PlanColumn } from '../../e
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
+import { fromPlan } from '../../engine-client/src/planned-sql.ts';
 
 export interface UpstreamPlannerOptions extends PureV1Options {
   /**
@@ -183,7 +184,7 @@ export class UpstreamPlanner implements Planner {
  */
 export function serverPlan(body: unknown, query: Lambda, bitColumns: ReadonlySet<string> = new Set(),
   database = 'DuckDB'): Plan {
-  return { sql: sqlNode(body, query, database), columns: tdsColumns(body, bitColumns) };
+  return { sql: fromPlan(sqlNode(body, query, database)), columns: tdsColumns(body, bitColumns) };
 }
 
 interface PlanNode {

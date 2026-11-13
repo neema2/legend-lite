@@ -680,6 +680,9 @@ public final class StoreResolver {
                             new java.util.LinkedHashSet<>(l.parameters()),
                             r -> resolveNode(r, context)), r -> resolveNode(r, context)));
             case com.legend.compiler.spec.typed.TypedFrameRef fr -> fr;   // leg 3.4 step 2: a planned frame's reference is resolved already
+            // a relation read over a reloaded slice's rows (B2d.2): its source resolved, the swap kept for the lowering
+            case com.legend.compiler.spec.typed.TypedTableSwap ts ->
+                    ts.withChildren(List.of(resolveNode(ts.source(), context)));
             // The NAMED wall: an ANCHORED variant with no arm — loud, never
             // a silent pass-through; a USER CALL wrapper names its CALLEE
             // (§8 leg 4: the census buckets by function).

@@ -87,7 +87,11 @@ public class Test_LegendLite_Postgres_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"),
             // 2026-10-20 (object identity): every object carries its __id now, so the default arm prints it (@_o1); the
             // class's own toString() qualifier is still not in the model the adapter hands over, as on the DuckDB lane
-            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'")
+            one("meta::pure::functions::string::tests::toString::testComplexClassToString_Function_1__Boolean_1_", "actual:   '@_o1'"),
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): Postgres keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "fraction digits; Postgres keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

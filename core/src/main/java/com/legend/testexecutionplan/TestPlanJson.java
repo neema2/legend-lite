@@ -31,8 +31,18 @@ public final class TestPlanJson {
      *  hole 1): an appeal's rows carry the enumerations the referee decodes; 9 (A1): an appeal names the appeal it is a
      *  second hearing of; 10 (slice 5, 2026-11-09): the target of the session the body runs on; 11 (2026-11-09, the
      *  data-in-the-plan design's L1): a program's steps in the product's format version 31 -- the load node, a file
-     *  load by its data reference. */
-    public static final int VERSION = 11;
+     *  load by its data reference; 12 (L2): the product's version 32, and the test plan's own {@code loads} section,
+     *  each load once, every target naming it by identity; 13 (2026-11-10, L5): an appeal's rows name no stores for the
+     *  harness to provide, the on-demand fixtures deleted (census M9); 14 (2026-11-11, B2a): the statements the runner
+     *  sends after the run and its appeals, {@code release}; 15 the same day (the B2a audit's S2): the release names its
+     *  target ({@code on}), the program's, where its tables were made; 16 the same day (B2b): the edge's record of a
+     *  seed is the referee's copy as a load ({@code refereeLoad}: its steps and bundle), no longer its texts; 17
+     *  (2026-11-11, the JSON pass): no {@code release} -- a body makes no {@code data:} session table to drop, its
+     *  payloads bound or inline -- and the product's version 48; 18 (2026-11-12, the C checkpoint's SHOULD-FIX 3): a
+     *  target may carry its database's settings, the product's version 49; 19 (2026-11-12, the re-audit's S8): a target
+     *  may carry its database's transaction statements, the product's version 50; 20 (2026-11-12, the user's ruling on
+     *  a snapshot's pull): the product's version 51. */
+    public static final int VERSION = 20;
 
     private TestPlanJson() {
     }
@@ -91,6 +101,8 @@ public final class TestPlanJson {
             ext.put("byVerdict", extensions(plan.extensionsByVerdict()));
             out.put("extensions", ext);
         }
+        // each load once, every target naming it by identity (the data-in-the-plan design's 2.6, L2)
+        out.put("loads", PlanJson.hoistLoads(out));
         return Json.toCompact(out);
     }
 
@@ -204,6 +216,7 @@ public final class TestPlanJson {
                     + PlanJson.VERSION + " (format " + format + ", version " + o.getIntOr("version", -1)
                     + ", product version " + o.getIntOr("productVersion", -1) + ")");
         }
+        PlanJson.inlineLoads(o, o.getArr("loads"));
         List<ExecutionPlan.Parameter> parameters = new ArrayList<>();
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(PlanJson.parameterOf((Json.Obj) n));

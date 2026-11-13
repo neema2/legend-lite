@@ -50,6 +50,12 @@ class CodeShapeGuardrailTest {
      * memo cache. Everything else must be final or become part of an
      * explicit frame object. */
     private static final Set<String> MUTABLE_FIELD_ALLOWLIST = Set.of(
+            // 2026-11-11 (B4, the audit's finding 2): one program's decision of its model's registration on the
+            // process's catalog, a latch set once by the program's planning (ProgramState.registerOnTheCatalog), and the
+            // load it decided, placed ahead of every step that reads the catalog -- one instance per program pass
+            "ProgramState.catalogRegistered", "ProgramState.registration",
+            // (2026-11-11, the JSON pass: "DataSources.home", the one body's data: tables' home database, left with the
+            // tables themselves -- a payload is its statement's own, bound or inline, and the rewrite holds no state)
             // 2026-11-09 (the user's question "why do we have any callbacks?"): the service test's answer is a receiver
             // told the answer's shape before its columns (Output.Rows), where the run called a factory of the runner's
             // until then; it holds the writer it made for that shape, set once, read by each row after
@@ -60,18 +66,29 @@ class CodeShapeGuardrailTest {
             // (a memo of a pure derivation): the typed body; the model builder's indexes; the context's two tables;
             // the C3 linearizer; a substitution's read and mentioned sets; the lexer's line and token positions
             // (benign-racy, documented at the field); the parser's non-Pure ranges; the resolver's element
-            // references and association navigators; the runner's fixtures-by-store; a mapping closure's sets
+            // references and association navigators; a mapping closure's sets (the runner's fixtures-by-store left
+            // 2026-11-10 with the on-demand fixtures it indexed: census M9)
             "TypedQuery.body", "ModelBuilder.legacySetsById", "ModelBuilder.directSubclasses", "ModelBuilder.knowledge",
             "PureModelContext.declarations", "PureModelContext.implementations", "InferenceKernel.linearizer",
             "SourceSubst.reads", "SourceSubst.mentioned", "TokenStream.lineStarts", "TokenStream.tokenPositions",
             "ElementParser.nonPureRanges", "StoreResolver.elementsRef", "AssociationJoins.navMaterializer",
-            "AssociationJoins.unionHeads", "PureTestRunner.fixturesByStore", "MappingClosures.mappings",
+            "AssociationJoins.unionHeads", "MappingClosures.mappings",
             "MappingClosures.sets", "MappingClosures.unions", "MappingClosures.inheritances", "MappingClosures.roots",
             "MappingClosures.enums", "MappingClosures.relationalSets",
             // (same date) A SESSION'S facts, learned once from its database: the decoding its driver needs (known at
-            // check), its server's version, the next query's minted stamp (one statement's); the test runner's shared
-            // session and the package it holds
-            "JdbcStatements.driver", "JdbcStatements.reserved", "ExecutionTrace.reserved", "Sessions.version",
+            // check), its server's version; the test runner's shared session and the package it holds. (The next
+            // query's minted stamp, JdbcStatements.reserved and ExecutionTrace.reserved, went with C1, 2026-11-12: the
+            // database receives exactly the plan's text, the execution id the runner's bound value.)
+            "JdbcStatements.driver", "Sessions.version",
+            // 2026-11-12, C2 (D4): the error read-back the plan's target declared when it last checked the session, a
+            // session's fact as its checked driver is -- what the seam sends after a statement, or a bracket's commit,
+            // fails on it (the charter's A3(c))
+            "SessionState.raiseReadBack",
+            // 2026-11-10, the A checkpoint's tenets audit (2): the session's checked target's connector, learned at
+            // check as the driver's decoding is, whose facts (a transaction taken, an error aborting it) a run acts on
+            "JdbcStatements.declared",
+            // 2026-11-10, the tenets audit (8): the referee's copy of a seed, written when an edge first asks, once
+            "CsvSeed.made",
             "PureTestRunner.sessionConn", "PureTestRunner.sessionPkg",
             // (same date) A FRAME'S cursor, one instance per pass and never shared: the verdict batch's open root, the
             // canon rider's wrap and its decline, the lowerer's connection time zone and id minter (set at
@@ -127,9 +144,8 @@ class CodeShapeGuardrailTest {
             // the program's step mark for the reads a callback makes (slice 5: the thread-scoped statement origin made
             // explicit) -- one program's run, set before each callback and restored after it
             "ProgramRunner.stepMark",
-            // the activity comment reserved for a body's fused statement, minted once per body at planning (slice 5:
-            // planning's own, exec's execution trace until then)
-            "ActivityComments.reserved",
+            // (ActivityComments.reserved left 2026-11-12, G10, the C checkpoint's follow-up: the reserved comment is
+            // derived from a fixed name, a constant, never minted at planning)
             // the text collector's origin in force while an arm reads its texts (slice 5: the planning-time statement
             // mark made explicit on the collector the planning environment carries)
             "SqlTextVerdicts.originInForce",
@@ -207,6 +223,15 @@ class CodeShapeGuardrailTest {
             // (track A, 2026-10-29): the sink protocol's state, as the other writers' columns are
             "ArrowWriter.encoders",
             "PureV1Writer.order", "PureV1Writer.rows",
+            // 2026-11-12 (C1's second half, the C checkpoint's code audit SHOULD-FIX 4): the execution the run names
+            // before its columns (ResultSink.execution) -- the sink protocol's state, scoped to one result's stream as
+            // the columns are; the service runner's receiver holds it until its shape makes the writer it hands it to.
+            // The same day (the exec-id item, C4): the engine's writers are MADE for their execution (the door's id,
+            // Output.writerFor), PureV1Writer's final and ArrowWriter's gone, so they left this list
+            "ServiceTestRunner.execution",
+            // the collector's, the same day (C4: PCT's plan route writes a collected relation later, through a writer
+            // whose activity names the execution the run named to the collector)
+            "Collector.execution",
             // legend-engine's PURE_TDSOBJECT writer (the doors, door 1, 2026-10-29): the same cursor shape -- its
             // columns as announced, whether the one value column is to-one, the row count for the comma and the
             // to-one refusal
@@ -308,10 +333,8 @@ class CodeShapeGuardrailTest {
             // set once by the executor before lower(), same lifecycle as
             // engineText — a flag selects an emission during the lowering
             "Lowerer.features", "Lowerer.legacyNullUnsafeEquals",
-            // Phase 2b (batch 137): the execution-trace stamp is state of the
-            // execution ENVIRONMENT (one ExecutionTrace per ExecEnv), a
-            // thread-local before
-            "ExecutionTrace.last",
+            // (ExecutionTrace.last, the execution-trace stamp's state since batch 137: DELETED with its class by C1,
+            // 2026-11-12 -- no comment is written in front of a sent statement)
             // builder-flag, same lifecycle as engineExistsJoinForm: set
             // once by the driver before lower(), read during the lowering
             "Lowerer.streamingGraphRoot",

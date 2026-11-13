@@ -3,7 +3,6 @@
 
 package com.legend.testbackend;
 
-import com.legend.exec.H2Connector;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 
 import java.net.MalformedURLException;
@@ -14,7 +13,6 @@ import java.sql.Connection;
 import java.sql.Driver;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.List;
 import java.util.Properties;
 
 /**
@@ -66,7 +64,7 @@ final class EngineH2Referee implements RefereeBackend {
         Properties credentials = new Properties();
         credentials.setProperty("user", "sa");
         credentials.setProperty("password", "");
-        Connection referee = driver().connect("jdbc:h2:mem:" + name + H2Connector.SETTINGS, credentials);
+        Connection referee = driver().connect("jdbc:h2:mem:" + name + TestBackends.h2UrlSettings(), credentials);
         if (referee == null) {
             throw new SQLException("the engine's H2 driver refused its own in-memory URL");
         }
@@ -82,18 +80,6 @@ final class EngineH2Referee implements RefereeBackend {
             throw e;
         }
         return referee;
-    }
-
-    /** The mirror sets its aside as a schema: the fixture's DDL lands there. */
-    @Override
-    public List<String> replayAside(String aside) {
-        return List.of("CREATE SCHEMA IF NOT EXISTS " + aside, "SET SCHEMA " + aside);
-    }
-
-    /** The mirror reads {@code PUBLIC} first, then the asides. */
-    @Override
-    public List<String> replayRestore(List<String> held) {
-        return List.of("SET SCHEMA PUBLIC", "SET SCHEMA_SEARCH_PATH PUBLIC, " + String.join(", ", held));
     }
 
     /** A fresh referee session: what a test reads the referee's database through. */

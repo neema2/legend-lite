@@ -2,6 +2,8 @@
 // runs in the headless lane too (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6).
 
 import { plannerFor } from './catalog-builder.ts';
+import { heldBy, isCount, SNAP_PULL } from './cube-fixture.ts';
+import type { SnapPull } from '../../engine-client/src/host-operations.ts';
 import assert from 'node:assert/strict';
 import { before, beforeEach, describe, it } from 'node:test';
 
@@ -23,6 +25,7 @@ import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: element('trades') },
@@ -71,6 +74,8 @@ class StubEngine extends FakeEngine {
 class CountingEngine extends FakeEngine {
   readonly name = 'counting';
   readonly sql: string[] = [];
+  /** The connection held for a snap's copy (its plan's statements answered as every query is). */
+  readonly exclusive = heldBy(this);
   async answer(sql: string, epoch: number): Promise<ResultTable> {
     this.sql.push(sql);
     if (/count\(\*\)/i.test(sql)) {
@@ -88,7 +93,7 @@ class CountingEngine extends FakeEngine {
 /** A planner that hands the query's JSON on as the "SQL", for engines that read it. */
 class EchoPlanner implements Planner {
   async plan(query: Lambda): Promise<Plan> {
-    return { sql: toJson(query), columns: [] };
+    return { sql: unplanned(toJson(query)), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
@@ -101,7 +106,13 @@ class StubPlanner implements Planner {
   readonly queries: Lambda[] = [];
   async plan(query: Lambda): Promise<Plan> {
     this.queries.push(query);
-    return { sql: 'SELECT 1', columns: [] };
+    // a snap's count of its pull (countQuery), which the counting engine answers
+    if (isCount(query)) return { sql: unplanned('SELECT count(*) AS value FROM trades'), columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
+  }
+  /** A snap's pull: the fixture's table (SNAP_PULL), which the copy's planner plans (snapCopy). */
+  async pullRequest(): Promise<SnapPull> {
+    return SNAP_PULL;
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
@@ -151,9 +162,11 @@ class PivotEngine extends FakeEngine {
 
 /** legend-lite's planner, which writes a snap's statements (D5): in-thread, or Python's library in the headless lane. */
 const copies = plannerFor('', '');
-// its module loaded before any test clicks Snap: a click is followed by a few ticks, not a module's load
+// its module loaded, and its first copy planned, before any test clicks Snap: a click is followed by a few ticks, not a
+// planner's load nor its first compile (2026-11-13, item 7's twin: the full gate on aa860ba38 saw "says WHEN the snapshot
+// was taken" still Live after its ticks, under load, when this warmed the module alone with a host operation)
 before(async () => {
-  await copies.hostOperations('DuckDB', []);
+  await copies.snapCopy({ databaseType: 'DuckDB', ...SNAP_PULL, table: 'warm' });
 });
 
 describe('the app', () => {
@@ -1548,11 +1561,22 @@ describe('the bar says what you are looking at, and nothing else', () => {
     root = dom.window.document.getElementById('r') as HTMLElement;
   });
 
-  /** Let the toggle's async click handler finish. */
+  /** Let the toggle's async click handler finish: a click that runs nothing (a few ticks are all it takes). */
   const flush = async (): Promise<void> => {
     for (let i = 0; i < 5; i += 1) {
       await new Promise((done) => setTimeout(done, 0));
     }
+  };
+  /**
+   * A click that snaps carried through, waited for by what it shows, bounded (5 s): the snap is planned by legend-lite's
+   * own planner, its copy's model compiled at each snap (plannerFor's cache is off), and run -- work no count of ticks
+   * bounds (2026-11-13: CI's run 43433798750 saw the toggle still Live after flush's ticks, the warm-up in).
+   */
+  const until = async (done: () => boolean, what: string): Promise<void> => {
+    for (let i = 0; i < 500 && !done(); i += 1) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
+    assert.ok(done(), `${what}, within 5 s`);
   };
 
   it('names the REPORT in the title bar', async () => {
@@ -1765,7 +1789,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     assert.match(toggle.title, /Live data/);
 
     toggle.click();
-    await flush();
+    await until(() => toggle.textContent === 'Snapped', 'the toggle says Snapped');
 
     assert.equal(toggle.textContent, 'Snapped');
     assert.match(toggle.title, /frozen at \d/);
@@ -1822,7 +1846,7 @@ describe('the bar says what you are looking at, and nothing else', () => {
     assert.match(body(), /Ran on the warehouse at wh:9 as rita/);
 
     (root.querySelector('.dc-titlebar-toggle') as HTMLButtonElement).click();
-    await flush();
+    await until(() => /^this tab's copy/.test(chip().textContent ?? ''), "the receipt says this tab's copy");
     assert.match(chip().textContent ?? '', /^this tab's copy/);
     assert.match(body(), /Read from the snap copied into this tab/);
   });

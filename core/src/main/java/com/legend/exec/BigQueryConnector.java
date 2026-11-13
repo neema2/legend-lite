@@ -37,10 +37,16 @@ final class BigQueryConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code BigQuery}'s errors carry their raise. */
+    /** {@inheritDoc} No: BigQuery holds no transaction the platform opens across statements (none is kept in a turn). */
     @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
     }
 
     /** {@inheritDoc} The dialect's {@code dropsDecimalTrailingZeros} until D72 (2026-10-30), carried: The driver hands an ARRAY as a java.sql.Array and a STRUCT as a java.sql.Struct (measured:

@@ -34,7 +34,8 @@ import { chromeIcon } from '../ui/tile-icons.ts';
 import { SheetTabs } from '../ui/sheet-tabs.ts';
 import type { MenuGroup, MenuItem } from '../ui/menu.ts';
 import {
-  boxCubes, cubesHeld, filtersFor, keptFor, layoutTiles, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf, type PageDocument,
+  boxCubes, cubesHeld, filtersFor, freshLinksWarning, keptFor, layoutTiles, newPage, NOTHING_TO_SAVE, pageFile, sheetLabel, writePageOf,
+  type PageDocument,
   type PageView,
   type PageViews,
 } from '../page-document.ts';
@@ -159,6 +160,8 @@ export interface PageAppOptions {
   readonly pageNow?: (name: string) => PageDocument | undefined;
   /** Say a refusal to the person (the host's way: a page of its own alerts). */
   readonly refuse?: (text: string) => void;
+  /** Say a warning to the person: a page file written without a remote file's link's query string (pageFile). */
+  readonly warn?: (text: string) => void;
   /** The grids of `cubes` opened together for a timeseries series that combines them (page/cube-page.ts
    *  CubePageOptions.together): where the page plans and runs its own SQL. */
   readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
@@ -1737,6 +1740,8 @@ export class PageApp {
           return;
         }
         this.#options.download?.(`${made.name}.page.json`, 'application/json', made.file);
+        const warning = freshLinksWarning(made.freshLinks);
+        if (warning) this.#options.warn?.(warning);
         return;
       }
       case 'view.settings': {

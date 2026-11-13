@@ -74,16 +74,15 @@ final class TestKinds implements ProgramKinds {
     /** Each effect step this program planned, its segment and ledger texts beside it (M5): beside the plan, never in
      *  it. */
     private final Map<ExecutionPlan.Node, TestDoor.Effect> effects = new IdentityHashMap<>();
-    /** Each seed step this program planned, its statements' ledger texts beside it (M5). */
-    private final Map<ExecutionPlan.Node, List<String>> seeds = new IdentityHashMap<>();
-    /** The places in the program's sequence of the frame lets' eager-run steps this program planned (M9): the walk
-     *  sends a frame's run under its own statement origin (LET), which the plan does not say; the router's sink names
-     *  it to the runner. By place, not identity: the finished plan rebuilds a check whose stamp nothing reads. */
-    private final Set<Integer> frameRuns = new java.util.TreeSet<>();
+    /** Each seed step this program planned, the referee's copy of its load beside it (M5; a load since B2b). */
+    // each load's referee texts, made only when an edge asks for them (the M1 tenets audit's finding 8, 2026-11-09: a
+    // file's rows were rendered as the referee's insert for every plan, with no edge too)
+    private final Map<ExecutionPlan.Node, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds =
+            new IdentityHashMap<>();
     /** The seed sources placed since the program's last write. */
     private final Set<Seeds.Sources> established = new HashSet<>();
     /** The seeds' steps, generated once per sources value. */
-    private final Map<Seeds.Sources, List<CsvSeed.Planned>> generated =
+    private final Map<Seeds.Sources, CsvSeed.Planned> generated =
             new HashMap<>();
 
     /** The body's asserts, as its judge planned them (M6). */
@@ -112,8 +111,7 @@ final class TestKinds implements ProgramKinds {
                 || BodyClass.storesOf(statement, body, index) != BodyClass.Stores.SYSTEM) {
             return null;
         }
-        return com.legend.planner.PlanMaker.systemBeside(program.target(),
-                com.legend.planner.SystemRoutes.graphKey(body.context()));
+        return com.legend.planner.PlanMaker.systemBeside(program.target(), body.context());
     }
 
     /** The statements of the asserts' steps, as their judge planned them before the program (the statements' in
@@ -211,6 +209,9 @@ final class TestKinds implements ProgramKinds {
             case LET_EXECUTE -> "M9 (an execute(...) whose result is the value asked for)";
             case ASSERT -> "M6-M8: an assert its judge planned no verdict step for";
             case ASSERT_ERROR -> "M9, T10";
+            // asked at the product's door alone (QueryDoor.Scan.refusedByTheProduct): never in kinds
+            case RAW_SQL -> throw new IllegalStateException("a statement's own SQL is no test-only kind the test"
+                    + " door's scan reads");
         };
         throw new NotImplementedException(kind.what() + " on the test door's program road: not"
                 + " planned yet (the test-is-the-product plan's " + step + ")");
@@ -246,8 +247,10 @@ final class TestKinds implements ProgramKinds {
         String stamp = minted != null ? frames.adoptStamp(minted) : frames.newStamp();
         PlanAllocations.registerActivityRows(fc.source(), fc.chain(), program.lets(), query.specs(), null, stamp, env);
         if (!lazy) {
-            frameRuns.add(program.size());
-            program.add(eagerRun(program, index, fc, stamp));
+            // planned before it is placed: the data: tables its statement reads are placed ahead of it (B2a); marked as
+            // a frame run where it is placed (the second audit's S7: a place shifted by what is placed ahead of it)
+            ExecutionPlan.Check run = eagerRun(program, index, fc, stamp);
+            program.addFrameRun(run);
         }
         // a frame the database judge does not run at its let but a CHECK reads (a println: a statement that is no
         // assert, 2026-11-06): registered for its readers as the host road's frames are, LAZY -- the check's own
@@ -259,8 +262,8 @@ final class TestKinds implements ProgramKinds {
                 lazy ? stamp : null));
     }
 
-    /** The bytes the test-input resource {@code path} names (a Pure resource path: its leading {@code /} the
-     *  resources' root) and their reference, read once at planning for the digest; refused by name where the run was
+    /** The reference of the test-input resource {@code path} names (a Pure resource path: its leading {@code /} the
+     *  resources' root), its bytes read once at planning for the digest; refused by name where the run was
      *  given no store for resources or the file is missing (before anything is sent). */
     private Resource resource(String path) {
         String name = path.startsWith("/") ? path.substring(1) : path;
@@ -270,13 +273,20 @@ final class TestKinds implements ProgramKinds {
         } catch (IllegalStateException | java.io.UncheckedIOException e) {
             throw new com.legend.error.DataError("test resource '" + path + "': " + e.getMessage(), e);
         }
+        try {
+            // upstream's size limit, refused where the file is read for its digest (D-b, 2026-11-09)
+            com.legend.base.DataSize.requireSize(path, bytes, EffectPlanner.SIZE_LIMIT_MEGABYTES);
+        } catch (com.legend.base.DataSize.TooLarge e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
         return new Resource(new com.legend.executionplan.DataRef(com.legend.executionplan.DataRef.Namespace.RESOURCE,
                 name, com.legend.executionplan.DataStores.sha256(bytes), bytes.length,
-                com.legend.executionplan.DataRef.Format.CSV), bytes);
+                com.legend.executionplan.DataRef.Csv.DEFAULT));
     }
 
-    /** A resource's reference and the bytes it digests. */
-    private record Resource(com.legend.executionplan.DataRef ref, byte[] bytes) {
+    /** A resource's reference: the bytes it digests are read by the run, verified there (B2b: the referee's copy is
+     *  the same file, so the planner keeps none of them). */
+    private record Resource(com.legend.executionplan.DataRef ref) {
     }
 
     /** Each {@code size(execute(...))} in {@code statement} (BodyClass.eagerInlineExecute): the execute's query run
@@ -374,9 +384,10 @@ final class TestKinds implements ProgramKinds {
         if (sources.namesNothing() || !established.add(sources)) {
             return;
         }
-        List<CsvSeed.Planned> planned = generated.computeIfAbsent(sources,
-                s -> Seeds.planned(statement, program.runtime(), ctx, program.dialect()));
-        if (planned.isEmpty()) {
+        CsvSeed.Planned planned = generated.computeIfAbsent(sources,
+                s -> com.legend.planner.LoadPlanner.seeds(statement, program.runtime(), ctx, program.dialect(),
+                        com.legend.database.Databases.dialect(com.legend.database.Databases.REPLAY_REFEREE)));
+        if (planned.steps().isEmpty()) {
             return;
         }
         if (!script.isEmpty()) {
@@ -387,11 +398,12 @@ final class TestKinds implements ProgramKinds {
                     + " follows another, and its sources name test data): their order against the run's script is"
                     + " not designed");
         }
-        List<ExecutionPlan.LoadStep> steps = planned.stream().map(CsvSeed.Planned::step).toList();
-        ExecutionPlan.Load setup = new ExecutionPlan.Load(Seeds.key(steps), ExecutionPlan.Load.Cadence.BEFORE_STEP,
-                steps, program.target());
+        ExecutionPlan.Load setup = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.BEFORE_STEP,
+                planned.steps(), program.target());
         program.add(setup);
-        seeds.put(setup, planned.stream().map(CsvSeed.Planned::text).toList());
+        // the referee's own copy, written in its dialect (A2), the edge's data -- when an edge asks for it (the A
+        // checkpoint's tenets audit, 8)
+        seeds.put(setup, planned::refereeLoad);
     }
 
     /** The effect {@code statement}'s statements added to the open script; the script closed and the effect's answer
@@ -465,6 +477,9 @@ final class TestKinds implements ProgramKinds {
                 load(program, e, resource(values.get(0)));
                 continue;
             }
+            // a seed form's statements are the effect script's, the author's statements beside executeInDb, never a
+            // load (B1, 2026-11-11, census M7-seed STAYING: as a load they lost the script's transaction bracket and
+            // abort, its ledger on failure and the B8 refusal -- the M1 correctness audit's C3, 2026-11-09)
             script.addAll(EffectPlanner.statements(e.call(), values, e.body(),
                     e.env().withDialect(program.dialect())));
         }
@@ -485,35 +500,22 @@ final class TestKinds implements ProgramKinds {
         return Collections.unmodifiableMap(effects);
     }
 
-    /** The seed steps this program planned, each with its statements' ledger texts. */
-    Map<ExecutionPlan.Node, List<String>> seeds() {
+    /** The seed steps this program planned, each with the referee's copy of its load (B2b). */
+    Map<ExecutionPlan.Node, java.util.function.Supplier<com.legend.setup.LoadSteps>> seeds() {
         return Collections.unmodifiableMap(seeds);
     }
 
-    /** The places of the frame lets' eager-run steps this program planned (M9). */
-    Set<Integer> frameRuns() {
-        return Collections.unmodifiableSet(frameRuns);
-    }
-
     /** A CSV file's load {@code e}, placed after the open script as a load of its own, run every time it is reached
-     *  ({@code AT_STEP}), the referee's copy of its rows beside it as a seed's; a file of no row loads nothing and
-     *  places nothing. Its identity: the file's digest and the statement it is delivered by. */
+     *  ({@code AT_STEP}), the referee's copy of its rows beside it as a seed's (a file of no row: the database reads
+     *  none). Its identity: the file's digest and the statements it is delivered by. */
     private void load(ProgramState program, Prepared.Effect e, Resource resource) {
-        EffectPlanner.PlannedLoad planned = EffectPlanner.loadCsv(e.call(), resource.ref(), resource.bytes(),
+        EffectPlanner.PlannedLoad planned = EffectPlanner.loadCsv(e.call(), resource.ref(),
                 e.body(), e.env().withDialect(program.dialect()));
         close(program);
-        if (planned == null) {
-            return;
-        }
-        String delivered = switch (planned.step().delivery()) {
-            case ExecutionPlan.LoadStep.Delivery.DatabaseReads r -> r.sql();
-            case ExecutionPlan.LoadStep.Delivery.Streamed st -> st.insert();
-        };
-        ExecutionPlan.Load load = new ExecutionPlan.Load(com.legend.executionplan.DataStores.sha256(
-                (resource.ref().digest() + "\n" + delivered).getBytes(java.nio.charset.StandardCharsets.UTF_8)),
-                ExecutionPlan.Load.Cadence.AT_STEP, List.of(planned.step()), program.target());
+        ExecutionPlan.Load load = com.legend.planner.LoadPlanner.load(ExecutionPlan.Load.Cadence.AT_STEP,
+                List.of(planned.step()), program.target());
         program.add(load);
-        seeds.put(load, List.of(planned.recorded()));
+        seeds.put(load, () -> com.legend.setup.LoadSteps.of(List.of(planned.referee().get())));
     }
 
     /** The open script, if any, placed as one effect step, its segment (the walk's: the body's statements it holds)

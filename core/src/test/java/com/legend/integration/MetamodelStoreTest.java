@@ -115,6 +115,26 @@ class MetamodelStoreTest {
     }
 
     @Test
+    @DisplayName("a model's registration leaves with its run -- the catalog keeps the platform's rows alone (L4b)")
+    void aModelsRowsLeaveWithItsRun() throws SQLException {
+        // the process's catalog is made once with the platform's rows; each run registers its model's own in a
+        // transaction rolled back when the run ends (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.5): a model run after
+        // another sees none of the other's classes, and a model run twice sees its own once
+        String trade = MODEL + "Class test::Trade { id: Integer[1]; }\n";
+        String count = METACLASS + ".all()->filter(c | $c.name == 'Trade')->size()";
+        var withTrade = Program.last(StorelessRuntime.with(trade, LaneFloor.backend().type()), count,
+                StorelessRuntime.RUNTIME, connection);
+        assertEquals(1L, ((Number) withTrade.one()).longValue());
+        var after = run(count);
+        assertEquals(0L, ((Number) after.one()).longValue(), "the other model's class was rolled back with its run");
+        var again = Program.last(StorelessRuntime.with(trade, LaneFloor.backend().type()), count,
+                StorelessRuntime.RUNTIME, connection);
+        assertEquals(1L, ((Number) again.one()).longValue(), "registered once more, never twice");
+        var platform = run(METACLASS + ".all()->filter(c | $c.name == 'Any')->size()");
+        assertEquals(1L, ((Number) platform.one()).longValue(), "the platform's rows stay, once");
+    }
+
+    @Test
     @DisplayName("mixed chain (tracked + user getAll) keeps the wall")
     void mixedChainKeepsTheWall() {
         var ex = org.junit.jupiter.api.Assertions.assertThrows(

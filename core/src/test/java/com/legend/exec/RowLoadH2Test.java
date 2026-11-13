@@ -73,12 +73,10 @@ class RowLoadH2Test {
         // runtime declares -- the server opens one for it (ConnectionResolver) -- which takes the insert
         // text; DuckDB's bulk path is systemSeedIsBulk's
         try (Connection c = TestBackends.of(DatabaseType.H2).open()) {
-            long before = Census.count(Census.Key.BULK_LOADS);
             var r = Lean.established(model, "|x::Firm.all()->project(~[name: f|$f.name,"
                     + " since: f|$f.since, size: f|$f.size])->sort(~name->ascending())", "x::RT", c);
             assertEquals(List.of("Acme|2020-01-02|10", "O'Brien|null|null"), r.rows().stream()
                     .map(row -> row.get(0) + "|" + row.get(1) + "|" + row.get(2)).toList());
-            assertEquals(before, Census.count(Census.Key.BULK_LOADS), "H2 has no bulk loader");
         }
     }
 
@@ -90,17 +88,17 @@ class RowLoadH2Test {
                 st.execute("CREATE SCHEMA s");
                 st.execute(DDL);
             }
-            long before = Census.count(Census.Key.BULK_LOADS);
             // the one INSERT the plan side writes for a database with no bulk loader, run by the plan runner (the
             // doors, 2026-10-29; SetupRunner's load until then)
             RowLoad load = new RowLoad("s", "t", com.legend.sql.NameQuoting.BARE, List.of("i", "v"), java.util.Set.of(), 2, List.of(List.of("1", "a")));
-            PlanRunner.setUp(List.of(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(
+            PlanRunner.establish(com.legend.planner.LoadPlanner.load(
+                    com.legend.executionplan.ExecutionPlan.Load.Cadence.PER_ACQUISITION,
+                    List.of(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(
                     new com.legend.sql.dialect.H2().render(load.values()))),
                     new com.legend.executionplan.ExecutionPlan.Target(
                             new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(DatabaseType.H2), null),
-                            List.of(), List.of()),
-                    PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), null);
-            assertEquals(before, Census.count(Census.Key.BULK_LOADS));
+                            List.of(), List.of(), null, com.legend.testbackend.TestBackends.settings(DatabaseType.H2), null)),
+                    PlanSessions.of(com.legend.testbackend.TestSessions.over(c)));
             assertEquals(List.of("1|a|null|null|null|null|null"), contents(c));
         }
     }

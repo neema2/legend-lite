@@ -22,7 +22,7 @@ public final class EdgeCodec implements ExtensionCodec {
     private static final String TAG = "_type";
 
     /** The tags of the edge's records, one spelling for the writer and the reader. */
-    private enum Tag { effectTexts, seedTexts }
+    private enum Tag { effectTexts, refereeLoad }
 
     @Override
     public @Nullable Map<String, Object> write(Extension e) {
@@ -39,9 +39,15 @@ public final class EdgeCodec implements ExtensionCodec {
                 }
                 o.put("statements", statements);
             }
-            case SeedTexts t -> {
-                o.put(TAG, Tag.seedTexts.name());
-                o.put("texts", t.texts());
+            case RefereeLoad r -> {
+                o.put(TAG, Tag.refereeLoad.name());
+                List<Object> steps = new ArrayList<>(r.steps().size());
+                for (com.legend.executionplan.ExecutionPlan.LoadStep step : r.steps()) {
+                    steps.add(com.legend.executionplan.PlanJson.loadStepJson(step));
+                }
+                o.put("steps", steps);
+                // the bundle inline, sorted by digest: the edge's data, one blob of inserts per table
+                o.put("content", new java.util.TreeMap<String, Object>(r.content()));
             }
             default -> {
                 return null;   // another codec's record
@@ -70,7 +76,14 @@ public final class EdgeCodec implements ExtensionCodec {
                 }
                 yield new EffectTexts(statements);
             }
-            case seedTexts -> new SeedTexts(o.getStringArray("texts"));
+            case refereeLoad -> {
+                List<com.legend.executionplan.ExecutionPlan.LoadStep> steps = new ArrayList<>();
+                for (Json.Node n : o.getArr("steps").items()) {
+                    steps.add(com.legend.executionplan.PlanJson.loadStepOf((Json.Obj) n));
+                }
+                yield new RefereeLoad(steps, com.legend.executionplan.PlanJson.contentOf(o.getObj("content"),
+                        "the referee's copy of a load"));
+            }
         };
     }
 }

@@ -39,12 +39,16 @@ public class Test_LegendLite_BigQuery_GrammarFunctions_PCT extends PCTReportConf
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // HARNESS SERIALIZATION LOSS (as on DuckDB): the captured $address never reaches the serialized text
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // NOTE 2026-10-21 (the plan route on BigQuery, measured by the BigQuery lane session at 6c8de4e and
             // edb7e12b against the merge-base 59b547a5e, where every pin here held): eq's and equal's
             // testEqNonPrimitive and testEqPrimitiveExtension pass (object identity), and testDateCompare (the plan
             // compares in the database, whose 10999 is no date-time it builds), their pins removed;
             // testMapRelationshipFromOneToOne pins the class, as on every lane
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): BigQuery keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

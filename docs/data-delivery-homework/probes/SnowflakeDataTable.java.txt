@@ -1,0 +1,79 @@
+// The data: session-table probe for Snowflake (B, the orchestrator's item (b) of 2026-11-11; to be run by the Snowflake lane's
+// session at the B checkpoint's lane round). Usage: java -cp <the Snowflake JDBC driver>:. SnowflakeDataTableProbe '<jdbc url>' [user] [password]
+// What it asks, in order, each answer printed (a refusal printed, never hidden):
+//   1. a USER's permanent table of the session table's name, holding the user's row;
+//   2. the session table made as lite would make it (below), two records filled -- a quote and a line break in their
+//      JSON text -- and read back ordered by their place;
+//   3. the session table dropped as lite would drop it, then the user's table read: its row must be there;
+//   4. the drop run again where the session holds no table of the name: it must raise nothing and drop nothing of
+//      the user's; and a second connection must not see the session's table while it lives.
+// The SQL is the candidate spelling, written from the database's documentation, NOT measured: the probe's output
+// decides SqlDialect.dataTable for Snowflake, or its refusal by name (a register row).
+// Snowflake's TEMPORARY table shadows a permanent one of the name; its drop drops the temporary first -- and, where the session holds none, the PERMANENT one: step 4 shows it, and if so this spelling is unsafe and the dialect needs a name no user holds or a refusal.
+// THE LANE'S ANSWER (the Snowflake lane at 5fe98b92, relayed by the orchestrator, 2026-11-11): CREATE TEMPORARY TABLE
+// works and is private, but NO DROP OF IT IS SAFE: DROP TABLE IF EXISTS drops the temporary table where it exists and
+// otherwise the user's PERMANENT table of the name (measured: it dropped one); DROP TEMPORARY TABLE is a syntax error;
+// and a temporary table shadows the user's for the rest of a pooled session. So Snowflake takes the payload as the
+// statement's own rows (INLINE), the lane's form (a), lite's Snowflake.valuesSource:
+//   SELECT PARSE_JSON(column1) AS data, column2 AS u_frame_ord__ FROM VALUES ('{"t":"it''s"}', 0), ('{"t":"a\\nb"}', 1)
+// keeps the quote, the line break and the order; FROM VALUES (NULL::STRING, 0) WHERE FALSE is no row.
+import java.sql.*;
+
+public class SnowflakeDataTableProbe {
+    static final String USER_TABLE = "CREATE TABLE legend_data_probe (data STRING)";
+    static final String[] MAKE = new String[] {"CREATE TEMPORARY TABLE IF NOT EXISTS legend_data_probe (data VARIANT, u_frame_ord__ INTEGER)", "DELETE FROM legend_data_probe"};
+    static final String[] INSERT = new String[] {"INSERT INTO legend_data_probe SELECT PARSE_JSON('{\"t\":\"it''s\"}'), 0 UNION ALL SELECT PARSE_JSON('{\"t\":\"a\\\\nb\"}'), 1"};
+    static final String READ = "SELECT data, u_frame_ord__, data:t::STRING FROM legend_data_probe ORDER BY u_frame_ord__";
+    static final String DROP = "DROP TABLE IF EXISTS legend_data_probe";
+
+    public static void main(String[] a) throws Exception {
+        try (Connection c = a.length > 1 ? DriverManager.getConnection(a[0], a[1], a.length > 2 ? a[2] : null)
+                : DriverManager.getConnection(a[0]); Statement s = c.createStatement()) {
+            step("1 the user's table", s, USER_TABLE);
+            step("1 the user's row", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "INSERT INTO legend_lite_probe.legend_data_probe VALUES ('the user''s row')"
+                    : "INSERT INTO legend_data_probe VALUES ('the user''s row')");
+            for (String m : MAKE) step("2 make", s, m);
+            for (String i : INSERT) step("2 fill", s, i);
+            query("2 read", s, READ);
+            try (Connection other = a.length > 1 ? DriverManager.getConnection(a[0], a[1], a.length > 2 ? a[2] : null)
+                    : DriverManager.getConnection(a[0]); Statement o = other.createStatement()) {
+                query("4 another connection reads it (must be refused)", o, READ);
+            }
+            step("3 drop", s, DROP);
+            query("3 the user's table", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "SELECT data FROM legend_lite_probe.legend_data_probe" : "SELECT data FROM legend_data_probe");
+            step("4 drop again (the session holds none)", s, DROP);
+            query("4 the user's table again", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "SELECT data FROM legend_lite_probe.legend_data_probe" : "SELECT data FROM legend_data_probe");
+        }
+    }
+
+    static void step(String what, Statement s, String sql) {
+        try {
+            s.execute(sql);
+            System.out.println(what + " :: ok :: " + sql);
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + e.getMessage().split("\n")[0] + " :: " + sql);
+        }
+    }
+
+    static void query(String what, Statement s, String sql) {
+        try (ResultSet r = s.executeQuery(sql)) {
+            StringBuilder rows = new StringBuilder();
+            int n = r.getMetaData().getColumnCount();
+            while (r.next()) {
+                rows.append('[');
+                for (int i = 1; i <= n; i++) {
+                    rows.append(i > 1 ? " | " : "").append(r.getString(i));
+                }
+                rows.append(']');
+            }
+            System.out.println(what + " :: " + rows);
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + e.getMessage().split("\n")[0]);
+        }
+    }
+}
+
+// NOT MEASURED: no Snowflake account in this session; the lane session runs it at the B checkpoint's lane round.

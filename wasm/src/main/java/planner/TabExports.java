@@ -114,10 +114,49 @@ public final class TabExports {
 
     // ---- a model's data and its tables
 
-    /** {@link Boundary#testDataSql}. */
+    /** {@link Boundary#fileLoad}: a host's own file read into its database, as a plan (B3). */
     @JSExport
-    public static String testDataSqlOrError(String model, String database, String tablesJson) {
-        return Folded.of(() -> Boundary.testDataSql(model, database, tablesJson));
+    public static String fileLoadOrError(String request) {
+        return Folded.of(() -> Boundary.fileLoad(request));
+    }
+
+    /** {@link Boundary#remoteMount}: a remote file mounted, as a plan (B3's Q3). */
+    @JSExport
+    public static String remoteMountOrError(String request) {
+        return Folded.of(() -> Boundary.remoteMount(request));
+    }
+
+    /** {@link Boundary#snapStream}: a snapshot from a remote plane, as a plan (the user's ruling of 2026-11-11) -- its
+     *  request the pull, planned in this call, never a statement (the user's ruling of 2026-11-12). */
+    @JSExport
+    public static String snapStreamOrError(String request) {
+        return Folded.of(() -> Boundary.snapStream(request));
+    }
+
+    /** {@link Boundary#snapCopy}: a snapshot's copy into the tab's own database, as one plan (the final audit's 1(b),
+     *  2026-11-12) -- its request the pull, planned in this call, never a statement. */
+    @JSExport
+    public static String snapCopyOrError(String request) {
+        return Folded.of(() -> Boundary.snapCopy(request));
+    }
+
+    /** {@link Boundary#outputPlan}: a DataCube table Output as one plan (the final audit's item 2, 2026-11-12) -- the
+     *  table made before the write where the Output makes it, its write, one transaction. */
+    @JSExport
+    public static String outputPlanOrError(String request) {
+        return Folded.of(() -> Boundary.outputPlan(request));
+    }
+
+    /** {@link Boundary#authored}: a statement a person wrote, as a plan (Studio's SQL playground, 2026-11-12). */
+    @JSExport
+    public static String authoredOrError(String request) {
+        return Folded.of(() -> Boundary.authored(request));
+    }
+
+    /** {@link Boundary#synthesize}: rows the database generates into a declared table, as a plan (SYNTHESIZE). */
+    @JSExport
+    public static String synthesizeOrError(String request) {
+        return Folded.of(() -> Boundary.synthesize(request));
     }
 
     /** {@link Boundary#databaseFromCatalog}. */

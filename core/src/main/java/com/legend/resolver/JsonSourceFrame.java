@@ -13,33 +13,34 @@ import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedCString;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPropertyAccess;
+import com.legend.compiler.spec.typed.TypedSourceUrl;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.compiler.spec.typed.TypedTds;
 import com.legend.compiler.spec.typed.TypedVariable;
 import com.legend.error.NotImplementedException;
 
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
  * THE JSON SOURCE FRAME (XStore leg §1, re-platformed by JAVA_EVICTION_PLAN
- * E3): a {@code JsonModelConnection(class=C, url='data:application/json,…')}
- * realizes as a one-Variant-column VALUES relation — one row per payload
- * object, each cell the object's RAW JSON TEXT. Java only does SCISSORS:
- * {@link #objectTexts} cuts the payload into per-object spans lexically
- * (a string-aware brace scan — no JSON value ever materializes in Java);
- * the DATABASE does all reading (every property binds as a typed variant
- * extraction over the {@code data} cell: registered {@code get} + the
- * {@code to(@T)} cast + {@code toOne}). The CLASS DECLARATION is the
- * schema (model-driven DDL discipline); class-typed properties contribute
- * nothing (reads through them keep their own walls).
+ * E3; onto the load by B2a, 2026-11-11, docs/DATA_DELIVERY_DESIGN_2026_11_10.md
+ * §5): a {@code JsonModelConnection(class=C, url='data:application/json,…')}
+ * realizes as the payload's {@code data:} source relation -- one row per
+ * record holding its raw JSON text and its place ({@link TypedSourceUrl#ORDINAL});
+ * the planner cuts the payload into its records and its database's dialect
+ * reads them in the statement itself, one bound parameter or its own rows
+ * ({@code planner.DataSources}; the JSON pass, 2026-11-11). The DATABASE does all
+ * reading (every property binds as a typed variant extraction over the
+ * {@code data} cell: registered {@code get} + the {@code to(@T)} cast +
+ * {@code toOne}). The CLASS DECLARATION is the schema (model-driven DDL
+ * discipline); class-typed properties contribute nothing (reads through them
+ * keep their own walls).
  */
 final class JsonSourceFrame {
 
-    /** The hidden VALUES row-identity column (never a binding). */
-    static final String FRAME_ORDINAL = "u_frame_ord__";
+    /** The hidden row-identity column (never a binding). */
+    static final String FRAME_ORDINAL = com.legend.compiler.spec.typed.TypedSourceUrl.ORDINAL;
 
     private JsonSourceFrame() {
     }
@@ -73,76 +74,10 @@ final class JsonSourceFrame {
         return out;
     }
 
-    /** The payload cut into per-object TEXT spans, LEXICALLY (no JSON
-     * value ever materializes in Java — the DB parses the cells): an
-     * array yields its top-level objects; a single object yields itself;
-     * the engine's concatenated row-stream spelling ({@code {..}{..}} /
-     * newline-separated) yields one span per object. A string-aware
-     * top-level brace scan, loud on anything else. */
-    static List<String> objectTexts(String payload, String classFqn) {
-        String t = payload.strip();
-        List<String> out = new ArrayList<>();
-        if (t.isEmpty()) {
-            return out;         // an empty payload is a zero-row frame
-        }
-        boolean array = t.startsWith("[");
-        String body = t;
-        if (array) {
-            if (!t.endsWith("]")) {
-                throw new NotImplementedException("JSON source for '"
-                        + classFqn + "' carries an unterminated array");
-            }
-            body = t.substring(1, t.length() - 1);
-        }
-        int i = 0;
-        int n = body.length();
-        while (i < n) {
-            char ch = body.charAt(i);
-            if (Character.isWhitespace(ch) || (array && ch == ',')) {
-                i++;
-                continue;       // inter-object gap (stream or array form)
-            }
-            if (ch != '{') {
-                throw new NotImplementedException("JSON source for '"
-                        + classFqn + "' is neither an object nor an array"
-                        + " of objects");
-            }
-            int start = i;
-            int depth = 0;
-            boolean inString = false;
-            boolean escaped = false;
-            for (; i < n; i++) {
-                char c = body.charAt(i);
-                if (inString) {
-                    if (escaped) {
-                        escaped = false;
-                    } else if (c == '\\') {
-                        escaped = true;
-                    } else if (c == '"') {
-                        inString = false;
-                    }
-                } else if (c == '"') {
-                    inString = true;
-                } else if (c == '{') {
-                    depth++;
-                } else if (c == '}') {
-                    depth--;
-                    if (depth == 0) {
-                        i++;
-                        break;
-                    }
-                }
-            }
-            if (depth != 0 || inString) {
-                throw new NotImplementedException("JSON source for '"
-                        + classFqn + "' carries a truncated object stream");
-            }
-            out.add(body.substring(start, i));
-        }
-        return out;
-    }
-
-    static ClassSource sourceUrlFrame(ModelContext ctx, String mappingFqn,
+    /** {@code classFqn}'s frame over the JSON connection's {@code url}: the
+     *  payload's {@code data:} source relation, each class property a typed
+     *  read of a record's {@code data} cell. */
+    static ClassSource frame(ModelContext ctx, String mappingFqn,
             String classFqn, String url) {
         String prefix = "data:application/json,";
         if (!url.startsWith(prefix)) {
@@ -150,8 +85,6 @@ final class JsonSourceFrame {
                     + classFqn + "' is not a data:application/json literal —"
                     + " remote/parameterized sources are not supported yet");
         }
-        List<String> objects = objectTexts(url.substring(prefix.length()),
-                classFqn);
         var cls = ctx.findClass(classFqn).orElseThrow(() ->
                 new IllegalStateException("resolver bug: JSON-sourced class '"
                         + classFqn + "' unknown to the model"));
@@ -159,25 +92,19 @@ final class JsonSourceFrame {
                 com.legend.compiler.element.type.PlatformTypes.VARIANT);
         var one = Multiplicity.Bounded.ONE;
         var zeroOne = Multiplicity.Bounded.ZERO_ONE;
-        // one Variant cell per row: the object's RAW TEXT, quote-wrapped
-        // for the grid (Scalars.tdsCell's variant arm strips one outer
-        // quote pair and emits CAST('…' AS JSON) — the DB parses); plus
-        // the HIDDEN ROW ORDINAL, the VALUES row identity: two sets
-        // composed over the SAME frame correlate on it (mixed-union
-        // per-member children, XSTORE_LEG design). Not a class property:
-        // excluded from bindings, so no serialize leaf or query read
-        // ever sees it.
-        List<List<String>> rows = new ArrayList<>(objects.size());
-        for (int i = 0; i < objects.size(); i++) {
-            rows.add(List.of("\"" + objects.get(i) + "\"",
-                    String.valueOf(i)));
-        }
+        // one row per record: its RAW TEXT, a Variant cell the database parses,
+        // and the HIDDEN ROW ORDINAL, its place in the payload: two sets
+        // composed over the SAME frame read one table and correlate on it
+        // (mixed-union per-member children, XSTORE_LEG design). Not a class
+        // property: excluded from bindings, so no serialize leaf or query
+        // read ever sees it. The payload's records are the planner's cut
+        // (DataSources), loaded by the plan: never rows in the statement.
         Type.RelationType rowType = new Type.RelationType(List.of(
                 new Type.Column("data", variant, one),
                 new Type.Column(FRAME_ORDINAL, Type.Primitive.INTEGER, one)));
         ExprType rowInfo = new ExprType(rowType, one);
-        TypedSpec pipeline = new TypedTds(rows,
-                new ExprType(Type.relation(rowType), one));
+        TypedSpec pipeline = new TypedSourceUrl(url,
+                new ExprType(Type.relation(rowType), one), true);
         String rowVar = "src_json";
         TypedSpec data = new TypedPropertyAccess(
                 new TypedVariable(rowVar, rowInfo), "data",

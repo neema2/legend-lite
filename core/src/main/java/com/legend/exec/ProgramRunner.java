@@ -82,9 +82,11 @@ public final class ProgramRunner {
         void step(int id, OpenProgram open) throws IOException;
     }
 
-    /** A savepoint's three statements, as the dialect spells them: set before a statement whose failure the program
-     *  survives, rolled back to where it fails, released where it does not. */
-    public record Savepoint(String set, String rollbackTo, String release) {
+    /** A savepoint's three statements, as the dialect spells them and the test plan carries them (each a
+     *  {@link com.legend.executionplan.PlannedSql}: the plan's text, never the runner's): set before a statement whose
+     *  failure the program survives, rolled back to where it fails, released where it does not. */
+    public record Savepoint(com.legend.executionplan.PlannedSql set, com.legend.executionplan.PlannedSql rollbackTo,
+            com.legend.executionplan.PlannedSql release) {
         public Savepoint {
             Objects.requireNonNull(set, "set");
             Objects.requireNonNull(rollbackTo, "rollbackTo");
@@ -144,19 +146,32 @@ public final class ProgramRunner {
      * Runs {@code program}: its steps in order on one session, in one transaction where one changes the database (a
      * keyed step's or a declared keyed read's snapshot the same), each callback at its place, and the program's answer
      * -- its one result step's typed rows, if it has one -- streamed to the sink once the steps have run. A load's
-     * data references resolve through {@code stores} (data: docs/DATA_IN_THE_PLAN_2026_11_09.md 2.7).
+     * data references resolve through {@code stores} (data: docs/DATA_IN_THE_PLAN_2026_11_09.md 2.7). {@code execution}:
+     * the id of this execution, which its DOOR minted (exec makes no value of its own; 2026-11-12).
      */
     public static void run(Program program, Map<String, ?> values, PlanSessions.Source sessions,
-            com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
+            com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink, java.util.UUID execution)
+            throws IOException {
         // the runtime wall (the deep audit, 2026-11-05): while the program runs, nothing on this thread plans
-        try (var run = com.legend.base.RunScope.enter()) {
+        try (var run = com.legend.base.RunScope.enter(execution)) {
+            // the execution's id, its door's, to the run's listener before anything else (a writer's activity reports it)
+            sink.execution(com.legend.base.RunScope.execution());
             programRun(program, values, sessions, stores, callbacks, sink);
         }
     }
 
     private static void programRun(Program program, Map<String, ?> values, PlanSessions.Source sessions,
             com.legend.executionplan.DataStores stores, Callbacks callbacks, ProgramSink sink) throws IOException {
-        Map<String, PlanParameters.Checked> checked = PlanParameters.check(program.parameters(), values);
+        // every live source the program's statements read, admitted once at its entry (A5): each step's path finds it
+        List<ExecutionPlan.Node> nodes = new ArrayList<>();
+        for (Step s : program.steps()) {
+            switch (s) {
+                case Node n -> nodes.add(n.node());
+                case Callback c -> nodes.addAll(c.declared());
+            }
+        }
+        Map<String, PlanParameters.Checked> checked = PlanRunner.admitSources(
+                PlanParameters.check(program.parameters(), values), nodes, sessions.admitted());
         Shape shape = shapeOf(program, checked);
         PlanRunner.Held held = new PlanRunner.Held();
         ExecutionPlan.Target on = shape.target();
@@ -170,6 +185,10 @@ public final class ProgramRunner {
         }
         // the values a step produces (a write's count, a run's stamp), bound for the steps after it
         Map<String, PlanParameters.Checked> live = new HashMap<>(checked);
+        // every stamp the program's statements read -- a frame's activity rows, an inline execute's -- bound from the
+        // start to the run's one id, as upstream fills ${execID} into every node of an execution (the user's ruling of
+        // 2026-11-12: one id per plan run, a test body's as a product query's)
+        live.putAll(PlanRunner.executionsBound(Map.of(), nodes));
         if (on == null) {
             // a program that sends nothing (the test-is-the-product plan's B2, M2): its constant answer, held, no session
             // opened; a callback reads nothing here -- a statement it declared would have given the program a target
@@ -372,6 +391,7 @@ public final class ProgramRunner {
                             sqls.add(e.sql());
                         }
                         case ExecutionPlan.Load u -> {
+                            refuseTargetCadence(u);
                             if (u.target().database() instanceof ExecutionPlan.Database.System) {
                                 // the graph's system store's own seeds: the one write its database takes, once per
                                 // session
@@ -522,6 +542,7 @@ public final class ProgramRunner {
                 sink.effectRan(i);
             }
             case ExecutionPlan.Load u -> {
+                refuseTargetCadence(u);
                 // the system store's load on the system database's session where it is a second one; every other load
                 // on the program's
                 boolean beside = rt.systemSession() != null
@@ -616,6 +637,17 @@ public final class ProgramRunner {
             if (o != null) {
                 o.session().close();
             }
+        }
+    }
+
+    /** A program's own load node is a seed ({@code BEFORE_STEP}) or a load at its place ({@code AT_STEP}); a target's
+     *  load ({@code PER_ACQUISITION}, {@code ONCE}) runs where its target is acquired or made, never as a node: refused by
+     *  name (the cadence a contract exec honours or refuses: the M1 tenets audit's finding 7, 2026-11-09). */
+    static void refuseTargetCadence(ExecutionPlan.Load load) {
+        if (load.cadence() == ExecutionPlan.Load.Cadence.PER_ACQUISITION
+                || load.cadence() == ExecutionPlan.Load.Cadence.ONCE) {
+            throw new IllegalStateException("a " + load.cadence() + " load (" + load.identity() + ") is a target's,"
+                    + " established where its target is acquired or made: never a program's node");
         }
     }
 }

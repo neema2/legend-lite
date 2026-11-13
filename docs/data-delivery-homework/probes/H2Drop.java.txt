@@ -1,0 +1,49 @@
+import java.sql.*;
+import java.util.*;
+
+public class H2Drop {
+    static String q(Connection c, String sql) {
+        try (Statement s = c.createStatement()) {
+            if (s.execute(sql)) { try (ResultSet r = s.getResultSet()) { List<String> o = new ArrayList<>(); while (r.next()) o.add(String.valueOf(r.getObject(1))); return o.toString(); } }
+            return "ok";
+        } catch (SQLException e) { return "ERR " + e.getMessage().split("\n")[0].replaceAll("; SQL statement:.*", ""); }
+    }
+    static void fresh(Connection setup) { q(setup, "DROP TABLE IF EXISTS UT"); q(setup, "CREATE TABLE UT (ID INT)"); q(setup, "INSERT INTO UT VALUES (42)"); }
+    public static void main(String[] a) throws Exception {
+        String url = "jdbc:h2:mem:d" + System.nanoTime() + ";DB_CLOSE_DELAY=-1";
+        try (Connection setup = DriverManager.getConnection(url, "sa", ""); Connection A = DriverManager.getConnection(url, "sa", "")) {
+            System.out.println("H2 " + setup.getMetaData().getDatabaseProductVersion());
+            for (String drop : List.of("DROP TABLE IF EXISTS UT", "DROP TABLE IF EXISTS PUBLIC.UT", "DROP TABLE IF EXISTS SESSION.UT", "DROP TABLE IF EXISTS INFORMATION_SCHEMA.UT")) {
+                fresh(setup);
+                System.out.println("  " + drop + " (no temp table): " + q(A, drop) + "; user's after: " + q(setup, "SELECT COUNT(*) FROM UT"));
+            }
+            fresh(setup);
+            System.out.println("  CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS UT over a user's: " + q(A, "CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS UT (data JSON) TRANSACTIONAL") + "; type: " + q(A, "SELECT TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='UT'"));
+            // a temp of its own name, then a user creates one of that name
+            q(A, "CREATE LOCAL TEMPORARY TABLE TT (data JSON) TRANSACTIONAL");
+            System.out.println("  a user's CREATE TABLE TT while A holds temp TT: " + q(setup, "CREATE TABLE TT (ID INT)"));
+            System.out.println("  A's DROP TABLE IF EXISTS TT then user's TT: " + q(A, "DROP TABLE IF EXISTS TT") + " " + q(setup, "SELECT COUNT(*) FROM TT"));
+            // ON COMMIT DROP
+            A.setAutoCommit(false);
+            System.out.println("  ON COMMIT DROP TRANSACTIONAL: " + q(A, "CREATE LOCAL TEMPORARY TABLE OD (data JSON) ON COMMIT DROP TRANSACTIONAL") + " " + q(A, "INSERT INTO OD VALUES (JSON '{}')"));
+            q(A, "COMMIT");
+            System.out.println("  after commit: " + q(A, "SELECT COUNT(*) FROM OD"));
+            A.setAutoCommit(true);
+            // ON COMMIT DELETE ROWS
+            System.out.println("  ON COMMIT DELETE ROWS TRANSACTIONAL, autocommit insert: " + q(A, "CREATE LOCAL TEMPORARY TABLE DR (data JSON) ON COMMIT DELETE ROWS TRANSACTIONAL") + " " + q(A, "INSERT INTO DR VALUES (JSON '{}')") + " -> " + q(A, "SELECT COUNT(*) FROM DR"));
+            // a drop of a temp table inside a transaction: commits?
+            A.setAutoCommit(false);
+            q(setup, "CREATE TABLE IF NOT EXISTS U2 (ID INT)");
+            q(A, "CREATE LOCAL TEMPORARY TABLE T3 (data JSON) TRANSACTIONAL"); q(A, "COMMIT");
+            q(A, "INSERT INTO U2 VALUES (1)");
+            System.out.println("  DROP TABLE of a local temp inside an open transaction: " + q(A, "DROP TABLE IF EXISTS T3"));
+            q(A, "ROLLBACK");
+            System.out.println("  U2 after rollback (1 = the drop committed): " + q(setup, "SELECT COUNT(*) FROM U2"));
+            A.setAutoCommit(true);
+            // the session's tables listed: can a load ask which of its names are local temporary
+            q(A, "CREATE LOCAL TEMPORARY TABLE T4 (data JSON) TRANSACTIONAL");
+            System.out.println("  INFORMATION_SCHEMA from A: " + q(A, "SELECT TABLE_NAME || ':' || TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='PUBLIC' ORDER BY 1"));
+            System.out.println("  INFORMATION_SCHEMA from setup: " + q(setup, "SELECT TABLE_NAME || ':' || TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA='PUBLIC' ORDER BY 1"));
+        }
+    }
+}

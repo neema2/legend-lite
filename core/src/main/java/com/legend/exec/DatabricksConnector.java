@@ -37,10 +37,16 @@ final class DatabricksConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code Databricks}'s errors carry their raise. */
+    /** {@inheritDoc} No: Databricks holds no transaction the platform opens across statements (none is kept in a turn). */
     @Override
-    public @com.legend.base.Nullable RaiseRecovery raiseRecovery() {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
     }
 
     /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver answers getObject(int, LocalDateTime.class)

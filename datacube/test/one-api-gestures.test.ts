@@ -16,7 +16,7 @@
 // one-api-ledger.test.ts; Python's is python/tests/test_one_api.py.
 
 import assert from 'node:assert/strict';
-import { after, afterEach, beforeEach, describe, it } from 'node:test';
+import { after, afterEach, before, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 import { getInstanceByDom } from 'echarts/core';
 
@@ -37,10 +37,16 @@ import { timeseriesEdit } from '../src/headless/timeseries.ts';
 import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { toJson } from '../../pure-protocol/src/index.ts';
-import { GateEngine, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
+import { GateEngine, heldBy, isCount, SNAP_PULL, SNAPSHOT, StubPlanner, settle, shown, plus } from './cube-fixture.ts';
+import { plannerFor } from './catalog-builder.ts';
+import type { SnapPull } from '../../engine-client/src/host-operations.ts';
+import type { Plan } from '../../engine-client/src/relation-type.ts';
+import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sameButIds } from './page-same.ts';
+import { isDeepStrictEqual } from 'node:util';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import { element } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 // -- the page, as DataCube's app wires one another editor serves ----------------------------------------------------
 
@@ -142,20 +148,40 @@ const overRows = (of: string): GridMaker => (gridHost, spawned, start) => {
 };
 
 /** The statement a snap counts its rows by, here: the fixture's engine answers it with the fixture's two rows. */
-const COUNT = 'count the rows';
+const COUNT = unplanned('count the rows');
 class CountingGate extends GateEngine {
+  /** The connection held for a snap's copy (its plan's statements answered as every query is). */
+  readonly exclusive = heldBy(this);
   override async answer(sql: string, epoch: number): Promise<ResultTable> {
     if (sql === COUNT) return { columns: [{ name: 'n', type: 'Integer', values: [2] }], rowCount: 1, epoch, elapsedMs: 1 };
     return super.answer(sql, epoch);
   }
 }
-/** A grid over `name` that can snap its rows into the tab (its toggle a toggle): a copy whose statements run nowhere
- *  but its count. */
+/** A planner that gives a snap its pull (SNAP_PULL) and plans its count (the final audit's item 1, 2026-11-12). */
+class SnappingPlanner extends StubPlanner {
+  override async plan(query?: Lambda): Promise<Plan> {
+    return isCount(query) ? { sql: COUNT, columns: [] } : super.plan();
+  }
+  async pullRequest(): Promise<SnapPull> {
+    return SNAP_PULL;
+  }
+}
+/** The planner a grid's copy is planned by (snapCopy): legend-lite's own, its statements reaching the fake engine. */
+const copies = plannerFor('', '');
+after(() => copies.dispose());
+// its module loaded, and its first copy planned, before any test clicks Snap, as app-dom.test.ts warms its own: a click
+// is followed by a few ticks, not a planner's load (the closing audit's item 7, 2026-11-13: CI's first snap test timed
+// out waiting on the load)
+before(async () => {
+  await copies.snapCopy({ databaseType: 'DuckDB', ...SNAP_PULL, table: 'warm' });
+});
+/** A grid over `name` that can snap its rows into the tab (its toggle a toggle): a copy whose statements reach the
+ *  fake engine, its count the fixture's. */
 const snappable = (name: string): GridMaker => (gridHost, spawned, start) => {
   const made = new CubeApp(gridHost, start?.snapshot ?? SNAPSHOT, {
-    engine: new CountingGate(), planner: new StubPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
+    engine: new CountingGate(), planner: new SnappingPlanner(), compact: true, cubeSource: file(name), sourceLabel: name,
     snapTarget: {
-      host: { hostOperations: async (_type, operations) => operations.map((o) => (o.op === 'count' ? [COUNT] : [])) },
+      host: copies,
       copy: () => ({ table: `snap_${name}`, landed: async () => ({ source: SNAPSHOT.source.query, planner: new StubPlanner() }), dispose: () => {} }),
     },
     configuration: start?.configuration ?? { ...DEFAULT_CONFIGURATION, reportTitle: name },
@@ -358,10 +384,39 @@ const pointer = (el: Element, type: string, x: number, y: number): void => {
   el.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, clientX: x, clientY: y, button: 0, bubbles: true }));
 };
 
-async function drawn(): Promise<void> {
-  await new Promise((r) => setTimeout(r, 200));
+/**
+ * AN ACTION'S OUTCOME, WAITED FOR (2026-11-13: the class of app-dom's snap flake, CI run 43433798750 -- a wait by time,
+ * this file's drawn() of 200 ms and some ticks, bounds nothing): `outcome`, what the test reads next, reached and no
+ * grid's change in flight (each cube's busy: the app's own screen's test, datacube-app.ts), bounded at 5 s and said in
+ * words when it is not; then the ticks a landed change's paint takes.
+ */
+async function landed(what: string, outcome: () => boolean = () => true): Promise<void> {
+  const done = (): boolean => outcome() && ![...cubes.values()].some((c) => c.busy);
+  for (let i = 0; i < 500 && !done(); i += 1) await new Promise((r) => setTimeout(r, 10));
+  assert.ok(done(), `${what}, within 5 s`);
   await settle();
 }
+/** The channel opened on the page drained: every edit told so far written (its flush, after the screen is quiet) and
+ *  the writes answered. */
+async function drained(): Promise<void> {
+  await channel!.flush();
+  await channel!.idle();
+}
+/** A page's views and sheets, as content (a key's place in the text is the writer's). */
+const boardOf = (p: PageDocument): unknown => JSON.parse(JSON.stringify({ views: p.views, sheets: p.sheets }));
+/** The board shows the page's state (S3). */
+const boardIsState = (): boolean => isDeepStrictEqual(boardOf(onScreen()), boardOf(pg().state.page));
+/** How many groups grid `id` holds open, as the page holds its cube. */
+const openGroups = (id: string): number => {
+  const p = onScreen();
+  return p.cubes.find((c) => c.id === p.views.find((v) => v.id === id)?.cube)?.cube.tree.open.length ?? 0;
+};
+/** Chart `id` drawn (its echarts instance made). */
+const chartDrawn = (id: string): boolean =>
+  getInstanceByDom(tile(id).querySelector('.dc-chartpanel-chart') as HTMLElement) !== undefined;
+/** The marks chart `id` has selected, as the page holds them. */
+const selectionOf = (id: string): readonly unknown[] =>
+  onScreen().views.find((v): v is ChartView => v.id === id && v.kind === 'chart')?.selection ?? [];
 
 /** An entry of the menu open now, by what it says. */
 function entry(text: string): HTMLElement {
@@ -606,7 +661,7 @@ const shownAs = async (): Promise<Record<string, string>> => {
   const g = await twoGrids();
   await headerMenu(g.a, 'notional');
   nested('Show notional As', 'Running total').click();
-  await drawn();
+  await landed('Show notional As Running total', () => JSON.stringify(onScreen()).includes(RUNNING));
   return g;
 };
 /** The calculated column shownAs made. */
@@ -786,7 +841,7 @@ const GESTURES: readonly Gesture[] = [
       const g = await withTwoPrices();
       tsButton(g.series, 'Settings').click();
       choose(tsSelect(g.series, 'Read another grid'), g.c);
-      await drawn();
+      await landed('the timeseries reads another grid', () => sourceRow(g.series, 1) !== undefined);
       return g;
     },
     make: ({ series }) => {
@@ -820,7 +875,8 @@ const GESTURES: readonly Gesture[] = [
       choose(tsSelect(g.series, 'Kind'), 'level');
       tsEditor().querySelector<HTMLInputElement>('.dc-ts-pop input[aria-label="Value"]')!.value = '101';
       tsButton(g.series, 'Add').click();
-      await drawn();
+      await landed('a Level 101 line added', () => [...tsEditor().querySelectorAll<HTMLElement>('.dc-ts-pop .dc-ts-row')]
+        .some((r) => r.textContent?.startsWith('Level 101')));
       return g;
     },
     make: () => {
@@ -839,7 +895,7 @@ const GESTURES: readonly Gesture[] = [
       const tab = tabOf('prices.csv');
       tab.dispatchEvent(new dom.window.PointerEvent('pointerdown', { bubbles: true, button: 0, clientX: 0 }));
       tab.dispatchEvent(new dom.window.PointerEvent('pointerup', { bubbles: true, button: 0, clientX: 0 }));
-      await drawn();
+      await landed("prices.csv's sheet shown", () => tabOf('prices.csv').classList.contains('dc-sheet-tab-shown'));
       return g;
     },
     make: async ({ series }) => {
@@ -856,7 +912,7 @@ const GESTURES: readonly Gesture[] = [
     setUp: async () => {
       const g = await withTimeseries();
       choose(tsSelect(g.series, 'Frequency'), 'week');
-      await drawn();
+      await landed('the timeseries weekly', () => JSON.stringify(onScreen().views.find((v) => v.id === g.series)).includes('"week"'));
       return g;
     },
     make: () => pg().undo(),
@@ -868,9 +924,9 @@ const GESTURES: readonly Gesture[] = [
     setUp: async () => {
       const g = await withTimeseries();
       await removeTile(g.a);
-      await drawn();
+      await landed('its grid removed', () => !onScreen().views.some((v) => v.id === g.a));
       await removeTile(g.series);
-      await drawn();
+      await landed('the timeseries removed', () => !onScreen().views.some((v) => v.id === g.series));
       return g;
     },
     make: () => pg().undo(),
@@ -1001,11 +1057,11 @@ const GESTURES: readonly Gesture[] = [
       assert.equal(await cubes.get(g.a!)!.edit([{ kind: 'group', rows: ['desk'] }], 'Group'), null);
       await settle();
       chevron(g.a!);
-      await drawn();
+      await landed('a group opened', () => openGroups(g.a!) > 0);
       escape();
       contextMenu(tile(g.a!).querySelector('.dc-row .dc-cell') as HTMLElement);
       entry('Collapse All').click();
-      await drawn();
+      await landed('every group collapsed', () => openGroups(g.a!) === 0);
       return g;
     },
     make: async ({ a }) => { await cubes.get(a!)!.undo(); },
@@ -1033,7 +1089,7 @@ const GESTURES: readonly Gesture[] = [
   // charts
   {
     name: "a chart's mark clicked",
-    setUp: async () => { const ids = await withChart(); await drawn(); return ids; },
+    setUp: async () => { const ids = await withChart(); await landed('the chart drawn', () => chartDrawn(ids['chart']!)); return ids; },
     make: ({ chart }) => clickMark(chart!, 0, 0),
   },
   {
@@ -1042,7 +1098,7 @@ const GESTURES: readonly Gesture[] = [
     name: 'a chart with a mark removed, its condition also on its grid by hand',
     setUp: async () => {
       const ids = await withChart();
-      await drawn();
+      await landed('the chart drawn', () => chartDrawn(ids['chart']!));
       clickMark(ids['chart']!, 0, 0);
       await settle();
       const chart = onScreen().views.find((v) => v.id === ids['chart']);
@@ -1067,7 +1123,8 @@ const GESTURES: readonly Gesture[] = [
     setUp: async () => {
       const ids = await withChart();
       await togglePill(ids['chart']!);
-      await drawn();
+      await landed('the chart pinned and drawn', () => tile(ids['chart']!).querySelector('.dc-tile-state')?.textContent === 'Pinned'
+        && chartDrawn(ids['chart']!));
       clickMark(ids['chart']!, 0, 0);
       await settle();
       return ids;
@@ -1094,8 +1151,9 @@ const GESTURES: readonly Gesture[] = [
       const chart = await chartOf(g.b);
       await togglePill(chart);
       await removeTile(g.b);
+      const before = onScreen().views.length;
       showGrid(chart);
-      await drawn();
+      await landed("the chart's grid shown", () => onScreen().views.length > before);
       return { ...g, chart };
     },
     make: () => pg().undo(),
@@ -1187,7 +1245,12 @@ const GESTURES: readonly Gesture[] = [
   { name: 'a grid snapped by its toggle', setUp: snapGrid, make: ({ a }) => toggle(a!) },
   {
     name: 'a snapped grid made live again by its toggle',
-    setUp: async () => { const g = await snapGrid(); toggle(g.a!); await drawn(); return g; },
+    setUp: async () => {
+      const g = await snapGrid();
+      toggle(g.a!);
+      await landed('the grid snapped', () => tile(g.a!).querySelector<HTMLElement>('.dc-tile-state')?.dataset['state'] === 'snapped');
+      return g;
+    },
     make: ({ a }) => toggle(a!),
   },
   { name: 'a group opened', setUp: twoGrids, make: ({ a }) => chevron(a!) },
@@ -1328,30 +1391,34 @@ describe('L2, L3: every gesture told as commands that replay to the page it made
 
   it('a page left alone writes nothing (the control)', async () => {
     await twoGrids();
-    await drawn();
+    await landed('the page made');
     channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
-    await drawn();
-    await channel.idle();
+    // no gesture: its outcome is an absence, read once the channel is drained (anything told by then is written)
+    await drained();
     assert.equal(writes.length, 0, 'nothing written: no gesture made');
   });
 
   for (const g of GESTURES) {
     it(g.name, async () => {
       const ids = await g.setUp();
-      await drawn();
+      await landed(`${g.name}: its set-up`);
       channel = new LiveChannel(editor, screenOf(), 0);
       channel.opened(1);
       const before = onScreen();
-      // quiet first: what the set-up started has settled, and nothing is written before the gesture
-      await drawn();
-      await channel.idle();
+      // quiet first: what the set-up started has settled, and nothing is written before the gesture (the channel
+      // drained: anything told by then is written)
+      await drained();
       assert.equal(writes.length, 0, `${g.name}: the page was not quiet before the gesture (a write came from its set-up)`);
       assert.equal(pageToJson(onScreen()), pageToJson(before), `${g.name}: the page changed before the gesture`);
       await g.make(ids);
-      await drawn();
-      await channel.idle();
-      await drawn();
+      // its outcome: the page changed by it, or its commands written (a gesture that ends where it began: an undo and
+      // its redo, a sheet arranged as it was) -- a quiet gesture's (a change of the view alone) is an absence, no write,
+      // read once its grids' work has landed and the channel is drained
+      await landed(`${g.name}: the gesture`,
+        () => g.quiet === true || writes.length > 0 || pageToJson(onScreen()) !== pageToJson(before));
+      await drained();
+      await landed(`${g.name}: the board at the page's state`, boardIsState);
       // the board is the page's state (S3: the board produced by the commands): what it shows is what the state holds
       // (as content: a key's place in the text is the writer's)
       const state = pg().state.page;
@@ -1393,18 +1460,16 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
     const { a } = await twoGrids();
     // a group of the grid copied open first: the copy starts with none open, as a new grid does
     chevron(a);
-    await drawn();
+    await landed('a group opened', () => openGroups(a) > 0);
     channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
-    await drawn();
-    await channel.idle();
+    await drained();
     const was = onScreen();
     const original = was.cubes.find((c) => c.id === was.views.find((v) => v.id === a)?.cube)?.cube;
     assert.ok(original && original.tree.open.length > 0, 'the grid copied has a group open');
     gridMenuItem(a, 'Copy of This Grid').click();
-    await drawn();
-    await channel.idle();
-    await drawn();
+    await landed('the copy added', () => onScreen().views.length > was.views.length);
+    await drained();
     const added = writes.flatMap((w) => w.write.edits)
       .flatMap((e) => ('page' in e && e.page.kind === 'addGrid' ? [e.page] : []));
     assert.equal(added.length, 1, 'one grid added');
@@ -1417,18 +1482,16 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
   it("a grid opened to a level by its settings: the copy opened to it too, on both sides (the S7 audit's G-2)", async () => {
     const { a } = await twoGrids();
     assert.equal(await cubes.get(a)!.edit([{ kind: 'group', rows: ['desk'] }, { kind: 'configure', patch: { initialExpandToLevel: 1 } }], 'Level'), null);
-    await drawn();
+    await landed('the grid grouped, opened to its level');
     channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
-    await drawn();
-    await channel.idle();
+    await drained();
     const was = onScreen();
     const original = was.cubes.find((c) => c.id === was.views.find((v) => v.id === a)?.cube)?.cube;
     assert.ok(original);
     gridMenuItem(a, 'Copy of This Grid').click();
-    await drawn();
-    await channel.idle();
-    await drawn();
+    await landed('the copy added', () => onScreen().views.length > was.views.length);
+    await drained();
     const copy = writes.flatMap((w) => w.write.edits)
       .flatMap((e) => ('page' in e && e.page.kind === 'addGrid' ? [e.page] : []))[0]?.document;
     assert.ok(copy, 'its document written');
@@ -1440,16 +1503,14 @@ describe("Copy of Grid adds the grid's copy by the one rule Python's grid.copy a
 describe("A chart's mark clicked selects it by the one rule Python's chart.select asks (K7, D8: headless chartPick)", () => {
   it('the refilter and select the click tells are what chartPick makes of the mark named by its value', async () => {
     const ids = await withChart();
-    await drawn();
+    await landed('the chart drawn', () => chartDrawn(ids['chart']!));
     channel = new LiveChannel(editor, screenOf(), 0);
     channel.opened(1);
-    await drawn();
-    await channel.idle();
+    await drained();
     const was = onScreen();
     clickMark(ids['chart']!, 0, 0);
-    await drawn();
-    await channel.idle();
-    await drawn();
+    await landed('the mark selected', () => selectionOf(ids['chart']!).length > 0);
+    await drained();
     const edits = writes.flatMap((w) => w.write.edits);
     const chart = was.views.find((v): v is ChartView => v.id === ids['chart'] && v.kind === 'chart')!;
     const selected = onScreen().views.find((v): v is ChartView => v.id === ids['chart'] && v.kind === 'chart')?.selection ?? [];

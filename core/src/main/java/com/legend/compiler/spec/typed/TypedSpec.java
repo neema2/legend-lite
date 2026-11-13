@@ -18,6 +18,8 @@ public sealed interface TypedSpec permits
         TypedRawSqlRelation,
         TypedCatalogGrid,
         TypedFrameRef,
+        TypedPlannedValue,
+        TypedTableSwap,
         TypedDeactivate,
         TypedCsvCensus,
         TypedTestDataGen,

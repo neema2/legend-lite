@@ -37,13 +37,14 @@ public final class ProductRun {
 
     /** {@code plan} run, its answer written in {@code output} -- the writer made from the plan before any statement
      *  runs, so a format that has no form for the answer refuses it untouched: a program's writes never land behind a
-     *  refused answer. Returns the plan that ran. */
+     *  refused answer. Returns the plan that ran. {@code execution}: the id its door minted for this execution (exec
+     *  makes no value of its own; 2026-11-12). */
     public static ExecutionPlan run(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
-            Establish establish, Output output, int batchRows) throws IOException {
+            Establish establish, Output output, int batchRows, java.util.UUID execution) throws IOException {
         // a receiver of the caller's is told the answer here, before the plan's run opens: it plans nothing
         try (var callbacks = com.legend.base.RunScope.callingBack()) {
-            ResultSink sink = output.writerFor(plan);
-            runCalledBack(plan, sessions, planSessions, establish, sink, batchRows);
+            ResultSink sink = output.writerFor(plan, execution);
+            runCalledBack(plan, sessions, planSessions, establish, sink, batchRows, execution);
         }
         return plan;
     }
@@ -52,30 +53,93 @@ public final class ProductRun {
      *  answer's target's project database, established first as legend-engine establishes a connection on every
      *  acquisition (its declared test data run on it); a program that writes on the plan's own shared sessions. Its
      *  answer written in {@code output}, in the stream's default batches. */
-    public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, Output output) throws IOException {
+    public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, Output output, java.util.UUID execution)
+            throws IOException {
         return run(plan, PlanSessions.PROJECT_DATABASES, PlanSessions.shared(), Establish.DECLARED_SETUP, output,
-                com.legend.result.Batcher.DEFAULT_CAPACITY);
+                com.legend.result.Batcher.DEFAULT_CAPACITY, execution);
+    }
+
+    /** {@link #onProjectDatabases(ExecutionPlan, Output, java.util.UUID)}, its live sources read under the fence the server's
+     *  configuration names ({@link SourceAdmission#configured}: null, any file; validated where the server starts),
+     *  a refusal under it in the server's words ({@link SourceAdmission#onTheServer}). */
+    public static ExecutionPlan onProjectDatabases(ExecutionPlan plan, @com.legend.base.Nullable String admittedSources,
+            Output output, java.util.UUID execution) throws IOException {
+        return run(plan, PlanSessions.PROJECT_DATABASES, PlanSessions.admitting(PlanSessions.shared(),
+                SourceAdmission.configured(admittedSources).onTheServer()), Establish.DECLARED_SETUP, output,
+                com.legend.result.Batcher.DEFAULT_CAPACITY, execution);
     }
 
     /** {@link #run} inside the scope that refuses planning while the caller's sessions are opened. */
     private static void runCalledBack(ExecutionPlan plan, SessionSource sessions, PlanSessions.Source planSessions,
-            Establish establish, ResultSink sink, int batchRows) throws IOException {
-        if (plan.writes()) {
-            PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows);
+            Establish establish, ResultSink sink, int batchRows, java.util.UUID execution) throws IOException {
+        // a write on the caller's session, its declared setup established, is established as a read is: the program's
+        // target's acquisition loads run on the session first (A5, 2026-11-10: until then the caller's session refused
+        // them, so a write never read its declared test data)
+        boolean establishedOnTheCallers = establish == Establish.DECLARED_SETUP
+                && sessions instanceof SessionSource.Given;
+        if (!plan.writes() && !plan.sendsTheAnswer()) {
+            PlanRunner.stream(plan, Map.of(), NOTHING_SENT, sink, batchRows, execution);
             return;
         }
-        if (!plan.sendsTheAnswer()) {
-            PlanRunner.stream(plan, Map.of(), NOTHING_SENT, sink, batchRows);
+        ExecutionPlan.Target target = plan.writes() ? home(plan) : plan.answerSql().target();
+        if (plan.writes() && !establishedOnTheCallers
+                && !(target.database() instanceof ExecutionPlan.Database.System)) {
+            PlanRunner.stream(plan, Map.of(), planSessions, sink, batchRows, execution);
             return;
         }
-        ExecutionPlan.Target target = plan.answerSql().target();
+        if (target.database() instanceof ExecutionPlan.Database.System) {
+            // a query reading the metamodel alone, answered on the process's catalog (L4's product half, 2026-11-10):
+            // the run's turn on it, the model's registration inside it, rolled back when the run ends -- never the
+            // caller's session, which holds no catalog
+            try (SystemDatabase.Leases leases = SystemDatabase.leases()) {
+                PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(PlanSessions.system(leases),
+                        planSessions.admitted()), sink, batchRows, execution);
+            }
+            return;
+        }
         try (Sessions.Session session = sessions.open(target)) {
             PlanSessions.Source on = switch (establish) {
-                case DECLARED_SETUP -> PlanSessions.setUp(session, target);
-                case AS_GIVEN -> PlanSessions.of(session);
+                // a project's database was made with its ONCE loads (PlanSessions.projectDatabase); every other session
+                // runs only what each acquisition establishes, and refuses the rest by name
+                case DECLARED_SETUP -> sessions instanceof SessionSource.ProjectDatabases
+                        ? PlanSessions.acquiredOnMade(session, target) : PlanSessions.acquired(session, target);
+                case AS_GIVEN -> {
+                    // the caller set its session up: a target that loads data on acquisition would run without it,
+                    // refused by name, never skipped (the M1 tenets audit's finding 7, 2026-11-09)
+                    if (!target.loads().isEmpty()) {
+                        throw new IllegalStateException("the plan's target loads data when a session is acquired for"
+                                + " it (" + target.loads().size() + " load(s)), and its session is as the caller set it"
+                                + " up: establish its loads (DECLARED_SETUP) or plan a target with none");
+                    }
+                    yield PlanSessions.of(session);
+                }
             };
-            PlanRunner.stream(plan, Map.of(), on, sink, batchRows);
+            // the caller's admission of live sources holds on the answer's session too (L6, 2026-11-10)
+            PlanRunner.stream(plan, Map.of(), PlanSessions.admitting(on, planSessions.admitted()), sink, batchRows, execution);
         }
+    }
+
+    /** The one target a writing plan's steps run on (the runner holds them to one: {@code PlanRunner.sequence}). */
+    private static ExecutionPlan.Target home(ExecutionPlan plan) {
+        if (!(plan.root() instanceof ExecutionPlan.Sequence s)) {
+            throw new IllegalStateException("a plan that writes is a sequence of steps");
+        }
+        for (ExecutionPlan.Node step : s.steps()) {
+            ExecutionPlan.@com.legend.base.Nullable Target t = switch (step) {
+                case ExecutionPlan.Update u -> u.sql().target();
+                case ExecutionPlan.Check k -> k.sql().target();
+                case ExecutionPlan.Effect e -> e.sql().target();
+                case ExecutionPlan.TdsResult r -> r.sql().target();
+                case ExecutionPlan.Keyed k -> k.body().target();
+                case ExecutionPlan.Load l -> l.target();
+                case ExecutionPlan.Constant c -> null;
+                case ExecutionPlan.Sequence q -> throw new IllegalStateException("a sequence inside a sequence");
+            };
+            if (t != null) {
+                return t;
+            }
+        }
+        throw new IllegalStateException("a plan that writes sends a statement");
     }
 
     /** A constant answer's sessions: it sends no statement, so none is opened (until slice 5 the door opened the

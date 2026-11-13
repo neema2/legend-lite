@@ -84,8 +84,71 @@ public final class PlanJson {
      *  2026-11-09: the {@code setup} node is the {@code load} node, with its {@code identity} and {@code cadence}, and a
      *  load step may be a {@code file} -- its data reference (namespace, name, digest, size, format: never a path) and
      *  its delivery (the database reads the runner's copy, or the runner streams its cells), the data-in-the-plan
-     *  design's L1 (docs/DATA_IN_THE_PLAN_2026_11_09.md). */
-    public static final int VERSION = 31;
+     *  design's L1 (docs/DATA_IN_THE_PLAN_2026_11_09.md); 32 since 2026-11-09: a data reference's {@code format} is
+     *  the declared format, an object ({@code _type} {@code csv}, its {@code delimiter} and {@code quote}: decision 6),
+     *  and a file's one delivery is the streamed one (the database's own reader cannot read the declared format exactly:
+     *  the {@code databaseReads} delivery is gone, L2), a file step its {@code sizeLimitMegabytes}, and a target's
+     *  {@code setup} is its {@code loads}: each a {@code PER_ACQUISITION} load, written once in the plan's {@code loads}
+     *  section and named by its identity in every target that needs it (L2); a project names its key and refusal
+     *  alone, its Data rows the target's ONCE load (L3); a placeholder's
+     *  type is its declared type's, written when the plan is made: a binding's {@code typeHole} is gone, a date or
+     *  date-time bound as its text {@code asText} (P4, D1). A planned parameter's {@code byValue} is its
+     *  {@code declared} kind. 33 since 2026-11-09: a load's cadence may be {@code PER_TRANSACTION} (a model's
+     *  registration in the process's system catalog, rolled back with its run) and a system database's target names the
+     *  catalog's {@code ONCE} load (the store's tables and the platform's rows), named by the platform's key (L4b).
+     *  34 since 2026-11-10: a file's delivery is the database's reading of it, {@code reads} (its statements, each
+     *  {@code ?} the runner's copy's path: the user's ruling of 2026-11-09, each database's own reader); the streamed
+     *  and bulk deliveries are gone. 35 since 2026-11-10: the streamed delivery back, {@code streamed} (one row's
+     *  insert and its width), for every database with no reader that reads the format as upstream does (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no csv read then"). 36 since 2026-11-10: a slot may bind a live source's location ({@code source}: a model's
+     *  {@code file:} source as a pointer, the runner binding the path its admission allows; L6).  37 since 2026-11-10: a load may hold its bundle inline ({@code content}: the model's text above the
+     *  inline threshold, by digest, read by a file step of the {@code CONTENT} namespace and {@code rows} format; L6c),
+     *  or travel as a {@link Bundle}, its JSON plus one blob per digest. 38 since 2026-11-10
+     *  (docs/DATA_DELIVERY_DESIGN_2026_11_10.md A2): the model's data is a load step of {@code statements}, a CONTENT
+     *  blob of SQL statements (the {@code statements} format) by digest; the {@code rows} step and format are gone; the
+     *  bundle's inline part bounded per plan ({@link #INLINE_LIMIT_BYTES}), a program step's loads included. 39 since
+     *  2026-11-10 (A3): a file's load is the database's reading of it alone, {@code reads}; the {@code streamed}
+     *  delivery is gone (a database with no reader refuses the file by name). 40 since 2026-11-10 (A4): a load's
+     *  {@code statements} step names the data it loads ({@code of}), which a refusal names. 41 since 2026-11-10 (A7,
+     *  S181): a date bound as its text carries no digit count ({@code asText} is {@code {}}): the runner sends every
+     *  digit and the statement's own raise refuses a value finer than its slot keeps. 42 since 2026-11-10 (the A
+     *  checkpoint's tenets audit, 3): a column's {@code store} is its declared type as an object
+     *  ({@code plain}/{@code sized}/{@code scaled}), no longer the grammar's spelling exec matched by its text; a file
+     *  load's {@code reads} delivery carries its {@code after} statements, run on every exit (14). 43 since
+     *  2026-11-11 (the A delta audit's 2, S181): a list's {@code array} binding of dates or date-times carries the
+     *  digits of a second its database keeps of an element ({@code fraction}), which the runner holds an element to.
+     *  44 since 2026-11-11 (B2a and its audit): a {@code sourceUrl} source names its form ({@code ELEMENTS}, an array's
+     *  elements; {@code RECORDS}, a JSON connection's records and their places), and a load may be {@code SOURCE}, a
+     *  live source's session table at its place, which writes no store of the body's. 45 since 2026-11-11 (the second
+     *  audit's S12): a plan may carry its {@code release} (its target {@code on} and its {@code statements}), sent once
+     *  its run is over whatever the outcome. 46 the same day: a slot may bind a {@code data:} payload's one JSON array, the plan's own value
+     *  ({@code payload}, its {@code json}: the dialect's delivery, Snowflake's and BigQuery's). 47 the same day (B3): a
+     *  data reference may name a HOST's own file (a person's upload) in the formats {@code detectedCsv},
+     *  {@code parquet} and {@code json}, and a load may be HOST_SESSION (kept until the person resets it), a host's
+     *  alone; and (B3's Q3, the same day) such a load's step may be {@code bound}: a statement whose {@code ?}s the host
+     *  binds ({@code binds}: the plan's own {@code value}, or a {@code held} one named by its store's {@code name} and
+     *  {@code field}, never its value), its {@code reach} DATABASE or CONNECTION. 48 since 2026-11-11 (the JSON pass,
+     *  over B3's 47 when the two merged): a payload slot names its text by its SHA-256 ({@code payload}'s
+     *  {@code digest}), the text in its statement's {@code content}, the bundle a load's is -- inline below
+     *  {@link #INLINE_LIMIT_BYTES}, a blob beside the plan above, verified against its digest where the plan is read;
+     *  and with it no plan carries a {@code release} and no load is {@code SOURCE} or {@code AT_RELEASE}: every payload
+     *  is bound or inline, so no session table is made or dropped. Still 48 (not on main), 2026-11-12, the user's ruling
+     *  of 2026-11-11 ("This is the right plan"): a HOST_SESSION load's step may be {@code stream} (a remote
+     *  {@code plane} by name, its {@code sql}, the {@code schema} and {@code table} it lands in, the {@code prepare}
+     *  statements before it, the {@code count} after it and its {@code transaction}'s statements) or {@code attach} (a {@code held} value by name, attached {@code as} a relation, its
+     *  {@code reach}); and (C2, 2026-11-12) a target may carry {@code raiseReadBack}, the {@code read} and {@code reset}
+     *  statements exec sends after a failure (MariaDB's and MySQL's), written only where a target declares them. 49
+     *  since 2026-11-12 (the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling: bumped): a target may carry
+     *  {@code settings}, the {@code required} settings its database must have (each a {@code name} and {@code value})
+     *  and their {@code readBack} statement (H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}), written only where a
+     *  target declares them. Still 49 (not on main), 2026-11-12, the third re-audit's MUST-FIX 2: {@code required} may
+     *  be empty, with no {@code readBack} -- a declared database run as it is, none of its settings written or read. 50
+     *  since 2026-11-12 (the re-audit's S8): a target may carry {@code transaction}, the
+     *  {@code begin}, {@code commit} and {@code rollback} statements a host opens, commits and rolls back a transaction
+     *  with on its database (DuckDB's), written only where the database has them -- a host's runner reads them from the
+     *  plan, never asking the planner at run. 51 since 2026-11-12 (the user's ruling: "that is a real off platform
+     *  problem"): a stream step's {@code sql} is the planner's own plan of the snapshot's pull (its model, runtime and
+     *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. */
+    public static final int VERSION = 51;
 
     private PlanJson() {
     }
@@ -96,9 +159,11 @@ public final class PlanJson {
 
     enum OutputTag { fixed, perKey }
 
-    enum SetupTag { statement, rows, file }
+    enum SetupTag { statement, statements, file, bound, stream, attach }
 
-    enum BindingTag { one, array, key }
+    enum BindTag { value, held }
+
+    enum BindingTag { one, array, key, source, payload }
 
     enum DatabaseTag { declared, platform, system }
 
@@ -142,13 +207,238 @@ public final class PlanJson {
     // ---- write ------------------------------------------------------------------------------------------------------
 
     public static String write(ExecutionPlan plan) {
+        return Json.toCompact(tree(plan));
+    }
+
+    private static Map<String, Object> tree(ExecutionPlan plan) {
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("format", FORMAT);
         out.put("version", VERSION);
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("root", node(plan.root()));
         out.put("writes", plan.writes());
-        return Json.toCompact(out);
+        out.put("loads", hoistLoads(out));
+        return out;
+    }
+
+    /** The field of a load holding its bundle inline (L6c). */
+    private static final String CONTENT = "content";
+
+    /**
+     * A PLAN AND ITS BUNDLE as they travel (L6c, 2026-11-10, decision 1 and the design's 2.1 {@code bundle}): the plan's
+     * JSON with no content in it, and one blob per digest -- the model's text above the inline threshold, each read back
+     * by {@link #read(String, Map)} and verified against its digest there.
+     *
+     * @param json  the plan's JSON, every load's bundle moved out
+     * @param blobs each blob's text by its SHA-256
+     */
+    public record Bundle(String json, Map<String, String> blobs) {
+        public Bundle {
+            java.util.Objects.requireNonNull(json, "json");
+            blobs = java.util.Collections.unmodifiableMap(new java.util.TreeMap<>(blobs));
+        }
+    }
+
+    /** The most of the model's data a plan's JSON holds inline, over ALL its loads (docs/DATA_DELIVERY_DESIGN_2026_11_10.md
+     *  §1.1: "the plan writer puts the blob inside the plan's JSON when the bundle is small and beside it when large";
+     *  the checkpoint tenets audit's S-1: per plan, never per table): 16 KB, near a query's own SQL at its 99th
+     *  percentile (decision 1's starting proposal). Above it the largest blobs travel beside the plan until what stays is
+     *  under it. */
+    public static final int INLINE_LIMIT_BYTES = 16 * 1024;
+
+    /** {@code plan} as it travels ({@link Bundle}): its JSON holding at most {@link #INLINE_LIMIT_BYTES} of the model's
+     *  data inline, every load's -- the load section's and a program step's alike (the correctness audit's note) -- the
+     *  largest blobs moved beside it first. */
+    @SuppressWarnings("unchecked")
+    public static Bundle writeBundle(ExecutionPlan plan) {
+        Map<String, Object> out = tree(plan);
+        // every holder of a bundle: a load's, and a statement's payloads (the JSON pass, 2026-11-11: one mechanism)
+        List<Map<String, Object>> loads = new ArrayList<>();
+        collectBundles(out, loads);
+        Map<String, String> texts = new java.util.TreeMap<>();
+        // each text counted once per load that carries it inline, as the JSON writes it (the correctness audit's note,
+        // 2026-11-10: until then once however many loads carried it)
+        Map<String, Integer> carried = new java.util.HashMap<>();
+        long inline = 0;
+        for (Map<String, Object> load : loads) {
+            Object content = load.get(CONTENT);
+            if (content != null) {
+                for (Map.Entry<String, Object> e : ((Map<String, Object>) content).entrySet()) {
+                    texts.put(e.getKey(), (String) e.getValue());
+                    carried.merge(e.getKey(), 1, Integer::sum);
+                    inline += utf8Length((String) e.getValue());
+                }
+            }
+        }
+        // the largest first (ties by digest, so the split is deterministic), until what stays inline is under the limit
+        List<Map.Entry<String, String>> bySize = new ArrayList<>(texts.entrySet());
+        bySize.sort(java.util.Comparator.<Map.Entry<String, String>>comparingLong(e -> -utf8Length(e.getValue()))
+                .thenComparing(Map.Entry::getKey));
+        Map<String, String> blobs = new java.util.TreeMap<>();
+        for (Map.Entry<String, String> e : bySize) {
+            if (inline <= INLINE_LIMIT_BYTES) {
+                break;
+            }
+            blobs.put(e.getKey(), e.getValue());
+            inline -= utf8Length(e.getValue())
+                    * java.util.Objects.requireNonNull(carried.get(e.getKey()), "every text a load carries is counted");
+        }
+        for (Map<String, Object> load : loads) {
+            Object content = load.get(CONTENT);
+            if (content != null) {
+                Map<String, Object> kept = new LinkedHashMap<>((Map<String, Object>) content);
+                kept.keySet().removeAll(blobs.keySet());
+                if (kept.isEmpty()) {
+                    load.remove(CONTENT);
+                } else {
+                    load.put(CONTENT, kept);
+                }
+            }
+        }
+        return new Bundle(Json.toCompact(out), blobs);
+    }
+
+    /** Every holder of a bundle written in {@code o}: an object holding its {@code content} inline -- a load's, a
+     *  statement's payloads. */
+    @SuppressWarnings("unchecked")
+    private static void collectBundles(Object o, List<Map<String, Object>> out) {
+        if (o instanceof Map<?, ?> m) {
+            Map<String, Object> map = (Map<String, Object>) m;
+            if (map.get(CONTENT) instanceof Map<?, ?>) {
+                out.add(map);
+            }
+            for (Map.Entry<String, Object> e : map.entrySet()) {
+                if (!e.getKey().equals(CONTENT)) {
+                    collectBundles(e.getValue(), out);
+                }
+            }
+        } else if (o instanceof List<?> l) {
+            for (Object v : l) {
+                collectBundles(v, out);
+            }
+        }
+    }
+
+    /** Every load in a read plan's tree: an object holding {@code identity}, {@code cadence} and {@code steps}. */
+    private static void collectLoads(Json.Node o, List<Json.Obj> out) {
+        if (o instanceof Json.Obj m) {
+            if (m.fields().containsKey("identity") && m.fields().containsKey("cadence")
+                    && m.fields().containsKey("steps")) {
+                out.add(m);
+            }
+            for (Json.Node v : m.fields().values()) {
+                collectLoads(v, out);
+            }
+        } else if (o instanceof Json.Arr l) {
+            for (Json.Node v : l.items()) {
+                collectLoads(v, out);
+            }
+        }
+    }
+
+    private static long utf8Length(String s) {
+        long n = 0;
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (Character.isHighSurrogate(c) && i + 1 < s.length() && Character.isLowSurrogate(s.charAt(i + 1))) {
+                // a supplementary character, four bytes for its pair (the correctness audit's note: until then five)
+                n += 4;
+                i++;
+            } else {
+                n += c < 0x80 ? 1 : c < 0x800 ? 2 : 3;
+            }
+        }
+        return n;
+    }
+
+    /**
+     * {@link #writeBundle}'s inverse: the plan read from {@code json}, each load given back the blobs its steps name
+     * from {@code blobs}. A load whose step names a digest {@code blobs} lacks, or a blob whose bytes are not its digest,
+     * is refused by name (the load's own check).
+     */
+    public static ExecutionPlan read(String json, Map<String, String> blobs) {
+        return readTree(json, blobs);
+    }
+
+    /**
+     * THE LOAD SECTION (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.6, L2): every target in {@code tree} written with its
+     * loads inline ({@link #target}) has them moved to one list, each once by its identity, the target naming the
+     * identities alone; the list returned, for the plan's (or the test plan's) {@code loads}. A target is the object
+     * holding {@code database}, {@code session} and {@code loads}. Two loads of one identity whose content differs are
+     * refused: an identity digests its load.
+     */
+    @SuppressWarnings("unchecked")
+    public static List<Object> hoistLoads(Map<String, Object> tree) {
+        Map<String, Object> section = new LinkedHashMap<>();
+        hoist(tree, section);
+        return new ArrayList<>(section.values());
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void hoist(Object o, Map<String, Object> section) {
+        if (o instanceof Map<?, ?> m) {
+            Map<String, Object> map = (Map<String, Object>) m;
+            if (map.containsKey("database") && map.containsKey("session") && map.get("loads") instanceof List<?> loads) {
+                List<Object> identities = new ArrayList<>();
+                for (Object each : loads) {
+                    if (!(each instanceof Map<?, ?> load)) {
+                        throw new IllegalStateException("a target's load is written inline before it is hoisted");
+                    }
+                    String identity = (String) load.get("identity");
+                    Object seen = section.putIfAbsent(identity, load);
+                    if (seen != null && !Json.toCompact(seen).equals(Json.toCompact(load))) {
+                        throw new IllegalStateException("two loads of one identity differ: " + identity);
+                    }
+                    identities.add(identity);
+                }
+                map.put("loads", identities);
+            }
+            for (Object v : map.values()) {
+                hoist(v, section);
+            }
+        } else if (o instanceof List<?> l) {
+            for (Object v : l) {
+                hoist(v, section);
+            }
+        }
+    }
+
+    /** {@link #hoistLoads}' inverse, in place: every target in {@code tree} given back its loads from {@code section}
+     *  (the plan's {@code loads}), each named by its identity; an identity the section lacks is refused by name. */
+    public static void inlineLoads(Json.Node tree, Json.Arr section) {
+        Map<String, Json.Node> byIdentity = new LinkedHashMap<>();
+        for (Json.Node n : section.items()) {
+            String identity = ((Json.Obj) n).getString("identity");
+            if (byIdentity.put(identity, n) != null) {
+                throw new IllegalArgumentException("a plan's load section names a load twice: " + identity);
+            }
+        }
+        inline(tree, byIdentity);
+    }
+
+    private static void inline(Json.Node n, Map<String, Json.Node> byIdentity) {
+        if (n instanceof Json.Obj o) {
+            if (o.fields().containsKey("database") && o.fields().containsKey("session")
+                    && o.fields().get("loads") instanceof Json.Arr ids) {
+                List<Json.Node> loads = new ArrayList<>();
+                for (Json.Node id : ids.items()) {
+                    String identity = id instanceof Json.Str s ? s.value() : null;
+                    Json.Node load = identity == null ? null : byIdentity.get(identity);
+                    if (load == null) {
+                        throw new IllegalArgumentException("a target names a load its plan does not hold: " + id);
+                    }
+                    loads.add(load);
+                }
+                o.fields().put("loads", new Json.Arr(loads));
+            }
+            for (Json.Node v : o.fields().values()) {
+                inline(v, byIdentity);
+            }
+        } else if (n instanceof Json.Arr a) {
+            for (Json.Node v : a.items()) {
+                inline(v, byIdentity);
+            }
+        }
     }
 
     /** A declared parameter as JSON: the test plan's format writes its parameters so. */
@@ -159,6 +449,51 @@ public final class PlanJson {
         o.put("multiplicity", multiplicity(p.multiplicity()));
         o.put("enumValues", p.enumValues());
         return o;
+    }
+
+    /** A store column's declared type, typed (the checkpoint tenets audit's 3, 2026-11-10): {@code plain} and its
+     *  kind, {@code sized} and its kind and size, {@code scaled} and its kind, precision and scale; null for none. */
+    private static @com.legend.base.Nullable Map<String, Object> store(
+            com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType t) {
+        if (t == null) {
+            return null;
+        }
+        Map<String, Object> o = new LinkedHashMap<>();
+        switch (t) {
+            case com.legend.sql.SqlDdl.ColumnType.Plain p -> {
+                o.put("_type", "plain");
+                o.put("kind", p.kind().name());
+            }
+            case com.legend.sql.SqlDdl.ColumnType.Sized z -> {
+                o.put("_type", "sized");
+                o.put("kind", z.kind());
+                o.put("size", z.size());
+            }
+            case com.legend.sql.SqlDdl.ColumnType.Scaled c -> {
+                o.put("_type", "scaled");
+                o.put("kind", c.kind());
+                o.put("precision", c.precision());
+                o.put("scale", c.scale());
+            }
+        }
+        return o;
+    }
+
+    /** {@link #store}'s inverse; a store type of another shape refused by name. */
+    private static com.legend.sql.SqlDdl.@com.legend.base.Nullable ColumnType readStore(
+            Json.@com.legend.base.Nullable Obj o) {
+        if (o == null) {
+            return null;
+        }
+        return switch (o.getString("_type")) {
+            case "plain" -> new com.legend.sql.SqlDdl.ColumnType.Plain(
+                    com.legend.sql.SqlDdl.ColumnType.Kind.valueOf(o.getString("kind")));
+            case "sized" -> new com.legend.sql.SqlDdl.ColumnType.Sized(o.getString("kind"), o.getInt("size"));
+            case "scaled" -> new com.legend.sql.SqlDdl.ColumnType.Scaled(o.getString("kind"), o.getInt("precision"),
+                    o.getInt("scale"));
+            default -> throw new IllegalArgumentException("a column's store type of the shape '"
+                    + o.getString("_type") + "': not a legend-lite plan's");
+        };
     }
 
     private static Map<String, Object> multiplicity(Multiplicity m) {
@@ -249,6 +584,10 @@ public final class PlanJson {
                 }
                 o.put("steps", steps);
                 o.put("target", target(u.target()));
+                if (!u.content().isEmpty()) {
+                    // the bundle inline (a plan written whole); writeBundle moves each text to a blob of its own
+                    o.put(CONTENT, new LinkedHashMap<String, Object>(u.content()));
+                }
             }
             case ExecutionPlan.Constant c -> {
                 o.put("_type", NodeTag.constant.name());
@@ -287,7 +626,7 @@ public final class PlanJson {
             co.put("type", c.type());
             co.put("multiplicity", multiplicity(c.multiplicity()));
             co.put("slot", c.slot());
-            co.put("store", c.store());   // null: computed, no declared type
+            co.put("store", store(c.store()));   // null: computed, no declared type
             co.put("precision", c.precision() == null ? null : c.precision().name());   // null: no temporal of its own
             cols.add(co);
         }
@@ -325,6 +664,10 @@ public final class PlanJson {
         if (s.stamp() != null) {
             o.put("stamp", s.stamp());
         }
+        if (!s.content().isEmpty()) {
+            // the payloads its slots bind, inline (a plan written whole); writeBundle moves each to a blob of its own
+            o.put(CONTENT, new LinkedHashMap<String, Object>(s.content()));
+        }
         // the typed SQL tree (MirJson; the plan path program's step 1b): a plan read back is as typed as the planner's
         o.put("tree", s.tree() == null ? null : MirJson.query(s.tree()));
         return o;
@@ -336,35 +679,30 @@ public final class PlanJson {
             case ExecutionPlan.Binding.One one -> {
                 o.put("_type", BindingTag.one.name());
                 o.put("nullType", one.nullType());
-                ExecutionPlan.TypeHole hole = one.hole();
-                if (hole != null) {
-                    Map<String, Object> h = new LinkedHashMap<>();
-                    h.put("at", hole.at());
-                    Map<String, Object> types = new LinkedHashMap<>();
-                    for (ExecutionPlan.ValueKind kind : ExecutionPlan.ValueKind.values()) {
-                        ExecutionPlan.TypeSpelling t = hole.types().get(kind);
-                        if (t != null) {
-                            Map<String, Object> spelling = new LinkedHashMap<>();
-                            spelling.put("name", t.name());
-                            spelling.put("digits", t.digits().name());
-                            if (t.fraction() != null) {
-                                spelling.put("fraction", t.fraction());
-                            }
-                            types.put(kind.name(), spelling);
-                        }
-                    }
-                    h.put("types", types);
-                    h.put("absent", hole.absent().name());
-                    o.put("typeHole", h);
+                ExecutionPlan.AsText asText = one.asText();
+                if (asText != null) {
+                    o.put("asText", new LinkedHashMap<String, Object>());
                 }
             }
             case ExecutionPlan.Binding.Array array -> {
                 o.put("_type", BindingTag.array.name());
                 o.put("elementSqlType", array.elementSqlType());
+                if (array.fraction() != null) {
+                    o.put("fraction", array.fraction());
+                }
             }
             case ExecutionPlan.Binding.Key key -> {
                 o.put("_type", BindingTag.key.name());
                 o.put("cell", key.cell());
+            }
+            case ExecutionPlan.Binding.Source src -> {
+                o.put("_type", BindingTag.source.name());
+                o.put("location", src.location());
+            }
+            case ExecutionPlan.Binding.Payload payload -> {
+                o.put("_type", BindingTag.payload.name());
+                o.put("digest", payload.digest());
+                o.put("label", payload.label());
             }
         }
         return o;
@@ -373,7 +711,19 @@ public final class PlanJson {
     /** {@code target} in the lite format, alone: an unambiguous spelling of its whole content (a runner keys a shared
      *  database by it, decision A). */
     public static String writeTarget(Target target) {
-        return Json.toCompact(target(target));
+        // the target as a plan writes it: its loads by identity (a key names what a target holds by its digests)
+        Map<String, Object> t = target(target);
+        hoistLoads(t);
+        return Json.toCompact(t);
+    }
+
+    /** What {@code target}'s database IS, as {@link #writeTarget} writes it: its database and the settings it is made
+     *  with -- no session statement, no load, no read-back and no transaction (the re-audit's S8), which are not what it
+     *  holds (exec keeps a project's database by it, {@code exec.PlanSessions.projectKey}; the C final audit's J2,
+     *  2026-11-12: until then exec built a target of its own to write it, and the run side builds no plan record that
+     *  carries text). */
+    public static String writeHeldDatabase(Target target) {
+        return writeTarget(new Target(target.database(), List.of(), List.of(), null, target.settings(), null));
     }
 
     /** {@code t} as a JSON object (the test plan's format writes an appeal's replay target so: step 8b). */
@@ -390,8 +740,50 @@ public final class PlanJson {
         Map<String, Object> to = new LinkedHashMap<>();
         to.put("database", database(t.database()));
         to.put("session", t.session());
-        to.put("setup", t.setup().stream().map(PlanJson::setupStep).toList());
+        // inline here; the plan's writer moves each to its load section once (hoistLoads)
+        to.put("loads", t.loads().stream().map(PlanJson::node).toList());
+        // the error read-back the target declares (C2, 2026-11-12: MariaDB's and MySQL's), written where there is one
+        if (t.raiseReadBack() != null) {
+            Map<String, Object> readBack = new LinkedHashMap<>();
+            readBack.put("read", t.raiseReadBack().read());
+            readBack.put("reset", t.raiseReadBack().reset());
+            to.put("raiseReadBack", readBack);
+        }
+        // the settings the target's database must have (SHOULD-FIX 3, 2026-11-12: H2's), written where there are some
+        if (t.settings() != null) {
+            Map<String, Object> settings = new LinkedHashMap<>();
+            settings.put("required", t.settings().required().stream().map(s -> {
+                Map<String, Object> one = new LinkedHashMap<>();
+                one.put("name", s.name());
+                one.put("value", s.value());
+                return one;
+            }).toList());
+            // none for a declared database run as it is (its required list empty: the third re-audit's MUST-FIX 2)
+            if (t.settings().readBack() != null) {
+                settings.put("readBack", t.settings().readBack());
+            }
+            to.put("settings", settings);
+        }
+        // the statements a host opens, commits and rolls back a transaction with (the re-audit's S8, 2026-11-12:
+        // DuckDB's), written where the target's database has them
+        if (t.transaction() != null) {
+            to.put("transaction", transaction(t.transaction()));
+        }
         return to;
+    }
+
+    private static Map<String, Object> transaction(ExecutionPlan.Transaction t) {
+        Map<String, Object> o = new LinkedHashMap<>();
+        o.put("begin", t.begin());
+        o.put("commit", t.commit());
+        o.put("rollback", t.rollback());
+        return o;
+    }
+
+    private static ExecutionPlan.Transaction readTransaction(Json.Obj t, String what) {
+        only(t, what, "begin", "commit", "rollback");
+        return new ExecutionPlan.Transaction(t.getStringArray("begin"), t.getStringArray("commit"),
+                t.getStringArray("rollback"));
     }
 
     private static Map<String, Object> database(ExecutionPlan.Database database) {
@@ -416,6 +808,56 @@ public final class PlanJson {
         return o;
     }
 
+    /** A data reference's JSON: its namespace, name, digest, size and declared format. */
+    private static Map<String, Object> ref(DataRef r) {
+        Map<String, Object> ref = new LinkedHashMap<>();
+        ref.put("namespace", r.namespace().name());
+        ref.put("name", r.name());
+        ref.put("digest", r.digest());
+        ref.put("size", r.size());
+        Map<String, Object> format = new LinkedHashMap<>();
+        switch (r.format()) {
+            case DataRef.Csv csv -> {
+                format.put("_type", "csv");
+                format.put("delimiter", String.valueOf(csv.delimiter()));
+                format.put("quote", String.valueOf(csv.quote()));
+            }
+            case DataRef.Statements statements -> format.put("_type", "statements");
+            case DataRef.DetectedCsv detected -> format.put("_type", "detectedCsv");
+            case DataRef.Parquet parquet -> format.put("_type", "parquet");
+            case DataRef.Json json -> format.put("_type", "json");
+        }
+        ref.put("format", format);
+        return ref;
+    }
+
+    /** A load step's JSON, as a plan's load writes it: the compatibility edge's record of the referee's copy of a load
+     *  writes its steps so (B2b, 2026-11-11). */
+    public static Map<String, Object> loadStepJson(LoadStep step) {
+        return setupStep(step);
+    }
+
+    /** A load step read from {@link #loadStepJson}'s JSON. */
+    public static LoadStep loadStepOf(Json.Obj o) {
+        return readLoadStep(o);
+    }
+
+    /** A load's bundle read: each text by its digest, a text whose bytes are not its digest refused by name here, where
+     *  an untrusted plan is read (the portable SHA-256: the planner runs on WebAssembly, which has no MessageDigest); the
+     *  load refuses a bundle that lacks a digest its steps read. {@code what} names the bundle's holder. */
+    public static Map<String, String> contentOf(Json.@com.legend.base.Nullable Obj bundle, String what) {
+        Map<String, String> content = new LinkedHashMap<>();
+        if (bundle != null) {
+            bundle.fields().forEach((digest, text) -> content.put(digest, ((Json.Str) text).value()));
+        }
+        content.forEach((digest, text) -> {
+            if (!com.legend.cache.Hash.ofUtf8(text).hex().equals(digest)) {
+                throw new IllegalArgumentException(what + "'s bundle holds bytes that are not their digest " + digest);
+            }
+        });
+        return content;
+    }
+
     private static Map<String, Object> setupStep(LoadStep step) {
         Map<String, Object> o = new LinkedHashMap<>();
         switch (step) {
@@ -423,36 +865,62 @@ public final class PlanJson {
                 o.put("_type", SetupTag.statement.name());
                 o.put("sql", s.sql());
             }
-            case LoadStep.Rows r -> {
-                o.put("_type", SetupTag.rows.name());
-                o.put("stagingTable", r.stagingTable());
-                o.put("createStaging", r.createStaging());
-                o.put("copy", r.copy());
-                o.put("dropStaging", r.dropStaging());
-                o.put("rows", r.rows());
+            case LoadStep.Statements st -> {
+                o.put("_type", SetupTag.statements.name());
+                o.put("ref", ref(st.ref()));
+                o.put("of", st.of());
             }
             case LoadStep.File f -> {
                 o.put("_type", SetupTag.file.name());
-                Map<String, Object> ref = new LinkedHashMap<>();
-                ref.put("namespace", f.ref().namespace().name());
-                ref.put("name", f.ref().name());
-                ref.put("digest", f.ref().digest());
-                ref.put("size", f.ref().size());
-                ref.put("format", f.ref().format().name());
-                o.put("ref", ref);
+                o.put("ref", ref(f.ref()));
+                o.put("sizeLimitMegabytes", f.sizeLimitMegabytes());
                 Map<String, Object> delivery = new LinkedHashMap<>();
                 switch (f.delivery()) {
-                    case LoadStep.Delivery.DatabaseReads r -> {
-                        delivery.put("_type", "databaseReads");
-                        delivery.put("sql", r.sql());
-                    }
-                    case LoadStep.Delivery.Streamed st -> {
-                        delivery.put("_type", "streamed");
-                        delivery.put("insert", st.insert());
-                        delivery.put("columns", st.columns());
+                    case LoadStep.Delivery.Reads r -> {
+                        delivery.put("_type", "reads");
+                        delivery.put("statements", r.statements());
+                        delivery.put("after", r.after());
                     }
                 }
                 o.put("delivery", delivery);
+            }
+            case LoadStep.Bound b -> {
+                o.put("_type", SetupTag.bound.name());
+                o.put("sql", b.sql());
+                o.put("reach", b.reach().name());
+                List<Object> binds = new ArrayList<>();
+                for (LoadStep.Bind bind : b.binds()) {
+                    Map<String, Object> each = new LinkedHashMap<>();
+                    switch (bind) {
+                        case LoadStep.Bind.Value v -> {
+                            each.put("_type", BindTag.value.name());
+                            each.put("text", v.text());
+                        }
+                        case LoadStep.Bind.Held h -> {
+                            each.put("_type", BindTag.held.name());
+                            each.put("name", h.name());
+                            each.put("field", h.field());
+                        }
+                    }
+                    binds.add(each);
+                }
+                o.put("binds", binds);
+            }
+            case LoadStep.Stream s -> {
+                o.put("_type", SetupTag.stream.name());
+                o.put("plane", s.plane());
+                o.put("sql", s.sql());
+                o.put("schema", s.schema());
+                o.put("table", s.table());
+                o.put("prepare", s.prepare());
+                o.put("count", s.count());
+                o.put("transaction", transaction(s.transaction()));
+            }
+            case LoadStep.Attach a -> {
+                o.put("_type", SetupTag.attach.name());
+                o.put("held", a.held());
+                o.put("as", a.as());
+                o.put("reach", a.reach().name());
             }
         }
         return o;
@@ -466,6 +934,10 @@ public final class PlanJson {
     public static final int MAX_DEPTH = 4096;
 
     public static ExecutionPlan read(String json) {
+        return readTree(json, Map.of());
+    }
+
+    private static ExecutionPlan readTree(String json, Map<String, String> blobs) {
         if (!(Json.parse(json, new Json.Config(MAX_DEPTH)) instanceof Json.Obj o)) {
             throw new IllegalArgumentException("a plan's JSON is an object");
         }
@@ -474,6 +946,8 @@ public final class PlanJson {
             throw new IllegalArgumentException("not a " + FORMAT + " v" + VERSION + " plan (format " + format
                     + ", version " + o.getIntOr("version", -1) + ")");
         }
+        attachBlobs(o, blobs);
+        inlineLoads(o, o.getArr("loads"));
         List<Parameter> parameters = new ArrayList<>();
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(readParameter((Json.Obj) n));
@@ -481,9 +955,97 @@ public final class PlanJson {
         return new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
     }
 
+    /** Each holder of a bundle in {@code tree} given back the blobs it names that it does not hold inline (L6c): a
+     *  load, those its CONTENT steps name; a statement, the payloads its slots bind (the JSON pass, 2026-11-11). A digest
+     *  {@code blobs} lacks is left out, and the holder refuses itself by name when it is read. */
+    private static void attachBlobs(Json.Node tree, Map<String, String> blobs) {
+        if (blobs.isEmpty()) {
+            return;
+        }
+        List<Json.Obj> holders = new ArrayList<>();
+        collectLoads(tree, holders);
+        collectStatements(tree, holders);
+        for (Json.Obj holder : holders) {
+            LinkedHashMap<String, Json.Node> named = new LinkedHashMap<>();
+            Json.Obj inline = holder.getObjOr(CONTENT, null);
+            if (inline != null) {
+                named.putAll(inline.fields());
+            }
+            for (String digest : namedDigests(holder)) {
+                String text = blobs.get(digest);
+                if (text != null && !named.containsKey(digest)) {
+                    named.put(digest, new Json.Str(text));
+                }
+            }
+            if (!named.isEmpty()) {
+                holder.fields().put(CONTENT, new Json.Obj(named));
+            }
+        }
+    }
+
+    /** The digests {@code holder} names: a load's CONTENT steps', a statement's payload slots'. */
+    private static List<String> namedDigests(Json.Obj holder) {
+        List<String> out = new ArrayList<>();
+        Json.Node steps = holder.getOr("steps", null);
+        if (steps instanceof Json.Arr arr && holder.fields().containsKey("identity")) {
+            for (Json.Node s : arr.items()) {
+                Json.Obj ref = ((Json.Obj) s).getObjOr("ref", null);
+                if (ref != null && DataRef.Namespace.CONTENT.name().equals(ref.getString("namespace"))) {
+                    out.add(ref.getString("digest"));
+                }
+            }
+        }
+        Json.Node slots = holder.getOr("slots", null);
+        if (slots instanceof Json.Arr arr && holder.fields().containsKey("statement")) {
+            for (Json.Node s : arr.items()) {
+                Json.Obj binding = ((Json.Obj) s).getObj("binding");
+                if (BindingTag.payload.name().equals(binding.getString("_type"))) {
+                    out.add(binding.getString("digest"));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** Every statement in a read plan's tree: an object holding {@code statement} and {@code slots}. */
+    private static void collectStatements(Json.Node o, List<Json.Obj> out) {
+        if (o instanceof Json.Obj m) {
+            if (m.fields().containsKey("statement") && m.fields().get("slots") instanceof Json.Arr) {
+                out.add(m);
+            }
+            for (Json.Node v : m.fields().values()) {
+                collectStatements(v, out);
+            }
+        } else if (o instanceof Json.Arr l) {
+            for (Json.Node v : l.items()) {
+                collectStatements(v, out);
+            }
+        }
+    }
+
     /** {@link #parameterJson}'s inverse. */
     public static Parameter parameterOf(Json.Obj o) {
         return readParameter(o);
+    }
+
+    /** A data reference's declared format (decision 6): {@code csv}, its delimiter and quote one character each. */
+    private static DataRef.Format format(Json.Obj o) {
+        return switch (o.getString("_type")) {
+            case "csv" -> new DataRef.Csv(oneChar(o.getString("delimiter")), oneChar(o.getString("quote")));
+            case "statements" -> DataRef.Statements.JSON;
+            case "detectedCsv" -> DataRef.DetectedCsv.DETECTED;
+            case "parquet" -> DataRef.Parquet.PARQUET;
+            case "json" -> DataRef.Json.RECORDS;
+            default -> throw new IllegalArgumentException("a data reference's format is csv or rows: "
+                    + o.getString("_type"));
+        };
+    }
+
+    private static char oneChar(String s) {
+        if (s.length() != 1) {
+            throw new IllegalArgumentException("a CSV format's delimiter and quote are one character each: '" + s + "'");
+        }
+        return s.charAt(0);
     }
 
     private static Parameter readParameter(Json.Obj o) {
@@ -558,9 +1120,11 @@ public final class PlanJson {
                 for (Json.Node n : o.getArr("steps").items()) {
                     steps.add(readLoadStep((Json.Obj) n));
                 }
+                Map<String, String> content = contentOf(o.getObjOr(CONTENT, null), "the load "
+                        + o.getString("identity"));
                 yield new ExecutionPlan.Load(o.getString("identity"),
                         ExecutionPlan.Load.Cadence.valueOf(o.getString("cadence")), steps,
-                        readTarget(o.getObj("target")));
+                        readTarget(o.getObj("target")), content);
             }
             case constant -> {
                 List<List<String>> cells = new ArrayList<>();
@@ -625,7 +1189,8 @@ public final class PlanJson {
             Json.Obj c = (Json.Obj) n;
             String precision = c.getStringOr("precision", null);
             cols.add(new ExecutionPlan.Column(c.getString("name"), c.getString("type"),
-                    readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null), c.getStringOr("store", null),
+                    readMultiplicity(c.getObj("multiplicity")), c.getStringOr("slot", null),
+                    readStore(c.getObjOr("store", null)),
                     precision == null ? null : ExecutionPlan.Precision.valueOf(precision)));
         }
         return cols;
@@ -634,25 +1199,16 @@ public final class PlanJson {
     private static ExecutionPlan.Binding readBinding(Json.Obj o) {
         return switch (tag(BindingTag.class, o, "binding")) {
             case one -> {
-                Json.Obj h = o.getObjOr("typeHole", null);
-                ExecutionPlan.TypeHole hole = null;
-                if (h != null) {
-                    Map<ExecutionPlan.ValueKind, ExecutionPlan.TypeSpelling> types =
-                            new java.util.EnumMap<>(ExecutionPlan.ValueKind.class);
-                    for (Map.Entry<String, Json.Node> e : h.getObj("types").fields().entrySet()) {
-                        Json.Obj t = (Json.Obj) e.getValue();
-                        types.put(named(ExecutionPlan.ValueKind.class, e.getKey(), "value kind"),
-                                new ExecutionPlan.TypeSpelling(t.getString("name"),
-                                        named(ExecutionPlan.Digits.class, t.getString("digits"), "type digits"),
-                                        t.getOr("fraction", null) == null ? null : t.getInt("fraction")));
-                    }
-                    hole = new ExecutionPlan.TypeHole(h.getInt("at"), types,
-                            named(ExecutionPlan.ValueKind.class, h.getString("absent"), "absent value kind"));
-                }
-                yield new ExecutionPlan.Binding.One(o.getString("nullType"), hole);
+                Json.Obj t = o.getObjOr("asText", null);
+                ExecutionPlan.AsText asText = t == null ? null
+                        : new ExecutionPlan.AsText();
+                yield new ExecutionPlan.Binding.One(o.getString("nullType"), asText);
             }
-            case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"));
+            case array -> new ExecutionPlan.Binding.Array(o.getString("elementSqlType"),
+                    o.has("fraction") ? o.getInt("fraction") : null);
             case key -> new ExecutionPlan.Binding.Key(o.getInt("cell"));
+            case source -> new ExecutionPlan.Binding.Source(o.getString("location"));
+            case payload -> new ExecutionPlan.Binding.Payload(o.getString("digest"), o.getString("label"));
         };
     }
 
@@ -678,15 +1234,46 @@ public final class PlanJson {
             }
         }
         return new Sql(o.getString("statement"), slots, readTarget(o.getObj("target")),
-                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null));
+                tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null),
+                contentOf(o.getObjOr(CONTENT, null), "the statement"));
     }
 
     private static Target readTarget(Json.Obj t) {
-        List<LoadStep> setup = new ArrayList<>();
-        for (Json.Node n : t.getArr("setup").items()) {
-            setup.add(readLoadStep((Json.Obj) n));
+        // a key the target does not have is refused by name, as its read-back's and settings' are (the C final audit's
+        // J4, 2026-11-12: until then one was ignored, so a misspelled "settings" read as a target that declares none)
+        only(t, "a target", "database", "session", "loads", "raiseReadBack", "settings", "transaction");
+        // the loads inline: the plan's reader gave each back from its load section (inlineLoads)
+        List<ExecutionPlan.Load> loads = new ArrayList<>();
+        for (Json.Node n : t.getArr("loads").items()) {
+            if (!(n instanceof Json.Obj o) || !(readNode(o) instanceof ExecutionPlan.Load load)) {
+                throw new IllegalArgumentException("a target's load is a load node: " + n);
+            }
+            loads.add(load);
         }
-        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), setup);
+        ExecutionPlan.RaiseReadBack readBack = null;
+        if (t.has("raiseReadBack")) {
+            Json.Obj r = t.getObj("raiseReadBack");
+            only(r, "a target's error read-back", "read", "reset");
+            readBack = new ExecutionPlan.RaiseReadBack(r.getString("read"), r.getString("reset"));
+        }
+        ExecutionPlan.DatabaseSettings settings = null;
+        if (t.has("settings")) {
+            Json.Obj o = t.getObj("settings");
+            only(o, "a target's database settings", "required", "readBack");
+            List<ExecutionPlan.Setting> required = new ArrayList<>();
+            for (Json.Node n : o.getArr("required").items()) {
+                if (!(n instanceof Json.Obj one)) {
+                    throw new IllegalArgumentException("a database setting is an object of its name and value: " + n);
+                }
+                only(one, "a database setting", "name", "value");
+                required.add(new ExecutionPlan.Setting(one.getString("name"), one.getString("value")));
+            }
+            settings = new ExecutionPlan.DatabaseSettings(required, o.has("readBack") ? o.getString("readBack") : null);
+        }
+        ExecutionPlan.Transaction transaction = t.has("transaction")
+                ? readTransaction(t.getObj("transaction"), "a target's transaction") : null;
+        return new Target(readDatabase(t.getObj("database")), t.getStringArray("session"), loads, readBack, settings,
+                transaction);
     }
 
     private static ExecutionPlan.Database readDatabase(Json.Obj o) {
@@ -700,7 +1287,8 @@ public final class PlanJson {
         };
     }
 
-    /** A project database's identity (hole 7, 2026-11-08): its key and the steps that make it, or null for none. */
+    /** A project database's identity (hole 7, 2026-11-08): its key and its refusal, or null for none (what fills it
+     *  is the target's ONCE load, L3). */
     private static @com.legend.base.Nullable Map<String, Object> project(
             ExecutionPlan.@com.legend.base.Nullable Project project) {
         if (project == null) {
@@ -708,11 +1296,6 @@ public final class PlanJson {
         }
         Map<String, Object> o = new LinkedHashMap<>();
         o.put("key", project.key());
-        List<Object> made = new ArrayList<>();
-        for (LoadStep step : project.made()) {
-            made.add(setupStep(step));
-        }
-        o.put("made", made);
         o.put("refused", project.refused());
         return o;
     }
@@ -724,60 +1307,79 @@ public final class PlanJson {
         if (!(database.get("project") instanceof Json.Obj o)) {
             return null;
         }
-        List<LoadStep> made = new ArrayList<>();
-        for (Json.Node n : o.getArr("made").items()) {
-            made.add(readLoadStep((Json.Obj) n));
-        }
-        return new ExecutionPlan.Project(o.getString("key"), made, o.getStringOr("refused", null));
+        return new ExecutionPlan.Project(o.getString("key"), o.getStringOr("refused", null));
     }
 
     private static LoadStep readLoadStep(Json.Obj o) {
         return switch (tag(SetupTag.class, o, "setup step")) {
             case statement -> new LoadStep.Statement(o.getString("sql"));
-            case rows -> {
-                List<List<String>> rows = new ArrayList<>();
-                for (Json.Node r : o.getArr("rows").items()) {
-                    if (!(r instanceof Json.Arr cells)) {
-                        throw new IllegalArgumentException("rows for " + o.getString("stagingTable")
-                                + ": a row is an array of cells");
-                    }
-                    List<String> row = new ArrayList<>();
-                    for (Json.Node cell : cells.items()) {
-                        row.add(switch (cell) {
-                            case Json.Str s -> s.value();
-                            case Json.Null x -> null;
-                            case Json.Num x -> throw notTextCell(o);
-                            case Json.Bool x -> throw notTextCell(o);
-                            case Json.Obj x -> throw notTextCell(o);
-                            case Json.Arr x -> throw notTextCell(o);
-                        });
-                    }
-                    rows.add(row);
-                }
-                yield new LoadStep.Rows(o.getString("stagingTable"), o.getString("createStaging"), o.getString("copy"),
-                        o.getString("dropStaging"), rows);
+            case statements -> {
+                Json.Obj ref = o.getObj("ref");
+                yield new LoadStep.Statements(new DataRef(DataRef.Namespace.valueOf(ref.getString("namespace")),
+                        ref.getString("name"), ref.getString("digest"), ref.getLong("size"),
+                        format(ref.getObj("format"))), o.getString("of"));
             }
             case file -> {
                 // the reference refuses a path-shaped name as it is read (DataRef: never a machine's path in a plan)
                 Json.Obj ref = o.getObj("ref");
                 DataRef data = new DataRef(DataRef.Namespace.valueOf(ref.getString("namespace")), ref.getString("name"),
-                        ref.getString("digest"), ref.getLong("size"), DataRef.Format.valueOf(ref.getString("format")));
+                        ref.getString("digest"), ref.getLong("size"), format(ref.getObj("format")));
                 Json.Obj d = o.getObj("delivery");
                 LoadStep.Delivery delivery = switch (d.getString("_type")) {
-                    case "databaseReads" -> new LoadStep.Delivery.DatabaseReads(d.getString("sql"));
-                    case "streamed" -> new LoadStep.Delivery.Streamed(d.getString("insert"), d.getInt("columns"));
-                    default -> throw new IllegalArgumentException("a file load's delivery is databaseReads or"
-                            + " streamed: " + d.getString("_type"));
+                    case "reads" -> new LoadStep.Delivery.Reads(d.getStringArray("statements"),
+                            d.getStringArray("after"));
+                    default -> throw new IllegalArgumentException("a file load's delivery is the database's reading of"
+                            + " it: " + d.getString("_type"));
                 };
-                yield new LoadStep.File(data, delivery);
+                yield new LoadStep.File(data, delivery, o.getInt("sizeLimitMegabytes"));
+            }
+            case bound -> {
+                // exactly the writer's keys: a key that might carry a value (a "secret", a "token") is refused as unknown
+                only(o, "a bound statement", "_type", "sql", "reach", "binds");
+                List<LoadStep.Bind> binds = new ArrayList<>();
+                for (Json.Node n : o.getArr("binds").items()) {
+                    Json.Obj b = (Json.Obj) n;
+                    binds.add(switch (tag(BindTag.class, b, "bound statement's bind")) {
+                        case value -> {
+                            only(b, "a plan's own bound value", "_type", "text");
+                            yield new LoadStep.Bind.Value(b.getString("text"));
+                        }
+                        case held -> {
+                            only(b, "a held bound value", "_type", "name", "field");
+                            yield new LoadStep.Bind.Held(b.getString("name"), b.getString("field"));
+                        }
+                    });
+                }
+                yield new LoadStep.Bound(o.getString("sql"), binds, ExecutionPlan.Reach.valueOf(o.getString("reach")));
+            }
+            case stream -> {
+                // exactly the writer's keys: a stream names its plane, never a row
+                only(o, "a remote plane's stream", "_type", "plane", "sql", "schema", "table", "prepare", "count",
+                        "transaction");
+                Json.Node schema = o.get("schema");
+                yield new LoadStep.Stream(o.getString("plane"), o.getString("sql"),
+                        schema instanceof Json.Str str ? str.value() : null, o.getString("table"),
+                        o.getStringArray("prepare"), o.getString("count"),
+                        readTransaction(o.getObj("transaction"), "a stream's transaction"));
+            }
+            case attach -> {
+                only(o, "an attached held value", "_type", "held", "as", "reach");
+                yield new LoadStep.Attach(o.getString("held"), o.getString("as"),
+                        ExecutionPlan.Reach.valueOf(o.getString("reach")));
             }
         };
     }
 
-    private static IllegalArgumentException notTextCell(Json.Obj rows) {
-        return new IllegalArgumentException("rows for " + rows.getString("stagingTable")
-                + ": a cell is text or null (the database types it)");
+    /** {@code o}'s keys exactly {@code keys}, any other refused by name ({@code what} names the object). */
+    private static void only(Json.Obj o, String what, String... keys) {
+        java.util.Set<String> allowed = java.util.Set.of(keys);
+        for (String key : o.fields().keySet()) {
+            if (!allowed.contains(key)) {
+                throw new IllegalArgumentException(what + " has no key " + key);
+            }
+        }
     }
+
 
     /** {@code o} as the fields a model record reads ({@link ConnectionWire}: the model depends on no JSON). */
     private static ConnectionWire.Fields fields(Json.Obj o) {

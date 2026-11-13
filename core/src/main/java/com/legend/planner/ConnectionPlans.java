@@ -39,8 +39,7 @@ public final class ConnectionPlans {
         return switch (s) {
             case com.legend.model.ConnectionSpecification.InMemory x -> new ConnectionSpecification.InMemory();
             case com.legend.model.ConnectionSpecification.LocalFile x -> new ConnectionSpecification.LocalFile(x.path());
-            case com.legend.model.ConnectionSpecification.LocalH2 x -> new ConnectionSpecification.LocalH2(x.url(),
-                    x.testDataSetupCsv(), x.testDataSetupSqls());
+            case com.legend.model.ConnectionSpecification.LocalH2 x -> new ConnectionSpecification.LocalH2(x.url());
             case com.legend.model.ConnectionSpecification.EmbeddedH2 x -> new ConnectionSpecification.EmbeddedH2(
                     x.databaseName(), x.directory(), x.autoServerMode());
             case com.legend.model.ConnectionSpecification.StaticDatasource x ->

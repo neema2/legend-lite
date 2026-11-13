@@ -1,0 +1,68 @@
+// H2 2.5.252, measured 2026-11-09 (the correctness re-audit's 3): a Decimal or Number parameter under each placeholder form against upstream's bare literal.
+// Output (each cell the database's text):
+// | value | expression | upstream (bare literal) | DECFLOAT | bare ? | NUMERIC | NUMERIC(38,10) | DOUBLE |
+// | Number 100 | toString | 100 | 1E+2 | 100 | 100 | 100.0000000000 | 100.0 |
+// | Number 100 | + 1 | 101 | 101 | 101 | 101 | 101.0000000000 | 101.0 |
+// | Number 100 | = BIGINT col | eq | eq | eq | eq | eq | eq |
+// | Number 100 | = DECIMAL(5,2) col | ne | ne | ne | ne | ne | ne |
+// | Number 100 | select value | 100 | 1E+2 | 100 | 100 | 100.0000000000 | 100.0 |
+// | Number 120 | toString | 120 | 1.2E+2 | 120 | 120 | 120.0000000000 | 120.0 |
+// | Number 120 | + 1 | 121 | 121 | 121 | 121 | 121.0000000000 | 121.0 |
+// | Number 120 | = BIGINT col | ne | ne | ne | ne | ne | ne |
+// | Number 120 | = DECIMAL(5,2) col | ne | ne | ne | ne | ne | ne |
+// | Number 120 | select value | 120 | 1.2E+2 | 120 | 120 | 120.0000000000 | 120.0 |
+// | Number 1.5 | toString | 1.5 | 1.5 | 1.5 | 2 | 1.5000000000 | 1.5 |
+// | Number 1.5 | + 1 | 2.5 | 2.5 | 3 | 3 | 2.5000000000 | 2.5 |
+// | Number 1.5 | = BIGINT col | ne | ne | ne | ne | ne | ne |
+// | Number 1.5 | = DECIMAL(5,2) col | ne | ne | ne | ne | ne | ne |
+// | Number 1.5 | select value | 1.5 | 1.5 | 1.5 | 2 | 1.5000000000 | 1.5 |
+// | Decimal 1000D | toString | 1000 | 1E+3 | 1000 | 1000 | 1000.0000000000 | 1000.0 |
+// | Decimal 1000D | + 1 | 1001 | 1001 | 1001 | 1001 | 1001.0000000000 | 1001.0 |
+// | Decimal 1000D | = BIGINT col | ne | ne | ne | ne | ne | ne |
+// | Decimal 1000D | = DECIMAL(5,2) col | ne | ne | ne | ne | ne | ne |
+// | Decimal 1000D | select value | 1000 | 1E+3 | 1000 | 1000 | 1000.0000000000 | 1000.0 |
+// | Decimal 2.50D | toString | 2.50 | 2.5 | 2.50 | 3 | 2.5000000000 | 2.5 |
+// | Decimal 2.50D | + 1 | 3.50 | 3.5 | 4 | 4 | 3.5000000000 | 3.5 |
+// | Decimal 2.50D | = BIGINT col | ne | ne | ne | ne | ne | ne |
+// | Decimal 2.50D | = DECIMAL(5,2) col | eq | eq | eq | ne | eq | eq |
+// | Decimal 2.50D | select value | 2.50 | 2.5 | 2.50 | 3 | 2.5000000000 | 2.5 |
+
+import java.sql.*;
+import java.math.BigDecimal;
+public class H2Table {
+    static String run(Connection c, String sql, Object v) {
+        try (PreparedStatement s = c.prepareStatement(sql)) {
+            int n = sql.length() - sql.replace("?", "").length();
+            for (int i = 1; i <= n; i++) s.setObject(i, v);
+            try (ResultSet r = s.executeQuery()) { r.next(); String x = r.getString(1); return x == null ? "NULL" : x; }
+        } catch (SQLException e) { String m = e.getMessage(); return "ERROR(" + m.substring(0, Math.min(40, m.length())).replace('\n',' ') + ")"; }
+    }
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:t")) {
+            try (Statement s = c.createStatement()) {
+                s.execute("CREATE TABLE T(B BIGINT, D DECIMAL(5,2))");
+                s.execute("INSERT INTO T VALUES (100, 2.50)");
+            }
+            Object[][] vals = {{"Number 100", 100L, "100"}, {"Number 120", 120L, "120"}, {"Number 1.5", 1.5d, "1.5"},
+                    {"Decimal 1000D", new BigDecimal("1000"), "1000"}, {"Decimal 2.50D", new BigDecimal("2.50"), "2.50"}};
+            String[] forms = {"%s", "CAST(? AS DECFLOAT)", "?", "CAST(? AS NUMERIC)", "CAST(? AS NUMERIC(38,10))", "CAST(? AS DOUBLE PRECISION)"};
+            String[] names = {"upstream (bare literal)", "DECFLOAT", "bare ?", "NUMERIC", "NUMERIC(38,10)", "DOUBLE"};
+            String[][] exprs = {{"toString", "SELECT CAST(%x AS VARCHAR)"}, {"+ 1", "SELECT %x + 1"},
+                    {"= BIGINT col", "SELECT CASE WHEN B = %x THEN 'eq' ELSE 'ne' END FROM T"},
+                    {"= DECIMAL(5,2) col", "SELECT CASE WHEN D = %x THEN 'eq' ELSE 'ne' END FROM T"},
+                    {"select value", "SELECT %x"}};
+            System.out.print("| value | expression |");
+            for (String n : names) System.out.print(" " + n + " |");
+            System.out.println();
+            for (Object[] v : vals) for (String[] e : exprs) {
+                System.out.print("| " + v[0] + " | " + e[0] + " |");
+                for (int f = 0; f < forms.length; f++) {
+                    String x = f == 0 ? (String) v[2] : forms[f];
+                    String sql = e[1].replace("%x", x);
+                    System.out.print(" " + run(c, sql, v[1]) + " |");
+                }
+                System.out.println();
+            }
+        }
+    }
+}

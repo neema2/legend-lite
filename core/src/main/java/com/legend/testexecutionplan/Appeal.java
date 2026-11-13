@@ -45,9 +45,9 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
         /** The rows leg: our rows against the golden's, replayed by the referee. */
         ROWS,
         /** No referee for the text: the text is the contract, a failed text the assert's failure. */
-        CONTRACT,
-        /** The test-data generator's rows leg, not offered (S143): refused by name. */
-        TDG
+        CONTRACT
+        // (TDG, the test-data generator's rows leg, went 2026-11-11 with B2d.2: the generator's fetch texts are
+        // planning constants, compared as texts; the user's ruling of 2026-11-10, a register row)
     }
 
     /** The same appeal numbered {@code n} in its body. */
@@ -80,13 +80,12 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
      * @param planBindings the plan's parameters' spellings
      * @param temps        the temp tables the golden reads
      * @param seed         the in-list seed the golden's numbered temp table takes, or none
-     * @param stores       the stores whose fixtures the harness provides before the rows are read
      * @param on           the target whose session the referee replays the golden on
      */
     public record Rows(Read rows, Read population, @Nullable String replaySql, @Nullable String mappingFqn,
             @Nullable String classFqn, boolean extentSubset, boolean ordered, @Nullable List<String> sortKeys,
             @Nullable String goldenPlan, Map<String, List<String>> planBindings, List<TempTable> temps,
-            @Nullable InListSeed seed, List<String> stores, ExecutionPlan.Target on, Enums enums) {
+            @Nullable InListSeed seed, ExecutionPlan.Target on, Enums enums) {
         public Rows {
             Objects.requireNonNull(rows, "rows");
             Objects.requireNonNull(population, "population");
@@ -95,7 +94,6 @@ public record Appeal(int number, String name, Kind kind, @Nullable String contra
             planBindings.forEach((k, v) -> b.put(k, List.copyOf(v)));
             planBindings = Collections.unmodifiableMap(b);
             temps = List.copyOf(temps);
-            stores = List.copyOf(stores);
             Objects.requireNonNull(on, "on");
             Objects.requireNonNull(enums, "enums");
         }

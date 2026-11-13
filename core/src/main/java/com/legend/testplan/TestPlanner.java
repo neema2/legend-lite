@@ -32,16 +32,21 @@ public final class TestPlanner {
     /** {@code typed} PLANNED whole for a session of its runtime's database (the door's {@code planBody}): the
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
-    public static TestPlan plan(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
-        return plan(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
-                options);
-    }
-
-    /** {@code typed} planned AHEAD, to run later (the door's {@code planProgram}): as {@link #plan} plans it, or null
-     *  for a body that cannot be planned ahead ({@link #planned}). */
-    public static @Nullable TestPlan planAhead(TypedQuery typed, @Nullable String runtimeFqn, PlanningOptions options) {
-        return planned(withUnreadLets(typed), runtimeFqn, com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(), runtimeFqn).type()),
-                options);
+    public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        // none given: the one runtime the body's from()s name (A5, PlanMaker.runtimeOf)
+        String runtimeFqn = com.legend.planner.PlanMaker.runtimeOf(typed, given);
+        SqlDialect dialect = com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(),
+                runtimeFqn).type());
+        // a test-data generator the body binds planned first (B2d.2, 2026-11-11): its reads the values they are, so the
+        // body is classed and planned as any other
+        // its texts print a timestamp as the body is judged (L9, the user's ruling of 2026-11-12): lite's own rules the
+        // clean form, the compatibility rules upstream's
+        com.legend.testdatagen.TestDataPlanner.Printing printing = options.judgingRules()
+                == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
+                ? com.legend.testdatagen.TestDataPlanner.Printing.COMPAT
+                : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
+        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing)), runtimeFqn,
+                dialect, options);
     }
 
     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */
@@ -97,10 +102,11 @@ public final class TestPlanner {
                 BodyDriver.ExecEnv on = java.util.Objects.requireNonNull(bodyEnv);
                 com.legend.planner.SystemRoutes.Route route = BodyDriver.systemRouteOf(typed.context(),
                         java.util.Objects.requireNonNull(runtimeFqn));
-                // named, never opened at planning: the run opens the system database's session, and the program's
-                // seed step writes the store (a server engine is refused by the class rule before this, so the tables
-                // keep their names)
-                env = on.withTarget(BodyDriver.systemTarget(route, dialect));
+                // named, never opened at planning: the run opens the catalog's session, and the program's seed step
+                // registers the model's rows; the body written in the catalog's dialect (B4, 2026-11-11: DuckDB's for a
+                // body on a server, whose engine-text appeals still read the user's tables on the body's own
+                // environment, bodyEnv)
+                env = on.onCatalogBody(route);
             }
             if (assertsPlanned) {
                 // the body's own environment, the walk's: an engine-text assert of a system-routed body has its ARM
@@ -179,35 +185,5 @@ public final class TestPlanner {
             lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
         }
         return lifted == given.body() ? given : given.withBody(lifted);
-    }
-
-    /**
-     * {@code given} PLANNED NOW, to run later on a session of the same database (zero exemptions, the owner,
-     * 2026-11-05): a runner's fixture program planned with the assert whose compatibility appeal provides it, and run
-     * by the caller between the body's plan and its run (hole 4, 2026-11-08: {@code PlannedAppeals.stores}). A body
-     * that judges nothing (an effect or query program, no assert) planned whole by the test door as {@link #plan} plans
-     * it; null for any other (an assert's, a system-routed body's), which the caller cannot plan ahead.
-     */
-    public static @Nullable TestPlan planned(TypedQuery given, @Nullable String runtimeFqn,
-            SqlDialect dialect, PlanningOptions options) {
-        TypedQuery typed = lifted(given, options);
-        BodyClass bodyClass = runtimeFqn == null ? null : BodyClass.of(typed, runtimeFqn, true);
-        if (runtimeFqn == null || bodyClass == null || bodyClass == BodyClass.ASSERT_PROGRAM
-                || BodyClass.anAssert(typed, runtimeFqn)) {
-            return null;
-        }
-        // counted where it is planned, as a body is (plan; until hole 4 a program planned ahead counted when it ran)
-        Census.inc(Census.Key.BODIES_MOVED);
-        TestPlan planned;
-        try (var p = com.legend.base.RunScope.plans("a program planned ahead")) {
-            planned = TestDoor.planned(typed, runtimeFqn, options.features(), TestDoor.Asserts.NONE, false,
-                    options.stores(), options.edge());
-        }
-        com.legend.testexecutionplan.TestPlanJson.requireRoundTrip(planned);
-        TestPlan ahead = com.legend.diagnostics.Diagnostics.on("decoded-plan")
-                // guard 3 in report mode on a program planned ahead too (the slice 1 audit, 2026-11-08)
-                ? com.legend.testexecutionplan.TestPlanJson.read(com.legend.testexecutionplan.TestPlanJson.write(planned))
-                : planned;
-        return ahead;
     }
 }

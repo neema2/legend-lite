@@ -66,13 +66,17 @@ public class Test_LegendLite_Databricks_EssentialFunctions_PCT extends PCTReport
             one("meta::pure::functions::date::tests::testAdjustByDaysBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 12345678912L DAY to TIMESTAMP '2016-02-29 00:00:00'."),
             one("meta::pure::functions::date::tests::testAdjustByHoursBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 12345678912L HOUR to TIMESTAMP '2016-02-29 00:00:00'."),
             one("meta::pure::functions::date::tests::testAdjustByMonthsBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 9600000000L MONTH to TIMESTAMP '2016-02-29 00:00:00'."),
-            one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 12345678912L WEEK to TIMESTAMP '2016-02-29 00:00:00'.")
+            one("meta::pure::functions::date::tests::testAdjustByWeeksBigNumber_Function_1__Boolean_1_", "[DATETIME_OVERFLOW] Datetime operation overflow: add 12345678912L WEEK to TIMESTAMP '2016-02-29 00:00:00'."),
             // (testAdjustByMinutesBigNumber's pin, the driver's BC date-time with its sign lost, left 2026-10-19, step 9:
             // the plan route spells a date-time with date_format, which keeps the sign, and a year past 9999 without
             // the pattern's '+', Databricks.strftime)
             // NOTE 2026-10-20 (plan-route parity, measured by the Databricks lane session at 31196a87): the three folds
             // and testConcatenateTypeInference pass (object identity; an instance carries its own class in its JSON),
             // their pins removed; testComplexClassToString prints the object's id, as on every lane
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): Databricks keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

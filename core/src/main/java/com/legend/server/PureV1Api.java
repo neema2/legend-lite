@@ -104,7 +104,9 @@ public final class PureV1Api {
 
     /**
      * How a host runs an execute: the query this API compiled, planned and run by the host's door (legend-lite's
-     * server hands in its product door, {@code Execution.runOnProjectDatabases}: {@code ConnectionResolver.RUNNER}),
+     * server hands in its product door, {@code Execution.runOnProjectDatabases} under its file fence:
+     * {@code ConnectionResolver.runner(sources)}, its startup settings' folders; {@code ConnectionResolver.RUNNER} is the
+     * library's, any file),
      * its rows written in the output this API names ({@code Output.Engine} or {@code Output.Arrow}: the engine's
      * formats, their envelope's facts read from the query before the run; the writer is made by the result library from
      * the plan before any statement runs, so an answer the engine's API has no form for is refused before a program's
@@ -164,6 +166,14 @@ public final class PureV1Api {
             case "/api/pure/v1/execution/generatePlan" -> generatePlan(body, models);
             case "/api/pure/v1/execution/execute" -> "ARROW_IPC".equals(queryParam(rawQuery, "serializationFormat"))
                     ? executeArrow(body, runner, models) : execute(body, runner, models);
+            // the test-data generator's doors (B2d.3e, 2026-11-12): TestDataRoutes
+            case "/api/pure/v1/execution/testDataGeneration/generateSeedData" ->
+                    TestDataRoutes.seedData(body, runner, models);
+            case "/api/pure/v1/execution/testDataGeneration/generateTestData_WithSeed" ->
+                    TestDataRoutes.withSeed(body, runner, models);
+            case "/api/pure/v1/execution/testDataGeneration/generateTestData_WithDefaultSeed" ->
+                    TestDataRoutes.withDefaultSeed(body, runner, models);
+            case "/api/pure/v1/testData/generation/DONOTUSE_generateTestData" -> TestDataRoutes.census(body, models);
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
@@ -188,7 +198,7 @@ public final class PureV1Api {
         return null;
     }
 
-    private static Json.Obj request(String body) {
+    static Json.Obj request(String body) {
         Json.Node n = Json.parse(body, REQUEST);
         if (n instanceof Json.Obj o) {
             return o;
@@ -390,11 +400,22 @@ public final class PureV1Api {
             // compiled and typed once: the target it names and its plan come off the one typed query
             return model.with(models, ctx -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(ctx, lambda);
+                String runtime = runtimeOf(request, query);
+                // a value the program wrote and folds (a String or Boolean literal, a model's DDL text): upstream's own
+                // constant node (M5, the user's ruling); a diagnostic's (print) stays refused below, as upstream refuses
+                // it (S128); a value the database computes (|1+1) is a statement, below
+                if (query.executionPlan(runtime).root() instanceof com.legend.executionplan.ExecutionPlan.Constant constant
+                        && !query.answersADiagnostic()) {
+                    return Json.toCompact(constantPlan(constant));
+                }
                 com.legend.Compiler.Target target = query.target();
-                String runtime = runtimeOf(request, target);
                 QueryPlan plan = query.plan(runtime);
-                return Json.toCompact(executionPlan(plan,
-                        connectionOf(model.records(), runtime, target.store())));
+                // upstream's plan and nothing beside it (M5, the user's ruling of 2026-11-11: "yes, take out of
+                // compatibility plan"): legend-engine's SingleExecutionPlan reader fails on an unknown field, and
+                // lite's own plan -- what runs a data: payload, a file: path, a pivot's keys -- reaches a lite host by
+                // lite's own routes (the planner's text plan's `plan`, arrowPlan's and jsonPlan's `plan`, the planner
+                // protocol's executionPlan)
+                return Json.toCompact(executionPlan(plan, connectionOf(model.records(), runtime, target.store())));
             });
         });
     }
@@ -423,7 +444,7 @@ public final class PureV1Api {
             // text), and the query typed once, here: the runner plans and runs it
             return ModelInput.of(request.getObj("model")).with(models, model -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
-                String runtime = runtimeOf(request, query.target());
+                String runtime = runtimeOf(request, query);
                 java.io.StringWriter out = new java.io.StringWriter();
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Engine(out, facts(query)));
@@ -454,7 +475,7 @@ public final class PureV1Api {
                     boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
             return ModelInput.of(request.getObj("model")).with(models, model -> {
                 com.legend.TypedQuery query = com.legend.Compiler.query(model, lambda);
-                String runtime = runtimeOf(request, query.target());
+                String runtime = runtimeOf(request, query);
                 try {
                     runner.run(query, runtime, new com.legend.result.Output.Arrow(out, facts(query)));
                 } catch (java.io.IOException e) {
@@ -505,8 +526,8 @@ public final class PureV1Api {
                     com.legend.executionplan.PlanJson.readColumns(Json.toCompact(resultColumns));
             Map<String, String> metadata = new LinkedHashMap<>();
             metadata.put("legend.builder", Json.toCompact(builder));
-            metadata.put("legend.activities",
-                    Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(sql.value(), false))));
+            metadata.put("legend.activities", Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(
+                    sql.value(), false, hostExecution(planned)))));
             metadata.put("legend.columns", Json.toCompact(names));
             try {
                 com.legend.result.HostRows.stream(rows, columns, new com.legend.result.ArrowWriter(out, metadata));
@@ -590,6 +611,11 @@ public final class PureV1Api {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
             QueryPlan plan = hosted.query().plan(hosted.runtime());
+            String refused = plan.beyondItsText();
+            if (refused != null) {
+                throw new com.legend.error.NotImplementedException("a host runs a plan's statement itself, and this"
+                        + " query's plan does not run as its text: " + refused + "; legend-lite's server runs it");
+            }
             if (plan.shape() != com.legend.plan.ResultShape.TABULAR && plan.shape() != com.legend.plan.ResultShape.GRAPH) {
                 throw unprobed(hosted.query());
             }
@@ -599,12 +625,17 @@ public final class PureV1Api {
             }
             Map<String, Object> metadata = new LinkedHashMap<>();
             metadata.put("legend.builder", Json.toCompact(tdsBuilder(plan)));
-            metadata.put("legend.activities",
-                    Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(plan.sql(), false))));
+            // the host's execution: it keeps no trace of its own, so its id is minted with the plan half it runs
+            metadata.put("legend.activities", Json.toCompact(List.of(com.legend.result.PureV1Writer.activity(
+                    plan.sql(), false, java.util.UUID.randomUUID()))));
             metadata.put("legend.columns", Json.toCompact(columnNames(plan)));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", plan.sql());
             out.put("metadata", metadata);
+            if (!plan.textAlone()) {
+                // what runs the text: the execution plan it renders from (B3, 2026-11-11), its target's loads
+                out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan.plan())));
+            }
             return Json.toCompact(out);
         });
     }
@@ -635,14 +666,32 @@ public final class PureV1Api {
                         + "is not one (" + plan.root().getClass().getSimpleName() + ": a pivot whose columns the data "
                         + "names, or a program that writes); legend-lite's server runs it");
             }
-            if (!result.sql().slots().isEmpty()) {
+            // a data: payload is the plan's own value, which the host binds from the plan carried below (the tenets
+            // audit's M3, 2026-11-11); any other value -- a parameter, a key's cell, a file's path -- a host does not bind
+            long others = result.sql().slots().stream().filter(sl -> !(sl.binding()
+                    instanceof com.legend.executionplan.ExecutionPlan.Binding.Payload)).count();
+            if (others > 0) {
                 throw new com.legend.error.NotImplementedException("a host runs a statement's text, and this one binds "
-                        + "values (" + result.sql().slots().size() + "); legend-lite's server runs it");
+                        + "values (" + others + "); legend-lite's server runs it");
+            }
+            if (!result.sql().target().loads().isEmpty()) {
+                // the statement reads what its target's loads make (a connection's test data, a project's Data), and a
+                // host runs the statement alone until B3 makes the hosts run a
+                // plan's loads (the A checkpoint's finding of B3's prep, 2026-11-10: until then the host's database
+                // failed on a table no load made, a catalog error, not a refusal by name: §3 rule 5)
+                throw new com.legend.error.NotImplementedException("a host runs one statement, and this query's"
+                        + " statement reads what its target loads first (" + result.sql().target().loads().size()
+                        + " load(s): test data, a project's Data or a data: source), which a host does not run yet;"
+                        + " legend-lite's server runs it");
             }
             String statement = result.sql().statement();
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", statement);
             out.put("run", statement);
+            if (!result.sql().slots().isEmpty()) {
+                // what the host binds to `run`'s `?`s: the plan, its payloads its statement's content by digest
+                out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan)));
+            }
             out.put("shape", result.shape().name());
             out.put("resultColumns", Json.parse(com.legend.executionplan.PlanJson.writeColumns(result.columns())));
             if (result.shape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
@@ -650,8 +699,12 @@ public final class PureV1Api {
             } else {
                 com.legend.result.PureV1Writer.Envelope e = com.legend.result.PureV1Writer.envelope(
                         facts(hosted.query()), statement, result.columns());
+                // the host's execution: it keeps no trace of its own, so its id is minted with the plan half it runs,
+                // and the answer the server writes from its rows (jsonAnswer, arrowAnswer) reports the same id
+                java.util.UUID execution = java.util.UUID.randomUUID();
+                out.put("execution", execution.toString());
                 out.put("builder", Json.parse(e.builder()));
-                out.put("activities", Json.parse(e.activities()));
+                out.put("activities", Json.parse(e.activities(execution)));
                 out.put("columns", e.names());
             }
             return Json.toCompact(out);
@@ -702,9 +755,13 @@ public final class PureV1Api {
                         }
                         labels.add(name.value());
                     }
+                    if (!(planned.has("sql") && planned.get("sql") instanceof Json.Str sql)) {
+                        throw new IllegalArgumentException("the plan answers no sql: it is not jsonPlan's");
+                    }
                     com.legend.result.PureV1Writer.Envelope envelope = new com.legend.result.PureV1Writer.Envelope(
-                            Json.toCompact(builder), Json.toCompact(activities), labels);
-                    sink = com.legend.result.PureV1Writer.relation(out, announced -> envelope);
+                            Json.toCompact(builder), sql.value(), labels);
+                    // the execution jsonPlan named, its door's id, carried by the plan the host ran
+                    sink = com.legend.result.PureV1Writer.relation(out, announced -> envelope, hostExecution(planned));
                 }
                 default -> throw new IllegalArgumentException("the plan's shape '" + shape.value()
                         + "' is none jsonPlan answers");
@@ -716,6 +773,15 @@ public final class PureV1Api {
             }
             return out.toString();
         });
+    }
+
+    /** The host's execution, as {@link #jsonPlan} minted it and handed it back in its answer: what the answer's activity
+     *  reports (C1's second half, 2026-11-12). A plan half without it is refused: it is not jsonPlan's. */
+    private static java.util.UUID hostExecution(Json.Obj planned) {
+        if (!(planned.has("execution") && planned.get("execution") instanceof Json.Str id)) {
+            throw new IllegalArgumentException("the plan answers no execution: it is not jsonPlan's");
+        }
+        return java.util.UUID.fromString(id.value());
     }
 
     /** An {@code ExecuteInput} read and its parameters bound, for a host that runs only {@code models}: its query
@@ -737,7 +803,7 @@ public final class PureV1Api {
         LambdaFunction lambda = ProtocolReader.lambda(
                 boundParameters(request.getObj("function"), request.getArrOr("parameterValues", null)));
         com.legend.TypedQuery query = com.legend.Compiler.query(com.legend.Compiler.compileModel(model), lambda);
-        return new Hosted(query, runtimeOf(request, query.target()));
+        return new Hosted(query, runtimeOf(request, query));
     }
 
     /**
@@ -864,8 +930,8 @@ public final class PureV1Api {
             Map<String, Object> rc = new LinkedHashMap<>();
             // the engine spells a PASS-THROUGH column's physical type here, a computed one's as "": the plan's
             // store fact (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3), by provenance over the lowered query
-            String store = i < plan.columns().size() ? plan.columns().get(i).store() : null;
-            rc.put("dataType", store == null ? "" : store);
+            com.legend.sql.SqlDdl.ColumnType store = i < plan.columns().size() ? plan.columns().get(i).store() : null;
+            rc.put("dataType", store == null ? "" : com.legend.executionplan.ColumnFacts.store(store));
             rc.put("label", "\"" + c.name() + "\"");
             resultColumns.add(rc);
         }
@@ -878,6 +944,13 @@ public final class PureV1Api {
         sql.put("connection", connection);
         sql.put("executionNodes", List.of());
         sql.put("isMutationSQL", false);
+        if (plan.plan().root() instanceof com.legend.executionplan.ExecutionPlan.Keyed) {
+            // a pivot whose columns the data names: its result columns known only once it runs, as legend-engine marks
+            // its own dynamic pivot's node (relationalMappingExecution.pure:236-249, written only when true:
+            // SQLExecutionNode.java:34-35); the statement shown is the keyed plan's body lite runs (M5, the user: "yes
+            // we should show lite"; register S110)
+            sql.put("isResultColumnsDynamic", true);
+        }
         sql.put("resultColumns", resultColumns);
         sql.put("resultType", anyType);
         sql.put("sqlComment", "-- \"executionTraceID\" : \"${execID}\"");
@@ -900,6 +973,90 @@ public final class PureV1Api {
         out.put("serializer", serializer);
         out.put("templateFunctions", PlanSupportFunctions.relationalPlanSupportFunctions(null));
         return out;
+    }
+
+    /**
+     * A VALUE THE PROGRAM WROTE as generatePlan answers it (M5, the user's ruling of 2026-11-11: "Shouldn't that route to
+     * database unless boolean or string constant fold?"): a String or Boolean literal, or a model's DDL text -- folded,
+     * nothing sent -- as legend-engine's own {@code ConstantExecutionNode}, written as its protocol writes one (4.145.0):
+     * <ul>
+     *   <li>the node: {@code _type} {@code constant}, its result type, and its {@code values} by {@code transformAny}
+     *       with {@code PureOne} (protocol vX_X_X {@code transfers/executionPlan.pure:70-75});</li>
+     *   <li>a value: one value its primitive, any other number a collection of the transfer's multiplicity
+     *       ({@code transfers/valueSpecification.pure:276-662});</li>
+     *   <li>{@code authDependent} and {@code executionNodes} as {@code ExecutionNode}'s Java writes them, the server
+     *       writing every object's fields in alphabetical order with nulls dropped ({@code ObjectMapperFactory});</li>
+     *   <li>no template function: a plan's are its nodes' support functions
+     *       ({@code executionPlan_generation.pure:217}).</li>
+     * </ul>
+     * legend-engine's {@code PlanExecutor} runs such a plan ({@code ExecutionNodeExecutor.visit(ConstantExecutionNode)}: a
+     * {@code ConstantResult}); legend-engine itself plans such a lambda as a {@code pureExp} node whose Java it generates
+     * (register S199).
+     */
+    static Map<String, Object> constantPlan(com.legend.executionplan.ExecutionPlan.Constant constant) {
+        com.legend.executionplan.ExecutionPlan.Column column = constant.columns().get(0);
+        List<Object> values = new ArrayList<>();
+        for (List<String> row : constant.cells()) {
+            values.add(constantValue(column.type(), row.get(0)));
+        }
+        Object value;
+        if (values.size() == 1) {
+            value = values.get(0);
+        } else {
+            Map<String, Object> pureOne = new LinkedHashMap<>();
+            pureOne.put("lowerBound", 1);
+            pureOne.put("upperBound", 1);
+            Map<String, Object> collection = new LinkedHashMap<>();
+            collection.put("_type", "collection");
+            collection.put("multiplicity", pureOne);
+            collection.put("values", values);
+            value = collection;
+        }
+        Map<String, Object> resultType = new LinkedHashMap<>();
+        resultType.put("_type", "dataType");
+        resultType.put("dataType", column.type());
+        Map<String, Object> node = new LinkedHashMap<>();
+        node.put("_type", "constant");
+        node.put("authDependent", false);
+        node.put("executionNodes", List.of());
+        node.put("resultType", resultType);
+        node.put("values", value);
+        Map<String, Object> serializer = new LinkedHashMap<>();
+        serializer.put("name", "pure");
+        serializer.put("version", "vX_X_X");
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("_type", "simple");
+        out.put("authDependent", false);
+        out.put("rootExecutionNode", node);
+        out.put("serializer", serializer);
+        out.put("templateFunctions", List.of());
+        return out;
+    }
+
+    /** One folded value as legend-engine's protocol writes it: a String's {@code CString}, a Boolean's {@code CBoolean}
+     *  ({@code transformAny}'s arms); lite folds no other kind, so any other is refused by name, never guessed. */
+    private static Map<String, Object> constantValue(String type, @com.legend.base.Nullable String text) {
+        if (text == null) {
+            throw new IllegalStateException("a folded constant of no value: lite folds a literal or a model's text");
+        }
+        Map<String, Object> v = new LinkedHashMap<>();
+        switch (type) {
+            case "String" -> {
+                v.put("_type", "string");
+                v.put("value", text);
+            }
+            case "Boolean" -> {
+                v.put("_type", "boolean");
+                v.put("value", switch (text) {
+                    case "true" -> true;
+                    case "false" -> false;
+                    default -> throw new IllegalStateException("a Boolean constant's text is true or false: " + text);
+                });
+            }
+            default -> throw new IllegalStateException("a folded constant of type " + type
+                    + ": lite folds String and Boolean values alone");
+        }
+        return v;
     }
 
     /**
@@ -973,17 +1130,24 @@ public final class PureV1Api {
         throw new IllegalArgumentException("the model has no " + what + " " + path);
     }
 
-    /** The runtime: the request's own, else the one the query's {@code ->from} binds. */
-    private static String runtimeOf(Json.Obj request, com.legend.Compiler.Target target) {
+    /** The runtime: the request's own, else the one the query's {@code ->from}s bind -- every door's one rule
+     *  ({@link com.legend.TypedQuery#runtime}: several refused by name; the checkpoint tenets audit's 1, 2026-11-10:
+     *  until then this door kept the first from()'s and ran the rest on it). */
+    private static String runtimeOf(Json.Obj request, com.legend.TypedQuery query) {
         Json.Obj rt = request.getObjOr("runtime", null);
-        if (rt != null && rt.has("runtime")) {
-            return rt.getString("runtime");
+        if (rt != null && !rt.has("runtime")) {
+            // a runtime written out in full (upstream's ExecuteInput.runtime: an engineRuntime, a legacyRuntime) is
+            // refused by name, never dropped for the query's own ->from runtime (register S301, the user's ruling of
+            // 2026-11-12: "It can also go to follow up"; until then this door read it as no runtime at all)
+            throw new com.legend.error.NotImplementedException("a runtime written out in the request ("
+                    + rt.getStringOr("_type", "?") + "): not planned; name a runtime (runtimePointer), register S301");
         }
-        if (target.runtime() == null) {
+        String runtime = query.runtime(rt != null ? rt.getString("runtime") : null);
+        if (runtime == null) {
             throw new IllegalArgumentException(
                     "no runtime: the request names none and the query has no ->from(runtime)");
         }
-        return target.runtime();
+        return runtime;
     }
 
     // ---------------------------------------------------------------------
@@ -1019,10 +1183,13 @@ public final class PureV1Api {
      *       dropped connection.</li>
      * </ul>
      */
-    private static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
+    static Answer answer(int status, @com.legend.base.Nullable String errorType, Supplier<String> call) {
         try {
             return new Answer(200, call.get());
         } catch (RuntimeException | StackOverflowError e) {
+            if (e instanceof com.legend.testdatagen.TestDataPlanner.Unseeded u) {
+                return TestDataRoutes.unseeded(u);
+            }
             if (refusesTheText(e)) {
                 return error(status, errorType, String.valueOf(e.getMessage()));
             }

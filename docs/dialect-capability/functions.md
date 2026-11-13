@@ -129,6 +129,7 @@ Database types planned with it: H2.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `composed` |  | 0 |
 | `ENCODE_BASE64` | refused | `encodeBase64 reached H2, which has no to_base64()` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -148,7 +149,7 @@ Database types planned with it: H2.
 | `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiffArm` |  | 53 |
 | `TIME_BUCKET` | refused | `a time bucket reached H2, which has no time_bucket()` |  | 109 |
-| `TIMEZONE` | spelled | `timezone` |  | 6 |
+| `TIMEZONE` | emulated | `by its operands: CAST(FORMATDATETIME((…) AT TIME ZONE …, 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS T... / CAST(CONCAT(CAST(CAST(… AS TIMESTAMP(9)) AS VARCHAR), ' ', …) AS TIMESTAMP(9)...` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -202,6 +203,7 @@ Database types planned with it: H2.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
@@ -318,6 +320,7 @@ Database types planned with it: Postgres.
 | `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `(… COLLATE "C")` |  | 0 |
 | `ENCODE_BASE64` | emulated | `replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(gen_random_uuid() AS VARCHAR)` |  | 2 |
@@ -391,6 +394,7 @@ Database types planned with it: Postgres.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
@@ -507,6 +511,7 @@ Database types planned with it: Snowflake.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Snowflake, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | spelled | `base64_encode` |  | 3 |
 | `LEVENSHTEIN` | spelled | `editdistance` |  | 2 |
 | `GUID` | spelled | `UUID_STRING` |  | 2 |
@@ -580,6 +585,7 @@ Database types planned with it: Snowflake.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanon` |  | 0 |
 | `FLOAT_PRINT` | emulated | `by its operands: composed / composed` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -696,6 +702,7 @@ Database types planned with it: Trino.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Trino, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `to_base64(to_utf8(…))` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein_distance` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -716,9 +723,9 @@ Database types planned with it: Trino.
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `timezone` |  | 6 |
-| `DATE_AT_TIME` | emulated | `CAST(CAST(… AS VARCHAR) \|\| ' ' \|\| CAST(… AS VARCHAR) AS TIMESTAMP(6))` |  | 0 |
-| `EPOCH_NS` | refused | `a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
-| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `DATE_AT_TIME` | emulated | `CAST(CAST(… AS VARCHAR) \|\| ' ' \|\| CAST(… AS VARCHAR) AS TIMESTAMP(9))` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch has no Trino spelling here (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch has no Trino spelling here (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `to_unixtime(with_timezone(…, 'UTC'))` |  | 0 |
 | `EPOCH_MS` | emulated | `CAST(truncate(to_unixtime(with_timezone(…, 'UTC')) * 1000) AS BIGINT)` |  | 24 |
@@ -761,7 +768,7 @@ Database types planned with it: Trino.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
-| `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(6))` |  | 4 |
+| `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(9))` |  | 4 |
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
 | `TYPEOF` | spelled | `typeof` | `via Trino.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
@@ -769,6 +776,7 @@ Database types planned with it: Trino.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS VARCHAR)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -885,6 +893,7 @@ Database types planned with it: BigQuery.
 | `CHR` | spelled | `CHR` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached BigQuery, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `asText: TO_BASE64(CAST(… AS BYTES))` |  | 3 |
 | `LEVENSHTEIN` | spelled | `EDIT_DISTANCE` |  | 2 |
 | `GUID` | spelled | `GENERATE_UUID` |  | 2 |
@@ -958,6 +967,7 @@ Database types planned with it: BigQuery.
 | `FLOOR_RAW` | spelled | `FLOOR` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -1074,6 +1084,7 @@ Database types planned with it: Databricks.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Databricks, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `replace(replace(base64(CAST(… AS BINARY)), chr(13), ''), chr(10), '')` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | spelled | `uuid` |  | 2 |
@@ -1093,7 +1104,7 @@ Database types planned with it: Databricks.
 | `ADD_INTERVAL` | emulated | `intervalUnit, part: timestampadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
-| `TIMEZONE` | spelled | `from_utc_timestamp` |  | 6 |
+| `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | refused | `a time of day: Databricks has no TIME type` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -1147,6 +1158,7 @@ Database types planned with it: Databricks.
 | `FLOOR_RAW` | emulated | `(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1263,6 +1275,7 @@ Database types planned with it: DuckDB.
 | `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `composed` |  | 0 |
 | `ENCODE_BASE64` | emulated | `encodeBase64` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -1279,14 +1292,14 @@ Database types planned with it: DuckDB.
 | `MAKE_DATE` | spelled | `make_date` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTruncArm` |  | 0 |
-| `ADD_INTERVAL` | emulated | `intervalFunction, part: … + …(…)` |  | 93 |
+| `ADD_INTERVAL` | emulated | `microsecondsOnly, intervalFunction, part: …a date's arithmetic + …(…)` |  | 93 |
 | `DATE_DIFF` | emulated | `stringLit, datePart, part: date_diff(…, …)` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | spelled | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | spelled | `epoch_ns` |  | 0 |
 | `FROM_EPOCH_NS` | spelled | `make_timestamp_ns` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalFunction, part: … + …(…)` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `microsecondsOnly, intervalFunction, part: …a date's arithmetic + …(…)` |  | 0 |
 | `EPOCH_SECONDS` | spelled | `epoch` |  | 0 |
 | `EPOCH_MS` | spelled | `epoch_ms` |  | 24 |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` |  | 0 |
@@ -1336,6 +1349,7 @@ Database types planned with it: DuckDB.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1452,6 +1466,7 @@ Database types planned with it: ClickHouse.
 | `CHR` | spelled | `char` |  | 9 |
 | `UC_FIRST` | emulated | `concat(upperUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))` |  | 5 |
 | `LC_FIRST` | emulated | `concat(lowerUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached ClickHouse, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | spelled | `base64Encode` |  | 3 |
 | `LEVENSHTEIN` | emulated | `toInt64(editDistanceUTF8(…))` |  | 2 |
 | `GUID` | emulated | `toString(generateUUIDv4())` |  | 2 |
@@ -1471,7 +1486,7 @@ Database types planned with it: ClickHouse.
 | `ADD_INTERVAL` | emulated | `composed in a block` | `via ClickHouse.temporal` | 93 |
 | `DATE_DIFF` | emulated | `composed in a block` | `via ClickHouse.temporal` | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` | `via ClickHouse.temporal` | 109 |
-| `TIMEZONE` | emulated | `addSeconds(toDateTime64(…, 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(...` | `via ClickHouse.temporal` | 6 |
+| `TIMEZONE` | emulated | `composed in a block` | `via ClickHouse.temporal` | 6 |
 | `DATE_AT_TIME` | refused | `a time of day: ClickHouse's Time type is experimental` | `via ClickHouse.temporal` | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `via ClickHouse.temporal` | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `via ClickHouse.temporal` | 0 |
@@ -1525,6 +1540,7 @@ Database types planned with it: ClickHouse.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | spelled | `toString` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
@@ -1641,6 +1657,7 @@ Database types planned with it: SQLite.
 | `CHR` | spelled | `char` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `(… COLLATE BINARY)` |  | 0 |
 | `ENCODE_BASE64` | emulated | `base64Encoded` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `lower(hex(randomblob(4)) \|\| '-' \|\| hex(randomblob(2)) \|\| '-4' \|\| substr(hex(r...` |  | 2 |
@@ -1714,6 +1731,7 @@ Database types planned with it: SQLite.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -1830,6 +1848,7 @@ Database types planned with it: MariaDB.
 | `CHR` | emulated | `CONVERT(CHAR(… USING utf32) USING utf8mb4)` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MariaDB, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `REPLACE(TO_BASE64(…), CHAR(10 USING utf8mb4), '')` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(UUID() AS CHAR)` |  | 2 |
@@ -1903,6 +1922,7 @@ Database types planned with it: MariaDB.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatLayout` |  | 40 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
@@ -2019,6 +2039,7 @@ Database types planned with it: MySQL.
 | `CHR` | emulated | `CONVERT(CHAR(… USING utf32) USING utf8mb4)` | `as MariaDb` | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as MariaDb` | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as MariaDb` | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MariaDB, whose binary collation is not measured` | `as MariaDb` | 0 |
 | `ENCODE_BASE64` | emulated | `REPLACE(TO_BASE64(…), CHAR(10 USING utf8mb4), '')` | `as MariaDb` | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` | `as MariaDb` | 2 |
 | `GUID` | emulated | `CAST(UUID() AS CHAR)` | `as MariaDb` | 2 |
@@ -2092,6 +2113,7 @@ Database types planned with it: MySQL.
 | `FLOOR_RAW` | spelled | `floor` | `as MariaDb` | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` | `as MariaDb` | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as MariaDb` | 0 |
 | `FLOAT_CANON` | emulated | `floatLayout` | `as MariaDb` | 40 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
@@ -2208,6 +2230,7 @@ Database types planned with it: MongoDB.
 | `CHR` | emulated | `guarded: {"$cond": [{"$or": [{"$lt": [, , 0]}, {"$gte": [, , 128]}]}, , a code beyond ASCII reached char on,  MongoDb, which has no code-to-character operator, , {"$substrCP": [, , , , 1]}]}` |  | 0 |
 | `UC_FIRST` | emulated | `firstCased: $toUpper` |  | 0 |
 | `LC_FIRST` | emulated | `firstCased: $toLower` |  | 0 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MongoDB, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `guarded: {"$convert": {"input":,  {"$convert": {"input": , , "to": "binData", "format": "utf8"}},,  "to": "string", "format": "base64"}}` |  | 0 |
 | `LEVENSHTEIN` | emulated | `guarded` |  | 0 |
 | `GUID` | emulated | `{"$let": {"vars": {"h": {"$reduce": {"input": {"$range": [0, 32]}, "initialVa...` |  | 0 |
@@ -2281,6 +2304,7 @@ Database types planned with it: MongoDB.
 | `FLOOR_RAW` | emulated | `op1: $floor` |  | 0 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
 | `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
@@ -2397,6 +2421,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `CHR` | spelled | `char` |  | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | — |
+| `BINARY_COLLATE` | emulated | `composed` |  | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` |  | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | — |
@@ -2470,6 +2495,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `FLOOR_RAW` | spelled | `floor` |  | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` |  | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
@@ -2586,6 +2612,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `CHR` | spelled | `char` | `as EngineStyleH2` | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as EngineStyleH2` | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as EngineStyleH2` | — |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured` |  | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` | `as EngineStyleH2` | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` | `as EngineStyleH2` | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as EngineStyleH2` | — |
@@ -2659,6 +2686,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `FLOOR_RAW` | spelled | `floor` | `as EngineStyleH2` | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleH2` | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleH2` | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
@@ -2775,6 +2803,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `CHR` | spelled | `char` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured` | `as EngineStyleDB2` | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as EngineStyleDB2, as EngineStyleH2` | — |
@@ -2848,6 +2877,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `FLOOR_RAW` | spelled | `floor` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |

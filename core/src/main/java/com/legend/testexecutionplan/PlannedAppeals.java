@@ -11,7 +11,7 @@ import java.util.Map;
 /**
  * THE APPEALS A TEST PLAN NAMES AND CARRIES, READ FROM THE PLAN ALONE (the slice 2 invariant audit, 2026-11-08: the
  * run's reads and the self-containment check, moved from the test planner's {@code AppealsByVerdict}): the numbers its
- * verdicts name, the appeals it carries by number, the stores they name, and the check that every number named is
+ * verdicts name, the appeals it carries by number, and the check that every number named is
  * carried.
  */
 public final class PlannedAppeals {
@@ -139,21 +139,7 @@ public final class PlannedAppeals {
         }
         return out;
     }
-    /** The stores whose fixtures {@code plan}'s appeals ask the harness to provide before the run (step 8c: the plan
-     *  names them; until then the harness's registry was filled while the asserts were planned). */
-    public static java.util.Set<String> stores(TestPlan plan) {
-        java.util.Set<String> out = new java.util.LinkedHashSet<>();
-        for (Appeal a : byNumber(plan).values()) {
-            Appeal.Rows r = a.rows();
-            if (r != null) {
-                out.addAll(r.stores());
-            }
-        }
-        return out;
-    }
-    /** The appeals {@code plan} carries, by number, in their numbers' order -- the order their arms were planned, so
-     *  the stores they name are provided in that order (the slice 2 audit, 2026-11-08: the harness's provision never
-     *  overlays, so its order is the fixtures' order; by verdict id it was the plan's walk's). */
+    /** The appeals {@code plan} carries, by number, in their numbers' order -- the order their arms were planned. */
     public static Map<Integer, Appeal> byNumber(TestPlan plan) {
         Map<Integer, Appeal> found = new java.util.HashMap<>();
         int last = 0;

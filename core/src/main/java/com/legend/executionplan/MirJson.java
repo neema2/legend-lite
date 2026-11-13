@@ -19,8 +19,6 @@ import com.legend.sql.SqlType;
 import com.legend.sql.SqlUnion;
 import com.legend.sql.SqlWith;
 import com.legend.sql.TypeFact;
-import com.legend.sql.ValueKind;
-import com.legend.sql.ValueTyping;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -219,6 +217,10 @@ public final class MirJson {
                 o.put("columns", new ArrayList<Object>(v.columns()));
                 o.put("alias", v.alias());
                 o.put("outputs", outputCols(v.outputs()));
+                SqlSource.SourceUrl named = v.payload();
+                if (named != null) {
+                    o.put("payload", source(named));
+                }
             }
             case SqlSource.Dual d -> o.put("_type", SourceTag.dual.name());
             case SqlSource.SourceUrl u -> {
@@ -226,6 +228,7 @@ public final class MirJson {
                 o.put("url", u.url());
                 o.put("alias", u.alias());
                 o.put("outputs", outputCols(u.outputs()));
+                o.put("form", u.form().name());
             }
             case SqlSource.RawSql r -> {
                 o.put("_type", SourceTag.rawSql.name());
@@ -485,18 +488,7 @@ public final class MirJson {
         o.put("kind", p.kind().name());
         o.put("optional", p.optional());
         o.put("enumMapFn", p.enumMapFn());
-        if (p.byValue() == null) {
-            o.put("byValue", null);
-        } else {
-            Map<String, Object> v = new LinkedHashMap<>();
-            List<Object> kinds = new ArrayList<>();
-            for (ValueKind k : p.byValue().kinds()) {
-                kinds.add(k.name());
-            }
-            v.put("kinds", kinds);
-            v.put("absent", p.byValue().absent().name());
-            o.put("byValue", v);
-        }
+        o.put("declared", p.declared() == null ? null : p.declared().name());
     }
 
     private static void formatLit(Map<String, Object> o, SqlExpr.FormatLit f) {
@@ -899,12 +891,15 @@ public final class MirJson {
                 for (Json.Node n : o.getArr("rows").items()) {
                     rows.add(readExprs((Json.Arr) n));
                 }
+                Json.Obj named = o.getObjOr("payload", null);
                 yield new SqlSource.Values(rows, strings(o.getArr("columns")), o.getString("alias"),
-                        readOutputCols(o.getArr("outputs")));
+                        readOutputCols(o.getArr("outputs")),
+                        named == null ? null : (SqlSource.SourceUrl) readSource(named));
             }
             case dual -> new SqlSource.Dual();
             case sourceUrl -> new SqlSource.SourceUrl(o.getString("url"), o.getString("alias"),
-                    readOutputCols(o.getArr("outputs")));
+                    readOutputCols(o.getArr("outputs")), named(SqlSource.SourceUrl.Form.class, o.getString("form"),
+                            "form"));
             case rawSql -> new SqlSource.RawSql(o.getString("sql"), o.getString("alias"),
                     readOutputCols(o.getArr("outputs")), o.getString("writtenFor"));
             case gridReport -> new SqlSource.GridReport(readQuery(o.getObj("grid")),
@@ -956,18 +951,11 @@ public final class MirJson {
             case group -> new SqlExpr.Group(readExpr(o.getObj("inner")), type);
             case keyCell -> new SqlExpr.KeyCell(o.getInt("cell"), type);
             case planParam -> {
-                Json.Obj v = objOrNull(o, "byValue");
-                ValueTyping byValue = null;
-                if (v != null) {
-                    List<ValueKind> kinds = new ArrayList<>();
-                    for (String k : strings(v.getArr("kinds"))) {
-                        kinds.add(named(ValueKind.class, k, "value kind"));
-                    }
-                    byValue = new ValueTyping(kinds, named(ValueKind.class, v.getString("absent"), "value kind"));
-                }
+                String declared = o.getStringOr("declared", null);
                 yield new SqlExpr.PlanParam(o.getString("name"),
                         named(SqlExpr.PlanParam.Kind.class, o.getString("kind"), "parameter kind"),
-                        o.getBool("optional"), o.getStringOr("enumMapFn", null), type, byValue);
+                        o.getBool("optional"), o.getStringOr("enumMapFn", null), type,
+                        declared == null ? null : named(com.legend.sql.DeclaredKind.class, declared, "declared kind"));
             }
             case formatLit -> {
                 List<DateFmt> parts = new ArrayList<>();

@@ -8,10 +8,10 @@ import java.util.List;
 /**
  * THE COMPATIBILITY EDGE'S HOOKS (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the design's step 8): handed to a run by its
  * caller ({@code ExecuteOptions.recording}: an edge implies the compatibility rules, ruled 2026-11-08), never found by
- * the product. At planning the test door hands it each effect's and each seed's ledger texts and plans the records it
- * answers into the test plan by the step's index; at run it is told what each such step did, and builds the referee's
- * ledger from the planned texts and the run's events -- the ledger is the run's output, never planned and never read
- * back into a run.
+ * the product. At planning the test door hands it each effect's ledger texts and each seed's referee's copy, and plans
+ * the records it answers into the test plan by the step's index; at run it is told what each such step did, and
+ * builds the referee's ledger from the planned records and the run's events -- the ledger is the run's output, never
+ * planned and never read back into a run.
  */
 public interface Edge {
 
@@ -19,8 +19,11 @@ public interface Edge {
      *  step. */
     List<Extension> effect(List<String> texts, List<Boolean> queries);
 
-    /** A seed step's statements' ledger texts, in order: the records to plan at the step. */
-    List<Extension> seed(List<String> texts);
+    /** A seed step's REFEREE'S COPY (B2b, 2026-11-11): the step's load as the replay referee's own database runs it --
+     *  {@code steps} one for each of the plan's load's steps, in order, reading {@code content} by digest -- the records
+     *  to plan at the step. */
+    List<Extension> seed(List<com.legend.executionplan.ExecutionPlan.LoadStep> steps,
+            java.util.Map<String, String> content);
 
     /** A seed step's statements ran ({@code answeredRows}: whether each answered rows, those before a failure when it
      *  failed), {@code planned} the records planned at it. */

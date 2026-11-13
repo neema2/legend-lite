@@ -5,7 +5,6 @@ package com.legend.testplan;
 
 import com.legend.base.Nullable;
 import com.legend.builtin.NativeFn;
-import com.legend.cache.Hash;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.spec.typed.ExecutionContext;
@@ -80,31 +79,6 @@ public final class Seeds {
                     rtFqn == null ? null : declaredSeed(rtFqn, ctx)));
         }
         return new Sources(fromSources, runtime, runtime == null ? null : declaredSeed(runtime, ctx));
-    }
-
-    /** {@code statement}'s seeds as the plan's setup steps, final for {@code dialect}'s database, each with the text
-     *  the referee's ledger records for it. */
-    public static List<CsvSeed.Planned> planned(TypedSpec statement,
-            @Nullable String runtime, ModelContext ctx, SqlDialect dialect) {
-        List<TypedFrom> froms =
-                ExecutionContext.froms(statement);
-        List<CsvSeed.Step> setups = new ArrayList<>();
-        for (TypedFrom fr : froms) {
-            for (String sql : fr.sqlSetups()) {
-                // written in the database the from()'s connection declares (decision D2)
-                setups.add(new CsvSeed.Step.Sql(sql, fr.context().rawLanguage()));
-            }
-            setups.addAll(CsvSeed.setupSteps(fr, ctx, dialect));
-            // an ELEMENT runtime named by the from(): its declared connections' test data (the instance form above
-            // carries the same facts on the instance)
-            fr.context().runtime().ifPresent(ref ->
-                    setups.addAll(CsvSeed.declaredSteps(ref.fullPath(), ctx, dialect)));
-        }
-        // the program's runtime: its declared connections' test data seeds the session the same way
-        if (runtime != null) {
-            setups.addAll(CsvSeed.declaredSteps(runtime, ctx, dialect));
-        }
-        return CsvSeed.planned(setups, dialect);
     }
 
     /**
@@ -218,44 +192,6 @@ public final class Seeds {
             }
         }
         return true;
-    }
-
-    /** The seeds' name in a plan: the content of the steps the session runs (a step's executed text, a load's rows),
-     *  so equal seeds share it and seeds that run differently never do (the M3 audit: the authored text alone named
-     *  two languages' runs of one text alike). */
-    public static String key(List<ExecutionPlan.LoadStep> steps) {
-        // each field length-prefixed, a cell's absence marked (the design audit's H1, 2026-11-02: a record's toString
-        // joins fields with no escape, so two different seeds could spell one key and the second be skipped)
-        StringBuilder sb = new StringBuilder();
-        for (ExecutionPlan.LoadStep step : steps) {
-            switch (step) {
-                case ExecutionPlan.LoadStep.Statement st -> field(sb.append('S'), st.sql());
-                case ExecutionPlan.LoadStep.Rows r -> {
-                    field(field(field(field(sb.append('R'), r.stagingTable()), r.createStaging()), r.copy()),
-                            r.dropStaging());
-                    sb.append(r.rows().size()).append(':');
-                    for (List<String> row : r.rows()) {
-                        sb.append(row.size()).append(':');
-                        for (String cell : row) {
-                            if (cell == null) {
-                                sb.append('N');
-                            } else {
-                                field(sb.append('V'), cell);
-                            }
-                        }
-                    }
-                }
-                // a seed is statements and rows; a file is a program's own load, never a seed
-                case ExecutionPlan.LoadStep.File f -> throw new IllegalStateException("a file's load among a seed's"
-                        + " steps: " + f.ref().name());
-            }
-        }
-        return "seeds:" + Hash.ofUtf8(sb.toString()).hex();
-    }
-
-    /** {@code text} into {@code sb} prefixed by its length: no two field sequences spell one string. */
-    private static StringBuilder field(StringBuilder sb, String text) {
-        return sb.append(text.length()).append(':').append(text);
     }
 
     /** A named runtime's contribution to the seed sources. */

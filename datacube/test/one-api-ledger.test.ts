@@ -818,8 +818,12 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   // -- the app shell (datacube-app.ts) --
   'src/app/datacube-app.ts:rowsOf:local': { count: 2, other: `${BOTH} a grid's rows run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
   // 2026-10-26 (the flow mode's table Output, M6/FL13): the tab's grid writes its table where its rows are its own
-  // database's; a host's grid's (Python's) is written by flow.run, through headless gridWriteTable -- the one writer
-  'src/app/datacube-app.ts:tableWriter:local': { count: 2, other: `${BOTH} a box's rows written into a table of the host's database by the one writer (table-output.ts): the tab's own here, Python's flow.run by headless gridWriteTable`, ability: 'write' },
+  // database's; a host's grid's (Python's) is written by flow.run, through headless gridWriteTable -- the one writer.
+  // 2026-11-13 (count 2 -> 1, the final audit's item 2: the table Output as ONE plan, Boundary.outputPlan, made before
+  // anything runs, e376eec90): the writer no longer takes the tab's planner to plan the write during the run (the
+  // second read, `place.planner ?? local.planner`, gone with planOf and executionPlan); table-output.ts is handed the
+  // catalog's question and the Output's plan alone (`local.tables`)
+  'src/app/datacube-app.ts:tableWriter:local': { count: 1, other: `${BOTH} a box's rows written into a table of the host's database by the one writer (table-output.ts): the tab's own here, Python's flow.run by headless gridWriteTable`, ability: 'write' },
   'src/app/datacube-app.ts:tableWriter:place.runner': { other: `${BOTH} a grid whose rows a host runs (Python's) has its table written by that host: flow.run, headless gridWriteTable`, ability: 'write' },
   'src/app/datacube-app.ts:hostMenu:services.pages': { other: `${BOTH} Save and Open… where the host keeps pages (the tab's browser store, Python's folder)`, ability: 'pages' },
   'src/app/datacube-app.ts:hostMenu:browser.address': { other: `${NATURE} Share… needs an address others can open; Python's is this machine's loopback` },

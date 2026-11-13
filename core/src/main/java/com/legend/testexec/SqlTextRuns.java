@@ -98,8 +98,7 @@ final class SqlTextRuns {
 
     /**
      * AN APPEAL DECIDED AFTER THE BODY'S RUN, FROM THE PLAN'S DATA (the plan-as-data design's step 8b, 2026-11-08):
-     * {@code a} heard over the texts the run recorded -- a contract's failure, the generator's refusal (S143), or the
-     * rows leg: the stores' fixtures provided by the harness, our rows read through the edge's reader (each a plan of
+     * {@code a} heard over the texts the run recorded -- a contract's failure, or the rows leg: the stores' fixtures provided by the harness, our rows read through the edge's reader (each a plan of
      * its own on the body's sessions, Appeals), the golden replayed by the {@code referee} with the plan's enumerations (no model: hole 1), its verdict
      * the appeal's. Reports go to {@code listener}. Inside a judging scope that plans nothing.
      */
@@ -111,13 +110,6 @@ final class SqlTextRuns {
         return switch (a.kind()) {
             case CONTRACT -> fail(java.util.Objects.requireNonNull(a.contract()) + ": expected " + golden + ", got "
                     + ours);
-            case TDG -> {
-                // the generator's rows leg planned the generator's transcript and ran it at the verdict -- a run inside
-                // the body's run (THE WALL) and planning at run; the generator is not offered (S143), so the leg is
-                // refused by name (I3, 2026-11-07: its session and the planning it reached deleted)
-                com.legend.base.RunScope.planning("the test-data generator's rows leg");
-                throw new IllegalStateException(name + ": the test-data generator's rows leg is not offered (S143)");
-            }
             case ROWS -> rowsLegNow(a, golden, ours, textEqual, referee, listener, reader, sessions);
         };
     }

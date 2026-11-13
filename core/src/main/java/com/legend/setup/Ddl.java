@@ -421,82 +421,42 @@ public final class Ddl {
 
     /** The seed's rows for one store table (all-string cells, pre-sorted by
      * the registry's deterministic-order contract; null an absent optional
-     * fact), every column in declared order. */
+     * fact), every column in declared order, each typed by its declared type
+     * (the load writes the dialect's typed literals, A2). */
     public static RowLoad metamodelRows(DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows) {
         return new RowLoad(schema, def.name(), quoting(def, schema), java.util.List.of(), java.util.Set.of(),
-                def.columns().size(), rows);
+                def.columns().size(), rows, declaredTypes(def));
     }
 
-    /** One store table's seed in an IN-PROCESS engine as a plan's setup steps: its DDL ({@link #metamodelSeed}),
-     *  then its rows ({@link #metamodelRows}) for the database's bulk loader where it has one
-     *  ({@link com.legend.sql.dialect.SqlDialect#loadsRowsInBulk}), else as the one INSERT; a table of no rows adds no
-     *  rows step. The one owner of that choice for the plan's target and the system database's session (the doors,
-     *  2026-10-29; until then {@code PlanMaker} and {@code SystemDatabase} each made it). */
-    public static java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> metamodelSteps(
-            DatabaseDefinition.TableDefinition def, String schema, java.util.List<java.util.List<String>> rows,
-            com.legend.sql.dialect.SqlDialect dialect) {
-        java.util.List<com.legend.executionplan.ExecutionPlan.LoadStep> out = new java.util.ArrayList<>();
-        for (String statement : metamodelSeed(def, schema, dialect)) {
-            out.add(new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(statement));
-        }
-        if (!rows.isEmpty()) {
-            RowLoad load = metamodelRows(def, schema, rows);
-            out.add(dialect.loadsRowsInBulk() ? load.staged(dialect)
-                    : new com.legend.executionplan.ExecutionPlan.LoadStep.Statement(dialect.render(load.values())));
+    /** {@code def}'s columns' declared types, in declared order: a load's typed literals. */
+    public static java.util.List<com.legend.sql.SqlDdl.ColumnType> declaredTypes(DatabaseDefinition.TableDefinition def) {
+        java.util.List<com.legend.sql.SqlDdl.ColumnType> out = new java.util.ArrayList<>(def.columns().size());
+        for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
+            out.add(com.legend.compiler.element.StoreCompiler.declaredType(col.dataType()));
         }
         return out;
     }
 
-    /** A store table's name in a SERVER engine's system database (SystemDatabase): {@code schema_table}, one
-     *  name in the system session's own namespace, where its temporary tables live (a temporary table takes no
-     *  schema on most servers: Postgres keeps it in {@code pg_temp}, Databricks and BigQuery in the session). A query
-     *  reads it under this name through its table renames. */
-    public static String systemTable(String schema, String table) {
-        return schema + "_" + table;
-    }
-
-    /** One store table in a SERVER engine's system database, with its rows: a TEMPORARY table, the system session's
-     *  own (no other session sees it; it goes when the session closes, a crash included), named {@link #systemTable},
-     *  made by the dialect's {@code sessionTable} statements (a temporary table and its INSERT, or what the engine
-     *  reads instead). The session is new, so nothing is dropped first and no schema is made. It declares NO key (a
-     *  key column stays NOT NULL) and no length (a VARCHAR is the dialect's unbounded text): Databricks refuses a key
-     *  on a temporary table, MariaDB and MySQL one past 3,072 bytes (the store's VARCHAR(1024) keys in utf8mb4) and a
-     *  row whose declared lengths pass 65,535 bytes, Snowflake and BigQuery enforce no key (all measured 2026-10-11).
-     *  The table is read-only, its rows the ones the in-process engines load under their keys and lengths. */
-    public static java.util.List<String> metamodelTemporary(DatabaseDefinition.TableDefinition def, String schema,
+    /** One store table's seed in an IN-PROCESS engine as a plan's setup steps: its DDL ({@link #metamodelSeed}),
+     *  then its rows ({@link #metamodelRows}) as a content blob of inserts ({@link LoadSteps#rows}); a table of no rows
+     *  adds no rows step. The one owner of that form for the plan's target and the system database's session (the
+     *  doors, 2026-10-29; until then {@code PlanMaker} and {@code SystemDatabase} each made it). */
+    public static LoadSteps metamodelSteps(DatabaseDefinition.TableDefinition def, String schema,
             java.util.List<java.util.List<String>> rows, com.legend.sql.dialect.SqlDialect dialect) {
-        java.util.List<com.legend.sql.SqlDdl.Column> columns = new java.util.ArrayList<>();
-        for (com.legend.sql.SqlDdl.Column c : createTable(def, null).columns()) {
-            com.legend.sql.SqlDdl.ColumnType type = c.type() instanceof com.legend.sql.SqlDdl.ColumnType.Sized z
-                    && z.kind().equalsIgnoreCase("VARCHAR")
-                    ? new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.VARCHAR)
-                    : c.type();
-            columns.add(new com.legend.sql.SqlDdl.Column(c.name(), c.declaredQuoted(), type,
-                    c.notNull() || c.primaryKey(), false));
+        LoadSteps.Builder out = new LoadSteps.Builder();
+        for (String statement : metamodelSeed(def, schema, dialect)) {
+            out.statement(statement);
         }
-        return dialect.sessionTable(new com.legend.sql.SqlDdl.CreateTable(null, systemTable(schema, def.name()),
-                com.legend.sql.NameQuoting.BARE, columns, true), rows.isEmpty() ? null : metamodelTemporaryRows(def, schema, rows).values());
+        return out.add(metamodelRowSteps(def, schema, rows, dialect)).build();
     }
 
-    /** The rows of {@link #metamodelTemporary}'s table, as {@link #metamodelRows}, each cell of a column that is not
-     *  text CAST to the column's type in the database: a server may take no text into it ({@link RowLoad#casts}). */
-    private static RowLoad metamodelTemporaryRows(DatabaseDefinition.TableDefinition def, String schema,
-            java.util.List<java.util.List<String>> rows) {
-        java.util.List<com.legend.sql.@com.legend.base.Nullable SqlType> casts = new java.util.ArrayList<>();
-        for (DatabaseDefinition.ColumnDefinition col : def.columns()) {
-            casts.add(switch (col.dataType()) {
-                case RelationalDataType.Varchar ignored -> null;
-                case RelationalDataType.Integer_ ignored -> com.legend.sql.SqlType.Scalar.INTEGER;
-                case RelationalDataType.Bit ignored -> com.legend.sql.SqlType.Scalar.BOOLEAN;
-                default -> throw new IllegalStateException("system table " + def.name() + "." + col.name()
-                        + ": no cast for its type " + col.dataType() + " (the store declares VARCHAR, INTEGER and"
-                        + " BIT)");
-            });
-        }
-        return new RowLoad(null, systemTable(schema, def.name()), com.legend.sql.NameQuoting.BARE, java.util.List.of(),
-                java.util.Set.of(),
-                def.columns().size(), rows, casts);
+    /** {@link #metamodelSteps}' rows alone, no DDL: a model's registration in the process's catalog, whose tables are
+     *  made once with the platform's rows (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md 4.3, L4b) -- inserts only, so a
+     *  registration stays inside its transaction (H2 commits on DDL); none for no row. */
+    public static LoadSteps metamodelRowSteps(DatabaseDefinition.TableDefinition def, String schema,
+            java.util.List<java.util.List<String>> rows, com.legend.sql.dialect.SqlDialect dialect) {
+        return LoadSteps.rows(metamodelRows(def, schema, rows), dialect);
     }
 
     /** The FLAVORED type spelling: the deltas from the H2 base are the

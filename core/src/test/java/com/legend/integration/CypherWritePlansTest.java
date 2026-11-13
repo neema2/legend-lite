@@ -172,7 +172,7 @@ class CypherWritePlansTest {
                 .executionPlan(CypherGraph.RUNTIME);
         assertTrue(plan.root() instanceof ExecutionPlan.Sequence, cypher);
         List<String> rows = new ArrayList<>();
-        for (List<Object> row : PlanRunner.rows(plan, Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(session))).rows()) {
+        for (List<Object> row : PlanRunner.rows(plan, Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(session)), java.util.UUID.randomUUID()).rows()) {
             List<String> cells = new ArrayList<>();
             for (Object value : row) {
                 cells.add(String.valueOf(value));
