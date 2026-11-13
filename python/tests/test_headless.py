@@ -615,8 +615,21 @@ class Remote(unittest.TestCase):
         pq.write_table(pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': [1, 2, 3]}), f'{cls.folder.name}/trades.parquet')
         Path(cls.folder.name, 'desks.csv').write_text('desk,head\nFX,Ana\nEQ,Ben\n')
         class Quiet(http.server.SimpleHTTPRequestHandler):
+            # the files a test marked gone (a link that no longer answers): 404, the file left where it is -- deleting it
+            # raced the server's own handle on Windows (the closing audit's item 8, 2026-11-13)
+            gone: set[str] = set()
+
+            def send_head(self):
+                import posixpath
+                import urllib.parse
+                if posixpath.basename(urllib.parse.urlsplit(self.path).path) in Quiet.gone:
+                    self.send_error(404, 'gone')
+                    return None
+                return super().send_head()
+
             def log_message(self, *_):
                 pass
+        cls.quiet = Quiet
         handler = functools.partial(Quiet, directory=cls.folder.name)
         cls.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
@@ -722,8 +735,10 @@ class Remote(unittest.TestCase):
         self.assertEqual(answer.status, 200, answer.body[:300])
         with self.frames.reading() as read:
             self.assertEqual(read.execute(PlannedSql('SELECT count(*) FROM remote_expiring')).fetchone()[0], 3)
-        # the link no longer answers: the read fails, in DuckDB's words, without the token
-        (served / 'expiring.parquet').unlink()
+        # the link no longer answers: the read fails, in DuckDB's words, without the token (the server answers 404 for it:
+        # the file left in place, never deleted from under the server's handle)
+        self.quiet.gone.add('expiring.parquet')
+        self.addCleanup(self.quiet.gone.discard, 'expiring.parquet')
         with self.frames.reading() as read:
             with self.assertRaises(duckdb.Error) as failed:
                 read.execute(PlannedSql('SELECT count(*) FROM remote_expiring')).fetchone()
