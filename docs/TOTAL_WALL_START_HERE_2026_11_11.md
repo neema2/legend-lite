@@ -977,6 +977,53 @@ In order. Nothing here is in the A/B/C PR.
        helper. A pin that moves gets a dated note.
      - Order: after the witness and the fuzzing, landed only after the compiler-performance baseline (its
        `CompileLatency` times lowering through `lower`).
+   - **C4's state and rulings, 2026-11-13 (evening).** Branch `claude/separation-foolproof-068`. Built:
+     - the closed surface (212d76e49, 5bef81ac4, d7bd37c53, 3a87c1ad5) and the method-reference rules (7973f1aad);
+     - the witness in Java, TS and Python (b9611e5b5, 5b349847d, 02e111ef0, 85cd8a5a1), Python's frame made direct
+       (d74e94306);
+     - the fuzzes (331efd7ad, 9b41b9d7b) and what they found, fixed:
+       - ClickHouse's identifier breakout, the user's "fix C2 now" (de1ca0859);
+       - C1, a Python read ends at its first failure (90a91a89f, the user's "C1 agree": it deletes the re-pin, so
+         `EXEMPTIONS` is empty; this closes the "run that plans" found item below);
+       - C3, `Part.block` (add33d144, the user's "C3 agree");
+       - F1-F3 (d00692eee, under the user's "do all of them, then PR").
+     - The narrowing as ruled (795a7b8af); the cloud probe (7f872ef24: Snowflake 20/20, Databricks 20/20, r47); the
+       witness's cost (4586b28d5, `docs/witness-cost-homework/`).
+   - **The independent audit at 7f872ef24** (Java, hosts, tenets; three read-only reviewers, 2026-11-13) found no
+     wall breach. It did find:
+     - H2's pre-quoted shortcut (`aliasIdent`, `execPart`): a column name broke out, read a server file
+       end to end. It is on main too. The user: "nothing is in production yet -- let's get C4 right", so it is fixed
+       in C4's PR, not a separate one.
+     - Two Python read regressions of C1, the pool thread outside the witness, fuzzes that count any exception as
+       refused, Python run markers no test asserts, and `ProductStatements` still exposing the removed door's parts.
+   - **RULED by the user, 2026-11-13: C4 is the must-haves only, one PR (about 3 days); everything else is C5.**
+     C4's must-haves, each red on revert:
+     - M1: H2's hole fixed as a class (one shared check of a pre-quoted name, quote-wrapped fuzz names);
+     - M2: a compile-time wall on both hosts (the run side imports no planner, TS and Python; tests only);
+     - M3: the guards bite (named refusals only, coverage pinned, Python's markers asserted, `_NOT_PLANNING` pinned,
+       no silent skips);
+     - M4: C4's regressions (the Python read's blame and its 422, the pool thread's frame, `serializer` accepted on
+       the model-change route);
+     - M5: every claim true. This covers `ProductStatements`' parts package-private, `prepare` pinned, and S307's
+       text: the test road keeps a body's own reads and its seed generation refuses them (RULED 2026-11-13, on the
+       engine runner's confirmation). It also covers C4's edits taken out of the engine-text printer (byte-identical
+       to main's) and the stale texts.
+     - Then: a follow-up audit, a lane round, the PR, CI, and the user's merge word.
+   - **C5, the follow-up (start none without the user):**
+     - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
+       20 TS sites);
+     - typed identifiers (no quote syntax in a plan's names; invariant 3a);
+     - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
+     - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
+     - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses
+       lite's witness pays about 45 ns.
+   - **Moved to D's batch** (compatibility questions C4 only surfaced):
+     - the engine-text printer's name rule: (a) engine's exactly, (b) lite's quoting plus a row, or (c) engine's where
+       engine spells a name right and a refusal by name where it would mangle or break it (the orchestrator recommends
+       c);
+     - unknown fields in upstream's request envelopes: (a) ignored as engine does, (b) refused, or (c) S29's pattern
+       -- declared fields accepted at their default, refused by name otherwise, undeclared ones refused (recommended
+       c).
 2. **DataCube's engine contract: one intent API, every engine behind it** (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`,
    branch `claude/datacube-engine-contract`, PROPOSED, for the user's ratification).
    - It is consolidated with the bridge on intent (branch `claude/total-wall-bridge` @ 77c084e8a: `DataHost`) as §5.5
@@ -1034,8 +1081,8 @@ In order. Nothing here is in the A/B/C PR.
    - **Found 2026-11-13, owners to assign (nothing lost):**
      - **A run that plans (G4), Python:** `frames.Reading.execute` re-pins a failed read's cursor through `_pin` ->
        `_host.count` -> `compiler.host_operations`, planning inside the read's run. Found by C4's witness; the one
-       entry of `_runframe.EXEMPTIONS` (shrink-only). The fix (delete the re-pin, or plan it ahead) is the user's
-       ruling, pending C4's facts.
+       entry of `_runframe.EXEMPTIONS` (shrink-only). CLOSED 2026-11-13: the user ruled C1 (the read ends at its first
+       failure; the re-pin deleted, 90a91a89f); `EXEMPTIONS` is empty.
      - **The model printer cannot print a DuckDB connection** ("required field 'path' is absent",
        `grammar/jsonToGrammar/model`): DataCube's R3a keeps the planner's own Connection and Runtime as text because of
        it.
@@ -1053,6 +1100,22 @@ In order. Nothing here is in the A/B/C PR.
    - E-5b and E-5d (the judge pins);
    - FLOAT_PRINT staging, if anything is left after the print-form ruling;
    - E-3's forcing `WHERE`, after its lane probe.
+   - **E on `claude/total-wall-e`, 2026-11-13 (evening):**
+     - **Two commits held for the user:** e62668553e (S340, BigQuery's date range; the BigQuery lane at that head
+       moved only the five rows, r46) and 2833593dff (S341, draft: `type()` answers its static form as pure does,
+       and refuses by name the form decided at run time as engine does; it replaces wrong answers).
+     - **O2:** D1 and D2 landed (3a711976af) under `MixedListConformanceTest`. One known defect is held by the
+       orchestrator's (c): a date-only mix's min/max at one instant answers the DateTime. Its four pins are the
+       JSON-array carrier's acceptance; if that carrier is cut, the sort path fixes it.
+     - **The JSON-array carrier (O2's step 3) is the user's decision:** about 1.5-2 weeks, 3,700 lines replaced, for
+       about 3% of channel-A queries whose answers are already upstream's. The options are (a) a fresh worker now,
+       (b) defer it and fix the known defect now (recommended), or (c) only the truly mixed family (two carriers,
+       against G1). The brief: `docs/O2_STEP3_JSON_CARRIER_BRIEF_2026_11_13.md` (d82ecf724e).
+     - **Evidence for the D/E batch:**
+       - E-5c's counts: `docs/lean-sql-homework/E5C_JUDGE_COUNTS_2026_11_13.md`; BOTH sends 3.4x the statements of
+         DATABASE on DuckDB's PCT channel B.
+       - The DE7 build plan: `docs/DE7_DECIMAL_SCALE_BUILD_PLAN_2026_11_13.md`.
+       - The D3 diagnosis: `docs/D3_TYPE_TOSTRING_DIAGNOSIS_2026_11_13.md`.
 8. **CI watch:** macOS's `sdlc` job was cancelled with no log at 49 minutes on 549c018d7 (runner loss suspected). If it
    recurs, it is investigated, never rerun blindly.
 9. **V8's code-memory protection back on** (the user, 2026-11-13: "agreed on turning protection off then with that
