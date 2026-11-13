@@ -51,7 +51,7 @@ final class TestDataRoutes {
         return PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(ctx,
-                    TestDataPlanner.seedJson(ctx, seed(ctx, r, true)), r.runtime(), runner));
+                    TestDataPlanner.seedJson(ctx, seed(doored(ctx, r), r, true)), r.runtime(), runner));
         });
     }
 
@@ -72,6 +72,7 @@ final class TestDataRoutes {
         PureV1Api.Answer a = PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
+                doored(ctx, r);
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
                 // a view root's main table admitted, so a view is refused by the route's own rule (TestDataPlanner.route)
                 TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;
@@ -132,6 +133,15 @@ final class TestDataRoutes {
             }
             return new Request(json, query, json.getString("mapping"), rt.getString("runtime"));
         }
+    }
+
+    /** {@code ctx}, once the request's query is through the product's door: a query reaching a statement's own SQL
+     *  text ({@code executeInDb}'s read) is refused by name, as every product door refuses it (2026-11-13, the
+     *  orchestrator's completion A of item 5: these routes scan the query's relations and lower its seed, apart from
+     *  the door every execute passes, PlanMaker.plan's QueryDoor.refuseTestOnly). */
+    private static ModelContext doored(ModelContext ctx, Request r) {
+        com.legend.planner.QueryDoor.refuseRawSql(com.legend.Compiler.query(ctx, r.query()));
+        return ctx;
     }
 
     /** A request's lambda, its names resolved (step D), as every planning entry takes a query. */

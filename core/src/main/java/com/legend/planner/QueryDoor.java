@@ -100,8 +100,12 @@ public final class QueryDoor {
             if (kind != null) {
                 return kind;
             }
-            return StatementEffects.reaches(statement, n -> n instanceof TypedRawSqlRelation, query.specs(), rawSql)
-                    ? TestOnly.RAW_SQL : null;
+            return rawSql(statement) ? TestOnly.RAW_SQL : null;
+        }
+
+        /** Whether {@code statement} reaches a statement's own SQL text ({@link TestOnly#RAW_SQL}). */
+        public boolean rawSql(TypedSpec statement) {
+            return StatementEffects.reaches(statement, n -> n instanceof TypedRawSqlRelation, query.specs(), rawSql);
         }
 
         /** Every kind {@code statement} holds, in the scan's order. */
@@ -150,10 +154,28 @@ public final class QueryDoor {
         for (TypedSpec statement : query.body()) {
             TestOnly kind = scan.refusedByTheProduct(statement);
             if (kind != null) {
-                throw new NotImplementedException(kind.what + " in a query: " + kind.why
-                        + ", and the product's query door plans none");
+                throw refused(kind);
             }
         }
+    }
+
+    /** Refuses {@code query} by name at its first statement reaching a statement's own SQL text
+     *  ({@link TestOnly#RAW_SQL}): for a product door that reads a query apart from {@link #refuseTestOnly} -- the
+     *  test-data generator's routes, which scan its relations and lower its seed (2026-11-13, the orchestrator's
+     *  completion A of item 5: the user ruled executeInDb refused on EVERY product door). */
+    public static void refuseRawSql(TypedQuery query) {
+        Scan scan = new Scan(query, null);
+        for (TypedSpec statement : query.body()) {
+            if (scan.rawSql(statement)) {
+                throw refused(TestOnly.RAW_SQL);
+            }
+        }
+    }
+
+    /** {@code kind}'s refusal, by name. */
+    private static NotImplementedException refused(TestOnly kind) {
+        return new NotImplementedException(kind.what + " in a query: " + kind.why
+                + ", and the product's query door plans none");
     }
 
     /** Whether {@code statement} is an {@code assertError(f, ...)} at its root -- not a let -- whose function's body

@@ -99,6 +99,29 @@ class TestDataRoutesTest {
         return PureV1Api.route("/api/pure/v1/" + path, null, body, ConnectionResolver.RUNNER);
     }
 
+    /** A query reaching an {@code executeInDb}'s read -- a statement's own SQL text, the test road's -- is refused by
+     *  name on each of the generator's routes, as every product door refuses it (2026-11-13, the orchestrator's
+     *  completion A of item 5: these routes scan the query's relations and lower its seed apart from PlanMaker.plan's
+     *  door, so its text went unrefused there). */
+    @Test
+    void anExecuteInDbsReadIsRefusedByNameOnEveryRoute() {
+        String raw = "{|let n = meta::relational::metamodel::execute::executeInDb('select 7 as A',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB)).columnNames;\n"
+                + "model::Person.all()->project([p|$p.name, p|$p.firm.legalName], ['name', 'firm']);}";
+        String ids = ",\"tableRowIdentifiers\":[{\"table\":{\"_type\":\"table\",\"table\":\"PERSON\",\"schema\":"
+                + "\"default\",\"database\":\"store::DB\"},\"rowIdentifiers\":[{\"columnValuePairs\":[{\"name\":\"ID\","
+                + "\"value\":1}]}]}]";
+        for (String[] r : new String[][] {{"generateTestData_WithSeed", ids}, {"generateTestData_WithDefaultSeed", ""},
+                {"generateSeedData", ""}}) {
+            PureV1Api.Answer a = route("execution/testDataGeneration/" + r[0], input(raw, r[1]));
+            assertTrue(a.status() != 200, r[0] + ": " + a.json());
+            assertTrue(a.json().contains("an executeInDb\\u0027s SQL in a query: a statement\\u0027s own SQL text is the"
+                    + " test road\\u0027s") || a.json().contains("an executeInDb's SQL in a query: a statement's own SQL"
+                    + " text is the test road's"), r[0] + ": " + a.json());
+        }
+    }
+
     /** The test data from given identifiers: the routes' table order (by schema and table: FIRM before the root
      *  PERSON), as text. */
     @Test
