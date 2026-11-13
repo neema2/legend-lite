@@ -75,24 +75,10 @@ public final class RelationalTypeInference {
                     if (types.size() <= 1) {
                         yield first;
                     }
-                    // an argument with no type drops out, as the engine's map does
-                    RelationalDataType acc = null;
-                    boolean possible = true;
-                    for (RelationalDataType t : types) {
-                        if (t == null) {
-                            continue;
-                        }
-                        if (acc == null) {
-                            acc = t;
-                            continue;
-                        }
-                        acc = safe(acc, t);
-                        if (acc == null) {
-                            possible = false;
-                            break;
-                        }
-                    }
-                    yield possible && acc != null ? acc : first;
+                    // an argument with no type drops out, as the engine's map does; the safe type is the
+                    // engine's fold (S378, 2026-11-13, ruling 32)
+                    RelationalDataType safe = safeTypeOf(types);
+                    yield safe != null ? safe : first;
                 }
                 case "distinct" ->
                         f.args().isEmpty() ? null
@@ -106,7 +92,9 @@ public final class RelationalTypeInference {
                             || at instanceof RelationalDataType.Real
                             ? new RelationalDataType.Double_() : at;
                 }
-                case "count" -> new RelationalDataType.Integer_();
+                // count is BIGINT at any arity (relationalExtension.pure:543-551); until 2026-11-13 INTEGER
+                // (S378, ruling 32)
+                case "count" -> new RelationalDataType.BigInt();
                 // boolean dynafunctions spell BIT (engine H2)
                 case "and", "or", "not", "equal", "notequal", "in",
                         "isnull", "isnotnull", "greaterthan", "lessthan",
@@ -118,22 +106,34 @@ public final class RelationalTypeInference {
                 // engine inferDynaFunctionReturnType: sqlTrue/sqlFalse
                 // are BIT literals (ledger cluster 56)
                 case "sqltrue", "sqlfalse" -> new RelationalDataType.Bit();
-                // string transforms keep their input's type
-                case "substring", "left", "right", "trim", "ltrim",
-                        "rtrim", "toupper", "tolower", "upper", "lower" ->
+                // substring, left, right, trim, ltrim and rtrim are a VARCHAR sized by their first argument's
+                // CHAR or VARCHAR (relationalExtension.pure:1051-1059, :1121-1129, :1509-1517, :1547-1555,
+                // :1647-1655, :1853-1861: a match with those two arms alone, so another first argument has no type);
+                // until 2026-11-13 they kept their first argument's type (S378, ruling 32)
+                case "substring", "left", "right", "trim", "ltrim", "rtrim" -> {
+                    RelationalDataType at = f.args().isEmpty() ? null
+                            : infer(f.args().get(0), db, ctx, expanding);
+                    yield at instanceof RelationalDataType.Varchar v ? new RelationalDataType.Varchar(v.size())
+                            : at instanceof RelationalDataType.Char_ c ? new RelationalDataType.Varchar(c.size())
+                            : null;
+                }
+                // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower,
+                // which the engine's map has no rule for, are typed as they are
+                case "toupper", "tolower", "upper", "lower" ->
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
                 case "position", "length", "charindex", "locate",
                         "indexof" -> new RelationalDataType.Integer_();
-                // no typed operand, no type: never a default (until
-                // 2026-11-13 INTEGER -- the names fixes, item 10, ruling 28;
-                // AGENTS.md invariant 4; the engine's sub matches no rule then)
+                // sub is its first argument's type when its first two have one raw kind, else no rule matches
+                // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type
+                // over all its arguments (S378, ruling 32; its INTEGER default went with the names fixes, item 10)
                 case "sub" -> {
-                    RelationalDataType acc2 = null;
-                    for (var arg : f.args()) {
-                        acc2 = safe(acc2, infer(arg, db, ctx, expanding));
+                    if (f.args().size() < 2) {
+                        yield null;
                     }
-                    yield acc2;
+                    RelationalDataType first = infer(f.args().get(0), db, ctx, expanding);
+                    RelationalDataType second = infer(f.args().get(1), db, ctx, expanding);
+                    yield first != null && second != null && first.getClass() == second.getClass() ? first : null;
                 }
                 // joinStrings AGGREGATES: the engine assigns the fixed
                 // 4000 buffer size
@@ -145,7 +145,9 @@ public final class RelationalTypeInference {
                 // an operand with no type drops out, as the engine's map does.
                 // Until 2026-11-13 such an operand added 0 (the names fixes,
                 // item 10, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
-                case "concat", "group_concat" -> {
+                // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a
+                // concat, S378, ruling 32)
+                case "concat" -> {
                     int size = 0;
                     boolean other = false;
                     for (var arg : f.args()) {
@@ -160,27 +162,28 @@ public final class RelationalTypeInference {
                     }
                     yield other ? null : new RelationalDataType.Varchar(size);
                 }
-                // case(c1, v1, ..., else): the SAFE type over the value
-                // branches (engine getSafeType lattice)
+                // case(c1, v1, ..., else): the engine's safe type over the value branches and the last
+                // argument (relationalExtension.pure:402-411); where none is possible the engine asserts, and lite
+                // types it as nothing (no type)
                 case "case" -> {
-                    RelationalDataType acc = null;
+                    List<RelationalDataType> types = new ArrayList<>();
                     for (int i = 1; i < f.args().size(); i += 2) {
-                        acc = safe(acc, infer(f.args().get(i), db, ctx, expanding));
+                        types.add(infer(f.args().get(i), db, ctx, expanding));
                     }
                     if (f.args().size() % 2 == 1) {
-                        acc = safe(acc, infer(
-                                f.args().get(f.args().size() - 1), db, ctx, expanding));
+                        types.add(infer(f.args().get(f.args().size() - 1), db, ctx, expanding));
                     }
-                    yield acc;
+                    yield safeTypeOf(types);
                 }
-                // numeric operators widen positionally (engine math
-                // compatibility: DOUBLE beats INT; DECIMAL beats both)
+                // the numeric operators: the engine's safe type over every argument (its own rules for them
+                // differ, register row S378: plus and minus answer the first argument's type, times the first
+                // two's safe type, divide DOUBLE)
                 case "plus", "minus", "times", "divide" -> {
-                    RelationalDataType acc = null;
+                    List<RelationalDataType> types = new ArrayList<>(f.args().size());
                     for (var arg : f.args()) {
-                        acc = safe(acc, infer(arg, db, ctx, expanding));
+                        types.add(infer(arg, db, ctx, expanding));
                     }
-                    yield acc;
+                    yield safeTypeOf(types);
                 }
                 default -> null;
             };
@@ -223,99 +226,119 @@ public final class RelationalTypeInference {
         };
     }
 
-    /** The engine's getSafeType pair rule (typeInference.pure): equal
-     * types keep; DECIMAL beats the integer and float kinds as-is; two
-     * decimals widen to DECIMAL(maxIntDigits+maxScale, maxScale); DOUBLE
-     * beats integers. Null operands pass the other side through. A decimal
-     * against anything else (a string, a date, a bit) has no safe type, as
-     * the engine's safeTypeMap has none (relationalExtension.pure:2014-2033):
-     * until 2026-11-13 the decimal beat it (the names fixes, item 9,
-     * docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28). */
-    private static @com.legend.base.Nullable RelationalDataType safe(
-            @com.legend.base.Nullable RelationalDataType a,
-            @com.legend.base.Nullable RelationalDataType b) {
-        if (a == null) {
-            return b;
-        }
-        if (b == null) {
-            return a;
-        }
-        if (a.equals(b)) {
-            return a;
-        }
-        // engine getSafeType: OTHER absorbs into the other operand
-        // (getSafeType(Other, X) = X; an Other operand contributes size 0
-        // to the Char/Varchar max-size rule) — ledger cluster 56
-        if (a instanceof RelationalDataType.Other) {
-            return b;
-        }
-        if (b instanceof RelationalDataType.Other) {
-            return a;
-        }
-        Integer[] aDecimal = decimalOf(a);
-        Integer[] bDecimal = decimalOf(b);
-        if (aDecimal != null && bDecimal != null) {
-            int intDigits = Math.max(aDecimal[0] - aDecimal[1], bDecimal[0] - bDecimal[1]);
-            int scale = Math.max(aDecimal[1], bDecimal[1]);
-            return new RelationalDataType.Decimal(intDigits + scale, scale);
-        }
-        if (aDecimal != null) {
-            return DECIMAL_PARTNERS.contains(b.getClass())
-                    ? new RelationalDataType.Decimal(aDecimal[0], aDecimal[1]) : null;
-        }
-        if (bDecimal != null) {
-            return DECIMAL_PARTNERS.contains(a.getClass())
-                    ? new RelationalDataType.Decimal(bDecimal[0], bDecimal[1]) : null;
-        }
-        boolean aFloat = a instanceof RelationalDataType.Double_
-                || a instanceof RelationalDataType.Float_
-                || a instanceof RelationalDataType.Real;
-        boolean bFloat = b instanceof RelationalDataType.Double_
-                || b instanceof RelationalDataType.Float_
-                || b instanceof RelationalDataType.Real;
-        if (aFloat || bFloat) {
-            return new RelationalDataType.Double_();
-        }
-        if (a instanceof RelationalDataType.Varchar va
-                && b instanceof RelationalDataType.Varchar vb) {
-            return new RelationalDataType.Varchar(
-                    Math.max(va.size(), vb.size()));
-        }
-        int ra = INT_WIDENING.indexOf(a.getClass());
-        int rb = INT_WIDENING.indexOf(b.getClass());
-        if (ra >= 0 && rb >= 0) {
-            return ra >= rb ? a : b;
-        }
-        // NO safe type (the engine's isSafeTypePossible is false: an INT
-        // branch against a VARCHAR branch, a DATE against a TIMESTAMP) —
-        // the engine ASSERTS there; this platform types the element as
-        // nothing (Any), never as the first operand (an earlier fallback)
-        return null;
+    // ---- the engine's safe type (S378, 2026-11-13, ruling 32): relationalExtension.pure:1926-2033, exactly
+
+    /** The engine's safeTypeMap (relationalExtension.pure:2014-2033): a kind's safe partners. A kind it does not list
+     *  (REAL, BINARY, VARBINARY, TIME, TIMESTAMP_NS, DISTINCT, SEMISTRUCTURED, ARRAY, OBJECT) has none, itself
+     *  included. */
+    private static final java.util.Map<Class<? extends RelationalDataType>, List<Class<? extends RelationalDataType>>>
+            SAFE_TYPE_MAP = safeTypeMap();
+
+    private static java.util.Map<Class<? extends RelationalDataType>, List<Class<? extends RelationalDataType>>>
+            safeTypeMap() {
+        Class<? extends RelationalDataType> tiny = RelationalDataType.TinyInt.class;
+        Class<? extends RelationalDataType> small = RelationalDataType.SmallInt.class;
+        Class<? extends RelationalDataType> integer = RelationalDataType.Integer_.class;
+        Class<? extends RelationalDataType> big = RelationalDataType.BigInt.class;
+        Class<? extends RelationalDataType> flt = RelationalDataType.Float_.class;
+        Class<? extends RelationalDataType> dbl = RelationalDataType.Double_.class;
+        Class<? extends RelationalDataType> numeric = RelationalDataType.Numeric.class;
+        Class<? extends RelationalDataType> decimal = RelationalDataType.Decimal.class;
+        Class<? extends RelationalDataType> chr = RelationalDataType.Char_.class;
+        Class<? extends RelationalDataType> varchar = RelationalDataType.Varchar.class;
+        Class<? extends RelationalDataType> date = RelationalDataType.Date_.class;
+        Class<? extends RelationalDataType> timestamp = RelationalDataType.Timestamp.class;
+        Class<? extends RelationalDataType> bit = RelationalDataType.Bit.class;
+        Class<? extends RelationalDataType> other = RelationalDataType.Other.class;
+        java.util.Map<Class<? extends RelationalDataType>, List<Class<? extends RelationalDataType>>> m =
+                new java.util.LinkedHashMap<>();
+        m.put(tiny, List.of(tiny, small, integer, flt, big, dbl, numeric, decimal));
+        m.put(small, List.of(small, integer, flt, big, dbl, numeric, decimal));
+        m.put(integer, List.of(integer, flt, big, dbl, numeric, decimal));
+        m.put(big, List.of(big, dbl, numeric, decimal));
+        m.put(flt, List.of(flt, dbl, numeric, decimal));
+        m.put(dbl, List.of(dbl, numeric, decimal));
+        m.put(numeric, List.of(numeric, decimal));
+        m.put(decimal, List.of(decimal, numeric));
+        m.put(chr, List.of(chr, varchar));
+        m.put(varchar, List.of(chr, varchar));
+        m.put(date, List.of(date));
+        m.put(timestamp, List.of(timestamp));
+        m.put(bit, List.of(bit));
+        m.put(other, List.of(tiny, small, integer, flt, big, dbl, numeric, decimal, chr, varchar, date, timestamp, bit,
+                other));
+        return java.util.Collections.unmodifiableMap(m);
     }
 
-    /** The engine's integer widening order (safeTypeMap): a pair of integer
-     *  kinds is safe at the wider. */
-    private static final List<Class<? extends RelationalDataType>> INT_WIDENING = List.of(
-            RelationalDataType.TinyInt.class, RelationalDataType.SmallInt.class,
-            RelationalDataType.Integer_.class, RelationalDataType.BigInt.class);
+    /** {@code safeTypeMap->get(t1).values->contains(t2)}, by raw kind. */
+    private static boolean lists(RelationalDataType t1, RelationalDataType t2) {
+        List<Class<? extends RelationalDataType>> partners = SAFE_TYPE_MAP.get(t1.getClass());
+        return partners != null && partners.contains(t2.getClass());
+    }
 
-    /** The kinds a DECIMAL (or NUMERIC) is safe with besides another decimal: the engine's safeTypeMap lists Decimal and
-     *  Numeric among the partners of TinyInt, SmallInt, Integer, BigInt, Float and Double alone (REAL, VARCHAR, CHAR,
-     *  DATE, TIMESTAMP and BIT have none of them). */
-    private static final List<Class<? extends RelationalDataType>> DECIMAL_PARTNERS = List.of(
-            RelationalDataType.TinyInt.class, RelationalDataType.SmallInt.class,
-            RelationalDataType.Integer_.class, RelationalDataType.BigInt.class,
-            RelationalDataType.Float_.class, RelationalDataType.Double_.class);
+    /** The engine's isSafeTypePossible(type1, type2) (:1954-1965). */
+    static boolean isSafeTypePossible(RelationalDataType t1, RelationalDataType t2) {
+        return lists(t1, t2) || lists(t2, t1);
+    }
 
-    private static Integer @com.legend.base.Nullable [] decimalOf(
-            RelationalDataType t) {
-        if (t instanceof RelationalDataType.Decimal d) {
-            return new Integer[]{d.precision(), d.scale()};
+    /** The engine's getSafeType(type1, type2) (:1967-1985): type2 when type1 lists it, else type1; a CHAR or VARCHAR
+     *  safe type is a VARCHAR of the larger size (an OTHER sized 0); a NUMERIC or DECIMAL one a DECIMAL of the larger
+     *  integer digits plus the larger scale. Asked only where {@link #isSafeTypePossible} holds. */
+    static RelationalDataType getSafeType(RelationalDataType t1, RelationalDataType t2) {
+        RelationalDataType safe = lists(t1, t2) ? t2 : t1;
+        if (safe instanceof RelationalDataType.Char_ || safe instanceof RelationalDataType.Varchar) {
+            return new RelationalDataType.Varchar(Math.max(size(t1), size(t2)));
         }
-        if (t instanceof RelationalDataType.Numeric n) {
-            return new Integer[]{n.precision(), n.scale()};
+        if (safe instanceof RelationalDataType.Numeric || safe instanceof RelationalDataType.Decimal) {
+            int scale = Math.max(scale(t1), scale(t2));
+            int precision = Math.max(integerDigits(t1), integerDigits(t2)) + scale;
+            return new RelationalDataType.Decimal(precision, scale);
         }
-        return null;
+        return safe;
+    }
+
+    /** The engine's list fold (isSafeTypePossible / getSafeType over types, :1926-1951): from the first type, each next
+     *  one against the accumulated safe type ({@code getSafeType(next, acc)}); null when a step has none. A type that
+     *  is null (no inferred type) drops out first, as the engine's {@code map} drops an empty answer; no types, null. */
+    static @com.legend.base.Nullable RelationalDataType safeTypeOf(List<RelationalDataType> types) {
+        RelationalDataType acc = null;
+        for (RelationalDataType t : types) {
+            if (t == null) {
+                continue;
+            }
+            if (acc == null) {
+                acc = t;
+            } else if (isSafeTypePossible(t, acc)) {
+                acc = getSafeType(t, acc);
+            } else {
+                return null;
+            }
+        }
+        return acc;
+    }
+
+    private static int size(RelationalDataType t) {
+        return switch (t) {
+            case RelationalDataType.Char_ c -> c.size();
+            case RelationalDataType.Varchar v -> v.size();
+            default -> 0;
+        };
+    }
+
+    private static int scale(RelationalDataType t) {
+        return switch (t) {
+            case RelationalDataType.Numeric n -> n.scale();
+            case RelationalDataType.Decimal d -> d.scale();
+            default -> 0;
+        };
+    }
+
+    private static int integerDigits(RelationalDataType t) {
+        return switch (t) {
+            case RelationalDataType.Numeric n -> n.precision() - n.scale();
+            case RelationalDataType.Decimal d -> d.precision() - d.scale();
+            default -> 0;
+        };
     }
 
     /** The declared type of {@code table.column}: in the op's OWN database

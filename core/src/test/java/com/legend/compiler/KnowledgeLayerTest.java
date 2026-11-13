@@ -381,6 +381,43 @@ class KnowledgeLayerTest {
         assertEquals(dec, infer.apply(5), "min over one: its own");
     }
 
+    /** S378 (2026-11-13, the names landings, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 32): the type inference's
+     * safe type is the engine's safeTypeMap, isSafeTypePossible and getSafeType exactly (relationalExtension.pure
+     * :1926-2033): a FLOAT with an INTEGER is FLOAT (the integer lists it), a BIGINT with a FLOAT has none (neither lists
+     * the other), two CHARs or a CHAR and a VARCHAR are a VARCHAR of the larger size, two equal NUMERICs a DECIMAL;
+     * count is BIGINT; substring and its family a VARCHAR sized by their first argument's CHAR or VARCHAR, no type for
+     * another; sub its first argument's type when its first two share a kind, else none; group_concat no rule. */
+    @Test
+    @DisplayName("kernel: the type inference's safe type and rules are the engine's")
+    void typeInferenceSafeTypeAndRulesAreTheEngines() {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db (
+                  Table T (ID INTEGER PRIMARY KEY, F FLOAT, B BIGINT, C CHAR(3), K CHAR(5), V VARCHAR(4), \
+                N NUMERIC(6,2), I INTEGER)
+                  View V (FI: case(equal(T.ID, 1), T.F, T.I), BF: case(equal(T.ID, 1), T.B, T.F), \
+                CC: case(equal(T.ID, 1), T.C, T.K), CV: case(equal(T.ID, 1), T.C, T.V), \
+                NN: case(equal(T.ID, 1), T.N, T.N), CT: count(T.ID), SC: substring(T.C, 1, 2), \
+                SI: substring(T.I, 1, 2), SV: sub(T.V, T.V), SM: sub(T.V, T.I), GC: group_concat(T.V))
+                )
+                """)));
+        com.legend.model.DatabaseDefinition db = ix.findDatabase("a::Db").orElseThrow();
+        var cms = ix.findView("a::Db", "V").orElseThrow().columnMappings();
+        java.util.function.IntFunction<com.legend.model.RelationalDataType> infer =
+                i -> com.legend.compiler.element.RelationalTypeInference.infer(cms.get(i).expression(), db, ix);
+        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(0), "FLOAT with INTEGER: FLOAT");
+        assertEquals(null, infer.apply(1), "BIGINT with FLOAT: no safe type");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(5), infer.apply(2), "two CHARs: VARCHAR(5)");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(4), infer.apply(3), "CHAR(3), VARCHAR(4): VARCHAR(4)");
+        assertEquals(new com.legend.model.RelationalDataType.Decimal(6, 2), infer.apply(4), "two NUMERICs: DECIMAL");
+        assertEquals(new com.legend.model.RelationalDataType.BigInt(), infer.apply(5), "count: BIGINT");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(3), infer.apply(6), "substring of a CHAR(3)");
+        assertEquals(null, infer.apply(7), "substring of an INTEGER: no type");
+        assertEquals(new com.legend.model.RelationalDataType.Varchar(4), infer.apply(8), "sub of two VARCHARs: the first's");
+        assertEquals(null, infer.apply(9), "sub of a VARCHAR and an INTEGER: no rule");
+        assertEquals(null, infer.apply(10), "group_concat: no rule");
+    }
+
     /** S376 (2026-11-13, the names landings, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 32): a view column whose
      * operation reads a column or a table its database does not have is refused in the engine's words, as the engine
      * refuses it when the database compiles (HelperRelationalBuilder.getColumn :160-165, getRelation :284-293), the
