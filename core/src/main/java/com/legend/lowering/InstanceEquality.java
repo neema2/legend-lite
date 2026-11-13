@@ -451,6 +451,10 @@ final class InstanceEquality {
                 && !PlatformTypes.isPairCarrier(t)
                 && !PlatformTypes.isMapCarrier(t)
                 && !(t instanceof Type.ClassType c
-                        && c.fqn().equals(PlatformTypes.TDS_NULL_FQN));
+                        && c.fqn().equals(PlatformTypes.TDS_NULL_FQN))
+                // a TYPE value (Type, Class, PrimitiveType, DataType, Enumeration) travels as its path, never as an
+                // instance struct: no __id is read off it (D3, 2026-11-13)
+                && !(t instanceof Type.ClassType tc && PlatformTypes.isTypeClassifier(tc.fqn()))
+                && !(t instanceof Type.GenericType g && PlatformTypes.isTypeClassifier(g.rawFqn()));
     }
 }

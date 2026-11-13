@@ -77,7 +77,9 @@ public final class PeRatchets {
                     + " 8f0037994d, found by //:generated on 3a711976af): as measured, not attributed -- the merge"
                     + " joined D's, main's and E's new tests (RaisedKindTest, ErrorKindTest, EdgeSpellingHookTest,"
                     + " LetBindingTest, FusedHostColumnsTest and their siblings); the ten models were not traced one by"
-                    + " one");
+                    + " one",
+            "own_corpus.matched 3221 -> 3222 (2026-11-13, D3 and S341 on claude/total-wall-e): TypeToStringTest's model"
+                    + " (its d3::Car class)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

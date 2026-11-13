@@ -18,5 +18,6 @@
 # own_corpus.matched 3179 -> 3192 (2026-11-12, L9's printing merged, 7d1bfcf8e; it measured 3164 -> 3177 on its branch): its tests' models (TestDataPlannerTest's timestamp store, GeneratedTestDataPrintingTest's, TestDataRoutesTest's timestamp route)
 # own_corpus.matched 3192 -> 3211 (2026-11-13, the final full audit's fixes, d7c037ebf, found red by the gate on that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest, EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the snapshot-copy and output-plan tests)
 # own_corpus.matched 3211 -> 3221 (2026-11-13, claude/total-wall-d with main merged onto total-wall-e, 8f0037994d, found by //:generated on 3a711976af): as measured, not attributed -- the merge joined D's, main's and E's new tests (RaisedKindTest, ErrorKindTest, EdgeSpellingHookTest, LetBindingTest, FusedHostColumnsTest and their siblings); the ten models were not traced one by one
+# own_corpus.matched 3221 -> 3222 (2026-11-13, D3 and S341 on claude/total-wall-e): TypeToStringTest's model (its d3::Car class)
 mutation.deck	950
-own_corpus.matched	3221
+own_corpus.matched	3222

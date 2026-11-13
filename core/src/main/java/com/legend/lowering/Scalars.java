@@ -1933,13 +1933,22 @@ final class Scalars {
                             && p != Type.Primitive.DATE ->
                             p.qualifiedName().substring(p.qualifiedName().lastIndexOf(':') + 1);
                     case Type.PrecisionDecimal ignored -> "Decimal";
+                    // Any's path is the static type, never the value's (S341, 2026-11-13: [1, 'a']->map(x|$x->type())
+                    // answered Any's path for each element)
+                    case Type.ClassType ct when PlatformTypes.isAny(ct) -> null;
                     case Type.ClassType ct -> ct.fqn();
                     case Type.EnumType et -> et.fqn();
                     case Type.GenericType g -> g.rawFqn();
                     default -> null;
                 };
-                return name != null ? new SqlExpr.StringLit(name)
-                        : new SqlExpr.Call(SqlFn.TYPEOF, args);
+                // a value whose kind is decided at run time (statically Any, Number or Date): no form yet -- refused
+                // by name (S341, awaiting the user's ruling; legend-engine refuses type() at planning in every form).
+                // Until then the database's TYPEOF answered its own type name (DuckDB 'JSON' for a mixed element)
+                if (name == null) {
+                    throw new NotImplementedException("type() of a value whose kind is decided at run time (statically "
+                            + t.typeName() + ") has no form yet (S341)");
+                }
+                return new SqlExpr.StringLit(name);
             });
         }
         // minBy/maxBy(values, keys[, count]): sort {k,v} structs by key (list
@@ -2822,7 +2831,10 @@ final class Scalars {
         // the type's PATH (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9), so a type written in the query prints the model's own name;
         // a type known only at run time is refused by name (cutting the package off its path is text surgery on a
         // fact the model holds; the form, when one is needed, compares the cell against the candidate classes)
-        if (t instanceof Type.GenericType mg && PlatformTypes.isClassMetaclass(mg)) {
+        // every metamodel TYPE classifier, either form (D3, 2026-11-13: type() answers Type[1], a class, which missed
+        // this arm and fell to the instance print's __id read of the type's name, failing at the database)
+        if (t instanceof Type.GenericType mg && PlatformTypes.isClassMetaclass(mg)
+                || t instanceof Type.ClassType tc && PlatformTypes.isTypeClassifier(tc.fqn())) {
             if (x instanceof SqlExpr.StringLit s) {
                 return new SqlExpr.StringLit(MixedEncoding.simpleName(s.value()));
             }
