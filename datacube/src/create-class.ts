@@ -8,7 +8,7 @@
 // so the page's own modules stay in its bundle.
 
 import type { SdlcClient } from '../../sdlc-client/src/client.ts';
-import type { PlanAndRun } from './runner.ts';
+import type { QueryRunner } from './runner.ts';
 import { createClass, projectState } from '../../model-changes/src/index.ts';
 import { PageModel, type PageModelRef } from './page-model.ts';
 import type { ClassAction, GridSource, ModelWriter } from './model-writer.ts';
@@ -27,7 +27,7 @@ export interface CreateClassOf {
    *  (its project's store reads them by those names). */
   readonly kept: readonly string[];
   /** Where the grid's rows are planned and run, on whichever host: its sample is read there. */
-  readonly rows: PlanAndRun;
+  readonly rows: QueryRunner;
   /** The grid's source: its planner's model and runtime, which the class is made over. */
   readonly source: GridSource;
   /** The model's writer: the host's (the tab's module on every plane, Python's native library). */

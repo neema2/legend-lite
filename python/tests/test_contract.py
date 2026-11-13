@@ -316,6 +316,8 @@ def publish_party(folder):
     sdlc('POST', f'/projects/{project}/versions', {'versionType': 'MAJOR'})
     sdlc('POST', f'/projects/{project}/workspaces/w2')
     revision = sdlc('GET', f'/projects/{project}/workspaces/w2/revisions/HEAD')['id']
+    # (Q31: no version of a project here declares one of lite's extensions -- an S112 generic function's file is refused
+    # by the SDLC itself when it is saved, in upstream's words, so C29's project exists only as a tab's configured files)
     return text, {'project': project, 'workspace': 'w2', 'revision': revision}
 
 
@@ -346,9 +348,12 @@ class ConformanceSuiteTest(_Served):
             results = json.loads(h.evaluate(f'legendLiteConformance.run({json.dumps(json.dumps(fixture))})'))
         for r in results:
             print(f"{'ok  ' if r['ok'] else 'FAIL'} {r['name']}{'' if r['ok'] else ': ' + r.get('error', '')}", flush=True)
-        self.assertGreaterEqual(len(results), 27)
+        self.assertGreaterEqual(len(results), 29)
         self.assertEqual([r for r in results if not r['ok']], [])
-        self.assertEqual([r for r in results if r.get('notRun')], [], 'every case runs against Python headless')
+        # every case runs against Python headless but C29, by name: its model home's SDLC refuses to save a project file
+        # declaring one of lite's extensions (in upstream's words), so no version here holds one (Q31)
+        self.assertEqual([(r['name'][:3], r['notRun']) for r in results if r.get('notRun')],
+                         [('C29', 'the fixture names no project declaring a lite extension')])
 
 
 if __name__ == '__main__':

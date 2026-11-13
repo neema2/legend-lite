@@ -816,7 +816,6 @@ const NATURE = 'by nature:';
  */
 const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly other: string; readonly ability?: HostAbility }>> = {
   // -- the app shell (datacube-app.ts) --
-  'src/app/datacube-app.ts:rowsOf:local': { count: 2, other: `${BOTH} a grid's rows run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
   // 2026-10-26 (the flow mode's table Output, M6/FL13): the tab's grid writes its table where its rows are its own
   // database's; a host's grid's (Python's) is written by flow.run, through headless gridWriteTable -- the one writer.
   // 2026-11-13 (count 2 -> 1, the final audit's item 2: the table Output as ONE plan, Boundary.outputPlan, made before
@@ -887,7 +886,6 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:modelActions:writing': { other: `${BOTH} the model actions where the host writes models`, ability: 'model' },
   'src/app/datacube-app.ts:openDataCube:database.made': { other: `${BOTH} Add a Grid over a class: the host's half (K16)`, ability: 'class' },
   'src/app/datacube-app.ts:openDataCube:hostJoin': { other: `${BOTH} Join…: the host's join (B11)`, ability: 'join' },
-  'src/app/datacube-app.ts:rowsOf:place.runner': { other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner and database`, ability: 'rows' },
   'src/app/join-sources.ts:forget:database.forgetFile': { other: `${BOTH} a joined file's table let go by the database that took it`, ability: 'files' },
   'src/app/join-sources.ts:leafTable:database.ingestFile': { other: `${BOTH} a join's file read by the database that takes files`, ability: 'files' },
   'src/app/join-sources.ts:leafTable:database.mountRemote': { other: `${BOTH} a join's remote file mounted by the database that reads them`, ability: 'remote' },
@@ -916,6 +914,12 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/sources.ts:(top):writing': { other: `${BOTH} a grid snaps where its host copies it: Python's copy for a grid it runs alone, the tab's engine's copy for the tab's (Q26)`, ability: 'snap' },
   'src/app/sources.ts:rowsOver:local': { other: `${BOTH} a grid's rows through its runner on both hosts; the tab's writing flows keep a planner over its model until 4b, Python writes models itself`, ability: 'rows' },
   'src/app/sources.ts:openedClass:local': { other: `${BOTH} a class's rows through the tab's engine by its revision (Q23), or the host's runner; the tab's writing flows keep a planner over its files until 4b`, ability: 'class' },
+  // 2026-11-13 (the DataCube engine contract's step 4b): `rowsOf` gone -- the model actions read a grid's facts through
+  // its runner (`factsOf`: the grid's own runner, the start's through the tab's engine, a warehouse's live grid its own
+  // planner until step 6), and a table Output is the host's engine's one write (`tableWriter`)
+  'src/app/datacube-app.ts:factsOf:local': { count: 4, other: `${BOTH} a grid's facts read through its runner: the start's grid's through the tab's engine over the page's own model, a warehouse's live grid over the tab's database (step 6); a host's grid comes with its runner`, ability: 'model' },
+  'src/app/datacube-app.ts:factsOf:place.runner': { count: 3, other: `${BOTH} a grid's facts read through its runner, its source the model the page wrote or its host's plan-and-run's`, ability: 'model' },
+  'src/app/datacube-app.ts:tableWriter:place.runner': { other: `${BOTH} the source a tab's grid's table Output is written over: its own, or the start's the page's planner's; a host's grid's is written by that host (flow.run)`, ability: 'write' },
   // -- a grid (app.ts) --
   'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner`, ability: 'rows' },
   'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in`, ability: 'warehouse' },

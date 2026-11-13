@@ -10,7 +10,7 @@ import { colSpecs, fn, lambda, lit, type Lambda, type ValueSpecification } from 
 import {
   ENGINE_CONTRACT_VERSION, isEngineError, refusalOf, requireContract,
   type Capabilities, type Engine, type EngineError, type EngineSession, type Handle, type QueryAsk, type ResultColumn,
-  type ProjectAt, type ProjectCoordinates, type RevisionCoordinates, type SourceAnswer,
+  type ProjectAt, type ProjectCoordinates, type SourceAsk, type RevisionCoordinates, type SourceAnswer,
 } from '../src/engine-contract.ts';
 
 /** A source the engine serves, as the engine modelled it, and what the suite expects of it. */
@@ -53,6 +53,9 @@ export interface ConformanceFixture {
     readonly cls: string;
     /** The same project's workspace at a revision (Q23), its text as that revision's files join. */
     readonly revision?: { readonly coordinates: RevisionCoordinates; readonly text: string };
+    /** A version of it declaring one of lite's extensions (a function generic over relations, S112): what the
+     *  contract's upstream-exact `elements` refuses whole (Q31). */
+    readonly extended?: ProjectCoordinates;
   };
 }
 
@@ -351,6 +354,35 @@ const SOURCES: readonly Case[] = [
       equal((await rowsOf(s, over(added))).count, f.rowCount, 'its rows');
       await rejects(() => s.addSource({ query: ask(f, lambda([], f.source)) }, 'live'), 'refused', "a query's rows added live", 'live');
       await s.drop(added.handle);
+    },
+  },
+  {
+    name: "C28 a source's table name (Q28): the one asked given, asked again the next free one; none asked, its file's; a name no plain identifier refused by name",
+    async run(_e, s, caps, f) {
+      if (!offers(caps, 'upload')) throw new NotRun('the engine offers no upload: no source to name');
+      const up = (): SourceAsk => ({ upload: { name: f.upload.name, bytes: bytes(f.upload.text) } });
+      const added: SourceAnswer[] = [];
+      try {
+        added.push(await s.addSource(up(), 'snap', { name: 'conf_named' }));
+        equal(added[0]!.name, 'conf_named', 'the name asked');
+        added.push(await s.addSource(up(), 'snap', { name: 'conf_named' }));
+        equal(added[1]!.name, 'conf_named_2', 'the same asked again: the next free one');
+        added.push(await s.addSource(up(), 'snap'));
+        const stem = f.upload.name.replace(/\.[^.]*$/, '');
+        check(new RegExp(`^${stem}(_\\d+)?$`).test(added[2]!.name), `none asked: named after its file '${f.upload.name}' (it is ${added[2]!.name})`);
+        await rejects(() => s.addSource(up(), 'snap', { name: 'not a name' }), 'refused', 'a table name no plain identifier', 'not a name');
+      } finally {
+        for (const a of added) await s.drop(a.handle);
+      }
+    },
+  },
+  {
+    name: "C29 a project declaring one of lite's extensions (S112) is refused WHOLE by the upstream-exact elements, in upstream's words -- never half-read (Q31)",
+    async run(_e, s, caps, f) {
+      if (!caps.calls.elements) return;
+      const extended = f.project?.extended;
+      if (extended === undefined) throw new NotRun('the fixture names no project declaring a lite extension');
+      await rejects(() => s.elements({ project: extended }), 'compile', "a project's elements, one of them generic over relations", 'Type and/or multiplicity parameters are not authorized');
     },
   },
   {

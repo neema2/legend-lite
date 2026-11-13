@@ -137,6 +137,17 @@ export type SourceAsk =
 /** A secret's field, as the hosts' runner binds one (host-operations.ts SecretField). */
 export type SecretField = 'KEY_ID' | 'SECRET' | 'SESSION_TOKEN' | 'REGION' | 'ENDPOINT' | 'URL_STYLE' | 'USE_SSL' | 'URL';
 
+/**
+ * A source's table, as DataCube asks it (Q28, the orchestrator, 2026-11-13): `name` a plain identifier (anything else
+ * refused by name) -- the name a saved page's classes read it by, or a fresh one -- given, or the next free one
+ * (`name_2`, ...), never one of the engine's own or another session's tables; `SourceAnswer.name` says which. Absent,
+ * the engine names it after its source: an upload's file (its stem, each other character `_`, led by `f_` where it does
+ * not start with a letter), `remote` for a remote file, `snap` for a query's rows.
+ */
+export interface AddOptions extends CallOptions {
+  readonly name?: string;
+}
+
 /** How a source is added: read in place (`live`, a mount) or copied into the engine's database (`snap`). */
 export type SourceHow = 'live' | 'snap';
 
@@ -228,7 +239,7 @@ export interface Engine {
 
 /** A session: the handles it issues live in it; `close` drops what it made. */
 export interface EngineSession {
-  addSource(source: SourceAsk, how: SourceHow, o?: CallOptions): Promise<SourceAnswer>;
+  addSource(source: SourceAsk, how: SourceHow, o?: AddOptions): Promise<SourceAnswer>;
   describe(handle: Handle, o?: CallOptions): Promise<Described>;
   drop(handle: Handle, o?: CallOptions): Promise<void>;
   typeOf(ask: QueryAsk, o?: CallOptions): Promise<ResultType>;

@@ -60,6 +60,7 @@ function wireSession(send: WireSend, where: string, caps: Capabilities, session:
     // an upload's bytes cross as base64 (a wire carries JSON)
     addSource: async (source, how: SourceHow, o) => (await json('addSource', {
       source: 'upload' in source ? { upload: { name: source.upload.name, bytes: base64(source.upload.bytes) } } : source, how,
+      ...(o?.name !== undefined ? { name: o.name } : {}),
     }, o, { source: sourceKind(source), how })) as SourceAnswer,
     modelOf: async (handles, o) => (await json('modelOf', { handles }, o)) as ModelOver,
     // write-only: the engine answers nothing, and this client keeps nothing of it

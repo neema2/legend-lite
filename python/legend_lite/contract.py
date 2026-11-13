@@ -18,6 +18,7 @@ import base64
 import hashlib
 import json
 import threading
+import re
 import uuid
 from pathlib import Path
 from collections.abc import Callable, Mapping
@@ -156,7 +157,7 @@ class EngineSide:
         """``plan`` run in its own transaction, any stamp it reads bound to ``execution``, its door's id."""
         raise NotImplementedError
 
-    def add_file(self, path: str, name: str, digest: str, size: int, file_format: str) -> dict[str, Any]:
+    def add_file(self, path: str, name: str, digest: str, size: int, file_format: str, table: str) -> dict[str, Any]:
         """A file this engine holds read into a table of its own (a planned fileLoad): its model, runtime, source and
         table."""
         raise NotImplementedError
@@ -166,7 +167,7 @@ class EngineSide:
         model, runtime, source and view."""
         raise NotImplementedError
 
-    def snap(self, model: str, runtime: str, query: Any) -> dict[str, Any]:
+    def snap(self, model: str, runtime: str, query: Any, table: str) -> dict[str, Any]:
         """A query's rows copied into a table of its own (a planned snapCopy): its model, runtime, source and table, and
         its rows' count (``rowCount``, Q26: the pull's size(), planned and run where the rows are)."""
         raise NotImplementedError
@@ -575,6 +576,12 @@ def _add_source(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said
     if not isinstance(source, dict) or len(source) != 1 or how not in ('live', 'snap'):
         raise refused('addSource', 'a source that is not one SourceAsk and how', 'addSource is asked a source and how')
     (kind, given), = source.items()
+    # its table's name (Q28): the one asked -- a plain identifier, never one of legend-lite's own -- or the source's own
+    asked_name = asked.get('name')
+    if asked_name is not None and (not isinstance(asked_name, str) or not _TABLE_NAME.fullmatch(asked_name)
+                                   or asked_name.lower() in ('true', 'false') or asked_name.startswith('__legend_lite_')):
+        raise refused('addSource', f'the table name {json.dumps(asked_name)}', "a table is named by a plain identifier: "
+                      "letters, digits and '_', led by a letter or '_'")
     execution = str(uuid.uuid4())
     digest = size = None
     try:
@@ -600,17 +607,18 @@ def _add_source(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said
             if file_format is None:
                 raise refused('addSource', f"the file '{name}'", f"a file is read as {', '.join(sorted(_FORMATS))}")
             digest, size = hashlib.sha256(raw).hexdigest(), len(raw)
-            made = door._side.add_file(path, name, digest, size, file_format)
+            made = door._side.add_file(path, name, digest, size, file_format, asked_name or _file_table(name))
         elif kind in ('url', 'remote'):
             if how != 'live':
                 raise refused('addSource', f"a remote file added '{how}'", "a remote file is mounted live; its rows are "
                               "snapped as a query's ({query})")
-            made = door._side.mount(*_mount_of(session, kind, given))
+            _, request, secrets = _mount_of(session, kind, given)
+            made = door._side.mount(asked_name or 'remote', request, secrets)
         elif kind == 'query':
             if how != 'snap':
                 raise refused('addSource', f"a query's rows added '{how}'", "a query's rows are added as a snap alone")
             pull = _query_ask({'ask': given}, 'addSource')
-            made = door._side.snap(door._model_for(pull, 'addSource'), pull['runtime'], pull['query'])
+            made = door._side.snap(door._model_for(pull, 'addSource'), pull['runtime'], pull['query'], asked_name or 'snap')
         else:
             raise refused('addSource', f"a source of kind '{kind}'", 'a source is an upload, a held file, a url, a '
                           'remote file or a query')
@@ -629,6 +637,16 @@ def _add_source(door: ContractDoor, asked: Mapping[str, Any], over: Any) -> Said
                   **({'digest': digest, 'size': size} if digest is not None else {}),
                   # a query's rows copied: their count, the engine's own (Q26); no other kind's -- never a guessed 0
                   **({'rowCount': made['rowCount']} if kind == 'query' else {})})
+
+
+_TABLE_NAME = re.compile(r'[A-Za-z_][A-Za-z0-9_]*')
+
+
+def _file_table(name: str) -> str:
+    """An upload's table, named after its file (Q28): its stem, each other character '_', led by 'f_' where it does not
+    start with a letter (engine-contract.ts AddOptions; the tab's engine names it alike)."""
+    stem = re.sub(r'[^A-Za-z0-9_]', '_', Path(name).stem) or 'file'
+    return stem if stem[0].isalpha() else f'f_{stem}'
 
 
 def _mount_of(session: _Session, kind: str, given: Any) -> tuple[str, dict[str, Any], dict[str, dict[str, Any]]]:

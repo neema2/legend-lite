@@ -542,10 +542,10 @@ class _ContractSide(contract.EngineSide):
                                           'convert': columns, 'from': {'relation': _host.name(name)}})
         return {'model': written['model'], 'runtime': written['runtime'], 'source': written['source'], 'table': name}
 
-    def add_file(self, path: str, name: str, digest: str, size: int, file_format: str) -> dict[str, Any]:
+    def add_file(self, path: str, name: str, digest: str, size: int, file_format: str, table: str) -> dict[str, Any]:
         frames = self._of().frames
-        stem = re.sub(r'[^A-Za-z0-9_]', '_', Path(name).stem) or 'file'
-        with frames.reading_file(stem if stem[0].isalpha() else f'f_{stem}') as table:
+        # the name asked (Q28), or the next free one
+        with frames.reading_file(table) as table:
             plan = compiler.file_load({'databaseType': 'DuckDB', 'file': {'name': name, 'digest': digest, 'size': size,
                                                                           'format': file_format}, 'into': {'table': table}})
             run_host_load(plan, frames.connection, files=(HostFile(name, digest, size, str(path)),))
@@ -570,10 +570,10 @@ class _ContractSide(contract.EngineSide):
             frames.keep_file(view, made, view=True, settings=settings, held=held)
         return made
 
-    def snap(self, model: str, runtime: str, query: Any) -> dict[str, Any]:
+    def snap(self, model: str, runtime: str, query: Any, table: str) -> dict[str, Any]:
         engine = self._of()
         frames = engine.frames
-        with frames.reading_file('snap') as table:
+        with frames.reading_file(table) as table:
             # its rows counted where they are, as every snap's are (snap.ts countQuery's twin, _count_of): the planner's
             # plan of the pull's size(), its own values bound -- the count the answer gives (Q26)
             with compiler.HeldModel(model) as held:

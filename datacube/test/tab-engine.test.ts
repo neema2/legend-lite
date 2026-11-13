@@ -31,7 +31,10 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
   const party = (JSON.parse(readFileSync(runfileFromEnv('RUN_LOAD_FIXTURE'), 'utf8')) as { model: string }).model;
   const projects = () => ({
     model: async (p: { groupId: string; artifactId: string; versionId: string }) =>
-      (p.groupId === 'demo' && p.artifactId === 'party' && p.versionId === '1.0.0' ? party : undefined),
+      (p.groupId === 'demo' && p.artifactId === 'party' && p.versionId === '1.0.0' ? party
+        // version 2.0.0 declares a function generic over relations (S112): Q31's case
+        : p.groupId === 'demo' && p.artifactId === 'party' && p.versionId === '2.0.0' ? `${party}\n###Pure\nfunction demo::party::firstRows<T>(t: Relation<T>[1], n: Integer[1]): Relation<T>[1]\n{\n  $t->limit($n)\n}\n`
+          : undefined),
     // and a workspace of it at a revision, as its model home's SDLC answers it (Q23)
     revision: async (r: { project: string; workspace: string; revision: string }) =>
       (r.project === 'demo:party' && r.workspace === 'w2' && r.revision === 'r-2' ? party : undefined),
@@ -45,8 +48,6 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
     engine = new DuckDbEngine(duck.connect() as ArrowishConnection);
     planner = plannerFor('', 'local::RT');
     for (const t of ['conformance_t', 'conformance_out']) await engine.run(unplanned(`DROP TABLE IF EXISTS ${t}`), 0);
-    await engine.run(unplanned('CREATE TABLE conformance_t (id BIGINT, name VARCHAR)'), 0);
-    await engine.run(unplanned("INSERT INTO conformance_t VALUES (1, 'a'), (2, 'b'), (3, 'c'), (4, 'd')"), 0);
   });
 
   after(async () => {
@@ -55,13 +56,16 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
   });
 
   it('passes every case', async () => {
-    const tab = tabEngine({ database: engine, plane: localPlane(planner), writer: planner, owns: (t) => t.toLowerCase() === 'conformance_t', files: db.files, projects: projects() });
-    const written = await planner.tableModel(await catalogColumns(engine, planner, 'conformance_t'),
-      { table: 'conformance_t', pkg: 'conformance_t', convertible: true, databaseType: 'DuckDB' });
-    const { model, runtime } = await tab.served(written.model, written.runtime);
+    const tab = tabEngine({ database: engine, plane: localPlane(planner), writer: planner, files: db.files, projects: projects() });
+    // the suite's table, one of the engine's own (Q14, Q30: exactly the tables it issued handles for): an upload by the
+    // name asked (Q28), its model the one the engine handed back (R3a (c)); the session held while the suite runs
+    const setup = await tab.open();
+    const added = await setup.addSource({ upload: { name: 'conformance.csv', bytes: new TextEncoder().encode('id,name\n1,a\n2,b\n3,c\n4,d\n') } }, 'snap', { name: 'conformance_t' });
+    assert.equal(added.name, 'conformance_t', 'the name asked');
+    const { model, runtime } = added;
     assert.ok(!model.includes('###Connection') && !model.includes('###Runtime'), 'R3a (c): the handed model names its runtime alone');
     const fixture: ConformanceFixture = {
-      model, runtime, source: written.source,
+      model, runtime, source: added.relation,
       columns: [{ name: 'id', type: 'Integer' }, { name: 'name', type: 'String' }],
       rowCount: 4, textColumn: 'name', keyColumn: 'id', ownTable: 'conformance_t', store: 'conformance_t::DB',
       writeTarget: 'conformance_out',
@@ -70,11 +74,12 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
       project: { coordinates: { groupId: 'demo', artifactId: 'party', versionId: '1.0.0' }, runtime: 'demo::party::Runtime',
         mapping: 'demo::party::PartyMapping', cls: 'demo::party::Party', rows: 2, text: party,
         query: '|demo::party::Party.all()->project(~[id: x|$x.id, name: x|$x.name])',
-        revision: { coordinates: { project: 'demo:party', workspace: 'w2', revision: 'r-2' }, text: party } },
+        revision: { coordinates: { project: 'demo:party', workspace: 'w2', revision: 'r-2' }, text: party },
+        extended: { groupId: 'demo', artifactId: 'party', versionId: '2.0.0' } },
       // no `served`: DuckDB-WASM in Node makes no request (engine-client node-require.ts), so the remote case says so
     };
     const results = await runConformance(tab, fixture);
-    assert.ok(results.length >= 27, `${results.length} cases ran`);
+    assert.ok(results.length >= 29, `${results.length} cases ran`);
     assert.deepEqual(results.filter((r) => !r.ok), []);
     // the one case not run here, by name and why: a remote file over HTTP (run against Python headless instead)
     assert.deepEqual(results.filter((r) => r.notRun !== undefined).map((r) => [r.name.slice(0, 3), r.notRun]),
@@ -84,7 +89,7 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
   });
 
   it("binds a stamped plan's stamp to its door's execution id, and refuses one run with none (step 3b)", async () => {
-    const tab = tabEngine({ database: engine, plane: localPlane(planner), writer: planner, owns: () => false, files: db.files });
+    const tab = tabEngine({ database: engine, plane: localPlane(planner), writer: planner, files: db.files });
     const written = await planner.tableModel(await catalogColumns(engine, planner, 'conformance_t'),
       { table: 'conformance_t', pkg: 'conformance_t', convertible: true, databaseType: 'DuckDB' });
     const { model, runtime } = await tab.served(written.model, written.runtime);

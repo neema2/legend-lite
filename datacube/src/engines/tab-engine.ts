@@ -57,9 +57,6 @@ export interface TabEngineOptions {
   /** legend-lite's module, the engine's writer on every plane: a table's model, the catalog's question, a write's and a
    *  snap's plan, and the engine's own reading of a model it is sent (R3a, a library's check: Q17). */
   readonly writer: LitePlanner;
-  /** Whether a table is one of the tab's own outside this engine (a page's file, a copy): no write names one (Q11
-   *  (b)); the tables this engine issued handles for are its own too (Q14). */
-  readonly owns: (table: string) => boolean;
   /** Where an upload's bytes are registered for the database to read by name (DuckDB-WASM's registerFileBuffer). */
   readonly files: { registerFileBuffer(name: string, bytes: Uint8Array): Promise<void> };
   /** Where the database keeps a remote mount's settings of the connection (a bearer URL's session variable). */
@@ -94,6 +91,20 @@ function sections(text: string, names: readonly string[]): string {
     if (keep) out.push(line);
   }
   return out.join('');
+}
+
+/** Whether a table name is one DataCube may ask (Q28): a plain identifier, never a literal or legend-lite's own. */
+function plainName(name: string): boolean {
+  return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !['true', 'false'].includes(name.toLowerCase()) && !name.startsWith('__legend_lite_');
+}
+
+/** An upload's table, named after its file (Q28): its stem (the name less its last extension), each other character
+ *  `_`, led by `f_` where it does not start with a letter -- as Python's engine names it. */
+function fileTable(fileName: string): string {
+  const base = fileName.split(/[\\/]/).pop() ?? fileName;
+  const dot = base.lastIndexOf('.');
+  const stem = (dot > 0 ? base.slice(0, dot) : base).replace(/[^A-Za-z0-9_]/g, '_') || 'file';
+  return /^[A-Za-z]/.test(stem) ? stem : `f_${stem}`;
 }
 
 /** Whether a project's coordinates name a version (Q19) rather than a workspace's revision (Q23). */
@@ -134,8 +145,19 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
   const data = heldDataHost({ databaseType: o.database.databaseType, run: (sql, epoch) => o.database.run(sql, epoch),
     exclusive: (work) => o.database.exclusive(work), settings: o.settings }, o.writer);
   const issued = new Set<string>();
-  let made = 0;
-  const fresh = (stem: string): string => `${stem}_${(made += 1)}_${mint().slice(0, 8)}`;
+  /** Names being taken by a source still being read: no other is given one of them meanwhile. */
+  const naming = new Set<string>();
+  /** A source's table name (Q28): `stem` where it is free, else the next free `stem_2`, ... -- free meaning no table or
+   *  view of the database, and none this engine issued or is reading into. */
+  const named = async (stem: string, mine: string[]): Promise<string> => {
+    const taken = async (name: string): Promise<boolean> => naming.has(name.toLowerCase()) || issued.has(name.toLowerCase())
+      || (await data.catalog('main', name)).length > 0;
+    let name = stem;
+    for (let n = 2; await taken(name); n += 1) name = `${stem}_${n}`;
+    naming.add(name.toLowerCase());
+    mine.push(name.toLowerCase());
+    return name;
+  };
   /** A table of the database modelled by the tab's planner, in a package of its own (so its runtime is its own), each
    *  conversion the platform's, the table rewritten in place where it may be. */
   const modelled = async (table: string, convertible: boolean): Promise<{ model: string; runtime: string; source: ValueSpecification }> => {
@@ -309,10 +331,17 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
       if (refused !== undefined) throw refused;
     };
     return {
-      async addSource(source, how) {
+      async addSource(source, how, opts) {
         open('addSource', { source: sourceKind(source), how });
         // THE MINT: one execution id for this source's plan run (its load, mount or copy: Q7)
+        // its table's name (Q28): the one asked -- a plain identifier, never one of legend-lite's own -- or its source's own
+        const asked = opts?.name;
+        if (asked !== undefined && !plainName(asked)) {
+          throw new Refused('addSource', `the table name ${JSON.stringify(asked)}`, ENGINE, "a table is named by a plain identifier: letters, digits and '_', led by a letter or '_'");
+        }
         const executionId = mint();
+        // the names this call reserves, let go once it is done (the one it read into is issued by then)
+        const mine: string[] = [];
         let file: { digest: string; size: number } | undefined;
         const run = async (): Promise<{ table: string; view: boolean; model: string; runtime: string; source: ValueSpecification; rowCount?: number }> => {
           if ('upload' in source) {
@@ -321,7 +350,7 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
             const format = /\.(csv|parquet|json)$/i.exec(name)?.[1]?.toLowerCase() as 'csv' | 'parquet' | 'json' | undefined;
             if (format === undefined) throw new Refused('addSource', `the file '${name}'`, ENGINE, 'a file is read as csv, json or parquet');
             file = { digest: await sha256(bytes), size: bytes.length };
-            const table = fresh('upload');
+            const table = await named(asked ?? fileTable(name), mine);
             const registered = `${table}.${format}`;
             await o.files.registerFileBuffer(registered, bytes);
             await data.load({ fileLoad: { databaseType: o.database.databaseType, file: { name, ...file, format }, into: { table } } },
@@ -330,7 +359,7 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
           }
           if ('url' in source || 'remote' in source) {
             if (how !== 'live') throw new Refused('addSource', `a remote file added '${how}'`, ENGINE, "a remote file is mounted live; its rows are snapped as a query's ({query})");
-            const view = fresh('remote');
+            const view = await named(asked ?? 'remote', mine);
             const ref = 'url' in source ? source.url : source.remote.ref;
             const format = /\.(csv|parquet)(\?|$)/i.exec(ref)?.[1]?.toLowerCase() as 'csv' | 'parquet' | undefined;
             if (format === undefined) throw new Refused('addSource', `the remote file '${ref.split('?')[0]}'`, ENGINE, 'a remote file is read as csv or parquet');
@@ -365,7 +394,7 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
             } finally {
               counter.dispose();
             }
-            const table = fresh('snap');
+            const table = await named(asked ?? 'snap', mine);
             const plan = await planned('addSource', () => o.writer.snapCopy({ databaseType: o.database.databaseType, model,
               runtime: source.query.runtime, lambda: toJson(pulled), table }), executionId);
             await o.database.exclusive((held) => runPlan(plan, { databaseType: o.database.databaseType, run: held.rows }, { execution: executionId }));
@@ -376,11 +405,13 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
         let made: Awaited<ReturnType<typeof run>>;
         try {
           made = await run();
+          issued.add(made.table.toLowerCase());
         } catch (e) {
           if (e instanceof Refused || e instanceof CompileError) throw e;
           throw new RunError(redact(e instanceof Error ? e.message : String(e)), 'addSource', { executionId });
+        } finally {
+          for (const n of mine) naming.delete(n);
         }
-        issued.add(made.table.toLowerCase());
         const { model: handed, runtime } = await served(made.model, made.runtime);
         const handle = `h-${mint()}`;
         handles.set(handle, { table: made.table, view: made.view, model: made.model, handed, runtime, relation: made.source });
@@ -467,7 +498,8 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
         const { model, query: rowsQuery } = await modelOfAsk(ask.box, 'write');
         const { mode, keys } = modeOf(ask.mode);
         const target = ask.target.table;
-        if (o.owns(target) || issued.has(target.toLowerCase())) {
+        // its own tables are exactly those it issued handles for (Q14, Q30)
+        if (issued.has(target.toLowerCase())) {
           throw new Refused('write', `the table '${target}'`, ENGINE, "it is one of this engine's own tables (a file's, a copy's): a write names another");
         }
         // the box's tables, derived from its model's Databases (Q11 (a)), each as the catalog says it now

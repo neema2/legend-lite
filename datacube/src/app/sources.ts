@@ -52,6 +52,7 @@ import type { PageModelRef } from '../page-model.ts';
 import type { ModelOptions } from '../planner.ts';
 import { inferFormat, type S3Credentials } from '../remote.ts';
 import type { QueryRunner } from '../runner.ts';
+import type { GridSource } from '../model-writer.ts';
 import { rowsOnce } from '../rows-once.ts';
 import { SAMPLES, sampleById, sampleFileName, type Sample } from '../samples.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
@@ -98,6 +99,9 @@ export type GridPlace = {
   readonly planner?: Planner;
   /** Its rows' runner: the tab's engine's (the engine contract, step 4a), or its host's (Python's plan-and-run: R4). */
   readonly runner?: QueryRunner;
+  /** The model its rows are read over as the page wrote it, and its runtime: what a class of it is written from (the
+   *  model actions: 4b), its rows read through its runner. */
+  readonly source?: GridSource;
   /** What its header says it reads. */
   readonly label?: string;
   /**
@@ -401,8 +405,8 @@ export function pageSources(d: SourcesOf): PageSources {
     at: { model, runtime },
   });
   /** A grid's place from its rows: its runner, and the writing flows' planner where the page has one. */
-  const rowsPlace = (over: Over): Pick<GridPlace, 'planner' | 'runner'> =>
-    ({ runner: over.rows.runner, ...(over.writing ? { planner: over.writing } : {}) });
+  const rowsPlace = (over: Over): Pick<GridPlace, 'planner' | 'runner' | 'source'> =>
+    ({ runner: over.rows.runner, ...(over.writing ? { planner: over.writing } : {}), ...(over.at ? { source: over.at } : {}) });
   /** What types a source's columns: the rows' runner (lambdaRelationType, through the engine). */
   const typer = (over: Over): QueryRunner => over.rows.runner;
   /** Whether a grid's rows are its host's alone (Python's: R4), the page holding no planner over them. */
@@ -1240,7 +1244,7 @@ export function pageSources(d: SourcesOf): PageSources {
     const byEngine = services.engine.projects;
     const rows: Over = byEngine
       ? { rows: byEngine.rows({ project: at.project, workspace: at.workspace, revision: at.revision }, at.runtime, at.mapping),
-        ...(local ? { writing: local.another(model, at.runtime, { mapping: at.mapping }) } : {}) }
+        ...(local ? { writing: local.another(model, at.runtime, { mapping: at.mapping }) } : {}), at: { model, runtime: at.runtime } }
       : rowsOver(model, at.runtime, { mapping: at.mapping });
     try {
       const columns = await sourceColumns(typer(rows), source);

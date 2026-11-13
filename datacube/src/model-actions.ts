@@ -1,14 +1,14 @@
 // CREATE AN ASSOCIATION… AND CREATE A DATA SPACE… OF THE PAGE (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.1, §15.6a):
 // the page's actions on its model, each one call to the model's writer (the host's: the tab's module, Python's native
 // library), atomic, saved as one revision of DataCube's workspace. The facts an association's how-many is preset from
-// are read where the host reads every grid's rows (PlanAndRun): a key unique over its class's rows -- the class's
+// are read where the host reads every grid's rows (its runner): a key unique over its class's rows -- the class's
 // relation function over the project, or, a class still to be made, its grid's own rows. Loaded the first time either is asked for; it imports nothing the page loads at startup (its
 // queries and its windows' shapes are handed in), so the page's own modules stay in its bundle.
 
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { ClassBasis } from './query.ts';
 import type { SdlcClient } from '../../sdlc-client/src/client.ts';
-import type { PlanAndRun } from './runner.ts';
+import { PlanAndRun, type QueryRunner } from './runner.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import { createAssociation, createDataSpace, projectState } from '../../model-changes/src/index.ts';
 import type { PageCommand } from './page-commands.ts';
@@ -36,8 +36,8 @@ export interface PageGrid {
     readonly kept: readonly string[];
     readonly source: GridSource;
   } | { readonly refused: string };
-  /** Where its rows are planned and run, on whichever host: its sample and its keys' facts are read there. */
-  readonly rows: PlanAndRun;
+  /** Its rows' runner, on whichever host: its sample and its keys' facts are read through it. */
+  readonly rows: QueryRunner;
 }
 
 /** A grid as the page hands it in: its state, what its header says, where its rows plan and run, and the tables of the
@@ -45,7 +45,9 @@ export interface PageGrid {
 export interface GridOnPage {
   readonly snapshot: CubeSnapshot;
   readonly label: string;
-  readonly rows: PlanAndRun;
+  readonly rows: QueryRunner;
+  /** The model its rows are read over as the page wrote it, and its runtime: what a class of it is written from. */
+  readonly source: GridSource;
   readonly tables?: readonly string[];
 }
 
@@ -60,10 +62,9 @@ export function pageGrids(ids: readonly string[], gridOf: (id: string) => GridOn
   return ids.flatMap((id) => {
     const g = gridOf(id);
     if (!g) return [];
-    const source = g.rows.host.planner.source?.();
+    const { source } = g;
     let made: PageGrid['made'];
     try {
-      if (!source) throw new Error('its planner does not say where its rows are read from');
       const basis = q.classBasis(g.snapshot);
       made = { basis, relation: basis.query.body[0]!, kept: g.tables ?? basis.tables.map((t) => t.table), source };
     } catch (e) {
@@ -80,7 +81,7 @@ export interface ModelActionsOf {
   /** The name a class's model gives the host's database (its store, connection and runtime): `Browser`, `Python`. */
   readonly place: string;
   /** A project's queries planned by the writer and run on the host's database: where a class's facts are read. */
-  readonly rows: (model: string, runtime: string) => PlanAndRun;
+  readonly rows: (model: string, runtime: string) => QueryRunner;
   readonly pageName: string;
   readonly model: PageModelRef | undefined;
   readonly client: SdlcClient;
@@ -97,8 +98,14 @@ export interface ModelActionsOf {
 }
 
 
+/** A runner's model let go where it holds one in the page (a host's plan-and-run's planner: Python's); the tab's engine's
+ *  runner holds none. */
+function letGo(rows: QueryRunner): void {
+  if (rows instanceof PlanAndRun) rows.host.planner.dispose?.();
+}
+
 /** The facts' rows over the project's files: the place's runtime, through the model's mapping. */
-function projectRows(o: ModelActionsOf, project: string, pkg: string): PlanAndRun {
+function projectRows(o: ModelActionsOf, project: string, pkg: string): QueryRunner {
   return o.rows(project, `${pkg}::runtime::${o.place}`);
 }
 
@@ -140,7 +147,7 @@ export async function createAssociationOf(o: ModelActionsOf, first?: string): Pr
       },
     });
   } finally {
-    facts.host.planner.dispose?.();
+    letGo(facts);
   }
   // what the window changed of the page's model, as the page commands that change it (page-model.ts PageModel)
   return model.commands;
@@ -229,7 +236,7 @@ export async function createDataSpaceOf(o: ModelActionsOf): Promise<readonly Pag
       },
     });
   } finally {
-    facts.host.planner.dispose?.();
+    letGo(facts);
   }
   // what the window changed of the page's model, as the page commands that change it (page-model.ts PageModel)
   return model.commands;

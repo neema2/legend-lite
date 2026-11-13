@@ -17,11 +17,11 @@ import {
 import { FileHandles } from '../file-handles.ts';
 import type { TableModels } from '../infer.ts';
 import type { LitePlanner } from '../lite-planner.ts';
-import type { EngineSession, Handle, ProjectCoordinates, RevisionCoordinates } from '../../../engine-client/src/engine-contract.ts';
+import type { EngineSession, Handle, ProjectCoordinates, RevisionCoordinates, WriteMode } from '../../../engine-client/src/engine-contract.ts';
 import { EngineRun, type EngineSource } from '../engine-run.ts';
 import { writesModels, type ModelWriter } from '../model-writer.ts';
 import type { ModelOptions } from '../planner.ts';
-import { PlanThenRun } from '../runner.ts';
+import type { QueryRunner } from '../runner.ts';
 import { dataHost, forgetUpload, ingestFile, mountRemoteView, type DuckDbFiles } from '../upload.ts';
 import { browserBasics, tabTitle } from './browser-basics.ts';
 import type {
@@ -120,9 +120,6 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       database: o.duckdb.engine,
       plane: { label: o.planner.label, planner: o.planner.planner, another: (m, r, h) => o.planner.models.another(m, r, h), elements: (t) => o.planner.models.elements(t) },
       writer: o.planner.tables,
-      // nothing writes through it until 4b, when the page's own tables (its files, its copies) are its census: until
-      // then a write names a table the page owns, and is refused by name
-      owns: () => true,
       files: o.duckdb.db,
       projects: { model: version, revision, databases: keeper },
     });
@@ -140,13 +137,21 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       // enumerations the engine's reading of it (Q21, Q22), a mapping how the engine reads it
       rows: (model, runtime, how) => engineRows(tabEngine().then(async (t) => ({
         ...(await t.served(model, runtime)), ...(how?.mapping !== undefined ? { how: { mapping: how.mapping } } : {}) }))),
+      // a grid's table Output: one write the engine runs in its plan's own transaction (Q30)
+      write: async (source, rows, output) => {
+        const t = await tabEngine();
+        const box = await t.served(source.model, source.runtime);
+        const mode: WriteMode = output.mode === 'merge' ? { merge: { keys: output.keys ?? [] } } : output.mode;
+        return (await t.session.write({ box: { model: box.model, runtime: box.runtime, query: rows }, target: { table: output.name }, mode })).rowsWritten;
+      },
       projects: {
         rows: (project, runtime, mapping) => engineRows({ model: '', runtime, how: { project, ...(mapping !== undefined ? { mapping } : {}) } }),
         elements: async (project) => (await session()).elements({ project }),
       },
       database: { ...tabDatabase(o.duckdb, o.planner.tables), ...tabSnaps(session, (m, r) => tabEngine().then((t) => t.served(m, r))) },
       // the model actions: the tab's module writes (beside whichever planner the page chose), the tab's DuckDB answers
-      ...(writesModels(o.planner.tables) ? { modelWriting: tabModelWriting(o.planner.tables, o.duckdb.engine) } : {}),
+      // a project's facts read through the tab's engine, as every grid's rows are (4b)
+      ...(writesModels(o.planner.tables) ? { modelWriting: tabModelWriting(o.planner.tables, (m, r) => engineRows(tabEngine().then((t) => t.served(m, r))).runner) } : {}),
       local: {
         planner: o.planner.planner,
         another: (model, runtime, how) => o.planner.models.another(model, runtime, how),
@@ -171,9 +176,9 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
   };
 }
 
-/** The model actions in this tab: the module's writer, a project's facts planned by it and run on the tab's DuckDB. */
-function tabModelWriting(writer: ModelWriter, engine: DuckDbEngine): ModelWriting {
-  return { place: 'Browser', writer, rows: (model, runtime) => new PlanThenRun(writer.withModel(model, runtime), engine) };
+/** The model actions in this tab: the module's writer, and a project's facts read through the tab's engine. */
+function tabModelWriting(writer: ModelWriter, rows: (model: string, runtime: string) => QueryRunner): ModelWriting {
+  return { place: 'Browser', writer, rows };
 }
 
 /**

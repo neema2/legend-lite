@@ -26,11 +26,12 @@ import type { JoinHow, JoinSide } from '../join-how.ts';
 import type { JoinSummaryCounts } from '../join.ts';
 import type { PageDocument } from '../page-document.ts';
 import type { PageCommand } from '../page-commands.ts';
+import type { TableOutput } from '../layout/flow.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import type { ModelOptions } from '../planner.ts';
 import type { S3Credentials } from '../remote.ts';
 import type { ModelWriter } from '../model-writer.ts';
-import type { PlanAndRun, QueryRunner } from '../runner.ts';
+import type { QueryRunner } from '../runner.ts';
 import type { ProjectAt } from '../../../engine-client/src/engine-contract.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { UploadResult } from '../upload.ts';
@@ -91,7 +92,7 @@ export type GridRows = { readonly runner: QueryRunner };
  * WHAT THE MODEL ACTIONS NEED OF A HOST (Create a Class…, Create an Association…, Create a Data Space…;
  * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B1): legend-lite's model writer and the host's database -- never the page's own
  * planner or engine, so every host that gives this (and a model home) gets them. A grid's own rows come from where its
- * rows always do (its PlanAndRun); a project's from `rows`.
+ * rows always do (its runner); a project's from `rows`.
  */
 export interface ModelWriting {
   /** The name a class's model gives the host's database (its store, connection and runtime): `Browser`, `Python`. */
@@ -99,7 +100,7 @@ export interface ModelWriting {
   /** legend-lite's model writer: the tab's module (beside whichever planner the page chose), Python's native library. */
   readonly writer: ModelWriter;
   /** A project's queries planned by the writer over its files and run on the host's database: a class's facts. */
-  rows(model: string, runtime: string): PlanAndRun;
+  rows(model: string, runtime: string): QueryRunner;
 }
 
 /**
@@ -130,6 +131,13 @@ export interface EngineService {
     rows(project: ProjectAt, runtime: string, mapping?: string): GridRows;
     elements(project: ProjectAt): Promise<unknown[]>;
   };
+  /**
+   * A grid's TABLE OUTPUT written by the host's engine (the engine contract's `write`, Q30, 4b): `rows` (the box's query)
+   * over the grid's model as the page wrote it, into `output`'s table -- ONE call, the engine deriving the box's tables
+   * from the model and refusing, by name, one of its own (Q11). The count of rows written. Absent: the host writes a
+   * grid's table itself (Python's flow.run).
+   */
+  write?(source: { readonly model: string; readonly runtime: string }, rows: Lambda, output: TableOutput): Promise<number>;
   /** Where data comes in. */
   readonly database: DatabaseService;
   /** What the model actions need (`ModelWriting`); absent, they are not offered (§3.4). */

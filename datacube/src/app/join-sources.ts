@@ -64,7 +64,7 @@ export interface JoinSourcesHost {
   typer(over: Over): RelationTyper;
   letGo(over: Over): void;
   readonly gridMaker: SourcesOf['gridMaker'];
-  rowsPlace(over: Over): Pick<GridPlace, 'planner' | 'runner'>;
+  rowsPlace(over: Over): Pick<GridPlace, 'planner' | 'runner' | 'source'>;
   /**
    * A grid's source opened as a grid over it opens (sources.ts reopened: a warehouse signed in to, a class at its pin),
    * its maker never made -- its start: the grid's snapshot over its base, and the place it is read through. What a box
@@ -262,13 +262,13 @@ async function openedAfterStart(h: JoinSourcesHost, source: RowsSource, resolved
     }
     const r = rebuilt(how.saved, relation, columns, source.name, how.capped === true);
     // read through what its first source is read through: its planner and engine, live on a warehouse, a copy held here
-    const { planner, engine, runner, live, signInAgain, heldCopy, tables } = start.place;
+    const { planner, engine, runner, source: written, live, signInAgain, heldCopy, tables } = start.place;
     return {
       label: source.name,
       notes: [...notes, ...r.notes],
       ...(start.opened.discard ? { discard: start.opened.discard } : {}),
       make: h.gridMaker(r.snapshot, r.configuration, [], {
-        ...(planner ? { planner } : {}), ...(engine ? { engine } : {}), ...(runner ? { runner } : {}), ...(live ? { live } : {}),
+        ...(planner ? { planner } : {}), ...(engine ? { engine } : {}), ...(runner ? { runner } : {}), ...(written ? { source: written } : {}), ...(live ? { live } : {}),
         ...(signInAgain ? { signInAgain } : {}), ...(heldCopy ? { heldCopy } : {}), ...(tables ? { tables } : {}),
         cubeSource: { ...source, columns }, reads: resolved, label: source.name, ...(r.tree ? { tree: r.tree } : {}),
         foldPanel: how.capped === true,

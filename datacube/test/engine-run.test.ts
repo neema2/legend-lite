@@ -43,7 +43,7 @@ describe("a grid's runner over the engine contract", () => {
   it("answers the tab's own plan-then-run's rows and types, and says a refusal as a QueryFailure", async () => {
     const written = await planner.tableModel(await catalogColumns(engine, planner, 'er_t'),
       { table: 'er_t', pkg: 'er_t', convertible: true, databaseType: 'DuckDB' });
-    const tab = tabEngine({ database: engine, plane: localPlane(planner), writer: planner, owns: () => false, files: db.files });
+    const tab = tabEngine({ database: engine, plane: localPlane(planner), writer: planner, files: db.files });
     const served = await tab.served(written.model, written.runtime);
     const session = await tab.open();
     const ours = new EngineRun(session, served, 'tab');

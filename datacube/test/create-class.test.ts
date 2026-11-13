@@ -138,8 +138,8 @@ describe("the grid's rows, as a class's", () => {
   });
 
   it('a grid is read where its rows are planned and run, on whichever host: a Python grid too (B1)', async () => {
-    // a grid whose rows the host plans and runs (as every grid on Python's page is): its source said by its planner,
-    // its sample read through its PlanAndRun -- never the page's own planner or engine, which a Python host has not
+    // a grid whose rows the host plans and runs (as every grid on Python's page is): its source handed in by its page,
+    // its sample read through its runner -- never the page's own planner or engine, which a Python host has not
     const asked: string[] = [];
     const host = {
       name: 'python',
@@ -151,14 +151,14 @@ describe("the grid's rows, as a class's", () => {
       stream: async () => undefined,
     };
     const rows = new PlanAndRun(host);
-    const [grid] = pageGrids(['g1'], () => ({ snapshot: snapshot(), label: 'trades', rows }), () => undefined,
+    const [grid] = pageGrids(['g1'], () => ({ snapshot: snapshot(), label: 'trades', rows, source: { model: 'M', runtime: 'local::R' } }), () => undefined,
       { classBasis });
     assert.ok(grid && !('refused' in grid.made), 'a class candidate');
     assert.deepEqual(grid.made.source, { model: 'M', runtime: 'local::R' });
     assert.equal(grid.rows, rows);
     // its rows read where they are: the host's PlanAndRun answers the grid's queries
     assert.deepEqual(grid.made.kept, ['trades_2'], 'the tables it is read as: its store\'s, when the page names none');
-    await grid.rows.host.planAndRun(grid.made.basis.tables[0]!.sample, 0);
+    await rows.host.planAndRun(grid.made.basis.tables[0]!.sample, 0);
     assert.equal(asked.length, 1);
     assert.match(asked[0]!, /"limit"/);
   });
@@ -168,13 +168,13 @@ describe("the grid's rows, as a class's", () => {
       planAndRun: async () => undefined as never, stream: async () => undefined });
     const joined = { _type: 'func', function: 'join', parameters: [SOURCE, accessor('local::DB', 'desks')] } as never;
     const [grid] = pageGrids(['g1'], () => ({ snapshot: snapshot({ source: { query: joined } } as never), label: 'joined', rows,
-      tables: ['trades_2', 'desks_3'] }), () => undefined, { classBasis });
+      source: { model: 'M', runtime: 'local::R' }, tables: ['trades_2', 'desks_3'] }), () => undefined, { classBasis });
     assert.ok(grid && !('refused' in grid.made), 'a class candidate');
     assert.deepEqual(grid.made.kept, ['trades_2', 'desks_3']);
     assert.deepEqual(grid.made.basis.tables.map((t) => t.table), ['trades_2', 'desks']);
     // a grid over a class reads no table of a store: refused, as the window leaves it out
     const [cls] = pageGrids(['g2'], () => ({ snapshot: snapshot({ source: { query: { _type: 'var', name: 'x' } } } as never),
-      label: 'cls', rows }), () => undefined, { classBasis });
+      label: 'cls', rows, source: { model: 'M', runtime: 'local::R' } }), () => undefined, { classBasis });
     assert.deepEqual(cls?.made, { refused: 'its rows are read from no table of a store' });
   });
 

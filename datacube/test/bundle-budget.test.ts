@@ -525,8 +525,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  addSource -- the engine's own code a chunk of its own, fetched with a grid's first rows; and apache-arrow's vector
  *  building (vectorFromArray: its factories and vector modules, already in the start, keep the code a module's live
  *  exports need) for the tab engine's in-process RecordBatch (Q9), which goes at 4d when DuckDB-WASM's own Arrow
- *  batches pass through: over by 3,778 bytes). Measured 438,278. */
-const BUDGET = 438_500;
+ *  batches pass through: over by 3,778 bytes). Measured 438,278.
+ *  438,500 -> 439,500 (2026-11-13, the same contract's step 4b: a table Output as the engine's one write, a source's
+ *  table by the name asked (Q28), a grid's facts read through its runner -- most of it in the tab's engine's chunk, which
+ *  a grid page fetches with its first rows; over by 506 bytes). Measured 439,006. This and 4a's move come back down at
+ *  4d, with vectorFromArray (the orchestrator, 2026-11-13). */
+const BUDGET = 439_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -747,8 +751,10 @@ const BUDGET = 438_500;
  *  the page's engine-client; over by 39 bytes). Measured 422,039.
  *  422,500 -> 423,000 (2026-11-13, the same step 4a: the contract's SourceAnswer.rowCount and its reading-call kinds, the
  *  planner protocol's `elements` request (Q27), carried by the engine page's engine-client; over by 98 bytes).
- *  Measured 422,598. */
-const ENGINE_BUDGET = 423_000;
+ *  Measured 422,598.
+ *  423,000 -> 423,500 (2026-11-13, step 4b: a table Output as the engine's one write, the model actions' facts read
+ *  through a grid's runner, AddOptions' asked name; over by 155 bytes). Measured 423,155. */
+const ENGINE_BUDGET = 423_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1140,8 +1146,10 @@ const EXAMPLE_BUDGET = 4_000;
  *  the re-audit's own growth was trimmed back under 450,000 first, c3191d097). Measured 450,200.
  *  450,500 -> 451,000 (2026-11-13, the DataCube engine contract's step 4a: the page's grids' rows through their runner
  *  alone (GridRows), a grid's Snap through its host's copy, a saved query's project by its coordinates -- the app's
- *  shared code the notebook's module carries; over by 335 bytes). Measured 450,835. */
-const WIDGET_BUDGET = 451_000;
+ *  shared code the notebook's module carries; over by 335 bytes). Measured 450,835.
+ *  451,000 -> 451,500 (2026-11-13, step 4b: the app's table Output as one write through its host's engine, the model
+ *  actions' facts through a grid's runner; over by 370 bytes). Measured 451,370. */
+const WIDGET_BUDGET = 451_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
