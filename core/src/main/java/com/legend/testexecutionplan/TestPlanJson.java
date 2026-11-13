@@ -39,8 +39,10 @@ public final class TestPlanJson {
      *  seed is the referee's copy as a load ({@code refereeLoad}: its steps and bundle), no longer its texts; 17
      *  (2026-11-11, the JSON pass): no {@code release} -- a body makes no {@code data:} session table to drop, its
      *  payloads bound or inline -- and the product's version 48; 18 (2026-11-12, the C checkpoint's SHOULD-FIX 3): a
-     *  target may carry its database's settings, the product's version 49. */
-    public static final int VERSION = 18;
+     *  target may carry its database's settings, the product's version 49; 19 (2026-11-13, E-5c, the user's ruling O5;
+     *  PROVISIONAL on claude/total-wall-e, renumbered after main and D's): a side read from its group's fused row,
+     *  {@code fusedCell}. */
+    public static final int VERSION = 19;
 
     private TestPlanJson() {
     }
@@ -48,7 +50,7 @@ public final class TestPlanJson {
     /** The {@code _type} tags of a test plan's steps and sides, one spelling for the writer and the reader. */
     enum StepTag { run, frameRun, verdicts, branch }
 
-    enum SideTag { rows, keyedRows, constant }
+    enum SideTag { rows, keyedRows, constant, fusedCell }
 
     private static <E extends Enum<E>> E tag(Class<E> family, Json.Obj o, String what) {
         String name = o.getString("_type");
@@ -196,6 +198,10 @@ public final class TestPlanJson {
                 so.put("columns", PlanJson.columnsJson(c.columns()));
                 so.put("cells", c.cells());
                 so.put("folded", c.folded());
+            }
+            case TestPlan.Side.FusedCell f -> {
+                so.put("_type", SideTag.fusedCell.name());
+                so.put("columns", PlanJson.columnsJson(f.columns()));
             }
         }
         return so;
@@ -386,6 +392,7 @@ public final class TestPlanJson {
             }
             case constant -> new TestPlan.Side.Constant(PlanJson.columnsOf(so.getArr("columns")),
                     PlanJson.textCells(so.getArr("cells"), "a constant side"), so.getBool("folded"));
+            case fusedCell -> new TestPlan.Side.FusedCell(PlanJson.columnsOf(so.getArr("columns")));
         };
     }
 }

@@ -314,6 +314,8 @@ final class TestRun {
             case TestPlan.Side.Rows r -> r.result();
             case TestPlan.Side.KeyedRows k -> k.keyed();
             case TestPlan.Side.Constant c -> throw new IllegalStateException("a constant side sends no statement");
+            case TestPlan.Side.FusedCell f -> throw new IllegalStateException("a fused-cell side sends no statement:"
+                    + " it is read from its group's fused row");
         };
     }
 

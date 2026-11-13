@@ -122,6 +122,8 @@ class LeanSqlCorpusTest {
                     }
                     case TestPlan.Side.Constant c -> {
                     }
+                    case TestPlan.Side.FusedCell f -> {
+                    }
                 }
             }
         }
@@ -215,6 +217,7 @@ class LeanSqlCorpusTest {
                                 case TestPlan.Side.Rows r -> host[noFrom(r.result().sql().statement()) ? 0 : 1]++;
                                 case TestPlan.Side.KeyedRows k -> host[2]++;
                                 case TestPlan.Side.Constant c -> host[3]++;
+                                case TestPlan.Side.FusedCell f -> host[0]++;
                             }
                         }
                     }
