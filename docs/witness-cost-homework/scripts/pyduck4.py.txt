@@ -1,0 +1,29 @@
+"""Is DuckDB's own call slower while ANY context variable is set? SELECT 1 bare, in batches run (a) with the context
+empty, (b) inside one in_run(...) held around the whole batch (no per-call frame cost), (c) inside another, unrelated
+context variable held around the batch. Paired with (a) batch by batch."""
+import contextvars, random, statistics, sys, time
+import duckdb
+from legend_lite._runframe import in_run
+con = duckdb.connect()
+OTHER = contextvars.ContextVar('other', default=None)
+def batch(n=50):
+    t0 = time.perf_counter_ns()
+    for _ in range(n): con.execute('select 1').fetchall()
+    return (time.perf_counter_ns() - t0) / n
+def in_frame():
+    with in_run('a read'): return batch()
+def in_other():
+    tok = OTHER.set('x')
+    try: return batch()
+    finally: OTHER.reset(tok)
+for _ in range(20): batch(); in_frame(); in_other()
+d_frame, d_other = [], []
+for b in range(200):
+    a1 = batch(); f = in_frame(); o = in_other(); a2 = batch()
+    a = (a1 + a2) / 2
+    d_frame.append(f - a); d_other.append(o - a)
+random.seed(1)
+for name, ds in (('in_run held around the batch', d_frame), ('another context variable held around it', d_other)):
+    boots = sorted(statistics.median(random.choices(ds, k=len(ds))) for _ in range(2000))
+    print(f"SELECT 1, {name}: per call {statistics.median(ds):+.0f} ns vs the empty context, 95% interval [{boots[50]:+.0f}, {boots[1950]:+.0f}] ns")
+print('duckdb', duckdb.__version__, sys.version.split()[0])

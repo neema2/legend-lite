@@ -1,0 +1,59 @@
+"""Witness cost, Python, the product path whole (2026-11-13; throwaway): Frames' Table.execute -- the plan by the native
+library (Library.call, its planning check) and the run (Frames.run, under @runs('a plan')) on DuckDB -- for five
+queries over a registered frame of N rows. ON: as shipped. OFF: Library.call without its check, Frames.run unwrapped
+(its __wrapped__). Paired batches alternate ON and OFF; each batch runs the five queries once."""
+import ctypes, random, statistics, sys, time
+import pyarrow as pa
+from legend_lite import _library
+from legend_lite.frames import Frames
+
+rows = int(sys.argv[1])
+batches = int(sys.argv[2])
+frames = Frames()
+n = rows
+t = frames.register('trades', pa.table({
+    'id': pa.array(range(n), pa.int64()), 'region': pa.array([f'region{i % 5}' for i in range(n)]),
+    'desk': pa.array([f'desk{i % 20}' for i in range(n)]), 'notional': pa.array([(i % 997) * 1.5 for i in range(n)]),
+    'qty': pa.array([i % 1000 for i in range(n)], pa.int64())}))
+QUERIES = ['->select(~[region, desk])', '->filter(x|$x.notional > 100.0)',
+           '->groupBy(~[desk], ~[q: x|$x.notional : y|$y->sum()])', '->sort(~notional->descending())->limit(10)',
+           '->select(~[desk])->distinct()']
+on_call, on_run = _library.Library.call, Frames.run
+def call_off(self, name, *args):
+    for a in args:
+        if '\0' in a:
+            raise ValueError(f'{name}: an argument contains a NUL character')
+    th = self._thread()
+    p = self._function(name)(th, *[a.encode('utf-8') for a in args])
+    if not p:
+        raise OSError(f'{name} returned no answer (the library could not allocate one)')
+    try:
+        return ctypes.string_at(p).decode('utf-8')
+    finally:
+        self._lib.lite_free(th, p)
+off_run = Frames.run.__wrapped__
+def mode(on):
+    _library.Library.call = on_call if on else call_off
+    Frames.run = on_run if on else off_run
+def batch():
+    t0 = time.perf_counter_ns()
+    for q in QUERIES:
+        t.execute(q)
+    return (time.perf_counter_ns() - t0) / len(QUERIES)
+for on in (True, False):
+    mode(on)
+    for _ in range(30): batch()
+diffs, ons, offs = [], [], []
+for b in range(batches):
+    pair = {}
+    for on in ((True, False) if b % 2 == 0 else (False, True)):
+        mode(on)
+        pair[on] = batch()
+    diffs.append(pair[True] - pair[False]); ons.append(pair[True]); offs.append(pair[False])
+mode(True)
+random.seed(1)
+boots = sorted(statistics.median(random.choices(diffs, k=len(diffs))) for _ in range(2000))
+print(f"{rows} rows: per query (median over {batches} paired batches of 5 queries) ON {statistics.median(ons)/1000:.1f} us,"
+      f" OFF {statistics.median(offs)/1000:.1f} us; ON-OFF {statistics.median(diffs):+.0f} ns,"
+      f" 95% interval [{boots[int(0.025*len(boots))]:+.0f}, {boots[int(0.975*len(boots))]:+.0f}] ns"
+      f" ({100*statistics.median(diffs)/statistics.median(offs):+.2f}%)")

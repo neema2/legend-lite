@@ -1,0 +1,1 @@
+process.stderr.write(`[flag-check] NODE_OPTIONS=${process.env.NODE_OPTIONS ?? ''} execArgv=${JSON.stringify(process.execArgv.filter(a => a.includes('async-context')))}\n`);

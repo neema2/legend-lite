@@ -1,0 +1,12 @@
+#!/bin/bash
+# W1 A/B: the stress corpus plan-only probe, the wall's checks ON (the real RunScope) vs OFF (the no-op stub first on
+# the classpath); 5 rounds, alternating which goes first; each JVM 5 model builds and 6 query passes, as W1's baseline.
+P=$SP
+JAR=/home/user/legend-lite/bazel-bin/core/compile_latency_deploy.jar
+cd /home/user/legend-lite
+for r in 1 2 3 4 5; do
+  on()  { $P/run.sh "ON r$r"  $P/raw/ab.log -- -Xms2g -Xmx2g -Duser.timezone=GMT -cp "$P/on:$P/probe-classes:$JAR" com.legend.integration.PerfProbe stress $P/raw/on-r$r 5 6; }
+  off() { $P/run.sh "OFF r$r" $P/raw/ab.log -- -Xms2g -Xmx2g -Duser.timezone=GMT -cp "$P/off:$P/probe-classes:$JAR" com.legend.integration.PerfProbe stress $P/raw/off-r$r 5 6; }
+  if (( r % 2 )); then on; off; else off; on; fi
+done
+echo AB-DONE >> $P/raw/ab.log

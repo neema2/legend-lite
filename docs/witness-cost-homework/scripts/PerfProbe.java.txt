@@ -1,0 +1,196 @@
+package com.legend.integration;
+
+import com.legend.Compiler;
+import com.legend.TypedQuery;
+import com.legend.compiler.element.ModelContext;
+import com.legend.model.ImportScope;
+import com.legend.model.ServiceDefinition;
+import com.legend.protocol.Protocol;
+import com.legend.protocol.spec.AppliedFunction;
+import com.legend.protocol.spec.CString;
+import com.legend.protocol.spec.LambdaFunction;
+import com.legend.protocol.spec.ValueSpecification;
+
+import java.lang.management.ManagementFactory;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HexFormat;
+import java.util.List;
+
+/**
+ * THROWAWAY compiler-performance probe (docs/compiler-perf-homework, 2026-11-13). Never committed as code; its
+ * source is kept as .txt beside the numbers. Measures, in one JVM:
+ *   - the model: parse (A-C, Compiler.parseSources / parseModel) and build (D-F, Compiler.buildModel), each
+ *     --builds times, wall and allocated bytes;
+ *   - per query, --passes passes: names, type, plan (executionPlan: G½ + H + I + J + plan assembly), json
+ *     (PlanJson.write), each wall + allocated bytes; and a hash of each case's plan JSON for the determinism check.
+ * Usage:
+ *   PerfProbe stress  <out-dir> <builds> <passes>
+ *   PerfProbe model   <out-dir> <builds> <passes> <model.pure> <queries.tsv> <runtime-fqn>
+ */
+public final class PerfProbe {
+
+    private static final com.sun.management.ThreadMXBean TMX =
+            (com.sun.management.ThreadMXBean) ManagementFactory.getThreadMXBean();
+
+    private record Case(String name, List<ValueSpecification> statements, String query, String runtime) {}
+
+    /** The counting variant's per-check calls (absent in the real class and the stub): "-" where absent. */
+    private static String counts() {
+        try {
+            long[] c = (long[]) Class.forName("com.legend.base.RunScope").getField("COUNTS").get(null);
+            return "planning=" + c[0] + " plans=" + c[1] + " enter=" + c[2] + " opening=" + c[3] + " statement=" + c[4]
+                    + " judging/callingBack=" + c[5] + " isPlanning/planningWhat=" + c[6] + " running=" + c[7];
+        } catch (ReflectiveOperationException e) {
+            return "-";
+        }
+    }
+
+    private static long alloc() {
+        return TMX.getCurrentThreadAllocatedBytes();
+    }
+
+    public static void main(String[] a) throws Exception {
+        String mode = a[0];
+        Path out = Files.createDirectories(Path.of(a[1]));
+        int builds = Integer.parseInt(a[2]);
+        int passes = Integer.parseInt(a[3]);
+        List<String> modelLog = new ArrayList<>();
+        modelLog.add("build\tparse_ms\tparse_mb\tbuild_ms\tbuild_mb\telements");
+        ModelContext ctx = null;
+        List<? extends com.legend.model.PackageableElement> elements = List.of();
+        List<Compiler.ModelSource> sources = "stress".equals(mode) ? StressCorpus.sources(List.of())
+                : List.of(new Compiler.ModelSource("model.pure", Files.readString(Path.of(a[4]), StandardCharsets.UTF_8)));
+        for (int b = 1; b <= builds; b++) {
+            long t0 = System.nanoTime(), m0 = alloc();
+            var module = Compiler.parseSources(sources);
+            long t1 = System.nanoTime(), m1 = alloc();
+            ctx = Compiler.buildModel(module.model());
+            long t2 = System.nanoTime(), m2 = alloc();
+            elements = module.model().elements();
+            modelLog.add(b + "\t" + ms(t1 - t0) + "\t" + mb(m1 - m0) + "\t" + ms(t2 - t1) + "\t" + mb(m2 - m1) + "\t"
+                    + elements.size());
+            System.out.printf("[probe] build %d: parse %s ms (%s MB), build %s ms (%s MB), %d elements%n", b,
+                    ms(t1 - t0), mb(m1 - m0), ms(t2 - t1), mb(m2 - m1), elements.size());
+        }
+        Files.write(out.resolve("model.tsv"), modelLog);
+        System.out.printf("[probe] checks after %d model builds: %s%n", builds, counts());
+        List<Case> cases = "stress".equals(mode) ? stressCases(elements) : queryCases(Path.of(a[5]), a[6]);
+        for (int p = 1; p <= passes; p++) {
+            List<String> rows = new ArrayList<>();
+            rows.add("name\tnames_ms\ttype_ms\tplan_ms\tjson_ms\tnames_kb\ttype_kb\tplan_kb\tjson_kb\tjson_bytes\thash\tstatus");
+            long w0 = System.nanoTime();
+            long[] sums = new long[8];
+            int ok = 0;
+            for (Case c : cases) {
+                String row = one(c, ctx, sums);
+                if (row.endsWith("\tok")) {
+                    ok++;
+                }
+                rows.add(row);
+            }
+            long wall = System.nanoTime() - w0;
+            Files.write(out.resolve("pass-" + p + ".tsv"), rows);
+            System.out.printf("[probe] checks after pass %d: %s%n", p, counts());
+            System.out.printf("[probe] pass %d: %d cases (%d ok) in %s ms; sums ms names %s type %s plan %s json %s;"
+                    + " MB names %s type %s plan %s json %s%n", p, cases.size(), ok, ms(wall), ms(sums[0]), ms(sums[1]),
+                    ms(sums[2]), ms(sums[3]), mb(sums[4]), mb(sums[5]), mb(sums[6]), mb(sums[7]));
+        }
+        var heap = ManagementFactory.getMemoryPoolMXBeans().stream()
+                .filter(m -> m.getType() == java.lang.management.MemoryType.HEAP)
+                .mapToLong(m -> m.getPeakUsage().getUsed()).sum();
+        long gcCount = 0, gcMs = 0;
+        for (var g : ManagementFactory.getGarbageCollectorMXBeans()) {
+            gcCount += Math.max(0, g.getCollectionCount());
+            gcMs += Math.max(0, g.getCollectionTime());
+        }
+        System.out.printf("[probe] peak heap (sum of pool peaks) %s MB; gc %d collections, %d ms%n", mb(heap), gcCount, gcMs);
+    }
+
+    private static String one(Case c, ModelContext ctx, long[] sums) {
+        long t0 = System.nanoTime(), m0 = alloc();
+        long t1 = t0, m1 = m0, t2 = t0, m2 = m0, t3 = t0, m3 = m0;
+        String status = "ok", hash = "-";
+        int bytes = 0;
+        try {
+            TypedQuery q = c.statements() != null
+                    ? Compiler.queryResolved(ctx, Compiler.resolveQuery(c.statements(), new ImportScope(List.of()), ctx))
+                    : Compiler.query(ctx, c.query());
+            t1 = System.nanoTime(); m1 = alloc();
+            q.body();
+            t2 = System.nanoTime(); m2 = alloc();
+            var plan = q.executionPlan(c.runtime());
+            t3 = System.nanoTime(); m3 = alloc();
+            String json = com.legend.executionplan.PlanJson.write(plan);
+            bytes = json.length();
+            hash = HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(json.getBytes(StandardCharsets.UTF_8))).substring(0, 16);
+        } catch (Exception e) {
+            String r = String.valueOf(e.getMessage()).replace('\n', ' ').replace('\t', ' ');
+            status = "fail: " + e.getClass().getSimpleName() + ": " + (r.length() > 80 ? r.substring(0, 80) : r);
+        }
+        long t4 = System.nanoTime(), m4 = alloc();
+        // a failed stage leaves the later marks at the failure point
+        if (t1 == t0) { t1 = t4; m1 = m4; t2 = t4; m2 = m4; t3 = t4; m3 = m4; }
+        else if (t2 == t0) { t2 = t4; m2 = m4; t3 = t4; m3 = m4; }
+        else if (t3 == t0) { t3 = t4; m3 = m4; }
+        long[] d = {t1 - t0, t2 - t1, t3 - t2, t4 - t3, m1 - m0, m2 - m1, m3 - m2, m4 - m3};
+        if (status.equals("ok")) {
+            for (int i = 0; i < 8; i++) sums[i] += d[i];
+        }
+        return c.name() + "\t" + ms(d[0]) + "\t" + ms(d[1]) + "\t" + ms(d[2]) + "\t" + ms(d[3]) + "\t"
+                + d[4] / 1024 + "\t" + d[5] / 1024 + "\t" + d[6] / 1024 + "\t" + d[7] / 1024 + "\t" + bytes + "\t"
+                + hash + "\t" + status;
+    }
+
+    private static List<Case> queryCases(Path tsv, String runtime) throws Exception {
+        List<Case> out = new ArrayList<>();
+        for (String line : Files.readAllLines(tsv, StandardCharsets.UTF_8)) {
+            int tab = line.indexOf('\t');
+            if (line.isBlank() || line.startsWith("#") || tab < 0) continue;
+            out.add(new Case(line.substring(0, tab), null, line.substring(tab + 1), runtime));
+        }
+        return out;
+    }
+
+    /** As CompileLatency builds them (every stress:: service test, parameters as lets, then the body). */
+    private static List<Case> stressCases(List<? extends com.legend.model.PackageableElement> elements) {
+        List<Case> out = new ArrayList<>();
+        List<ServiceDefinition> services = elements.stream()
+                .filter(el -> el instanceof ServiceDefinition svc && svc.qualifiedName().startsWith("stress::")
+                        && svc.testSuites() != null)
+                .map(el -> (ServiceDefinition) el)
+                .sorted(Comparator.comparing(ServiceDefinition::qualifiedName)).toList();
+        for (ServiceDefinition svc : services) {
+            if (svc.runtimeRef() == null) continue;
+            for (Protocol.PServiceTestSuite suite : svc.testSuites()) {
+                for (Protocol.PServiceTestSuite.PSuiteTest test : suite.tests()) {
+                    List<ValueSpecification> st = new ArrayList<>();
+                    if (test.parameters() != null) {
+                        for (Protocol.PServiceTestSuite.PSuiteParam p : test.parameters()) {
+                            st.add(new AppliedFunction("letFunction", List.of(new CString(p.name()), p.value())));
+                        }
+                    }
+                    ValueSpecification fb = svc.functionBody();
+                    st.addAll(fb instanceof LambdaFunction lf && lf.parameters().isEmpty() ? lf.body() : List.of(fb));
+                    out.add(new Case(svc.qualifiedName() + " / " + suite.id() + " / " + test.id(), st, null,
+                            svc.runtimeRef()));
+                }
+            }
+        }
+        return out;
+    }
+
+    private static String ms(long ns) {
+        return String.format(java.util.Locale.ROOT, "%.3f", ns / 1e6);
+    }
+
+    private static String mb(long b) {
+        return String.format(java.util.Locale.ROOT, "%.1f", b / 1048576.0);
+    }
+}

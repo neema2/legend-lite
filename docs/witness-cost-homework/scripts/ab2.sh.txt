@@ -1,0 +1,12 @@
+#!/bin/bash
+# W1 A/B, quieter: 6 GB heap pre-touched (GC noise down), 2 model builds, 10 query passes (passes 3-10 warm); 6 rounds,
+# alternating which goes first.
+P=$SP
+JAR=/home/user/legend-lite/bazel-bin/core/compile_latency_deploy.jar
+cd /home/user/legend-lite
+for r in 1 2 3 4 5 6; do
+  on()  { $P/run.sh "ON r$r"  $P/raw/ab2.log -- -Xms6g -Xmx6g -XX:+AlwaysPreTouch -Duser.timezone=GMT -cp "$P/on:$P/probe-classes:$JAR" com.legend.integration.PerfProbe stress $P/raw/ab2-on-r$r 2 10; }
+  off() { $P/run.sh "OFF r$r" $P/raw/ab2.log -- -Xms6g -Xmx6g -XX:+AlwaysPreTouch -Duser.timezone=GMT -cp "$P/off:$P/probe-classes:$JAR" com.legend.integration.PerfProbe stress $P/raw/ab2-off-r$r 2 10; }
+  if (( r % 2 )); then on; off; else off; on; fi
+done
+echo AB-DONE >> $P/raw/ab2.log

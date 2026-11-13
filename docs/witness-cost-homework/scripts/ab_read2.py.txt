@@ -1,0 +1,22 @@
+import re, statistics, sys
+log = re.split(r'(?m)^### (?=(?:ON|OFF) r\d$)', open(sys.argv[1]).read())
+rows = {'ON': [], 'OFF': []}
+for ch in log[1:]:
+    lab = ch.split('\n')[0]; v = lab.split()[0]
+    ps = {int(p): tuple(map(float, x)) for p, *x in re.findall(r'pass (\d): \d+ cases \(\d+ ok\) in ([\d.]+) ms; sums ms names ([\d.]+) type ([\d.]+) plan ([\d.]+) json ([\d.]+)', ch)}
+    warm = [ps[p] for p in (3, 4, 5, 6)]
+    planning = [w[1] + w[2] + w[3] for w in warm]
+    parse = [float(x) for b, x in re.findall(r'build (\d): parse ([\d.]+) ms', ch) if int(b) >= 2]
+    build = [float(x) for b, x in re.findall(r'build (\d): parse [\d.]+ ms .*?build ([\d.]+) ms', ch) if int(b) >= 2]
+    rows[v].append(dict(lab=lab, planning_med=statistics.median(planning), planning_min=min(planning),
+                        json_med=statistics.median(w[4] for w in warm), parse=statistics.median(parse), build=statistics.median(build)))
+for v in ('OFF', 'ON'):
+    for r in rows[v]:
+        print(f"{r['lab']:7s} planning(passes 3-6) median {r['planning_med']:7.0f} min {r['planning_min']:7.0f}  json median {r['json_med']:5.0f}  parse {r['parse']:5.0f} build {r['build']:5.0f}")
+def summ(key):
+    off = [r[key] for r in rows['OFF']]; on = [r[key] for r in rows['ON']]
+    mo, mn = statistics.median(off), statistics.median(on)
+    return f"OFF median {mo:7.1f} [{min(off):.0f}-{max(off):.0f}]  ON median {mn:7.1f} [{min(on):.0f}-{max(on):.0f}]  ON-OFF {mn-mo:+7.1f} ms ({100*(mn-mo)/mo:+.2f}%)"
+for key, name in [('planning_med', 'names+type+plan, median of warm passes 3-6'), ('planning_min', 'names+type+plan, min of warm passes 3-6'),
+                  ('json_med', 'PlanJson.write (no checks: the noise control)'), ('parse', 'model parse warm (A-C)'), ('build', 'model build warm (D-F)')]:
+    print(f"{name:48s} {summ(key)}")

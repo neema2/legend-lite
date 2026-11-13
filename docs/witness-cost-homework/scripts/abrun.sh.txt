@@ -1,0 +1,13 @@
+#!/bin/bash
+# the product path whole (RunProbe: names+type, then Execution.run on DuckDB), ON vs OFF, alternating; rows and passes
+# from the arguments; 5 rounds.
+P=$SP
+JAR2=/home/user/legend-lite/bazel-bin/core/stress_tool_deploy.jar
+rows=$1; passes=$2; log=$P/raw/abrun-$rows.log; : > $log
+cd /home/user/legend-lite
+for r in 1 2 3 4 5; do
+  on()  { $P/run.sh "ON r$r"  $log -- -Xms2g -Xmx2g -Duser.timezone=GMT --enable-native-access=ALL-UNNAMED -cp "$P/on:$P/runprobe:$JAR2" com.legend.integration.RunProbe wasm/corpus/model.pure wasm/corpus/queries.tsv trades::RT $rows $passes; }
+  off() { $P/run.sh "OFF r$r" $log -- -Xms2g -Xmx2g -Duser.timezone=GMT --enable-native-access=ALL-UNNAMED -cp "$P/off:$P/runprobe:$JAR2" com.legend.integration.RunProbe wasm/corpus/model.pure wasm/corpus/queries.tsv trades::RT $rows $passes; }
+  if (( r % 2 )); then on; off; else off; on; fi
+done
+echo AB-DONE >> $log

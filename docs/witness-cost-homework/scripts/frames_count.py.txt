@@ -1,0 +1,26 @@
+"""How many run frames and planner checks one Frames Table.execute makes (the counts behind Python's per-query figure)."""
+import collections, pyarrow as pa
+from legend_lite import _runframe, _library
+from legend_lite.frames import Frames
+frames_entered = collections.Counter(); checks = collections.Counter()
+class Counting:
+    def __init__(self, var): self.var = var
+    def set(self, v):
+        if v is not None: frames_entered[v] += 1
+        return self.var.set(v)
+    def reset(self, t): return self.var.reset(t)
+    def get(self): return self.var.get()
+_runframe._RUN = Counting(_runframe._RUN)
+orig_planning = _library.planning
+def counting_planning(kind):
+    checks[kind] += 1; return orig_planning(kind)
+_library.planning = counting_planning
+f = Frames()
+n = 1000
+t = f.register('trades', pa.table({'id': pa.array(range(n), pa.int64()), 'desk': pa.array([f'desk{i % 20}' for i in range(n)]),
+                                   'notional': pa.array([(i % 997) * 1.5 for i in range(n)])}))
+t.execute('->select(~[desk])')
+frames_entered.clear(); checks.clear()
+for _ in range(10):
+    t.execute('->groupBy(~[desk], ~[q: x|$x.notional : y|$y->sum()])')
+print('per Table.execute: frames entered', {k: v / 10 for k, v in frames_entered.items()}, '; planner checks', {k: v / 10 for k, v in checks.items()})
