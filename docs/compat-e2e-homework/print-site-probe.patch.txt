@@ -1,0 +1,303 @@
+diff --git a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+index 53822e3..e0e5f03 100644
+--- a/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
++++ b/core/src/main/java/com/legend/sql/dialect/AnsiSqlRenderer.java
+@@ -68,12 +68,20 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
+ 
+     @Override
+     public String render(SqlQuery query) {
+-        return write(query).text();
++        String t = write(query).text();
++        if (PrintSiteProbe.on()) {
++            PrintSiteProbe.record(this, query, t);
++        }
++        return t;
+     }
+ 
+     @Override
+     public RenderedStatement renderStatement(SqlQuery query) {
+-        return write(query).statement();
++        RenderedStatement st = write(query).statement();
++        if (PrintSiteProbe.on()) {
++            PrintSiteProbe.record(this, query, st.sql());
++        }
++        return st;
+     }
+ 
+     /** {@inheritDoc} This dialect's own {@link #render}, in the single-line mode {@link #inline} writes a subquery
+
+# new file core/src/main/java/com/legend/sql/dialect/PrintSiteProbe.java
++ // Copyright 2026 Legend Contributors
++ // SPDX-License-Identifier: Apache-2.0
++ 
++ package com.legend.sql.dialect;
++ 
++ import com.legend.sql.SqlExpr;
++ import com.legend.sql.SqlFn;
++ import com.legend.sql.SqlQuery;
++ import com.legend.sql.SqlSelect;
++ import com.legend.sql.SqlType;
++ 
++ import java.util.ArrayList;
++ import java.util.IdentityHashMap;
++ import java.util.List;
++ import java.util.Map;
++ 
++ /** MEASUREMENT PROBE (D's §5 of docs/COMPATIBILITY_END_TO_END_2026_11_12.md; never committed to main): where a
++  *  statement prints a value as text. OUTPUT: a root projection IS the print of one value (a Java presenter could
++  *  spell it); NESTED: an inner select's projection is exactly a print; INQUERY: the text feeds computation. */
++ final class PrintSiteProbe {
++     private static final ThreadLocal<Boolean> IN = ThreadLocal.withInitial(() -> false);
++     private static final String DIR = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR") != null
++             ? System.getenv("TEST_UNDECLARED_OUTPUTS_DIR") : System.getProperty("legend.diag.printSites");
++ 
++     private PrintSiteProbe() {
++     }
++ 
++     static boolean on() {
++         return System.getProperty("legend.diag.printSites") != null && !IN.get();
++     }
++ 
++     static boolean isPrint(SqlExpr e) {
++         if (e instanceof SqlExpr.Cast c) {
++             return c.target() == SqlType.Scalar.VARCHAR;
++         }
++         if (e instanceof SqlExpr.Call c) {
++             return switch (c.fn().name()) {
++                 case "FLOAT_PRINT", "FLOAT_CANON", "BOOL_TO_TEXT", "DECIMAL_TO_TEXT", "STRFTIME" -> true;
++                 default -> false;
++             };
++         }
++         return false;
++     }
++ 
++     static final class Found {
++         final List<SqlExpr> output = new ArrayList<>();
++         final Map<String, int[]> fns = new java.util.TreeMap<>();
++         int nested;
++         int inQuery;
++         final Map<String, Integer> ctx = new java.util.TreeMap<>();
++ 
++         void count(SqlExpr e, int bucket) {
++             String k = e instanceof SqlExpr.Call c ? c.fn().name() : "CAST_VARCHAR";
++             fns.computeIfAbsent(k, x -> new int[3])[bucket]++;
++         }
++     }
++ 
++     static void query(SqlQuery q, boolean root, Found f) {
++         if (q instanceof SqlSelect s) {
++             for (SqlSelect.Projection p : s.projections()) {
++                 if (isPrint(p.expr())) {
++                     if (root) {
++                         f.output.add(p.expr());
++                         f.count(p.expr(), 0);
++                     } else {
++                         f.nested++;
++                         f.count(p.expr(), 1);
++                     }
++                     walk(childrenOf(p.expr()), f);
++                 } else {
++                     walk(p.expr(), f);
++                 }
++             }
++             walk(s.from(), f);
++             PARENTS.push("WHERE");
++             walk(s.where(), f);
++             PARENTS.pop();
++             PARENTS.push("GROUPBY");
++             walk(s.groupBy(), f);
++             PARENTS.pop();
++             PARENTS.push("HAVING");
++             walk(s.having(), f);
++             walk(s.qualify(), f);
++             PARENTS.pop();
++             PARENTS.push("ORDERBY");
++             walk(s.orderBy(), f);
++             PARENTS.pop();
++             return;
++         }
++         if (q instanceof com.legend.sql.SqlUnion u) {
++             for (Object o : components(u)) {
++                 if (o instanceof SqlQuery b) {
++                     query(b, root, f);
++                 } else if (o instanceof List<?> l) {
++                     for (Object x : l) {
++                         if (x instanceof SqlQuery b) {
++                             query(b, root, f);
++                         } else {
++                             walk(x, f);
++                         }
++                     }
++                 } else {
++                     walk(o, f);
++                 }
++             }
++             return;
++         }
++         if (q instanceof com.legend.sql.SqlWith w) {
++             for (Object o : components(w)) {
++                 if (o instanceof SqlQuery b) {
++                     query(b, root, f);
++                 } else {
++                     walk(o, f);
++                 }
++             }
++             return;
++         }
++         walk(components(q), f);
++     }
++ 
++     private static List<@com.legend.base.Nullable Object> childrenOf(SqlExpr e) {
++         return components(e);
++     }
++ 
++     private static List<@com.legend.base.Nullable Object> components(Object o) {
++         List<@com.legend.base.Nullable Object> out = new ArrayList<>();
++         if (o instanceof Record r) {
++             for (var c : r.getClass().getRecordComponents()) {
++                 try {
++                     out.add(c.getAccessor().invoke(r));
++                 } catch (ReflectiveOperationException ex) {
++                     throw new IllegalStateException(ex);
++                 }
++             }
++         }
++         return out;
++     }
++ 
++     private static final java.util.ArrayDeque<String> PARENTS = new java.util.ArrayDeque<>();
++ 
++     private static String label(Object o) {
++         if (o instanceof SqlExpr.Call c) {
++             return c.fn().name();
++         }
++         return o.getClass().getSimpleName();
++     }
++ 
++     static void walk(@com.legend.base.Nullable Object o, Found f) {
++         if (o == null || o instanceof String || o instanceof Number || o instanceof Boolean || o instanceof Enum<?>) {
++             return;
++         }
++         if (o instanceof SqlExpr.RaiseText) {
++             return;
++         }
++         if (o instanceof SqlQuery q) {
++             query(q, false, f);
++             return;
++         }
++         if (o instanceof SqlExpr e && isPrint(e)) {
++             f.inQuery++;
++             f.count(e, 2);
++             String operand = e instanceof SqlExpr.Cast cc ? label(cc.value()) : "";
++             f.ctx.merge(label(e) + "<-" + (PARENTS.isEmpty() ? "?" : PARENTS.peek()) + "|" + operand, 1, Integer::sum);
++             walk(components(e), f);
++             return;
++         }
++         if (o instanceof Iterable<?> it) {
++             for (Object x : it) {
++                 walk(x, f);
++             }
++             return;
++         }
++         if (o instanceof java.util.Optional<?> opt) {
++             opt.ifPresent(x -> walk(x, f));
++             return;
++         }
++         if (o instanceof Map<?, ?> m) {
++             m.values().forEach(x -> walk(x, f));
++             return;
++         }
++         if (o instanceof Record) {
++             PARENTS.push(label(o));
++             try {
++                 walk(components(o), f);
++             } finally {
++                 PARENTS.pop();
++             }
++         }
++     }
++ 
++     static void record(AnsiSqlRenderer dialect, SqlQuery q, String sql) {
++         Found f = new Found();
++         try {
++             query(q, true, f);
++         } catch (RuntimeException ex) {
++             line(dialect, sql, "WALKFAIL\t" + ex);
++             return;
++         }
++         int without = sql.length();
++         String fail = "";
++         if (!f.output.isEmpty()) {
++             IdentityHashMap<SqlExpr, Boolean> leaves = new IdentityHashMap<>();
++             f.output.forEach(e -> leaves.put(e, true));
++             SqlQuery stripped = strip(q, leaves);
++             IN.set(true);
++             try {
++                 without = dialect.render(stripped).length();
++             } catch (RuntimeException ex) {
++                 fail = "STRIPFAIL";
++             } finally {
++                 IN.set(false);
++             }
++         }
++         StringBuilder fns = new StringBuilder();
++         f.fns.forEach((k, v) -> fns.append(k).append('=').append(v[0]).append('/').append(v[1]).append('/')
++                 .append(v[2]).append(';'));
++         fns.append('\t');
++         f.ctx.forEach((k, v) -> fns.append(k).append('=').append(v).append(';'));
++         line(dialect, sql, f.output.size() + "\t" + f.nested + "\t" + f.inQuery + "\t" + sql.length() + "\t"
++                 + without + "\t" + fail + "\t" + fns);
++     }
++ 
++     private static SqlQuery strip(SqlQuery q, IdentityHashMap<SqlExpr, Boolean> leaves) {
++         if (q instanceof SqlSelect s) {
++             List<SqlSelect.Projection> ps = new ArrayList<>();
++             for (SqlSelect.Projection p : s.projections()) {
++                 SqlExpr e = p.expr();
++                 if (leaves.containsKey(e)) {
++                     e = e instanceof SqlExpr.Cast c ? c.value() : ((SqlExpr.Call) e).args().get(0);
++                 }
++                 ps.add(e == p.expr() ? p : new SqlSelect.Projection(e, p.alias(), p.out()));
++             }
++             return new SqlSelect(ps, s.distinct(), s.from(), s.where(), s.groupBy(), s.having(), s.qualify(),
++                     s.orderBy(), s.limit(), s.offset(), s.outputs());
++         }
++         if (q instanceof com.legend.sql.SqlUnion) {
++             return new com.legend.sql.SqlRewriter() {
++                 @Override
++                 protected SqlQuery select(SqlSelect s) {
++                     return strip(s, leaves);
++                 }
++             }.rewrite(q);
++         }
++         return q;
++     }
++ 
++     private static synchronized void line(AnsiSqlRenderer d, String sql, String rest) {
++         if (DIR == null) {
++             return;
++         }
++         try {
++             java.nio.file.Path p = java.nio.file.Path.of(DIR, "printsites-" + ProcessHandle.current().pid() + ".tsv");
++             java.nio.file.Files.writeString(p, d.getClass().getName() + "\t" + Integer.toHexString(sql.hashCode())
++                     + "\t" + rest + "\n", java.nio.file.StandardOpenOption.CREATE,
++                     java.nio.file.StandardOpenOption.APPEND);
++         } catch (java.io.IOException ex) {
++             throw new java.io.UncheckedIOException(ex);
++         }
++     }
++ }
+
+# corpus host pass flag (spec/corpus.bzl), measurement only
+diff --git a/spec/corpus.bzl b/spec/corpus.bzl
+index d78440a..69b9169 100644
+--- a/spec/corpus.bzl
++++ b/spec/corpus.bzl
+@@ -83,6 +83,7 @@ def corpus_lane(
+                     _SELECT + ["--fail-if-no-tests"],
+         jvm_flags = _pass_flags(golden) + [
+             "-Dlegend.judge.mode=host",
++            "-Dlegend.diag.printSites=/tmp/claude-0/-home-user-legend-lite/21d618e9-441a-5ccf-bdd6-a91ab1808621/scratchpad/corpus_probe",
+             "-Dlegend.judge.ledger={OUT_DIR}/judge-host.tsv",
+         ] + committed_flag + jvm_flags + host_jvm_flags,
+         main_class = "com.legend.tools.junit.JUnitAction",
