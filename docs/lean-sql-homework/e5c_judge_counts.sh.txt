@@ -1,0 +1,18 @@
+#!/bin/bash
+cd /home/user/legend-lite
+export PATH=$HOME/.local/bin:$PATH
+S=/tmp/claude-0/-home-user-legend-lite/5a7311ae-d6a2-5505-a54f-c6553736f405/scratchpad/e5c-meas
+TL=$(bazel info bazel-testlogs 2>/dev/null)
+for judge in BOTH DATABASE; do
+  for t in pct_channel_b_essential pct_channel_b_grammar pct_channel_b_relation pct_channel_b_standard pct_channel_b_unclassified pct_channel_b_h2_relation; do
+    start=$(date +%s)
+    bazel test //pct:$t --nocache_test_results --test_env=JAVA_TOOL_OPTIONS="-Dlegend.diagnostics=sql-sizes -Dpct.channelb.judge=$judge" --test_output=summary > /dev/null 2>&1
+    end=$(date +%s)
+    log=$TL/pct/$t/test.log
+    st=$(grep -c "^\[sql-size\]" $log); ch=$(grep "^\[sql-size\]" $log | awk '{s+=$2} END {print s+0}')
+    secs=$(grep -o 'testcase name="[^"]*" classname="[^"]*" time="[0-9.]*"' $TL/pct/$t/test.xml | grep -o 'time="[0-9.]*"' | tr -dc '0-9.\n' | awk '{s+=$1} END {print s+0}')
+    echo "$judge $t statements=$st chars=$ch wall=$((end-start))" | tee -a $S/summary.txt
+    grep "^\[sql-size\]" $log | awk '{print $4}' | sort | uniq -c | sed "s/^/$judge $t origin /" >> $S/origins.txt
+  done
+done
+echo DONE >> $S/summary.txt
