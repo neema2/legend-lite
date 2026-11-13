@@ -259,7 +259,7 @@ final class SelectLayers extends SqlRewriter {
                     SqlSelect.Projection p = outputs.get(i);
                     SqlExpr e = Math.max(1, d.level) == levels ? write(d, k, alias, defs) : columnOf(d, alias);
                     String name = java.util.Objects.requireNonNull(p.outputName());
-                    boolean named = e instanceof SqlExpr.Column c && c.name().equals(name);
+                    boolean named = SelectMerge.namedAs(e, name);
                     ps.add(new SqlSelect.Projection(e, named ? null : name, p.out()));
                 }
             }

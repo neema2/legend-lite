@@ -117,7 +117,7 @@ final class SelectMerge extends SqlRewriter {
                 return null;
             }
             SqlExpr e = sub2.apply(p.expr());
-            boolean named = e instanceof SqlExpr.Column c && c.name().equals(name);
+            boolean named = namedAs(e, name);
             ps.add(new SqlSelect.Projection(e, named ? null : name, p.out()));
         }
         SqlExpr outerWhere = s.where() == null ? null : sub2.apply(s.where());
@@ -138,6 +138,16 @@ final class SelectMerge extends SqlRewriter {
         SqlExpr qualify = inLevels ? in.qualify() : s.qualify() == null ? null : sub2.apply(s.qualify());
         return new SqlSelect(ps, s.distinct(), in.from(), where, groupBy, having, qualify, orderBy, s.limit(),
                 s.offset(), s.outputs());
+    }
+
+    /** Whether {@code e} is a column a select answers under {@code name} with no alias: a DERIVED column, or a table's
+     *  column declared quoted, which every dialect writes quoted, as named. A table's own column is written as its declaration spells it -- bare, folded by
+     *  the database (Postgres to lower case, Snowflake to upper) -- so its alias is kept (the merge of main's #95,
+     *  2026-11-13: PostgresArmTest's seed read {@code "_d"."CODE"} of a select that answered {@code code}). */
+    static boolean namedAs(SqlExpr e, String name) {
+        return e instanceof SqlExpr.Column c && c.name().equals(name)
+                && (c.origin() == com.legend.sql.OutputCol.Origin.DERIVED
+                || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED);
     }
 
     /** Whether {@code e} reads no column: a constant, whatever its spelling. */

@@ -55,7 +55,7 @@ final class ProjectionWrapsFold extends SqlRewriter {
             if (reads.merge(c.name(), 1, Integer::sum) > 1 && !(source.expr() instanceof SqlExpr.Column)) {
                 return s;
             }
-            boolean named = source.expr() instanceof SqlExpr.Column own && own.name().equals(name);
+            boolean named = SelectMerge.namedAs(source.expr(), name);
             folded.add(new SqlSelect.Projection(source.expr(), named ? null : name, p.out()));
         }
         // a column the wrap does not read is dropped only where it keeps the rows and raises nothing: no UNNEST (a
