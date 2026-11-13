@@ -967,7 +967,16 @@ In order. Nothing here is in the A/B/C PR.
      (`ArchitectureTest.constructs`, 554434c32); the method rules get the same predicate, each with a planted `::method`
      violator.
    - **`TypedQuery.lower` is a public door that skips the query door** (`refuseTestOnly`). Its callers today are doored
-     or on the test road (C4's audit, 2026-11-13). The closed planner surface decides whether it is narrowed.
+     or on the test road (C4's audit, 2026-11-13). **The user ruled, 2026-11-13: narrow it** ("option B"). The terms:
+     - `lower` and `lowerer` stop being public. The `Lowerer`'s configuration moves into `planner/` (an existing file,
+       package-private for `ProductStatements` and `PlanMaker`); the product path is unchanged in behaviour and speed.
+     - One purpose-named public entry serves the two outside callers (the test-data route, `testplan/GeneratedTestData`),
+       its refusals inside it. First measure how many test-road seeds hold raw SQL: none, one entry that always refuses;
+       any, a product entry and a test entry only `testplan` may call (an ArchUnit rule, a planted violator).
+     - ROOT_DOORS loses four rows; a planted violator re-adds one. Tests that inspect a lowered tree use a test-side
+       helper. A pin that moves gets a dated note.
+     - Order: after the witness and the fuzzing, landed only after the compiler-performance baseline (its
+       `CompileLatency` times lowering through `lower`).
 2. **DataCube's engine contract: one intent API, every engine behind it** (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`,
    branch `claude/datacube-engine-contract`, PROPOSED, for the user's ratification).
    - It is consolidated with the bridge on intent (branch `claude/total-wall-bridge` @ 77c084e8a: `DataHost`) as §5.5
