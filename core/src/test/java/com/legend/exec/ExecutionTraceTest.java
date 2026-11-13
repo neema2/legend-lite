@@ -34,7 +34,7 @@ class ExecutionTraceTest {
     /** A plan whose one statement reads its own stamp: the execution-trace comment, bound when the plan runs. */
     private static ExecutionPlan stampReader() {
         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
-                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null);
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null, null);
         ExecutionPlan.Sql sql = new ExecutionPlan.Sql("SELECT CAST(? AS VARCHAR)", List.of(new ExecutionPlan.Slot(
                 "#stamp0", new ExecutionPlan.Binding.One("VARCHAR", null))), target, null).stamped("#stamp0");
         return ExecutionPlan.reading(List.of(), PlanRunnerTest.cell(sql));
@@ -167,6 +167,34 @@ class ExecutionTraceTest {
         writer.execution(ONE);
         IllegalStateException refused = assertThrows(IllegalStateException.class, () -> writer.execution(TWO));
         assertTrue(refused.getMessage().contains("one answer is one execution's"), refused.getMessage());
+    }
+
+    /** A stamp any statement of the plan reads is bound at the run's start (the re-audit's note 3, 2026-11-12: until
+     *  then a query or a check bound its own as it was sent, and a write reading one -- an activity row's insert --
+     *  found it unbound at run). Reverted, the insert's slot is refused as unbound. */
+    @Test
+    void aStampAWriteReadsIsBoundAtTheRunsStart() throws IOException {
+        ExecutionPlan.Target target = stampReader().answerSql().target();
+        ExecutionPlan.Sql insert = new ExecutionPlan.Sql("INSERT INTO exec_trace_activity VALUES (CAST(? AS VARCHAR))",
+                List.of(new ExecutionPlan.Slot("#stamp0", new ExecutionPlan.Binding.One("VARCHAR", null))), target,
+                null);
+        ExecutionPlan plan = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(
+                new ExecutionPlan.Update(ExecutionPlan.Sql.of("CREATE OR REPLACE TEMP TABLE exec_trace_activity"
+                        + " (c VARCHAR)", target), null),
+                new ExecutionPlan.Update(insert, null),
+                PlanRunnerTest.cell(ExecutionPlan.Sql.of("SELECT c FROM exec_trace_activity", target)))));
+        Told told = new Told();
+        PlanRunner.stream(plan, Map.of(), PlanSessions.shared(), told, ONE);
+        assertEquals(List.of(ONE, "columns", ExecutionPlan.traceComment(ONE), "end"), told.told);
+    }
+
+    /** A plan that reads no stamp runs on its values as they are, no copy made (the re-audit's note 4, 2026-11-12: until
+     *  then every statement copied the run's values and scanned its slots for one). */
+    @Test
+    void aRunReadingNoStampBindsNothing_itsValuesNotCopied() {
+        Map<String, PlanParameters.Checked> values = new java.util.HashMap<>();
+        assertTrue(PlanRunner.executionsBound(values, List.of(PlanRunnerTest.cell(ExecutionPlan.Sql.of("SELECT 1",
+                stampReader().answerSql().target())))) == values, "the same map");
     }
 
     @Test

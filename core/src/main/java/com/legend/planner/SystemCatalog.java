@@ -61,7 +61,7 @@ public final class SystemCatalog {
             return new Seeded(LoadPlanner.identity(once, steps.steps()), steps);
         });
         return new com.legend.executionplan.ExecutionPlan.Target(bare.database(), bare.session(),
-                java.util.List.of(platform.load(once, bare)), bare.raiseReadBack(), bare.settings());
+                java.util.List.of(platform.load(once, bare)), bare.raiseReadBack(), bare.settings(), bare.transaction());
     }
 
     /** The graph's system metamodel store's load on {@code system} (the catalog's target, {@link #target}), written in
@@ -256,6 +256,6 @@ public final class SystemCatalog {
         java.util.List<com.legend.executionplan.ExecutionPlan.Load> loads = new java.util.ArrayList<>(catalog.loads());
         loads.add(own.load(acquisition, catalog.bare()));
         return new com.legend.executionplan.ExecutionPlan.Target(catalog.database(), catalog.session(), loads,
-                catalog.raiseReadBack(), catalog.settings());
+                catalog.raiseReadBack(), catalog.settings(), catalog.transaction());
     }
 }

@@ -27,12 +27,11 @@
 //
 // PURE: no DOM, no planner; a host gives its session.
 
-import type { HostOperationsSource } from './host-operations.ts';
 import { boundValues, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
 import { familyOf, isBoolean } from './types.ts';
 import { payloadValue } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
-import { fromPlan, type PlannedSql } from './planned-sql.ts';
+import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -41,15 +40,16 @@ export type PlanValue = string | number | boolean | null;
 // (the tab's duckdb-tab.ts) carries this runner only once it runs a plan (B3's Q3)
 export { ConnectionSettings, replaySettings, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
 
-/** Where a plan runs: a host's own database, one statement at a time, its transaction the host's to begin and end. */
+/**
+ * Where a plan runs: a host's own database, one statement at a time. Its transactions are the plan's: the statements
+ * its target carries (`transaction`), sent here as every other statement -- never asked of the planner at run (the
+ * re-audit's S8, 2026-11-12: until then a host's session asked for them, and a run never plans, G4).
+ */
 export interface PlanSession {
   /** The database's type, as the planner names it (`DuckDB`): a plan's steps must be of it. */
   readonly databaseType: string;
   /** A statement run with its `?`s bound in order: its rows, each its values by column. */
   run(sql: PlannedSql, params: readonly PlanValue[]): Promise<readonly (readonly unknown[])[]>;
-  /** A transaction begun, committed or rolled back, as this database spells it (the planner's `transaction` host
-   *  operation). */
-  transaction(step: 'begin' | 'commit' | 'rollback'): Promise<void>;
 }
 
 interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly asText?: unknown; readonly digest?: string } }
@@ -120,7 +120,16 @@ interface Sql {
 // (payload's digest), the text in its statement's content -- refused by name here, as at 46; and no plan carries a
 // release and no load is SOURCE or AT_RELEASE (every payload bound or inline: no session table): this runner's release,
 // which sent them, deleted with them (B3's follow-up, the same day)
-const PLAN_VERSION = 50;
+// 49 since 2026-11-12 (the C checkpoint's SHOULD-FIX 3): a target may carry its database's settings (H2's) -- no host
+// database's
+// 50 since 2026-11-12 (the re-audit's S8): a target carries its database's transaction (begin, commit, rollback: DuckDB's)
+// -- what this runner opens one with, around a plan's writes, a target's loads and a keyed snapshot; a plan whose
+// target has none is refused by name where it needs one
+// 51 since 2026-11-12 (the user's ruling: "that is a real off platform problem"): a stream step's sql is the planner's
+// own plan of the snapshot's pull -- its request carries the pull (model, runtime, lambda), never the statement
+// 52 since 2026-11-13 (phase D's D1.1, merged onto 51): a statement's tree may hold a raise's message as its kind and
+// operands (raiseText) -- planning data this runner never reads; it sends the statement's text as written
+const PLAN_VERSION = 52;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -137,6 +146,8 @@ interface Load {
   readonly cadence: string;
   readonly steps: readonly LoadStep[];
   readonly content?: Readonly<Record<string, string>>;
+  /** Where it loads: its database's own target (PlanJson writes it on every load). */
+  readonly target?: Target;
 }
 type LoadStep =
   | { readonly _type: 'statement'; readonly sql: string }
@@ -149,14 +160,20 @@ type LoadStep =
 interface StreamStep {
   readonly _type: 'stream'; readonly plane: string; readonly sql: string; readonly schema: string | null;
   readonly table: string; readonly prepare: readonly string[]; readonly count: string;
-  readonly transaction: { readonly begin: readonly string[]; readonly commit: readonly string[]; readonly rollback: readonly string[] };
+  readonly transaction: Transaction;
 }
 /** A statement whose `?`s the host binds (PlanJson's `bound`): its effect the database's, or the connection's. */
 interface BoundStep { readonly _type: 'bound'; readonly sql: string; readonly reach: 'DATABASE' | 'CONNECTION'; readonly binds: readonly Bind[] }
 
 interface DataRef { readonly namespace: string; readonly name: string; readonly digest: string; readonly size: number; readonly format: { readonly _type: string } }
-/** A target as a plan's statement writes it: its loads by identity, into the plan's load section. */
-interface Target { readonly database?: unknown; readonly session?: readonly string[]; readonly loads?: readonly string[] }
+/** A database's transaction as a plan writes it (PlanJson's `transaction`): each step's statements, in order. */
+interface Transaction { readonly begin: readonly string[]; readonly commit: readonly string[]; readonly rollback: readonly string[] }
+/** A target as a plan's statement writes it: its loads by identity, into the plan's load section; its database's
+ *  transaction where a host opens one there (version 50: DuckDB's). */
+interface Target {
+  readonly database?: unknown; readonly session?: readonly string[]; readonly loads?: readonly string[];
+  readonly transaction?: Transaction;
+}
 /** A plan read: its JSON, and its load section by identity. */
 interface ReadPlan {
   readonly format?: unknown; readonly version?: unknown; readonly parameters?: unknown; readonly root?: Step;
@@ -201,6 +218,53 @@ function required<T>(value: T | undefined | null, what: string): T {
   return value;
 }
 
+/**
+ * `work` in one transaction on `run`, its statements `target`'s (the plan's: version 50, the re-audit's S8) -- committed
+ * where it completes, rolled back where it fails and its failure thrown (a rollback that fails too is said with it).
+ */
+async function inTransaction<T>(target: Target, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
+  work: () => Promise<T>): Promise<T> {
+  const t = required(target.transaction, "its target's transaction");
+  return transacted({ begin: t.begin.map((s) => fromPlan(s)), commit: t.commit.map((s) => fromPlan(s)), rollback: t.rollback.map((s) => fromPlan(s)) },
+    run, work);
+}
+
+/**
+ * `work` between a transaction's statements on `run` (each a plan's or a planner's: inTransaction, DataCube's table
+ * writer) -- committed where it completes, rolled back where it fails and its failure thrown, a rollback that fails too
+ * said with it.
+ */
+export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; readonly commit: readonly PlannedSql[]; readonly rollback: readonly PlannedSql[] },
+  run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>, work: () => Promise<T>): Promise<T> {
+  for (const statement of t.begin) await run(statement, []);
+  let done: T;
+  try {
+    done = await work();
+  } catch (e) {
+    try {
+      for (const statement of t.rollback) await run(statement, []);
+    } catch (r) {
+      throw new Error(`${e instanceof Error ? e.message : String(e)} -- and rolling its transaction back failed: ${r instanceof Error ? r.message : String(r)}`, { cause: e });
+    }
+    throw e;
+  }
+  for (const statement of t.commit) await run(statement, []);
+  return done;
+}
+
+/**
+ * A LOAD'S PLAN RUN IN ONE TRANSACTION (a person's file put into a declared table: model-data.ts loadFileTable) --
+ * `work` (the host's run of it: runLoad) between the transaction statements the load's target carries, so a refused
+ * file leaves the table as it was. The statements are the plan's (the re-audit's S8, 2026-11-12: until then the host
+ * asked the planner for them at run).
+ */
+export async function inLoadsTransaction<T>(plan: PlanText, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
+  work: () => Promise<T>): Promise<T> {
+  const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
+  if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
+  return inTransaction(required(root.target, "its load's target"), run, work);
+}
+
 /** `target`'s loads from `plan`'s load section, in the target's order: one the section lacks refused by name. */
 function loadsOf(plan: ReadPlan, target: Target): Load[] {
   const section = new Map(required(plan.loads, 'its loads section').map((l) => [l.identity, l]));
@@ -217,7 +281,7 @@ function loadsOf(plan: ReadPlan, target: Target): Load[] {
  * Java's shared sessions key theirs (PlanJson.writeTarget). Null for a plan whose target loads nothing (the host's own
  * session serves it).
  */
-export function targetKey(plan: string): string | null {
+export function targetKey(plan: PlanText): string | null {
   const target = targetOf(read(plan));
   if (target === undefined || required(target.loads, "its target's loads").length === 0) return null;
   return JSON.stringify({ database: target.database, session: required(target.session, "its target's session"), loads: target.loads });
@@ -399,7 +463,7 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
  * A load of any other cadence is refused by name; the host undoes a failure its own way (a project's database dropped
  * whole, a file put in one transaction, a stream rolled back).
  */
-export async function runLoad(plan: string, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
+export async function runLoad(plan: PlanText, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
   host: { readonly files?: HostFiles; readonly secrets?: HostSecrets; readonly streams?: HostStreams } = {}):
   Promise<{ readonly settings: readonly KeptSetting[]; readonly landed: readonly Landed[] }> {
   const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
@@ -419,7 +483,7 @@ export async function runLoad(plan: string, run: (sql: PlannedSql, params: reado
  * in one transaction -- a failure rolls every load back and is thrown, naming
  * its data. Run once per database the host makes (`targetKey`); runPlan then runs the plan there (`established`).
  */
-export async function establish(plan: string, session: PlanSession): Promise<void> {
+export async function establish(plan: PlanText, session: PlanSession): Promise<void> {
   const p = read(plan);
   const target = targetOf(p);
   if (target === undefined) return;
@@ -429,30 +493,9 @@ export async function establish(plan: string, session: PlanSession): Promise<voi
     if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE or PER_ACQUISITION, not ${l.cadence}`);
   }
   if (loads.length === 0) return;
-  await session.transaction('begin');
-  try {
+  await inTransaction(target, session.run, async () => {
     for (const l of loads) await deliver(l, session);
-    await session.transaction('commit');
-  } catch (e) {
-    await session.transaction('rollback').catch(() => {});
-    throw e;
-  }
-}
-
-/**
- * A host's session over its database (`run`, one statement at a time, held for the plan: duckdb.ts exclusive), its
- * transaction's statements the planner's (`transaction` host operations, D5), asked before anything runs.
- */
-export async function hostSession(databaseType: string, run: PlanSession['run'], operations: HostOperationsSource): Promise<PlanSession> {
-  const steps = ['begin', 'commit', 'rollback'] as const;
-  const spelled = await operations.hostOperations(databaseType, steps.map((step) => ({ op: 'transaction' as const, step })));
-  const of = new Map(steps.map((s, i) => [s, spelled[i] ?? []]));
-  return {
-    databaseType, run,
-    transaction: async (step) => {
-      for (const statement of of.get(step)!) await run(statement, []);
-    },
-  };
+  });
 }
 
 /** A plan's refusal, in words: nothing of it ran. */
@@ -467,7 +510,7 @@ export class PlanRefusal extends Error {
  * is open already (a table made before it is written, one change: an Output's create), so the plan runs inside it and
  * neither begins nor ends it -- as Java's runner joins a caller's.
  */
-export async function runPlan(plan: string, session: PlanSession,
+export async function runPlan(plan: PlanText, session: PlanSession,
   o: { readonly joined?: boolean; readonly established?: boolean } = {}): Promise<string> {
   const read = JSON.parse(plan) as ReadPlan;
   if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
@@ -531,8 +574,7 @@ export async function runPlan(plan: string, session: PlanSession,
     return values.get(slot.parameter)!;
   });
   let text: string | undefined;
-  if (changes) await session.transaction('begin');
-  try {
+  const all = async (): Promise<void> => {
     for (const step of steps) {
       if (step._type === 'constant') {
         text = constantRows(step as Extract<Step, { _type: 'constant' }>);
@@ -548,11 +590,11 @@ export async function runPlan(plan: string, session: PlanSession,
         text = rowsOf((step as { readonly columns: readonly Column[] }).columns, rows);
       }
     }
-    if (changes) await session.transaction('commit');
-  } catch (e) {
-    if (changes) await session.transaction('rollback').catch(() => {});
-    throw e;
-  }
+  };
+  // a plan's writes in one transaction, its statements the plan's target's (version 50); a joined run is inside its
+  // caller's
+  if (changes) await inTransaction(t, session.run, all);
+  else await all();
   return text!;
 }
 
@@ -565,7 +607,7 @@ export async function runPlan(plan: string, session: PlanSession,
  * loads data refused, its columns read as the plan states them (none: the relation the database reports). Any other
  * plan is refused by name.
  */
-export async function runAuthored<T>(plan: string, on: { readonly databaseType: string; run(sql: PlannedSql): Promise<T> },
+export async function runAuthored<T>(plan: PlanText, on: { readonly databaseType: string; run(sql: PlannedSql): Promise<T> },
   o: { readonly established?: boolean } = {}): Promise<T> {
   const root = read(plan).root;
   const result = root as { readonly _type?: string; readonly shape?: string; readonly columns?: readonly Column[]; readonly sql?: Sql } | undefined;
@@ -576,7 +618,7 @@ export async function runAuthored<T>(plan: string, on: { readonly databaseType: 
     throw new PlanRefusal("an authored statement's plan answers the relation its database reports, not declared columns");
   }
   if (result.sql.slots.length > 0) throw new PlanRefusal("an authored statement binds no value: it is the person's text, as written");
-  const t = checkTarget(result.sql, { databaseType: on.databaseType, run: async () => [], transaction: async () => {} }, o);
+  const t = checkTarget(result.sql, { databaseType: on.databaseType, run: async () => [] }, o);
   if (o.established !== true) for (const statement of required(t.session, "its target's session")) await on.run(fromPlan(statement));
   return on.run(fromPlan(result.sql.statement));
 }
@@ -650,8 +692,7 @@ async function keyedRows(keyed: Keyed, session: PlanSession): Promise<string> {
   if (keyed.keysOf !== 'ROWS') throw new PlanRefusal("a raw grid's keyed result (its keys the columns its result reports) is not run here: the planner runs it");
   const perKey = keyed.outputs.filter((o) => o._type === 'perKey').length;
   const snapshot = keyed.snapshot !== 'NONE';
-  if (snapshot) await session.transaction('begin');
-  try {
+  const read = async (): Promise<string> => {
     if (keyed.keys.slots.length > 0) throw new PlanRefusal("a keys statement binding a value is not run here: a host's plan binds none");
     const keys = (await session.run(fromPlan(keyed.keys.statement), [])).map((row) => row.slice(0, perKey + 1).map((cell) => {
       if (typeof cell !== 'string') throw new PlanRefusal(`a keys row holds ${String(cell)}: the probe writes each key's text and names`);
@@ -679,12 +720,10 @@ async function keyedRows(keyed: Keyed, session: PlanSession): Promise<string> {
       row.forEach((cell, i) => { placed[place[i]!] = cell; });
       return placed;
     });
-    if (snapshot) await session.transaction('commit');
     return rowsOf(inOrder, rows);
-  } catch (e) {
-    if (snapshot) await session.transaction('rollback').catch(() => {});
-    throw e;
-  }
+  };
+  // the keys and the body read in one snapshot where the plan asks one: the target's transaction (version 50)
+  return snapshot ? inTransaction(keyed.keys.target as Target, session.run, read) : read();
 }
 
 /**

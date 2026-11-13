@@ -14,7 +14,7 @@ import threading
 import time
 import unittest
 
-from legend_lite._planned import Database, from_plan
+from legend_lite._planned import Database, from_plan, plan_from_answer
 import unittest.mock
 from unittest import mock
 from pathlib import Path
@@ -39,6 +39,25 @@ def trades():
         'desk': ['FX', 'EQ', 'FX', 'RATES', 'EQ'],
         'qty': [10.5, 20.0, 30.25, 1.0, 7.5],
     })
+
+
+
+# A snapshot's pull as its request carries it (the user's ruling of 2026-11-12): the model, its runtime and the query,
+# which the planner plans in the call -- never the statement the plane runs
+_SNAP_MODEL = """###Relational
+Database s::DB ( Table t ( id INTEGER, desk VARCHAR(8), qty DOUBLE ) )
+
+###Connection
+RelationalDatabaseConnection s::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime s::RT { mappings: []; connections: [ s::DB: [ c: s::Conn ] ]; }
+"""
+
+
+def _snap_pull() -> dict:
+    return {'model': _SNAP_MODEL, 'runtime': 's::RT',
+            'lambda': json.dumps(ll.compiler.parse('|#>{s::DB.t}#->select(~[id, desk, qty])'))}
 
 
 class Served(unittest.TestCase):
@@ -245,11 +264,12 @@ class ProjectQueries(Served):
             con.execute(sql)
         projects.run_load(load, con.execute)
         self.assertEqual(con.execute('SELECT count(*) FROM PARTY.PARTY').fetchone()[0], 2)
-        tampered = json.loads(json.dumps(load))
+        tampered = json.loads(load)
         digest = next(iter(tampered['root']['content']))
         tampered['root']['content'][digest] = tampered['root']['content'][digest].replace('Meridian', 'Kestrel')
         with self.assertRaisesRegex(projects.LoadRefused, 'is not the data it was planned against'):
-            projects.run_load(tampered, duckdb.connect().execute)
+            # tampered by the test, typed as the planner's answer is (the re-audit's M1), so the runner's digest check runs
+            projects.run_load(plan_from_answer(json.dumps(tampered)), duckdb.connect().execute)
 
     def test_the_load_runners_shared_conformance_fixture(self):
         # B3 (2026-11-11): Python's run_load and the tab's runLoad (engine-client plan_runner_test) run one fixture --
@@ -264,22 +284,22 @@ class ProjectQueries(Served):
             con.execute(sql)
         projects.run_load(p['load'], con.execute)
         self.assertEqual([list(r) for r in con.execute(fixture['check']).fetchall()], fixture['rows'])
-        tampered = p['load']
+        tampered = json.loads(p['load'])
         digest = next(iter(tampered['root']['content']))
         tampered['root']['content'][digest] = tampered['root']['content'][digest].replace(fixture['tamper']['from'],
                                                                                        fixture['tamper']['to'])
         sent = []
         with self.assertRaises(projects.LoadRefused) as refused:
-            projects.run_load(tampered, sent.append)
+            projects.run_load(plan_from_answer(json.dumps(tampered)), sent.append)
         self.assertEqual(str(refused.exception), fixture['refused'])
         self.assertFalse(any('INSERT' in s.upper() for s in sent), sent)
         # a plan of another format version, refused in the same words before anything runs (the tenets audit's LOW 1)
-        stale = compiler.project_data(fixture['model'], fixture['databaseType'])['load']
+        stale = json.loads(compiler.project_data(fixture['model'], fixture['databaseType'])['load'])
         words = fixture['version']['refused'].replace('{VERSION}', str(stale['version']))
         stale['version'] = fixture['version']['given']
         sent = []
         with self.assertRaises(projects.LoadRefused) as refused:
-            projects.run_load(stale, sent.append)
+            projects.run_load(plan_from_answer(json.dumps(stale)), sent.append)
         self.assertEqual(str(refused.exception), words)
         self.assertEqual(sent, [])
 
@@ -312,18 +332,19 @@ class ProjectQueries(Served):
                     yield c
 
         def plan(table, schema='main'):
-            # the remote plane's statement, as its planner's plan carries it (the C final audit's H3: a PlannedSql)
-            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse',
-                                         'sql': from_plan('SELECT * FROM t'), 'schema': schema, 'table': table})
+            # the pull, which the planner plans in the call (the user's ruling of 2026-11-12): never the statement
+            return compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_snap_pull(), 'schema': schema,
+                                         'table': table})
 
         con = duckdb.connect()
         exists = lambda t: con.execute('SELECT count(*) FROM duckdb_tables() WHERE table_name = ?', [t]).fetchone()[0]
-        step = plan('snap')['root']['steps'][0]
+        step = json.loads(plan('snap'))['root']['steps'][0]
         self.assertEqual(sorted(step), ['_type', 'count', 'plane', 'prepare', 'schema', 'sql', 'table', 'transaction'],
                          'the plan names the plane, its statement and the table: never a row')
         source = Plane([chunk(1, 4), chunk(5, 3)])
         (made,) = projects.run_host_load(plan('snap', 'copies'), Database(con), planes={'warehouse': source}).landed
-        self.assertEqual((made.rows, made.receipt['statementId'], source.asked), (7, 's1', ['SELECT * FROM t']))
+        self.assertEqual((made.rows, made.receipt['statementId'], source.asked), (7, 's1', [step['sql']]),
+                         "the plane ran the planner's own statement of the pull")
         self.assertEqual(con.execute("SELECT column_name, data_type FROM duckdb_columns() WHERE table_name = 'snap' "
                                      'ORDER BY column_index').fetchall(),
                          [('id', 'INTEGER'), ('desk', 'VARCHAR'), ('qty', 'DOUBLE')])

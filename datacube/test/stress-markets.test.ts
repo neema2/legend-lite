@@ -97,7 +97,7 @@ before(async () => {
   const project = await corpus.projectData(PROJECT, projectEngine.databaseType);
   for (const sql of [...project.open, ...project.use]) await projectEngine.run(sql, 0);
   // its rows: the plan's ONCE load, run by the hosts' runner (B3)
-  await runLoad(JSON.stringify(project.load), (sql) => projectEngine.run(sql, 0));
+  await runLoad(project.load!, (sql) => projectEngine.run(sql, 0));
   measured['the model held and its Data filled (ms)'] = performance.now() - t0;
   classes = new Map([['px', { snapshot: snapshotOf(QUOTES, [
     { name: 'ticker', type: 'String' }, { name: 'quoteTime', type: 'DateTime' }, { name: 'closePrice', type: 'Float' },

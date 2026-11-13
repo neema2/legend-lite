@@ -57,6 +57,13 @@ final class DuckDbHostOperations implements HostOperations {
     }
 
     @Override
+    public TransactionStatements transaction() {
+        return new TransactionStatements(statements(new HostOperation.Transaction(HostOperation.Transaction.Step.BEGIN)),
+                statements(new HostOperation.Transaction(HostOperation.Transaction.Step.COMMIT)),
+                statements(new HostOperation.Transaction(HostOperation.Transaction.Step.ROLLBACK)));
+    }
+
+    @Override
     public List<String> statements(HostOperation operation) {
         return switch (operation) {
             case HostOperation.MakeRelation m -> List.of("CREATE " + (m.replace() ? "OR REPLACE " : "") + kind(m.kind())

@@ -42,7 +42,7 @@ from ._planned import Answered, Database, across_the_bridge, connect, send
 from ._library import Library, library
 from ._pool import library_thread
 
-from ._planner import KINDS, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
+from ._planner import KINDS, REFUSED, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
 
 # WebCrypto's digests, by the names crypto.subtle.digest takes
 _DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512': 'sha512'}
@@ -56,6 +56,17 @@ _FETCH_TIMEOUT = 60
 # the paths this host answers a fetch at itself: its model home's SDLC and Depot, and legend-lite's API
 _HOME_APIS = (('/sdlc/api/', 'sdlc'), ('/depot/api/', 'depot'))
 _LITE_API = '/api/lite/v1/'
+
+
+def _statement_in(body: str | None) -> str | None:
+    """The statement a fetch's JSON body carries for a SQL API (its ``sql``, as a warehouse's submit names it), or None."""
+    if body is None:
+        return None
+    try:
+        sent = json.loads(body)
+    except ValueError:
+        return None
+    return sent['sql'] if isinstance(sent, dict) and 'sql' in sent else None
 
 
 def answer_fetch(method: str, url: str, body: str | None) -> tuple[int, str]:
@@ -96,8 +107,9 @@ class InterfaceMismatch(RuntimeError):
 
 
 def check_interface(bundle_kinds: list[str], lib: Library) -> None:
-    """The bundle's request kinds against ``KINDS``, and each function ``KINDS`` names against the library's exports."""
-    sent, answered = set(bundle_kinds), set(KINDS)
+    """The bundle's request kinds against ``KINDS`` and the kinds this host refuses by name (``REFUSED``), and each
+    function ``KINDS`` names against the library's exports."""
+    sent, answered = set(bundle_kinds), set(KINDS) | set(REFUSED)
     missing = sorted(k for k in KINDS if not lib.exports(KINDS[k][0]))
     if sent != answered or missing:
         raise InterfaceMismatch(
@@ -180,6 +192,10 @@ class Headless:
 
     async def _planner(self, request: str) -> str:
         asked = json.loads(request)
+        # a host operation's own texts, each answered already, or the planner is not asked (the re-audit's S3)
+        refused = self._answered.refusal(asked)
+        if refused is not None:
+            return json.dumps({'id': asked.get('id'), 'ok': False, 'error': f'NotPlanned: {refused}'})
         answered = answer(self._lib, asked)
         # what DataCube's code may hand the database from now on: the statements the answer carries, read by the
         # request's kind (_planned.Answered)
@@ -222,6 +238,12 @@ class Headless:
         return base64.b64encode(sink.getvalue()).decode('ascii')
 
     async def _fetch(self, method: str, url: str, body: str | None) -> str:
+        # a statement the hosted code sends a SQL API over HTTP (a warehouse's submit, its JSON's `sql`) crosses the
+        # bridge as a query does: answered by this session's planner, or refused by name and nothing sent (the
+        # re-audit's S9, 2026-11-12: this fetch carried any text to any server)
+        sql = _statement_in(body)
+        if sql is not None:
+            across_the_bridge(sql, f"the hosted DataCube's HTTP request to {url}", self._answered)
         status, text = answer_fetch(method, url, body)
         return json.dumps({'status': status, 'body': text})
 

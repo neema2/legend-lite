@@ -36,6 +36,31 @@ class NotPlanned(TypeError):
     """A text sent to a database that no plan carries: refused, never run."""
 
 
+class PlanText(str):
+    """A PLAN, AS THE PLANNER ANSWERED IT (PlanJson's text; the re-audit's M1, 2026-11-12: the runners took any dict, so a
+    plan a host wrote ran, its statements typed as planned by the runner that read them). The hosts' runners
+    (projects.run_load, run_host_load) take this and no other; it is made where the compiler reads the planner's answer
+    (:func:`plan_from_answer`, compiler.py), and it is text, so editing it makes a plain string again."""
+
+    __slots__ = ()
+
+
+def plan_from_answer(text: str) -> PlanText:
+    """``text``, the plan the planner answered, as its answer was READ -- called by the compiler's readers alone (the
+    guard, python/tests/test_planned_guard.py, holds it so)."""
+    if type(text) is not str:
+        raise TypeError(f"a planner's answer is text, not {type(text).__name__}")
+    return PlanText(text)
+
+
+def read_plan(plan: Any, where: str) -> dict:
+    """``plan``'s JSON, if it is a plan the planner answered; else refused by name, ``where`` naming what was to run it."""
+    if type(plan) is not PlanText:
+        raise NotPlanned(f"not a plan the planner answered, so not run by {where}: a {type(plan).__name__} (a host runs only"
+                         ' what the planner answered: _planned.py)')
+    return json.loads(plan)
+
+
 def from_plan(text: str) -> PlannedSql:
     """``text`` as the plan or the planner's answer it was READ from carries it: called by the plan readers alone (the
     guard, tools/guards/PlannedSqlTest.java, holds it so). The text is never edited, only typed."""
@@ -115,9 +140,34 @@ class Answered:
             while len(self._keyed) > max(self.KEYED_CAPACITY, len(self._this_keyed)):
                 self._keyed.popitem(last=False)
 
+    def refusal(self, asked: dict) -> str | None:
+        """Why a request the hosted code makes of the planner is refused, or None (the re-audit's S3, 2026-11-12): a host
+        operation's own texts -- its source ``query``, its ``selectList``, a ``replacing`` expression -- are pasted by the
+        planner into the statements it answers, so each must be a statement this session's planner answered already
+        (a plan's statement, a table model's copy select list); any other is refused by name, the planner never asked."""
+        if asked.get('kind') != 'hostOperations':
+            return None
+        operations = asked.get('operations')
+        for op in json.loads(operations) if isinstance(operations, str) else []:
+            source = op.get('from') if isinstance(op, dict) else None
+            texts = [source['query']] if isinstance(source, dict) and 'query' in source else []
+            texts += [op['selectList']] if isinstance(op, dict) and 'selectList' in op else []
+            texts += [r.get('sql') for r in op.get('replacing') or []] if isinstance(op, dict) else []
+            for text in texts:
+                if text not in self:
+                    shown = text if isinstance(text, str) and len(text) <= 120 else str(text)[:117] + '...'
+                    return (f"a host operation's ({op.get('op')}) text is not a statement this session's planner answered, so"
+                            f' the planner is not asked to write it into one: {shown!r} (_planned.py Answered.refusal)')
+        return None
+
     def _record(self, kind: str, payload: str) -> None:
         if kind == 'catalogColumnsSql':
             self._add(payload)
+        elif kind == 'tableModel':
+            # the planner's copy select list, which a host operation's selectList carries back (S3)
+            model = json.loads(payload)
+            if model.get('copySelectList') is not None:
+                self._add(model['copySelectList'])
         elif kind == 'sessionSetup':
             self._all(json.loads(payload))
         elif kind == 'hostOperations':
@@ -241,8 +291,10 @@ def _keyed_text(body: str, regions: tuple[dict, ...], n: int) -> str | None:
 
 
 def require(statement: Any, where: str) -> PlannedSql:
-    """``statement`` if it is a plan's; else refused by name, ``where`` saying what it was about to be sent to."""
-    if isinstance(statement, PlannedSql):
+    """``statement`` if it is a plan's; else refused by name, ``where`` saying what it was about to be sent to. The type
+    exactly (2026-11-12, the re-audit's S4: an isinstance check passed a str subclass whose ``__class__`` claimed to be
+    PlannedSql)."""
+    if type(statement) is PlannedSql:
         return statement
     shown = statement if isinstance(statement, str) else type(statement).__name__
     if isinstance(shown, str) and len(shown) > 120:
@@ -336,7 +388,10 @@ class Database:
                 raise NotPlanned(f"a stream lands in a table named plainly (letters, digits, '_'), not {name!r}")
         self._con.from_arrow(reader).create(table if schema is None else f'{schema}.{table}')
 
-    def _run(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:
+    def _send_planned(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:
+        # the one send's own check, here too (the re-audit's M2, 2026-11-12: this, `_run` until then, sent whatever it
+        # was handed, and the guard refused no call of it -- it refuses any reference to it outside this module now)
+        sql = require(sql, 'the database')
         return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql))
 
 
@@ -353,4 +408,4 @@ def send(target: Database, statement: Any, params: Sequence[Any] | None = None) 
     if not isinstance(target, Database):
         raise NotPlanned(f"the one send runs on the host's Database, not on a {type(target).__name__}")
     sql = require(statement, 'the database')
-    return target._run(sql, params)
+    return target._send_planned(sql, params)

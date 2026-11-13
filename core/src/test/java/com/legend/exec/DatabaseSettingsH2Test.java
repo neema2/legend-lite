@@ -26,7 +26,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * H2'S DATABASE SETTINGS ARE THE PLAN'S (the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling of 2026-11-12):
+ * H2'S DATABASE SETTINGS ARE THE PLAN'S (the C checkpoint's SHOULD-FIX 3, the orchestrator's ruling of 2026-11-12) --
+ * and only for a database the platform MAKES (the third re-audit's MUST-FIX 2, 2026-11-12: a declared file or server is
+ * the user's, run as it is, never modified):
  * {@code MODE=LEGACY} and {@code DEFAULT_NULL_ORDERING=HIGH} are the database's, and their {@code SET} commits an open
  * transaction (measured on 2.5.252), so they are no session statement: the target carries them as values, exec writes
  * them on the URL of an in-memory H2 it opens, and a session it did not open is read back with the target's own
@@ -125,27 +127,102 @@ class DatabaseSettingsH2Test {
                 + " WHERE SETTING_NAME = 'DEFAULT_NULL_ORDERING'", target), PlanSessions.shared());
     }
 
-    /** An H2 database reached by a FILE is opened with the target's settings on its URL, as an in-memory one is, and a
-     *  query runs on it (the C final audit's J1, 2026-11-12: until then its URL carried none, so its session was read
-     *  back as H2's defaults and every plan on it refused). */
-    @Test
-    void aFileDatabaseIsOpenedWithThem_andAQueryRunsOnIt() throws Exception {
-        Path dir = Files.createTempDirectory(Path.of(System.getenv("TEST_TMPDIR")), "h2file");
-        assertEquals("HIGH", nullOrdering(declared(new ConnectionSpecification.LocalFile(dir.resolve("db").toString()))));
+    /** Every row of the database's {@code INFORMATION_SCHEMA.SETTINGS}, in order: what a declared database keeps byte
+     *  for byte. */
+    private static List<String> everySetting(Connection c) throws Exception {
+        List<String> out = new ArrayList<>();
+        try (Statement st = c.createStatement(); ResultSet rs = st.executeQuery("SELECT SETTING_NAME, SETTING_VALUE FROM"
+                + " INFORMATION_SCHEMA.SETTINGS ORDER BY SETTING_NAME")) {
+            while (rs.next()) {
+                out.add(rs.getString(1) + "=" + rs.getString(2));
+            }
+        }
+        return out;
     }
 
-    /** So is one reached through a SERVER (an in-process TCP server here). */
+    /**
+     * A DECLARED H2 database -- a file -- is the user's, and lite's query leaves it as it found it (the third re-audit's
+     * MUST-FIX 2, 2026-11-12): its target declares the database's own settings, none written and none read back, and
+     * every one of its settings reads the same before and after, read by a client of the user's that holds it open
+     * across the run, as any other client would. Until then (the C final audit's J1) the dialect's settings were
+     * written on its URL, and H2 applies a URL's settings to the whole open database -- measured on 2.5.252: the
+     * holding client's null ordering became HIGH and stayed so after lite's session closed.
+     */
     @Test
-    void aServersDatabaseIsOpenedWithThem_andAQueryRunsOnIt() throws Exception {
+    void aDeclaredFileDatabaseIsNeverModified() throws Exception {
+        Path dir = Files.createTempDirectory(Path.of(System.getenv("TEST_TMPDIR")), "h2file");
+        String path = dir.resolve("db").toString();
+        try (Connection holder = DriverManager.getConnection("jdbc:h2:file:" + path)) {
+            List<String> before = everySetting(holder);
+            ExecutionPlan.Target target = declared(new ConnectionSpecification.LocalFile(path));
+            assertEquals(ExecutionPlan.DatabaseSettings.THE_DATABASES_OWN, target.settings(), "the database's own");
+            assertEquals("LOW", nullOrdering(target), "run as it is: H2's own null ordering, never the dialect's");
+            assertEquals(before, everySetting(holder), "every setting as the user's database had it");
+        }
+    }
+
+    /**
+     * So is one reached through a SERVER, and a query the PRODUCT plans -- a sort over a nullable column -- answers its
+     * own null order there, the engine's, on a database whose own is H2's (LOW): the product writes every null's order
+     * (D's measurement, the ruling's premise). The server's database is held open by a client of the user's across the
+     * run, and every setting it reads is unchanged.
+     */
+    @Test
+    void aDeclaredServerDatabaseIsNeverModified_andAProductSortAnswersItsOwnNullOrder() throws Exception {
         Path dir = Files.createTempDirectory(Path.of(System.getenv("TEST_TMPDIR")), "h2tcp");
         org.h2.tools.Server server = org.h2.tools.Server.createTcpServer("-tcpPort", "0", "-baseDir", dir.toString(),
                 "-ifNotExists").start();
-        try {
-            assertEquals("HIGH", nullOrdering(declared(new ConnectionSpecification.StaticDatasource("localhost",
-                    server.getPort(), "j1"))));
+        try (Connection holder = DriverManager.getConnection("jdbc:h2:tcp://localhost:" + server.getPort()
+                + "/declared")) {
+            try (Statement st = holder.createStatement()) {
+                st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, V INTEGER)");
+                st.execute("INSERT INTO T VALUES (1, 3), (2, NULL), (3, 1), (4, NULL), (5, 2)");
+            }
+            List<String> before = everySetting(holder);
+            String model = """
+                    ###Relational
+                    Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, V INTEGER ) )
+                    ###Connection
+                    RelationalDatabaseConnection s::Conn
+                    {
+                        store: s::DB;
+                        type: H2;
+                        specification: Static { host: 'localhost'; port: %d; name: 'declared'; };
+                        auth: DefaultH2;
+                    }
+                    ###Runtime
+                    Runtime s::RT { mappings: []; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                    """.replace("%d", Integer.toString(server.getPort()));
+            com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(model);
+            // the engine's null order (DEFAULT_NULL_ORDERING=HIGH: null is largest), which the product writes into its
+            // text, so a database ordering nulls otherwise answers it all the same
+            for (List<String> direction : List.of(List.of("ascending", "[1, 2, 3, null, null]"),
+                    List.of("descending", "[null, null, 3, 2, 1]"))) {
+                ExecutionPlan plan = com.legend.Compiler.query(ctx, "|#>{s::DB.T}#->select(~[ID, V])->sort(~V->"
+                        + direction.get(0) + "())").executionPlan("s::RT");
+                assertEquals(ExecutionPlan.DatabaseSettings.THE_DATABASES_OWN, plan.answerSql().target().settings());
+                List<String> ours = new ArrayList<>();
+                for (List<Object> row : PlanRunner.rows(plan, java.util.Map.of(), PlanSessions.shared(),
+                        java.util.UUID.randomUUID()).rows()) {
+                    ours.add(String.valueOf(row.get(1)));
+                }
+                assertEquals(direction.get(1), ours.toString(), direction.get(0) + ": the product's own null order,"
+                        + " on a database whose own is LOW");
+            }
+            assertEquals(before, everySetting(holder), "every setting as the user's database had it");
         } finally {
             server.stop();
         }
+    }
+
+    /** Exec never writes settings on a declared database's URL: a target declaring some there is a planner defect,
+     *  refused by name before anything is opened (the third re-audit's MUST-FIX 2, 2026-11-12). */
+    @Test
+    void aDeclaredDatabaseIsNeverOpenedWithSettingsToWrite() {
+        IllegalStateException refused = assertThrows(IllegalStateException.class, () -> Sessions.open(
+                new Sessions.Opening.Url("jdbc:h2:mem:never_opened"), H2Connector.INSTANCE, h2Target().settings()));
+        assertTrue(refused.getMessage().startsWith("a H2 database a connection declares is opened as declared and"
+                + " never modified"), refused.getMessage());
     }
 
     /** An H2 target that declares no settings is refused by name, where exec opens its database and where a session is
@@ -158,7 +235,7 @@ class DatabaseSettingsH2Test {
         assertEquals("an H2 database is opened with the settings the plan's target declares, and it declares none:"
                 + " H2's own defaults would run the plan with other semantics", opened.getMessage());
         ExecutionPlan.Target none = new ExecutionPlan.Target(h2Target().database(), h2Target().session(), List.of(),
-                null, null);
+                null, null, null);
         try (Connection c = TestBackends.of(DatabaseType.H2).open(); var run = com.legend.base.RunScope.enter()) {
             JdbcStatements st = new JdbcStatements(c, new SessionState());
             com.legend.error.NotImplementedException refused = assertThrows(

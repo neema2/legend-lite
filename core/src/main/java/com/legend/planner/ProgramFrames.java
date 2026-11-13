@@ -331,10 +331,9 @@ public final class ProgramFrames {
                         + " reads an execute(...)'s result through it (->values)");
             }
             FramePlanner.FrameChain fc = FramePlanner.chain(ec, letPrefix, specs, env);
-            // each execute() an execution of its own (the execution id as upstream, 2026-11-12: upstream's interpreted
-            // execute mints a GUID per query it runs) -- the statement's own stamp where this run mints it, else a stamp
-            // of its own (a second execute in the statement, or one beside a lazy frame the statement runs); until then
-            // every execute a statement ran shared the statement's stamp
+            // the statement's own stamp where this run mints it, else a stamp of its own (a second execute in the
+            // statement, or one beside a lazy frame the statement runs) -- every stamp of a run bound to its one id (the
+            // user's ruling of 2026-11-12: one execution id per plan run)
             String own = null;
             if (ownStamp == null) {
                 ownStamp = newStamp();

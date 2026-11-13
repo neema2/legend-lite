@@ -284,7 +284,7 @@ Data demo::party::PartyData
         self.assertEqual(p['use'], [f'USE "{p["name"]}"'])
         self.assertEqual(p['close'], [f'DETACH DATABASE IF EXISTS "{p["name"]}"'])
         # its rows: the plan's ONCE load, its statements a blob the host checks against its digest (B3, 2026-11-11)
-        load = p['load']['root']
+        load = json.loads(p['load'])['root']
         self.assertEqual((load['_type'], load['cadence']), ('load', 'ONCE'))
         self.assertTrue(any('Meridian Capital' in text for text in load['content'].values()), load)
         self.assertNotIn('fill', p)

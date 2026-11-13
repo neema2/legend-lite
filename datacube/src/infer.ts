@@ -33,7 +33,7 @@ import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
 import type { RemoteMountRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
-import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
+import type { PlannedSql, PlanText } from '../../engine-client/src/planned-sql.ts';
 
 /** One column, as its database's catalog describes it (the catalog question's row). */
 export interface CatalogColumn {
@@ -150,10 +150,10 @@ export interface TableModels {
   /** A host's named operations on its own database (D5, engine-client's host-operations.ts): each one's statements. */
   hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]>;
   /** A host's own file read into its database, as a plan (Boundary.fileLoad, B3): PlanJson's text, run by runLoad. */
-  fileLoad(request: FileLoadRequest): Promise<string>;
+  fileLoad(request: FileLoadRequest): Promise<PlanText>;
   /** A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): PlanJson's text, run by runLoad. */
-  remoteMount(request: RemoteMountRequest): Promise<string>;
+  remoteMount(request: RemoteMountRequest): Promise<PlanText>;
   /** Rows the database makes in a declared table, as a plan (Boundary.synthesize, S303): PlanJson's text, run by
    *  runLoad -- the demo's sample (demo/boot.ts synthesizeTrades). */
-  synthesize(request: SynthesizeRequest): Promise<string>;
+  synthesize(request: SynthesizeRequest): Promise<PlanText>;
 }

@@ -604,15 +604,22 @@ and the briefs' "RULED" items.
     (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`, branch `claude/datacube-engine-contract`, PROPOSED) into the next PR,
     in parallel with D and E (the user: "we should do this in parallel with D and E").
   - **MongoDB's parameters bound by the command's `let`** (the probe answered on MongoDB 8.0): a plan parameter is the
-    pipeline variable `$$lpN`, its value `{"$literal": v}`; a server before 5.0, a parameter in a per-key region and a
-    parameter in an insert are refused by name; the session writes nothing into the pipeline (93e318dbf, 041f2f05b).
+    pipeline variable `$$lpN`, its value `{"$literal": v}`; a parameter in a per-key region and a parameter in an insert
+    are refused by name; the session writes nothing into the pipeline but each key's `$literal` at its marker (the keyed
+    region, A3(a)) (93e318dbf, 041f2f05b). The version check exec once sent (`buildInfo`) is DELETED (the user, C's final
+    audit: "delete mongo check for sure"): a server before 5.0 refuses the `let` field with its own error, and every
+    driver send is at one choke point (26b068966).
   - **The execution id minted by the door, no caller ids** (the user: "Does it simplify if we don't let caller IDs?",
     then "Do the exec id as part of C"): `Execution`'s run methods and `TestExecution`'s `runProgram`, `runBody`,
-    `runFixture` mint one id per plan run, passed into exec; exec mints nothing (`execMakesNoValueOfItsOwn`); an answer's
-    writer is made for its execution (8ed2114fd, ed7bce10e). S304 amended.
+    `runFixture` mint the ids, passed into exec; exec mints nothing (`execMakesNoValueOfItsOwn`); an answer's writer is
+    made for its execution (8ed2114fd, ed7bce10e). Then, the simple version (the user, C's final audit: "why is exec id
+    hard? can we make it dumber/easier?", then "lets do dumb version"): ONE id per plan run, product and test body alike,
+    every stamp bound to it, no id written at planning; upstream's one-per-`execute()` in an interpreted body is a
+    divergence no test observes (S304).
   - **H2's settings as plan data**: `MODE=LEGACY` and `DEFAULT_NULL_ORDERING=HIGH` are the target's `settings` (plan
-    version 49, test plan 18), written on an in-memory URL and compared by the database on a borrowed session, a
-    mismatch refused by name; `NON_KEYWORDS` a planned SET. As session statements they were measured and reverted: two of
+    version 49, test plan 18), written on the URL of a database lite creates and compared by the database on a borrowed
+    session, a mismatch refused by name; a database the user declares (a file, a server) is never modified (C's final
+    audit: its target declares no settings, H2's own defaults); `NON_KEYWORDS` a planned SET. As session statements they were measured and reverted: two of
     the three commit an open transaction (9a1bf98c4, 947008159).
   - **G10, found in the hand-back and fixed as part of C**: a test body's plan is the same for the same input
     (`ActivityComments` derived; `planningMakesNoValueOfItsOwn`; `aBodyPlannedTwiceIsTheSamePlan`, cf56a1e25).
@@ -852,6 +859,29 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
   - How it is held:
     - E3 counts these per family and dialect as a second shrink-only pin, where an unclassified pattern fails by name;
     - D's shrink-only list marks the sites D owns.
+- **C's acceptance standard, written down** (the user, 2026-11-12: "why do we keep finding so many errors in audit? ...
+  this is at least the third or fourth or fifth round that we thought we were 'close'"). Every round had found the next
+  layer because "provably separated" was never written as a finite list, nor against what.
+  - **The threat model** is G4's own: guards catch drift, not adversaries. In scope: a well-meaning developer's or agent's
+    natural code path that silently bypasses the wall. Out of scope: deliberate subversion of the type system, and
+    editing the guards; those go to the later list.
+  - **The acceptance**, on every road (Java product and test, TS tab and Node, Python, the V8 bridge) and transport
+    (JDBC, MongoDB, DuckDB-WASM, Python duckdb, HTTP to a SQL API):
+    1. one choke point per transport, taking only the plan's statement type, guarded with a planted violator;
+    2. the plan's statement type, and the plan itself, made only where the planner's answer or a plan is read, guarded
+       with a planted violator;
+    3. no SQL text written by a runner beyond the charter's A3, an unfiltered witness per road;
+    4. data only through planned loads;
+    5. no run asks the planner;
+    6. every guard bites by an actual violation.
+  - The final audit checks this list and nothing wider. D and E each get theirs written before they build.
+  - **The trims, ruled** (the user: "yes we should put the snapshot request in this - that is a real off platform problem
+    the other 3 we can skip").
+    - In C: the snapshot request carries the pull, never SQL, so no planner door takes SQL except the named playground.
+    - To the later list (adversarial, outside the threat model):
+      - Python's guard on `type(...)` and `__class__` (the one-line `type(statement) is PlannedSql` stays in C);
+      - TypeScript's compiler-API brand check (`Parameters<>`, `interface extends`, `Omit`);
+      - per-call counting and `.query.call` / `.bind`.
 - **Mixed lists: the hybrid** (the user, 2026-11-12: "hybrid mixed list is good, lets go with that"). On the product
   path a list has one element type:
   - Number lists are promoted by a fixed rule (Integer+Decimal -> Decimal, Integer+Float -> Float; integer literals

@@ -30,6 +30,7 @@ import {
   type S3Credentials,
 } from '../src/remote.ts';
 import { FakeEngine } from './fake-engine.ts';
+import type { PlanText } from '../../engine-client/src/planned-sql.ts';
 
 /** legend-lite's planner, which plans each mount (remoteMount): the module in-thread, or Python's library in the
  *  headless lane -- the plans under test are the platform's, as every host runs them. */
@@ -83,7 +84,7 @@ class RecordingEngine extends FakeEngine {
 }
 
 /** The planner, every request it is asked and every plan it answers recorded: what reached it, and what it wrote. */
-const recordingPlanner = (): { readonly asked: RemoteMountRequest[]; readonly plans: string[]; remoteMount(r: RemoteMountRequest): Promise<string> } => {
+const recordingPlanner = (): { readonly asked: RemoteMountRequest[]; readonly plans: string[]; remoteMount(r: RemoteMountRequest): Promise<PlanText> } => {
   const asked: RemoteMountRequest[] = [];
   const plans: string[] = [];
   return {

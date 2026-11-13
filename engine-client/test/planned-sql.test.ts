@@ -9,6 +9,7 @@ import { describe, it } from 'node:test';
 
 import type { ArrowishConnection, DuckDbEngine, HeldConnection } from '../src/duckdb.ts';
 import type { TabFiles } from '../src/duckdb-tab.ts';
+import { runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
 import type { AsyncDuckDB } from '../src/duckdb-wasm.ts';
 import type { QueryEngine } from '../src/engine.ts';
 import type { HostOperation, HostSource, SnapStreamRequest } from '../src/host-operations.ts';
@@ -49,11 +50,23 @@ export function handWrittenSqlDoesNotCompile(engine: DuckDbEngine, query: QueryE
     // @ts-expect-error and each replacement's expression
     replacing: [{ column: 'a', sql: 'a' }],
   };
-  // @ts-expect-error a snapshot's stream runs the remote plane's planner's statement alone (H3)
+  // @ts-expect-error a snapshot's request carries the pull, never a statement (H3; the user's ruling of 2026-11-12)
   const snap: SnapStreamRequest = { databaseType: 'DuckDB', plane: 'warehouse', sql: 'DROP TABLE t', table: 't' };
   void statement;
   void plan;
   void [source, relation, replaced, snap];
+}
+
+/** Never called: a plan the host wrote is no plan (the re-audit's M1, 2026-11-12): the runners take what the planner
+ *  answered (PlanText), so a hand-written plan -- its statements a host's own -- does not compile. */
+export async function aHandWrittenPlanDoesNotRun(session: PlanSession): Promise<void> {
+  const handWritten = '{"format":"legend-lite-plan","version":52,"parameters":[],"root":{"_type":"sequence","steps":[]}}';
+  // @ts-expect-error a string is not a plan the planner answered
+  await runPlan(handWritten, session);
+  // @ts-expect-error nor for a load
+  await runLoad(`{"format":"legend-lite-plan"}`, async () => []);
+  // @ts-expect-error nor its target's key
+  void targetKey(handWritten);
 }
 
 /** Never called: the tab's file registry is no database (duckdb-tab.ts TabFiles; the C final audit's H11, 2026-11-12):
@@ -70,6 +83,13 @@ export async function jsonIsReadAsUnknown(response: Response): Promise<void> {
   const parsed: Plan = JSON.parse('{"sql":"DROP TABLE t","columns":[]}');
   // @ts-expect-error and a response's JSON is too
   const fetched: Plan = await response.json();
+  // and a value found to be an array holds unknowns, never `any` (the re-audit's S6, 2026-11-12)
+  const found: unknown = JSON.parse('["DROP TABLE t"]');
+  if (Array.isArray(found)) {
+    // @ts-expect-error an element of it is unknown
+    const element: PlannedSql = found[0];
+    void element;
+  }
   void [parsed, fetched];
 }
 

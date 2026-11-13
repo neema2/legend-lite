@@ -32,7 +32,7 @@ class PlanJsonTest {
 
     private static Target target(ConnectionSpecification spec, AuthenticationSpec auth) {
         return com.legend.planner.LoadPlanner.withLoads(new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB", Databases.PLATFORM,
-                spec, auth)), null), List.of(), List.of(), null, null),
+                spec, auth)), null), List.of(), List.of(), null, null, null),
                 List.of(new LoadStep.Statement("create table T(ID INT)")));
     }
 
@@ -76,7 +76,7 @@ class PlanJsonTest {
     void bothLoadStepKindsReadBack_theStatementsBlobInTheBundle() {
         Target t = com.legend.planner.LoadPlanner.withLoads(new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
                 Databases.PLATFORM, new ConnectionSpecification.InMemory(), new AuthenticationSpec.TestAuth())), null),
-                List.of("SET TimeZone='UTC'"), List.of(), null, null),
+                List.of("SET TimeZone='UTC'"), List.of(), null, null, null),
                 com.legend.setup.LoadSteps.of(List.of(new LoadStep.Statement("create table T(ID INTEGER, NAME VARCHAR)")))
                         .then(com.legend.setup.LoadSteps.blob(List.of("insert into T values (1, 'O''Brien'), (2, NULL)"), "the data of the table T")));
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)));
@@ -95,7 +95,7 @@ class PlanJsonTest {
     @Test
     void aBoundPayloadIsTheStatementsContentByDigest() {
         Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of(), null, null);
+                List.of(), List.of(), null, null, null);
         for (String json : List.of("[{\"t\":\"it's a \\\\ b\\nc\"},1.50,null]",
                 "[" + "\"x\",".repeat(PlanJson.INLINE_LIMIT_BYTES / 4) + "\"y\"]")) {
             String digest = com.legend.cache.Hash.ofUtf8(json).hex();
@@ -129,7 +129,7 @@ class PlanJsonTest {
 
     @Test
     void thePlatformsEngineReadsBack_withNoSetup() {
-        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of("SET TimeZone='UTC'"), List.of(), null, null);
+        Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of("SET TimeZone='UTC'"), List.of(), null, null, null);
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.VALUE,
                 List.of(new Column("value", "Integer", new Multiplicity(1, 1), "BIGINT", null, null)), new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
@@ -144,14 +144,14 @@ class PlanJsonTest {
                 new ExecutionPlan.Setting("A_SETTING", "ON"), new ExecutionPlan.Setting("B_SETTING", "HIGH")),
                 "SELECT NAME, VALUE FROM SETTINGS");
         Target t = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null),
-                List.of(), List.of(), null, settings);
+                List.of(), List.of(), null, settings, null);
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null)));
         String json = PlanJson.write(plan);
         assertEquals(plan, PlanJson.read(json));
         assertTrue(json.contains("\"settings\":{\"required\":[{\"name\":\"A_SETTING\",\"value\":\"ON\"},"
                 + "{\"name\":\"B_SETTING\",\"value\":\"HIGH\"}],\"readBack\":\"SELECT NAME, VALUE FROM SETTINGS\"}"), json);
-        Target none = new Target(t.database(), List.of(), List.of(), null, null);
+        Target none = new Target(t.database(), List.of(), List.of(), null, null, null);
         assertTrue(!PlanJson.writeTarget(none).contains("settings"), PlanJson.writeTarget(none));
         assertTrue(!PlanJson.writeTarget(none).equals(PlanJson.writeTarget(t)), "two targets whose settings differ");
     }
@@ -161,7 +161,7 @@ class PlanJsonTest {
         // the test-is-the-product plan's M10a: a test body reading the metamodel store runs on the graph's system
         // database on its engine; the plan names it by type alone (the one who opens it holds the session)
         Target t = new Target(new Database.System(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), "a-graph"),
-                List.of(), List.of(), null, null);
+                List.of(), List.of(), null, null, null);
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                 new Sql("select 1", List.of(), t, null)));
         assertEquals(plan, PlanJson.read(PlanJson.write(plan)));
@@ -209,16 +209,18 @@ class PlanJsonTest {
         // second audit's S12); 46 the same day: a slot's bound data: payload (the dialect's delivery); 47 the same day
         // (B3): a host's own file (HOST, its upload formats) and the HOST_SESSION load; 48 the same day (the JSON pass,
         // over 47 when the two merged): the payload named by its digest, its text the statement's content; 49 since
-        // 2026-11-12: a target's database settings (the C checkpoint's SHOULD-FIX 3); 50 the same day: a raise's message
-        // as its kind and operands in a statement's tree (phase D's D1.1)
-        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":50,"), json);
+        // 2026-11-12: a target's database settings (the C checkpoint's SHOULD-FIX 3); 50 the same day: a target's
+        // transaction, the statements a host opens one with (the re-audit's S8); 51 the same day: a stream step's
+        // statement the planner's own plan of the snapshot's pull (the user's ruling); 52 since 2026-11-13: a raise's
+        // message as its kind and operands in a statement's tree (phase D's D1.1, merged onto 51)
+        assertTrue(json.startsWith("{\"format\":\"legend-lite-plan\",\"version\":52,"), json);
     }
 
     @Test
     void anotherFormatIsRefusedByName() {
         var refused = assertThrows(IllegalArgumentException.class,
                 () -> PlanJson.read("{\"_type\":\"simple\",\"rootExecutionNode\":{}}"));
-        assertTrue(refused.getMessage().contains("not a legend-lite-plan v50 plan"), refused.getMessage());
+        assertTrue(refused.getMessage().contains("not a legend-lite-plan v52 plan"), refused.getMessage());
     }
 
     /**
@@ -278,7 +280,7 @@ class PlanJsonTest {
     @Test
     void theLoadSectionWritesEachLoadOnce_andRefusesWhatIsNotOneLoadPerIdentity() {
         Target bare = new Target(new Database.Platform(com.legend.planner.ConnectionPlans.type(Databases.PLATFORM),
-                null), List.of(), List.of(), null, null);
+                null), List.of(), List.of(), null, null, null);
         Target t = com.legend.planner.LoadPlanner.withLoads(bare, List.of(new LoadStep.Statement("create table T(ID INT)")));
         String identity = t.loads().get(0).identity();
         ExecutionPlan plan = ExecutionPlan.reading(List.of(), new Sequence(List.of(
@@ -304,7 +306,7 @@ class PlanJsonTest {
         ExecutionPlan clash = ExecutionPlan.reading(List.of(), new Sequence(List.of(
                 new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 1", List.of(), t, null)),
                 new TdsResult(TdsResult.Shape.RELATION, List.of(), new Sql("select 2", List.of(),
-                        new Target(bare.database(), bare.session(), List.of(other), null, null), null)))));
+                        new Target(bare.database(), bare.session(), List.of(other), null, null, null), null)))));
         IllegalStateException differ = assertThrows(IllegalStateException.class, () -> PlanJson.write(clash));
         assertTrue(differ.getMessage().contains("two loads of one identity differ"), differ.getMessage());
     }

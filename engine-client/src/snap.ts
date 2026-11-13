@@ -33,7 +33,7 @@
 // its cube behaviour on top): the manager, the stamp it carries, the refusals and the preflight. Where a snap's
 // queries are planned is the app's (DataCube's SnapTarget adds its planner).
 
-import type { HostName, HostOperation, HostOperationsSource, SnapStreamSource } from './host-operations.ts';
+import type { HostName, HostOperation, HostOperationsSource, SnapPull, SnapStreamSource } from './host-operations.ts';
 import type { HostStreams } from './plan-runner.ts';
 import { UI_LOCALE } from './locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
@@ -234,8 +234,11 @@ export class SnapManager implements Snaps {
     const engine = this.#remote ?? this.#localStore();
     const [count] = await this.#statements(engine.databaseType, [{ op: 'count', from: { query: sourceSql } }]);
     const r = await engine.run(count!, epoch, undefined, params);
-    const raw = r.columns[0]?.values[0] ?? 0;
-    const rowCount = typeof raw === 'number' ? raw : Number(raw);
+    const raw = r.rowCount === 1 ? r.columns[0]?.values[0] : undefined;
+    // the count is the database's one value: none, or one that is no count, is refused by name -- never read as nothing
+    // to copy (G7; the orchestrator's item 4, 2026-11-12: `?? 0` copied on as if the rows were none)
+    const rowCount = raw === null || raw === undefined ? Number.NaN : Number(raw);
+    if (!Number.isSafeInteger(rowCount) || rowCount < 0) throw new SnapRefusal(`the snap's count is ${String(raw)}: nothing is copied`);
 
     if (rowCount > MAX_SNAP_ROWS) {
       return {
@@ -265,6 +268,9 @@ export class SnapManager implements Snaps {
       readonly target: SnapTable;
       /** The values `sourceSql` binds, in order (a plan's data: payloads: plan-params.ts, M3). */
       readonly params?: readonly string[];
+      /** The pull `sourceSql` was planned from (its planner's planRequest): what a remote plane's snap asks the planner
+       *  to plan again in the stream's own plan, never its statement (the user's ruling of 2026-11-12). */
+      readonly pull?: SnapPull;
     },
   ): Promise<SnapInfo> {
     const params = options.params ?? [];
@@ -293,7 +299,9 @@ export class SnapManager implements Snaps {
       if (typeof store.exclusive !== 'function') {
         throw new SnapRefusal('the local store holds no connection a remote plane\u2019s rows stream into, so a remote live plane cannot be snapped');
       }
-      const plan = await host.snapStream({ databaseType: engine.databaseType, plane: REMOTE_PLANE, sql: sourceSql,
+      // the request is the PULL, planned again in this plan for the plane's own database: never the statement it runs
+      if (options.pull === undefined) throw new SnapRefusal('a remote live plane is snapped by its pull, and this snap carries none');
+      const plan = await host.snapStream({ databaseType: engine.databaseType, plane: REMOTE_PLANE, ...options.pull,
         ...(schema ? { schema } : {}), table: bare });
       // the hosts' plan runner, fetched with the first snap of a remote plane (a grid-only page carries none of it)
       const { runLoad } = await import('./plan-runner.ts');
@@ -320,8 +328,14 @@ export class SnapManager implements Snaps {
     try {
       source = await options.target.landed();
     } catch (e) {
-      for (const sql of await this.#statements(engine.databaseType, [{ op: 'drop', kind: 'table', target: table }])) {
-        await engine.run(sql, epoch).catch(() => {});
+      // the copy dropped with it; a drop that fails too is said with the failure, never swallowed (the orchestrator's
+      // item 4, 2026-11-12: the copy was left behind in silence)
+      try {
+        for (const sql of await this.#statements(engine.databaseType, [{ op: 'drop', kind: 'table', target: table }])) {
+          await engine.run(sql, epoch);
+        }
+      } catch (d) {
+        throw new Error(`${e instanceof Error ? e.message : String(e)} -- and dropping the copy ${bare} failed: ${d instanceof Error ? d.message : String(d)}`, { cause: e });
       }
       throw e;
     }
@@ -536,7 +550,9 @@ export class HostSnaps implements Snaps {
    */
   leaving(): void {
     if (this.#state.mode !== 'snapped') return;
-    void this.#target.release(this.#state.snap.table).catch(() => undefined);
+    const { table } = this.#state.snap;
+    // a release that fails is said, even as the page goes -- never swallowed (G7; the orchestrator's ruling, 2026-11-12)
+    void this.#target.release(table).catch((e: unknown) => console.error(`the snap's copy ${table} was not let go:`, e));
   }
 
   /** The grid is gone: the copy it holds let go, and one a snap in flight makes let go once it is made. */

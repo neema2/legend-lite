@@ -35,7 +35,7 @@ BUNDLES = located('HEADLESS_TEST_BUNDLES')
 PRODUCT = located('HEADLESS_BUNDLE').read_text(encoding='utf-8')
 TMP = Path(os.environ['TEST_TMPDIR'])
 
-from legend_lite._headless import KINDS, Headless, InterfaceMismatch, check_interface  # noqa: E402 -- after the library's path
+from legend_lite._headless import KINDS, REFUSED, Headless, InterfaceMismatch, check_interface  # noqa: E402 -- after the library's path
 from legend_lite._library import library  # noqa: E402
 
 # the product host's calls (calls.ts HostCalls): a test's own database is none of them
@@ -59,6 +59,15 @@ class TestHost(Headless):
     def _calls(self):
         return {**super()._calls(), 'testQuery': self._test_query, 'testStatement': self._test_statement,
                 'testRegisterFile': self._test_register_file}
+
+    async def _planner(self, request):
+        """A host operation's texts a test typed itself (test/host/headless.ts `testsOwn`): its fake planner's answers,
+        recorded as the session's planner's before the request is checked (the re-audit's S3). The lane's alone: the
+        product's host reads no such field."""
+        asked = json.loads(request)
+        for text in asked.pop('testsOwn', []):
+            self.answered.record('plan', 'OK\n' + json.dumps({'sql': text}))
+        return await super()._planner(json.dumps(asked))
 
     async def _query(self, sql):
         answered = await super()._query(sql)
@@ -100,7 +109,8 @@ class Host(unittest.TestCase):
     def test_the_bundle_and_the_library_agree_on_every_request_kind(self):
         with Headless(PRODUCT, folder=TMP) as h:
             kinds = h.evaluate('legendLiteHeadless.REQUEST_KINDS')
-        self.assertEqual(sorted(kinds), sorted(KINDS), "the bundle's kinds are the host's table's")
+        # the host's table, and the kinds it refuses by name (REFUSED: the authored door, Studio's alone, 2026-11-12)
+        self.assertEqual(sorted(kinds), sorted([*KINDS, *REFUSED]), "the bundle's kinds are the host's table's and its refusals'")
         for kind, (function, _args) in KINDS.items():
             self.assertTrue(library().exports(function), f'{kind}: the library exports {function}')
 
@@ -168,6 +178,26 @@ class Host(unittest.TestCase):
             self.assertIn("stays in the engine's folder", refused)
             self.assertEqual(h.evaluate("legendLiteHost.testRegisterFile('in.csv', btoa('a\\n1\\n')).then(() => 'written')"), 'written')
         self.assertEqual((TMP / 'files' / 'in.csv').read_text(), 'a\n1\n')
+
+    def test_the_products_host_asks_no_planner_to_paste_a_text_it_did_not_answer(self):
+        # the re-audit's S3 (2026-11-12): a host operation's source query is pasted into the statement the planner
+        # answers, so the product's host refuses one its planner did not answer -- whatever else the request names (the
+        # lane's own `testsOwn` is its TestHost's alone)
+        with Headless(PRODUCT, folder=TMP) as h:
+            said = h.evaluate("(async () => { const w = legendLite.worker();"
+                              " const ask = (m) => new Promise((ok) => { w.onmessage = (e) => ok(e.data); w.postMessage(m); });"
+                              " return ask({ id: 1, kind: 'hostOperations', databaseType: 'DuckDB', testsOwn: ['DROP TABLE t'],"
+                              " operations: JSON.stringify([{ op: 'count', from: { query: 'DROP TABLE t' } }]) }); })()")
+            self.assertFalse(said['ok'])
+            self.assertIn("not a statement this session's planner answered", said['error'])
+
+    def test_the_hosted_codes_http_to_a_sql_api_crosses_the_bridge(self):
+        # the re-audit's S9 (2026-11-12): a fetch whose JSON carries a statement (a warehouse's submit) is refused by
+        # name unless the session's planner answered it -- before any connection is made (the port below is closed)
+        with Headless(PRODUCT, folder=TMP) as h:
+            said = h.evaluate("legendLiteHost.fetch('POST', 'http://127.0.0.1:9/sql/v1/statements',"
+                              " JSON.stringify({ sql: 'DROP TABLE t', catalog: 'c' })).then(() => 'sent', (e) => String(e))")
+            self.assertIn("not a statement this session's planner answered", said)
 
     def test_a_tests_own_database_is_no_call_of_the_products(self):
         # 2026-11-12: the tests' setup SQL is the lane's own host's; the product's host takes only what its planner

@@ -1266,7 +1266,7 @@ class Engine:
         elif not all(isinstance(asked.get(k), str) for k in ('page', 'mine', 'theirs')):
             return _said(400, shape)
         if (op not in ('sides', 'together') and 'how' not in asked) \
-                or (op == 'cube' and not isinstance(asked.get('sheet', 0), (str, type(None)))):
+                or (op == 'cube' and not (asked.get('sheet', 0) is None or isinstance(asked.get('sheet', 0), str))):
             return _said(400, shape)
         if self._headless is None:
             return _said(404, 'this engine makes no join: legend-lite makes one with DataCube\'s own code, headless, '
@@ -1467,7 +1467,10 @@ class Engine:
         pulled_by: dict[str, Any] = {'plane': 'warehouse'}
 
         def land(connection: Any, target: dict[str, Any]) -> int:
-            snap = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'sql': plan.sql,
+            # the pull, planned again by the planner in the stream's own plan (the user's ruling of 2026-11-12): the
+            # request carries no statement
+            snap = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', 'model': table.held.model,
+                                         'runtime': table.runtime, 'lambda': asked['pull'],
                                          **({'schema': target['schema']} if 'schema' in target else {}),
                                          'table': target['name']})
             (made,) = run_host_load(snap, connection, planes={'warehouse': table.warehouse}).landed

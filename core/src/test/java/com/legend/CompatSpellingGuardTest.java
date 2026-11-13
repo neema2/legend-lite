@@ -110,7 +110,6 @@ class CompatSpellingGuardTest {
             "exec/PlanParameters.java | Missing external parameter(s) | 1 | D1.6",
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
-            "exec/ProgramRunner.java | traceComment | 1 | D1.4",
             "exec/PlanRunner.java | traceComment | 1 | D1.4",
             "executionplan/ExecutionPlan.java | executionTraceID | 1 | D1.4",
             "executionplan/ExecutionPlan.java | traceComment | 1 | D1.4",
@@ -204,7 +203,9 @@ class CompatSpellingGuardTest {
             "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | D1.7",
             "sql/dialect/FloatCanonText.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | D1.2",
-            "sql/dialect/H2.java | ENGINE_LEXICON | 2 | D1.5",
+            // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
+            // engine's list once more to derive H2's own keywords; the same D1.5 move takes it)
+            "sql/dialect/H2.java | ENGINE_LEXICON | 3 | D1.5",
             "sql/dialect/H2.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/H2.java | FLOAT_PRINT | 1 | D1.2",
             "sql/dialect/MariaDb.java | FLOAT_CANON | 1 | JUDGE",

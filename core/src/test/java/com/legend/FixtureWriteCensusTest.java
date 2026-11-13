@@ -68,8 +68,13 @@ class FixtureWriteCensusTest {
      *  database's own binary); the table and its rows are its CSV. 909 -> 912 (2026-11-12, the C checkpoint's MUST-FIX
      *  1): a session's statements take a PlannedSql, a test's own text typed by {@code Unplanned.sql}, which this census
      *  counts as a send (CatalogTurnFailureTest's 6 kept); ProgramRunnerTest's savepoint stand-ins, three INSERTs a
-     *  {@code Savepoint} record held as strings this census did not see, are counted now (3). */
-    private static final int CEILING = 912;
+     *  {@code Savepoint} record held as strings this census did not see, are counted now (3). 912 -> 917 (2026-11-12,
+     *  the third re-audit's MUST-FIX 2): a DECLARED H2 database is the user's, made by its user -- its table and rows
+     *  written by the test as the user would, which no plan may do (DatabaseSettingsH2Test, 2: the point is that lite
+     *  leaves it as it found it); and H2's own keywords as columns on a bare session, which no model can declare and no
+     *  plan's load may write bare (H2KeywordsTest, 3). 917 -> 918 (2026-11-12, the same item's Cypher store, located by the
+     *  D worker): its property tables' row, written by the dialect's own spelling on a bare session (H2KeywordsTest, 1). */
+    private static final int CEILING = 918;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -83,6 +88,9 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java", 6),
             Map.entry("core/src/test/java/com/legend/exec/ContainsOverloadTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/DataLoadsTest.java", 6),
+            // 2026-11-12, the third re-audit's MUST-FIX 2: a declared database's own table, made by its user (the
+            // ceiling's note)
+            Map.entry("core/src/test/java/com/legend/exec/DatabaseSettingsH2Test.java", 2),
             // 2026-11-12, the C checkpoint's MUST-FIX 1: the savepoint's three stand-in texts, typed by Unplanned.sql
             Map.entry("core/src/test/java/com/legend/exec/ProgramRunnerTest.java", 3),
             // 2026-11-11, the B2a audit's S3: a user's table of a session table's name (the ceiling's note)
@@ -181,6 +189,9 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogGridTest.java", 3),
             Map.entry("core/src/test/java/com/legend/sql/dialect/CatalogModelTest.java", 2),
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2FirstInGroupTest.java", 2),
+            // 2026-11-12, the third re-audit's MUST-FIX 2(c): H2's keywords as columns on a bare session (the ceiling's
+            // note)
+            Map.entry("core/src/test/java/com/legend/sql/dialect/H2KeywordsTest.java", 4),
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2SplitPartTest.java", 2),
             Map.entry("core/src/test/java/com/legend/sql/dialect/HostOperationsTest.java", 3),
             Map.entry("core/src/test/java/com/legend/sql/dialect/SqlWriterTest.java", 2),

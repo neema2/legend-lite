@@ -1446,10 +1446,8 @@ class JavaEvalLedgerTest {
                     "TestRunner.java", "BodyRun.java", "Appeals.java", "SqlTextRuns.java",
                     "HostJudgments.java", "AssertRuns.java", "AssertErrorRuns.java", "DatabaseVerdicts.java",
                     "SideShapes.java", "HostSideShapes.java", "AgreementArm.java", "AgreementRuns.java", "TestRun.java",
-                    // 2026-11-12, the execution id as upstream: a test plan with the executions its door minted for
-                    // one run (the run's id, one per execute()), handed to the runner -- data, no logic; the runner binds
-                    // them and makes none
-                    "MintedPlan.java",
+                    // (MintedPlan.java, the executions a door minted for one run, went 2026-11-12 with the user's ruling:
+                    // one execution id per plan run)
                     "package-info.java");
 
 
@@ -1468,10 +1466,8 @@ class JavaEvalLedgerTest {
                     // beside the product's -- a body planned by the test planner, its plan run by the test runner; it
                     // holds no logic (theDoorsHoldNoLogic; ArchitectureTest.theDoorsOnlyCompose)
                     "TestExecution.java",
-                    // 2026-11-12, the execution id as upstream (the user's ruling: "this needs to go in C"): the test
-                    // door's mint -- the run's id and one per execution its plan declares, a loop the door's one
-                    // statement cannot hold (ArchitectureTest.theDoorsOnlyCompose admits its one call); no planning, no run
-                    "ExecutionIds.java",
+                    // (ExecutionIds.java, the test door's mint of one id per execute(), went 2026-11-12 with the user's
+                    // ruling: one execution id per plan run -- the door mints the run's id itself)
                     "package-info.java");
 
     /** THE PLANNER'S MACHINERY, closed (step C, D73, 2026-10-30): a typed query to its plan -- the plan maker, the

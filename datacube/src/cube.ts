@@ -8,7 +8,8 @@
 // throws the refusal. What it keeps is the query side's own: the runners,
 // the guard, and the plane (engine-client's snap.ts).
 
-import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
+import type { HostOperationsSource, SnapPull } from '../../engine-client/src/host-operations.ts';
+import type { PlanText } from '../../engine-client/src/planned-sql.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
@@ -128,7 +129,7 @@ export interface Planner {
   parse(text: string, signal?: AbortSignal): Promise<Lambda>;
   /** A program that writes planned as an execution plan, PlanJson's text (an Output into a table: table-output.ts);
    *  absent where the planner plans none (a host that runs a grid's rows itself). */
-  executionPlan?(program: Lambda, signal?: AbortSignal): Promise<string>;
+  executionPlan?(program: Lambda, signal?: AbortSignal): Promise<PlanText>;
   /** A query as Pure text, for a person to read: E4, the compiler's print (PRETTY unless asked). */
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
   /**
@@ -139,6 +140,9 @@ export interface Planner {
   /** Where its queries are planned from: its model and the runtime they run on -- what a class made of its rows reads
    *  its source from (model-writer.ts). */
   source?(): GridSource;
+  /** A query as the pull a snapshot's stream asks the planner to plan where its rows are (LitePlanner's; the user's
+   *  ruling of 2026-11-12: the request carries the pull, never SQL); absent where the planner gives none. */
+  pullRequest?(query: Lambda): Promise<SnapPull>;
 }
 
 export interface CubeView {
@@ -782,6 +786,8 @@ export class CubeController {
     // the PULL is the live plan: it runs where the rows are, in that database's SQL
     const pulled = await this.#livePlanner.plan(query);
     const sourceSql = pulled.sql;
+    // and the pull itself, which a remote plane's snap asks the planner to plan again in its stream's plan
+    const pull = await this.#livePlanner.pullRequest?.(query);
 
     // a copy of its own: modelled as it holds the rows once they land, and planned by its own planner from then on
     const copy = target.copy();
@@ -791,6 +797,7 @@ export class CubeController {
         ...(label !== undefined ? { label } : {}),
         // the values the live plan binds (a data: payload: M3), carried into each statement that reads it
         ...(pulled.params !== undefined ? { params: pulled.params } : {}),
+        ...(pull !== undefined ? { pull } : {}),
         target: {
           table: copy.table,
           landed: async () => {

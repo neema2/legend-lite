@@ -149,7 +149,9 @@ class NamedAndAttached(unittest.TestCase):
             once = ll.Frames().register('streamed', streamed(df))
         self.assertEqual(len(ran), 2)
         for plan in ran:
-            self.assertNotIn('SENTINEL_7f3a', json.dumps(plan), 'no row of the frame is in its plan')
+            self.assertNotIn('SENTINEL_7f3a', plan, 'no row of the frame is in its plan')
+        # each the plan the planner answered, as its text (the re-audit's M1)
+        ran = [json.loads(plan) for plan in ran]
         attach = [s for s in ran[0]['root']['steps'] if s['_type'] == 'attach']
         self.assertEqual(attach, [{'_type': 'attach', 'held': 'trades', 'as': '__legend_lite_trades', 'reach': 'CONNECTION'}])
         self.assertEqual([s['_type'] for s in ran[1]['root']['steps']], ['attach', 'statement', 'statement'])

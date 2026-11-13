@@ -301,6 +301,28 @@ _DUCKDB_USERS = [
 _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
+    # the brand's casts, read by TypeScript's own checker (the re-audit's S5, 2026-11-12): the three programs' sources and
+    # their configs, the pinned compiler's API, and the planted violators with their own config
+    "brand-casts": [
+        "package.json",
+        "tsconfig.json",
+        "test/brand-casts.ts",
+        "test/fixtures/brand-casts/planted.ts",
+        "test/fixtures/brand-casts/tsconfig.json",
+        # every product source of the package, which the census reads (its imports are none of them)
+        ":src",
+        ":node_modules/typescript",
+        "//depot-client:depot_client",
+        "//engine-client:engine_client",
+        "//engine-client:typescript_sources",
+        # (legend-art, Studio's and Query's icons: theirs, carried by //query:src and //studio:src)
+        "//model-changes:model_changes",
+        "//pure-protocol:typescript_sources",
+        "//query:src",
+        "//query-store:typescript_sources",
+        "//sdlc-client:sdlc_client",
+        "//studio:src",
+    ],
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
     # the demo's model, whose TRADES the sample's plan fills (src/sample-trades.ts, SYNTHESIZE)
     "sample-trades": ["demo/trades.pure"],
@@ -813,6 +835,8 @@ typescript.tsc_test(
         ":node_modules/@types/node",
         ":node_modules/jsdom",
         ":node_modules/playwright",
+        # the pinned compiler's own API, which test/brand-casts.ts reads the brand's casts with (the re-audit's S5)
+        ":node_modules/typescript",
     ],
 )
 

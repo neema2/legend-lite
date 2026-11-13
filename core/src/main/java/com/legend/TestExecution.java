@@ -22,11 +22,10 @@ import com.legend.testplan.TestPlanner;
  * them -- no logic, no state ({@code ArchitectureTest.theDoorsOnlyCompose}). Its own library
  * ({@code //core:test_execution}): the product's door ({@link Execution}) carries none of the test's machinery.
  *
- * <p>EACH CALL IS A RUN, AND EACH {@code execute()} OF ITS BODY AN EXECUTION (the user's rulings of 2026-11-12, "Do the
- * exec id as part of C" and "this needs to go in C that was the whole point of C"): the door mints the run's id and one
- * per execution its plan declares ({@link ExecutionIds#minted}: as upstream mints a GUID per interpreted execute) and
- * hands them to exec, which binds each to the stamps that read it and tells the run's to the listener, and makes no
- * value of its own ({@code ArchitectureTest.execMakesNoValueOfItsOwn}). No caller supplies an id.
+ * <p>EACH CALL IS ONE EXECUTION (a body run, or a fixture run; the user's ruling of 2026-11-12, "Do the exec id as part
+ * of C"): the door mints its id ({@code java.util.UUID.randomUUID}) and hands it to exec, which binds it to the
+ * statements' stamps and tells it to the listener, and makes no value of its own
+ * ({@code ArchitectureTest.execMakesNoValueOfItsOwn}). No caller supplies an id.
  */
 public final class TestExecution {
 
@@ -45,8 +44,8 @@ public final class TestExecution {
     public static void runProgram(TypedQuery typed, @Nullable String runtimeFqn, SessionSource sessions,
             @Nullable AssertListener listener, @Nullable SqlReplayReferee referee, ExecuteOptions options,
             @Nullable Output answer) {
-        TestRunner.runOpening(ExecutionIds.minted(TestPlanner.plan(typed, runtimeFqn, options.planning())), sessions,
-                options.stores(), options.edge(), listener, referee, answer);
+        TestRunner.runOpening(TestPlanner.plan(typed, runtimeFqn, options.planning()), sessions,
+                options.stores(), options.edge(), listener, referee, answer, java.util.UUID.randomUUID());
     }
 
     /** {@link #runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee, ExecuteOptions, Output)}
@@ -68,14 +67,14 @@ public final class TestExecution {
      *  {@code referee}; the last statement's answer, where wanted, streamed to {@code answer} (a format and a stream, or the caller's receiver: data, 2026-11-09). */
     public static void runBody(TestPlan plan, Sessions.Session session, @Nullable AssertListener listener,
             @Nullable SqlReplayReferee referee, ExecuteOptions options, @Nullable Output answer) {
-        TestRunner.run(ExecutionIds.minted(plan), session, options.stores(), options.edge(), listener, referee, answer,
-                StatementOrigin.OTHER);
+        TestRunner.run(plan, session, options.stores(), options.edge(), listener, referee, answer,
+                StatementOrigin.OTHER, java.util.UUID.randomUUID());
     }
 
     /** A fixture's {@code plan} (a package's setup, planned by {@link #planBody}) run on {@code session}, its
      *  statements counted as seeding (the census's SEED). */
     public static void runFixture(TestPlan plan, Sessions.Session session, ExecuteOptions options) {
-        TestRunner.run(ExecutionIds.minted(plan), session, options.stores(), options.edge(), null, null, null,
-                StatementOrigin.SEED);
+        TestRunner.run(plan, session, options.stores(), options.edge(), null, null, null, StatementOrigin.SEED,
+                java.util.UUID.randomUUID());
     }
 }

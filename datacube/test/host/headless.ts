@@ -44,9 +44,31 @@ function testCalls(): TestHostCalls {
   return calls as TestHostCalls;
 }
 
+/**
+ * A host operation's own texts that the test typed (`unplanned`): what a test's fake planner answered, named on the
+ * request as `testsOwn` (the re-audit's S3, 2026-11-12: the product's bridge refuses a host operation whose source query
+ * or select list no planner of the session answered; in the lane a test's stub stands in for that planner, so the lane's
+ * host -- run.py TestHost, never the product's -- records them as answered first).
+ */
+function withTestsOwn(request: string): string {
+  const asked: unknown = JSON.parse(request);
+  if (typeof asked !== 'object' || asked === null || (asked as { kind?: unknown }).kind !== 'hostOperations') return request;
+  const operations = (asked as { operations?: unknown }).operations;
+  const ops: unknown = typeof operations === 'string' ? JSON.parse(operations) : [];
+  const own: string[] = [];
+  for (const op of Array.isArray(ops) ? ops : []) {
+    const o = op as { from?: { query?: unknown }; selectList?: unknown; replacing?: readonly { sql?: unknown }[] };
+    for (const text of [o.from?.query, o.selectList, ...(o.replacing ?? []).map((r) => r.sql)]) {
+      if (typeof text === 'string' && isTestsOwn(text)) own.push(text);
+    }
+  }
+  return own.length === 0 ? request : JSON.stringify({ ...asked, testsOwn: own });
+}
+
 /** What a test's LitePlanner is given beside its model: a worker of the host's. */
 export function plannerOptions(): Pick<LitePlannerOptions, 'assetBaseUrl' | 'worker'> {
-  return { worker: () => hostWorker(hostCalls()) };
+  const calls = hostCalls();
+  return { worker: () => hostWorker({ ...calls, planner: (request: string) => calls.planner(withTestsOwn(request)) }) };
 }
 
 /** The host's database, as the lane's runner lends it to a test. One per host: a test's tables share it, as DuckDB-WASM's
