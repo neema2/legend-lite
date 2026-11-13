@@ -381,6 +381,41 @@ class KnowledgeLayerTest {
         assertEquals(dec, infer.apply(5), "min over one: its own");
     }
 
+    /** S376 (2026-11-13, the names landings, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 32): a view column whose
+     * operation reads a column or a table its database does not have is refused in the engine's words, as the engine
+     * refuses it when the database compiles (HelperRelationalBuilder.getColumn :160-165, getRelation :284-293), the
+     * plain column mapping's and a nested reference alike (a column found nowhere was {@code Any[0..1]}); an aggregate
+     * is typed at any arity as the engine's inferRelationalType types it (it was recognized at one argument only). */
+    @Test
+    @DisplayName("kernel: a view reading a column its database has not is refused; an aggregate at any arity")
+    void aViewReadingAMissingColumnIsRefusedAndAnAggregateIsTypedAtAnyArity() {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database a::Db (
+                  Table T (ID INTEGER PRIMARY KEY, S VARCHAR(10))
+                  View V1 (X: T.NOPE)
+                  View V2 (X: concat(T.S, T.NOPE))
+                  View V3 (X: U.ID)
+                  View V4 (C0: count(), C2: count(T.ID, T.S), M2: max(T.ID, T.ID), A2: average(T.ID, T.ID))
+                )
+                """)));
+        java.util.function.Function<String, String> signature = name -> {
+            try {
+                return com.legend.compiler.element.ViewSignatures.of(ix, "a::Db",
+                        ix.findView("a::Db", name).orElseThrow()).columns().stream()
+                        .map(com.legend.compiler.element.type.Type.Column::text)
+                        .collect(java.util.stream.Collectors.joining(", "));
+            } catch (com.legend.error.ModelException e) {
+                return "REFUSED " + e.getMessage();
+            }
+        };
+        assertTrue(signature.apply("V1").endsWith("Can't find column 'NOPE'"), signature.apply("V1"));
+        assertTrue(signature.apply("V2").endsWith("Can't find column 'NOPE'"), signature.apply("V2"));
+        assertTrue(signature.apply("V3").endsWith("Can't find table 'U' in schema 'default' and database 'Db'"),
+                signature.apply("V3"));
+        assertEquals("C0:Integer[1], C2:Integer[1], M2:Integer[0..1], A2:Float[1]", signature.apply("V4"));
+    }
+
     /** The names fixes, item 10 (2026-11-13, ruling 28): a concatenation with an operand typed other than CHAR or
      * VARCHAR has no type -- the engine's one concat rule asks every typed operand to be one -- and an operand with no
      * type drops out. It summed the string operands' sizes and skipped the rest ({@code concat(INT, 'ab')} was
