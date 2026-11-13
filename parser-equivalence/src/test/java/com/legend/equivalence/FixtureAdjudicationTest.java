@@ -150,7 +150,13 @@ class FixtureAdjudicationTest {
                     // IQ island, 2026-10-14 (REVIEWED): the #IQ{...}#
                     // island (1), a declared lite extension upstream has no
                     // parser for (OWN_CORPUS_DECISIONS §14)
-                    "Can'X'IQ' available ones: [GQL,SQL,>,TDS]");
+                    "Can'X'IQ' available ones: [GQL,SQL,>,TDS]",
+                    // the TIMESTAMP_NS column type, 2026-11-13 (REVIEWED, the
+                    // final audit's item 2; docs/SEMANTICS_REGISTER.md S64):
+                    // a declared lite ###Relational grammar extension the
+                    // engine's column types lack (1: TestDataRoutesTest's
+                    // nanosecond key)
+                    "Unsupported column data type 'X'");
 
     /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
      *  line-positional, so exact ids would tax unrelated edits). */
