@@ -223,10 +223,12 @@ public class Postgres extends AnsiSqlRenderer {
         return "ROLLBACK";
     }
 
-    /** {@inheritDoc} Written beside this dialect ({@code PostgresHostOperations}). */
+    /** {@inheritDoc} None written: each refused by name. Its one, a planner's query counted (Snap's preflight on a
+     *  warehouse whose catalog is Postgres), went with {@code HostOperation.Source.Query} (the final audit, 2026-11-12,
+     *  the user's ruling): a count is a Pure query's plan, planned for the warehouse's own runtime. */
     @Override
     public HostOperations hostOperations() {
-        return PostgresHostOperations.INSTANCE;
+        return new HostOperations.Refused("Postgres");
     }
 
     /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then

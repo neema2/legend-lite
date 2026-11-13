@@ -76,18 +76,23 @@ class PlannedSqlTest {
             "engine-client/src/plan-runner.ts", 21,
             // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
             // 2026-11-12, 8 -> 14 (the re-audit's M1): its five plan answers (fileLoad, remoteMount, snapStream,
-            // synthesize, authored) typed as read, and the mint's import
-            "engine-client/src/legend/wasm-grammar.ts", 14,
+            // synthesize, authored) typed as read, and the mint's import; 14 -> 15 (the final audit's item 1(b),
+            // 2026-11-12): a snapshot's copy's plan (snapCopy) typed as read
+            "engine-client/src/legend/wasm-grammar.ts", 15,
             // 2026-11-12, 8 -> 9 (the C final audit's H2): DataCube's table model's copy select list, typed as its answer
             // is read, since a host operation's selectList takes a PlannedSql alone
             // 2026-11-12, 9 -> 15 (M1): its five plan answers (executionPlan, fileLoad, remoteMount, snapStream, synthesize)
-            // typed as read, and the mint's import
-            "datacube/src/lite-planner.ts", 15,
+            // typed as read, and the mint's import; 15 -> 16 (the final audit's items 1 and 2, 2026-11-12): the copy
+            // select list's typing gone with it (a host operation takes no SQL: convert), a snapshot's copy's plan
+            // (snapCopy) and a table Output's (outputPlan) typed as read
+            "datacube/src/lite-planner.ts", 16,
             "datacube/src/planner.ts", 2,
             // the definitions themselves, and the mints' own test
             // 2026-11-12, 7 -> 9 (M1): planFromAnswer defined, and the project database's load typed by it
             "engine-client/src/planned-sql.ts", 9,
-            "engine-client/test/planned-sql.test.ts", 5);
+            // 2026-11-12, 5 -> 8 (the final audit's item 1): the type test's host operation carrying a planner's own
+            // statement (a query, a select list, a replacement), each refused by the type
+            "engine-client/test/planned-sql.test.ts", 8);
             // (studio/src/backend/run.ts, the SQL playground's notPlanned and its import: gone 2026-11-12 with
             // notPlanned; the plan runner's runAuthored types the playground's statement, its count one more)
 
@@ -401,8 +406,149 @@ class PlannedSqlTest {
                 .filter(f -> !f.startsWith(PLANTED_CASTS)).toList();
     }
 
+    /** Each file read once: a census runs twice in {@link #bites} (the tree, then a violator planted on it). */
+    private static final Map<String, String> READ = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * Each per-file scan a census makes, kept by its input: a census runs once over the tree in its own @Test, then
+     * again over the tree with one violator planted on it for each of its {@link #bites} -- so the tree's files are
+     * scanned once, the plant alone afresh (2026-11-13: the bites ran every census over every file again, 18 s of the
+     * guard's 27 here, and the guard timed out at its 60 s on Windows' CI, gates run 43380062329). A key is the scan's
+     * name and its inputs (a file's text is the one String {@link #READ} holds, so a repeat lookup compares it by
+     * identity); a value is never changed after it is kept.
+     */
+    private static final Map<List<Object>, Object> SCANNED = new java.util.concurrent.ConcurrentHashMap<>();
+
+    @SuppressWarnings("unchecked")
+    private static <T> T scanned(java.util.function.Supplier<T> scan, Object... key) {
+        List<Object> k = List.of(key);
+        Object kept = SCANNED.get(k);
+        if (kept == null) {
+            kept = scan.get();
+            SCANNED.put(k, kept);
+        }
+        return (T) kept;
+    }
+
+    /** Whether {@code p} is found in {@code text}, scanned once per text. */
+    private static boolean finds(Pattern p, String text) {
+        return scanned(() -> p.matcher(text).find(), "finds", p, text);
+    }
+
+    /** {@code code} with each import and export statement blanked to spaces (offsets kept), once per text. */
+    private static String blankModules(String code) {
+        return scanned(() -> MODULE_STATEMENT.matcher(code).replaceAll(r -> " ".repeat(r.group().length())), "blank", code);
+    }
+
     private static String read(String file) throws IOException {
-        return Files.readString(Runfile.of("_main/" + file), StandardCharsets.UTF_8);
+        try {
+            return READ.computeIfAbsent(file, f -> {
+                try {
+                    return Files.readString(Runfile.of("_main/" + f), StandardCharsets.UTF_8);
+                } catch (IOException e) {
+                    throw new java.io.UncheckedIOException(e);
+                }
+            });
+        } catch (java.io.UncheckedIOException e) {
+            throw e.getCause();
+        }
+    }
+
+    /**
+     * The sources a census reads: the tree's (its inventory, each file as Bazel's runfiles hold it), and any file
+     * {@code planted} on top of it -- a violator the census's own pinned comparison must FAIL on (check 6, the final
+     * audit's item 5, 2026-11-12: a census that only "sees" a planted form proves its detector, not that its pin
+     * refuses it).
+     */
+    record Sources(Map<String, String> planted) {
+        static final Sources TREE = new Sources(Map.of());
+
+        static Sources planting(String file, String text) {
+            return new Sources(Map.of(file, text));
+        }
+
+        List<String> inventory() throws IOException {
+            List<String> out = new ArrayList<>(PlannedSqlTest.inventory());
+            out.addAll(new TreeSet<>(planted.keySet()));
+            return out;
+        }
+
+        String read(String file) throws IOException {
+            String text = planted.get(file);
+            return text != null ? text : PlannedSqlTest.read(file);
+        }
+    }
+
+    /** A census run over {@link Sources}. */
+    interface Census {
+        void run(Sources s) throws IOException;
+    }
+
+    /** A violator planted in the product's TypeScript: a path under a product folder no file of the tree has. */
+    static final String PLANTED_VIOLATOR = "datacube/src/planted-violator.ts";
+
+    /**
+     * {@code census}'s pinned comparison FAILS over the tree with {@code text} planted at {@link #PLANTED_VIOLATOR},
+     * naming it (check 6): never merely that its detector sees the form.
+     */
+    static void bites(String what, Census census, String text) throws IOException {
+        // the tree alone passes each census: its own @Test runs it (a red one fails there, and its failure here names no
+        // planted file)
+        Throwable failed = null;
+        try {
+            census.run(Sources.planting(PLANTED_VIOLATOR, text));
+        } catch (AssertionError e) {
+            failed = e;
+        }
+        if (failed == null) {
+            throw new AssertionError(what + ": its pinned comparison passed over a planted violator: " + text);
+        }
+        if (failed.getMessage() == null || !failed.getMessage().contains(PLANTED_VIOLATOR)) {
+            throw new AssertionError(what + ": failed over the planted violator without naming it: " + failed.getMessage(),
+                    failed);
+        }
+    }
+
+    /** CHECK 6 (the final audit's item 5, 2026-11-12): every census's pinned comparison fails on an actual violation. */
+    @Test
+    void everyCensusFailsOnAPlantedViolator() throws IOException {
+        String mint = "import { fromPlan } from '../../engine-client/src/planned-sql.ts';\n";
+        bites("the mint census", PlannedSqlTest::everyUseOfAMintIsCounted_andNoNewEscapeFromTheTypeSystem,
+                mint + "export const sql = fromPlan(text);");
+        bites("the escape census", PlannedSqlTest::everyUseOfAMintIsCounted_andNoNewEscapeFromTheTypeSystem,
+                "export const sql = text as never;");
+        bites("the authored census", PlannedSqlTest::theAuthoredDoorIsReachedFromThePlaygroundAndItsPlumbingAlone,
+                "export const plan = await grammar.authored('DuckDB', text);");
+        bites("the import census", PlannedSqlTest::thePlannedStatementIsMadeOnlyWhereAPlanIsRead,
+                mint + "export const sql = fromPlan(text);");
+        bites("the cast census", PlannedSqlTest::thePlannedStatementIsMadeOnlyWhereAPlanIsRead,
+                "import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';\n"
+                        + "export const sql = text as PlannedSql;");
+        bites("the playground census", PlannedSqlTest::thePlaygroundSendsAPlansStatement_reachedFromThePlaygroundAlone,
+                "export const send = context.playground;");
+        bites("the brand alias census", PlannedSqlTest::theBrandIsNeverSatisfiedByAnotherName,
+                "import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';\n"
+                        + "export type Statement = PlannedSql;");
+        bites("the holder cast census", PlannedSqlTest::theBrandIsNeverSatisfiedByAnotherName,
+                "export const plan = JSON.parse(text) as Plan;");
+        bites("the unknown cast census", PlannedSqlTest::theBrandIsNeverSatisfiedByAnotherName,
+                "export const when = text as unknown as Date;");
+        bites("the send census", PlannedSqlTest::everyTransportHasOneChokePoint,
+                "export const rows = await connection.query(text);");
+        bites("the connect census", PlannedSqlTest::everyTransportHasOneChokePoint,
+                "export const connection = await db.connect();");
+        bites("the fetch census", PlannedSqlTest::everyTransportHasOneChokePoint,
+                "export const sent = await fetch('https://warehouse.example/api/2.0/sql/statements', { method: 'POST' });");
+        bites("the submit census", PlannedSqlTest::everyTransportHasOneChokePoint,
+                "export const sent = await this.call('submit', { statement: text });");
+        bites("the runner census", PlannedSqlTest::thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered,
+                "import { runPlan } from '../../engine-client/src/plan-runner.ts';\n"
+                        + "export const answer = await runPlan(plan, session);");
+        bites("the plan format census", PlannedSqlTest::thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered,
+                "export const plan = JSON.stringify({ format: 'legend-lite-plan', root: {} });");
+        bites("the any census", PlannedSqlTest::noAnyInTheProduct, "export let value: any = text;");
+        bites("the tests' statement census", PlannedSqlTest::noProductSourceReachesTheTestsOwnStatement,
+                "import { unplanned } from '../test/unplanned.ts';\nexport const sql = unplanned(text);");
     }
 
     private static boolean under(String file, List<String> folders) {
@@ -416,6 +562,13 @@ class PlannedSqlTest {
     }
 
     static Imports imports(String src) {
+        return scanned(() -> {
+            Imports found = importsOf(src);
+            return new Imports(java.util.Collections.unmodifiableSet(new TreeSet<>(found.values())), List.copyOf(found.refused()));
+        }, "imports", src);
+    }
+
+    private static Imports importsOf(String src) {
         Set<String> values = new TreeSet<>();
         List<String> refused = new ArrayList<>();
         Set<Integer> paths = new TreeSet<>();
@@ -479,6 +632,10 @@ class PlannedSqlTest {
 
     /** Each {@code notPlanned(} call's first argument: a literal's text, or the expression, marked. */
     static List<String> notPlannedReasons(String src) {
+        return scanned(() -> List.copyOf(notPlannedReasonsOf(src)), "notPlanned", src);
+    }
+
+    private static List<String> notPlannedReasonsOf(String src) {
         List<String> reasons = new ArrayList<>();
         Matcher m = NOT_PLANNED_CALL.matcher(src);
         while (m.find()) {
@@ -510,6 +667,10 @@ class PlannedSqlTest {
 
     /** {@link #code(String)}, its strings' text kept where {@code strings}: comments alone blanked. */
     static String code(String src, boolean strings) {
+        return scanned(() -> codeOf(src, strings), "code", strings, src);
+    }
+
+    private static String codeOf(String src, boolean strings) {
         StringBuilder out = new StringBuilder(src.length());
         java.util.ArrayDeque<int[]> templates = new java.util.ArrayDeque<>();   // each open ${, its brace depth
         int i = 0;
@@ -582,6 +743,10 @@ class PlannedSqlTest {
     }
 
     private static int count(Pattern p, String text) {
+        return scanned(() -> countOf(p, text), "count", p, text);
+    }
+
+    private static int countOf(Pattern p, String text) {
         int found = 0;
         Matcher m = p.matcher(text);
         while (m.find()) {
@@ -592,22 +757,26 @@ class PlannedSqlTest {
 
     @Test
     void everyUseOfAMintIsCounted_andNoNewEscapeFromTheTypeSystem() throws IOException {
+        everyUseOfAMintIsCounted_andNoNewEscapeFromTheTypeSystem(Sources.TREE);
+    }
+
+    static void everyUseOfAMintIsCounted_andNoNewEscapeFromTheTypeSystem(Sources s) throws IOException {
         List<String> product = folders().get("typescript");
         List<String> read = new ArrayList<>(product);
         read.addAll(TESTS);
         Map<String, Integer> references = new TreeMap<>();
         Map<String, Integer> escapes = new TreeMap<>();
-        for (String file : inventory()) {
+        for (String file : s.inventory()) {
             if (!file.matches(".*\\.(?:[cm]?ts|tsx)$") || !under(file, read)) {
                 continue;
             }
-            String code = code(read(file));
+            String code = code(s.read(file));
             int refs = count(MINT_IDENTIFIER, code);
             if (refs > 0) {
                 references.put(file, refs);
             }
             if (under(file, product)) {
-                int e = count(ESCAPE, code) + count(SUPPRESSION, read(file));
+                int e = count(ESCAPE, code) + count(SUPPRESSION, s.read(file));
                 if (e > 0) {
                     escapes.put(file, e);
                 }
@@ -641,19 +810,23 @@ class PlannedSqlTest {
 
     @Test
     void theAuthoredDoorIsReachedFromThePlaygroundAndItsPlumbingAlone() throws IOException {
+        theAuthoredDoorIsReachedFromThePlaygroundAndItsPlumbingAlone(Sources.TREE);
+    }
+
+    static void theAuthoredDoorIsReachedFromThePlaygroundAndItsPlumbingAlone(Sources s) throws IOException {
         List<String> product = folders().get("typescript");
         List<String> read = new ArrayList<>(product);
         read.addAll(TESTS);
         Map<String, Integer> found = new TreeMap<>();
         Map<String, Integer> java = new TreeMap<>();
-        for (String file : inventory()) {
+        for (String file : s.inventory()) {
             if (file.matches(".*\\.(?:[cm]?ts|tsx|[cm]?js)$") && under(file, read)) {
-                int refs = authoredReferences(read(file));
+                int refs = authoredReferences(s.read(file));
                 if (refs > 0) {
                     found.put(file, refs);
                 }
             } else if (file.endsWith(".java") && under(file, JAVA_PRODUCT)) {
-                int refs = count(AUTHORED_JAVA_REFERENCE, code(read(file)));
+                int refs = count(AUTHORED_JAVA_REFERENCE, code(s.read(file)));
                 if (refs > 0) {
                     java.put(file, refs);
                 }
@@ -700,17 +873,21 @@ class PlannedSqlTest {
 
     @Test
     void thePlannedStatementIsMadeOnlyWhereAPlanIsRead() throws IOException {
+        thePlannedStatementIsMadeOnlyWhereAPlanIsRead(Sources.TREE);
+    }
+
+    static void thePlannedStatementIsMadeOnlyWhereAPlanIsRead(Sources s) throws IOException {
         List<String> product = folders().get("typescript");
         List<String> read = new ArrayList<>(product);
         read.addAll(TESTS);
-        List<String> ts = inventory().stream().filter(f -> f.matches(".*\\.(?:[cm]?ts|tsx|[cm]?js)$"))
+        List<String> ts = s.inventory().stream().filter(f -> f.matches(".*\\.(?:[cm]?ts|tsx|[cm]?js)$"))
                 .filter(f -> under(f, read)).toList();
         assertTrue(ts.size() > 500, "the guard read too few .ts files to prove anything: " + ts.size());
         for (String folder : TESTS) {
             assertTrue(ts.stream().anyMatch(f -> f.startsWith(folder + "/")), folder + " holds no .ts: a folder moved");
         }
         String own = "engine-client/src/planned-sql.ts";
-        assertTrue(read(own).contains("unique symbol"),
+        assertTrue(s.read(own).contains("unique symbol"),
                 "PlannedSql is a branded string (planned-sql.ts): a plain string is not one");
         Map<String, Set<String>> productImports = new TreeMap<>();
         Map<String, Set<String>> testImports = new TreeMap<>();
@@ -721,13 +898,13 @@ class PlannedSqlTest {
             if (file.equals(own)) {
                 continue;
             }
-            String src = read(file);
+            String src = s.read(file);
             Imports im = imports(src);
             im.refused().forEach(r -> refused.add(file + ": " + r));
             if (!im.values().isEmpty()) {
                 (under(file, product) ? productImports : testImports).put(file, im.values());
             }
-            if (!CASTS.contains(file) && CAST.matcher(src).find()) {
+            if (!CASTS.contains(file) && finds(CAST, src)) {
                 casts.add(file);
             }
             for (String reason : notPlannedReasons(src)) {
@@ -778,7 +955,11 @@ class PlannedSqlTest {
 
     @Test
     void thePlaygroundSendsAPlansStatement_reachedFromThePlaygroundAlone() throws IOException {
-        String backend = read(PLAYGROUND);
+        thePlaygroundSendsAPlansStatement_reachedFromThePlaygroundAlone(Sources.TREE);
+    }
+
+    static void thePlaygroundSendsAPlansStatement_reachedFromThePlaygroundAlone(Sources s) throws IOException {
+        String backend = s.read(PLAYGROUND);
         int factory = backend.indexOf("export function playground(session: RunSession): Playground {");
         int runner = backend.indexOf("export function runner(session: RunSession): Runner {");
         assertTrue(factory >= 0 && runner > factory, "run.ts's playground() and runner() moved: " + PLAYGROUND);
@@ -797,24 +978,16 @@ class PlannedSqlTest {
         List<String> product = folders().get("typescript");
         Map<String, Set<String>> imports = new TreeMap<>();
         Map<String, List<String>> reads = new TreeMap<>();
-        for (String file : inventory()) {
+        for (String file : s.inventory()) {
             if (!file.endsWith(".ts") || !under(file, product) || file.equals(PLAYGROUND)) {
                 continue;
             }
-            String src = read(file);
-            Matcher i = RUN_TS_IMPORT.matcher(src);
-            while (i.find()) {
-                for (String spec : i.group(2).split(",")) {
-                    String name = spec.strip().replaceFirst("^type\\s+", "").replaceFirst("\\s+as\\s+.*", "");
-                    if (name.equalsIgnoreCase("playground")) {
-                        imports.computeIfAbsent(file, k -> new TreeSet<>()).add(name);
-                    }
-                }
+            List<List<String>> uses = playgroundUses(s.read(file));
+            if (!uses.get(0).isEmpty()) {
+                imports.put(file, new TreeSet<>(uses.get(0)));
             }
-            Matcher r = PLAYGROUND_READ.matcher(src);
-            while (r.find()) {
-                reads.computeIfAbsent(file, k -> new ArrayList<>())
-                        .add(src.substring(r.start(), Math.min(src.length(), r.start() + 40)).replaceAll("\\s+", " "));
+            if (!uses.get(1).isEmpty()) {
+                reads.put(file, uses.get(1));
             }
         }
         assertEquals(new TreeMap<>(PLAYGROUND_IMPORTS), imports, "the playground is made by the app and typed by the"
@@ -822,8 +995,31 @@ class PlannedSqlTest {
         assertEquals(Map.of("studio/src/ui/editor.ts", List.of(".playground.sql(sqlText.value, ws.model(")), reads,
                 "the editor's context's playground is read once, by the SQL playground's run of its own text, and never"
                         + " destructured or passed on");
-        assertTrue(read("studio/src/app/app.ts").split("\\bplayground\\(session\\)", -1).length == 2,
+        assertTrue(s.read("studio/src/app/app.ts").split("\\bplayground\\(session\\)", -1).length == 2,
                 "the app makes the playground once");
+    }
+
+    /** {@code src}'s playground: the names it imports from run.ts that are the playground, and each read of a
+     *  {@code playground} member (its first 40 characters), once per text. */
+    private static List<List<String>> playgroundUses(String src) {
+        return scanned(() -> {
+            List<String> named = new ArrayList<>();
+            Matcher i = RUN_TS_IMPORT.matcher(src);
+            while (i.find()) {
+                for (String spec : i.group(2).split(",")) {
+                    String name = spec.strip().replaceFirst("^type\\s+", "").replaceFirst("\\s+as\\s+.*", "");
+                    if (name.equalsIgnoreCase("playground")) {
+                        named.add(name);
+                    }
+                }
+            }
+            List<String> read = new ArrayList<>();
+            Matcher r = PLAYGROUND_READ.matcher(src);
+            while (r.find()) {
+                read.add(src.substring(r.start(), Math.min(src.length(), r.start() + 40)).replaceAll("\\s+", " "));
+            }
+            return List.of(List.copyOf(named), List.copyOf(read));
+        }, "playground", src);
     }
 
     /** Each type the TypeScript declares that holds the brand in a property, by name (H5): a fixed point over every
@@ -832,6 +1028,34 @@ class PlannedSqlTest {
         Map<String, List<String>> braced = new TreeMap<>();
         Map<String, List<String>> aliased = new TreeMap<>();
         for (String s : codes) {
+            List<Map<String, List<String>>> declared = declarations(s);
+            declared.get(0).forEach((k, v) -> braced.computeIfAbsent(k, x -> new ArrayList<>()).addAll(v));
+            declared.get(1).forEach((k, v) -> aliased.computeIfAbsent(k, x -> new ArrayList<>()).addAll(v));
+        }
+        Set<String> holders = new TreeSet<>(Set.of("PlannedSql"));
+        for (boolean changed = true; changed; ) {
+            changed = false;
+            Pattern token = Pattern.compile("(?<![\\w$])(?:" + String.join("|", holders) + ")(?![\\w$])");
+            for (Map<String, List<String>> kind : List.of(braced, aliased)) {
+                for (Map.Entry<String, List<String>> e : kind.entrySet()) {
+                    boolean alias = kind == aliased;
+                    if (!holders.contains(e.getKey()) && e.getValue().stream().anyMatch(b -> scanned(
+                            () -> holds(b, alias, token), "holds", b, alias, token.pattern()))) {
+                        holders.add(e.getKey());
+                        changed = true;
+                    }
+                }
+            }
+        }
+        return holders;
+    }
+
+    /** {@code s}'s declarations, once per text: its interfaces' and classes' bodies (braced) and its type aliases'
+     *  (aliased), each by its name. */
+    private static List<Map<String, List<String>>> declarations(String s) {
+        return scanned(() -> {
+            Map<String, List<String>> braced = new TreeMap<>();
+            Map<String, List<String>> aliased = new TreeMap<>();
             Matcher m = DECLARATION.matcher(s);
             while (m.find()) {
                 boolean isBraced = m.group(1) != null;
@@ -853,22 +1077,12 @@ class PlannedSqlTest {
                 (isBraced ? braced : aliased).computeIfAbsent(isBraced ? m.group(1) : m.group(2), k -> new ArrayList<>())
                         .add(s.substring(m.end(), Math.min(j, s.length())));
             }
-        }
-        Set<String> holders = new TreeSet<>(Set.of("PlannedSql"));
-        for (boolean changed = true; changed; ) {
-            changed = false;
-            Pattern token = Pattern.compile("(?<![\\w$])(?:" + String.join("|", holders) + ")(?![\\w$])");
-            for (Map<String, List<String>> kind : List.of(braced, aliased)) {
-                for (Map.Entry<String, List<String>> e : kind.entrySet()) {
-                    if (!holders.contains(e.getKey())
-                            && e.getValue().stream().anyMatch(b -> holds(b, kind == aliased, token))) {
-                        holders.add(e.getKey());
-                        changed = true;
-                    }
-                }
-            }
-        }
-        return holders;
+            Map<String, List<String>> b = new TreeMap<>();
+            braced.forEach((k, v) -> b.put(k, List.copyOf(v)));
+            Map<String, List<String>> a = new TreeMap<>();
+            aliased.forEach((k, v) -> a.put(k, List.copyOf(v)));
+            return List.of(java.util.Collections.unmodifiableMap(b), java.util.Collections.unmodifiableMap(a));
+        }, "declarations", s);
     }
 
     /** A body holds the brand when a property's type names a holder (never a method's, never a function's, never a
@@ -961,6 +1175,11 @@ class PlannedSqlTest {
 
     /** {@code code}'s casts to a holder, each as its text (what a failure names). */
     static List<String> holderCastTexts(String code, Set<String> holders) {
+        List<String> named = List.copyOf(new TreeSet<>(holders));
+        return scanned(() -> List.copyOf(holderCastTextsOf(code, named)), "holderCasts", code, named);
+    }
+
+    private static List<String> holderCastTextsOf(String code, List<String> holders) {
         Set<String> records = new TreeSet<>(holders);
         records.remove("PlannedSql");
         List<String> found = new ArrayList<>();
@@ -968,7 +1187,7 @@ class PlannedSqlTest {
             return found;
         }
         Pattern token = Pattern.compile("(?<![\\w$])(?:" + String.join("|", records) + ")(?![\\w$])");
-        String s = MODULE_STATEMENT.matcher(code).replaceAll(r -> " ".repeat(r.group().length()));
+        String s = blankModules(code);
         Matcher m = AS.matcher(s);
         while (m.find()) {
             String type = typeAt(s, m.end(), ";,=\n?:");
@@ -988,19 +1207,25 @@ class PlannedSqlTest {
 
     @Test
     void theBrandIsNeverSatisfiedByAnotherName() throws IOException {
+        theBrandIsNeverSatisfiedByAnotherName(Sources.TREE);
+    }
+
+    static void theBrandIsNeverSatisfiedByAnotherName(Sources s) throws IOException {
         List<String> product = folders().get("typescript");
         List<String> read = new ArrayList<>(product);
         read.addAll(TESTS);
         Map<String, String> codes = new TreeMap<>();
-        for (String file : inventory()) {
+        for (String file : s.inventory()) {
             if (file.matches(".*\\.(?:[cm]?ts|tsx)$") && under(file, read)) {
-                codes.put(file, code(read(file)));
+                codes.put(file, code(s.read(file)));
             }
         }
         Set<String> holders = brandHolders(new ArrayList<>(codes.values()));
         // 2026-11-12 (the user's ruling, "that is a real off platform problem"): SnapStreamRequest holds no statement
-        // any more -- it carries the pull, which the planner plans in the call -- so it left this list
-        for (String record : List.of("Plan", "HostOperation", "HostSource", "InferredModel", "ExecutePlan")) {
+        // any more -- it carries the pull, which the planner plans in the call -- so it left this list; and (the final
+        // audit's item 1, 2026-11-12) HostOperation, HostSource and InferredModel hold none: a host operation takes no
+        // SQL and a model carries no copy select list (convert)
+        for (String record : List.of("Plan", "ExecutePlan")) {
             assertTrue(holders.contains(record), record + " holds a plan's statement, and the census does not see it");
         }
         Map<String, Integer> unknownCasts = new TreeMap<>();
@@ -1009,7 +1234,7 @@ class PlannedSqlTest {
         List<String> aliases = new ArrayList<>();
         for (Map.Entry<String, String> e : codes.entrySet()) {
             String file = e.getKey();
-            if (!file.equals("engine-client/src/planned-sql.ts") && BRAND_ALIAS.matcher(e.getValue()).find()) {
+            if (!file.equals("engine-client/src/planned-sql.ts") && finds(BRAND_ALIAS, e.getValue())) {
                 aliases.add(file);
             }
             if (under(file, product)) {
@@ -1056,6 +1281,10 @@ class PlannedSqlTest {
     /** Each match of {@code p} in {@code code} as its call site (S10): the receiver chain before it and the match,
      *  spaces dropped -- so one call is not swapped for another under a file's count. */
     static List<String> sites(Pattern p, String code) {
+        return scanned(() -> List.copyOf(sitesOf(p, code)), "sites", p, code);
+    }
+
+    private static List<String> sitesOf(Pattern p, String code) {
         List<String> out = new ArrayList<>();
         Matcher m = p.matcher(code);
         while (m.find()) {
@@ -1070,6 +1299,10 @@ class PlannedSqlTest {
 
     /** Each fetch of {@code code} (its strings kept) as its call site: {@code fetch(} and its first argument, cut short. */
     static List<String> fetchSites(String code) {
+        return scanned(() -> List.copyOf(fetchSitesOf(code)), "fetchSites", code);
+    }
+
+    private static List<String> fetchSitesOf(String code) {
         List<String> out = new ArrayList<>();
         Matcher m = FETCH_CALL.matcher(code);
         while (m.find()) {
@@ -1094,24 +1327,28 @@ class PlannedSqlTest {
 
     @Test
     void everyTransportHasOneChokePoint() throws IOException {
+        everyTransportHasOneChokePoint(Sources.TREE);
+    }
+
+    static void everyTransportHasOneChokePoint(Sources s) throws IOException {
         List<String> product = folders().get("typescript");
         Map<String, List<String>> sends = new TreeMap<>();
         Map<String, List<String>> connects = new TreeMap<>();
         Map<String, List<String>> fetches = new TreeMap<>();
         Map<String, List<String>> submits = new TreeMap<>();
         List<String> otherHttp = new ArrayList<>();
-        for (String file : inventory()) {
+        for (String file : s.inventory()) {
             // the product's TypeScript and the JavaScript beside it (S10: the harnesses' .mjs were not read)
             if (!file.matches(".*\\.(?:[cm]?ts|tsx|[cm]?js)$") || file.endsWith(".d.ts") || !under(file, product)) {
                 continue;
             }
-            String src = read(file);
+            String src = s.read(file);
             String code = code(src);
             put(sends, file, databaseSendSites(src));
             put(connects, file, sites(CONNECT_CALL, code));
             put(fetches, file, fetchSites(code(src, true)));
             put(submits, file, sites(SUBMIT_CALL, code(src, true)));
-            if (OTHER_HTTP.matcher(code).find() && !OTHER_HTTP_KEPT.contains(file)) {
+            if (finds(OTHER_HTTP, code) && !OTHER_HTTP_KEPT.contains(file)) {
                 otherHttp.add(file);
             }
         }
@@ -1145,7 +1382,9 @@ class PlannedSqlTest {
             Map.entry("datacube/src/upload.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),
-            Map.entry("engine-client/src/snap.ts", List.of("runLoad(")),
+            // 2026-11-12 (the final audit's item 1(b)): a snapshot's local copy, its plan the planner's of the pull
+            // (snapCopy)
+            Map.entry("engine-client/src/snap.ts", List.of("runLoad(", "runPlan(")),
             Map.entry("query/demo/main.ts", List.of("runLoad(")),
             Map.entry("studio/src/backend/run.ts", List.of("runAuthored(")));
     // 2026-11-12 (M1, measured): the runner's own read of a plan's format (planned-sql.ts names it in prose alone)
@@ -1153,22 +1392,26 @@ class PlannedSqlTest {
 
     @Test
     void thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered() throws IOException {
+        thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered(Sources.TREE);
+    }
+
+    static void thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered(Sources s) throws IOException {
         List<String> product = folders().get("typescript");
         Map<String, List<String>> calls = new TreeMap<>();
         List<String> handedOn = new ArrayList<>();
         Set<String> formats = new TreeSet<>();
-        for (String file : inventory()) {
+        for (String file : s.inventory()) {
             if (!file.matches(".*\\.(?:[cm]?ts|tsx|[cm]?js)$") || file.endsWith(".d.ts") || !under(file, product)) {
                 continue;
             }
-            String src = read(file);
-            if (PLAN_FORMAT.matcher(code(src, true)).find()) {
+            String src = s.read(file);
+            if (finds(PLAN_FORMAT, code(src, true))) {
                 formats.add(file);
             }
             if (file.equals("engine-client/src/plan-runner.ts")) {
                 continue;
             }
-            String body = MODULE_STATEMENT.matcher(code(src)).replaceAll(r -> " ".repeat(r.group().length()));
+            String body = blankModules(code(src));
             List<String> found = sites(RUNNER_CALL, body);
             put(calls, file, found);
             if (runnerReferences(body) != found.size()) {
@@ -1190,11 +1433,15 @@ class PlannedSqlTest {
      */
     @Test
     void noAnyInTheProduct() throws IOException {
+        noAnyInTheProduct(Sources.TREE);
+    }
+
+    static void noAnyInTheProduct(Sources s) throws IOException {
         List<String> product = folders().get("typescript");
         Map<String, Integer> found = new TreeMap<>();
-        for (String file : inventory()) {
+        for (String file : s.inventory()) {
             if (file.matches(".*\\.(?:[cm]?ts|tsx)$") && !file.endsWith(".d.ts") && under(file, product)) {
-                int n = count(ANY, code(read(file)));
+                int n = count(ANY, code(s.read(file)));
                 if (n > 0) {
                     found.put(file, n);
                 }
@@ -1213,6 +1460,10 @@ class PlannedSqlTest {
 
     /** {@code body}'s references to a runner (M1), less the names a destructuring pattern binds (a lazy import's). */
     static int runnerReferences(String body) {
+        return scanned(() -> runnerReferencesOf(body), "runnerReferences", body);
+    }
+
+    private static int runnerReferencesOf(String body) {
         int bound = 0;
         Matcher d = DESTRUCTURED.matcher(body);
         while (d.find()) {
@@ -1285,10 +1536,14 @@ class PlannedSqlTest {
 
     @Test
     void noProductSourceReachesTheTestsOwnStatement() throws IOException {
+        noProductSourceReachesTheTestsOwnStatement(Sources.TREE);
+    }
+
+    static void noProductSourceReachesTheTestsOwnStatement(Sources s) throws IOException {
         List<String> product = folders().get("typescript");
         List<String> found = new ArrayList<>();
-        for (String file : inventory()) {
-            if (file.endsWith(".ts") && under(file, product) && UNPLANNED_IMPORT.matcher(read(file)).find()) {
+        for (String file : s.inventory()) {
+            if (file.endsWith(".ts") && under(file, product) && UNPLANNED_IMPORT.matcher(s.read(file)).find()) {
                 found.add(file);
             }
         }

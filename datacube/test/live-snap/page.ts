@@ -24,7 +24,7 @@
 import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
-import { SnapManager } from '../../../engine-client/src/snap.ts';
+import { countQuery, SnapManager } from '../../../engine-client/src/snap.ts';
 import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import {
   listObjects,
@@ -176,11 +176,10 @@ async function run(): Promise<void> {
       }
     }
     // SNAP: exactly the rows the reader may read, through the real SnapManager
-    const sourceSql = (await planner.plan(from(SOURCE).select(COLUMNS).lambda())).sql;
-    // the pull it was planned from: what the stream's request carries, never the statement (the user's ruling of 2026-11-12)
+    // the pull: what the stream's request carries, never the statement (the user's ruling of 2026-11-12)
     const pull = await planner.pullRequest(from(SOURCE).select(COLUMNS).lambda());
     const snaps = new SnapManager(local, live, planner);
-    const info = await snaps.snap(sourceSql, 0, { pull, target: { table: 'TRADES', landed: async () => SOURCE } });
+    const info = await snaps.snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'TRADES', landed: async () => SOURCE } });
     equal(info.rowCount, 10, 'the snap holds every row the reader may read:');
     const refused: string[] = [];
     const differ: string[] = [];
@@ -221,8 +220,8 @@ async function run(): Promise<void> {
     const liveOut = await new PlanThenRun(own, live).run(pure, snapshot);
     const snaps = new SnapManager(local, live, planner);
     const pulled = from(m.source).select(COLUMNS).lambda();
-    await snaps.snap((await own.plan(pulled)).sql, 0,
-      { pull: await own.pullRequest(pulled), target: { schema: trades.schema, table: trades.name, landed: async () => m.source } });
+    await snaps.snap(0,
+      { pull: await own.pullRequest(pulled), count: await own.plan(countQuery(pulled)), target: { schema: trades.schema, table: trades.name, landed: async () => m.source } });
     const localOut = await new PlanThenRun(own, local).run(pure, snapshot);
     equal(shape(localOut.rows, true), shape(liveOut.rows, true), 'live and snapped:');
     equal(liveOut.rows.rowCount, 4, 'groups:');
@@ -236,7 +235,7 @@ async function run(): Promise<void> {
     // the pull it was planned from: what the stream's request carries, never the statement (the user's ruling of 2026-11-12)
     const pull = await planner.pullRequest(from(SOURCE).select(COLUMNS).lambda());
     const snaps = new SnapManager(local, live, planner);
-    const info = await snaps.snap(sourceSql, 0, { pull, target: { table: 'EXACT', landed: async () => SOURCE } });
+    const info = await snaps.snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'EXACT', landed: async () => SOURCE } });
     equal(info.rowCount, 10, 'the rows the copy holds, as its database counted them:');
     equal(info.pulledBy?.serverRows, 10, 'the warehouse\'s own count:');
     // every column's type as the warehouse's table declares it, every row as the warehouse answered it
@@ -264,7 +263,7 @@ async function run(): Promise<void> {
         }
       },
     };
-    await rejects(new SnapManager(local, tampered, planner).snap(sourceSql, 0, { pull, target: { table: 'TAMPERED', landed: async () => SOURCE } }),
+    await rejects(new SnapManager(local, tampered, planner).snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'TAMPERED', landed: async () => SOURCE } }),
       /landed 20 rows in TAMPERED, where its plane counted 10: nothing of it is kept/);
     const cut = {
       databaseType: live.databaseType,
@@ -276,7 +275,7 @@ async function run(): Promise<void> {
         }
       },
     };
-    await rejects(new SnapManager(local, cut, planner).snap(sourceSql, 0, { pull, target: { table: 'CUT', landed: async () => SOURCE } }),
+    await rejects(new SnapManager(local, cut, planner).snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'CUT', landed: async () => SOURCE } }),
       /the connection was reset/);
     const left = await local.run(unplanned("SELECT count(*) AS n FROM duckdb_tables() WHERE table_name IN ('TAMPERED', 'CUT')"), 0);
     equal(Number(left.columns[0]!.values[0]), 0, 'no table left by a stream rolled back:');
@@ -299,11 +298,10 @@ async function run(): Promise<void> {
     match(await r.check!(), new RegExp(`^On the warehouse's record for rita: statement ${r.statementId}, succeeded`));
     // an id the server never issued is not on its record
     match(await live.check('00000000-0000-0000-0000-000000000000'), /^Not on the warehouse's record for rita/);
-    const sourceSql = (await planner.plan(from(SOURCE).select(COLUMNS).lambda())).sql;
-    // the pull it was planned from: what the stream's request carries, never the statement (the user's ruling of 2026-11-12)
+    // the pull: what the stream's request carries, never the statement (the user's ruling of 2026-11-12)
     const pull = await planner.pullRequest(from(SOURCE).select(COLUMNS).lambda());
     const snaps = new SnapManager(local, live, planner);
-    const info = await snaps.snap(sourceSql, 0, { pull, target: { table: 'TRADES', landed: async () => SOURCE } });
+    const info = await snaps.snap(0, { pull, count: await planner.plan(countQuery(from(SOURCE).select(COLUMNS).lambda())), target: { table: 'TRADES', landed: async () => SOURCE } });
     equal(info.pulledBy?.as, 'rita');
     match(await info.pulledBy!.check!(), /^On the warehouse's record for rita/);
     // snapped, the tab's own engine answers, and its receipt says so

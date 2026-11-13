@@ -3212,6 +3212,8 @@ public class SQLite extends AnsiSqlRenderer {
                     + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            // (a host's copy: refused by the base, every host copying into its own DuckDB)
+            case com.legend.sql.SqlDml.CreateTableAs ct -> super.render(ct);
             // (the store writes: refused by the base until SQLite's spelling is measured)
             case com.legend.sql.SqlDml.InsertSelect is -> super.render(is);
             case com.legend.sql.SqlDml.Update u -> super.render(u);

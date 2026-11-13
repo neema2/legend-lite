@@ -118,6 +118,22 @@ class PureV1ApiTest {
         assertEquals("COMPILATION", Json.parseObject(type.json()).getString("errorType"));
     }
 
+    /** The server's product door refuses an {@code executeInDb}'s read by name (2026-11-13, the user's ruling (a) on the
+     *  orchestrator's item 5: a statement's own SQL text is the test road's; QueryDoorTest pins every planning door):
+     *  generatePlan answers the refusal, never a plan carrying the text. */
+    @Test
+    void generatePlanRefusesAnExecuteInDbsReadByName() {
+        String raw = com.legend.edge.PureV1Routes.grammarToJsonLambda("{|let c = ^meta::external::store::relational::runtime"
+                + "::TestDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2);\n"
+                + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).columnNames;}", false).json();
+        PureV1Api.Answer plan = com.legend.edge.PureV1Routes.generatePlan("{\"clientVersion\":\"vX_X_X\",\"function\":" + raw
+                + ",\"model\":" + textModel() + ",\"runtime\":{\"runtime\":\"trades::h2::RT\"},"
+                + "\"context\":{\"_type\":\"BaseExecutionContext\"}}");
+        assertTrue(plan.status() != 200, plan.json());
+        assertTrue(plan.json().contains("an executeInDb\\u0027s SQL in a query") || plan.json().contains(
+                "an executeInDb's SQL in a query"), plan.json());
+    }
+
     @Test
     void e5_lambdaRelationType_isTheEnginesAnswer() throws IOException {
         String request = "{\"model\":" + textModel() + ",\"lambda\":" + lambda + "}";

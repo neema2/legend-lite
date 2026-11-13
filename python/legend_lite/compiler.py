@@ -14,7 +14,7 @@ from typing import Any
 
 from . import _json
 from ._library import library
-from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer, require
+from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_answer
 
 Tree = dict[str, Any]
 
@@ -89,15 +89,21 @@ def plan_params(plan: Any) -> tuple[str, ...]:
 
 
 def statement_params(statement: dict[str, Any]) -> tuple[str, ...]:
-    """The values ``statement``'s slots bind (``plan_params``' rule), in its placeholders' order."""
-    content = statement.get('content') or {}
+    """The values ``statement``'s slots bind (``plan_params``' rule), in its placeholders' order. What the planner always
+    writes is required, never defaulted (G7; the final audit, 2026-11-12, plan-params.ts's twin): a statement with no
+    slots, and a payload its statement does not carry (no digest, no content), each refused by name."""
+    if 'slots' not in statement:
+        raise PlanParamsRefused("this plan's statement does not carry its slots")
+    content = statement.get('content')
     out = []
-    for slot in statement.get('slots') or []:
+    for slot in statement['slots']:
         kind = slot['binding'].get('_type')
         if kind != 'payload':
             what = {'key': "a key's cell", 'source': "a file source's path", 'array': 'a list'}.get(kind, 'a value the run supplies')
             raise PlanParamsRefused(f"'{slot['parameter']}' binds {what}, which a host running the plan's text does not bind")
-        digest = slot['binding'].get('digest', '')
+        digest = slot['binding'].get('digest')
+        if digest is None or content is None:
+            raise PlanParamsRefused(f"'{slot['parameter']}' binds a payload its statement does not carry")
         text = content.get(digest)
         if text is None:
             raise PlanParamsRefused(f"the plan's statement binds the payload {digest}, which its content does not carry")
@@ -257,13 +263,8 @@ def table_model(table: dict[str, Any]) -> dict[str, Any]:
     in one place): each package's Database declaring its tables as each one's own model does, one connection, and a
     runtime binding every Database to it. Returns ``{"model", "runtime", "tables": [{"source", "accessor",
     "conversions", "excluded"}]}``, the tables in the order given; a table given twice is refused.
-
-    ``copySelectList`` is the planner's own text, typed as its answer is read (a PlannedSql: the C final audit's H2,
-    2026-11-12): what a host operation's ``selectList`` takes, and nothing else does."""
-    answered = _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
-    if 'copySelectList' in answered:
-        answered['copySelectList'] = from_plan(answered['copySelectList'])
-    return answered
+"""
+    return _json.loads(_answer(library().call('lite_table_model', _json.dumps(table))))
 
 
 def catalog_columns_sql(schema: str, table: str) -> PlannedSql:
@@ -281,24 +282,12 @@ def session_setup(database_type: str) -> list[PlannedSql]:
 def host_operations(database_type: str, operations: list[dict[str, Any]]) -> list[list[PlannedSql]]:
     """A host's named operations on its own database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5):
     each operation's statements, in order -- what Python's host runs instead of spelling SQL (engine-client's
-    host-operations.ts writes the same operations). One the database has not is refused by name. An operation's planner
-    text -- a source ``query``, a ``selectList``, a ``replacing`` expression -- is a PlannedSql, made where its plan or
-    the planner's answer was read (the C final audit's H2, 2026-11-12: until then any text was taken, and the platform
-    pasted it into the statement); any other text is refused by name before the planner is asked."""
-    for op in operations:
-        _planned_texts(op)
+    host-operations.ts writes the same operations). One the database has not is refused by name, and so is one carrying
+    SQL -- a source ``query``, a ``selectList``, a ``replacing`` expression -- by the platform (the final audit's item 1,
+    2026-11-12: a host operation takes no SQL; a copy's conversions are the platform's, from its columns' catalog,
+    ``convert``)."""
     answered = _json.loads(_answer(library().call('lite_host_operations', database_type, _json.dumps(operations))))
     return [all_from_plan(statements) for statements in answered]
-
-
-def _planned_texts(op: dict[str, Any]) -> None:
-    source = op.get('from')
-    if isinstance(source, dict) and 'query' in source:
-        require(source['query'], f"a host operation's ({op.get('op')}) source query")
-    if 'selectList' in op:
-        require(op['selectList'], f"a host operation's ({op.get('op')}) select list")
-    for replaced in op.get('replacing') or []:
-        require(replaced.get('sql'), f"a host operation's ({op.get('op')}) replacement of {replaced.get('column')}")
 
 
 def snap_stream(request: dict[str, Any]) -> PlanText:
@@ -311,6 +300,15 @@ def snap_stream(request: dict[str, Any]) -> PlanText:
     whose stream step ``projects.run_host_load`` runs in one transaction."""
     # the plan as the planner answered it (the re-audit's M1): what run_host_load takes, and nothing else does
     return plan_from_answer(_answer(library().call('lite_snap_stream', _json.dumps(request))))
+
+
+def snap_copy(request: dict[str, Any]) -> PlanText:
+    """A SNAPSHOT'S LOCAL COPY, as a plan (the native library's Boundary.snapCopy; the final audit's item 1(b),
+    2026-11-12): ``request`` is ``{"databaseType", "model", "runtime", "lambda", "schema"?, "table"}`` -- the PULL, which
+    the planner plans in this call, and the table it is copied into; never SQL (any other key is refused by name). The
+    plan: one write -- the table there before dropped, the table made from the pull, its data: payloads bound by digest
+    -- in its target's transaction, which ``projects.run_write`` runs."""
+    return plan_from_answer(_answer(library().call('lite_snap_copy', _json.dumps(request))))
 
 
 def frame_load(request: dict[str, Any]) -> PlanText:

@@ -615,8 +615,21 @@ class Remote(unittest.TestCase):
         pq.write_table(pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': [1, 2, 3]}), f'{cls.folder.name}/trades.parquet')
         Path(cls.folder.name, 'desks.csv').write_text('desk,head\nFX,Ana\nEQ,Ben\n')
         class Quiet(http.server.SimpleHTTPRequestHandler):
+            # the files a test marked gone (a link that no longer answers): 404, the file left where it is -- deleting it
+            # raced the server's own handle on Windows (the closing audit's item 8, 2026-11-13)
+            gone: set[str] = set()
+
+            def send_head(self):
+                import posixpath
+                import urllib.parse
+                if posixpath.basename(urllib.parse.urlsplit(self.path).path) in Quiet.gone:
+                    self.send_error(404, 'gone')
+                    return None
+                return super().send_head()
+
             def log_message(self, *_):
                 pass
+        cls.quiet = Quiet
         handler = functools.partial(Quiet, directory=cls.folder.name)
         cls.server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
         threading.Thread(target=cls.server.serve_forever, daemon=True).start()
@@ -722,8 +735,10 @@ class Remote(unittest.TestCase):
         self.assertEqual(answer.status, 200, answer.body[:300])
         with self.frames.reading() as read:
             self.assertEqual(read.execute(PlannedSql('SELECT count(*) FROM remote_expiring')).fetchone()[0], 3)
-        # the link no longer answers: the read fails, in DuckDB's words, without the token
-        (served / 'expiring.parquet').unlink()
+        # the link no longer answers: the read fails, in DuckDB's words, without the token (the server answers 404 for it:
+        # the file left in place, never deleted from under the server's handle)
+        self.quiet.gone.add('expiring.parquet')
+        self.addCleanup(self.quiet.gone.discard, 'expiring.parquet')
         with self.frames.reading() as read:
             with self.assertRaises(duckdb.Error) as failed:
                 read.execute(PlannedSql('SELECT count(*) FROM remote_expiring')).fetchone()
@@ -1169,6 +1184,77 @@ class OneRowsPath(unittest.TestCase):
                 grid.view()
             self.assertEqual(engine.version('trades_noted'), before, 'no change said of a frame that did not change')
 
+
+
+class V8Started(unittest.TestCase):
+    """V8 started once for the process, before its first engine, with no memory protection keys (_headless._V8_FLAGS;
+    2026-11-13: on a host whose CPU and kernel offer PKU -- ubuntu-24.04 20261111.127.1 on GitHub's Linux runners -- V8
+    keyed its code pages to the thread that started it, and an engine made on a thread started before segfaulted making
+    its context: OneRead's, a notebook's, the warehouse snap's second engine). Each case runs in a process of its own,
+    whose V8 nothing has started yet."""
+
+    def run_alone(self, body: str) -> 'subprocess.CompletedProcess[str]':
+        import subprocess
+        import sys
+        import textwrap
+        env = dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in sys.path if p))
+        return subprocess.run([sys.executable, '-X', 'faulthandler', '-c', textwrap.dedent(body)], env=env,
+                              capture_output=True, text=True, timeout=300)
+
+    def test_v8_is_started_by_the_engine_with_no_memory_protection_keys(self):
+        ran = self.run_alone("""
+            import json
+            import py_mini_racer
+            seen, real = [], py_mini_racer.init_mini_racer
+            def spy(**kw):
+                seen.append(list(kw.get('flags', ())))
+                return real(**kw)
+            py_mini_racer.init_mini_racer = spy
+            from legend_lite.frames import Frames
+            from legend_lite._headless import Headless, bundle
+            with Headless(bundle(), connection=Frames().connection) as h:
+                print(json.dumps({'seen': seen, 'two': h.evaluate('1 + 1')}))
+        """)
+        self.assertEqual(ran.returncode, 0, ran.stderr[-2000:])
+        self.assertEqual(json.loads(ran.stdout.strip().splitlines()[-1]),
+                         {'seen': [['--single-threaded', '--no-memory-protection-keys']], 'two': 2})
+
+    def test_v8_started_by_other_code_first_is_refused_in_words(self):
+        ran = self.run_alone("""
+            from py_mini_racer import MiniRacer
+            MiniRacer().eval('1')
+            from legend_lite.frames import Frames
+            from legend_lite._headless import Headless, bundle
+            try:
+                Headless(bundle(), connection=Frames().connection)
+            except RuntimeError as e:
+                print('refused:', e)
+        """)
+        self.assertEqual(ran.returncode, 0, ran.stderr[-2000:])
+        self.assertIn("refused: V8 was started in this process before DataCube's engine", ran.stdout)
+        self.assertIn('open DataCube first, or restart the Python process', ran.stdout)
+
+    def test_an_engine_made_on_a_thread_started_before_another_engines_starts_its_context(self):
+        # the crash's shape: the first engine starts V8 on its own thread; a thread started before then makes the second
+        # (here a host without PKU passes either way: the Linux warehouse lane's runners are the ones that bit)
+        ran = self.run_alone("""
+            import threading
+            from legend_lite.frames import Frames
+            from legend_lite._headless import Headless, bundle
+            made, go = {}, threading.Event()
+            def second():
+                go.wait(120)
+                made['second'] = Headless(bundle(), connection=Frames().connection)
+            early = threading.Thread(target=second)
+            early.start()
+            first = Headless(bundle(), connection=Frames().connection)
+            go.set()
+            early.join(120)
+            print(first.evaluate('1 + 1'), made['second'].evaluate('2 + 2'))
+            first.close(); made['second'].close()
+        """)
+        self.assertEqual(ran.returncode, 0, ran.stderr[-2000:])
+        self.assertEqual(ran.stdout.strip().splitlines()[-1], '2 4')
 
 if __name__ == '__main__':
     unittest.main()

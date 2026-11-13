@@ -1230,6 +1230,12 @@ class WarehouseOnPython(unittest.TestCase):
         self.count, self.expired, self.principal, self.pulls = 3, False, 'rita', 0
         # a stream tampered (the warehouse counts a row more than it sends) or cut short (its read fails after a chunk)
         self.tampered, self.cut = False, False
+        # a count the warehouse answers with no row (G7: never read as no rows to copy)
+        self.uncounted = False
+        # a slow stream: said when its rows begin, held until let go (the final audit's item 3)
+        self.streaming, self.slow = threading.Event(), None
+        # every statement the warehouse was handed, in order
+        self.asked = []
 
         class Reader:
             def __init__(self, session, catalog='main', clock=None):
@@ -1253,13 +1259,18 @@ class WarehouseOnPython(unittest.TestCase):
                     on_receipt({'statementId': 's1', 'serverRows': 4 if outer.tampered else 3, 'as': self.principal,
                                 'where': 'the warehouse at wh'})
                 outer.pulls += 1
-                rows = (pa.table({'n': pa.array([outer.count], pa.int64())}) if sql.startswith('SELECT count(*)')
+                outer.asked.append(str(sql))
+                rows = (pa.table({'n': pa.array([] if outer.uncounted else [outer.count], pa.int64())})
+                        if 'COUNT(*)' in str(sql).upper()
                         else pa.table({'desk': ['FX', 'EQ', 'FX'], 'qty': pa.array([10, 5, 3], pa.int32())}))
                 sink = pa.BufferOutputStream()
                 with pyarrow.ipc.new_stream(sink, rows.schema) as w:
                     w.write_table(rows)
+                if outer.slow is not None and 'COUNT(*)' not in str(sql).upper():
+                    outer.streaming.set()
+                    outer.slow.wait(60)
                 yield sink.getvalue().to_pybytes()
-                if outer.cut and not sql.startswith('SELECT count(*)'):
+                if outer.cut and 'COUNT(*)' not in str(sql).upper():
                     raise warehouse.WarehouseError('the connection was reset', 'RESET')
 
         def connect(url, user, password):
@@ -1545,6 +1556,67 @@ class WarehouseOnPython(unittest.TestCase):
         status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
         self.assertEqual((status, body.decode()), (422, '10,000,001 rows exceeds the 10,000,000 row snap limit. Narrow the '
                                                           'filter, or stay live.'))
+
+    def test_a_second_read_and_snap_are_served_while_a_slow_warehouse_snap_streams(self):
+        # the final audit's item 3 (2026-11-12): the warehouse snap streamed holding the frames' lock and DataCube's
+        # turn, so a slow warehouse held every read of the frames and every call into DataCube's code meanwhile
+        m = self.opened()
+        frame = self.frames.register('books', pa.table({'title': ['a', 'b'], 'pages': pa.array([10, 20], pa.int64())}))
+        self.slow = threading.Event()
+        snapped: dict = {}
+        streaming = threading.Thread(target=lambda: snapped.update(answer=self.call(
+            {'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')))
+        streaming.start()
+        try:
+            self.assertTrue(self.streaming.wait(60), 'the snap never began streaming')
+            served: dict = {}
+
+            def second():
+                pull = json.dumps(ll.parse('|' + frame.accessor + '->select(~[title, pages])'))
+                served['read'] = self.engine.answer('POST', '/plan-and-run.json', '', json.dumps(
+                    {'lambda': pull, 'model': frame.model, 'runtime': frame.runtime}))
+                served['snap'] = self.call({'op': 'snap', 'model': frame.model, 'runtime': frame.runtime, 'pull': pull},
+                                           '/snap.json')
+
+            reader = threading.Thread(target=second)
+            reader.start()
+            reader.join(60)
+            self.assertFalse(reader.is_alive(), 'a read of the frames waited on the warehouse snap streaming')
+            self.assertEqual(served['read'].status, 200, served['read'].body[:300])
+            status, body = served['snap']
+            self.assertEqual((status, json.loads(body)['rowCount']), (200, 2), body)
+            self.assertTrue(streaming.is_alive(), 'the warehouse snap was still streaming meanwhile')
+            # its name is reserved while it streams: the frame's copy took another
+            self.assertNotEqual(json.loads(body)['table'], 'snap')
+        finally:
+            self.slow.set()
+            streaming.join(60)
+        status, body = snapped['answer']
+        self.assertEqual((status, json.loads(body)['table'], json.loads(body)['rowCount']), (200, 'snap', 3), body)
+
+    def test_a_snaps_count_is_the_planners_plan_of_the_pulls_size(self):
+        # the final audit's item 1 (2026-11-12): the pull's statement was handed back to the planner as a host
+        # operation's query to count; the count is now the planner's own plan of the pull's size()
+        from legend_lite.engine import _count_of
+        m = self.opened()
+        pull = self.query(m)
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': pull}, '/snap.json')
+        self.assertEqual(status, 200, body)
+        counted = ll.plan(m['model'], json.loads(_count_of(pull)), m['runtime'])
+        self.assertEqual(self.asked[0], counted.sql)
+        self.assertIn('COUNT(*)', counted.sql)
+        with self.assertRaises(ValueError) as refused:
+            _count_of(json.dumps({'_type': 'lambda', 'parameters': [], 'body': [{'_type': 'integer', 'value': 1}] * 2}))
+        self.assertEqual(str(refused.exception), "a snap's pull is one expression, not 2")
+
+    def test_a_count_the_warehouse_did_not_answer_copies_nothing(self):
+        # G7 (the final audit's item 4, 2026-11-12): a count of no row was read as 0 rows -- under the limit, copied on
+        m = self.opened()
+        self.uncounted = True
+        status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')
+        self.assertEqual((status, body.decode()), (422, "the snap could not be counted: the warehouse answered 0 row(s), "
+                                                          "not its rows' count"))
+        self.assertEqual(self.pulls, 1, 'the count alone was read: nothing streamed')
 
     def test_an_expired_session_said_as_one(self):
         m = self.opened()

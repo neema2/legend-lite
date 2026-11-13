@@ -1788,12 +1788,43 @@ public final class TestDataPlanner {
         return SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.STRPOS, cell, text), new SqlExpr.IntLit(0));
     }
 
+    /** {@code text}, a request's value for the temporal column {@code col}, CHECKED against {@code shape} -- digits,
+     *  separators and an offset, never a quote -- and refused by name where it is not in it: the checked text, which
+     *  {@link #literal} makes the column type's typed literal, so the dialect writes it as the type keeps it (2026-11-13,
+     *  the user's go to the orchestrator's item 2: until then the text was CAST to TIMESTAMP, which keeps the microsecond
+     *  alone on DuckDB, so a nanosecond key matched the row a microsecond away, or none, and S181's refusal of a lost
+     *  digit was bypassed; a typed literal is written TIMESTAMP_NS where it carries a digit past the microsecond, and is
+     *  refused by name where the database keeps fewer, AnsiSqlRenderer.keptFraction). */
+    private static String iso(String text, java.util.regex.Pattern shape, DatabaseDefinition.ColumnDefinition col,
+            String what) {
+        if (!shape.matcher(text).matches()) {
+            throw new IllegalArgumentException("testDataGen: the value '" + text + "' for the column " + col.name()
+                    + " is no ISO " + what + ": a row identifier's value is refused, never written into a statement");
+        }
+        return text;
+    }
+
     private static SqlExpr replace(SqlExpr s, SqlExpr from, String to) {
         return SqlExpr.Call.of(SqlFn.REPLACE, s, from, new SqlExpr.StringLit(to));
     }
 
-    /** A row identifier's or a join's value as a literal: a string of a DATE or TIMESTAMP column that type's literal,
-     *  a whole number an integer, any other number its exact value. */
+    /** An ISO date ({@code yyyy-MM-dd}). */
+    private static final java.util.regex.Pattern ISO_DATE = java.util.regex.Pattern.compile("\\d{4}-\\d{2}-\\d{2}");
+    /** An ISO date-time: a date, its time to the minute, second or a fraction of up to nine digits, and an offset --
+     *  {@code Z} or {@code +hh[[:]mm]} -- as upstream's seed prints a key ({@code 2020-01-02T03:04:05.123000000+0000}). */
+    private static final java.util.regex.Pattern ISO_DATE_TIME = java.util.regex.Pattern.compile(
+            "\\d{4}-\\d{2}-\\d{2}([ T]\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?)?(Z|[+-]\\d{2}(:?\\d{2})?)?");
+    /** An ISO time ({@code HH:mm[:ss[.f]]}). */
+    private static final java.util.regex.Pattern ISO_TIME = java.util.regex.Pattern.compile(
+            "\\d{2}:\\d{2}(:\\d{2}(\\.\\d{1,9})?)?");
+
+    /** A row identifier's or a join's value as a literal: a string of a DATE, TIMESTAMP or TIME column that text as
+     *  the column type's typed literal, where it is in the type's ISO shape, and refused by name where it is not (the
+     *  final audit, 2026-11-12: until then a request's text went into a typed literal UNCHECKED, which the dialect
+     *  writes as it is, {@code DATE '<text>'}, so a value such as {@code 2024-01-01' OR '1'='1} answered every row, and
+     *  a stray quote or a non-ISO date was the database's raw error; as {@code setup.RowLoad} reads a cell's date; the
+     *  checked text a typed literal again, not a cast, 2026-11-13, {@link #iso}); a whole number an integer, any other
+     *  number its exact value. */
     private static SqlExpr literal(@com.legend.base.Nullable Object v,
             DatabaseDefinition.@com.legend.base.Nullable ColumnDefinition col) {
         if (v == null) {
@@ -1803,13 +1834,14 @@ public final class TestDataPlanner {
             if (col != null) {
                 RelationalDataType t = col.dataType();
                 if (t instanceof RelationalDataType.Date_) {
-                    return new SqlExpr.DateLit(s);
+                    return new SqlExpr.DateLit(iso(s, ISO_DATE, col, "date (yyyy-MM-dd)"));
                 }
                 if (t instanceof RelationalDataType.Timestamp || t instanceof RelationalDataType.TimestampNs) {
-                    return new SqlExpr.TimestampLit(s);
+                    return new SqlExpr.TimestampLit(iso(s, ISO_DATE_TIME, col,
+                            "date-time (yyyy-MM-dd[THH:mm[:ss[.f]]][offset])"));
                 }
                 if (t instanceof RelationalDataType.Time) {
-                    return new SqlExpr.TimeLit(s);
+                    return new SqlExpr.TimeLit(iso(s, ISO_TIME, col, "time (HH:mm[:ss[.f]])"));
                 }
             }
             return new SqlExpr.StringLit(s);

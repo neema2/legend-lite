@@ -14,23 +14,32 @@ export interface HostName {
   readonly declared?: boolean;
 }
 
-/** Where a relation's rows come from. */
-export type HostSource =
-  | { readonly relation: HostName }
-  // a person's own file is read by a planned load (B3: the planner's fileLoad, run by plan-runner.ts runLoad), never by
-  // an operation naming it; a remote file likewise (B3's Q3: the planner's remoteMount)
-  /** A query a planner wrote, for this database: a PlannedSql, made where its plan was read (the C final audit's H2,
-   *  2026-11-12: until then any text compiled here, and the platform pasted it into the operation's statement). */
-  | { readonly query: PlannedSql };
+/**
+ * Where a relation's rows come from: a relation of the database. A host operation takes NO SQL (the final audit's item
+ * 1, 2026-11-12: the user's ruling, no planner door takes SQL but the playground's): a query's rows are counted and
+ * copied by the planner's plan of its pull (a snapshot's count, its snapCopy), never by its statement handed back; a
+ * person's own file is read by a planned load (the planner's fileLoad), a remote file likewise (its remoteMount).
+ */
+export type HostSource = { readonly relation: HostName };
+
+/** A column as the database's catalog holds it (Boundary.tableModel's columns): what a copy's conversions are written
+ *  from by the platform (`convert`), never a select list a host hands back. */
+export interface CatalogColumn {
+  readonly name: string;
+  readonly dataType: string;
+  readonly logicalType?: string | null;
+  readonly precision?: number | null;
+  readonly scale?: number | null;
+  readonly notNull?: boolean;
+}
 
 export type HostOperation =
-  /** A relation made: replacing one of its name or not; its columns the planner's copy select list, or every column
-   *  with `replacing`'s replaced (the planner's expressions), or every column. */
+  /** A relation made: replacing one of its name or not; every column, or -- `convert`, the source's columns as its
+   *  catalog holds them -- each the platform converts to hold what its model declares (CatalogModel's conversions,
+   *  written by the database's own select list: the final audit's item 1(d), 2026-11-12). */
   | {
     readonly op: 'relation'; readonly kind: 'table' | 'view'; readonly target: HostName; readonly replace?: boolean;
-    // the planner's own text (its table model's copy select list, its expressions): PlannedSql, made where its answer
-    // is read (H2), never a string a host wrote
-    readonly selectList?: PlannedSql; readonly replacing?: readonly { readonly column: string; readonly sql: PlannedSql }[];
+    readonly convert?: readonly CatalogColumn[];
     readonly from: HostSource;
   }
   | { readonly op: 'drop'; readonly kind: 'table' | 'view'; readonly target: HostName }
@@ -126,10 +135,24 @@ export interface SnapPull {
   readonly lambda: string;
 }
 
-/** Where a snapshot's stream's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
+/**
+ * A SNAPSHOT'S LOCAL COPY, as the planner is asked for its plan (Boundary.snapCopy, the final audit's item 1(b),
+ * 2026-11-12): the host's database's type, the PULL, which the planner plans in the call, and the table it is copied
+ * into. Never SQL: the planner refuses any other key by name.
+ */
+export interface SnapCopyRequest extends SnapPull {
+  readonly databaseType: string;
+  readonly schema?: string;
+  readonly table: string;
+}
+
+/** Where a snapshot's stream's and copy's plans come from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
 export interface SnapStreamSource {
   /** The plan, PlanJson's text: one HOST_SESSION load whose stream step the hosts' runner runs (runLoad). */
   snapStream(request: SnapStreamRequest): Promise<PlanText>;
+  /** The plan, PlanJson's text: one write -- its schema, the table there before dropped, the table made from the pull
+   *  (its data: payloads bound by digest) -- in its target's transaction, which the hosts' runner runs (runPlan). */
+  snapCopy?(request: SnapCopyRequest): Promise<PlanText>;
 }
 
 /**

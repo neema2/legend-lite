@@ -109,7 +109,8 @@ class Answered:
     CAPACITY = 4096
     KEYED_CAPACITY = 256
     # an answer whose statements DataCube's code hands the database, by the request's kind
-    PLANS = frozenset({'executionPlan', 'planJson', 'planModel', 'fileLoad', 'remoteMount', 'snapStream', 'synthesize'})
+    PLANS = frozenset({'executionPlan', 'planJson', 'planModel', 'fileLoad', 'remoteMount', 'snapStream', 'snapCopy',
+                       'outputPlan', 'synthesize'})
     # a plan's fields that hold a statement or a list of them (PlanJson's spellings)
     _STATEMENT_FIELDS = frozenset({'statement', 'sql', 'statements', 'after', 'session', 'read', 'reset', 'prepare',
                                    'count', 'begin', 'commit', 'rollback'})
@@ -141,33 +142,27 @@ class Answered:
                 self._keyed.popitem(last=False)
 
     def refusal(self, asked: dict) -> str | None:
-        """Why a request the hosted code makes of the planner is refused, or None (the re-audit's S3, 2026-11-12): a host
-        operation's own texts -- its source ``query``, its ``selectList``, a ``replacing`` expression -- are pasted by the
-        planner into the statements it answers, so each must be a statement this session's planner answered already
-        (a plan's statement, a table model's copy select list); any other is refused by name, the planner never asked."""
+        """Why a request the hosted code makes of the planner is refused, or None: a host operation takes NO SQL (the
+        final audit's item 1, 2026-11-12, the user's ruling: no planner door takes SQL but the playground's; until then
+        the re-audit's S3 let one carry a text this session's planner had answered) -- a source ``query``, a
+        ``selectList``, a ``replacing`` expression, each refused by name here, the planner never asked (the platform
+        refuses each too: HostOperationsJson)."""
         if asked.get('kind') != 'hostOperations':
             return None
         operations = asked.get('operations')
         for op in json.loads(operations) if isinstance(operations, str) else []:
             source = op.get('from') if isinstance(op, dict) else None
-            texts = [source['query']] if isinstance(source, dict) and 'query' in source else []
-            texts += [op['selectList']] if isinstance(op, dict) and 'selectList' in op else []
-            texts += [r.get('sql') for r in op.get('replacing') or []] if isinstance(op, dict) else []
-            for text in texts:
-                if text not in self:
-                    shown = text if isinstance(text, str) and len(text) <= 120 else str(text)[:117] + '...'
-                    return (f"a host operation's ({op.get('op')}) text is not a statement this session's planner answered, so"
-                            f' the planner is not asked to write it into one: {shown!r} (_planned.py Answered.refusal)')
+            keys = ['query'] if isinstance(source, dict) and 'query' in source else []
+            keys += [k for k in ('selectList', 'replacing') if isinstance(op, dict) and k in op]
+            if keys:
+                return (f"a host operation ({op.get('op')}) takes no SQL, and its {keys[0]} is SQL: a query is planned from"
+                        ' its pull, a copy\'s conversions are the platform\'s from its columns\' catalog (convert)'
+                        ' (_planned.py Answered.refusal)')
         return None
 
     def _record(self, kind: str, payload: str) -> None:
         if kind == 'catalogColumnsSql':
             self._add(payload)
-        elif kind == 'tableModel':
-            # the planner's copy select list, which a host operation's selectList carries back (S3)
-            model = json.loads(payload)
-            if model.get('copySelectList') is not None:
-                self._add(model['copySelectList'])
         elif kind == 'sessionSetup':
             self._all(json.loads(payload))
         elif kind == 'hostOperations':

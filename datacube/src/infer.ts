@@ -61,13 +61,6 @@ export interface InferredModel {
    * rewrite, a Snap. A read-only source reads such a column (a zoned timestamp) as stored.
    */
   readonly conversions: readonly { readonly column: string; readonly sql: string }[];
-  /**
-   * The select list a copy applies, written by the copy's own database (`* REPLACE (<conversion> AS "<column>",
-   * ...)` on DuckDB, or `*`): present when the table is copied, through the snap runtime or rewritten in place
-   * (`convertible`); a read-only source with no snap has none.
-   */
-  /** The planner's own text (its answer's, typed where it is read: lite-planner.ts tableModel; the C final audit's H2). */
-  readonly copySelectList?: PlannedSql;
   /** Columns left out: the source cannot convert them, or no Database type holds them (bytes). */
   readonly excluded: readonly string[];
   /**
@@ -104,6 +97,20 @@ export interface InferOptions {
 }
 
 /** A table of the host's database for a model of several (`TableModels.tablesModel`): its catalog rows. */
+/**
+ * A TABLE OUTPUT, as the planner is asked for its plan (Boundary.outputPlan, the final audit's item 2, 2026-11-12): the
+ * box's tables as the catalog answers them (read before the run), the output's table and how it is written, the box's
+ * rows (a lambda's protocol JSON), and -- a table there already -- its catalog's columns. Never SQL: the planner refuses
+ * any other key by name.
+ */
+export interface OutputRequest {
+  readonly databaseType: string;
+  readonly tables: readonly ModelTable[];
+  readonly output: { readonly name: string; readonly mode: string; readonly keys?: readonly string[] };
+  readonly rows: string;
+  readonly target?: readonly CatalogColumn[];
+}
+
 export interface ModelTable {
   readonly table: string;
   readonly schema?: string;
@@ -156,4 +163,6 @@ export interface TableModels {
   /** Rows the database makes in a declared table, as a plan (Boundary.synthesize, S303): PlanJson's text, run by
    *  runLoad -- the demo's sample (demo/boot.ts synthesizeTrades). */
   synthesize(request: SynthesizeRequest): Promise<PlanText>;
+  /** A table Output, as ONE plan (Boundary.outputPlan, the final audit's item 2): PlanJson's text, run by runPlan. */
+  outputPlan(request: OutputRequest): Promise<PlanText>;
 }

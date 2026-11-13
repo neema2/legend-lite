@@ -37,18 +37,19 @@ export function handWrittenSqlDoesNotCompile(engine: DuckDbEngine, query: QueryE
   // a statement edited after it was read is a string again
   // @ts-expect-error concatenated, it is no plan's
   void engine.run(fromPlan('SELECT 1') + ' UNION ALL SELECT 2', 0);
-  // a host operation's planner text is the planner's (the C final audit's H2, 2026-11-12): its source query,
-  // @ts-expect-error a host's own query is not
-  const source: HostSource = { query: 'SELECT 1' };
+  // a host operation takes no SQL (the final audit's item 1, 2026-11-12; until then the C final audit's H2 took a
+  // planner's own text): no source query -- not even a planner's own statement --
+  // @ts-expect-error a query is planned from its pull, never handed to a host operation
+  const source: HostSource = { query: fromPlan('SELECT 1') };
   const relation: HostOperation = {
     op: 'relation', kind: 'table', target: { name: 't' }, from: { relation: { name: 's' } },
-    // @ts-expect-error its select list,
-    selectList: '*',
+    // @ts-expect-error no select list (a copy's conversions are the platform's: convert),
+    selectList: fromPlan('*'),
   };
   const replaced: HostOperation = {
     op: 'relation', kind: 'table', target: { name: 't' }, from: { relation: { name: 's' } },
-    // @ts-expect-error and each replacement's expression
-    replacing: [{ column: 'a', sql: 'a' }],
+    // @ts-expect-error and no replacement's expression
+    replacing: [{ column: 'a', sql: fromPlan('a') }],
   };
   // @ts-expect-error a snapshot's request carries the pull, never a statement (H3; the user's ruling of 2026-11-12)
   const snap: SnapStreamRequest = { databaseType: 'DuckDB', plane: 'warehouse', sql: 'DROP TABLE t', table: 't' };

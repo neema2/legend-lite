@@ -39,7 +39,7 @@ import { askedOffers, askedSettings, pythonDatabase, pythonRunner, pythonService
 import { browserBasics } from '../../src/services/browser-basics.ts';
 import type { Services } from '../../src/app/services.ts';
 import { dropFileTable, ingestFile, modelLanded, mountRemoteView } from '../../src/upload.ts';
-import { SnapManager } from '../../../engine-client/src/snap.ts';
+import { countQuery, SnapManager } from '../../../engine-client/src/snap.ts';
 import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 /** What the harness hands the page: the engine, and the frame it serves. */
@@ -303,7 +303,7 @@ async function run(): Promise<void> {
     // the tab's: the live plan run into a table of its own, modelled once the rows land
     let landed: Awaited<ReturnType<typeof modelLanded>> | undefined;
     const snaps = new SnapManager(local, null, planner);
-    await snaps.snap((await planner.plan(pull)).sql, 0, { target: { table: 'snap_parity', landed: async () => {
+    await snaps.snap(0, { count: await planner.plan(countQuery(pull)), pull: await planner.pullRequest(pull), target: { table: 'snap_parity', landed: async () => {
       landed = await modelLanded(local, planner, 'snap_parity');
       return landed.source;
     } } });

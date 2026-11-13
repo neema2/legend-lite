@@ -559,15 +559,15 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    # PostgresArmTest, SqlIslandPostgresTest, SqlParityPostgresTest and HostOperationsPostgresTest are their own
-    # targets' alone: they need the embedded Postgres in their runfiles
+    # PostgresArmTest, SqlIslandPostgresTest and SqlParityPostgresTest are their own targets' alone: they need the
+    # embedded Postgres in their runfiles (HostOperationsPostgresTest went with Postgres's one host operation, the
+    # final audit, 2026-11-12)
     srcs = glob(
         ["src/test/java/**/*.java"],
         exclude = [
             "src/test/java/com/legend/server/PostgresArmTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
-            "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
             # MongoDbPlanTest and MongoDbDifferentialTest are :mongodb_plan_test's alone: the embedded MongoDB and
             # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
@@ -652,6 +652,9 @@ legend_java_library(
         # the Arrow writer's gate frames the stream it checks (ZstdFrame; track A, 2026-10-29)
         "//arrow_ipc",
         "//testing",
+        # the hosts' boundary, its plans and refusals held by the tests that call it as a host does (the final audit,
+        # 2026-11-12: a host operation takes no SQL; a snapshot's copy and a table output as one plan each)
+        "//wasm:boundary",
         "@maven_test//:com_tngtech_archunit_archunit",
         # the H2 test backend's own classes (testbackend/H2Backend); H2VersionPinTest, which read the jar's version,
         # moved to spec as EngineH2VersionPinTest (2026-11-05: the pin is legend-engine's H2, not lite's jar)
@@ -1123,29 +1126,6 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@maven_test//:org_junit_jupiter_junit_jupiter_params",
-    ],
-    visibility = ["//gates:__pkg__"],
-)
-
-# Snap's preflight count as Postgres's host operations write it (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5), run on the
-# embedded Postgres 16: the count a warehouse whose catalog is Postgres answers before a copy
-junit_test(
-    name = "host_operations_postgres_test",
-    memory_mb = 768,
-    size = "medium",
-    srcs = ["src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java"],
-    data = [
-        "@embedded_postgres//:pg/PG_ROOT",
-        "@embedded_postgres//:postgres",
-    ],
-    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
-    select = ["--select-class=com.legend.sql.dialect.HostOperationsPostgresTest"],
-    runtime_deps = [":drivers"],
-    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
-    deps = [
-        ":core",
-        "//testing",
-        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
 )

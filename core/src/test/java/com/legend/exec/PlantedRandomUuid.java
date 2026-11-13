@@ -47,4 +47,15 @@ public final class PlantedRandomUuid {
             return java.util.UUID.nameUUIDFromBytes(name);
         }
     }
+
+    /** An id built by the constructor's reference, never called (2026-11-13, the orchestrator's completion B:
+     *  {@code callConstructor} saw calls alone). */
+    public static final class BuiltByReference {
+        private BuiltByReference() {
+        }
+
+        public static java.util.function.BiFunction<Long, Long, java.util.UUID> builder() {
+            return java.util.UUID::new;
+        }
+    }
 }

@@ -48,6 +48,28 @@ const PINNED: Readonly<Record<string, number>> = {
 
 const where = (c: Cast): string => `${c.file}:${c.line}: ${c.kind} (${c.type})`;
 
+/** The product's casts that carry a brand: its three programs read by the checker, once. */
+let product: readonly Cast[] | undefined;
+function productCasts(): readonly Cast[] {
+  if (product !== undefined) return product;
+  const seen = new Map<string, Cast>();
+  let files = 0;
+  for (const config of ['datacube/tsconfig.json', 'studio/tsconfig.json', 'query/tsconfig.json']) {
+    const read = readCasts(config, process.cwd(), PRODUCT);
+    assert.deepEqual(read.unreadable, [], `${config}: a type the checker could not read is never taken for one that carries nothing`);
+    files += read.files;
+    for (const c of read.casts) seen.set(`${c.file}:${c.at}:${c.kind}`, c);
+  }
+  assert.ok(files > 500, `the three programs read ${files} product files`);
+  product = [...seen.values()];
+  return product;
+}
+
+/** The census's pinned comparison: `casts` counted by file and kind are PINNED, exactly. */
+function pinned(casts: readonly Cast[]): void {
+  assert.deepEqual(counted(casts), PINNED, `a cast that makes a plan's statement or a planner's answer of other text:\n${casts.map(where).join('\n')}`);
+}
+
 describe("the brand's casts, read by TypeScript's own checker (the re-audit's S5)", () => {
   it('reads every planted way of making a brand as what it is, and no cast that makes none', () => {
     const read = readCasts(`${PLANTED}tsconfig.json`, process.cwd(), (f) => f.startsWith(PLANTED));
@@ -63,16 +85,15 @@ describe("the brand's casts, read by TypeScript's own checker (the re-audit's S5
   });
 
   it("pins the product's casts that carry a brand, by file, exactly", () => {
-    const seen = new Map<string, Cast>();
-    let files = 0;
-    for (const config of ['datacube/tsconfig.json', 'studio/tsconfig.json', 'query/tsconfig.json']) {
-      const read = readCasts(config, process.cwd(), PRODUCT);
-      assert.deepEqual(read.unreadable, [], `${config}: a type the checker could not read is never taken for one that carries nothing`);
-      files += read.files;
-      for (const c of read.casts) seen.set(`${c.file}:${c.at}:${c.kind}`, c);
-    }
-    assert.ok(files > 500, `the three programs read ${files} product files`);
-    const casts = [...seen.values()];
-    assert.deepEqual(counted(casts), PINNED, `a cast that makes a plan's statement or a planner's answer of other text:\n${casts.map(where).join('\n')}`);
+    pinned(productCasts());
+  });
+
+  it("fails its pinned comparison on a planted violator, naming it (check 6, the final audit's item 5)", () => {
+    // the comparison above, run over the product's casts and the planted file's as the checker reads them: it must FAIL,
+    // naming the planted file -- never merely that the checker sees each form (the test before this one)
+    const read = readCasts(`${PLANTED}tsconfig.json`, process.cwd(), (f) => f.startsWith(PLANTED));
+    assert.ok(read.casts.length > 0);
+    assert.throws(() => pinned([...productCasts(), ...read.casts]),
+      (e: unknown) => e instanceof assert.AssertionError && e.message.includes(`${PLANTED}planted.ts:`));
   });
 });

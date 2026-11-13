@@ -11,7 +11,7 @@ import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { FileLoadRequest } from '../model-data.ts';
-import type { RemoteMountRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
+import type { RemoteMountRequest, SnapCopyRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../planned-sql.ts';
@@ -273,6 +273,12 @@ export class WasmGrammar implements Grammar {
    */
   async snapStream(request: SnapStreamRequest): Promise<PlanText> {
     return planFromAnswer(unfold(await this.#port.ask({ kind: 'snapStream', request: JSON.stringify(request) })));
+  }
+
+  /** A snapshot's local copy, as a plan (Boundary.snapCopy, the final audit's item 1(b)): one write in its target's
+   *  transaction -- the table made from the pull, planned in the call -- PlanJson's text, never the pull's statement. */
+  async snapCopy(request: SnapCopyRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'snapCopy', request: JSON.stringify(request) })));
   }
 
   /**

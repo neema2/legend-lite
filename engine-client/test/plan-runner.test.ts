@@ -703,6 +703,19 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
     }
   });
 
+  it('a rollback that fails too is said with the failure, never swallowed', async () => {
+    // G7 (the final audit's item 4, 2026-11-12): `.catch(() => {})` dropped the rollback's failure, the stream's said alone
+    const failing = async (sql: string): Promise<unknown[][]> => {
+      if (sql.toUpperCase().startsWith('ROLLBACK')) throw new Error('the rollback was refused');
+      return [];
+    };
+    await assert.rejects(() => runLoad(planOf('unrolled'), failing,
+      { streams: { planes: { warehouse: plane([chunkOf(1, 4)], { cutAfter: 0 }) }, held: { rows: failing, insertArrow: async () => {} } } }),
+    (e: unknown) => e instanceof Error
+      && e.message === 'the connection was reset -- and rolling its transaction back failed: the rollback was refused'
+      && e.cause instanceof Error && e.cause.message === 'the connection was reset');
+  });
+
   it('a plane this host does not hold, and a host that streams none, are refused by name, nothing run', async () => {
     const sent: string[] = [];
     const record = async (sql: string): Promise<unknown[][]> => { sent.push(sql); return []; };
@@ -710,6 +723,52 @@ describe("a snapshot's stream, planned and run on DuckDB-WASM in one transaction
       /'warehouse' is not a remote plane this host holds: nothing is streamed into t/);
     await assert.rejects(() => runLoad(planOf('t'), record), /streams the remote plane 'warehouse' into t, and this host streams no plane's rows/);
     assert.deepEqual(sent, []);
+  });
+});
+
+
+// A SNAPSHOT'S LOCAL COPY (the final audit's item 1(b), 2026-11-12): the WASM planner answers the pull and a table with ONE
+// plan of writes (Boundary.snapCopy) -- the table there before dropped, the table made from the pull -- in its target's
+// transaction, which the hosts' runner runs (runPlan) and answers nothing; never the pull's statement handed back
+describe("a snapshot's local copy, one plan of writes run in its target's transaction", () => {
+  const PULL = { model: MODEL, runtime: 'w::RT', lambda: toJson(lambda([], src())) } as const;
+  const copyOf = (table: string): PlanText => unplannedPlan(ok(answer(m, { kind: 'snapCopy', request: JSON.stringify({
+    databaseType: 'DuckDB', ...PULL, table }) })));
+  type Copy = { root: { steps: { _type: string; sql: { statement: string; target: { session: string[];
+    transaction: { begin: string[]; commit: string[]; rollback: string[] } } } }[] } };
+  const rowsIn = (t: string): Promise<string> => engine.exclusive(async (held) =>
+    (await held.rows(unplanned(`SELECT id, name, amount FROM ${t} ORDER BY id`), [])).map((r) => r.map(String).join(':')).join(' '));
+
+  it("hands the database exactly the plan's statements, in its transaction, and the copy holds the pull's rows", async () => {
+    const plan = copyOf('copied');
+    const { root } = looseJson(plan) as Copy;
+    assert.deepEqual(root.steps.map((s) => s._type), ['effect', 'effect']);
+    const t = root.steps[0]!.sql.target;
+    // the witness at the database itself: every statement it is handed during the plan's run
+    const { engine: own, received } = witnessed(database.connect() as ArrowishConnection);
+    const said = await own.exclusive((held) => runPlan(plan, { databaseType: 'DuckDB', run: (sql, params) => held.rows(sql, params) }));
+    assert.equal(said, '[]', 'a plan of writes alone answers no row');
+    assert.deepEqual(received, [...t.session, ...t.transaction.begin, ...root.steps.map((s) => s.sql.statement), ...t.transaction.commit]);
+    assert.match(root.steps[1]!.sql.statement, /^CREATE TABLE "copied" AS SELECT/);
+    assert.equal(await rowsIn('copied'), await rowsIn('SRC'));
+  });
+
+  it('a copy that fails after its drop rolls back by the plan\'s own statement: the table there before is as it was', async () => {
+    await engine.run(unplanned("CREATE TABLE kept_copy AS SELECT 9 AS id, 'z' AS name, CAST(9.5 AS DOUBLE) AS amount"), 0);
+    const plan = copyOf('kept_copy');
+    const sent: string[] = [];
+    await assert.rejects(() => engine.exclusive((held) => runPlan(plan, { databaseType: 'DuckDB', run: async (sql, params) => {
+      sent.push(sql);
+      if (/^CREATE TABLE/.test(sql)) throw new Error('the copy was refused');
+      return held.rows(sql, params);
+    } })), /the copy was refused/);
+    assert.equal(sent.at(-1), 'ROLLBACK');
+    assert.equal(await rowsIn('kept_copy'), '9:z:9.5');
+  });
+
+  it('a request carrying a statement is refused by name: the planner plans the pull, never a host\'s text', () => {
+    assert.throws(() => ok(answer(m, { kind: 'snapCopy', request: JSON.stringify({ databaseType: 'DuckDB', ...PULL, sql: 'SELECT 1', table: 't' }) })),
+      /a snapshot's copy has no key sql/);
   });
 });
 

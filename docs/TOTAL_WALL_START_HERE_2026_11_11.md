@@ -905,6 +905,18 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
     - the condition's cell is read by its declared type, not by parsing the texts `"true"` and `"false"`
       (`TestRun.taken`);
     - a guard that no product plan carries a branch.
+- **legend-engine plans, in and out** (the user, 2026-11-12: "we still want to be able to load legend-engine plans and
+  also us be able to generate legend-engine plans that engine can read - the nice thing about the java stuff is that we
+  still dont have to do all the crazy floating stuff in SQL both ways"; on the design: "i thought that was perfect ...
+  that was the exact right spirit"). The design is `docs/ENGINE_PLAN_INTEROP_2026_11_12.md`.
+  - Both directions are translations at planning, at the edge. Exec is unchanged: it runs only a lite plan.
+  - Export plans with `PlanStyle.UPSTREAM` and writes engine's format, with parameters as engine's placeholders.
+  - Import turns engine's relational/TDS plan into a lite plan: placeholders become bound parameters; Java nodes and
+    unknown template constructs are refused by name.
+  - Printing a result is the serializer's job, in Java at the edge (G6). Neither direction carries float printing in
+    SQL.
+  - Verified by round trip on the real engine runner. The engine format is 4.145.0's.
+  - D3, after D1 (§6).
 
 ## 6. What remains, in order
 
@@ -924,6 +936,7 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 | C3 | the hosts' separation proven structurally (the user, 2026-11-12): in TypeScript the statement type the engine accepts is made only by reading a plan; in Python the runner checks each statement it sends came from a plan | a host's hand-written SQL does not compile (TS) or is refused by name (Python); tests | §5.11 |
 | ✔ C | **checkpoint**, then the PR updated and MERGED (the user's final word asked at that moment, CI green on the final head) | built and checked 2026-11-12 (`docs/GATES.md`'s C entry): C1-C3, the two checkpoint audits' fixes, the user's rulings (§5.5); the gate at 970f0a992; rounds 38 and 39 green on every database; the final audit; CI on the final head; then the merge | §5.5 |
 | D1.0-D1.7, D2 | the edge, in this order: the spelling hook first; Raise/RaiseKind (after C2); the text nodes; lists, maps, format; the writers; the decorator; the compile messages; engine text, RawSqlBoundary, the referee and appeals; pure/v1's upstream routes to the edge; then D2's guard | no product SQL or MIR carries a compatibility spelling (D2's guard); PCT green through the hook; `D_BRIEF` §5's register rows | `D_BRIEF`, `COMPAT_IN_PRODUCT_INVENTORY`, `PRINT_FORM_PROBE` |
+| D3 | legend-engine plans in and out (the user, 2026-11-12): export from the edge with `UPSTREAM`, then the Java import (relational/TDS), then the browser's compatibility module | both round trips on the engine runner agree, or each difference is a register row the user ruled; the G5 and refusal guards with planted violators | `ENGINE_PLAN_INTEROP_2026_11_12` |
 | ✔ D | **checkpoint** (print forms checked on every database) | | |
 | E1, E2 | the eight E items | `C_E_BRIEF` §E's pins; register P3-R1 to R5 | `C_E_BRIEF` §E, `LEAN_PRODUCT_P3` §12 |
 | ✔ E | **checkpoint** | | |
@@ -931,6 +944,78 @@ DELETED). Plan version 48 holds B3's 47 and the JSON pass's changes. The B check
 | F2 | the SECOND PR into `main` (D, E, F after B and C landed by the first, §5.11) | opened with the template; CI green on all OSes; **never merged by a session** without the user's word at that moment | §1 |
 
 E1's items 1, 2 and 4 come after D1.
+
+### 6.1 After A/B/C merges: the next PR's queue (the user, 2026-11-13: "make sure we don't lose other follow-ups like single datacube API to all backends")
+
+In order. Nothing here is in the A/B/C PR.
+
+1. **Separation made foolproof** (the final audits of 2026-11-12/13; ruled as the next PR's first work). The one-time
+   probe found 0 product violations; these pieces make it permanent:
+   - **A closed planner surface.** One test enumerates every planner door (Java, wasm, native, Python, the server's
+     routes) with each request field's declared kind. A field that can carry SQL fails the build, the playground alone
+     excepted.
+   - **A standing global witness in every test.**
+     - Every harness (Java, TypeScript, Python) records each planner call and each send.
+     - It fails a test on a planner call inside an open run, or a send not read from a plan.
+     - C4's probe of 2026-11-13 is the prototype.
+     - DataCube's grid road gets a run marker first: today it has none, so planner-during-run is unmeasured there.
+   - **Injection fuzzing.** Quotes, backslashes and malformed values in every route's and planner door's fields, each
+     refused by name or escaped.
+   - **The method rules see method references** (C4's finding, 2026-11-13). ArchitectureTest has 22
+     callMethod/callMethodWhere/callCodeUnitWhere clauses that miss a `Type::method` reference: for example `UUID::randomUUID`
+     as a Supplier, in EXEC_MAKES_NO_VALUE and PLANNING_MAKES_NO_VALUE. The constructor rules were closed in this PR
+     (`ArchitectureTest.constructs`, 554434c32); the method rules get the same predicate, each with a planted `::method`
+     violator.
+   - **`TypedQuery.lower` is a public door that skips the query door** (`refuseTestOnly`). Its callers today are doored
+     or on the test road (C4's audit, 2026-11-13). **The user ruled, 2026-11-13: narrow it** ("option B"). The terms:
+     - `lower` and `lowerer` stop being public. The `Lowerer`'s configuration moves into `planner/` (an existing file,
+       package-private for `ProductStatements` and `PlanMaker`); the product path is unchanged in behaviour and speed.
+     - One purpose-named public entry serves the two outside callers (the test-data route, `testplan/GeneratedTestData`),
+       its refusals inside it. First measure how many test-road seeds hold raw SQL: none, one entry that always refuses;
+       any, a product entry and a test entry only `testplan` may call (an ArchUnit rule, a planted violator).
+     - ROOT_DOORS loses four rows; a planted violator re-adds one. Tests that inspect a lowered tree use a test-side
+       helper. A pin that moves gets a dated note.
+     - Order: after the witness and the fuzzing, landed only after the compiler-performance baseline (its
+       `CompileLatency` times lowering through `lower`).
+2. **DataCube's engine contract: one intent API, every engine behind it** (`docs/DATACUBE_ENGINE_CONTRACT_2026_11_12.md`,
+   branch `claude/datacube-engine-contract`, PROPOSED, for the user's ratification).
+   - It is consolidated with the bridge on intent (branch `claude/total-wall-bridge` @ 77c084e8a: `DataHost`) as §5.5
+     records, and runs in parallel with D and E.
+   - DataCube is a pure client of intent: the tab, Python and the Java server are each a planner, a runner and a
+     database behind one contract.
+3. **The D/E decision batch for the user**, before D or E builds more:
+   - **The end-to-end compatibility document:**
+     - the frame, `docs/COMPATIBILITY_END_TO_END_2026_11_12.md` on `claude/total-wall-docs`;
+     - D's §5 on `claude/total-wall-d`;
+     - E's §6 on `claude/total-wall-e`;
+     - its PROPOSED principle: adopt upstream's computation wherever sane; keep the product's simple print forms.
+   - **Mixed lists keep kinds as upstream** (E-R1 to E-R3, reversing the hybrid's promotions). Kind rank, then value,
+     for sort, equality and distinct. E-R4 is already ruled.
+   - **Engine SQL text:** (a) keep the EngineStyle printers at the edge, or (b) a non-goal, about 4,850 lines deleted
+     and ~1,150 corpus SQL-text asserts given up (D recommends b).
+   - **D-1's browser shape:** the four lite-owned exports, and a lazily loaded TypeScript compatibility module.
+   - **`indexOf` and `average([])`:** legend-pure's answer in the product, the engine's kept at the edge.
+   - **E-5c**, the fused judge, about 8 statements a test down to 2.
+   - **The engine-interop defaults** (§5 of `ENGINE_PLAN_INTEROP_2026_11_12.md`).
+4. **The plan format's version, renumbered after main:** D merges main and takes the next number, then E takes the one
+   after.
+5. **D3, engine plans in and out.** This also restores Snap for grids an engine plans: ruled 2026-11-13, the demo's
+   legend-engine and remote-lite planner modes snap again once an engine plan imports as a lite plan.
+6. **The clients switch** to `/api/lite/v1/query` (D-1).
+7. **E's held work**, each after its ruling:
+   - E-2, the mixed lists on D's hook;
+   - E-5b and E-5d (the judge pins);
+   - FLOAT_PRINT staging, if anything is left after the print-form ruling;
+   - E-3's forcing `WHERE`, after its lane probe.
+8. **CI watch:** macOS's `sdlc` job was cancelled with no log at 49 minutes on 549c018d7 (runner loss suspected). If it
+   recurs, it is investigated, never rerun blindly.
+9. **V8's code-memory protection back on** (the user, 2026-11-13: "agreed on turning protection off then with that
+   error message, parent thread as later follow-up"). Python's headless DataCube starts V8 once per process with
+   `--no-memory-protection-keys`: on hosts with protection keys (GitHub's ubuntu-24.04 image of 2026-11-11), a second
+   engine on a thread that did not start V8 segfaulted. The follow-up is one "V8 parent" thread that starts V8 and creates
+   every engine thread, so each inherits the key, and the protection can come back on.
+
+§10's later list stands as it is.
 
 ## 7. How to work (the runbook)
 

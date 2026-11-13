@@ -39,6 +39,7 @@ import {
 import { planPivot, typeColumns, type PivotPlan, type SchemaChange } from './plan.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import {
+  countQuery,
   HostSnaps,
   SnapManager,
   type HostFrozen,
@@ -783,21 +784,21 @@ export class CubeController {
     if (!target) {
       throw new CubeRefusal('this cube has no store to freeze a snapshot into.');
     }
-    // the PULL is the live plan: it runs where the rows are, in that database's SQL
-    const pulled = await this.#livePlanner.plan(query);
-    const sourceSql = pulled.sql;
-    // and the pull itself, which a remote plane's snap asks the planner to plan again in its stream's plan
+    // the PULL, which the planner plans where the rows are, in that database's SQL, in the copy's own plan (a remote
+    // plane's stream, a local copy) -- never its statement handed back (the final audit's item 1, 2026-11-12)
     const pull = await this.#livePlanner.pullRequest?.(query);
+    if (pull === undefined) throw new CubeRefusal('this cube\u2019s planner gives no pull to copy: it cannot be snapped');
+    // and its rows counted where they are: the live planner's plan of the pull's count
+    const count = await this.#livePlanner.plan(countQuery(query));
 
     // a copy of its own: modelled as it holds the rows once they land, and planned by its own planner from then on
     const copy = target.copy();
     let planner: Planner | undefined;
     try {
-      await this.#snaps.snap(sourceSql, this.#guard.current, {
+      await this.#snaps.snap(this.#guard.current, {
         ...(label !== undefined ? { label } : {}),
-        // the values the live plan binds (a data: payload: M3), carried into each statement that reads it
-        ...(pulled.params !== undefined ? { params: pulled.params } : {}),
-        ...(pull !== undefined ? { pull } : {}),
+        pull,
+        count,
         target: {
           table: copy.table,
           landed: async () => {

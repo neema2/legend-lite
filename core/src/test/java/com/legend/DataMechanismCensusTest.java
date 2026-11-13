@@ -302,8 +302,11 @@ class DataMechanismCensusTest {
                     "EmbeddedDataKindsTest")),
             // 2026-11-12 (the C checkpoint's second audit; the user's ruling of that day, "Yes do 5 and 6"): Studio's SQL
             // playground is the author's text too -- a person's INSERT puts rows in a table -- now a plan's one statement,
-            // carried by the planner as written (com.legend.planner.Authored, Boundary.authored), STAYING as executeInDb's
-            new Row("M7-authored", "executeInDb, and Studio's SQL playground: SQL the user wrote",
+            // carried by the planner as written (com.legend.planner.Authored, Boundary.authored), STAYING as executeInDb's.
+            // 2026-11-13 (the user's ruling (a) on the orchestrator's item 5): executeInDb is the TEST road's -- every
+            // product door refuses its read by name (QueryDoor's RAW_SQL; its writes were effects already) -- so the
+            // product's one authored SQL is the playground
+            new Row("M7-authored", "executeInDb is the TEST road's; the product's one authored SQL is the playground",
                     new Staying("P9: an effect's statements are the author's text, folded; the playground's, one plan's"
                             + " statement as written")),
             // BOUNDED (2026-11-11, the user's ruling: "we need to make json work everywhere"; the orchestrator's brief
