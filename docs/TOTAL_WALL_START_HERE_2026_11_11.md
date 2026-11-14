@@ -1017,6 +1017,34 @@ In order. Nothing here is in the A/B/C PR.
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses
        lite's witness pays about 45 ns.
+   - **RULED by the user, 2026-11-14:** "let's finish the foolproof separation and get that out for all hosts" and
+     "yes, separate safety stream". The scope is now set as follows.
+     - **C4 is the plan/exec separation (G4) only,** finished on Java, TypeScript and Python.
+       - Its injection work already built stays: M1, ClickHouse and the fuzzes. Its PR states the injection scope
+         honestly: names in queries on 13 dialects; model-declared names, DDL and generated Pure are stream S's.
+       - The follow-up audit of fb8c2a41c gave C4 four more items, G1-G4:
+         - G1, the narrowing really closed: `Compiler.lowerResolved`, BodyPlanner's lowering pieces and
+           `ProductStatements.storeWrite` still lower an executeInDb read;
+         - G2, the hosts' walls complete: a computed run set with composers pinned for C5, and the typed and import
+           evasions caught;
+         - G3, the Python read names the failure that aborted it in every order, at fetch included;
+         - G4, claims made true.
+       - Round 48 at fb8c2a41c: Postgres/SQLite/MongoDB 36/36, MariaDB/MySQL/ClickHouse 45/45, BigQuery 15/15,
+         Databricks 15/15 (probe 25/25), Trino/H2 18/18, every error text byte-identical to round 41. The
+         MariaDB lane's slowdown was its host: old and new heads alternated on one machine, equal within the spread.
+     - **Stream S, injection safety:** session session_01XmdJ7kEndjYoSTrFJiSPYc, branch `claude/injection-safety` off
+       C4's; it lands after C4.
+       - It works on a structural fix: typed identifiers (no quote syntax in a plan's names, one quoting point per
+         dialect), generated Pure through one printer, and fuzzing computed to reach every writer.
+       - Its first fix is DuckDB's DDL: a declared-quoted column is wrapped undoubled (`DuckDb.java:754-756`). A
+         model broke out through `Execution.runOnProjectDatabases` and wrote a file, because DuckDB's JDBC runs
+         `;`-separated statements. It is on main too; nothing is in production.
+       - It also takes C5's typed identifiers and wider fuzzing, `databaseFromCatalog`'s raw `path`, the vacuous fuzz
+         pins, the loose `IllegalArgumentException` rule, and `RawSqlBoundary`.
+     - **S307, reopened for the user:** engine's API refuses a seed query holding executeInDb (C4's runner probe), but
+       legend-pure registers `ExecuteInDb` natives in both runtimes, so pure's test road likely runs the read. The row
+       says "as upstream's"; C4 reads pure's path before the user rules (a) refuse with an honest row or (b) keep the
+       read in seed generation.
    - **Moved to D's batch** (compatibility questions C4 only surfaced):
      - the engine-text printer's name rule: (a) engine's exactly, (b) lite's quoting plus a row, or (c) engine's where
        engine spells a name right and a refusal by name where it would mangle or break it (the orchestrator recommends
