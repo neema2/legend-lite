@@ -192,12 +192,13 @@ class PostgresArmTest {
                             () -> plan(ctx, q.withLets()));
                     assertTrue(String.valueOf(literal.getMessage()).contains("fraction digits; Postgres keeps 6"),
                             literal.getMessage());
+                    // the statement's raise writes its kind (FRACTION_NOT_KEPT), its sentence lite's own -- phase D's
+                    // D1.1, merged with main's #81 2026-11-14; the former "Postgres keeps (6)" text is the edge's
                     var parameter = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
                             () -> com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),
                                     com.legend.testcases.PlanCases.Written.JSON::writer));
-                    assertTrue(String.valueOf(parameter.getMessage()).contains("the DateTime parameter 't' has more"
-                            + " fraction digits than Postgres keeps (6): refused, never cut (S181)"),
-                            parameter.getMessage());
+                    assertTrue(String.valueOf(parameter.getMessage()).contains(
+                            com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), parameter.getMessage());
                     continue;
                 }
                 assertPlanAnswersAsToday(model, ctx, q, c);
@@ -213,7 +214,9 @@ class PostgresArmTest {
                     () -> com.legend.testcases.PlanCases.write(plan(ctx, dt), c, java.util.Map.of("t",
                             java.time.LocalDateTime.parse("2024-01-02T23:59:59.9999995")),
                             com.legend.testcases.PlanCases.Written.JSON::writer));
-            assertTrue(String.valueOf(rounded.getMessage()).contains("refused, never cut (S181)"), rounded.getMessage());
+            // the statement's raise: its kind's sentence (phase D's D1.1, merged with main's #81 2026-11-14)
+            assertTrue(String.valueOf(rounded.getMessage()).contains(
+                    com.legend.error.ErrorKind.FRACTION_NOT_KEPT.sentence()), rounded.getMessage());
             // an enumeration parameter, compared through a value table of the column's codes
             String enums = com.legend.testcases.PlanCases.enumModel(POSTGRES.connectionBody(), "PLAN_E");
             var enumCtx = com.legend.Compiler.compileModel(enums);

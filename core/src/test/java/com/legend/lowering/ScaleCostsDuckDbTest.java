@@ -241,17 +241,19 @@ class ScaleCostsDuckDbTest {
         // the literal's token is compared, nothing computed (2026-10-30: Wilder's (w - 1) / w was guarded at each
         // of RSI's 64 terms); a divisor of 0, or one read from a row, keeps the guard that raises Pure's error. Pure's
         // Integer / Integer (a SQL island's integer division is SQL's, not this rule)
+        // the guard counted by its raise's kind (phase D's D1.1, merged with main's #81 2026-11-14: the product writes
+        // DIVIDE_BY_ZERO; until then Pure's sentence, "Division by zero", which the edge still writes)
         String rows = "|#>{store::HR.EMP}#->filter(r|$r.age->isNotEmpty())";
         String byTwo = rows + "->extend(~h: r|$r.age->toOne() / 2)->select(~[ID, h])->sort(~ID->ascending())";
-        assertEquals(0, count(renderQuery(byTwo), "Division by zero"), renderQuery(byTwo));
+        assertEquals(0, count(renderQuery(byTwo), "DIVIDE_BY_ZERO"), renderQuery(byTwo));
         List<Double> halves = new ArrayList<>();
         for (List<Object> row : Lean.run(MODEL, byTwo, SqlIslandCases.RUNTIME, session).rows()) {
             halves.add(((Number) row.get(1)).doubleValue());
         }
         // the ages 30, 40, 25, 35 and 30 halved: a Float, as Pure divides two integers
         assertEquals(List.of(15.0, 20.0, 12.5, 17.5, 15.0), halves);
-        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / 0)"), "Division by zero"));
-        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / $r.ID)"), "Division by zero"));
+        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / 0)"), "DIVIDE_BY_ZERO"));
+        assertEquals(1, count(renderQuery(rows + "->extend(~h: r|$r.age->toOne() / $r.ID)"), "DIVIDE_BY_ZERO"));
     }
 
     private static SqlSource.Table table(String alias, OutputCol column) {
