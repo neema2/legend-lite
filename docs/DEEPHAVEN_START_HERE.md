@@ -37,6 +37,21 @@ top (grid 358,500, engine page 347,000, notebook module 366,000; each measured, 
 and dates relative to today are still refused on Deephaven (below); its max-by and min-by run there (K3a), and its Top/
 Bottom N's rank window (K6).
 
+**Main of 2026-11-14** (PRs #77-#98, 1,341 commits: the total wall, the plan as data, data in the plan, the timeseries
+platform) merged in at `3a217086`, merge commit `d046416b` (its conflicts finished in the commits after it). The
+conflict that changed the design was not textual: main's total wall (data enters a database only through a planned
+load; a host sends only the statements a plan carries, `PlannedSql`) refused the in-tab live desk, which spelled its own
+statements and loaded each batch outside any plan. The user's answer that day was **ingest plans**
+(docs/DESK_DATA_ROADMAP_2026_10_29.md C0, built first): the planner plans each dataset's make, land and keep once
+(`planner/IngestPlanner`, `Boundary.ingestPlans`, the protocol's `ingestPlans` kind on both hosts); the live engine
+runs them through the hosts' `runLoad`, each batch attached by name, and spells no SQL. With it: the desk's retentions
+are the model's (`LastRows`: prints 25,000, news 5,000, executions and order routes 50,000), the world's status table
+an ingest of its own (`market::WorldStatus`), `loadArrow` and the live engine's staged writes deleted. The branch's
+SEMANTICS_REGISTER rows moved to S400-S405 (main holds S300-S399 for the total wall). Main's newer guards caught the
+line's own code: its `as unknown as` casts, an `as never` and two variables named `any` were removed; its connect,
+fetch and send sites (the model home's release index, a Deephaven page's config, the Deephaven session's gRPC-web
+transport, the crypto feed's WebSocket, stage A's measurement) were pinned by name in `PlannedSqlTest`, each dated.
+
 ## What is built (the plan's §9 table; each row's paragraph says what it measured)
 
 - **L1, L2:** the model and the target. **L3b:** the browser route -- an encoder of our own (`core/.../deephaven/`)
