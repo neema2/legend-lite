@@ -10,6 +10,8 @@ js_library(
     name = "legend_art",
     srcs = glob(["src/**/*.ts"]) + ["package.json"],
     visibility = [
+        # the run wall reads Studio's and Query's imports, these icons included (datacube/test/run-wall.test.ts, T5)
+        "//datacube:__pkg__",
         "//query:__pkg__",
         "//studio:__pkg__",
     ],

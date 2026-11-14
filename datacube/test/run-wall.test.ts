@@ -1,7 +1,8 @@
 // THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13: "a compile-time wall on both hosts"; its Python
 // half is python/tests/test_run_wall.py). At run time the run frame (run-frame.ts) refuses a planner entry asked inside a
 // run, where a frame is kept (Node; not a browser, not the headless V8). This holds, on every host, what the source
-// itself says:
+// itself says -- read over DataCube, the engine client, the protocol library, and Studio's and Query's apps with the
+// libraries they import (the final audit of 9af16fbe58's T5, 2026-11-14: each of their run entries is a composer):
 //
 // - THE RUN SIDE IS COMPUTED (the follow-up audit's G2, 2026-11-14: until then eight hand-listed roots): every module
 //   that calls a run -- runPlan, runLoad, inRun, a run, an execute or a stream on a session, an engine, a runner, an
@@ -50,12 +51,17 @@ import { Sources } from '../../tools/js/runfiles.mts';
 
 const SOURCES = new Sources('SOURCES', 'datacube');
 
+/** The packages beside DataCube's whose sources this guard reads: Studio's and Query's apps, and what they import. */
+const STUDIO_AND_QUERY = ['studio', 'query', 'legend-art', 'sdlc-client', 'depot-client', 'query-store'];
+
 /** Every .ts source this guard reads, by its path from the datacube package. */
 function realSources(): Map<string, string> {
   const out = new Map<string, string>();
   for (const f of [...SOURCES.under('src', '.ts'), ...SOURCES.under('../engine-client/src', '.ts'),
     // the protocol library, imported by the snapshot's runner (the follow-up audit's G2, 2026-11-14)
-    ...SOURCES.under('../pure-protocol/src', '.ts')]) {
+    ...SOURCES.under('../pure-protocol/src', '.ts'),
+    // Studio and Query, and the libraries they import (the final audit of 9af16fbe58's T5, 2026-11-14)
+    ...STUDIO_AND_QUERY.flatMap((p) => SOURCES.under(`../${p}/src`, '.ts'))]) {
     if (!f.endsWith('.d.ts')) out.set(f, SOURCES.read(f));
   }
   return out;
@@ -114,6 +120,15 @@ const COMPOSER_MODULES = new Map([
   // 2026-11-14 (the final audit of 9af16fbe58's T2: the server engines joined the planner set)
   ['../engine-client/src/legend/engine.ts', "the server engines: generatePlan plans on a server, execute plans and runs"
     + ' there in one request (C5)'],
+  // 2026-11-14 (the final audit of 9af16fbe58's T5: Studio and Query read, measured): each asks an Engine's execute,
+  // which plans and runs in one request (the server's, or the in-tab engine's: BrowserEngine), or plans then runs
+  ['../query/src/app/cube.ts', "Query's cube: DataCube's grid over the query, its rows an engine's execute (C5)"],
+  ['../query/src/app/probe.ts', "Query's probe: a query's first rows, an engine's execute (C5)"],
+  ['../query/src/app/run.ts', "Query's run: the query's rows, an engine's execute (C5)"],
+  ['../query/src/ui/results.ts', "Query's results panel: a page of rows, an engine's execute (C5)"],
+  ['../studio/src/app/app.ts', "Studio's app: the in-tab session's planner beside its DuckDB engine's run (C5)"],
+  ['../studio/src/backend/run.ts', "Studio's runner: plans with the session's authored planner, then runs it"
+    + " (runAuthored, engine.run), and an engine's execute (C5)"],
 ]);
 
 // A RUN module's function that takes a planner, by module and name, with its reason. Shrink-only.
@@ -540,7 +555,13 @@ describe('the run wall (TypeScript)', () => {
     for (const root of RUN_ROOTS) assert.ok(files.has(root), `${root} is not among the sources read`);
     for (const p of PLANNER) assert.ok(files.has(p), `${p} is not among the sources read`);
     assert.ok(files.has('../pure-protocol/src/index.ts'), 'the protocol library is not among the sources read');
+    // Studio's and Query's apps (T5): read, and their run entries computed (each a composer today: COMPOSER_MODULES)
+    for (const app of ['../studio/src/backend/run.ts', '../query/src/app/run.ts', '../query/src/embed.ts']) {
+      assert.ok(files.has(app), `${app} is not among the sources read`);
+    }
     const entries = runEntries(files);
+    assert.ok(entries.get('../studio/src/backend/run.ts')?.includes('calls engine.run(')
+      && entries.get('../query/src/app/run.ts')?.some((w) => w.endsWith('engine.execute(')), [...entries.keys()].join(', '));
     // the plan runner is found by its calls, a session by the statement it takes: the computation is looking
     assert.ok(entries.get('../engine-client/src/plan-runner.ts')?.includes('calls runPlan('), [...entries.keys()].join(', '));
     assert.ok(entries.get('../engine-client/src/duckdb.ts')?.includes('takes a PlannedSql'), [...entries.keys()].join(', '));
