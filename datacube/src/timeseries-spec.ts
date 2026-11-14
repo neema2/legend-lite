@@ -6,9 +6,9 @@
 // plots SERIES along one time axis. Each series is an EXPRESSION in the vocabulary of gs-quant's
 // timeseries package -- the functions Goldman Sachs' PlotTool Pro exports to its expression language
 // (`gs_quant.timeseries`, each marked `@plot_function`): returns, volatility, z-scores, rolling statistics, drawdowns,
-// correlation and beta, Bollinger bands. A person types one (`volatility(px:close[AAPL], 63)`) or builds it from the
-// menus; either way the spec keeps the tree, and its text is printed from the tree (timeseries-expr.ts `exprText`), so
-// the words a person typed and the words saved never drift.
+// correlation and beta, Bollinger bands. A person types one (`volatility(close['AAPL'], w => 63)`) or builds it from the
+// menus; either way the spec keeps its TEXT, in #TS (A3 step 3, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md), and core's
+// reader alone reads it (timeseries-text.ts readSeriesTexts): the words a person typed are the words saved.
 //
 // NOTHING HERE COMPUTES A VALUE. An expression is words; timeseries-query.ts writes each node as a column of the
 // series' query -- a window over the dates, an expression over the row -- which the planner plans and the database
@@ -17,6 +17,10 @@
 // catalog and its reader alone -- the expression language and the rules against a grid's columns are the viewer's
 // (timeseries-expr.ts), fetched with the first timeseries tile.
 
+import { WORD_SIGNATURES } from './generated/ts-signatures.ts';
+import { tileSignatures, type TsFunctionName, type TsParamShape, type TsSignature } from './timeseries-words.ts';
+
+export { TS_FUNCTION_NAMES, type TsFunctionName, type TsParamShape, type TsSignature } from './timeseries-words.ts';
 import type { TimeGrain } from './chart-spec.ts';
 import { readFilterNode } from './grid-commands.ts';
 import type { FilterNode } from './snapshot.ts';
@@ -75,9 +79,11 @@ export interface TsStyle {
 export type TsStyleKind = 'line' | 'area' | 'bars' | 'step' | 'dots';
 
 export interface TsSeries {
-  /** Its id -- a capital letter, as `$A` refers to it -- unique in the tile. */
+  /** Its id -- a capital letter, as another series reads it by name (`A`) -- unique in the tile. */
   readonly id: string;
-  readonly expr: TsExpr;
+  /** What it plots: one #TS item's expression, the series' own (another series it reads named, never inlined) -- read
+   *  by core (timeseries-text.ts readSeriesTexts), never by DataCube. */
+  readonly text: string;
   /** Its name in the legend; else its expression's text. */
   readonly name?: string;
   /**
@@ -370,119 +376,36 @@ export const PERIODS_PER_YEAR: Readonly<Record<TimeGrain, number>> = {
 
 // ------------------------------------------------------------------ the catalog's signatures
 
-export type TsFunctionName =
-  | 'returns' | 'prices' | 'diff' | 'lag' | 'index' | 'rebase' | 'change' | 'percent_change' | 'annualize'
-  | 'mean' | 'sum' | 'min' | 'max' | 'range' | 'std' | 'var' | 'zscores' | 'winsorize'
-  | 'volatility' | 'drawdown' | 'max_drawdown' | 'sharpe_ratio'
-  | 'correlation' | 'beta' | 'cov' | 'alpha' | 'r_squared' | 'hedge_ratio' | 'residual'
-  | 'bollinger_bands' | 'rsi' | 'ohlc'
-  | 'exponential_moving_average' | 'exponential_std' | 'exponential_volatility' | 'exponential_spread_volatility' | 'macd'
-  | 'smoothed_moving_average' | 'percentiles' | 'median' | 'percentile'
-  | 'log' | 'exp' | 'sqrt' | 'abs' | 'power' | 'floor' | 'ceil'
-  | 'if' | 'not' | 'compare' | 'filter' | 'product' | 'geometrically_aggregate' | 'weighted_sum' | 'smooth_spikes'
-  | 'excess_returns' | 'vol_swap_volatility' | 'consecutive' | 'trend' | 'seasonally_adjusted'
-  | 'interpolate' | 'union' | 'append' | 'prepend' | 'first' | 'last' | 'count' | 'day' | 'month' | 'year' | 'quarter' | 'weekday'
-  | 'atr' | 'stochastic' | 'keltner_channels' | 'donchian_channels' | 'obv' | 'vwap'
-  | 'tracking_error' | 'information_ratio' | 'up_capture' | 'down_capture' | 'total_return' | 'basket'
-  | 'lead_lag' | 'dickey_fuller' | 'half_life';
+/** Every function's signature, gs-quant's names (PlotTool Pro's words), in the catalog's order: core's catalog's,
+ *  generated (the order's step 1, 2026-11-07: the hand-kept table it replaced), SQL's per point the tile's own
+ *  (timeseries-words.ts tileSignatures). */
+export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = tileSignatures(WORD_SIGNATURES);
 
-/** A function's parameter as a spec holds it: a whole number, a span (a window, a lag: a whole number of observations
- *  or a calendar period, `3m`), a number, or a word (a kind of return). */
-export interface TsParamShape {
-  readonly name: string;
-  readonly kind: 'whole' | 'span' | 'number' | 'word';
-  readonly default: number | string;
-  readonly words?: readonly string[];
-  /** The least a number may be. */
-  readonly min?: number;
-  /** What a number must be above (a deviation's weight of the one before: over 0, or it weighs one value alone). */
-  readonly above?: number;
-  /** What a number must be below (an exponential average's weight: under 1). */
-  readonly below?: number;
-  /** The most a number may be (a percentile's: 100). */
-  readonly max?: number;
+/** A call's parameter as written: told, else the language's default -- undefined where it is neither (an optional the
+ *  library has no default for: an annualization factor, the frequency's where not told). */
+export function paramValue(fn: TsFunctionName, params: Readonly<Record<string, number | string>> | undefined, name: string): number | string | undefined {
+  const p = TS_SIGNATURES[fn].params.find((q) => q.name === name);
+  if (p === undefined) throw new Error(`${fn} has no parameter ${name}`);
+  return params?.[name] ?? p.default;
 }
 
-/**
- * A FUNCTION'S SIGNATURE: how many series it reads (one, or two: a correlation's) and its parameters -- what a saved
- * spec is read by (tsProblem). What it is called, what it computes, its units and how it is drawn are the catalog's
- * words (timeseries-expr.ts TS_FUNCTIONS), fetched with the viewer: a page reads its tiles at its start, and needs none
- * of them to.
- */
-export interface TsSignature {
-  /** One, two (a correlation's), three (an if's flags and its two branches), four (a candle's: its open, high, low and
-   *  close), or `many`: series and their weights in pairs (a weighted sum's). */
-  readonly series: 1 | 2 | 3 | 4 | 'many';
-  /** What each series is, in order, where they are not x and y (a true range's high, low and close): said by its
-   *  refusals and its reference. */
-  readonly reads?: readonly string[];
-  readonly params: readonly TsParamShape[];
+/** A call's parameters as written, in their order: each told, else its default; one of neither left out. */
+export function writtenParams(fn: TsFunctionName, params: Readonly<Record<string, number | string>> | undefined): (readonly [TsParamShape, number | string])[] {
+  return TS_SIGNATURES[fn].params.flatMap((p) => {
+    const v = params?.[p.name] ?? p.default;
+    return v === undefined ? [] : [[p, v] as const];
+  });
 }
 
-const W = (fallback: number): TsParamShape => ({ name: 'w', kind: 'span', default: fallback, min: 0 });
-const OBS: TsParamShape = { name: 'obs', kind: 'span', default: 1, min: 1 };
-const RETURN_TYPE: TsParamShape = { name: 'type', kind: 'word', default: 'simple', words: ['simple', 'log', 'absolute'] };
-const num = (name: string, fallback: number, min?: number): TsParamShape =>
-  ({ name, kind: 'number', default: fallback, ...(min !== undefined ? { min } : {}) });
-/** A whole number of observations alone (a recursion's: Wilder's smoothing counts them). */
-const whole = (name: string, fallback: number, min = 1): TsParamShape => ({ name, kind: 'whole', default: fallback, min });
-/** An exponential average's weight of the one before, 0 to under 1 (gs-quant's beta: 0.75). */
-const BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, min: 0, below: 1 };
-/** A deviation's beta, over 0: at 0 each value weighs alone, which has no deviation (pandas: none at every date; the E9
- *  review's 2, refused in words rather than drawn as nothing). */
-const SPREAD_BETA: TsParamShape = { name: 'beta', kind: 'number', default: 0.75, above: 0, below: 1 };
-const one = (...params: TsParamShape[]): TsSignature => ({ series: 1, params });
-/** A seasonal decomposition's model and its cycle (gs-quant's SeasonalModel and Frequency). */
-const SEASONAL_MODEL: TsParamShape = { name: 'method', kind: 'word', default: 'additive', words: ['additive', 'multiplicative'] };
-const CYCLE: TsParamShape = { name: 'freq', kind: 'word', default: 'year', words: ['year', 'quarter', 'month', 'week'] };
-
-/** A true range's series: a candle's high, low and close. */
-const HLC = ['high', 'low', 'close'] as const;
-/** A series against a benchmark, over a window: each one's simple returns, on the dates both have. */
-const AGAINST: TsSignature = { series: 2, reads: ['x', 'benchmark'], params: [W(63)] };
-
-/** Every function's signature, gs-quant's names (PlotTool Pro's words), in the catalog's order. */
-export const TS_SIGNATURES: Readonly<Record<TsFunctionName, TsSignature>> = {
-  returns: one(OBS, RETURN_TYPE), prices: one(num('initial', 1), RETURN_TYPE), diff: one(OBS), lag: one(OBS), annualize: one(),
-  index: one(num('initial', 1)), rebase: one(num('base', 100)), change: one(), percent_change: one(),
-  mean: one(W(22)), sum: one(W(0)), min: one(W(22)), max: one(W(22)), range: one(W(22)), std: one(W(22)), var: one(W(22)),
-  zscores: one(W(0)), winsorize: one(num('limit', 2.5, 0)),
-  volatility: one(W(22), RETURN_TYPE), drawdown: one(W(0)), max_drawdown: one(W(0)), sharpe_ratio: one(W(252)),
-  correlation: { series: 2, params: [W(63)] }, beta: { series: 2, params: [W(63)] }, cov: { series: 2, params: [W(63)] },
-  alpha: { series: 2, params: [W(63)] }, r_squared: { series: 2, params: [W(63)] }, hedge_ratio: { series: 2, params: [W(63)] },
-  residual: { series: 2, params: [W(63)] },
-  // gs-quant's default, intersect (the Phase 1 review's 5)
-  interpolate: { series: 2, params: [{ name: 'method', kind: 'word', default: 'intersect', words: ['intersect', 'nan', 'zero', 'step'] }] },
-  // gs-quant's remaining functions (the next phases' 1, 2026-10-26)
-  if: { series: 3, params: [] }, not: one(), compare: { series: 2, params: [] },
-  filter: one({ name: 'operator', kind: 'word', default: 'empty', words: ['empty', 'less_than', 'greater_than', 'l_equals', 'g_equals', 'equals', 'not_equals'] }, num('value', 0)),
-  product: one(W(0)), geometrically_aggregate: one(), weighted_sum: { series: 'many', params: [] },
-  smooth_spikes: one(num('threshold', 0.5, 0), { name: 'type', kind: 'word', default: 'percentage', words: ['percentage', 'absolute'] }),
-  excess_returns: { series: 2, params: [] }, vol_swap_volatility: one(W(0)),
-  consecutive: one({ name: 'direction', kind: 'word', default: 'positive', words: ['positive', 'negative'] }),
-  trend: one(SEASONAL_MODEL, CYCLE), seasonally_adjusted: one(SEASONAL_MODEL, CYCLE),
-  union: { series: 2, params: [] }, append: { series: 2, params: [] }, prepend: { series: 2, params: [] },
-  first: one(), last: one(), count: one(), day: one(), month: one(), year: one(), quarter: one(), weekday: one(),
-  bollinger_bands: one(W(20), num('k', 2, 0)), rsi: one(whole('w', 14)), ohlc: { series: 4, params: [] },
-  exponential_moving_average: one(BETA), exponential_std: one(SPREAD_BETA), exponential_volatility: one(SPREAD_BETA),
-  exponential_spread_volatility: one(SPREAD_BETA), macd: one(whole('m', 12), whole('n', 26), whole('s', 1)),
-  smoothed_moving_average: one(whole('w', 14)),
-  percentiles: one(W(0)), median: one(W(22)), percentile: one({ name: 'n', kind: 'number', default: 50, min: 0, max: 100 }, W(0)),
-  log: one(), exp: one(), sqrt: one(), abs: one(), power: one(num('y', 2)), floor: one(num('value', 0)), ceil: one(num('value', 0)),
-  // the analysts' packs (the next phases' 4, 2026-10-26): technicals of a candle's columns, a benchmark's, a basket's, a
-  // pair's
-  atr: { series: 3, reads: HLC, params: [whole('w', 14)] },
-  stochastic: { series: 3, reads: HLC, params: [whole('w', 14)] },
-  keltner_channels: { series: 3, reads: HLC, params: [whole('w', 20), whole('a', 10), num('k', 2, 0)] },
-  donchian_channels: { series: 2, reads: ['high', 'low'], params: [W(20)] },
-  obv: { series: 2, reads: ['close', 'volume'], params: [] },
-  vwap: { series: 2, reads: ['price', 'volume'], params: [W(20)] },
-  tracking_error: AGAINST, information_ratio: AGAINST, up_capture: AGAINST, down_capture: AGAINST,
-  total_return: { series: 2, reads: ['price', 'dividends'], params: [] },
-  basket: { series: 'many', params: [{ name: 'rebalance', kind: 'word', default: 'daily', words: ['daily', 'weekly', 'monthly'] }] },
-  lead_lag: { series: 2, params: [{ name: 'lag', kind: 'whole', default: 1, min: -252, max: 252 }, W(63)] },
-  dickey_fuller: one(W(0)), half_life: one(W(0)),
-};
+/** What a word is begun with (a picked function's): each parameter every call gives and the language has no default for,
+ *  gs-quant's (a mean's window: gs-quant's Window(None, 0), every observation to date -- written, the spec's §7), else
+ *  the library's beginning (a percentile's n 50: `begin`). An
+ *  optional one of no default is left to the language, whose call without it is the tile's own: a compare's alignment
+ *  its FILL, an annualization its frequency's. */
+export function begunParams(fn: TsFunctionName): Readonly<Record<string, number | string>> | undefined {
+  const begun = TS_SIGNATURES[fn].params.filter((p) => p.required && p.default === undefined && (p.gsQuant ?? p.begin) !== undefined);
+  return begun.length === 0 ? undefined : Object.fromEntries(begun.map((p) => [p.name, (p.gsQuant ?? p.begin)!]));
+}
 
 /**
  * A CALENDAR PERIOD as a window or a lag takes it (gs-quant's tenor, `helper._to_offset`): a whole number of days, weeks,
@@ -587,7 +510,7 @@ const TS_KEYS: Readonly<Record<keyof TimeseriesSpec, true>> = {
 const SOURCE_KEYS: Readonly<Record<keyof TsSource, true>> = { alias: true, cube: true, date: true, key: true, kept: true };
 const KEPT_KEYS: Readonly<Record<keyof TsKept, true>> = { filter: true };
 const SERIES_KEYS: Readonly<Record<keyof TsSeries, true>> = {
-  id: true, expr: true, name: true, split: true, style: true, pane: true, axis: true, hidden: true,
+  id: true, text: true, name: true, split: true, style: true, pane: true, axis: true, hidden: true,
 };
 const STYLE_KEYS: Readonly<Record<keyof TsStyle, true>> = { kind: true, color: true, width: true, dash: true };
 const PANE_KEYS: Readonly<Record<keyof TsPane, true>> = { height: true, log: true, invert: true, min: true, max: true };
@@ -619,6 +542,21 @@ const DATE = /^\d{4}-\d{2}-\d{2}$/;
 function unknownKey(o: Readonly<Record<string, unknown>>, keys: Readonly<Record<string, true>>, what: string): string | null {
   const extra = Object.keys(o).find((k) => !Object.hasOwn(keys, k));
   return extra === undefined ? null : `there is no ${JSON.stringify(extra)} in ${what} (it says ${Object.keys(keys).join(', ')})`;
+}
+
+/** The longest text a series is written in. */
+export const MAX_TS_TEXT = 4000;
+
+/**
+ * WHAT STOPS A SERIES' TREE FROM BEING DRAWN, in words, or null: core's reading of its text, mapped to the tile's tree
+ * (timeseries-text.ts), judged by the tile's signatures -- its words' arity, their parameters' words and ranges -- and
+ * against `aliases`, the tile's sources (a column of none of them).
+ */
+export function treeProblem(e: TsExpr, what: string, aliases: readonly string[] | undefined): string | null {
+  const p = exprProblem(e, what);
+  if (p !== null || aliases === undefined) return p;
+  const named = columnSourcesOf(e).find((a) => !aliases.includes(a));
+  return named === undefined ? null : `${what} reads ${named}.<column>, and ${named} is none of its sources (${aliases.join(', ')})`;
 }
 
 function exprProblem(e: unknown, what: string, depth = 0): string | null {
@@ -669,8 +607,13 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
           if (!q) return `${fn} has no parameter ${JSON.stringify(name)} (it has ${f.params.map((x) => x.name).join(', ') || 'none'})`;
           if (q.kind === 'word') {
             if (!q.words!.includes(v as string)) return `${fn}'s ${name} ${JSON.stringify(v)} is not one of ${q.words!.join(', ')}`;
+          } else if (q.kind === 'span' && v === 'whole') {
+            if (q.whole !== true) return `${fn}'s ${name} takes no whole line`;
+          } else if (q.kind === 'span' && v === 'across') {
+            if (q.across !== true) return `${fn}'s ${name} takes no window across a date's instruments`;
           } else if (q.kind === 'span' && typeof v === 'string') {
             if (tenorOf(v) === undefined) return `${fn}'s ${name} ${JSON.stringify(v)} is neither a whole number nor a calendar period (3m, 1y)`;
+            if (q.period === false) return `${fn}'s ${name} takes no calendar period`;
           } else {
             if (typeof v !== 'number' || !Number.isFinite(v)) return `${fn}'s ${name} ${JSON.stringify(v)} is not a number`;
             if ((q.kind === 'whole' || q.kind === 'span') && !Number.isInteger(v)) return `${fn}'s ${name} ${v} is not a whole number`;
@@ -678,9 +621,24 @@ function exprProblem(e: unknown, what: string, depth = 0): string | null {
             if (q.above !== undefined && v <= q.above) return `${fn}'s ${name} ${v} is not above ${q.above}`;
             if (q.below !== undefined && v >= q.below) return `${fn}'s ${name} ${v} is not below ${q.below}`;
             if (q.max !== undefined && v > q.max) return `${fn}'s ${name} ${v} is above ${q.max}`;
+            if (q.kind === 'span' && v === 0 && q.all === false) return `${fn}'s ${name} takes no window to date`;
+            if (q.kind === 'span' && v !== 0 && q.observations === false) return `${fn}'s ${name} takes no count of observations`;
           }
         }
       }
+      // a window across a date's instruments is each date's cross-section: no ramp of a line's first points reads it (the
+      // language's across forms take no r; the checkpoint's review of 2026-11-09)
+      if (isRecord(params) && params['r'] !== undefined && f.params.some((q) => q.kind === 'span' && params[q.name] === 'across')) {
+        return `${fn}'s r is no part of a window across a date's instruments: a cross-section has no first points to ramp`;
+      }
+      // filter's empty operator (its default) reads no value: a value beside it is no part of the series -- refused,
+      // never dropped, as gs-quant's filter_ refuses a value of no operator (algebra.filter_; item 1 of 2026-11-09)
+      if (fn === 'filter' && isRecord(params) && (params['operator'] ?? 'empty') === 'empty' && params['value'] !== undefined && params['value'] !== 0) {
+        return `${fn}'s value ${JSON.stringify(params['value'])} is read by no operator: empty drops the empty values alone (gs-quant's filter_ refuses a value of no operator)`;
+      }
+      // a parameter every call gives, given (a mean's window: the spec's §7)
+      const missing = f.params.find((q) => q.required && (!isRecord(params) || params[q.name] === undefined));
+      if (missing !== undefined) return `${what}: ${fn} is given its ${missing.name} in every call`;
       return null;
     }
   }
@@ -766,10 +724,10 @@ export function tsProblem(ts: unknown): string | null {
     if (typeof s['id'] !== 'string' || !/^[A-Z][A-Z0-9]*$/.test(s['id'])) return `${what}'s id ${JSON.stringify(s['id'] ?? null)} is not a capital letter (A, B, ...)`;
     if (ids.has(s['id'])) return `two series are ${s['id']}`;
     ids.add(s['id']);
-    const p = exprProblem(s['expr'], `series ${s['id']}`);
-    if (p) return p;
-    const named = columnSourcesOf(s['expr'] as TsExpr).find((a) => !aliases.has(a));
-    if (named !== undefined) return `series ${s['id']} reads ${named}:..., which is none of its sources (${[...aliases].join(', ')})`;
+    // its text: what it means is core's to read (timeseries-text.ts readSeriesTexts) and its tree's to judge
+    // (treeProblem), where the tile is drawn
+    if (typeof s['text'] !== 'string' || s['text'].trim() === '') return `series ${s['id']} has no text (its #TS expression)`;
+    if (s['text'].length > MAX_TS_TEXT) return `series ${s['id']}'s text is past ${MAX_TS_TEXT} characters`;
     if (s['name'] !== undefined && typeof s['name'] !== 'string') return `series ${s['id']}'s name is not text`;
     if (s['split'] !== undefined && typeof s['split'] !== 'string') return `series ${s['id']}'s split is not a column`;
     if (s['pane'] !== undefined && !(Number.isInteger(s['pane']) && (s['pane'] as number) >= 0 && (s['pane'] as number) < MAX_PANES)) {

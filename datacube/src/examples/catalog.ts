@@ -84,6 +84,25 @@ export const EXAMPLE_PAGES: readonly ExamplePage[] = [
     build: async () => (await lazily(() => import('./markets-classes.ts'))).marketsClassesPage(),
   },
   {
+    // the user, 2026-11-07 (docs/TS_DECISIONS_2026_11_07.md §4, a'): "copies of the charts that start with classes"
+    id: 'markets-on-classes',
+    label: 'Markets: timeseries, on classes',
+    about: 'The markets example over the trading model\'s classes: every chart as it is there, each grid a saved query of the '
+      + 'site\'s markets project -- the prices a MarketQuote a day, the Treasury curve its CurvePoints -- read through the '
+      + 'project\'s mapping, so a figure is the class\'s, answered by the database.',
+    project: { groupId: 'demo', artifactId: 'markets', versionId: '0.0.0' },
+    build: async () => (await lazily(() => import('./on-classes.ts'))).marketsOnClassesPage(),
+  },
+  {
+    id: 'gallery-on-classes',
+    label: 'Timeseries gallery, on classes',
+    about: 'Every function of the timeseries tile, as the gallery shows them, over the markets project\'s classes: the '
+      + 'prices, the curve and the macro series each a class of the project (MarketQuote, CurvePoint, MacroObservation), '
+      + 'a sheet per family as there.',
+    project: { groupId: 'demo', artifactId: 'markets', versionId: '0.0.0' },
+    build: async () => (await lazily(() => import('./on-classes.ts'))).galleryOnClassesPage(),
+  },
+  {
     // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)
     id: 'prep-flow',
     label: 'A data flow',

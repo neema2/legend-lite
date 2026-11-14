@@ -184,6 +184,16 @@ public final class TestPlanner {
         } else {
             lifted = com.legend.compiler.spec.RelationCountAsserts.countedAsOne(lifted);
         }
-        return lifted == given.body() ? given : given.withBody(lifted);
+        TypedQuery out = lifted == given.body() ? given : given.withBody(lifted);
+        // the run's planning options reach the body's own statements (its lets, checks and answer, which
+        // ProductStatements plans by the query's options) as they reach its asserts (the planner's env): the final
+        // review of PR #81, 2026-11-09 -- DETERMINISTIC_AS_OF had reached only the asserts
+        if (out.options().containsAll(options.options())) {
+            return out;
+        }
+        java.util.Set<com.legend.platform.PlanOption> all = java.util.EnumSet.noneOf(com.legend.platform.PlanOption.class);
+        all.addAll(out.options());
+        all.addAll(options.options());
+        return out.withOptions(all);
     }
 }

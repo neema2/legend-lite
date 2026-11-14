@@ -279,7 +279,7 @@ def main() -> None:
                                    name='tsprices')
                 tsrt = tspage.grid(pa.table({'tenor': ['10Y'] * 4, 'obs': days, 'yield': [4.0, 4.1, 3.9, 4.2]}),
                                    name='tsrates')
-                tspage.timeseries({'px': tspx, 'rt': tsrt}, ['px:close[SPX] - rt:yield[10Y]'], title='SPX less the 10Y')
+                tspage.timeseries({'px': tspx, 'rt': tsrt}, ["px.close['SPX'] - rt.yield['10Y']"], title='SPX less the 10Y')
                 with contextlib.redirect_stdout(io.StringIO()):
                     shown_ts = ll.show(tspage, browser=False)
                 command = f'py-ts {json.dumps(shown_ts.url)}'

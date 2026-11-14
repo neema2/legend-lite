@@ -80,3 +80,25 @@ For any future "lazy or eager?":
 
 We are at the balanced center — eager Knowledge, lazy Work — not at either
 extreme.
+
+## The second tenet: Java parses and binds; Pure decides
+
+*Ruled by the user, 2026-11-03 ("Okay let's go", the timeseries v1 roadmap; the user's words: "java for parsing, not
+for logic", with zero exceptions -- "maybe we need new pure constructs that's okay").*
+
+A language lite carries (`#TS`, and every island like it) is read by Java and **means** what its Pure library says.
+
+- **Java parses**: text to a tree, the grammar's refusals (a token out of place).
+- **Java binds**: a name to what it names (a source, a column, a library function), and the facts read straight off
+  the syntax or the model -- a `BY`, a subscript, a column's declared type, which read is the same read. A fact
+  reaches the library as **data** (an argument, a type), never as a choice Java made for it.
+- **Pure decides**: what a word computes, how lines meet, which rows an answer has, what is refused and with which
+  fix. A rule is a library function, an overload the type checker picks, or a value the database computes.
+
+Java may not branch on a derived fact to pick a meaning, compute a value, or refuse a meaning. Where Pure cannot yet
+say a rule, the answer is a new Pure construct (the array `read`, overloads by a relation column's type), not a Java
+exception: an exception that remains is listed with its reason and guarded (`TsTranslatorGuardrailTest`), and the
+list only shrinks.
+
+The litmus test: **if the library changed its mind, would Java have to change too?** If yes, the rule is in Java, and
+it moves.

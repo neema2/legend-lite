@@ -76,6 +76,12 @@ public final class TabExports {
         return Folded.of(() -> Integer.toString(Boundary.holdModel(model)));
     }
 
+    /** {@link Boundary#holdModelOver}: the handle, or the refusal of a model that does not compile over the library. */
+    @JSExport
+    public static String holdModelOverOrError(String model, String library) {
+        return Folded.of(() -> Integer.toString(Boundary.holdModelOver(model, library)));
+    }
+
     /**
      * {@link Boundary#releaseModel}, folded: {@code OK\n}, or the failure as the planner protocol's other kinds answer
      * one -- as the native library's {@code lite_release_model} answers it (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C2).

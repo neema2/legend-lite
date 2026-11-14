@@ -3,7 +3,13 @@ host (each thread that calls it stays attached to its isolate), so opening engin
 no new threads. On Python's standard library alone: the compiler-only install (``pip install legend-lite``) calls the
 native library through it too -- a model home's calls, the saved pages and queries (_home.py) -- and
 DataCube's engine (engine.py) through the same pool. A connection is read and written on a thread of its own, which
-never calls the compiler: an idle connection holds no compiler thread."""
+never calls the compiler: an idle connection holds no compiler thread.
+
+A call's CONTEXT: ``_on_compiler_threads`` alone runs a call in a copy of the caller's context, so a run's frame
+(_runframe) reaches the pool's thread and a planner entry asked through it inside a run is refused there. The engine's
+direct ``_workers().submit`` sites (engine.py: its request entries -- the HTTP routes it answers, a served snap) start a
+call of their own, outside any run, and hand the pool's thread no context (the follow-up audit's G4, 2026-11-14: the
+doc said the pool carried the context for every call)."""
 
 from __future__ import annotations
 

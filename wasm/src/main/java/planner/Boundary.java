@@ -197,6 +197,12 @@ public final class Boundary {
         return MODELS.hold(model);
     }
 
+    /** {@link com.legend.HeldModels#hold(String, String)}: the handle that names {@code model} over {@code library}, the
+     *  library compiled once per module (Compiler.compileModel's two-argument form, A5 2026-11-06). */
+    public static int holdModelOver(String model, String library) {
+        return MODELS.hold(model, library);
+    }
+
     /** {@link com.legend.HeldModels#release}. */
     public static void releaseModel(int handle) {
         MODELS.release(handle);

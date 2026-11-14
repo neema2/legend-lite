@@ -7,6 +7,7 @@
 // Types only: a host's services are built by the host (src/services/browser.ts for the tab, src/services/python-host.ts
 // for Python's tab and notebook widget).
 
+import type { TsItemAnswer } from '../lite-planner.ts';
 import type { HeldConnection } from '../../../engine-client/src/duckdb.ts';
 import type { ModelHome } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
@@ -110,6 +111,8 @@ export interface ModelWriting {
 export interface QueryReading {
   parse(text: string): Promise<Lambda>;
   elements(text: string): Promise<unknown[]>;
+  /** A timeseries series' #TS text, read by core (A3 step 3: the one reader): its canonical text and tree, or why not. */
+  tsItem(text: string): Promise<TsItemAnswer>;
 }
 
 /** Where queries are planned and run, and where data comes in. */

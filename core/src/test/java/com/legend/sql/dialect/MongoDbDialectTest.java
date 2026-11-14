@@ -147,6 +147,25 @@ class MongoDbDialectTest {
     }
 
     @Test
+    void aRelationReadTwiceIsWrittenAtEachRead() {
+        // a let's value read twice is one common table expression at the statement's head (SharedRelations,
+        // 2026-11-04); a pipeline holds none, so each read is the relation's own stages again (SharedRelationsInPlace)
+        String model = MODEL + """
+                ###Pure
+                function test::twice(t: Relation<(name:String, age:Integer)>[1]): Relation<(name:String, age:Integer)>[1]
+                {
+                  let b = $t->filter(x | $x.age > 30);
+                  $b->concatenate($b);
+                }
+                """;
+        String s = Compiler.query(Compiler.compileModel(model),
+                        "test::twice(#>{test::Store.people}#->select(~[name, age]))")
+                .executionPlan("test::RT").answerSql().statement();
+        assertTrue(s.contains("{\"$unionWith\": {"), s);
+        assertEquals(2, s.split("\"\\$gt\"", -1).length - 1, s);
+    }
+
+    @Test
     void aHashIsTheHashedIndexKey() {
         String s = statement("#>{test::Store.people}#->extend(~h: x | $x.name->hashCode())");
         assertTrue(s.contains("{\"$toHashedIndexKey\": \"$_tds0.name\"}") || s.contains("$toHashedIndexKey"), s);

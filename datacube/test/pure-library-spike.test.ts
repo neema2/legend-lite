@@ -13,13 +13,13 @@ import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
-import { plannerFor } from './catalog-builder.ts';
+import { plannerFor, readText } from './catalog-builder.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import { type TimeseriesSpec, type TsSeries } from '../src/timeseries-spec.ts';
-import { parseExpr } from '../src/timeseries-expr.ts';
 import { seriesQuery, TS_DATE, TS_LOWER, TS_UPPER, TS_VALUE, type TsInputs } from '../src/timeseries-query.ts';
 import { lambda } from '../../pure-protocol/src/index.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
+import { readSeriesTexts } from '../src/timeseries-text.ts';
 
 // -- the prices of timeseries-queries.test.ts: two instruments over 40 weekdays from 2024-01-01, and a third on fewer --
 
@@ -197,7 +197,12 @@ function spike::leaks<T,L,A,V,O>(t: Relation<T>[1], line: ColSpec<L⊆T>[1], dat
 `;
 
 const TS: TimeseriesSpec = { sources: [{ alias: 'px', cube: 'prices', date: 'day', key: 'symbol' }], series: [] };
-const spec = (expr: string): TimeseriesSpec => ({ ...TS, series: [{ id: 'A', expr: parseExpr(expr) } as TsSeries] });
+/** A tile of `text`, read by core first (the one reader: the order's step 3). */
+const spec = async (text: string): Promise<TimeseriesSpec> => {
+  const ts: TimeseriesSpec = { ...TS, series: [{ id: 'A', text } as TsSeries] };
+  await readSeriesTexts(ts.series, readText);
+  return ts;
+};
 
 const writer = plannerFor('', 'local::RT');
 let engine: DuckDbEngine;
@@ -247,7 +252,7 @@ function column(t: ResultTable, name: string): unknown[] {
 
 /** Today's writer's line of an expression over AAA, by date (oldest first). */
 async function today(expr: string, value = TS_VALUE): Promise<Map<string, number | null>> {
-  const ts = spec(expr);
+  const ts = await spec(expr);
   const q = seriesQuery(inputs, ts, ts.series[0]!, {}, {});
   const t = await engine.execute(await planner.plan(q.query), 0);
   const dates = column(t, TS_DATE).map((d) => String(d).slice(0, 10));
@@ -263,6 +268,23 @@ async function spikeLine(text: string, out: string, symbol = 'AAA'): Promise<Map
   const dates = column(t, 'day').map((d) => String(d).slice(0, 10));
   const values = column(t, out).map(num);
   return new Map(dates.flatMap((d, i) => (symbols[i] === symbol ? [[d, values[i]!] as const] : [])));
+}
+
+/** A spike line under gs-quant's ramp (helper.apply_ramp: a window of w observations drops its line's first w points),
+ *  as today's words answer since the oracle's O1 (docs/TS_GSQUANT_ORACLE_2026_11_01.md): its dates from the (w + 1)-th. */
+function ramped(m: Map<string, number | null>, w: number): Map<string, number | null> {
+  return new Map([...m].sort(([a], [b]) => a.localeCompare(b)).slice(w));
+}
+
+/** A spike line under gs-quant's calendar ramp (helper.apply_ramp with a period: the line from its first date plus the
+ *  window, that date kept), as the calendar words answer since item 14i (2026-11-09): its dates from the first + `days`. */
+function rampedFrom(m: Map<string, number | null>, days: number): Map<string, number | null> {
+  const sorted = [...m].sort(([a], [b]) => a.localeCompare(b));
+  if (sorted.length === 0) return m;
+  const start = new Date(`${sorted[0]![0]}T00:00:00Z`);
+  start.setUTCDate(start.getUTCDate() + days);
+  const from = start.toISOString().slice(0, 10);
+  return new Map(sorted.filter(([d]) => d >= from));
 }
 
 function same(got: Map<string, number | null>, want: Map<string, number | null>, what: string, tolerance = 1e-9): void {
@@ -283,39 +305,40 @@ describe('the Pure library spike: one function of each family, held to today\'s 
   });
 
   it('multi-step windows (zscores): a mean and a deviation, then a row\'s figure', async () => {
-    same(await spikeLine('$prices->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'), await today('zscores(close[AAA], 10)'), 'zscores');
+    same(ramped(await spikeLine('$prices->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'), 10), await today("zscores(close['AAA'], w => 10)"), 'zscores');
   });
 
   it('several outputs (bollinger_bands): lower, upper and width', async () => {
     const q = '$prices->spike::bollinger(~symbol, ~day, ~close, 5, 2.0, ~lo, ~hi, ~wd)';
-    same(await spikeLine(q, 'lo'), await today('bollinger_bands(close[AAA], 5, 2)', TS_LOWER), 'lower');
-    same(await spikeLine(q, 'hi'), await today('bollinger_bands(close[AAA], 5, 2)', TS_UPPER), 'upper');
+    same(ramped(await spikeLine(q, 'lo'), 5), await today("bollinger_bands(close['AAA'], w => 5, k => 2)", TS_LOWER), 'lower');
+    same(ramped(await spikeLine(q, 'hi'), 5), await today("bollinger_bands(close['AAA'], w => 5, k => 2)", TS_UPPER), 'upper');
   });
 
   it('a base over the whole line (index): its first value', async () => {
-    same(await spikeLine('$prices->spike::index(~symbol, ~day, ~close, 100.0, ~ix)', 'ix'), await today('index(close[AAA], 100)'), 'index');
+    same(await spikeLine('$prices->spike::index(~symbol, ~day, ~close, 100.0, ~ix)', 'ix'), await today("index(close['AAA'], initial => 100)"), 'index');
   });
 
   it('two tables of different columns, aligned (pairOf), then two columns of one (correlation of their returns)', async () => {
     const returns = (s: string, r: string): string =>
-      `$prices->filter(x|$x.symbol == '${s}')->datacube::ts::returns(over(~symbol, [~day->ascending()]), ~close, 1, datacube::ts::Returns.simple, ~${r})`;
+      `$prices->filter(x|$x.symbol == '${s}')->timeseries::returns(over(~symbol, [~day->ascending()]), ~close, 1, timeseries::Returns.simple, ~${r})`;
     const q = `${returns('AAA', 'ra')}->select(~[symbol, day, ra])->spike::pairOf(~symbol, ~day, ~ra, ${returns('BBB', 'rb')}->select(~[symbol, day, rb])->rename(~symbol, ~sb), ~sb, ~day, ~rb, ~ra2, ~rb2)`
       + '->spike::correlation(~symbol, ~day, ~ra2, ~rb2, 10, ~c)';
-    same(await spikeLine(q, 'c'), await today('correlation(close[AAA], close[BBB], 10)'), 'correlation');
+    // gs-quant's correlation ramps on x's dates (apply_ramp after interpolate onto x): its first 10 points dropped
+    same(ramped(await spikeLine(q, 'c'), 10), await today("correlation(close['AAA'], close['BBB'], w => 10)"), 'correlation');
   });
 
   it('a self-join over each window (percentiles)', async () => {
-    same(await spikeLine('$prices->spike::percentiles(~symbol, ~day, ~close, 5, ~pr)', 'pr'), await today('percentiles(close[AAA], 5)'), 'percentiles');
+    same(ramped(await spikeLine('$prices->spike::percentiles(~symbol, ~day, ~close, 5, ~pr)', 'pr'), 5), await today("percentiles(close['AAA'], w => 5)"), 'percentiles');
   });
 
   it('a window of a calendar period (mean over 2w): the line joined to itself on dates', async () => {
-    same(await spikeLine('$prices->spike::meanOver(~symbol, ~day, ~close, 2, meta::pure::functions::date::DurationUnit.WEEKS, ~m)', 'm'),
-      await today('mean(close[AAA], 2w)'), 'mean over 2w');
+    same(rampedFrom(await spikeLine('$prices->spike::meanOver(~symbol, ~day, ~close, 2, meta::pure::functions::date::DurationUnit.WEEKS, ~m)', 'm'), 14),
+      await today("mean(close['AAA'], 2w)"), 'mean over 2w');
   });
 
   it('a value as of a calendar period back (lag 1m): an as-of join', async () => {
     same(await spikeLine('$prices->spike::lagBack(~symbol, ~day, ~close, 1, meta::pure::functions::date::DurationUnit.MONTHS, ~b)', 'b'),
-      await today('lag(close[AAA], 1m)'), 'lag 1m');
+      await today("lag(close['AAA'], 1mo, 'truncate')"), 'lag 1m');
   });
 
   it('a figure of each whole line (max drawdown): a group by the line, its working columns gone with the group', async () => {
@@ -323,18 +346,18 @@ describe('the Pure library spike: one function of each family, held to today\'s 
     assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'mdd'], 'a group keeps only its keys and figures');
     const of = new Map(column(t, 'symbol').map((s, i) => [s, num(column(t, 'mdd')[i])] as const));
     // the writer's running figure at the line's last date (its answer comes latest first)
-    const line = await today('max_drawdown(close[AAA])');
+    const line = await today("max_drawdown(close['AAA'], w => all)");
     const last = [...line.keys()].sort().at(-1)!;
     same(new Map([['all', of.get('AAA')!]]), new Map([['all', line.get(last)!]]), 'max drawdown');
   });
 
   it('a partition by the line and a figure of its own (consecutive), over a library call (diff)', async () => {
-    same(await spikeLine('$prices->datacube::ts::diff(over(~symbol, [~day->ascending()]), ~close, 1, ~dx)->spike::consecutive(~symbol, ~day, ~dx, ~run)', 'run'),
-      await today('consecutive(diff(close[AAA]))'), 'consecutive');
+    same(await spikeLine('$prices->timeseries::diff(over(~symbol, [~day->ascending()]), ~close, 1, ~dx)->spike::consecutive(~symbol, ~day, ~dx, ~run)', 'run'),
+      await today("consecutive(diff(close['AAA'], 1), direction => 'positive')"), 'consecutive');
   });
 
   it('the deepest pipeline (an exponential average in closed form): fifteen steps, partitions by its own columns', async () => {
-    same(await spikeLine('$prices->spike::ema(~symbol, ~day, ~close, 0.9, ~e)', 'e'), await today('exponential_moving_average(close[AAA], 0.9)'), 'ema');
+    same(await spikeLine('$prices->spike::ema(~symbol, ~day, ~close, 0.9, ~e)', 'e'), await today("exponential_moving_average(close['AAA'], beta => 0.9)"), 'ema');
   });
 });
 
@@ -355,8 +378,8 @@ describe('the Pure library spike: the gaps, as they are today', () => {
     const t = await engine.execute(await spiked.planText(`|${source}->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)`), 0);
     assert.deepEqual(t.columns.map((c) => c.name), ['symbol', 'day', 'close', 'volume', 'ts_m', 'z']);
     assert.ok(column(t, 'ts_m').every((v) => num(v) === 1), 'the caller\'s ts_m untouched');
-    same(await spikeLine('$prices->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'),
-      await today('zscores(close[AAA], 10)'), 'zscores beside a caller\'s ts_m');
+    same(ramped(await spikeLine('$prices->extend(~ts_m:x|1)->spike::zscores(~symbol, ~day, ~close, 10, ~z)', 'z'), 10),
+      await today("zscores(close['AAA'], w => 10)"), 'zscores beside a caller\'s ts_m');
   });
 
   it('GAP 3, closed: a declared return is held to each call, so a body leaking a column is refused by name', async () => {
@@ -369,11 +392,11 @@ describe('the Pure library spike: the gaps, as they are today', () => {
     const simple = await spiked.planText(`|${source}->spike::returnsOf(~symbol, ~day, ~close, 'simple', ~r)`);
     assert.match(log.sql, /LN\(|LOG\(/i);
     assert.doesNotMatch(simple.sql, /LN\(|LOG\(/i, 'the simple return\'s SQL has no log: the word was compared, never sent');
-    same(await spikeLine('$prices->spike::returnsOf(~symbol, ~day, ~close, \'simple\', ~r)', 'r'), await today('returns(close[AAA])'), 'returns');
+    same(await spikeLine('$prices->spike::returnsOf(~symbol, ~day, ~close, \'simple\', ~r)', 'r'), await today("returns(close['AAA'], 1, 'simple')"), 'returns');
   });
 
   it('the SQL a library function plans to, beside today\'s writer\'s, for the same figure', async () => {
-    const ts = spec('exponential_moving_average(close[AAA], 0.9)');
+    const ts = await spec("exponential_moving_average(close['AAA'], beta => 0.9)");
     const writer_ = await planner.plan(seriesQuery(inputs, ts, ts.series[0]!, {}, {}).query);
     const library = await spiked.planText(`|${source}->spike::ema(~symbol, ~day, ~close, 0.9, ~e)`);
     console.log(`SQL characters: today's writer ${writer_.sql.length}, the library's ${library.sql.length}`);

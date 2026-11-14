@@ -35,7 +35,7 @@ BUNDLES = located('HEADLESS_TEST_BUNDLES')
 PRODUCT = located('HEADLESS_BUNDLE').read_text(encoding='utf-8')
 TMP = Path(os.environ['TEST_TMPDIR'])
 
-from legend_lite._headless import KINDS, REFUSED, Headless, InterfaceMismatch, check_interface  # noqa: E402 -- after the library's path
+from legend_lite._headless import KINDS, OVER, REFUSED, Headless, InterfaceMismatch, check_interface  # noqa: E402 -- after the library's path
 from legend_lite._library import library  # noqa: E402
 
 # the product host's calls (calls.ts HostCalls): a test's own database is none of them
@@ -111,7 +111,7 @@ class Host(unittest.TestCase):
             kinds = h.evaluate('legendLiteHeadless.REQUEST_KINDS')
         # the host's table, and the kinds it refuses by name (REFUSED: the authored door, Studio's alone, 2026-11-12)
         self.assertEqual(sorted(kinds), sorted([*KINDS, *REFUSED]), "the bundle's kinds are the host's table's and its refusals'")
-        for kind, (function, _args) in KINDS.items():
+        for kind, (function, _args) in [*KINDS.items(), *OVER.items()]:
             self.assertTrue(library().exports(function), f'{kind}: the library exports {function}')
 
     def test_a_kind_the_host_does_not_answer_fails_at_start_naming_both_sides(self):

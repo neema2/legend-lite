@@ -73,16 +73,24 @@ public final class PeRatchets {
                     + " that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest,"
                     + " EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the"
                     + " snapshot-copy and output-plan tests)",
+            "own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR"
+                    + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
+                    + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
+                    + " tests')",
             "own_corpus.matched 3211 -> 3226 (2026-11-14, C4's must-haves M1-M5, found red by the gate on b915e29405):"
                     + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
                     + " them)",
+            "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
             "own_corpus.matched 3226 -> 3232 (2026-11-14, stream S's Phase 1 on claude/injection-safety, the DuckDB DDL"
                     + " breakout): DeclaredNameBreakoutTest's model's six elements (a class, a database, a mapping, a"
                     + " connection, a runtime and a Data element)",
             "own_corpus.matched 3232 -> 3235 (2026-11-14, stream S's Phase 1, the hosts' fileLoad pin):"
                     + " DeclaredDdlNamesTest's model's three elements (a database, a connection and a runtime)",
             "own_corpus.matched 3235 -> 3236 (2026-11-14, stream S, the seed's typed table lookup):"
-                    + " DottedNamesSeedTest's database");
+                    + " DottedNamesSeedTest's database",
+            "own_corpus.matched 3236, 3261 -> 3271 (2026-11-14, C4's c53c834e0 merged into stream S, measured by"
+                    + " //parser-equivalence:update_ratchets on the merged tree): both sides' models together");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

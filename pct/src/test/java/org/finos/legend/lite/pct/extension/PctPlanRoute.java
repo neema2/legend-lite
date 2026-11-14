@@ -36,7 +36,10 @@ final class PctPlanRoute {
     }
 
     static Answer execute(String model, String expression) throws IOException {
-        TypedQuery query = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression);
+        // the tests' planning options: as-of joins answer the same row on every database (PlanOption, off by default;
+        // the user, 2026-11-07: "our tests should use the option")
+        TypedQuery query = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
+                .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
         com.legend.result.Collector collector = new com.legend.result.Collector();
         java.io.StringWriter json = new java.io.StringWriter();
         java.util.Set<com.legend.platform.Feature> features =

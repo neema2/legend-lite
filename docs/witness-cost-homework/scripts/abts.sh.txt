@@ -1,8 +1,9 @@
 #!/bin/bash
 # TS whole path (whole-bench.ts: WASM planner + runPlan on DuckDB-WASM in Node), ON (real run-frame.ts) vs OFF (no frame
 # kept), alternating separate processes; 5 rounds; rows and passes from the arguments.
+REPO="${REPO:-$(git rev-parse --show-toplevel)}"  # the checkout, wherever it is (the follow-up audit's G4, 2026-11-14)
 P=$SP
 rows=$1; passes=$2; log=$P/raw/abts-$rows.log; : > $log
-one() { v=$1; r=$2; ( cd $P/ts/tree-$v && echo "### ${v^^} r$r" >> $log && RUNFILES_DIR=$P/ts/tree-$v WASM_PLANNER=_main/wasm/planner_dir DUCKDB_EXTENSIONS="$(ls -d _main/engine-client/duckdb-extensions/*/*/*.wasm | tr '\n' ' ')" TZ=UTC $OUTPUT_BASE/external/rules_nodejs++node+nodejs_linux_amd64/bin/nodejs/bin/node --experimental-strip-types --experimental-wasm-exnref --disable-warning=ExperimentalWarning _main/engine-client/test/whole-bench.ts /home/user/legend-lite/wasm/corpus/model.pure $P/lambdas.json $rows $passes 2>&1 | grep -v failed >> $log ); }
+one() { v=$1; r=$2; ( cd $P/ts/tree-$v && echo "### ${v^^} r$r" >> $log && RUNFILES_DIR=$P/ts/tree-$v WASM_PLANNER=_main/wasm/planner_dir DUCKDB_EXTENSIONS="$(ls -d _main/engine-client/duckdb-extensions/*/*/*.wasm | tr '\n' ' ')" TZ=UTC $OUTPUT_BASE/external/rules_nodejs++node+nodejs_linux_amd64/bin/nodejs/bin/node --experimental-strip-types --experimental-wasm-exnref --disable-warning=ExperimentalWarning _main/engine-client/test/whole-bench.ts $REPO/wasm/corpus/model.pure $P/lambdas.json $rows $passes 2>&1 | grep -v failed >> $log ); }
 for r in 1 2 3 4 5; do if (( r % 2 )); then one on $r; one off $r; else one off $r; one on $r; fi; done
 echo AB-DONE >> $log

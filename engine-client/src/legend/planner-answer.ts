@@ -10,6 +10,7 @@ import { planning } from '../run-frame.ts';
 export interface PlannerModule {
   readonly exports: {
     holdModelOrError(model: string): string;
+    holdModelOverOrError(model: string, library: string): string;
     releaseModelOrError(handle: number): string;
     planHeldOrError(handle: number, query: string, runtime: string): string;
     relationTypeHeldOrError(handle: number, query: string): string;
@@ -43,7 +44,8 @@ export function answer(m: PlannerModule, r: RequestBody): string {
   // every in-thread call of the planner comes here: refused inside a run of its flow (run-frame.ts, the witness)
   planning(r.kind);
   switch (r.kind) {
-    case 'hold': return m.exports.holdModelOrError(r.model);
+    case 'hold': return r.library === undefined ? m.exports.holdModelOrError(r.model)
+      : m.exports.holdModelOverOrError(r.model, r.library);
     case 'release': return m.exports.releaseModelOrError(r.handle);
     case 'plan': return m.exports.planHeldOrError(r.handle, r.query, r.runtime);
     case 'relationType': return m.exports.relationTypeHeldOrError(r.handle, r.query);

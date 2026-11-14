@@ -1,0 +1,91 @@
+#!/bin/bash
+# How the window-frame probes of 2026-11-04 ran on eight databases in a cloud container, with no Docker and no
+# download: every server below is a binary Bazel already fetched for the repository's own test lanes (the
+# embedded_* repositories), and every driver is a jar of @product_jars. Each command was run as written here.
+# Copy it out of the tree first (it is stored as .sh.txt so no guard or build reads it), then source it:
+#   cp docs/ts-sql-homework/probes/databases.sh.txt "$SCRATCH/databases.sh" && source "$SCRATCH/databases.sh"
+#   probe_all MonthKey      # or Frames, or PerRow (see each probe's javadoc for its question)
+# Needs: bazel build //core:ts_documents_test (or any target that fetches the embedded_* repositories), and the
+# user `ubuntu` (Postgres refuses to run as root).
+REPO=${REPO:-/home/user/legend-lite}
+PROBES=${PROBES:-$REPO/docs/ts-sql-homework/probes}
+J=$(cd "$REPO" && bazel info output_base 2>/dev/null)/external
+JAVA="$J/rules_java++toolchains+remotejdk25_linux/bin/java"
+WORK=${WORK:-/tmp/dbprobe}
+mkdir -p "$WORK"
+# a probe is one .java file run by the java launcher in source mode: copy it out without its .txt
+probe() {   # probe <Class> <driver jar> <jdbc url> [user] [password], with JFLAGS for its -D options
+    cp "$PROBES/$1.java.txt" "$WORK/$1.java"
+    (cd "$WORK" && env -u JAVA_TOOL_OPTIONS "$JAVA" --enable-native-access=ALL-UNNAMED ${JFLAGS:-} -cp "$2" "$1.java" "${@:3}" 2>&1 | grep -v "^WARNING\|WARN")
+}
+# The month key in each spelling: (year * 12 + month) * 31 + day of month - 1
+EX_STD="(EXTRACT(YEAR FROM d) * 12 + EXTRACT(MONTH FROM d)) * 31 + EXTRACT(DAY FROM d) - 1"
+
+duckdb()   { probe "$1" "$J/+product_jars+duckdb_jdbc/jar/duckdb_jdbc-1.5.6.0.jar" "jdbc:duckdb:"; }
+h2()       { probe "$1" "$(ls $J/+product_jars+h2_modern/jar/*.jar)" "jdbc:h2:mem:probe"; }
+sqlite()   { probe "$1" "$(ls $J/+product_jars+sqlite_jdbc/jar/*.jar)" "jdbc:sqlite::memory:"; }
+
+postgres() {   # Postgres 16, as ubuntu (initdb refuses root)
+    if [ ! -d /tmp/frpg/data ]; then
+        mkdir -p /tmp/frpg && cp -r "$J/+embedded_postgres+embedded_postgres_linux_x86_64/pg" /tmp/frpg/pg && chown -R ubuntu:ubuntu /tmp/frpg
+        (cd /tmp/frpg && setpriv --reuid=ubuntu --regid=ubuntu --init-groups ./pg/bin/initdb -D /tmp/frpg/data -U postgres --auth=trust >/tmp/frpg/initdb.log 2>&1)
+    fi
+    setpriv --reuid=ubuntu --regid=ubuntu --init-groups /tmp/frpg/pg/bin/pg_ctl -D /tmp/frpg/data -o "-p 54391 -k /tmp/frpg" -l /tmp/frpg/pg.log start >/dev/null 2>&1; sleep 3
+    probe "$1" "$(ls $J/+product_jars+postgresql/jar/*.jar)" "jdbc:postgresql://localhost:54391/postgres" postgres ""
+    setpriv --reuid=ubuntu --regid=ubuntu --init-groups /tmp/frpg/pg/bin/pg_ctl -D /tmp/frpg/data stop >/dev/null 2>&1
+}
+
+mariadb() {   # MariaDB 11.4; a DATE read back needs -Dtext=CHAR(10) for MonthKey
+    local M="$J/+embedded_mariadb+embedded_mariadb_linux_x86_64/mariadb"
+    [ -d /tmp/frmaria/data ] || { mkdir -p /tmp/frmaria && "$M/scripts/mariadb-install-db" --no-defaults --basedir="$M" --datadir=/tmp/frmaria/data --user=root --auth-root-authentication-method=normal >/tmp/frmaria/install.log 2>&1; }
+    ("$M/bin/mariadbd" --no-defaults --basedir="$M" --datadir=/tmp/frmaria/data --port=33961 --socket=/tmp/frmaria/sock --user=root --skip-grant-tables >/tmp/frmaria/server.log 2>&1 &)
+    for i in $(seq 1 30); do sleep 2; grep -q "ready for connections" /tmp/frmaria/server.log && break; done
+    probe "$1" "$(ls $J/+product_jars+mariadb_jdbc/jar/*.jar)" "jdbc:mariadb://localhost:33961/test" root ""
+    pkill -9 -f mariadbd; sleep 2
+}
+
+mysql() {   # MySQL 8.4 (its libraries are in the repository's two unpacked .deb files), through the MariaDB driver
+    local Y="$J/+embedded_mysql+embedded_mysql_linux_x86_64"
+    local LIBS="$Y/mysql/lib:$Y/mysql/lib/private:$Y/deb_0/data/usr/lib/x86_64-linux-gnu:$Y/deb_1/data/usr/lib/x86_64-linux-gnu"
+    [ -d /tmp/frmysql/data ] || { mkdir -p /tmp/frmysql && LD_LIBRARY_PATH=$LIBS "$Y/mysql/bin/mysqld" --no-defaults --initialize-insecure --basedir="$Y/mysql" --datadir=/tmp/frmysql/data --user=root >/tmp/frmysql/init.log 2>&1; }
+    (LD_LIBRARY_PATH=$LIBS "$Y/mysql/bin/mysqld" --no-defaults --basedir="$Y/mysql" --datadir=/tmp/frmysql/data --port=33971 --socket=/tmp/frmysql/sock --mysqlx=OFF --user=root >/tmp/frmysql/server.log 2>&1 &)
+    for i in $(seq 1 20); do sleep 2; grep -q "ready for connections" /tmp/frmysql/server.log && break; done
+    probe "$1" "$(ls $J/+product_jars+mariadb_jdbc/jar/*.jar)" "jdbc:mariadb://localhost:33971/mysql?allowPublicKeyRetrieval=true" root ""
+    pkill -f "mysqld --no-defaults --basedir"
+}
+
+trino() {   # Trino 483 with a memory catalog; the probe's table is made with -Dcreate (no batch inserts there)
+    local R="$J/+embedded_trino+embedded_trino/trino" D=/tmp/frtrino
+    mkdir -p $D/etc/catalog
+    printf 'connector.name=memory\nmemory.max-data-per-node=512MB\n' > $D/etc/catalog/memory.properties
+    printf "coordinator=true\nnode-scheduler.include-coordinator=true\nhttp-server.http.port=38081\ndiscovery.uri=http://127.0.0.1:38081\nquery.max-memory=1GB\nquery.max-memory-per-node=1GB\nplugin.dir=$R/plugin\n" > $D/etc/config.properties
+    (env -u JAVA_TOOL_OPTIONS "$JAVA" -Xmx2G -XX:+UseG1GC -Djdk.attach.allowAttachSelf=true --enable-native-access=ALL-UNNAMED \
+        --add-modules=jdk.incubator.vector -Dnode.environment=pct -Dnode.id=pct -Dnode.bind-ip=127.0.0.1 \
+        -Dnode.internal-address=127.0.0.1 -Dnode.data-dir=$D/node -Dconfig=$D/etc/config.properties \
+        -Dcatalog.config-dir=$D/etc/catalog -Duser.timezone=UTC -cp "$R/lib/*" io.trino.server.TrinoServer >$D/server.log 2>&1 &)
+    for i in $(seq 1 60); do sleep 3; curl -s --noproxy '*' http://127.0.0.1:38081/v1/info | grep -q '"starting":false' && break; done
+    JFLAGS="${JFLAGS:-} -Dcreate=CREATE\ TABLE\ fr_days\ AS\ SELECT\ d\ FROM\ UNNEST(sequence(DATE\ '2020-01-02',\ DATE\ '2024-12-31',\ INTERVAL\ '1'\ DAY))\ t(d)\ WHERE\ day_of_week(d)\ <\ 6" \
+        probe "$1" "$(ls $J/+product_jars+trino_jdbc/jar/*.jar)" "jdbc:trino://127.0.0.1:38081/memory/default" test ""
+    pkill -f io.trino.server.TrinoServer
+}
+
+clickhouse_bin() { echo "$J/+embedded_clickhouse+embedded_clickhouse_linux_x86_64/unpacked/usr/bin/clickhouse"; }
+# ClickHouse 25.8 runs as `clickhouse local` (no server, no JDBC): the month key's frame, checked by hand, was
+#   $(clickhouse_bin) local -q "WITH days AS (SELECT toDate('2020-01-02') + number AS d FROM numbers(1826)
+#       WHERE toDayOfWeek(toDate('2020-01-02') + number) < 6 AND toDate('2020-01-02') + number <= toDate('2024-12-31'))
+#     SELECT d, count() OVER (ORDER BY (toYear(d) * 12 + toMonth(d)) * 31 + toDayOfMonth(d) - 1
+#                             RANGE BETWEEN 185 PRECEDING AND CURRENT ROW) FROM days"
+# and the pairs trade: export KO and PEP with the harness (harness.sh time on docs/ts-sql-homework/clickhouse/export.sql,
+# then drop the CSV's header line into prices_body.csv beside the query), then
+#   $(clickhouse_bin) local --time --queries-file docs/ts-sql-homework/clickhouse/pairs_key_frames.sql
+
+probe_all() {   # the probe on every database above, MonthKey's key spelled for each
+    local c=$1
+    echo "== DuckDB";   JFLAGS="-Dkey=$EX_STD" duckdb "$c"
+    echo "== H2";       JFLAGS="-Dkey=$EX_STD" h2 "$c"
+    echo "== SQLite";   JFLAGS="-Dkey=(CAST(strftime('%Y',d)\ AS\ INTEGER)*12+CAST(strftime('%m',d)\ AS\ INTEGER))*31+CAST(strftime('%d',d)\ AS\ INTEGER)-1" sqlite "$c"
+    echo "== Postgres"; JFLAGS="-Dkey=$EX_STD" postgres "$c"
+    echo "== MariaDB";  JFLAGS="-Dkey=$EX_STD -Dtext=CHAR(10)" mariadb "$c"
+    echo "== MySQL";    JFLAGS="-Dkey=$EX_STD -Dtext=CHAR(10)" mysql "$c"
+    echo "== Trino";    JFLAGS="-Dkey=(year(d)*12+month(d))*31+day(d)-1" trino "$c"
+}

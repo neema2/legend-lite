@@ -62,6 +62,8 @@ begin\s+transaction
 # over the demo's model, so no host spells it; the C checkpoint's code audit asked for this note)
 studio/src/ui/editor.ts | "SELECT * FROM \"PARTY\".\"PARTY\"" | the SQL editor's placeholder: an example of the person's own SQL, shown in the empty box, never run
 query/src/ui/results.ts | "SELECT " | the plan's SQL shown for reading (formatSql): its first keyword written upper case, never run
+datacube/src/timeseries-ts.ts | "WITH " | a #TS query the tile writes (the timeseries language, docs/TS_LANGUAGE_BUILD_2026_10_30.md P6), not SQL: core's TsToPure reads it into Pure and the planner writes the statements (kept 2026-11-01, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S5: red since P6, 2026-10-31)
+datacube/src/timeseries-ts.ts | "SELECT " | a #TS query the tile writes, as the line above
 
 [harnesses]
 datacube/demo/torture.mjs | builds its WEIRD fixture table in a DuckDB of its own (Node), the oracle the torture cases are judged against

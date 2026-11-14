@@ -1,0 +1,58 @@
+#!/bin/bash
+# The scratch harnesses of the #TS SQL work (docs/TS_SQL_HANDOFF_2026_11_06.md §9), run over the classes Bazel built
+# for //core:ts_documents_test: they need no target of their own and are never part of the build.
+#
+# Copy this file out of the tree first (it is stored as .sh.txt so no guard or build reads it):
+#   mkdir -p "$SCRATCH" && cp docs/ts-sql-homework/scripts/harness.sh.txt "$SCRATCH/harness.sh"
+#   bazel build //core:ts_documents_test && bash "$SCRATCH/harness.sh" build
+#
+# usage: bash harness.sh <command> [args]          SCRATCH defaults to /tmp/ts-sql, REPO to /home/user/legend-lite
+#   build                                 compile the harnesses (again after every bazel build of the test target)
+#   sql <id> <out.sql> [examples.sql]     an example's SQL, as the plan writes it for DuckDB
+#   time <file.sql>                       three timed runs on the documents' seeded data; its rows at <file>.csv
+#   profile <file.sql>                    prepare and run times; DuckDB's detailed profile at <file>.prof.json
+#   answers <out-dir> [examples.sql]      every example's rows, one CSV each (compare two with compare_answers.py)
+#   table [examples.sql]                  every example: chars, SELECTs, OVERs, JOINs, rows, plan ms, run ms
+#   plan <id> [n] [examples.sql]          an example's planning time, typing and planning, n runs (default 4)
+#   jfr <id> <out.jfr> [n]                the same under Java Flight Recorder, full-depth stacks
+# The examples default to docs/timeseries/examples.sql; any file of "-- @example <id>" blocks will do
+# (docs/ts-sql-homework/data/equivalence_queries.sql).
+set -euo pipefail
+SCRATCH=${SCRATCH:-/tmp/ts-sql}
+REPO=${REPO:-/home/user/legend-lite}
+HOME_DIR=${HOMEWORK:-$REPO/docs/ts-sql-homework}
+LAUNCHER="$REPO/bazel-bin/core/ts_documents_test"
+[ -f "$LAUNCHER" ] || { echo "bazel build //core:ts_documents_test first" >&2; exit 1; }
+OUTPUT_BASE=$(readlink -f "$REPO/bazel-out/../../..")
+JAVA="$OUTPUT_BASE/external/rules_java++toolchains+remotejdk25_linux/bin/java"
+RUNFILES=$(readlink -f "$LAUNCHER.runfiles")
+CP=$(grep -m1 '^  CLASSPATH="${RUNPATH}' "$LAUNCHER" | sed 's/^  CLASSPATH="//; s/"$//' | sed "s#\${RUNPATH}#$RUNFILES/_main/#g")
+EXAMPLES_DEFAULT="$RUNFILES/_main/docs/timeseries/examples.sql"
+run() {   # the harness class $1 with the rest as its arguments, from the runfiles root (the test's own working dir)
+    local cls=$1; shift
+    (cd "$RUNFILES/_main" && RUNFILES_DIR="$RUNFILES" "$JAVA" --enable-native-access=ALL-UNNAMED \
+        -Dtimeseries.library=_main/projects/timeseries/model.pure ${JFLAGS:-} \
+        -cp "$SCRATCH/cls:$CP" "com.legend.integration.$cls" "$@")
+}
+abs() { case "$1" in /*) echo "$1" ;; *) echo "$PWD/$1" ;; esac; }
+cmd=${1:-}; shift || true
+case "$cmd" in
+    build)
+        mkdir -p "$SCRATCH/src/com/legend/integration" "$SCRATCH/cls"
+        for f in "$HOME_DIR"/harness/*.java.txt; do
+            cp "$f" "$SCRATCH/src/com/legend/integration/$(basename "$f" .txt)"
+        done
+        "$(dirname "$JAVA")/javac" -nowarn -d "$SCRATCH/cls" -cp "$CP" "$SCRATCH"/src/com/legend/integration/*.java
+        echo "built into $SCRATCH/cls" ;;
+    sql) run SqlDump "$1" "$(abs "${3:-$EXAMPLES_DEFAULT}")" 2>/dev/null > "$(abs "$2")" ;;
+    time) f=$(abs "$1"); run SeedDump "$f" 2>&1 >"$f.csv" | grep TIME | tr '\n' ' '; echo ;;
+    profile) f=$(abs "$1"); run Profile "$f" "$f.prof.json" 2>&1 | grep -E "PREPARE|Exception" ;;
+    answers) run AllAnswers "$(abs "${2:-$EXAMPLES_DEFAULT}")" "$(abs "$1")" 2>/dev/null ;;
+    table) run AllJoins "$(abs "${1:-$EXAMPLES_DEFAULT}")" 2>/dev/null ;;
+    plan) JFLAGS="-Dn=${2:-4}" run PlanOne "$(abs "${3:-$EXAMPLES_DEFAULT}")" "$1" 2>/dev/null ;;
+    jfr) JFLAGS="-Dn=${3:-6} -Xss64m -XX:FlightRecorderOptions:stackdepth=4096 -XX:StartFlightRecording=filename=$(abs "$2"),settings=profile" \
+            run PlanOne "$EXAMPLES_DEFAULT" "$1" 2>/dev/null
+         echo "aggregate: $(dirname "$JAVA")/jfr print --events jdk.ExecutionSample --stack-depth 4096 $2 > s.txt;" \
+              "python3 $HOME_DIR/scripts/jfr_aggregate.py.txt s.txt" ;;
+    *) sed -n '2,22p' "$0"; exit 2 ;;
+esac

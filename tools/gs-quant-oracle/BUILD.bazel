@@ -1,0 +1,139 @@
+# THE GS-QUANT ORACLE (README.md): gs-quant's own answers for every mapped word of #TS (mapping.yaml), snapped into the
+# committed answers.jsonl.gz by a person with gs-quant at the pin (pins.env) installed, never by a test: gs-quant is not one of the
+# repository's locked requirements, so CI judges from the committed file (//core:ts_gsquant_parity_test), and the live
+# drift check is run by hand.
+#   bazel run //tools/gs-quant-oracle:snap -- --check      (or --write; tools/gs-quant-oracle/snap.sh runs the same)
+# A hand tool: manual, so a wildcard build does not build it, and the checks lane builds it (tools_build_test), as the
+# IQ and Neo4j oracles' (tools/iq-oracle/BUILD.bazel says why native_binary).
+
+load("@bazel_lib//lib:run_binary.bzl", "run_binary")
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
+load("@bazel_skylib//rules:build_test.bzl", "build_test")
+load("@bazel_skylib//rules:native_binary.bzl", "native_binary")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//tools/guards:defs.bzl", "guards_package")
+
+# the parity test's inputs: the cases, the pin, gs-quant's answers and the verdicts it holds, for the samples and for
+# each of the adversarial fixture's price files
+exports_files(
+    ["mapping.yaml"],
+    visibility = [
+        "//core:__pkg__",
+        "//datacube:__pkg__",
+    ],
+)
+
+exports_files(
+    [
+        "pins.env",
+        "traps.tsv",
+        "answers.jsonl.gz",
+        "ledger.tsv",
+        "answers-adversarial-raw.jsonl.gz",
+        "ledger-adversarial-raw.tsv",
+        "answers-adversarial-adjusted.jsonl.gz",
+        "ledger-adversarial-adjusted.tsv",
+        "answers-gallery.jsonl.gz",
+        "ledger-gallery.tsv",
+        # the oracle's own code, each answer file's meta its sha256 (snap.py's TOOLS): an edit of either makes the
+        # answers STALE in the parity test (the checkpoint's review of 2026-11-09)
+        "snap.py",
+        "references.py",
+    ],
+    visibility = ["//core:__pkg__"],
+)
+
+# the cases, and each as Show Python prints it (calls.tsv, the call snap.py runs: item 14f, step 2), which
+# //datacube:timeseries_builder_test writes and holds; and the gallery's series as gs-quant's calls (gallery.jsonl: item
+# 14f, step 4b), which //datacube:timeseries_ts_parity_test writes and holds
+exports_files(
+    [
+        "calls.tsv",
+        "gallery.jsonl",
+    ],
+    visibility = [
+        "//core:__pkg__",
+        "//datacube:__pkg__",
+    ],
+)
+
+# THE LEDGERS' REPORTS (two_rows.py), read from the four ledgers alone: two-rows.tsv (what gs-quant and lite answer
+# over the fixture's line with two rows on one date, case by case), summary.tsv (every count the PR and GATES quote)
+# and unruled.tsv (every DIFF no register row rules), diff-tested (:update_generated_tests, in //:generated); and the
+# two-rows page, TWO_ROWS.md, written by the same rule and not diff-tested (prose is never a test input, G17, as
+# docs/timeseries/WORDS.md). Regenerate: bazel run //tools/gs-quant-oracle:update_generated (and :update_two_rows_page).
+py_binary(
+    name = "two_rows",
+    srcs = ["two_rows.py"],
+)
+
+run_binary(
+    name = "gen_two_rows",
+    srcs = [
+        "ledger.tsv",
+        "ledger-adversarial-adjusted.tsv",
+        "ledger-adversarial-raw.tsv",
+        "ledger-gallery.tsv",
+    ],
+    outs = [
+        "generated/two-rows.tsv",
+        "generated/summary.tsv",
+        "generated/unruled.tsv",
+        "generated/TWO_ROWS.md",
+    ],
+    args = [
+        "--samples",
+        "$(execpath ledger.tsv)",
+        "--raw",
+        "$(execpath ledger-adversarial-raw.tsv)",
+        "--adjusted",
+        "$(execpath ledger-adversarial-adjusted.tsv)",
+        "--gallery",
+        "$(execpath ledger-gallery.tsv)",
+        "--two-rows",
+        "$(execpath generated/two-rows.tsv)",
+        "--summary",
+        "$(execpath generated/summary.tsv)",
+        "--unruled",
+        "$(execpath generated/unruled.tsv)",
+        "--md",
+        "$(execpath generated/TWO_ROWS.md)",
+    ],
+    env = {
+        "PYTHONHASHSEED": "0",
+        "PYTHONUTF8": "1",
+    },
+    tool = ":two_rows",
+)
+
+write_source_files(
+    name = "update_generated",
+    testonly = True,
+    diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nthe ledgers' reports moved with the ledgers -- regenerate: bazel run //tools/gs-quant-oracle:update_generated, and read the diff",
+    files = {
+        "summary.tsv": ":generated/summary.tsv",
+        "two-rows.tsv": ":generated/two-rows.tsv",
+        "unruled.tsv": ":generated/unruled.tsv",
+    },
+    visibility = ["//:__pkg__"],
+)
+
+write_source_files(
+    name = "update_two_rows_page",
+    diff_test = False,
+    files = {"TWO_ROWS.md": ":generated/TWO_ROWS.md"},
+    visibility = ["//:__pkg__"],
+)
+
+native_binary(
+    name = "snap",
+    src = "snap.sh",
+    tags = ["manual"],
+)
+
+build_test(
+    name = "tools_build_test",
+    targets = [":snap"],
+)
+
+guards_package()
