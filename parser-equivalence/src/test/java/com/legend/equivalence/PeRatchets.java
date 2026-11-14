@@ -78,7 +78,9 @@ public final class PeRatchets {
                     + " them)",
             "own_corpus.matched 3226 -> 3232 (2026-11-14, stream S's Phase 1 on claude/injection-safety, the DuckDB DDL"
                     + " breakout): DeclaredNameBreakoutTest's model's six elements (a class, a database, a mapping, a"
-                    + " connection, a runtime and a Data element)");
+                    + " connection, a runtime and a Data element)",
+            "own_corpus.matched 3232 -> 3235 (2026-11-14, stream S's Phase 1, the hosts' fileLoad pin):"
+                    + " DeclaredDdlNamesTest's model's three elements (a database, a connection and a runtime)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

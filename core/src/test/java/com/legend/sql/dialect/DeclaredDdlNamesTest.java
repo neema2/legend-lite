@@ -74,4 +74,43 @@ class DeclaredDdlNamesTest {
         assertEquals("Create Table PARTY(\"x\"\" INTEGER); COPY (SELECT 42 AS pwned) TO '/no/such/dir/p.csv'; "
                 + "CREATE TABLE z(\"\"ID\" INTEGER NULL);", sql);
     }
+
+    /** The hosts' door: {@code planner.Boundary.fileLoad} into a table a model declares, the model's DuckDB table
+     *  declaring a quoted column named each payload. Every statement the plan carries is read by the oracle, and the
+     *  name must be in one of them (no vacuous pass): the same writer as the project road's, planned for a host. */
+    @Test
+    void theHostsFileLoadIntoADeclaredTableWritesEachPayloadAsOneColumn() {
+        InjectionFuzzTest.Rules duckDb = InjectionFuzzTest.rules(
+                com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
+        List<String> wrong = new ArrayList<>();
+        for (String payload : InjectionFuzzTest.PAYLOADS) {
+            String pure = payload.replace("\\", "\\\\").replace("\"", "\\\"");
+            String model = """
+                    ###Relational
+                    Database x::DB ( Table people ( name VARCHAR(10), "%s" INTEGER ) )
+                    ###Connection
+                    RelationalDatabaseConnection x::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+                    ###Runtime
+                    Runtime x::RT { mappings: []; connections: [ x::DB: [ c1: x::Conn ] ]; }
+                    """.formatted(pure);
+            String request = com.legend.json.Json.toCompact(Map.of("databaseType", "DuckDB",
+                    "file", Map.of("name", "people.csv", "digest", "ab".repeat(32), "size", 10, "format", "csv"),
+                    "into", Map.of("model", model, "database", "x::DB", "schema", "default", "table", "people")));
+            List<String> statements = InjectionFuzzTest.statements(planner.Boundary.fileLoad(request));
+            boolean named = false;
+            for (String sql : statements) {
+                named |= sql.contains(InjectionFuzzTest.MARK);
+                // the marker alone is a plain identifier: the host's INSERT writes it bare (DuckDbHostOperations'
+                // physicalName reads no declared flag -- one identifier still; S2's typed names carry the flag there)
+                String finding = InjectionFuzzTest.finding(sql, duckDb, payload.equals(InjectionFuzzTest.MARK));
+                if (finding != null) {
+                    wrong.add(payload + ": " + finding + ": " + sql.replace("\n", " "));
+                }
+            }
+            if (!named) {
+                wrong.add(payload + ": no statement names the column: " + statements);
+            }
+        }
+        assertEquals(List.of(), wrong);
+    }
 }

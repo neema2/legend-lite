@@ -365,11 +365,10 @@ public final class LoadPlanner {
                         "default".equals(d.schema()) ? d.table() : d.schema() + "." + d.table()).orElseThrow(() ->
                         new IllegalArgumentException("a file fills " + d.schema() + "." + d.table() + ", which the"
                                 + " Database " + d.database() + " declares not"));
-                // the table as the model declares it, empty: the seed's statements for its header alone
-                com.legend.setup.LoadSteps made = com.legend.setup.CsvSeed.planned(com.legend.setup.CsvSeed.steps(
-                        d.schema() + "\n" + d.table() + "\n" + String.join(",", def.columns().stream()
-                                .map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toList()),
-                        d.database(), d.ctx(), dialect), dialect);
+                // the table as the model declares it, empty: the seed's statements for it, typed (its names never
+                // written into a header line and read back: stream S, 2026-11-14)
+                com.legend.setup.LoadSteps made = com.legend.setup.CsvSeed.planned(com.legend.setup.CsvSeed.declaredTable(
+                        "default".equals(d.schema()) ? null : d.schema(), def), dialect);
                 steps.addAll(made.steps());
                 content = made.content();
                 yield new com.legend.sql.dialect.HostOperation.Insert(

@@ -235,19 +235,7 @@ public final class CsvSeed {
             // fresh database; TEST_SCHEMA.PEOPLE has no authored setup).
             // IF NOT EXISTS: idempotent on both engines and on mirrors
             // that already carry the schema.
-            if (!defaultSchema) {
-                out.add(new Step.Schema(new com.legend.sql.SqlDdl.CreateSchema(schema, def.get().schemaQuoted())));
-            }
-            // DROP-then-CREATE, never CREATE OR REPLACE: H2 (2.1.214, the
-            // engine's own target) has no OR REPLACE for tables — this was
-            // the recorded root cause of ~39 'Table already exists' H2
-            // replay declines (H2_BACKEND.md §12 step 2); DuckDB accepts
-            // the two-statement form identically
-            out.add(new Step.Schema(Ddl.dropDeclaredTable(def.get(), defaultSchema ? null : schema)));
-            // THE ONE DDL PRODUCER: the store's declared column types,
-            // spelled for the target (the engine creates what the store
-            // declares — its setUpDataSQLs reads the metamodel's types)
-            out.add(new Step.Schema(Ddl.createTable(def.get(), defaultSchema ? null : schema)));
+            out.addAll(declaredTable(defaultSchema ? null : schema, def.get()));
         } else {
             // no database named: the CSV's names are its text, spelled as bare names (with one named, a schema or table
             // it does not declare is refused above, as upstream's loader refuses it)
@@ -276,6 +264,31 @@ public final class CsvSeed {
         if (load != null) {
             out.add(new Step.Rows(load));
         }
+    }
+
+    /** A declared table made empty, as a seed makes it before its rows: its schema (when named), then the table dropped
+     *  and created as its store declares it. TYPED -- the table's definition, its names its own -- so a caller with no
+     *  test-data text (a host's file into a declared table, {@code LoadPlanner.hostFile}) passes no name through CSV
+     *  text: until 2026-11-14 that caller joined the declared column names into a header line this reader split again,
+     *  and a name holding a comma, a line break or a leading quote was read as another name (stream S's fileLoad pin,
+     *  {@code DeclaredDdlNamesTest}). {@code schema}: null for the default schema. */
+    public static List<Step> declaredTable(@com.legend.base.Nullable String schema,
+            com.legend.model.DatabaseDefinition.TableDefinition def) {
+        List<Step> out = new ArrayList<>();
+        if (schema != null) {
+            out.add(new Step.Schema(new com.legend.sql.SqlDdl.CreateSchema(schema, def.schemaQuoted())));
+        }
+        // DROP-then-CREATE, never CREATE OR REPLACE: H2 (2.1.214, the
+        // engine's own target) has no OR REPLACE for tables — this was
+        // the recorded root cause of ~39 'Table already exists' H2
+        // replay declines (H2_BACKEND.md §12 step 2); DuckDB accepts
+        // the two-statement form identically
+        out.add(new Step.Schema(Ddl.dropDeclaredTable(def, schema)));
+        // THE ONE DDL PRODUCER: the store's declared column types,
+        // spelled for the target (the engine creates what the store
+        // declares — its setUpDataSQLs reads the metamodel's types)
+        out.add(new Step.Schema(Ddl.createTable(def, schema)));
+        return out;
     }
 
     /** A block's schema and table, looked up as upstream's loader looks them up in {@code dbFqns} and their includes
