@@ -695,59 +695,103 @@ final class ArchitectureTest {
             .as("M5 (2026-11-13): a product statement is prepared by the planner and the test planner alone");
 
     /**
-     * <strong>A lowering is the planners' (the follow-up audit's G1, 2026-11-14, its second part).</strong> Outside the
-     * planner, the test planner and the lowering's own packages, and the root's {@code Compiler} (whose
-     * {@code lowerResolved} refuses an executeInDb's read inside itself), no class constructs a {@code Lowerer} or calls
-     * a public lowering static, by a call or a reference. The public lowering statics, each with its callers today:
-     * {@code BodyPlanner.viewFetch} (the test-data generator's view fetch: testplan's {@code GeneratedTestData}),
-     * {@code SidePlanner.staged} (a side's staging: testplan's {@code BodyDriver}) and
-     * {@code SeedableLets.withSeedableLetPrefix} (a statement's seedable lets: the planner's {@code ProductStatements});
-     * and the {@code Lowerer}'s constructors (the planner's configuration, lowering's {@code SeedableLets}, the root's
-     * {@code lowerResolved}). Every other lowering step is package-private to the planner: {@code PlanMaker.copyInto},
-     * {@code EnginePlans.engineSql} (three), {@code engineTestSql} and {@code planModel}, BodyPlanner's {@code bare},
-     * {@code lowerAndPrepare} (two), {@code lowererFor} and {@code prepare}, and ProductStatements' {@code planned},
-     * {@code lower}, {@code lowerer} (two) and {@code storeWrite}. The planner's public entries that remain refuse an
-     * executeInDb's read first ({@code PlanMaker.plan}, the query door; {@code ProductStatements.lowerTestDataSeed}) or
-     * are pinned ({@code ProductStatements.prepare}, {@link #PREPARE_IS_THE_PLANNERS}; {@code PlanMaker.testProgram},
-     * {@link #PROGRAM_ROAD_TEST_ENTRY}). {@link #theLoweringRuleBitesAPlantedCaller} shows it bites.
+     * <strong>THE PLANNER'S ENTRY POINTS, DEFAULT-DENY (the final audit of 9af16fbe58's J1, 2026-11-14; until then
+     * LOWERING_IS_THE_PLANNERS listed what was forbidden, and a probe in the server's package reached five public routes
+     * it did not name).</strong> Outside the planner, the test planner and the lowering's own packages (each with its
+     * subpackages) and the root's {@code Compiler} (whose {@code lowerResolved} refuses an executeInDb's read inside
+     * itself), a class -- core's, the boundary's, the tab's adapter's, the native entry's -- reaches a member of those
+     * packages (a call, a reference, a constructor, a field: an enum's constant too) ONLY if it is listed in
+     * {@link #PLANNER_ENTRIES}, each with its callers today. Anything else -- a Lowerer constructed, a lowering static, a
+     * frame's chain or CTE, an activity's SQL, a seed's planning, a routine table -- is refused, listed or not, so a new
+     * route is named the day it is called. Narrowed first, so no allowlist entry was needed for them: ProductStatements'
+     * {@code planned}, {@code lower}, {@code lowerer} and {@code storeWrite}; BodyPlanner's {@code lowerAndPrepare},
+     * {@code lowererFor}, {@code prepare} and {@code bare}; {@code PlanMaker.copyInto}; EnginePlans' {@code engineSql},
+     * {@code engineTestSql} and {@code planModel}; {@code SidePlanner.prepare} and {@code PlanAllocations.node}. The
+     * list moves only with a dated note naming the task. {@link #thePlannerEntriesRuleBitesAPlantedCaller} shows it
+     * bites, on the audit's five probes and a Lowerer.
      */
     @Test
-    void aLoweringIsThePlannersAlone() {
-        LOWERING_IS_THE_PLANNERS.check(CORE_PROD_CLASSES);
+    void thePlannersAreReachedByTheirListedEntriesAlone() {
+        PLANNER_ENTRIES_ONLY.check(CORE_PROD_CLASSES);
     }
 
-    /** {@link #aLoweringIsThePlannersAlone} over the hosts' doors as well (//wasm:boundary, //wasm:tab, //native:entry). */
+    /** {@link #thePlannersAreReachedByTheirListedEntriesAlone} over the hosts' doors as well (//wasm:boundary,
+     *  //wasm:tab, //native:entry). */
     @Test
-    void theHostsDoorsLowerNothing() {
-        LOWERING_IS_THE_PLANNERS.check(coreAndTheHostsDoors());
+    void theHostsDoorsReachThePlannersByTheirListedEntriesAlone() {
+        PLANNER_ENTRIES_ONLY.check(coreAndTheHostsDoors());
     }
 
-    /** The public lowering statics {@link #LOWERING_IS_THE_PLANNERS} pins, by owner and name. */
-    static final java.util.Set<String> LOWERING_STATICS = java.util.Set.of(
-            "com.legend.planner.BodyPlanner#viewFetch",
-            "com.legend.planner.SidePlanner#staged",
-            "com.legend.lowering.SeedableLets#withSeedableLetPrefix");
+    /** THE PLANNER'S ENTRY POINTS from outside it, by owner (its binary name past {@code com.legend.}) and member,
+     *  measured over core's classes and the hosts' doors, 2026-11-14 (the final audit of 9af16fbe58's J1). Moves only
+     *  with a dated note naming the task. */
+    static final java.util.Set<String> PLANNER_ENTRIES = java.util.Set.of(
+            // the query door, from the root's TypedQuery: a query's plan (QueryDoor first), its runtime, its parameters
+            "planner.PlanMaker#plan", "planner.PlanMaker#runtimeOf", "planner.QueryParameters$Declared#<init>",
+            // the test door, from the root's TestExecution: a test body's plan
+            "testplan.TestPlanner#plan",
+            // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
+            "testplan.PlanningOptions#<init>", "testplan.PlanningOptions#edge", "testplan.PlanningOptions#judgeMode",
+            "testplan.PlanningOptions#judgingRules", "testplan.PlanningOptions#rules",
+            "testplan.PlanningOptions#withEngineCompat", "testplan.PlanningOptions#withFeatures",
+            "testplan.PlanningOptions#withJudgeMode", "testplan.PlanningOptions#withOptions",
+            "testplan.PlanningOptions$JudgeMode#HOST",
+            // the test-data routes (server.TestDataRoutes): the raw-SQL refusal, and the seed's one entry, which refuses
+            "planner.QueryDoor#refuseRawSql", "planner.ProductStatements#lowerTestDataSeed",
+            // the PCT runner's facts of a test body (test.PureTestRunner): read, never planned
+            "planner.ProgramFacts#effects", "planner.ProgramFacts#seedsInlineCsv", "planner.ProgramFacts#shape",
+            "planner.ProgramFacts#verdicts",
+            // the boundary's doors (//wasm:boundary's planner.Boundary): each request door's planner
+            "planner.Authored#plan", "planner.ConnectionPlans#type", "planner.SnapCopy#plan", "planner.Synthesize#plan",
+            "planner.Synthesize$Knob$Range#<init>", "planner.Synthesize$Knob$Values#<init>",
+            "planner.LoadPlanner#frameLoad", "planner.LoadPlanner#hostFile", "planner.LoadPlanner#projectData",
+            "planner.LoadPlanner#remoteMount", "planner.LoadPlanner#snapStream",
+            "planner.LoadPlanner$BearerLocation#<init>", "planner.LoadPlanner$DeclaredTable#<init>",
+            "planner.LoadPlanner$FrameLoad#<init>", "planner.LoadPlanner$NewTable#<init>",
+            "planner.LoadPlanner$PlainLocation#<init>", "planner.LoadPlanner$RemoteCredentials#<init>",
+            "planner.LoadPlanner$RemoteMount#<init>", "planner.LoadPlanner$SnapStream#<init>",
+            "planner.OutputPlan#make", "planner.OutputPlan#write", "planner.OutputPlan$Mode#APPEND",
+            "planner.OutputPlan$Mode#CREATE", "planner.OutputPlan$Mode#DELETE_APPEND", "planner.OutputPlan$Mode#MERGE",
+            "planner.OutputPlan$Mode#OVERWRITE", "planner.OutputPlan$Mode#makes", "planner.OutputPlan$Mode#named",
+            "planner.OutputPlan$Mode#ordinal", "planner.OutputPlan$Mode#spelled", "planner.OutputPlan$Mode#values",
+            "lowering.LiteralSpelling#inZone",
+            // the resolver's reads of the lowering's names and reducers (resolver.CorrelatedSubselects, GraphEmission,
+            // Substitution, ObjectReferenceDecode): spelling and classification, no lowering
+            "lowering.Aggregates#isDemandReducer", "lowering.Aggregates#isReducer", "lowering.AsorRef#decode",
+            "lowering.AsorRef#prefix", "lowering.AsorRef#prefixMapping", "lowering.AsorRef$Ref#pkJson",
+            // the probe's shadow registry (probe.Shadow): the platform's registrations read
+            "lowering.PlatformRegistrations#current");
 
-    /** The rule of {@link #aLoweringIsThePlannersAlone}. */
-    static final com.tngtech.archunit.lang.ArchRule LOWERING_IS_THE_PLANNERS = noClasses()
-            .that().resideOutsideOfPackages("com.legend.planner", "com.legend.testplan", "com.legend.lowering")
-            .and().doNotHaveFullyQualifiedName("com.legend.Compiler")
-            .should().accessTargetWhere(reachesCodeUnitWhere("a Lowerer's constructor or a public lowering static",
-                    a -> a.getTargetOwner().getName().equals("com.legend.lowering.Lowerer")
-                            && a.getName().equals(com.tngtech.archunit.core.domain.JavaConstructor.CONSTRUCTOR_NAME)
-                            || LOWERING_STATICS.contains(a.getTargetOwner().getName() + "#" + a.getName())))
-            .as("G1 (2026-11-14): a lowering is the planner's, the test planner's, the lowering's and the root"
-                    + " Compiler's alone");
+    /** Whether {@code packageName} is the planner's, the test planner's or the lowering's, or a subpackage of one. */
+    static boolean plannersPackage(String packageName) {
+        return packageName.matches("com\\.legend\\.(planner|testplan|lowering)(\\..*)?");
+    }
 
-    /** {@link #aLoweringIsThePlannersAlone} fails on each planted outside caller ({@code server.PlantedLowering}): a
-     *  Lowerer constructed by a call and by a reference, and each public lowering static called or referenced. */
+    /** The rule of {@link #thePlannersAreReachedByTheirListedEntriesAlone}. */
+    static final com.tngtech.archunit.lang.ArchRule PLANNER_ENTRIES_ONLY = noClasses()
+            .that(com.tngtech.archunit.base.DescribedPredicate.describe("are outside the planners and the root Compiler",
+                    (com.tngtech.archunit.core.domain.JavaClass c) -> !plannersPackage(c.getPackageName())
+                            && !c.getName().equals("com.legend.Compiler")))
+            .should().accessTargetWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a member of the planner, the test planner or the lowering not listed in PLANNER_ENTRIES",
+                    (com.tngtech.archunit.core.domain.JavaAccess<?> a) -> plannersPackage(a.getTargetOwner().getPackageName())
+                            && !PLANNER_ENTRIES.contains(a.getTargetOwner().getName().substring("com.legend.".length())
+                                    + "#" + a.getName())))
+            .as("J1 (2026-11-14): the planners are reached from outside by their listed entry points alone");
+
+    /** {@link #thePlannersAreReachedByTheirListedEntriesAlone} fails on each planted outside caller
+     *  ({@code server.PlantedLowering}): a Lowerer constructed by a call and by a reference, the three lowering statics
+     *  G1 pinned, and the final audit's five probes (an activity's SQL, a frame's chain and its CTE, the routine table, a
+     *  seed's planning). */
     @Test
-    void theLoweringRuleBitesAPlantedCaller() {
-        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.Constructs.class);
-        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.ConstructsByReference.class);
-        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.FetchesAView.class);
-        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.StagesASide.class);
-        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.SeedsLets.class);
+    void thePlannerEntriesRuleBitesAPlantedCaller() {
+        for (Class<?> planted : com.legend.server.PlantedLowering.class.getDeclaredClasses()) {
+            if (!planted.isInterface()) {
+                bites(PLANNER_ENTRIES_ONLY, planted);
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(10, java.util.Arrays.stream(
+                com.legend.server.PlantedLowering.class.getDeclaredClasses()).filter(c -> !c.isInterface()).count());
     }
 
     /** {@link #aProductStatementIsPreparedByThePlannersAlone} fails on a class that prepares a statement past the

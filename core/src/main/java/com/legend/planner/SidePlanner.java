@@ -35,7 +35,7 @@ public final class SidePlanner {
     }
 
     /** {@code body} prepared under the system route it reads, written in the route's catalog's dialect (B4). */
-    public static Routed prepare(List<TypedSpec> body, PlanEnv env) {
+    static Routed prepare(List<TypedSpec> body, PlanEnv env) {
         SystemRoutes.Route route = SystemRoutes.of(body, env);
         PlanEnv routed = route == null ? env : SystemRoutes.onCatalog(env, route);
         return new Routed(BodyPlanner.prepare(body, routed), route);

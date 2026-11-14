@@ -11,8 +11,9 @@ import com.legend.planner.SidePlanner;
 
 /**
  * Classes PLANTED in the server's package to reach a lowering past the planners, for one test alone (the follow-up
- * audit's G1, 2026-11-14): {@code ArchitectureTest.LOWERING_IS_THE_PLANNERS} fails on each -- a Lowerer constructed by
- * a call and by a reference, and each public lowering static called or referenced. Test classes: the rule's real
+ * audit's G1, 2026-11-14; the final audit of 9af16fbe58's J1, 2026-11-14): {@code ArchitectureTest.PLANNER_ENTRIES_ONLY}
+ * fails on each -- a Lowerer constructed by a call and by a reference, each public lowering static called or
+ * referenced, and the final audit's five probes (public routes that lower or plan, reached from the server's package). Test classes: the rule's real
  * checks read the product's classes and the hosts' doors, never these.
  */
 public final class PlantedLowering {
@@ -74,6 +75,56 @@ public final class PlantedLowering {
 
         public static Object prefixed() {
             return SeedableLets.withSeedableLetPrefix(java.util.List.of(), java.util.Map.of(), null);
+        }
+    }
+
+    /** An activity's SQL (PlanAllocations.activitySql, which lowers through the engine text's lowering). */
+    public static final class ActivitySql {
+        private ActivitySql() {
+        }
+
+        public static Object sql() {
+            return com.legend.planner.PlanAllocations.activitySql(null, null, java.util.List.of(), null, null);
+        }
+    }
+
+    /** A frame's chain (FramePlanner.chain). */
+    public static final class FrameChain {
+        private FrameChain() {
+        }
+
+        public static Object chain() {
+            return com.legend.planner.FramePlanner.chain(null, java.util.List.of(), null, null);
+        }
+    }
+
+    /** A frame's CTE (FramePlanner.cte). */
+    public static final class FrameCte {
+        private FrameCte() {
+        }
+
+        public static Object cte() {
+            return com.legend.planner.FramePlanner.cte(null, java.util.List.of(), null);
+        }
+    }
+
+    /** The executor's routine table (EnginePlans.nativeRoutines), whose text routine lowers. */
+    public static final class Routines {
+        private Routines() {
+        }
+
+        public static Object routines() {
+            return com.legend.planner.EnginePlans.nativeRoutines(null, null);
+        }
+    }
+
+    /** A seed's planning (LoadPlanner.seeds). */
+    public static final class Seeds {
+        private Seeds() {
+        }
+
+        public static Object seeds() {
+            return com.legend.planner.LoadPlanner.seeds(null, null, null, null, null);
         }
     }
 }

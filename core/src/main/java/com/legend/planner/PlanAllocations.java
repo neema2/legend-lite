@@ -93,7 +93,7 @@ public final class PlanAllocations {
      * Relational nodes (bare-typed, alias-less select), and CLASS query
      * values as full Class-envelope Relational nodes — the engine's
      * three Allocation value forms. */
-    public static @Nullable String node(
+    static @Nullable String node(
             TypedLet let, String mappingFqn,
             SpecCompiler specs, PlanEnv env,
             Map<String, SqlExpr.PlanParam> params,

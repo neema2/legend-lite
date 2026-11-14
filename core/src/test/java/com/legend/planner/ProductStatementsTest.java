@@ -148,7 +148,7 @@ class ProductStatementsTest {
      *  BodyPlanner's {@code lowerAndPrepare}s, {@code lowererFor}, {@code prepare} and {@code bare}, PlanMaker's
      *  {@code copyInto} and EnginePlans' {@code engineSql}s, {@code engineTestSql} and {@code planModel}, package-private;
      *  the public lowering statics that remain, and the Lowerer's constructors, pinned to the planners by
-     *  ArchitectureTest.LOWERING_IS_THE_PLANNERS. A class past the
+     *  ArchitectureTest.PLANNER_ENTRIES_ONLY (default-deny: a listed entry point alone). A class past the
      *  planner reaches a lowering by these public routes alone, each refusing an executeInDb's read by name first or
      *  pinned to its callers: the query doors (TypedQuery's plans, Execution's runs, QueryDoor first);
      *  {@code ProductStatements.prepare}, whose callers ArchitectureTest pins to the planner and the test planner; the
@@ -169,6 +169,9 @@ class ProductStatementsTest {
         Map<Class<?>, java.util.Set<String>> narrowed = Map.of(
                 BodyPlanner.class, java.util.Set.of("lowerAndPrepare", "lowererFor", "prepare", "bare"),
                 PlanMaker.class, java.util.Set.of("copyInto"),
+                // the final audit of 9af16fbe58's J1 (2026-11-14): their callers the planner's own
+                SidePlanner.class, java.util.Set.of("prepare"),
+                PlanAllocations.class, java.util.Set.of("node"),
                 EnginePlans.class, java.util.Set.of("engineSql", "engineTestSql", "planModel"));
         narrowed.forEach((owner, names) -> {
             for (java.lang.reflect.Method m : owner.getDeclaredMethods()) {
