@@ -1157,7 +1157,10 @@ class OneRead(unittest.TestCase):
     def test_a_file_not_there_never_replaces_the_failure_that_ended_the_read_in_either_order(self):
         # the C4 final fix round's B1, 2026-11-14: a view over a parquet file that is gone raises an IOException at bind,
         # and it aborts a standing transaction -- yet DuckDB still raises it as itself after an abort (measured on the
-        # pinned DuckDB): after a conversion ended the read it never replaces that failure; first, it is the read's end
+        # pinned DuckDB): after a conversion ended the read it never replaces that failure; first, it is the read's end.
+        # A remote file's failure (an HTTPException) is covered as an IOException's subclass: pinned (the C4 second
+        # small round's item 5), so a DuckDB that moved it would fail here, not pass unread
+        self.assertTrue(issubclass(duckdb.HTTPException, duckdb.IOException))
         import tempfile
         import pyarrow.parquet as pq
         folder = tempfile.TemporaryDirectory()
