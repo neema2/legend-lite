@@ -10,9 +10,16 @@ frame (_runframe.py) refuses a planner entry asked inside a run; this holds, bef
   9af16fbe58's P2, 2026-11-14), calls no planner entry: no `library()`, no `_planner`, none of _host's planning
   functions (HOST_PLANNERS), and of `compiler` only the readers COMPILER_READERS names (types, errors and the plan's
   own data, each held here to call no library itself). A `with exempt(...)` block is a named crossing and not followed.
-- A RUN TAKES NO PLANNER: no run's parameter is annotated with a planner's type (a held model, the library) or with a
-  callable that answers a PlannedSql or a PlanText (a planner handed in under another name) -- in a union (`X | None`,
-  `Optional[...]`), in a quoted annotation, or through a module's type alias.
+- A RUN TAKES NO PLANNER: no run's parameter -- a `@runs` function's, or a function's holding a `with in_run(...)`
+  block -- is annotated with a planner's type (a held model, the library), with a callable that answers a PlannedSql, a
+  PlanText or a compiler.Plan (a planner handed in under another name), or with a type alias or a class (a Protocol)
+  answering one, declared in its module or any other of the package -- in a union (`X | None`, `Optional[...]`), in a
+  quoted annotation (the final audit of 9af16fbe58's P3, 2026-11-14).
+- A RUN IS SPELLED ONE WAY (P4, 2026-11-14): `runs` only as `@runs(...)` on a function, `in_run` and `exempt` only as
+  `with in_run(...)` / `with exempt(...)` -- `framed = runs(...)` then `@framed`, `runs(...)(f)`,
+  `ExitStack().enter_context(in_run(...))` are each refused by name, not chased. No module imports by `importlib`
+  (`import_module`, `__import__`, `reload`; `importlib.util.find_spec`, which imports nothing, is allowed), and a star
+  import is one STAR_IMPORTS lists: a name either form brings in is one this guard could not read.
 - THE RUNS ARE PINNED by module and name (RUNS): a run unmarked, or a new one, is seen.
 - EVERY SEND IS IN A RUN, OR NAMED (the follow-up audit's G2, 2026-11-14: until then only the marked runs were read):
   each call of the one send (`_planned.send`) is a send site, and so is each call of a SENDING HELPER -- a function that
@@ -33,8 +40,10 @@ ITS LIMIT, said plainly: Python is dynamic, and this reads names, not values. A 
 at run time -- an untyped closure, a callable from a dict, an object whose method plans, a name rebound after its import
 -- is not seen; a call through a name the package does not define (a library's, a value's method) is not followed; a
 sending helper is seen by its parameter's annotation, so one that takes its statement untyped is a send site its callers
-do not inherit; a method called on anything but `self` is not resolved (a read's `over.execute(...)` is the read's,
-seen at its own send). The run frame is the backstop at run time. Each list moves only with a dated justification naming
+do not inherit; a method called on anything but `self` is not resolved, so a sending helper called through another
+receiver is a send site this guard does not see -- Reading.execute (a sending helper) called as
+`frames.reading_now().execute(sql)`, or a read's `over.execute(...)`, outside any run, is seen nowhere: its send is
+counted at Reading.execute alone, a helper, never at that caller (the final audit of 9af16fbe58's P5, said exactly). The run frame is the backstop at run time. Each list moves only with a dated justification naming
 the task, and shrinks."""
 
 import ast
@@ -360,15 +369,50 @@ def _parsed(annotation: ast.AST) -> ast.AST:
     return annotation
 
 
+# What a planner answers: a statement, a plan's text, and a typed plan (compiler.Plan: a record holding its statement).
+# Answering one is planning; taking one is a run's own work. 2026-11-14 (the final audit of 9af16fbe58's P3: a callable
+# answering a compiler.Plan was not seen).
+ANSWERED = frozenset({'PlannedSql', 'PlanText', 'Plan'})
+
+
+def _names_answered(node: ast.AST) -> bool:
+    """Whether `node` names a planner's answer: a name or an attribute (`compiler.Plan`) in ANSWERED."""
+    return any((isinstance(n, ast.Name) and n.id in ANSWERED) or (isinstance(n, ast.Attribute) and n.attr in ANSWERED)
+               for n in ast.walk(_parsed(node)))
+
+
 def _answers_planned(annotation: ast.AST) -> bool:
-    """Whether a callable anywhere in `annotation` answers a statement or a plan (`Callable[..., PlannedSql]`, in a
-    union, an Optional, a list)."""
+    """Whether a callable anywhere in `annotation` answers a statement, a plan's text or a typed plan
+    (`Callable[..., PlannedSql]`, `Callable[[str], compiler.Plan]`, in a union, an Optional, a list)."""
     for n in ast.walk(annotation):
         if isinstance(n, ast.Subscript) and ast.unparse(n.value).split('.')[-1] == 'Callable':
             returns = n.slice.elts[-1] if isinstance(n.slice, ast.Tuple) and n.slice.elts else None
-            if returns is not None and any(p in ast.unparse(returns) for p in PLANNED):
+            if returns is not None and _names_answered(returns):
                 return True
     return False
+
+
+def planner_protocols(tree: ast.Module) -> set[str]:
+    """A module's classes that answer a planner's answer -- a method whose return annotation names one (a Protocol with
+    `plan() -> PlannedSql`, any class so shaped): a planner under another name (P3)."""
+    out: set[str] = set()
+    for c in tree.body:
+        if isinstance(c, ast.ClassDef):
+            for m in c.body:
+                if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.returns is not None \
+                        and _names_answered(m.returns):
+                    out.add(c.name)
+    return out
+
+
+def package_planner_names(sources: dict[str, str] | None) -> set[str]:
+    """Every planner alias and planner protocol any module of the package declares: an annotation naming one through an
+    import (`from .x import Maker`) is a planner's (P3: an alias imported from another module was not seen)."""
+    out: set[str] = set()
+    for text in (sources or {}).values():
+        tree = ast.parse(text)
+        out |= planner_aliases(tree) | planner_protocols(tree)
+    return out
 
 
 def planner_aliases(tree: ast.Module) -> set[str]:
@@ -405,23 +449,31 @@ def _annotation_crossing(annotation: ast.AST | None, aliases: set[str] = frozens
         if named in PLANNER_TYPES:
             return f'a {named}'
     for n in ast.walk(parsed):
-        if isinstance(n, ast.Name) and n.id in aliases:
-            return f'a {n.id}, a planner\'s alias'
+        named = n.id if isinstance(n, ast.Name) else n.attr if isinstance(n, ast.Attribute) else None
+        if named in aliases:
+            return f'a {named}, a planner\'s alias'
     if _answers_planned(parsed):
-        return 'a callable that answers a PlannedSql or a PlanText'
+        return "a callable that answers a planner's statement or plan"
     return None
 
 
-def signature_crossings(source: str) -> list[str]:
-    """Each run's parameter annotated with a planner's type, an alias of one, or a callable answering a statement or a
-    plan."""
+def _holds_in_run(fn: ast.AST, bound: dict[str, str]) -> bool:
+    return any(isinstance(w, (ast.With, ast.AsyncWith)) and any(_is_in_run(i, bound) for i in w.items)
+               for w in ast.walk(fn))
+
+
+def signature_crossings(source: str, sources: dict[str, str] | None = None) -> list[str]:
+    """Each run's parameter -- a `@runs` function's, or a function holding a `with in_run(...)` block (P3) -- annotated
+    with a planner's type, an alias or protocol of one (this module's, or any module's of the package, `sources`), or a
+    callable answering a statement, a plan's text or a typed plan."""
     tree = ast.parse(source)
     bound = bindings(tree)
-    aliases = planner_aliases(tree)
+    aliases = planner_aliases(tree) | planner_protocols(tree) | package_planner_names(sources)
     out: list[str] = []
     for owner in [tree] + [c for c in tree.body if isinstance(c, ast.ClassDef)]:
         for fn in owner.body:
-            if _decorated_run(fn, bound):
+            if _decorated_run(fn, bound) or (isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef))
+                                             and _holds_in_run(fn, bound)):
                 args = fn.args
                 for a in args.posonlyargs + args.args + args.kwonlyargs + [x for x in (args.vararg, args.kwarg) if x]:
                     why = _annotation_crossing(a.annotation, aliases)
@@ -516,6 +568,56 @@ def unframed_senders(sources: dict[str, str]) -> set[str]:
     return {k for k, framed in sites.items() if not framed and k not in helpers}
 
 
+# The star imports the package may make, each a module the guard reads and none a planner's: (the importing file, the
+# imported module). 2026-11-14 (P4): timeseries.py takes gs-quant's generated words.
+STAR_IMPORTS = frozenset({('timeseries.py', '_ts_words')})
+
+# The importlib calls refused: each imports a module by a name this guard cannot read.
+IMPORTING = frozenset({'importlib.import_module', 'importlib.__import__', 'importlib.reload', '__import__'})
+
+
+def spelling_violations(name: str, source: str) -> list[str]:
+    """Each run spelled another way than `@runs(...)` / `with in_run(...)` / `with exempt(...)`, each importlib import,
+    and each star import STAR_IMPORTS does not list, in module `name` (P4)."""
+    if name == '_runframe.py':
+        return []
+    tree = ast.parse(source)
+    bound = bindings(tree)
+    parent: dict[int, ast.AST] = {}
+    for p in ast.walk(tree):
+        for c in ast.iter_child_nodes(p):
+            parent[id(c)] = p
+    out: list[str] = []
+    for n in ast.walk(tree):
+        if isinstance(n, (ast.Name, ast.Attribute)) and isinstance(getattr(n, 'ctx', None), ast.Load):
+            target = resolve(n, bound)
+            if target in ('_runframe.runs', '_runframe.in_run', '_runframe.exempt'):
+                call = parent.get(id(n))
+                holder = parent.get(id(call)) if call is not None else None
+                ok = isinstance(call, ast.Call) and call.func is n and (
+                    (target == '_runframe.runs' and isinstance(holder, (ast.FunctionDef, ast.AsyncFunctionDef))
+                     and call in holder.decorator_list)
+                    or (target != '_runframe.runs' and isinstance(holder, ast.withitem) and holder.context_expr is call))
+                if not ok:
+                    out.append(f'{name}:{n.lineno}: {target.split(".")[1]} spelled other than '
+                               + ('@runs(...)' if target == '_runframe.runs' else f'with {target.split(".")[1]}(...)'))
+        if isinstance(n, ast.ImportFrom) and any(a.name == '*' for a in n.names):
+            module = (n.module or '').split('.')[-1] if n.level >= 1 or (n.module or '').startswith('legend_lite') \
+                else n.module
+            if (name, module) not in STAR_IMPORTS:
+                out.append(f'{name}:{n.lineno}: a star import of {n.module}')
+        if isinstance(n, ast.Call):
+            called = ast.unparse(n.func)
+            imported = bound.get(called) if isinstance(n.func, ast.Name) else None
+            if called in IMPORTING or (imported is None and isinstance(n.func, ast.Name) and called == 'import_module'):
+                out.append(f'{name}:{n.lineno}: an import by importlib ({called})')
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom) and n.module == 'importlib' and any(
+                a.name in ('import_module', '__import__', 'reload') for a in n.names):
+            out.append(f'{name}:{n.lineno}: an import by importlib (from importlib import ...)')
+    return out
+
+
 class RunWallTest(unittest.TestCase):
 
     def setUp(self) -> None:
@@ -531,7 +633,11 @@ class RunWallTest(unittest.TestCase):
         self.assertEqual({k: v for k, v in found.items() if v}, {})
 
     def test_no_run_takes_a_planner(self):
-        found = {name: signature_crossings(text) for name, text in self.sources.items()}
+        found = {name: signature_crossings(text, self.sources) for name, text in self.sources.items()}
+        self.assertEqual({k: v for k, v in found.items() if v}, {})
+
+    def test_a_run_is_spelled_one_way_and_nothing_imports_unread(self):
+        found = {name: spelling_violations(name, text) for name, text in self.sources.items()}
         self.assertEqual({k: v for k, v in found.items() if v}, {})
 
     def test_the_runs_are_pinned(self):
@@ -591,7 +697,7 @@ def load(held: compiler.HeldModel, make: 'Callable[[str], PlannedSql]') -> None:
         # the quoted annotation read as written (until 2026-11-14 the test unquoted it first, hiding that the guard
         # did not see it: the follow-up audit's G2)
         self.assertEqual(signature_crossings(planted),
-                         ['load(held): a HeldModel', 'load(make): a callable that answers a PlannedSql or a PlanText'])
+                         ['load(held): a HeldModel', "load(make): a callable that answers a planner's statement or plan"])
 
     def test_the_crossing_that_motivated_the_wall_is_named_across_modules(self):
         # the final audit of 9af16fbe58's P2 (2026-11-14): Reading.execute's failure branch re-pinning the read
@@ -679,9 +785,9 @@ def run(a: Callable[[str], PlannedSql] | None, b: 'HeldModel | None', c: Optiona
 '''
         # a statement or a plan TAKEN (g, h, i) is the run's own: not named
         self.assertEqual(signature_crossings(planted), [
-            'run(a): a callable that answers a PlannedSql or a PlanText',
+            "run(a): a callable that answers a planner's statement or plan",
             'run(b): a HeldModel',
-            'run(c): a callable that answers a PlannedSql or a PlanText',
+            "run(c): a callable that answers a planner's statement or plan",
             "run(d): a Maker, a planner's alias",
             "run(e): a Loader, a planner's alias",
             "run(f): a Makers, a planner's alias",
@@ -726,6 +832,79 @@ class Holder:
                          {'planted.unframed', 'planted.through_the_forwarder', 'planted.through_a_helper',
                           'planted.Holder.own'})
         self.assertEqual(send_sites(sources)[1] - SENDING_HELPERS, {'planted.forwarder', 'planted.Holder.forward'})
+
+    def test_a_run_spelled_another_way_is_refused_by_its_form(self):
+        planted = """
+import importlib
+from contextlib import ExitStack
+from ._runframe import runs, in_run
+from .compiler import *
+from importlib import import_module
+
+framed = runs('a framed run')
+
+@framed
+def first():
+    pass
+
+def second():
+    return runs('a call')(first)
+
+def third():
+    with ExitStack() as stack:
+        stack.enter_context(in_run('an entered run'))
+
+def fourth():
+    importlib.import_module('legend_lite.compiler')
+    __import__('legend_lite.compiler')
+
+@runs('fine')
+def fine():
+    with in_run('fine too'):
+        importlib.util.find_spec('duckdb')
+"""
+        self.assertEqual(sorted(f.split(': ', 1)[1] for f in spelling_violations('planted.py', planted)), sorted([
+            'runs spelled other than @runs(...)',
+            'a star import of compiler',
+            'runs spelled other than @runs(...)',
+            'in_run spelled other than with in_run(...)',
+            'an import by importlib (importlib.import_module)',
+            'an import by importlib (__import__)',
+            'an import by importlib (from importlib import ...)',
+        ]))
+
+    def test_a_planner_answering_a_typed_plan_a_protocol_or_an_imported_alias_is_named(self):
+        sources = dict(self.sources)
+        sources['planted_types.py'] = """
+from typing import Callable, Protocol
+from . import compiler
+
+PlanMaker = Callable[[str], compiler.Plan]
+
+class Plans(Protocol):
+    def plan(self, query: str) -> PlannedSql: ...
+"""
+        planted = """
+from typing import Callable
+from . import compiler
+from ._runframe import runs, in_run
+from .planted_types import PlanMaker, Plans
+
+@runs('a planted run')
+def run(a: Callable[[str], compiler.Plan], b: PlanMaker, c: Plans, d: compiler.Plan) -> None:
+    pass
+
+def holder(e: 'Plans | None', f: Callable[[compiler.Plan], None]) -> None:
+    with in_run('a planted block'):
+        pass
+"""
+        # a typed plan TAKEN (d, f) is the run's own: not named
+        self.assertEqual(signature_crossings(planted, sources), [
+            "run(a): a callable that answers a planner's statement or plan",
+            "run(b): a PlanMaker, a planner's alias",
+            "run(c): a Plans, a planner's alias",
+            "holder(e): a Plans, a planner's alias",
+        ])
 
     def test_a_planted_seam_that_imports_the_planner_is_named(self):
         sources = dict(self.sources)
