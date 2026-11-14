@@ -122,6 +122,26 @@ class TestDataRoutesTest {
         }
     }
 
+    /** A raw read's query whose relations name no root, or several, is refused by name too, before its relations are
+     *  scanned (the final audit of 9af16fbe58's J8, 2026-11-14: the default seed's routes answered the scan's words). */
+    @Test
+    void aRawReadsQueryWithNoRootOrSeveralIsRefusedByNameBeforeItsScan() {
+        String read = "{|let n = meta::relational::metamodel::execute::executeInDb('select 7 as A',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB)).columnNames;\n";
+        String noRoot = read + "'x';}";
+        String twoRoots = read + "model::Person.all()->project([p|$p.name], ['name'])->concatenate("
+                + "model::Firm.all()->project([f|$f.legalName], ['name']));}";
+        for (String q : java.util.List.of(noRoot, twoRoots)) {
+            for (String r : java.util.List.of("generateTestData_WithDefaultSeed", "generateSeedData")) {
+                PureV1Api.Answer a = route("execution/testDataGeneration/" + r, input(q, ""));
+                assertTrue(a.status() != 200, r + ": " + a.json());
+                assertTrue(a.json().contains("an executeInDb\\u0027s SQL in a query") || a.json().contains(
+                        "an executeInDb's SQL in a query"), r + ": " + a.json());
+            }
+        }
+    }
+
     /** The test data from given identifiers: the routes' table order (by schema and table: FIRM before the root
      *  PERSON), as text. */
     @Test

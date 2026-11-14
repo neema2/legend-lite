@@ -251,6 +251,9 @@ public final class PlanAllocations {
         } catch (NotImplementedException
                 | TypeInferenceException
                 | IllegalStateException e) {
+            if (!noLineageRows(e)) {
+                throw e;
+            }
             // no rows: the symbolic handle's walls stand
         }
     }
@@ -425,6 +428,13 @@ public final class PlanAllocations {
      * evaluateAndDeactivate(), …)} in the protocol lets; the columns are
      * the ones the LOWERED plan reads (ScanColumns over
      * Compiler.lowerResolved — the real pipeline's output). */
+    /** Whether a lineage or plan scan's failure leaves the handle with no rows (its walls stand): every one the
+     *  lowering raises but the raw-SQL refusal, which propagates by name (the final audit of 9af16fbe58's J7,
+     *  2026-11-14: the catches swallowed Compiler.lowerResolved's refusal, answering "no rows"). */
+    static boolean noLineageRows(RuntimeException e) {
+        return !QueryDoor.isRawSqlRefusal(e);
+    }
+
     private static void registerColumnLineageRows(String letName,
             TypedNativeCall pn,
             List<TypedSpec> letPrefix,
@@ -481,6 +491,9 @@ public final class PlanAllocations {
             env.planRows().put(scope, rows);
         } catch (NotImplementedException
                 | IllegalStateException e) {
+            if (!noLineageRows(e)) {
+                throw e;
+            }
             // no rows: the symbolic handle's walls stand
         }
     }
@@ -547,6 +560,9 @@ public final class PlanAllocations {
             env.planRows().put(scope, rows);
         } catch (NotImplementedException
                 | IllegalStateException e) {
+            if (!noLineageRows(e)) {
+                throw e;
+            }
             // no rows: the symbolic handle's walls stand
         }
     }

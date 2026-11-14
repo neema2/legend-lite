@@ -208,6 +208,25 @@ class ProductStatementsTest {
         assertInstanceOf(com.legend.sql.SqlSelect.class, Compiler.lowerResolved(plain, ctx, "s::RT", false));
     }
 
+    /** The plan handles' scans answer "no rows" for a lowering's failure, but never for the raw-SQL refusal, which
+     *  propagates by name (the final audit of 9af16fbe58's J7, 2026-11-14: the catch swallowed lowerResolved's). */
+    @Test
+    void theLineageScansLetTheRawSqlRefusalThrough() {
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
+        com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(((com.legend.protocol.spec
+                .LambdaFunction) Compiler.parseQuery("{|" + CONN + "let n = meta::relational::metamodel::execute"
+                + "::executeInDb('select 7 as A', $c).columnNames;\n#>{s::DB.T}#->select(~[ID]);}")).body(),
+                com.legend.model.ImportScope.empty(), ctx);
+        com.legend.error.NotImplementedException refusal = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> Compiler.lowerResolved(resolved, ctx, "s::RT", false));
+        assertTrue(QueryDoor.isRawSqlRefusal(refusal));
+        assertEquals(false, PlanAllocations.noLineageRows(refusal));
+        assertEquals(true, PlanAllocations.noLineageRows(new com.legend.error.NotImplementedException("a wall")));
+        assertEquals(true, PlanAllocations.noLineageRows(new IllegalStateException("a wall")));
+        // the same words from another refusal are not it: the exact refusal alone
+        assertEquals(true, PlanAllocations.noLineageRows(new IllegalStateException(refusal.getMessage())));
+    }
+
     @Test
     void aDdlTextIsThePlansConstantAndHasNoSqlText() {
         // D17: a DDL text generator's text is the model's, answered with nothing sent; the query's SQL text (the

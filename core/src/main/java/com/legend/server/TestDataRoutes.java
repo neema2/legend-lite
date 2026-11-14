@@ -50,7 +50,8 @@ final class TestDataRoutes {
     static PureV1Api.Answer seedData(String body, PureV1Api.Runner runner, PureV1Api.Models models) {
         return PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
-            return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(ctx,
+            // doored first, before the seed scans the query's relations (the final audit of 9af16fbe58's J8)
+            return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(doored(ctx, r),
                     TestDataPlanner.seedJson(ctx, seed(ctx, r, true)), r.runtime(), runner));
         });
     }
@@ -72,11 +73,10 @@ final class TestDataRoutes {
         PureV1Api.Answer a = PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
-                if (!defaultSeed) {
-                    // the given identifiers' route lowers no seed (the seed's entry refuses raw SQL inside itself,
-                    // ProductStatements.lowerTestDataSeed): its query's relations are scanned, so it is doored here
-                    doored(ctx, r);
-                }
+                // every route doored first, before its query's relations are scanned (ScanRelations.relTree: a raw
+                // read's query with no root, or several, was answered by the scan's words until the final audit of
+                // 9af16fbe58's J8, 2026-11-14); the seed's entry refuses raw SQL inside itself too
+                doored(ctx, r);
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
                 // a view root's main table admitted, so a view is refused by the route's own rule (TestDataPlanner.route)
                 TestDataPlanner.Seed seed = defaultSeed ? seed(ctx, r, true) : null;

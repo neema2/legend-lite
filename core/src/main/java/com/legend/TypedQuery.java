@@ -71,11 +71,11 @@ public final class TypedQuery {
         return ctx;
     }
 
-    /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). */
-    /** The spec compiler the query was typed by. This and the members below (resolved, lower,
-     *  lowerer, writes) are the planner's and the driver's internals, public since step C (D73, 2026-10-30) because
-     *  the machinery left this package; the product API of a typed query is plan, lower(runtime), resultType,
-     *  expression, target and parameters. */
+    /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). This
+     *  and the members below (resolved, body, writes) are the planner's and the test planner's internals, public since
+     *  step C (D73, 2026-10-30) because the machinery left this package; the product API of a typed query is plan,
+     *  executionPlan, projectPlan, resultType, expression, target and parameters (lower and lowerer went with the user's
+     *  ruling of 2026-11-13, option (b): the lowering is the planner's own). */
     public SpecCompiler specs() {
         return specs;
     }

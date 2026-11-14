@@ -650,6 +650,37 @@ final class ArchitectureTest {
         PROGRAM_ROAD_TEST_ENTRY.check(CORE_PROD_CLASSES);
     }
 
+    /** {@link #theProgramRoadsTestEntryIsTheTestDoors} over the hosts' doors as well (the final audit of 9af16fbe58's J2,
+     *  2026-11-14: a class in the boundary's package {@code planner} called PlanMaker.testProgram and had raw SQL
+     *  planned, the rule reading core alone). */
+    @Test
+    void theHostsDoorsReachNotTheProgramRoadsTestEntry() {
+        PROGRAM_ROAD_TEST_ENTRY.check(coreAndTheHostsDoors());
+    }
+
+    /** The plan handles' scans each ask {@code PlanAllocations.noLineageRows} before answering "no rows" for a
+     *  lowering's failure, so the raw-SQL refusal propagates by name (the final audit of 9af16fbe58's J7, 2026-11-14:
+     *  the catches swallowed Compiler.lowerResolved's refusal). The predicate is ProductStatementsTest's
+     *  theLineageScansLetTheRawSqlRefusalThrough. */
+    @Test
+    void thePlanHandlesScansLetTheRawSqlRefusalThrough() {
+        com.tngtech.archunit.core.domain.JavaClass allocations = CORE_PROD_CLASSES.get(
+                com.legend.planner.PlanAllocations.class);
+        for (String scan : java.util.List.of("registerPlanRows", "registerLineageRows", "registerColumnLineageRows")) {
+            org.junit.jupiter.api.Assertions.assertTrue(allocations.getMethods().stream()
+                    .filter(m -> m.getName().equals(scan))
+                    .flatMap(m -> m.getMethodCallsFromSelf().stream())
+                    .anyMatch(c -> c.getName().equals("noLineageRows")), scan + " answers no rows without asking");
+        }
+    }
+
+    /** {@link #PROGRAM_ROAD_TEST_ENTRY} fails on a planted caller outside the test door ({@code server.PlantedTestProgram},
+     *  the final audit of 9af16fbe58's J2: until then no planted violator held it). */
+    @Test
+    void theProgramRoadRuleBitesAPlantedCaller() {
+        bites(PROGRAM_ROAD_TEST_ENTRY, com.legend.server.PlantedTestProgram.class);
+    }
+
     /** B12 item 1 (the rule of {@link #theProgramRoadsTestEntryIsTheTestDoors}): a call or a reference
      *  ({@link #invokesWhere}). */
     static final com.tngtech.archunit.lang.ArchRule PROGRAM_ROAD_TEST_ENTRY = noClasses()
