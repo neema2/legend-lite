@@ -379,7 +379,8 @@ class _File:
 # the failures DuckDB raises BEFORE a statement runs -- a table not there, a name not bound, text that does not parse:
 # they leave the transaction standing, so they never end a read, and DuckDB still raises them after a read has ended
 # (measured on the pinned DuckDB, 2026-11-14: after an abort a ParserException, a CatalogException and a
-# BinderException are each raised as themselves; only a statement that runs says the transaction is aborted)
+# BinderException are each raised as themselves, as is an invalid input, which Reading._failed reads apart; a statement
+# that runs says the transaction is aborted)
 _REFUSED_BEFORE_RUNNING = (duckdb.ParserException, duckdb.CatalogException, duckdb.BinderException)
 
 

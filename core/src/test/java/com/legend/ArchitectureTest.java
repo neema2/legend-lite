@@ -739,7 +739,8 @@ final class ArchitectureTest {
      * {@code lowererFor}, {@code prepare} and {@code bare}; {@code PlanMaker.copyInto}; EnginePlans' {@code engineSql},
      * {@code engineTestSql} and {@code planModel}; {@code SidePlanner.prepare} and {@code PlanAllocations.node}. The
      * list moves only with a dated note naming the task. {@link #thePlannerEntriesRuleBitesAPlantedCaller} shows it
-     * bites, on the audit's five probes and a Lowerer.
+     * bites, on ten planted callers ({@code server.PlantedLowering}): the audit's five probes, a Lowerer constructed by
+     * a call and by a reference, a view's fetch, a side's staging by its reference and the seedable lets' prefix.
      */
     @Test
     void thePlannersAreReachedByTheirListedEntriesAlone() {
