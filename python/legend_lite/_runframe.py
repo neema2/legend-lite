@@ -53,7 +53,7 @@ def runs(what: str) -> Callable[[F], F]:
 # dated and reported): the witness steps out of the run for it alone (``exempt``), and refuses any exemption not listed.
 # Empty since 2026-11-13: its one entry, "a read's re-pin after its statement failed" (found by the witness that day:
 # frames.Reading.execute re-pinned a read whose statement failed, the pin's statement asked of the planner inside the
-# read's run), went with the user's ruling (1b): a read ends at its first failure as a query runs, re-pinned never.
+# read's run), went with the user's ruling (1b): a read ends at the failure that aborts its transaction, re-pinned never.
 EXEMPTIONS: frozenset[str] = frozenset()
 
 

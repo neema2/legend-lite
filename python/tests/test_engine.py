@@ -578,7 +578,7 @@ class PlanAndRunRoutes(Served):
         self.assertEqual(answer.status, 422, answer.body[:300])
         said = json.loads(answer.body)
         self.assertTrue(said['plan'].startswith('OK\n'), said)
-        self.assertRegex(said['error'], r'^TransactionException: this read ended at its first failure as a query ran \(Conversion')
+        self.assertRegex(said['error'], r'^TransactionException: this read ended at the failure that aborted its transaction \(Conversion')
 
     def test_sql_the_database_refuses_is_answered_with_its_plan(self):
         status, headers, body = self.plan_and_run("->extend(~[n: x|$x.desk->toOne()->parseInteger()])")

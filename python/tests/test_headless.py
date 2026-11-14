@@ -1088,7 +1088,7 @@ class OneRead(unittest.TestCase):
         with self.frames.reading():
             with self.assertRaisesRegex(Exception, 'Conversion'):
                 self.rows("SELECT CAST('x' AS INTEGER) AS n")
-            with self.assertRaisesRegex(Exception, r"this read ended at its first failure as a query ran \(Conversion"):
+            with self.assertRaisesRegex(Exception, r"this read ended at the failure that aborted its transaction \(Conversion"):
                 self.rows('SELECT count(*) AS n FROM trades')
         with self.frames.reading():
             self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': 6}])
@@ -1103,8 +1103,72 @@ class OneRead(unittest.TestCase):
                 self.rows("SELECT CAST('x' AS INTEGER) AS n")
             with self.assertRaises(Exception) as ended:
                 self.rows('SELECT count(*) AS n FROM trades')
-            self.assertRegex(str(ended.exception), r'this read ended at its first failure as a query ran \(Conversion')
+            self.assertRegex(str(ended.exception), r'this read ended at the failure that aborted its transaction \(Conversion')
             self.assertNotRegex(str(ended.exception), r'ran \(Catalog')
+
+    def test_a_refusal_after_the_abort_never_replaces_the_failure_that_ended_the_read(self):
+        # the follow-up audit's G3, 2026-11-14: after a value that does not convert aborts the transaction, DuckDB still
+        # raises a parse, a catalog and a binder refusal as themselves (they come before a statement runs) -- and the
+        # read's end stays named by the conversion, never by the refusal that came last
+        with self.frames.reading():
+            with self.assertRaisesRegex(Exception, 'Conversion'):
+                self.rows("SELECT CAST('x' AS INTEGER) AS n")
+            for refused, kind in (('SELEC 1', 'Parser'), ('SELECT * FROM no_such_table', 'Catalog'),
+                                  ('SELECT no_col FROM trades', 'Binder')):
+                with self.assertRaisesRegex(Exception, kind):
+                    self.rows(refused)
+            with self.assertRaises(Exception) as ended:
+                self.rows('SELECT count(*) AS n FROM trades')
+            self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
+
+    def test_a_failure_at_the_fetch_ends_the_read_by_its_own_words(self):
+        # the follow-up audit's G3, 2026-11-14: DuckDB converts as it streams, so a value that does not convert past the
+        # first rows it hands over fails at the FETCH (to_arrow_table), not at the statement -- measured at 3M rows --
+        # and that failure aborts the transaction as one at the statement does: the read's later query names it
+        late = ("SELECT (CASE WHEN i < 2900000 THEN '1' ELSE 'x' END)::INTEGER AS v FROM range(3000000) t(i)")
+        with self.frames.reading():
+            with self.assertRaisesRegex(Exception, 'Conversion'):
+                self.rows(late)
+            with self.assertRaises(Exception) as ended:
+                self.rows('SELECT count(*) AS n FROM trades')
+            self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
+
+    def test_a_plans_run_records_a_failure_at_its_fetch(self):
+        # Reading.run fetches through the read too (the follow-up audit's G3, 2026-11-14): a plan whose rows fail as
+        # they stream ends the read, named by that failure
+        from legend_lite import compiler
+        late = ("SELECT (CASE WHEN i < 2900000 THEN '1' ELSE 'x' END)::INTEGER AS v FROM range(3000000) t(i)")
+        with self.frames.reading() as read:
+            with self.assertRaisesRegex(Exception, 'Conversion'):
+                read.run(compiler.Plan(PlannedSql(late), ()))
+            with self.assertRaises(duckdb.TransactionException) as ended:
+                read.execute(PlannedSql('SELECT 1'))
+            self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
+
+    def test_a_failure_said_after_blank_lines_is_named_by_its_first_words(self):
+        # a message led by a line break or spaces is named by its first line that says something; one that says
+        # nothing, by its class (the follow-up audit's G3, 2026-11-14: its first line was read, and could be blank)
+        from legend_lite.frames import Reading
+
+        for said, named in (('\n  \nthe value does not convert', 'the value does not convert'), ('  \n \n', 'Spaced')):
+            class Spaced(duckdb.ConversionException):
+                def __str__(self, said=said):
+                    return said
+
+            class Failing:
+                def __init__(self):
+                    self.calls = 0
+
+                def execute(self, sql, params=None):
+                    self.calls += 1
+                    raise Spaced() if self.calls == 1 else duckdb.TransactionException('Current transaction is aborted')
+
+            read = Reading(Database(Failing()), {}, {})
+            with self.assertRaises(Spaced):
+                read.execute(PlannedSql('SELECT 1'))
+            with self.assertRaises(duckdb.TransactionException) as ended:
+                read.execute(PlannedSql('SELECT 1'))
+            self.assertIn(f'aborted its transaction ({named})', str(ended.exception))
 
     def test_a_failure_with_no_words_ends_the_read_by_its_class(self):
         # an empty message is safe: the read's end is named by the failure's class (the C4 audit's M4, 2026-11-13: its
@@ -1126,7 +1190,7 @@ class OneRead(unittest.TestCase):
         read = Reading(Database(Failing()), {}, {})
         with self.assertRaises(Silent):
             read.execute(PlannedSql('SELECT 1'))
-        with self.assertRaisesRegex(duckdb.TransactionException, r'ran \(Silent\)'):
+        with self.assertRaisesRegex(duckdb.TransactionException, r'aborted its transaction \(Silent\)'):
             read.execute(PlannedSql('SELECT 1'))
 
     def test_a_query_refused_before_it_runs_leaves_the_read_as_it_was(self):

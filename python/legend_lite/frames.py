@@ -376,6 +376,22 @@ class _File:
         return {'model': self.model, 'runtime': self.runtime, 'source': self.source, 'table': self.name, 'leaf': self.leaf}
 
 
+# the failures DuckDB raises BEFORE a statement runs -- a table not there, a name not bound, text that does not parse:
+# they leave the transaction standing, so they never end a read, and DuckDB still raises them after a read has ended
+# (measured on the pinned DuckDB, 2026-11-14: after an abort a ParserException, a CatalogException and a
+# BinderException are each raised as themselves; only a statement that runs says the transaction is aborted)
+_REFUSED_BEFORE_RUNNING = (duckdb.ParserException, duckdb.CatalogException, duckdb.BinderException)
+
+
+def _words(said: str, kind: str) -> str:
+    """A failure's words: its first line that says something, or its class where none does (an empty message, or one
+    that is only space and line breaks)."""
+    for line in said.splitlines():
+        if line.strip():
+            return line.strip()
+    return kind
+
+
 class Reading:
     """WHAT ONE READ SEES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D15): the frames' database as it was when the read
     began -- a cursor of its own, its session set as the planner's SQL expects, each frame read at each query registered
@@ -394,7 +410,8 @@ class Reading:
         self.held_values = held
         # the failure that aborted this read's transaction, in its words (``execute``): the read's end
         self.ended_by: str | None = None
-        # the read's latest failure, in its words: the one that aborted it, when DuckDB next says it is aborted
+        # the read's latest failure that RAN -- at a statement or at its fetch -- in its words: the one that aborted the
+        # transaction, when DuckDB next says it is aborted (one refused before it ran never replaces it)
         self._last_failure: str | None = None
 
     def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
@@ -411,9 +428,10 @@ class Reading:
             # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
             return send(self.cursor, sql, params)
         except duckdb.TransactionException as e:
-            # DuckDB says the read's transaction is aborted: by the read's latest failure -- the one that ran and failed,
-            # never one refused before it ran (a table not there), which left the transaction standing (the C4 audit's M4,
-            # 2026-11-13: until then the read's FIRST failure was named, a refused one among them)
+            # DuckDB says the read's transaction is aborted: by the read's latest failure that ran -- at a statement or
+            # at its fetch -- never one refused before it ran (a table not there, text that does not parse), which left
+            # the transaction standing, before the abort or after it (the C4 audit's M4, 2026-11-13; the follow-up
+            # audit's G3, 2026-11-14: until then a refusal after the abort replaced the failure that ended the read)
             if self.ended_by is None:
                 self.ended_by = self._last_failure
             if self.ended_by is None:
@@ -424,22 +442,43 @@ class Reading:
                 # the database's own error class, so a caller that answers a database's refusal answers this one (the
                 # plan-and-run's 422, never a 500)
                 failure = duckdb.TransactionException(
-                    f'this read ended at its first failure as a query ran ({self.ended_by}): DuckDB aborts the'
-                    " read's transaction there, so the call's later queries do not run; the next call reads the"
+                    f"this read ended at the failure that aborted its transaction ({self.ended_by}): DuckDB aborts"
+                    " the read's transaction there, so the call's later queries do not run; the next call reads the"
                     ' database afresh')
         except duckdb.Error as e:
-            failure = redacted(e, self.held_values)
-            said = str(failure) if failure is not None else str(e)
-            # its first line, or its class where it says nothing
-            self._last_failure = (said.splitlines() or [type(e).__name__])[0]
+            failure = self._failed(e)
             if failure is None:
                 raise
         raise failure
 
+    def _failed(self, e: duckdb.Error) -> BaseException | None:
+        """``e`` kept as the read's latest failure where it RAN (one refused before it ran leaves the transaction
+        standing, and never replaces the one that aborted it); the failure to raise, its held values taken out (None:
+        ``e`` names none)."""
+        failure = redacted(e, self.held_values)
+        if not isinstance(e, _REFUSED_BEFORE_RUNNING):
+            self._last_failure = _words(str(failure) if failure is not None else str(e), type(e).__name__)
+        return failure
+
+    def fetched(self, result: Result) -> pa.Table:
+        """``result``'s rows as this read fetches them: a failure AT THE FETCH (DuckDB converts as it streams, so a
+        value that does not convert past the first rows it hands over fails here, not at the statement: measured at
+        3M rows, 2026-11-14) is the read's failure as one at the statement is -- it aborts the transaction, and the
+        read ends there, named by it (the follow-up audit's G3: until then a fetch's failure went unrecorded)."""
+        try:
+            return result.to_arrow_table()
+        except duckdb.TransactionException:
+            raise
+        except duckdb.Error as e:
+            failure = self._failed(e)
+            if failure is None:
+                raise
+            raise failure from None
+
     @runs('a read')
     def run(self, plan: compiler.Plan) -> pa.Table:
         """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
-        return typed_by_plan(self.execute(plan.sql, plan.params).to_arrow_table(), plan)
+        return typed_by_plan(self.fetched(self.execute(plan.sql, plan.params)), plan)
 
 
 def _pin(cursor: Database) -> None:
