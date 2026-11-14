@@ -940,7 +940,15 @@ public final class MappingNormalizer {
     static FunctionDefinition synthesizeXStoreMapping(ResolvedMapping md,
             AssociationMapping.Cross xs, ModelBuilder model,
             String classA, String classB) {
-        AssociationDefinition ad = model.findAssociation(xs.associationName()).orElseThrow();
+        // the caller found the association through the mapping's imports (resolveAssociation); a name step D left
+        // unresolved -- a mapping D walled in a tolerant build stays as parsed -- is no element's name here. The
+        // model's error, in the words of the inline association predicate's same lookup; until 2026-11-14 a bare
+        // orElseThrow(), a raw NoSuchElementException (ruling 29, the normalizer slice's step 1;
+        // RefusalsNotCrashesTest)
+        AssociationDefinition ad = model.findAssociation(xs.associationName())
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "XStore mapping references unknown association '" + xs.associationName()
+                        + "'; mapping=" + md.qualifiedName()));
         // the line's [srcSet, tgtSet] ids select the sets: srcSet = the
         // OWNING end's, tgtSet = the line's target end's (engine
         // PropertyMappingBuilder uses them the same way)
@@ -1055,7 +1063,11 @@ public final class MappingNormalizer {
     static FunctionDefinition synthesizeModelJoinMapping(ResolvedMapping md,
             AssociationMapping.ModelJoin mj, ModelBuilder model,
             String classA, String classB) {
-        AssociationDefinition ad2 = model.findAssociation(mj.associationName()).orElseThrow();
+        // as synthesizeXStoreMapping's lookup (2026-11-14, ruling 29: a bare orElseThrow() until then)
+        AssociationDefinition ad2 = model.findAssociation(mj.associationName())
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "ModelJoin mapping references unknown association '" + mj.associationName()
+                        + "'; mapping=" + md.qualifiedName()));
         // ends resolve like the XStore path: a Relation(~func) set
         // directly, or a TABLE-backED Relational set converted to its
         // column view (the testRelational*/mixed sub-family)

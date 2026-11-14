@@ -213,4 +213,54 @@ class RefusalsNotCrashesTest {
         // walled in the same words (it was a raw exception out of the module build)
         assertEquals(Map.of("t::Inner", unknown, "t::Top", unknown), module(INCLUDED_UNKNOWN_ASSOCIATION).walls());
     }
+
+    // ---- MappingNormalizer: an XStore or ModelJoin association named as D left it, in a mapping D walled ----
+
+    private static final String XSTORE_IN_A_WALLED_MAPPING = """
+            Class t::Person { name: String[1]; firmId: Integer[1]; }
+            Class t::Firm { id: Integer[1]; }
+            Class u::Person { x: String[1]; }
+            Association t::Firm_Person { firm: t::Firm[0..1]; employees: t::Person[*]; }
+            ###Mapping
+            import t::*;
+            import u::*;
+            Mapping t::M (
+              Person: Pure { name: 'n' }
+              Firm_Person: XStore { employees: $this.id == $that.firmId, firm: $this.firmId == $that.id }
+            )
+            """;
+
+    private static final String MODEL_JOIN_IN_A_WALLED_MAPPING = """
+            Class t::Person { name: String[1]; firmId: Integer[1]; }
+            Class t::Firm { id: Integer[1]; }
+            Class u::Person { x: String[1]; }
+            Association t::Firm_Person { firm: t::Firm[0..1]; employees: t::Person[*]; }
+            ###Mapping
+            import t::*;
+            import u::*;
+            Mapping t::M (
+              Person: Pure { name: 'n' }
+              Firm_Person: ModelJoin { {f: t::Firm[1], p: t::Person[1]|$f.id == $p.firmId} }
+            )
+            """;
+
+    @Test
+    @DisplayName("an XStore or ModelJoin association D left unresolved poisons the association, not a NoSuchElementException")
+    void anAssociationStepDLeftUnresolvedIsRefused() {
+        // `Person` matches two imports: D refuses the mapping (strict) or walls it and keeps it as parsed (tolerant),
+        // so E meets the association's simple name; the caller finds it through the imports, the synthesis does not
+        String ambiguous = "ambiguous reference 'Person' — matches via imports: [t::Person, u::Person]."
+                + " Use a fully qualified name.";
+        assertEquals(List.of("[8:1] " + ambiguous), strict(XSTORE_IN_A_WALLED_MAPPING), "D refuses it first, as before");
+        Compiler.BuiltModule xstore = module(XSTORE_IN_A_WALLED_MAPPING);
+        assertEquals(Map.of("t::M", ambiguous), xstore.walls());
+        assertEquals("XStore mapping references unknown association 'Firm_Person'; mapping=t::M",
+                xstore.context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow());
+
+        assertEquals(List.of("[8:1] " + ambiguous), strict(MODEL_JOIN_IN_A_WALLED_MAPPING));
+        Compiler.BuiltModule modelJoin = module(MODEL_JOIN_IN_A_WALLED_MAPPING);
+        assertEquals(Map.of("t::M", ambiguous), modelJoin.walls());
+        assertEquals("ModelJoin mapping references unknown association 'Firm_Person'; mapping=t::M",
+                modelJoin.context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow());
+    }
 }
