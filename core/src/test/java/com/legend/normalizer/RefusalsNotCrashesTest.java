@@ -126,4 +126,27 @@ class RefusalsNotCrashesTest {
         assertEquals(Map.of("t::DB$view$V", concat), viewModule.walls());
         assertEquals(concat, poison(viewModule, "t::M", "t::Person"));
     }
+
+    // ---- JoinChainEmission: an inline-embedded property of a class the model has not ----
+
+    private static final String INLINE_OF_AN_UNKNOWN_CLASS = """
+            Class t::Firm { name: String[1]; }
+            ###Relational
+            Database t::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(100)) )
+            ###Mapping
+            Mapping t::M (
+              t::Firm[f]: Relational { ~mainTable [t::DB] T name: [t::DB] T.NAME }
+              *t::Nope: Relational { ~mainTable [t::DB] T firm() Inline[f] }
+            )
+            """;
+
+    @Test
+    @DisplayName("an inline-embedded property of an unknown class is the model's error, not an IllegalStateException")
+    void anInlineEmbeddedPropertyOfAnUnknownClassIsRefused() {
+        String unknown = "Inline-embedded PM 'firm': unknown owner class 't::Nope'; mapping=t::M";
+        assertEquals(List.of("[5:1] " + unknown), strict(INLINE_OF_AN_UNKNOWN_CLASS));
+        Compiler.BuiltModule module = module(INLINE_OF_AN_UNKNOWN_CLASS);
+        assertEquals(Map.of(), module.walls());
+        assertEquals(unknown, poison(module, "t::M", "t::Nope"));
+    }
 }

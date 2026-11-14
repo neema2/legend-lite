@@ -137,7 +137,15 @@ final class JoinChainEmission {
                         break;
                     }
                 }
-                ClassDefinition owner = model.knowledge().hierarchyClass(ownerClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at JoinChainEmission#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ownerClassFqn));
+                // a class mapping of a class the model has not (`*a::Nope: Relational { ..., p() Inline[s] }`): the
+                // model's error, in the words of emitOtherwiseEmbeddedHop's same refusal below. Until 2026-11-14 a
+                // raw IllegalStateException ("F7.8: class unresolved at JoinChainEmission#2 ..."), reached from 36 of
+                // the front oracle's texts (ruling 29, the normalizer slice's step 1; RefusalsNotCrashesTest)
+                ClassDefinition owner = model.knowledge().hierarchyClass(ownerClassFqn).orElseThrow(() ->
+                        new ModelException(LegendCompileException.Phase.NORMALIZE,
+                                "Inline-embedded PM '" + ie.propertyName()
+                                + "': unknown owner class '" + ownerClassFqn
+                                + "'; mapping=" + md.qualifiedName()));
                 TypeExpression propType = owner == null ? null
                         : model.knowledge().propertyType(owner, ie.propertyName());
                 if (referenced != null
