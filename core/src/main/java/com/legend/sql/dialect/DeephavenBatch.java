@@ -2012,7 +2012,7 @@ final class DeephavenBatch {
     /** The Java type a Deephaven server holds a column of {@code type} as -- its {@code deephaven:type} (measured on
      *  42.7, 2026-10-29: {@link #nullOf}'s columns read back) -- which a server's table is checked against (DH16); a
      *  type no Deephaven column holds refused by name. */
-    private static String javaTypeOf(SqlDdl.ColumnType type, String column) {
+    static String javaTypeOf(SqlDdl.ColumnType type, String column) {
         return switch (type) {
             case SqlDdl.ColumnType.Plain p -> switch (p.kind()) {
                 case BIT -> "java.lang.Boolean";

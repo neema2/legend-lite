@@ -232,6 +232,12 @@ _EXTRA_ENV = {
         "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
         "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
     },
+    # the door's protocol, the world through it, and the desk model's topics (docs/DESK_DATA_ROADMAP_2026_10_29.md B1)
+    "kafka-door": {
+        "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
+        "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
+        "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+    },
     # the markets project as the site releases it (:markets_project, demo/releases/index.json): the one trading model and
     # the markets sample's days as its Data -- the timeseries over its classes (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
     # §11, Phase 6)
@@ -373,6 +379,16 @@ _EXTRA_DATA = {
         "demo/deephaven/market/model.ts",
         "demo/deephaven/market/screens.ts",
         ":src",
+        "//scripts/corpus:trading_model",
+    ],
+    # the door and its feed, the world's tables and the desk's model (B1)
+    "kafka-door": [
+        "demo/deephaven/market/environments.pure",
+        "demo/deephaven/market/market.pure",
+        "demo/deephaven/market/model.ts",
+        "demo/market-sim/door/door-feed.ts",
+        "demo/market-sim/door/kafka-door.ts",
+        "demo/market-sim/tables.ts",
         "//scripts/corpus:trading_model",
     ],
     # the demo's model, whose TRADES the sample's plan fills (src/sample-trades.ts, SYNTHESIZE)
@@ -533,6 +549,8 @@ _WASM_TESTS = [
     "sample-trades",
     # the trading desk's model: every screen's source a function of it, each planned on Deephaven, no server (2026-10-27)
     "desk-model",
+    # the desk model's topics, as the planner answers them (B1)
+    "kafka-door",
 ]
 
 # The jsdom tests that drive a whole page through many gestures, each opening grids: past `small`'s 60 s on CI's

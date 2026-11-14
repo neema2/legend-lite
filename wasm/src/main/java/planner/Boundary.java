@@ -627,6 +627,27 @@ public final class Boundary {
         });
     }
 
+    /** The topics as JSON: each one's landing table, name, columns (name and Deephaven type), key, retention. */
+    private static String topics(java.util.List<com.legend.planner.IngestTopics.Topic> topics) {
+        java.util.List<Object> out = new java.util.ArrayList<>();
+        for (com.legend.planner.IngestTopics.Topic t : topics) {
+            java.util.Map<String, Object> o = new java.util.LinkedHashMap<>();
+            o.put("table", t.table());
+            o.put("topic", t.topic());
+            o.put("columns", t.columns().stream().map(c -> {
+                java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
+                col.put("name", c.name());
+                col.put("type", c.type());
+                return (Object) col;
+            }).toList());
+            o.put("key", t.key());
+            o.put("keepRows", t.keepRows());
+            o.put("keepFor", t.keepFor());
+            out.add(o);
+        }
+        return com.legend.json.Json.toCompact(java.util.Map.of("topics", out));
+    }
+
     /** A knob's value as written: a number's own token, or a text. */
     private static String scalar(com.legend.json.Json.Node v, String column) {
         return switch (v) {
@@ -858,6 +879,10 @@ public final class Boundary {
             case "releaseExport" -> b64.encodeToString(
                     com.legend.deephaven.DeephavenWire.releaseExport(a.getInt("exportId")));
             case "doGet" -> b64.encodeToString(com.legend.deephaven.DeephavenWire.doGet(a.getInt("exportId")));
+            // the topics a database's streams read, from its model (the desk roadmap's B1: the world's feed writes
+            // each landing table's rows to its topic, and the door keeps each as its dataset lands)
+            case "topics" -> MODELS.withText(a.getString("model"), ctx -> topics(
+                    com.legend.planner.IngestTopics.of(ctx, a.getString("database"))));
             case "keys" -> com.legend.json.Json.toCompact(java.util.Map.of("keys",
                     com.legend.deephaven.DeephavenWire.keys(a.getString("plan"))));
             case "send" -> {

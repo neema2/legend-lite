@@ -1498,6 +1498,10 @@ class JavaEvalLedgerTest {
                     // write mode, the retention kept by arrival -- each from the ingest's declaration (model text, never
                     // a value); the database moves every row
                     "IngestPlanner.java",
+                    // 2026-11-14 (the desk roadmap's B1, the user's go of that day): the topics a database's streams read,
+                    // each a dataset's name, columns, key and retention read from its ingest's declaration -- model text
+                    // alone, no row and no value
+                    "IngestTopics.java",
                     // 2026-11-12 (the user's ruling "Yes do 5 and 6": Studio's SQL playground through the planner): a
                     // person's one statement as a plan, carried as written -- never parsed, rewritten or split; the
                     // planner computes nothing, the database answers the relation it reports

@@ -1785,6 +1785,13 @@ public final class Deephaven extends AnsiSqlRenderer {
         throw new DialectCapability("a data payload reached Deephaven: a server reads no rows a plan carries");
     }
 
+    /** The Java type a Deephaven column holds a store's declared column as (DH16's one mapping): what a server's table
+     *  is checked against, and what a topic's reader takes a dataset's column as (the desk roadmap's B1). A type no
+     *  Deephaven column holds is refused by name. */
+    public static String columnJavaType(com.legend.sql.SqlDdl.ColumnType type, String column) {
+        return DeephavenBatch.javaTypeOf(type, column);
+    }
+
     /** {@inheritDoc} Refused by name: a plan loads no file into a Deephaven server. */
     @Override
     public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {

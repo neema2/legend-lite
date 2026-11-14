@@ -177,13 +177,15 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
    Deephaven. The declarations are not part of the operations' keys: a table kept alive is checked once, when made.
    Not checked: NOT NULL (Deephaven's schema says nothing of it, and a live table may gain a null later; only reading
    rows could).
-6. **A `data:` payload on Deephaven** (found at main's merge, 2026-11-14; the user to rule). Main's JSON pass made it a
+6. **A `data:` payload on Deephaven** (found at main's merge, 2026-11-14). **Ruled (the user, 2026-11-14): refused** ("if DeepHaven cannot do
+   something refuse and keep going"). Main's JSON pass made it a
    rule that every database takes a query's `data:` payload, as one bound parameter or as the statement's own rows
    (`DataDeliveryDeclaredTest`, register S190 withdrawn). Deephaven takes neither: a batch reads a server's tables,
    and a plan's values uploaded first are DH5, unbuilt. Its dialect refuses the payload by name ("a data payload
    reached Deephaven: a server reads no rows a plan carries"), and the delivery tests pin that refusal as the one
-   exception, dated. The choice: keep it a named refusal until DH5's upload exists, or build the upload now.
-7. **The median window on Deephaven** (main's new running and moving median, 2026-11-14): refused by name on every
+   exception, dated; it stays so until DH5's upload is built.
+7. **The median window on Deephaven** (main's new running and moving median, 2026-11-14). **Ruled the same day:
+   refused**, as every shape Deephaven cannot run is. It is refused by name on every
    frame ("a window function (MEDIAN) reached Deephaven: no shape yet"), pinned so in `window-columns.test.ts`. Its
    shape is a rolling formula (or the median aggregate for a whole partition), to be measured on the pinned server.
 
