@@ -34,15 +34,15 @@ function realSources(): Map<string, string> {
   return out;
 }
 
-// The modules that run a plan: the plan runner, the tab's DuckDB engines, the result's readers, the statement's type.
-// 2026-11-13 (M2).
+// The modules that run a plan: the plan runner, the tab's DuckDB engines, the result's readers. 2026-11-13 (M2). The
+// branded statement's own module is in the run set through the plan runner's and DuckDB's imports of it, never named
+// here: PlannedSqlTest pins every reference to it as an import (the gate's finding on b915e29405, 2026-11-14).
 const RUN_ROOTS = [
   '../engine-client/src/plan-runner.ts',
   '../engine-client/src/duckdb.ts',
   '../engine-client/src/duckdb-wasm.ts',
   '../engine-client/src/arrow-ipc.ts',
   '../engine-client/src/connection-settings.ts',
-  '../engine-client/src/planned-sql.ts',
   '../engine-client/src/values.ts',
   '../engine-client/src/result.ts',
 ];
