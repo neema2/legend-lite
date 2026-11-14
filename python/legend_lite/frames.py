@@ -456,7 +456,12 @@ class Reading:
         standing, and never replaces the one that aborted it); the failure to raise, its held values taken out (None:
         ``e`` names none)."""
         failure = redacted(e, self.held_values)
-        if not isinstance(e, _REFUSED_BEFORE_RUNNING):
+        # an invalid input (a statement given fewer values than its `?`s) aborts a standing transaction, yet DuckDB
+        # raises it as itself after an abort too (measured on the pinned DuckDB, 2026-11-14): it is kept only where
+        # nothing is kept yet -- the read's end when it came first, and never a replacement for the failure that ended
+        # the read (the final audit of 9af16fbe58's P7)
+        if not isinstance(e, _REFUSED_BEFORE_RUNNING) and not (
+                isinstance(e, duckdb.InvalidInputException) and self._last_failure is not None):
             self._last_failure = _words(str(failure) if failure is not None else str(e), type(e).__name__)
         return failure
 

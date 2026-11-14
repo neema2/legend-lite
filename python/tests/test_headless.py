@@ -1121,6 +1121,26 @@ class OneRead(unittest.TestCase):
                 self.rows('SELECT count(*) AS n FROM trades')
             self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
 
+    def test_an_invalid_input_never_replaces_the_failure_that_ended_the_read_in_either_order(self):
+        # the final audit of 9af16fbe58's P7: a statement given fewer values than its `?`s is an InvalidInputException,
+        # raised whether or not the read's transaction is aborted: after the abort it never replaces the failure that
+        # ended the read; first, it is the failure that ends it (it aborts the transaction itself, measured)
+        with self.frames.reading() as read:
+            with self.assertRaisesRegex(Exception, 'Conversion'):
+                self.rows("SELECT CAST('x' AS INTEGER) AS n")
+            with self.assertRaises(duckdb.InvalidInputException):
+                read.execute(PlannedSql('SELECT ? AS a'), ())
+            with self.assertRaises(Exception) as ended:
+                self.rows('SELECT count(*) AS n FROM trades')
+            self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
+        with self.frames.reading() as read:
+            with self.assertRaises(duckdb.InvalidInputException):
+                read.execute(PlannedSql('SELECT ? AS a'), ())
+            with self.assertRaises(Exception) as ended:
+                self.rows('SELECT count(*) AS n FROM trades')
+            self.assertRegex(str(ended.exception), r'aborted its transaction \(Invalid Input Error: Values were not'
+                             r' provided')
+
     def test_a_failure_at_the_fetch_ends_the_read_by_its_own_words(self):
         # the follow-up audit's G3, 2026-11-14: DuckDB converts as it streams, so a value that does not convert past the
         # first rows it hands over fails at the FETCH (to_arrow_table), not at the statement -- measured at 3M rows --
