@@ -132,6 +132,9 @@ test_suite(
         # Python half read by Python's parser (2026-11-12, the C checkpoint's code audit SHOULD-FIX 2)
         "//tools/guards:planned_sql_test",
         "//python:planned_guard_test",
+        # the run wall's Python half (M2, 2026-11-13), in no gate suite until the final audit of 9af16fbe58's P1
+        # (2026-11-14); its TypeScript half, //datacube:run_wall_test, rides DataCube's own suite
+        "//python:run_wall_test",
         "//tools/browser:revision_test",
         "//tools/browser:proxy_args_test",
         "//tools/bump:bump_test",
