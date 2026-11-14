@@ -167,7 +167,9 @@ class SqlTextRatchetTest {
             for (Path p : s.filter(f -> f.toString().endsWith(".java"))
                     .toList()) {
                 String rel = SourceFiles.rel(root, p).substring(1);
-                if (rel.startsWith("sql/dialect/")) {
+                // the dialect layer, and the edge's own dialects: legend-engine's text printers (EngineStyle*) moved
+                // from sql/dialect to com.legend.edge (2026-11-13, phase D's O3) and are dialects still
+                if (rel.startsWith("sql/dialect/") || rel.matches("edge/EngineStyle\\w+\\.java")) {
                     continue;
                 }
                 scanned++;

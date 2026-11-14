@@ -3,14 +3,14 @@
 
 package com.legend.edge;
 
-import com.legend.database.SqlSpelling;
+import com.legend.database.PlanStyle;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.SqlDialect;
 
 /**
  * THE EDGE'S SQL RENDER TARGET (phase D's D1.0; docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6.1, Q15: "Pure's exact
  * texts at the edge, as the edge's own SQL render target"): the dialect source the compatibility harnesses and
- * routes hand the planner ({@link #UPSTREAM_SPELLING}) -- PCT's channel A, the corpus, pure/v1's upstream routes -- so the
+ * routes hand the planner ({@link #UPSTREAM}) -- PCT's channel A, the corpus, pure/v1's upstream routes -- so the
  * product's typed plan is spelled as legend-pure and legend-engine spell it. Each dialect here SUBCLASSES the
  * product's (open recursion: an arm the product's renderer reaches from inside its own walk is overridden, which a
  * wrapper could not do) and overrides ONLY the arms that spell upstream's text; an override that changes a product
@@ -26,7 +26,58 @@ public final class PureText {
     }
 
     /** The edge's dialect source: upstream's spellings over the product's dialect of each database. */
-    public static final SqlSpelling UPSTREAM_SPELLING = PureText::dialect;
+    public static final PlanStyle UPSTREAM = new PlanStyle() {
+        @Override
+        public SqlDialect dialect(DatabaseType type) {
+            return PureText.dialect(type);
+        }
+
+        @Override
+        public com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
+            return PureText.engineText(type);
+        }
+
+        @Override
+        public com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+                @com.legend.base.Nullable String timeZone) {
+            return PureText.enginePlanText(type, quoteIdentifiers, timeZone);
+        }
+
+        /** legend-engine's text, as its activity records the SQL it generated. */
+        @Override
+        public String activitySql(Activity activity) {
+            return activity.engines(PureText.engineText(activity.engineDatabase()));
+        }
+    };
+
+    /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
+     *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). A fresh printer per use: a dialect keeps state while
+     *  it writes a statement (moved here from the planner's {@code EngineText}, phase D, 2026-11-12). */
+    public static com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
+        return switch (type) {
+            case H2 -> new EngineStyleH2();
+            case DB2 -> new EngineStyleDB2();
+            case Composite -> new EngineStyleComposite();
+            case DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
+                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, MongoDB ->
+                    throw new com.legend.error.NotImplementedException("toSQLString for DatabaseType." + type
+                            + " — only the H2, DB2 and Composite engine-style renderers are built");
+        };
+    }
+
+    /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
+     *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
+    public static com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+            @com.legend.base.Nullable String timeZone) {
+        return switch (type) {
+            case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
+            case DB2, Composite -> new EngineStyleDB2(quoteIdentifiers, timeZone);
+            case DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
+                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, MongoDB ->
+                    throw new com.legend.error.NotImplementedException("plan text for DatabaseType." + type
+                            + " — only the H2 and DB2-family engine-style renderers are built");
+        };
+    }
 
     /** The edge's dialect of {@code type}; a database the product has no dialect for refused by name, as the
      *  product's own source refuses it. */

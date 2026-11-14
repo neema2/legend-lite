@@ -49,7 +49,7 @@ public final class BodyDriver {
     }
 
     // (ENGINE_TEXT, the engine golden DDL text's dialect held statically here until 2026-11-09:
-    // com.legend.planner.EngineText.engineText(), one per use)
+    // the plan style's engineText, one per use)
 
     /** The K-phase execution environment: the body's PLANNING half ({@link com.legend.planner.PlanEnv}: the model,
      * the runtime, the ONE dialect -- audit 17: recomputing it per arm invited a future mixed-dialect bug -- the
@@ -74,10 +74,12 @@ public final class BodyDriver {
          *  options' features), a fresh trace, no batch. */
         static ExecEnv of(ModelContext ctx, @com.legend.base.Nullable String runtimeFqn,
                 com.legend.sql.dialect.SqlDialect dialect, PlanningOptions options) {
-            return new ExecEnv(com.legend.planner.PlanEnv.of(ctx, runtimeFqn, dialect, options.features(),
+            return new ExecEnv(com.legend.planner.PlanEnv.of(ctx, runtimeFqn, dialect, options.style(),
+                    options.features(),
                     // the generator's plan names the engine's test connection, as every engine test of it does (its
                     // runtime argument is not read)
-                    tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx, com.legend.planner.EngineText.engineText(),
+                    tg -> com.legend.testdatagen.TestDataGenerationNatives.planTextResult(tg, ctx,
+                            options.style().engineText(com.legend.planner.EngineText.ENGINE_TEST_DATABASE),
                             "TestDatabaseConnection(type = \"" + com.legend.planner.EngineText.ENGINE_TEST_DATABASE.name()
                                     + "\")")).withOptions(options.options()),
                     JudgePlans.target(com.legend.Compiler.executesOn(ctx, runtimeFqn), dialect),
@@ -180,7 +182,7 @@ public final class BodyDriver {
             }
             com.legend.executionplan.@com.legend.base.Nullable DatabaseType from = besideCatalog(target);
             com.legend.executionplan.@com.legend.base.Nullable DatabaseType to = besideCatalog(other);
-            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(options.spelling().dialect(
+            com.legend.planner.PlanEnv p = from == to ? plan : plan.withDialect(options.style().dialect(
                     to != null ? com.legend.planner.ConnectionPlans.model(to)
                             : com.legend.Compiler.executesOn(ctx(), runtimeFqn()).type()));
             return new ExecEnv(p, other, options, verdictBatch, engineText, failureMessage, appealOn,

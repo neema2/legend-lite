@@ -30,7 +30,7 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                PlanningOptions.rules(edge != null), java.util.Set.of(), com.legend.database.Databases.PRODUCT_SPELLING),
+                PlanningOptions.rules(edge != null), java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT),
                 stores);
     }
 
@@ -86,9 +86,9 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
 
     /** THE SPELLING HOOK (phase D's D1.0): the body's statements written in {@code spelling}'s dialects -- the
      *  compatibility edge's ({@code com.legend.edge.PureText}) for a harness that compares against upstream's texts;
-     *  the product's own ({@code Databases.PRODUCT_SPELLING}) otherwise, which these options carry from their making. */
-    public ExecuteOptions withSpelling(com.legend.database.SqlSpelling spelling) {
-        return new ExecuteOptions(planning.withSpelling(spelling), stores);
+     *  the product's own ({@code com.legend.database.PlanStyle.PRODUCT}) otherwise, which these options carry from their making. */
+    public ExecuteOptions withStyle(com.legend.database.PlanStyle style) {
+        return new ExecuteOptions(planning.withStyle(style), stores);
     }
 
     /** The raw-SQL ledger this execution appends to (Phase 2b) and the data stores its loads resolve through

@@ -274,7 +274,7 @@ public final class ChannelB {
                             // (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
                             .withEngineCompat(true)
                             // legend-pure's texts, spelled by the edge (phase D's D1.0)
-                            .withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING));
+                            .withStyle(com.legend.edge.PureText.UPSTREAM));
             return new Outcome(fqn, Status.PASS, "");
         } catch (java.sql.SQLException e) {
             // an assert failure arrives as the database's error() — a
@@ -463,7 +463,7 @@ public final class ChannelB {
             return rewrite(lb.get(lb.size() - 1), fParam, lets);
         }
         // any surviving reference to the adapter param is a shape we
-        // do not run — decline WITH the offending call's spelling, so
+        // do not run — decline WITH the offending call's style, so
         // the decline census distinguishes shapes (audit 2026-08-19:
         // 51 relation declines shared one blind string)
         if (n instanceof AppliedFunction afx

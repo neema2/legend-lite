@@ -143,9 +143,9 @@ public final class FramePlanner {
                 // form both take none); a class-rooted chain needs its mapping
                 if (mappingFqn != null || lqChain.relationRooted()) {
                     try {
-                        // C4 (handed off): the runtime's type is not read here yet
-                        activitySql = EnginePlans.engineTestSql(List.of(lqChain.chain()),
-                                mappingFqn, specs, env);
+                        // S310 (RULED by the user 2026-11-14, DE2 (a)): the style picks (PlanAllocations)
+                        activitySql = PlanAllocations.activitySql(List.of(lqChain.chain()), mappingFqn, specs, env,
+                                false);
                     } catch (LegendCompileException
                             | NotImplementedException
                             | IllegalStateException e) {

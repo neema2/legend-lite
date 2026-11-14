@@ -56,6 +56,14 @@ public final class Program {
         return run(model, body, runtime, c, ExecuteOptions.NONE.withJudgeMode(laneJudge()));
     }
 
+    /** The platform's default options in the compatibility edge's plan style ({@code edge.PureText.UPSTREAM}): a body
+     *  whose answer is legend-pure's or legend-engine's exact text -- the engine-text natives ({@code toSQLString},
+     *  {@code planToString}, the DDL generators), an activity's SQL -- which the product's style refuses by name
+     *  (phase D's O3, 2026-11-13: legend-engine's text is the edge's). */
+    public static ExecuteOptions upstream() {
+        return ExecuteOptions.NONE.withJudgeMode(laneJudge()).withStyle(com.legend.edge.PureText.UPSTREAM);
+    }
+
     /** The lane's judge for a body whose test names none ({@code -Dlegend.test.judge=HOST|DATABASE|BOTH}; the host
      *  with no property): core's tests of verdicts run under each judge alone and under both, as channel B's suites
      *  do (the core parity program, 2026-11-03: the user's "100% parity on host+database on our core tests"). A test

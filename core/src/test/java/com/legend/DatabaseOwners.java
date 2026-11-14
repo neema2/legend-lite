@@ -248,8 +248,11 @@ final class DatabaseOwners {
         // the DuckDB-only sources are, owns its database as its dialect does; so does Postgres's (PostgresCells, its
         // jsonb cells behind the DriverCells seam, the plan path program's step 9, 2026-10-19; registered at main's
         // merge, 2026-10-22, when the absolute ban first read it)
+        // 2026-11-13 (phase D's O3): legend-engine's text printers (EngineStyleH2, DB2, Composite), dialects still, moved
+        // from sql/dialect to the edge, each owning its database as it did there
         if (rel.startsWith(MAIN + "sql/dialect/") || rel.startsWith("core/src/main/duckdb/")
-                || rel.startsWith("core/src/main/mongodb/") || rel.startsWith("core/src/main/postgres/")) {
+                || rel.startsWith("core/src/main/mongodb/") || rel.startsWith("core/src/main/postgres/")
+                || rel.matches(MAIN + "edge/EngineStyle\\w+\\.java")) {
             Set<String> own = ownAndParent(rel, source);
             own.addAll(NAMED_BY_ROLE.getOrDefault(rel, Set.of()));
             return new Owner(Kind.DIALECT, own);

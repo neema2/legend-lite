@@ -36,7 +36,7 @@ public final class EdgeServer {
      *  to {@code sources} as the server's own runner fences them. */
     static PureV1Api.Runner runner(String sources) {
         return (query, runtime, output) -> com.legend.Execution.runOnProjectDatabases(query, runtime, sources,
-                PureText.UPSTREAM_SPELLING, output);
+                PureText.UPSTREAM, output);
     }
 
     /** {@code /api/pure/v1/...}: POST only, as upstream serves it. */

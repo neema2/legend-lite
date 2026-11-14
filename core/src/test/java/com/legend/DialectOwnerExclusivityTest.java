@@ -51,7 +51,7 @@ class DialectOwnerExclusivityTest {
             // reads this text on DuckDB too; refusing them broke 14 passing corpus tests (c7cd917; the plan's Phase 1b
             // step 2, the engine-H2 row). Whether the engine text should spell them at all is the engine-text work's
             // question, not this guard's.
-            new Crossing("core/src/main/java/com/legend/sql/dialect/EngineStyleH2.java", "DuckDB", 9,
+            new Crossing("core/src/main/java/com/legend/edge/EngineStyleH2.java", "DuckDB", 9,
                     "the corpus reads the engine-H2 text on DuckDB: ten DuckDB-only functions spelled DuckDB's way"),
             // (2026-10-18, the dialect program's Phase 7: the warehouse's two crossings, its Postgres catalog tests
             // naming DuckDB, left this list: the warehouse is a host owner, its engine DuckDB (DatabaseOwners).)
@@ -189,14 +189,15 @@ class DialectOwnerExclusivityTest {
                 sources.put(rel, String.join("\n", DialectLeakRatchetTest.lex(Files.readString(f)).code()));
             }
         }
-        // the dialect classes: SqlDialect's implementations in sql/dialect, by their extends chains
+        // the dialect classes: SqlDialect's implementations in sql/dialect, by their extends chains, and the edge's
+        // (2026-11-13, phase D's O3: legend-engine's text printers, EngineStyle*, moved to com.legend.edge)
         Set<String> dialects = new java.util.HashSet<>(Set.of("SqlDialect", "AnsiSqlRenderer"));
         Pattern declared = Pattern.compile("\\bclass\\s+(\\w+)\\s*(?:extends\\s+(\\w+))?([^{]*)\\{");
         Pattern implementsDialect = Pattern.compile("\\bimplements\\b.*\\bSqlDialect\\b", Pattern.DOTALL);
         for (boolean grew = true; grew; ) {
             grew = false;
             for (var e : sources.entrySet()) {
-                if (!e.getKey().contains("/sql/dialect/")) {
+                if (!e.getKey().contains("/sql/dialect/") && !e.getKey().contains("/com/legend/edge/")) {
                     continue;
                 }
                 var m = declared.matcher(e.getValue());

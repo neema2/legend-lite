@@ -8,7 +8,7 @@ import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.setup.Ddl;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.sql.dialect.EngineStyleH2;
+import com.legend.edge.EngineStyleH2;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
@@ -92,8 +92,9 @@ class DeclaredQuotedTableH2Test {
 
     private static String execute(String body) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
+            // legend-engine's text natives answer in the edge's plan style (phase D's O3, 2026-11-13)
             var r = Program.last(TestBackends.platform().withStorelessRuntime(MODEL), body,
-                    com.legend.testbackend.StorelessRuntime.RUNTIME, c);
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, c, Program.upstream());
             return String.valueOf(r.one());
         }
     }

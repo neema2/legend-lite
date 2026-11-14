@@ -113,16 +113,22 @@ class ProductStatementsTest {
 
     @Test
     void aStagedToSqlStringIsThePlansConstantAndTheTestRoadsText() throws Exception {
-        // D14: toSQLString's engine text is a plan-time value (staged), so the product's plan answers it as its own
-        // constant; the text is the test road's for the same statement
+        // D14: toSQLString's engine text is a plan-time value (staged), so a plan answers it as its own constant; the
+        // text is the test road's for the same statement. Legend-engine's text is the edge's (phase D's O3, S309,
+        // 2026-11-13): the edge's plan style answers it, the product's refuses it by name
         String query = "|meta::relational::functions::sqlstring::toSQLString(|#>{test::DB.T}#->select(~[id, name]),"
                 + " test::M, meta::relational::runtime::DatabaseType.H2, [])";
         String model = StorelessRuntime.with(LEGACY, Databases.PLATFORM);
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan(StorelessRuntime.RUNTIME);
+        com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(model), query);
+        com.legend.error.NotImplementedException refused = assertThrows(
+                com.legend.error.NotImplementedException.class, () -> typed.executionPlan(StorelessRuntime.RUNTIME));
+        assertTrue(refused.getMessage().contains("compatibility edge"), refused.getMessage());
+        ExecutionPlan plan = typed.executionPlan(StorelessRuntime.RUNTIME, java.util.Set.of(),
+                com.legend.edge.PureText.UPSTREAM);
         ExecutionPlan.Constant c = assertInstanceOf(ExecutionPlan.Constant.class, plan.root());
         try (Connection conn = TestBackends.platform().open()) {
-            assertEquals(String.valueOf(com.legend.testing.Program.last(model, query, StorelessRuntime.RUNTIME, conn)
-                    .one()), c.cells().get(0).get(0));
+            assertEquals(String.valueOf(com.legend.testing.Program.last(model, query, StorelessRuntime.RUNTIME, conn,
+                    com.legend.testing.Program.upstream()).one()), c.cells().get(0).get(0));
         }
         assertTrue(c.cells().get(0).get(0).startsWith("select "), c.cells().toString());
     }
@@ -134,13 +140,19 @@ class ProductStatementsTest {
         String query = "|meta::relational::functions::toDDL::createTableStatement(test::DB, 'T')";
         com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(StorelessRuntime.with(LEGACY,
                 Databases.PLATFORM)), query);
+        // legend-engine's DDL text is the edge's (phase D's O3, S309, 2026-11-13): the product refuses it by name
+        com.legend.error.NotImplementedException refused = assertThrows(
+                com.legend.error.NotImplementedException.class, () -> typed.executionPlan(StorelessRuntime.RUNTIME));
+        assertTrue(refused.getMessage().contains("compatibility edge"), refused.getMessage());
         ExecutionPlan.Constant c = assertInstanceOf(ExecutionPlan.Constant.class,
-                typed.executionPlan(StorelessRuntime.RUNTIME).root());
+                typed.executionPlan(StorelessRuntime.RUNTIME, java.util.Set.of(), com.legend.edge.PureText.UPSTREAM)
+                        .root());
         assertTrue(c.cells().get(0).get(0).toUpperCase(java.util.Locale.ROOT).startsWith("CREATE TABLE"),
                 c.cells().toString());
+        // the product's lowering refuses it too, by the same name (S309; before 2026-11-13: "DDL text")
         com.legend.error.NotImplementedException none = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> typed.lower(StorelessRuntime.RUNTIME, false));
-        assertTrue(none.getMessage().contains("DDL text"), none.getMessage());
+        assertTrue(none.getMessage().contains("compatibility edge"), none.getMessage());
     }
 
     @Test

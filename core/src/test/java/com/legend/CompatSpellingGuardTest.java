@@ -107,6 +107,11 @@ class CompatSpellingGuardTest {
             "compiler/spec/TableReferenceChecker.java | Can't find  | 1 | D1.6",
             "compiler/spec/TdsDesugars.java | TDS_NULL_CELL | 2 | D1.3",
             "compiler/spec/TdsDesugars.java | trying to get an element at offset | 1 | D1.6",
+            // 2026-11-13 (phase D's O3): the plan style names the type it hands the planner -- the edge's printers
+            // implement it; the product's style refuses it by name -- so it stays while the engine-text natives plan
+            // 4 -> 5 (2026-11-14, S310 RULED by the user, DE2 (a): an execute's activity SQL is the style's pick, the
+            // edge's printer handed to the planner's Activity.engines)
+            "database/PlanStyle.java | EngineTextDialect | 5 | STAYS",
             "exec/PlanParameters.java | Missing external parameter(s) | 1 | D1.6",
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
@@ -135,17 +140,20 @@ class CompatSpellingGuardTest {
             "plan/PlanNode.java | executionTraceID | 1 | D1.4",
             "planner/BodyPlanner.java | EnginePlans | 3 | D1.7",
             "planner/EnginePlans.java | EnginePlans | 2 | D1.7",
-            "planner/EnginePlans.java | EngineText | 20 | D1.7",
+            // 20 -> 12 (2026-11-13, phase D's O3: the printers reached through the plan style, PlanStyle.engineText)
+            // 12 -> 11 (2026-11-14, S310: engineTestSql deleted, the activity's SQL the style's pick in PlanAllocations)
+            "planner/EnginePlans.java | EngineText | 11 | D1.7",
             "planner/EnginePlans.java | EngineTextDialect | 4 | D1.7",
             "planner/EnginePlans.java | withEngineText | 1 | D1.7",
-            "planner/EngineText.java | EngineStyleComposite | 1 | D1.7",
-            "planner/EngineText.java | EngineStyleDB2 | 2 | D1.7",
-            "planner/EngineText.java | EngineStyleH2 | 3 | D1.7",
             "planner/EngineText.java | EngineText | 2 | D1.7",
-            "planner/EngineText.java | EngineTextDialect | 4 | D1.7",
-            "planner/FramePlanner.java | EnginePlans | 1 | D1.7",
+            // planner/FramePlanner.java | EnginePlans: gone 2026-11-14 (S310, RULED by the user, DE2 (a): the string
+            // entry's activity SQL is the style's pick, through PlanAllocations)
             "planner/PlanAllocations.java | EnginePlans | 5 | D1.7",
-            "planner/PlanAllocations.java | EngineText | 3 | D1.7",
+            // 3 -> 1 (2026-11-13, phase D's O3: the printers reached through the plan style)
+            "planner/PlanAllocations.java | EngineText | 1 | D1.7",
+            // 2026-11-14 (S310 RULED by the user, DE2 (a)): an execute's activity SQL is the style's pick; the planner's
+            // Activity takes the edge's printer as its parameter (the product's style never hands one)
+            "planner/PlanAllocations.java | EngineTextDialect | 1 | D1.7",
             "planner/PlanEnvelope.java | EnginePlans | 1 | D1.7",
             "planner/PlanEnvelope.java | EngineText | 2 | D1.7",
             "planner/PlanEnvelope.java | EngineTextDialect | 1 | D1.7",
@@ -189,20 +197,6 @@ class CompatSpellingGuardTest {
             "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/DuckDb.java | StableScanOrder | 1 | D1.5",
             "sql/dialect/DuckDb.java | legend.exec.engineScanOrder | 1 | D1.5",
-            "sql/dialect/EngineStyleComposite.java | EngineStyleComposite | 1 | D1.7",
-            "sql/dialect/EngineStyleComposite.java | EngineStyleDB2 | 1 | D1.7",
-            "sql/dialect/EngineStyleComposite.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/EngineStyleComposite.java | FLOAT_PRINT | 1 | D1.7",
-            "sql/dialect/EngineStyleDB2.java | EngineStyleDB2 | 4 | D1.7",
-            "sql/dialect/EngineStyleDB2.java | EngineStyleH2 | 1 | D1.7",
-            "sql/dialect/EngineStyleDB2.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/EngineStyleDB2.java | FLOAT_PRINT | 1 | D1.7",
-            "sql/dialect/EngineStyleH2.java | ENGINE_LEXICON | 1 | D1.7",
-            "sql/dialect/EngineStyleH2.java | EngineStyleH2 | 4 | D1.7",
-            "sql/dialect/EngineStyleH2.java | EngineTextDialect | 1 | D1.7",
-            "sql/dialect/EngineStyleH2.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/EngineStyleH2.java | FLOAT_PRINT | 1 | D1.7",
-            "sql/dialect/EngineStyleH2.java | TDS_NULL_CELL | 1 | D1.7",
             "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | D1.7",
             "sql/dialect/FloatCanonText.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | D1.2",
@@ -310,7 +304,7 @@ class CompatSpellingGuardTest {
                 final class Planted {
                     static final String S = "Cannot divide " + "x" + " by zero";
                     static String at(String s) { return s + "+0000"; }
-                    static Object e() { return new com.legend.sql.dialect.EngineStyleH2(); }
+                    static Object e() { return new com.legend.edge.EngineStyleH2(); }
                     static char q() { return '"'; }
                     /* "Can't find " in a block comment is no hit */
                 }

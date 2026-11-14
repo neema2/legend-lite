@@ -239,34 +239,27 @@ final class ArchitectureTest {
 
     /**
      * <strong>Invariant 4d — the golden-text renderer is quarantined.</strong>
-     * EngineStyleH2 exists ONLY for the toSQLString golden surface; an
-     * execution path reaching it (dialectOf returning it, a lowering
-     * import) would run engine-H2 TEXT semantics against DuckDB. Only the
-     * root layer (the harness bridge) may construct it.
+     * EngineStyleH2 exists ONLY for the engine's text natives (toSQLString, planToString, the DDL generators); an
+     * execution path reaching it would run engine-H2 TEXT semantics against a real session. Since phase D (2026-11-12,
+     * D1.7's move pulled forward) the printers are the compatibility edge's ({@code com.legend.edge}): no product class
+     * reaches one (the edge rule, {@code PRODUCT_REACHES_NO_EDGE}), and of the edge only the spelling that hands them to
+     * the planner ({@code PureText}) and the family itself construct them.
      */
     @Test
     void engineStyleRendererIsQuarantinedToTheRootLayer() {
         noClasses()
-            // the root layer's execution side was com.legend.driver from step C (D73, 2026-10-30) to slice 5
-            // (2026-11-09: deleted); its planning is the test's planner's now, which holds no engine-style renderer
-            .that().resideOutsideOfPackage("com.legend.testplan")
-            .and().resideInAPackage("com.legend..")
-            // 2026-10-31 (the seam program's S2g): the engine-text registry is planning work and left the driver for
-            // the planner; it alone constructs the renderers, so it alone of the planner is exempt (a plan the runner
-            // executes is never written by it: PlanMaker and the body planner's lowering hold no engine-style class)
-            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class)
-            // the engine-style FAMILY (H2 + DB2 golden-text renderers)
-            // may compose internally; the quarantine is against the
-            // execution path, not against sibling dialects
+            .that().resideInAPackage("com.legend..")
+            .and().doNotBelongToAnyOf(com.legend.edge.PureText.class)
+            // the engine-style FAMILY (H2 + DB2 golden-text renderers) may compose internally
             .and().doNotBelongToAnyOf(
-                    com.legend.sql.dialect.EngineStyleDB2.class,
-                    com.legend.sql.dialect.EngineStyleComposite.class)
+                    com.legend.edge.EngineStyleDB2.class,
+                    com.legend.edge.EngineStyleComposite.class)
             .should().dependOnClassesThat().belongToAnyOf(
-                    com.legend.sql.dialect.EngineStyleH2.class,
-                    com.legend.sql.dialect.EngineStyleDB2.class,
-                    com.legend.sql.dialect.EngineStyleComposite.class)
-            .as("Invariant 4d: engine-style golden-text renderers are root"
-                    + " layer only — audit 19")
+                    com.legend.edge.EngineStyleH2.class,
+                    com.legend.edge.EngineStyleDB2.class,
+                    com.legend.edge.EngineStyleComposite.class)
+            .as("Invariant 4d: engine-style golden-text renderers are the edge's, handed to the planner by its"
+                    + " spelling alone — audit 19; phase D, 2026-11-12")
             .check(CORE_PROD_CLASSES);
     }
 
@@ -288,6 +281,10 @@ final class ArchitectureTest {
             // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface
             .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class, com.legend.planner.EnginePlans.class,
                     com.legend.planner.PlanEnvelope.class, com.legend.planner.PlanAllocations.class)
+            // 2026-11-12 (phase D, D1.7's move pulled forward): the spelling hook names the interface as the type it
+            // hands the planner (the product's refuses it by name), and the edge supplies its printers
+            .and().doNotBelongToAnyOf(com.legend.database.PlanStyle.class)
+            .and().resideOutsideOfPackage("com.legend.edge..")
             .should().dependOnClassesThat().belongToAnyOf(com.legend.sql.dialect.EngineTextDialect.class)
             .as("Invariant 4d: the engine-text dialect is the root layer's, and the generator's plan printer's")
             .check(CORE_PROD_CLASSES);
@@ -1561,10 +1558,10 @@ final class ArchitectureTest {
 
     /**
      * ONLY THE EDGE SPELLS A PLAN UPSTREAM'S WAY (phase D's D1.0, guard (b), 2026-11-12): the doors that take a
-     * {@link com.legend.database.SqlSpelling} -- {@code TypedQuery.executionPlan}/{@code projectPlan},
+     * {@link com.legend.database.PlanStyle} -- {@code TypedQuery.executionPlan}/{@code projectPlan},
      * {@code Execution.run}/{@code runOnProjectDatabases}, {@code ExecuteOptions}/{@code PlanningOptions.withDialects}
      * -- are called from the edge alone (the harnesses outside core call them too; they are not product). The product's
-     * doors plan with the product's dialects ({@code Databases.PRODUCT_SPELLING}) and nothing in the product picks another
+     * doors plan with the product's dialects ({@code com.legend.database.PlanStyle.PRODUCT}) and nothing in the product picks another
      * source; {@code ExecuteOptions.withDialects} hands its argument to the planning half's. A lambda passed as a source
      * is a call's argument, never a call of these: the rule pins the callers.
      * {@link #theSpellingDoorRuleBitesAPlantedCaller} shows it bites.
@@ -1584,15 +1581,15 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.TypedQuery")
             .and().doNotHaveFullyQualifiedName("com.legend.Execution")
             .should().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
-                    com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a SqlSpelling") {
+                    com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a PlanStyle") {
                 @Override
                 public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
                     return SPELLING_DOOR_OWNERS.contains(call.getTargetOwner().getFullName())
                             && call.getTarget().getRawParameterTypes().stream().anyMatch(
-                                    t -> t.isEquivalentTo(com.legend.database.SqlSpelling.class));
+                                    t -> t.isEquivalentTo(com.legend.database.PlanStyle.class));
                 }
             })
-            .as("only the edge spells a plan upstream's way: the doors taking a SqlSpelling are the edge's to call");
+            .as("only the edge spells a plan upstream's way: the doors taking a PlanStyle are the edge's to call");
 
     /** {@link #onlyTheEdgeCallsTheSpellingDoors} fails on a product class calling such a door
      *  ({@code planner.PlantedDialect.Spells}, a test class planted for this alone). */
@@ -2820,7 +2817,7 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalDivergence")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
-            // owner — spelling, never an equality decision
+            // owner — style, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
             // (exec.JsonCompare, the one wire-tree walker of P2-4/P2-6, was exempted here until 2026-10-30: the class
             // was deleted long before -- the ledger's Equality row records it gone -- and the D71 audit found the
@@ -3373,7 +3370,7 @@ final class ArchitectureTest {
             "com.legend.setup.RowLoad",
             // the engine-text seed: quoted by EngineStyleH2.seedCell -- a date's and a timestamp's cell (a
             // TIMESTAMP_NS's too) a string literal, its quotes doubled; a TIME cell refused by name -- the one dialect
-            // every caller of Ddl.setUpDataSqlsText passes (EngineText.engineText()). 2026-11-13, the orchestrator's
+            // every caller of Ddl.setUpDataSqlsText passes (the edge's, PlanStyle.engineText). 2026-11-13, the orchestrator's
             // item 3: "checked first" was wrong (its TIME and TIMESTAMP_NS literals come from unchecked text), and the
             // finding-B refusal it named guarded nothing
             "com.legend.setup.Ddl",

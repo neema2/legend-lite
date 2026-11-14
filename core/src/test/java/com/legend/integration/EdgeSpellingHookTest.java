@@ -5,7 +5,7 @@ package com.legend.integration;
 
 import com.legend.Compiler;
 import com.legend.database.Databases;
-import com.legend.database.SqlSpelling;
+import com.legend.database.PlanStyle;
 import com.legend.edge.PureText;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.PlanJson;
@@ -25,7 +25,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * THE SPELLING HOOK (phase D's D1.0, the design the orchestrator approved 2026-11-12): a plan's dialect comes from the
- * door's {@link SqlSpelling} -- the product's own ({@code Databases::dialect}) or the edge's ({@link PureText}).
+ * door's {@link PlanStyle} -- the product's own ({@code Databases::dialect}) or the edge's ({@link PureText}).
  * Pinned here: a plan made through one door is never served to the other (the orchestrator's addition 1: a memo of
  * anything a dialect wrote keys on its dialect); the edge's dialects are the product's own, subclassed, overriding ONLY
  * the arms the pin names (addition 2: shrink-only toward the floor compatibility needs -- D1.2 to D1.5 grow it, each
@@ -62,8 +62,28 @@ class EdgeSpellingHookTest {
         }
     }
 
-    private static final SqlSpelling LOWER = type -> type == DatabaseType.DuckDB ? new Lower()
-            : Databases.dialect(type);
+    private static final PlanStyle LOWER = new PlanStyle() {
+        @Override
+        public com.legend.sql.dialect.SqlDialect dialect(DatabaseType type) {
+            return type == DatabaseType.DuckDB ? new Lower() : Databases.dialect(type);
+        }
+
+        @Override
+        public com.legend.sql.dialect.EngineTextDialect engineText(DatabaseType type) {
+            return PlanStyle.PRODUCT.engineText(type);
+        }
+
+        @Override
+        public com.legend.sql.dialect.EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
+                @com.legend.base.Nullable String timeZone) {
+            return PlanStyle.PRODUCT.enginePlanText(type, quoteIdentifiers, timeZone);
+        }
+
+        @Override
+        public String activitySql(Activity activity) {
+            return PlanStyle.PRODUCT.activitySql(activity);
+        }
+    };
 
     private static String sql(ExecutionPlan plan) {
         return ((ExecutionPlan.TdsResult) plan.root()).sql().statement();
@@ -85,6 +105,24 @@ class EdgeSpellingHookTest {
         assertNotEquals(project, projectSpelled);
         assertEquals(projectSpelled, PlanJson.write(typed.projectPlan("s::RT", LOWER)));
         assertEquals(project, PlanJson.write(typed.projectPlan("s::RT")));
+    }
+
+    /** S309 (RULED by the user 2026-11-14, DE1 (a)): the product's style writes none of legend-engine's text -- each
+     *  engine-text native refused by name on every database; the edge's answers it (O3). */
+    @Test
+    void theProductRefusesEngineTextByNameAndTheEdgeAnswersIt() {
+        for (DatabaseType type : Databases.implemented()) {
+            var text = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> PlanStyle.PRODUCT.engineText(type));
+            assertTrue(text.getMessage().contains("toSQLString") && text.getMessage().contains("compatibility edge's"),
+                    text.getMessage());
+            var plan = org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> PlanStyle.PRODUCT.enginePlanText(type, true, null));
+            assertTrue(plan.getMessage().contains("planToString") && plan.getMessage().contains("compatibility edge's"),
+                    plan.getMessage());
+        }
+        org.junit.jupiter.api.Assertions.assertNotNull(PureText.UPSTREAM.engineText(DatabaseType.H2));
+        org.junit.jupiter.api.Assertions.assertNotNull(PureText.UPSTREAM.enginePlanText(DatabaseType.H2, true, null));
     }
 
     @Test

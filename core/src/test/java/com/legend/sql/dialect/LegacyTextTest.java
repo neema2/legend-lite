@@ -35,7 +35,7 @@ class LegacyTextTest {
         try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
             var r = Program.last(com.legend.testbackend.StorelessRuntime.with(MODEL,
                     com.legend.model.ConnectionDefinition.DatabaseType.DuckDB), body,
-                    com.legend.testbackend.StorelessRuntime.RUNTIME, c);
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, c, Program.upstream());
             return String.valueOf(r.one());
         }
     }

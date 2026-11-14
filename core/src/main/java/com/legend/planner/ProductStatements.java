@@ -82,8 +82,8 @@ public final class ProductStatements {
      *  {@code mark} the statement's position in a program planned statement by statement, null for a whole query. */
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
-            Set<Feature> features) {
-        return prepare(query, statements, runtime, mark, features, new ProgramFrames());
+            Set<Feature> features, com.legend.database.PlanStyle style) {
+        return prepare(query, statements, runtime, mark, features, new ProgramFrames(), style);
     }
 
     /** {@link #prepare} for a statement of a program whose frames are {@code frames} (the test-is-the-product plan's
@@ -92,16 +92,17 @@ public final class ProductStatements {
      *  frames it reads ({@link FramePlanner#renames}, after the resolver, as the walk widens it). */
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
-            Set<Feature> features, ProgramFrames frames) {
-        return prepare(query, statements, runtime, mark, features, frames, Map.of());
+            Set<Feature> features, ProgramFrames frames, com.legend.database.PlanStyle style) {
+        return prepare(query, statements, runtime, mark, features, frames, Map.of(), style);
     }
 
     /** {@link #prepare} for a frame's own query, run under {@code runtimeRenames}: the table renames of the runtime
      *  the frame runs on (a frame let's eager run and its CTE, as the walk runs them in the frame's environment). */
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
-            Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames) {
-        return prepare(query, statements, runtime, mark, features, frames, runtimeRenames, false);
+            Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames,
+            com.legend.database.PlanStyle style) {
+        return prepare(query, statements, runtime, mark, features, frames, runtimeRenames, false, style);
     }
 
     /** {@link #prepare}; {@code frameAnswered}: the statement is a TEST program's answer, and its root, an
@@ -110,18 +111,19 @@ public final class ProductStatements {
      *  program). The product's query door plans no Result envelope as an answer, and keeps refusing it. */
     public static Statement prepare(TypedQuery query, List<TypedSpec> statements,
             @Nullable String runtime, @Nullable Integer mark,
-            Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames, boolean frameAnswered) {
+            Set<Feature> features, ProgramFrames frames, Map<String, String> runtimeRenames, boolean frameAnswered,
+            com.legend.database.PlanStyle style) {
         ModelContext ctx = query.context();
         SpecCompiler specs = query.specs();
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         ProgramFrames.StatementRows rows = frames.statementRows();
         // the query's own planning options (TypedQuery.withOptions), its lowering's
-        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows).withOptions(query.options())
-                : env(ctx, runtime, features, rows).withTableReplace(runtimeRenames).withOptions(query.options());
+        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows, style).withOptions(query.options())
+                : env(ctx, runtime, features, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
         Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered);
-        // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
+        // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source style):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
         // a graph tree's qualifier arguments read too ({@code TypedGraphTree.args}, no child of the fetch or the
@@ -162,10 +164,11 @@ public final class ProductStatements {
     }
 
     /** The planning environment of a statement on this road over {@code planRows}: the model, the runtime, the
-     *  features, no dialect (its caller renders), the product's generator refusal. */
+     *  features, no dialect (its caller renders), the door's spelling (the engine-text natives' printers: phase D),
+     *  the product's generator refusal. */
     public static PlanEnv env(ModelContext ctx, @Nullable String runtime, Set<Feature> features,
-            Map<String, Map<String, List<List<String>>>> planRows) {
-        return PlanEnv.of(ctx, runtime, null, features, ProductStatements::noGenerator).withPlanRows(planRows);
+            Map<String, Map<String, List<List<String>>>> planRows, com.legend.database.PlanStyle style) {
+        return PlanEnv.of(ctx, runtime, null, style, features, ProductStatements::noGenerator).withPlanRows(planRows);
     }
 
     /** A statement inlined (Phase G½): its body, the lets the inliner consumed (in the order it met them), and what

@@ -17,13 +17,17 @@ import java.util.List;
  * <p>Every dialect writes all of its SQL here (E, complete 2026-10-09): every query, its expressions and composing
  * helpers, the legacy engine-text printer's text, and DML's rows. DDL spells only names, types and keywords, so it is
  * text, as any spelling is.
+ *
+ * <p>Public for the compatibility edge's printers (phase D, 2026-11-12: legend-engine's text printers moved to
+ * {@code com.legend.edge}, subclasses of the product's dialects that write into the writer their dialect made); only a
+ * dialect makes one (the constructor stays the package's).
  */
-final class SqlWriter {
+public final class SqlWriter {
 
     /** How the writer's dialect writes an expression into a writer ({@code AnsiSqlRenderer.expr}): the writer is made
      *  by its dialect, so {@link #expr} writes a sub-expression in that dialect's spelling, in place. */
     @FunctionalInterface
-    interface Expressions {
+    public interface Expressions {
         void write(SqlWriter writer, com.legend.sql.SqlExpr e, int parentPrec);
     }
 
@@ -31,7 +35,7 @@ final class SqlWriter {
      *  jsonb, a list whose elements it ranges over): written where the helper writes it, as often as it does, its
      *  parameters with it (jOOQ's QueryPart). */
     @FunctionalInterface
-    interface Piece {
+    public interface Piece {
         void writeTo(SqlWriter writer);
     }
 
@@ -55,29 +59,29 @@ final class SqlWriter {
         this.expressions = java.util.Objects.requireNonNull(expressions, "expressions");
     }
 
-    SqlWriter append(String text) {
+    public SqlWriter append(String text) {
         sql.append(text);
         return this;
     }
 
-    SqlWriter append(char c) {
+    public SqlWriter append(char c) {
         sql.append(c);
         return this;
     }
 
-    SqlWriter append(long n) {
+    public SqlWriter append(long n) {
         sql.append(n);
         return this;
     }
 
     /** Writes {@code e} here, in the writer's dialect, at {@code parentPrec}. */
-    SqlWriter expr(com.legend.sql.SqlExpr e, int parentPrec) {
+    public SqlWriter expr(com.legend.sql.SqlExpr e, int parentPrec) {
         expressions.write(this, e, parentPrec);
         return this;
     }
 
     /** Writes the expressions joined by {@code separator}, each at {@code parentPrec}. */
-    SqlWriter join(List<com.legend.sql.SqlExpr> es, String separator, int parentPrec) {
+    public SqlWriter join(List<com.legend.sql.SqlExpr> es, String separator, int parentPrec) {
         for (int i = 0; i < es.size(); i++) {
             if (i > 0) {
                 sql.append(separator);
@@ -88,17 +92,17 @@ final class SqlWriter {
     }
 
     /** Writes the expressions, comma-separated. */
-    SqlWriter list(List<com.legend.sql.SqlExpr> es) {
+    public SqlWriter list(List<com.legend.sql.SqlExpr> es) {
         return join(es, ", ", 0);
     }
 
     /** Writes {@code name(args...)}, the arguments comma-separated. */
-    SqlWriter function(String name, List<com.legend.sql.SqlExpr> args) {
+    public SqlWriter function(String name, List<com.legend.sql.SqlExpr> args) {
         return append(name).append("(").list(args).append(")");
     }
 
     /** Writes each item as {@code each} writes it, joined by {@code separator}. */
-    <T> SqlWriter join(List<T> items, String separator, java.util.function.BiConsumer<SqlWriter, T> each) {
+    public <T> SqlWriter join(List<T> items, String separator, java.util.function.BiConsumer<SqlWriter, T> each) {
         for (int i = 0; i < items.size(); i++) {
             if (i > 0) {
                 sql.append(separator);
@@ -109,14 +113,14 @@ final class SqlWriter {
     }
 
     /** Writes {@code piece} here. */
-    SqlWriter piece(Piece piece) {
+    public SqlWriter piece(Piece piece) {
         piece.writeTo(this);
         return this;
     }
 
     /** Writes {@code piece} here as an argument the database evaluates when it plans: a raise within it is written
      *  so no planner can evaluate it before a row asks for it ({@link #inPlanned}). */
-    SqlWriter planned(Piece piece) {
+    public SqlWriter planned(Piece piece) {
         planned++;
         try {
             piece.writeTo(this);
@@ -127,12 +131,12 @@ final class SqlWriter {
     }
 
     /** Whether the writer is inside an argument the database evaluates when it plans ({@link #planned}). */
-    boolean inPlanned() {
+    public boolean inPlanned() {
         return planned > 0;
     }
 
     /** Writes a placeholder and records the parameter it binds, at this place in the statement. */
-    SqlWriter bind(RenderedStatement.Bind bind) {
+    public SqlWriter bind(RenderedStatement.Bind bind) {
         sql.append('?');
         binds.add(bind);
         return this;
@@ -142,25 +146,25 @@ final class SqlWriter {
      *  a target whose statement is not SQL spells a placeholder in its own language (MongoDb's pipeline variable
      *  {@code "$$lpN"}, bound by the aggregate command's {@code let}: the C checkpoint's NOTE, 2026-11-12; until then
      *  a marker document the session replaced, docs/MONGODB_PLAN_2026_10_16.md D5), in placeholder order. */
-    SqlWriter bind(String placeholder, RenderedStatement.Bind bind) {
+    public SqlWriter bind(String placeholder, RenderedStatement.Bind bind) {
         sql.append(placeholder);
         binds.add(bind);
         return this;
     }
 
     /** How many parameters are bound so far: the index the next placeholder takes. */
-    int bound() {
+    public int bound() {
         return binds.size();
     }
 
     /** How many of the parameters bound so far are the plan's own, a key's cell not counted: the place, among them, the
      *  next one takes (MongoDb names its pipeline variable by it). */
-    int boundParameters() {
+    public int boundParameters() {
         return (int) binds.stream().filter(b -> !(b.binding() instanceof RenderedStatement.Binding.Key)).count();
     }
 
     /** Whether a per-key region is being written: its text is copied once per key at run. */
-    boolean inRegion() {
+    public boolean inRegion() {
         return !open.isEmpty();
     }
 
@@ -170,7 +174,7 @@ final class SqlWriter {
      * key ({@code empty} in its place, or the statement refused when that is null). Inside it, {@link #counter} marks
      * where a copy's key position goes and {@link #bindKey} binds the copy's key; a region holds no other region.
      */
-    SqlWriter region(String lead, String separator, @com.legend.base.Nullable String empty, Piece body) {
+    public SqlWriter region(String lead, String separator, @com.legend.base.Nullable String empty, Piece body) {
         if (!open.isEmpty()) {
             throw new IllegalStateException("a per-key region inside another per-key region");
         }
@@ -185,7 +189,7 @@ final class SqlWriter {
 
     /** The key's position in the probe, written here in each copy of the per-key region being written (a per-key
      *  name's: {@code "_pk3__u0"}); refused outside a region, where there is no key. */
-    SqlWriter counter() {
+    public SqlWriter counter() {
         OpenRegion r = open.peek();
         if (r == null) {
             throw new IllegalStateException("a per-key name outside a per-key region: no key to name it by");
@@ -195,13 +199,13 @@ final class SqlWriter {
     }
 
     /** A placeholder binding the probe row's {@code cell} of each copy's key; refused outside a per-key region. */
-    SqlWriter bindKey(int cell) {
+    public SqlWriter bindKey(int cell) {
         return bindKey("?", cell);
     }
 
     /** {@link #bindKey(int)} with the placeholder spelled in the target's own language, as {@link #bind(String,
      *  RenderedStatement.Bind)} (MongoDb's key marker document, which its session replaces by the copy's key). */
-    SqlWriter bindKey(String placeholder, int cell) {
+    public SqlWriter bindKey(String placeholder, int cell) {
         if (open.isEmpty()) {
             throw new IllegalStateException("a key's cell outside a per-key region: no key to bind");
         }
@@ -211,13 +215,13 @@ final class SqlWriter {
     }
 
     /** The statement written, with its parameters in placeholder order. */
-    RenderedStatement statement() {
+    public RenderedStatement statement() {
         return new RenderedStatement(sql.toString(), binds, regions);
     }
 
     /** The text written, for a caller that takes SQL as text: refused when a parameter was bound, which only a
      *  statement ({@link #statement}) can carry. */
-    String text() {
+    public String text() {
         if (!regions.isEmpty()) {
             throw new IllegalStateException("a statement with per-key regions was asked for as text: render it as a"
                     + " statement, which the runner writes once per key");

@@ -448,7 +448,7 @@ legend_java_library(
     name = "edge",
     srcs = glob(["src/main/java/com/legend/edge/*.java"], exclude = ["src/main/java/com/legend/edge/EdgeServer.java"]),
     # //wasm (D1.0b, 2026-11-12): the compiler's boundary answers legend-engine's routes in the tab and Python
-    visibility = ["//spec:__pkg__", "//pct:__pkg__", "//wasm:__pkg__"],
+    visibility = ["//spec:__pkg__", "//pct:__pkg__", "//tools/census:__pkg__", "//wasm:__pkg__"],
     resources = glob(["src/main/edge/META-INF/**"]),
     resource_strip_prefix = "core/src/main/edge",
     # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec;
@@ -2189,6 +2189,9 @@ legend_java_library(
     ],
     deps = [
         ":core",
+        # the edge's plan style, which Program.upstream() runs a body in (phase D's O3, 2026-11-13: legend-engine's
+        # text natives answer in the edge's style alone)
+        ":edge",
         # the cases' tables are created on a test backend's database, by its dialect
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
@@ -2587,10 +2590,13 @@ write_source_files(
 # diff-tests the data (no test reads Markdown: G17).
 _DIALECT_SOURCES = glob(["src/main/java/com/legend/sql/dialect/*.java"])
 
+# the edge's own dialects, legend-engine's text printers (2026-11-13, phase D's O3: moved from sql/dialect)
+_EDGE_DIALECT_SOURCES = glob(["src/main/java/com/legend/edge/EngineStyle*.java"])
+
 java_run(
     name = "capability_matrix",
     testonly = True,
-    srcs = _DIALECT_SOURCES + ["//docs:dialect-capability/reach.tsv"],
+    srcs = _DIALECT_SOURCES + _EDGE_DIALECT_SOURCES + ["//docs:dialect-capability/reach.tsv"],
     outs = ["dialect-capability/matrix.tsv"] + ["dialect-capability/%s.md" % f for f in [
         "README",
         "functions",
@@ -2600,10 +2606,14 @@ java_run(
         "{OUT_DIR}",
         "$(location //docs:dialect-capability/reach.tsv)",
         "{DIALECTS}",
+        "{EDGE_DIALECTS}",
     ],
     main_class = "com.legend.sql.dialect.CapabilityMatrix",
     mnemonic = "Generate",
-    roots = {"src/main/java/com/legend/sql/dialect/SqlDialect.java": "{DIALECTS}"},
+    roots = {
+        "src/main/java/com/legend/sql/dialect/SqlDialect.java": "{DIALECTS}",
+        "src/main/java/com/legend/edge/EngineStyleH2.java": "{EDGE_DIALECTS}",
+    },
     visibility = ["//docs:__pkg__"],
     deps = [":core_tests_lib"],
 )

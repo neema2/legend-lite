@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.edge.EngineStyleH2;
+
 import com.legend.Compiler;
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.DatabaseDefinition;

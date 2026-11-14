@@ -74,9 +74,9 @@ public final class Execution {
      *  channel A). */
     public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
             SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
-            Set<com.legend.platform.Feature> features, com.legend.database.SqlSpelling spelling, Output output,
+            Set<com.legend.platform.Feature> features, com.legend.database.PlanStyle style, Output output,
             int batchRows) throws IOException {
-        return ProductRun.run(typed.executionPlan(runtimeFqn, features, spelling), sessions, planSessions, establish,
+        return ProductRun.run(typed.executionPlan(runtimeFqn, features, style), sessions, planSessions, establish,
                 output, batchRows, java.util.UUID.randomUUID());
     }
 
@@ -84,8 +84,8 @@ public final class Execution {
      *  {@code dialects}' dialects (the spelling hook, D1.0: pure/v1's upstream routes, at the edge). */
     public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
             @com.legend.base.Nullable String runtimeFqn, @com.legend.base.Nullable String admittedSources,
-            com.legend.database.SqlSpelling spelling, Output output) throws IOException {
-        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn, spelling), admittedSources, output,
+            com.legend.database.PlanStyle style, Output output) throws IOException {
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn, style), admittedSources, output,
                 java.util.UUID.randomUUID());
     }
 

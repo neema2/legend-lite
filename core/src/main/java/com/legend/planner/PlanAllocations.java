@@ -137,7 +137,7 @@ public final class PlanAllocations {
                             req.toString(),
                             PurePrint.source(let.value())));
         }
-        var renderer = EngineText.enginePlanText(dbType, quote, timeZone);
+        var renderer = env.style().enginePlanText(dbType, quote, timeZone);
         EnginePlans.EngineSql es = EnginePlans.engineSql(List.of(let.value()),
                 mappingFqn, specs, env, renderer, params,
                 UnaryOperator.identity());
@@ -276,16 +276,7 @@ public final class PlanAllocations {
             return null;
         }
         try {
-            // C4 (handed off): the execute call's runtime type is not read here yet
-            var renderer = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
-            EnginePlans.EngineSql es = EnginePlans.engineSql(
-                    List.of(chain), mappingFqn, specs, env, renderer,
-                    Map.of(), UnaryOperator.identity());
-            SqlQuery post = SqlPostProcessors.applyRecorded(
-                    es.plan(), env.tableReplace(),
-                    env.postProcessors().extractCtes(),
-                    env.postProcessors().nonExecutable());
-            return post == es.plan() ? es.sql() : renderer.render(post);
+            return activitySql(List.of(chain), mappingFqn, specs, env, true);
         } catch (NotImplementedException
                 | TypeInferenceException
                 | MappingResolutionException
@@ -299,6 +290,49 @@ public final class PlanAllocations {
             }
             return null;
         }
+    }
+
+    /** An execute's activity SQL (S310, RULED by the user 2026-11-14, DE2 (a)): the style picks -- the product's lite's
+     *  own SQL, what runs; the edge's legend-engine's text for its test connection's database (C4, handed off: the
+     *  execute's runtime type is not read for it yet), {@code recorded} its runtime's post-processors applied. */
+    static String activitySql(List<TypedSpec> chain, @Nullable String mappingFqn, SpecCompiler specs, PlanEnv env,
+            boolean recorded) {
+        return env.style().activitySql(new com.legend.database.PlanStyle.Activity() {
+            @Override
+            public String lites() {
+                return activityLiteSql(chain, mappingFqn, specs, env);
+            }
+
+            @Override
+            public com.legend.model.ConnectionDefinition.DatabaseType engineDatabase() {
+                return EngineText.ENGINE_TEST_DATABASE;
+            }
+
+            @Override
+            public String engines(com.legend.sql.dialect.EngineTextDialect renderer) {
+                EnginePlans.EngineSql es = EnginePlans.engineSql(chain, mappingFqn, specs, env, renderer,
+                        Map.of(), UnaryOperator.identity());
+                if (!recorded) {
+                    return es.sql();
+                }
+                SqlQuery post = SqlPostProcessors.applyRecorded(es.plan(), env.tableReplace(),
+                        env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
+                return post == es.plan() ? es.sql() : renderer.render(post);
+            }
+        });
+    }
+
+    /** LITE'S OWN SQL for an execute's chain (S310, RULED by the user 2026-11-14, DE2 (a): the product's activity
+     *  record reports what actually runs): the chain inlined, resolved and lowered as a product statement is
+     *  ({@link BodyPlanner#lowerAndPrepare}), written in the dialect of the database the statement runs on -- the
+     *  planning's own where it chose one, else the style's for the runtime's database. */
+    static String activityLiteSql(List<TypedSpec> raw, @Nullable String mappingFqn, SpecCompiler specs,
+            PlanEnv env) {
+        com.legend.sql.dialect.SqlDialect dialect = env.dialect() != null ? env.dialect()
+                : env.style().dialect(com.legend.Compiler.executesOn(env.ctx(), env.runtimeFqn()).type());
+        List<TypedSpec> body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(raw);
+        body = BodyPlanner.resolver(specs, env).resolve(body, env.runtimeFqn(), mappingFqn, List.of());
+        return dialect.render(BodyPlanner.lowerAndPrepare(body, env, env.ctx(), dialect, false));
     }
 
     /** The mapping the chain itself carries (an in-query {@code from(m, r)}

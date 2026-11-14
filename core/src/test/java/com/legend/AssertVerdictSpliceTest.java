@@ -119,8 +119,10 @@ class AssertVerdictSpliceTest {
         conn.close();
     }
 
+    /** {@code query} in the compatibility edge's plan style: these read an activity's SQL, which is legend-engine's
+     *  text (the edge's: phase D's O3, 2026-11-13). */
     private static Lean.Result run(String query) throws SQLException {
-        return Program.last(MODEL, query, "e::RT", conn);
+        return Program.last(MODEL, query, "e::RT", conn, Program.upstream());
     }
 
     /** {@code query} under backwards-compatibility mode's rules (upstream's), the lane's judge. */
@@ -153,6 +155,26 @@ class AssertVerdictSpliceTest {
                 + ".sql;}").one();
         assertEquals("select \"root\".NAME as \"name\" from P as \"root\"", v);
     }
+
+    @Test
+    @DisplayName("S310: on the product road the activity's sql is lite's own SQL, what ran -- never engine's text")
+    void theProductsActivitySqlIsLitesOwn() throws Exception {
+        // S310 (RULED by the user 2026-11-14, DE2 (a)): the product's style reports the chain's own statement, the
+        // product's lowering in the runtime database's (DuckDB's) product dialect; the edge's is engine's (above)
+        String query = "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.name], ['name']), e::M, e::RT.runtimeValue, []);"
+                + " $result.activities->filter(a|$a->instanceOf("
+                + "meta::relational::mapping::RelationalActivity))->at(0)"
+                + "->cast(@meta::relational::mapping::RelationalActivity)"
+                + ".sql;}";
+        String product = String.valueOf(Program.last(MODEL, query, "e::RT", conn,
+                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge())).one());
+        assertEquals(PRODUCT_ACTIVITY_SQL, product);
+        assertTrue(!product.equals(run(query).one()), "the edge's is engine's text: " + product);
+    }
+
+    /** lite's own DuckDB SQL for {@code Person.all()->project([p|$p.name], ['name'])} (S310). */
+    private static final String PRODUCT_ACTIVITY_SQL = "SELECT t0.NAME AS name\nFROM P AS t0";
 
     @Test
     @DisplayName("sqlRemoveFormatting($result) through the VERBATIM helper"

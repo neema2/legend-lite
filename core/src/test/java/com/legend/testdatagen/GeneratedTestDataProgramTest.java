@@ -254,8 +254,10 @@ class GeneratedTestDataProgramTest {
                     compare(backend, judge, ctx, LETS, e.getKey()));
         }
         // two constant texts: their load statements, compared as they always were
+        // (legend-engine's DDL text: the edge's style, S309)
         expect(wrong, "two constants", List.of("assertSameElements true"), run(backend, judge, ctx,
-                "{|t::assertTestData('" + pure(SLICE) + "', '" + pure(SLICE) + "', t::DB);}"));
+                "{|t::assertTestData('" + pure(SLICE) + "', '" + pure(SLICE) + "', t::DB);}", new ArrayList<>(),
+                com.legend.edge.PureText.UPSTREAM));
         assertEquals(List.of(), wrong, what);
     }
 
@@ -306,8 +308,10 @@ class GeneratedTestDataProgramTest {
     /** {@code t::assertTestData(expected, $testData.dataCsvString, t::DB)} after {@code lets}, run. */
     private static List<String> compare(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
             String lets, String expected) throws Exception {
+        // upstream's helper compares the two texts' load statements in legend-engine's DDL text: the compatibility
+        // edge's style (S309, RULED by the user 2026-11-14: the product refuses engine text by name)
         return run(backend, judge, ctx, "{|" + lets + "t::assertTestData('" + pure(expected)
-                + "', $testData.dataCsvString, t::DB);}");
+                + "', $testData.dataCsvString, t::DB);}", new ArrayList<>(), com.legend.edge.PureText.UPSTREAM);
     }
 
     /**
@@ -562,6 +566,12 @@ class GeneratedTestDataProgramTest {
      *  body's session recorded in {@code sent}. */
     private static List<String> run(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
             String body, List<String> sent) throws Exception {
+        return run(backend, judge, ctx, body, sent, com.legend.database.PlanStyle.PRODUCT);
+    }
+
+    /** {@link #run(TestBackend, PlanningOptions.JudgeMode, ModelContext, String, List)} planned in {@code style}. */
+    private static List<String> run(TestBackend backend, PlanningOptions.JudgeMode judge, ModelContext ctx,
+            String body, List<String> sent, com.legend.database.PlanStyle style) throws Exception {
         List<String> verdicts = new ArrayList<>();
         boolean[] failed = new boolean[1];
         try (Connection c = backend.open()) {
@@ -583,7 +593,7 @@ class GeneratedTestDataProgramTest {
                 TestExecution.runProgram(typed(ctx, body), "t::RT",
                         com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(
                                 com.legend.testbackend.RecordingConnection.wrap(c, sent))), listener, null,
-                        ExecuteOptions.NONE.withJudgeMode(judge));
+                        ExecuteOptions.NONE.withJudgeMode(judge).withStyle(style));
             } catch (com.legend.error.NotImplementedException e) {
                 verdicts.add("NotImplementedException: " + e.getMessage());
             } catch (AssertionError | RuntimeException e) {

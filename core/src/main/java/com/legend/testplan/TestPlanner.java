@@ -35,7 +35,7 @@ public final class TestPlanner {
     public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
         // none given: the one runtime the body's from()s name (A5, PlanMaker.runtimeOf)
         String runtimeFqn = com.legend.planner.PlanMaker.runtimeOf(typed, given);
-        SqlDialect dialect = options.spelling().dialect(com.legend.Compiler.executesOn(typed.context(),
+        SqlDialect dialect = options.style().dialect(com.legend.Compiler.executesOn(typed.context(),
                 runtimeFqn).type());
         // a test-data generator the body binds planned first (B2d.2, 2026-11-11): its reads the values they are, so the
         // body is classed and planned as any other
@@ -45,7 +45,8 @@ public final class TestPlanner {
                 == com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT
                 ? com.legend.testdatagen.TestDataPlanner.Printing.COMPAT
                 : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
-        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing)), runtimeFqn,
+        return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing,
+                options.style())), runtimeFqn,
                 dialect, options);
     }
 
@@ -146,7 +147,7 @@ public final class TestPlanner {
         try (var p = com.legend.base.RunScope.plans("a test body's program")) {
             plan = TestDoor.planned(typed, runtimeFqn, options.features(),
                     asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.stores(),
-                    options.edge(), options.spelling());
+                    options.edge(), options.style());
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the

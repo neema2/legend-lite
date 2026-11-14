@@ -6,7 +6,7 @@ import com.legend.compiler.element.ModelContext;
 import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.SqlQuery;
-import com.legend.sql.dialect.EngineStyleH2;
+import com.legend.edge.EngineStyleH2;
 import com.legend.sql.dialect.SqlDialect;
 import com.legend.testbackend.StorelessRuntime;
 

@@ -40,7 +40,7 @@ public class H2 extends AnsiSqlRenderer {
 
     /** H2's session statement: the engine's non-keywords, set on every connection (a session's setting; measured on
      *  2.5.252: it commits no open transaction). */
-    static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
+    public static final List<String> SESSION_SETUP = List.of("SET NON_KEYWORDS " + NON_KEYWORDS);
 
     /** The settings an H2 database must have, the engine's own (H2Manager / H2Defaults, 4.145.0): {@code MODE=LEGACY},
      *  and {@code DEFAULT_NULL_ORDERING=HIGH}, the engine's null placement (null is largest -- ascending nulls last,
@@ -49,7 +49,7 @@ public class H2 extends AnsiSqlRenderer {
      *  data, written on the URL of an in-memory database exec opens and read back from a session it did not
      *  ({@code INFORMATION_SCHEMA.SETTINGS} reports each as written: {@code LEGACY}, {@code HIGH}; the read-back's rows
      *  are the settings it has otherwise, the database comparing, {@link #differing}). */
-    static final DatabaseSettings DATABASE_SETTINGS = differing(List.of(new Setting("MODE", "LEGACY"),
+    public static final DatabaseSettings DATABASE_SETTINGS = differing(List.of(new Setting("MODE", "LEGACY"),
             new Setting("DEFAULT_NULL_ORDERING", "HIGH")));
 
     /** {@code required} with the statement answering each of them the database does NOT have, as one text

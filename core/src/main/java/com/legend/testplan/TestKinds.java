@@ -161,7 +161,7 @@ final class TestKinds implements ProgramKinds {
             // run where it stands as a check, its rows dropped, as Pure evaluates it and the walk runs it
             TypedQuery query = program.query();
             PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(),
-                    program.frames().planRows());
+                    program.frames().planRows(), program.style());
             FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(), query.specs(), env);
             program.add(eagerRun(program, index, fc, program.frames().newStamp()));
             return true;
@@ -238,7 +238,7 @@ final class TestKinds implements ProgramKinds {
             return;
         }
         TypedQuery query = program.query();
-        PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(), frames.planRows());
+        PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(), frames.planRows(), program.style());
         FramePlanner.FrameChain fc = FramePlanner.chain(ec, program.lets(), query.specs(), env);
         frames.consumed(fc.env().queryLets());
         // the run's stamp: the asserts' planner's name where its sides read the frame's activity comment (M9c), the
@@ -313,7 +313,7 @@ final class TestKinds implements ProgramKinds {
             }
             TypedQuery query = program.query();
             PlanEnv env = ProductStatements.env(query.context(), program.runtime(), program.features(),
-                    program.frames().planRows());
+                    program.frames().planRows(), program.style());
             FramePlanner.FrameChain fc = FramePlanner.chain((TypedNativeCall) arg, program.lets(), query.specs(), env);
             program.add(eagerRun(program, index, fc, program.frames().newStamp()));
             return;
@@ -352,7 +352,8 @@ final class TestKinds implements ProgramKinds {
     private static ExecutionPlan.Check eagerRun(ProgramState program, int index, FramePlanner.FrameChain fc,
             String stamp) {
         ProductStatements.Statement run = ProductStatements.prepare(program.query(), List.of(fc.runChain()),
-                program.runtime(), index, program.features(), program.frames(), fc.env().tableReplace());
+                program.runtime(), index, program.features(), program.frames(), fc.env().tableReplace(),
+                program.style());
         return new ExecutionPlan.Check(program.statement(program.lowered(run, false)).stamped(stamp));
     }
 
@@ -362,7 +363,8 @@ final class TestKinds implements ProgramKinds {
     private static FramePlanner.Cte cte(ProgramState program, int index, FramePlanner.FrameChain fc) {
         return FramePlanner.cte(fc, program.query().specs(), chain -> {
             ProductStatements.Statement planned = ProductStatements.prepare(program.query(), List.of(chain),
-                    program.runtime(), index, program.features(), program.frames(), fc.env().tableReplace());
+                    program.runtime(), index, program.features(), program.frames(), fc.env().tableReplace(),
+                program.style());
             return planned.prepared() instanceof Prepared.Planned p
                     ? new BodyPlanner.Bare(program.lowered(planned, false), p.root())
                     : null;
@@ -419,7 +421,7 @@ final class TestKinds implements ProgramKinds {
         List<TypedSpec> statements = new ArrayList<>(program.lets());
         statements.add(statement);
         ProductStatements.Statement st = ProductStatements.prepare(program.query(), statements, program.runtime(),
-                index, program.features());
+                index, program.features(), program.style());
         List<Prepared.Effect> effects = new ArrayList<>();
         // a SEED FORM mapped over an effect, read as the class rule read it: on the statement as spelled, its source
         // through the let that binds it (Seeds.seedForm), its lambda one effect the door writes (oneEffectMapper)
@@ -428,7 +430,8 @@ final class TestKinds implements ProgramKinds {
         // or a DDL text collection mapped over it (the aggregation-aware setUp; the corpus burn-down, 2026-11-06)
         List<TypedSpec> ddl = raw == null || form != null ? null : Seeds.ddlTextSource(raw, program.lets());
         List<String> texts = form != null ? form.texts(program.query().context(), program.dialect())
-                : ddl != null ? Seeds.ddlTexts(ddl, program.lets(), program.query().context()) : null;
+                : ddl != null ? Seeds.ddlTexts(ddl, program.lets(), program.query().context(),
+                        program.style()) : null;
         if (st.prepared() instanceof Prepared.Effect e) {
             effects.add(e);
         } else if (st.prepared() instanceof Prepared.EffectfulMap && raw != null && texts != null) {
@@ -442,7 +445,7 @@ final class TestKinds implements ProgramKinds {
                 List<TypedSpec> one = new ArrayList<>(program.lets());
                 one.add(bound);
                 ProductStatements.Statement bst = ProductStatements.prepare(program.query(), one, program.runtime(),
-                        index, program.features());
+                        index, program.features(), program.style());
                 if (!(bst.prepared() instanceof Prepared.Effect be)) {
                     throw new NotImplementedException("a text form's statement bound into its map's lambda prepared as "
                             + bst.prepared().getClass().getSimpleName() + " on the test door's program road");

@@ -31,7 +31,8 @@ final class PlannerViews {
      *  plans against its runtime, in the body's dialect). */
     static TestDataPlanner.Views of(ModelContext ctx, String runtime, com.legend.sql.dialect.SqlDialect dialect) {
         com.legend.compiler.spec.SpecCompiler specs = new com.legend.compiler.spec.SpecCompiler(ctx);
-        com.legend.planner.PlanEnv env = com.legend.planner.PlanEnv.of(ctx, runtime, dialect, java.util.Set.of(),
+        com.legend.planner.PlanEnv env = com.legend.planner.PlanEnv.of(ctx, runtime, dialect,
+                com.legend.database.PlanStyle.PRODUCT, java.util.Set.of(),
                 com.legend.planner.ProductStatements::noGenerator);
         return (db, view, reads, tables) -> com.legend.planner.BodyPlanner.viewFetch(db, view, reads, tables, specs,
                 env);

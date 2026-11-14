@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.edge.EngineStyleH2;
+
 import com.legend.sql.DialectCapability;
 
 import com.legend.sql.SqlExpr;

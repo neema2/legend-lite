@@ -18,7 +18,7 @@ public final class PlantedDialect extends com.legend.sql.dialect.DuckDb {
         }
 
         public static com.legend.executionplan.ExecutionPlan plan(com.legend.TypedQuery typed) {
-            return typed.executionPlan(null, java.util.Set.of(), com.legend.database.Databases::dialect);
+            return typed.executionPlan(null, java.util.Set.of(), com.legend.database.PlanStyle.PRODUCT);
         }
     }
 }

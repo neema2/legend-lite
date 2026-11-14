@@ -1722,9 +1722,12 @@ class BodyRouterParityTest {
             }
             Capture capture = new Capture();
             Sessions.Session session = Sessions.borrowed(c);
+            // the engine-text natives' answer is the compatibility edge's (S309, RULED by the user 2026-11-14: the
+            // product refuses it by name), so the golden is read through the edge's style
             Execution.run(typed(ctx, query), runtime, com.legend.exec.SessionSource.given(session),
                     com.legend.exec.PlanSessions.of(session), com.legend.exec.ProductRun.Establish.AS_GIVEN,
-                    new com.legend.result.Output.Rows(capture));
+                    java.util.Set.of(), com.legend.edge.PureText.UPSTREAM, new com.legend.result.Output.Rows(capture),
+                    com.legend.result.Batcher.DEFAULT_CAPACITY);
             return text(new Run("ok", List.of(), capture.toString(), "", 0, "", 0, List.of(), List.of(), "", 0));
         }
     }
@@ -1939,6 +1942,7 @@ class BodyRouterParityTest {
             ExecuteOptions options = (COMPAT.get()
                     ? ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder,
                             com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none())
+                            .withStyle(com.legend.edge.PureText.UPSTREAM)
                     : ExecuteOptions.NONE).withJudgeMode(mode);
             Capture capture = new Capture();
             // every statement the body sends, recorded on the connection it is handed (2026-11-09: the product's

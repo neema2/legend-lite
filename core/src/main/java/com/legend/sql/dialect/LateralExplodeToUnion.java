@@ -28,7 +28,7 @@ import java.util.List;
  * NULL}. A non-literal list (a real per-row array) is left alone and
  * walls at the renderer as before.
  */
-final class LateralExplodeToUnion extends SqlRewriter {
+public final class LateralExplodeToUnion extends SqlRewriter {
     @Override
     protected SqlQuery select(SqlSelect s) {
         if (!(s.from() instanceof SqlSource.Join j)

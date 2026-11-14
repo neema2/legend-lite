@@ -38,7 +38,7 @@ public final class TestDoor {
         return planned(body, runtime, features);
     }
 
-    /** A statement the raw-SQL ledger records once it ran: the text the walk records (the referee's spelling) and
+    /** A statement the raw-SQL ledger records once it ran: the text the walk records (the referee's style) and
      *  whether it answered rows (M5: the referee mirrors the ledger to replay the golden SQL of later bodies). */
     public record Recorded(String text, boolean query) {
     }
@@ -106,7 +106,7 @@ public final class TestDoor {
     public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted) {
         return planned(body, runtime, features, asserts, systemRouted, com.legend.executionplan.DataStores.none(), null,
-                com.legend.database.Databases.PRODUCT_SPELLING);
+                com.legend.database.PlanStyle.PRODUCT);
     }
 
     /** {@link #planned(TypedQuery, String, Set, Asserts, boolean)} with the stores a CSV load's file is read from at
@@ -116,9 +116,9 @@ public final class TestDoor {
             boolean systemRouted,
             com.legend.executionplan.DataStores stores,
             com.legend.testexecutionplan.@Nullable Edge edge,
-            com.legend.database.SqlSpelling spelling) {
+            com.legend.database.PlanStyle style) {
         TestKinds kinds = new TestKinds(body, runtime, asserts, stores);
-        PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted, spelling);
+        PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted, style);
         List<PlannedStep> planned = program.steps();
         // each step the planner holds as the test plan holds it: a product node, a frame let's eager run (M9: sent under
         // its own origin, LET -- a fact of the plan, marked where it was planned), or the verdict step the library
@@ -151,7 +151,7 @@ public final class TestDoor {
         // the session the body runs on: its runtime's database, the test door's own target (slice 5, 2026-11-09: the
         // door planned it beside the plan until then)
         return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
-                PlanMaker.testSessionTarget(body.context(), runtime, spelling));
+                PlanMaker.testSessionTarget(body.context(), runtime, style));
     }
 
     /**

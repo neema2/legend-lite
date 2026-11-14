@@ -27,11 +27,7 @@ public final class Databases {
      *  (a {@code ModelStore}'s JSON, instances): its own in-process engine (SEMANTICS_REGISTER S27, decision D3). */
     public static final DatabaseType PLATFORM = DatabaseType.DuckDB;
 
-    /** THE PRODUCT'S DIALECT SOURCE (phase D's D1.0): the dialect each declared type's statements are written in by
-     *  the product's own doors, {@link #dialect}; the compatibility edge hands its own (G5). */
-    public static final SqlSpelling PRODUCT_SPELLING = Databases::dialect;
-
-    /** The database the SQL-text replay referee runs on: its ledger records DDL in this database's spelling. */
+    /** The database the SQL-text replay referee runs on: its ledger records DDL in this database's style. */
     public static final DatabaseType REPLAY_REFEREE = DatabaseType.H2;
 
     /** A {@code DatabaseType} by its Pure enum name ({@code meta::relational::runtime::DatabaseType.DB2} → DB2).

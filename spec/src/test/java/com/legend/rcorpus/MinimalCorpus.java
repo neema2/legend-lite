@@ -345,7 +345,7 @@ public final class MinimalCorpus {
                 discovery.setupsByPackage(), new CorpusObserver(),
                 com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode)
                         // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                        .withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING));
+                        .withStyle(com.legend.edge.PureText.UPSTREAM));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -605,7 +605,7 @@ public final class MinimalCorpus {
                     // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
                     .withEngineCompat(true)
                     // legend-engine's texts, spelled by the edge (phase D's D1.0)
-                    .withSpelling(com.legend.edge.PureText.UPSTREAM_SPELLING);
+                    .withStyle(com.legend.edge.PureText.UPSTREAM);
         }
 
         @Override

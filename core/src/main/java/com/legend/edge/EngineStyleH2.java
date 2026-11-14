@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.sql.dialect;
+package com.legend.edge;
 
+import com.legend.sql.dialect.*;
 import com.legend.sql.DialectCapability;
 
 import com.legend.sql.SqlExpr;

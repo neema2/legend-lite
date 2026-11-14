@@ -4,16 +4,13 @@
 package com.legend.planner;
 
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.sql.dialect.EngineStyleH2;
-import com.legend.sql.dialect.EngineTextDialect;
 
 /**
- * THE owner of which legend-engine golden-text renderer a declared {@link DatabaseType} gets
- * (docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md C3a). It sits in the root layer, beside its only
- * consumers, because the engine-style renderers are quarantined here (AGENTS invariant 4d,
- * {@code ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer}): an execution path that reached one would
- * run engine-H2 TEXT semantics against a real session. Every type is listed in every switch; none has a
- * {@code default} arm.
+ * legend-engine's text FACTS the planner reads per declared {@link DatabaseType}: the database its test connections
+ * declare, and its IN-list temp tables. The renderers that WRITE the engine's text are the compatibility edge's
+ * ({@code com.legend.edge.PureText.engineText}/{@code enginePlanText}, reached through the planning's
+ * {@link com.legend.database.PlanStyle}: phase D, 2026-11-12, D1.7's move pulled forward). Every type is listed in
+ * every switch; none has a {@code default} arm.
  */
 public final class EngineText {
 
@@ -25,28 +22,6 @@ public final class EngineText {
      *  cannot be read, the text is this database's — the reader gap docs/…_2026_10_03.md §3.2 hands to the rebuild
      *  (W2.1), which reads the real type instead. */
     public static final DatabaseType ENGINE_TEST_DATABASE = DatabaseType.H2;
-
-    /** The engine's golden DDL TEXT renderer: the text of the database legend-engine's test connections declare
-     *  (the body driver's until the seam program's S2g, 2026-10-31). A fresh one per use (2026-11-09: a dialect keeps
-     *  state while it writes a statement -- its renames, its stacks -- so one shared by every request of the server
-     *  could mix two statements written at once; the static instance it was is gone). */
-    public static EngineTextDialect engineText() {
-        return engineText(ENGINE_TEST_DATABASE);
-    }
-
-    /** legend-engine's exact SQL text for {@code type}, as {@code toSQLString} prints it: Composite takes the engine's
-     *  DEFAULT spellings (native trim/pad/cbrt, plain char_length). */
-    public static EngineTextDialect engineText(DatabaseType type) {
-        return switch (type) {
-            case H2 -> new EngineStyleH2();
-            case DB2 -> new com.legend.sql.dialect.EngineStyleDB2();
-            case Composite -> new com.legend.sql.dialect.EngineStyleComposite();
-            case DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, MongoDB ->
-                    throw new com.legend.error.NotImplementedException("toSQLString for DatabaseType." + type
-                            + " — only the H2, DB2 and Composite engine-style renderers are built");
-        };
-    }
 
     /** legend-engine's IN-list-to-temp-table facts for a database: the temp table's name prefix and the list size past
      *  which the engine uses one (null: never, for this database). */
@@ -63,20 +38,6 @@ public final class EngineText {
                  Trino, BigQuery, Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL,
                  MongoDB ->
                     new InListTempTables("tempTableForIn_", null);
-        };
-    }
-
-    /** legend-engine's exact PLAN text for {@code type}: the plan goldens pin Composite to the DB2-family spelling
-     *  (paren-wrapped conjunctions, quoted boolean placeholders) — unlike {@link #engineText}. */
-    public static EngineTextDialect enginePlanText(DatabaseType type, boolean quoteIdentifiers,
-            @com.legend.base.Nullable String timeZone) {
-        return switch (type) {
-            case H2 -> new EngineStyleH2(quoteIdentifiers, timeZone);
-            case DB2, Composite -> new com.legend.sql.dialect.EngineStyleDB2(quoteIdentifiers, timeZone);
-            case DuckDB, Postgres, SQLite, MemSQL, Sybase, SybaseIQ, SqlServer, Hive, Snowflake, Presto, Trino, BigQuery,
-                 Redshift, Databricks, Spanner, Athena, Oracle, ClickHouse, Aurora, MariaDB, MySQL, MongoDB ->
-                    throw new com.legend.error.NotImplementedException("plan text for DatabaseType." + type
-                            + " — only the H2 and DB2-family engine-style renderers are built");
         };
     }
 }
