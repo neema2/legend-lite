@@ -46,6 +46,7 @@ public final class Failures {
         String m = f.message();
         return switch (f.kind()) {
             case NOT_IMPLEMENTED -> new com.legend.error.NotImplementedException(text(f));
+            case RAW_SQL_REFUSAL -> new com.legend.error.RawSqlRefusal(text(f));
             case WALLED_BODY -> new com.legend.error.WalledBodyException(text(f));
             case MODEL -> new com.legend.error.ModelException(java.util.Objects.requireNonNull(f.phase()), m,
                     f.element());
@@ -80,7 +81,7 @@ public final class Failures {
     /** The kinds whose constructor takes a message that is not null. */
     private static boolean needsMessage(Failure.Kind kind) {
         return switch (kind) {
-            case NOT_IMPLEMENTED, WALLED_BODY, RESOLUTION, ISLAND_SYNTAX, TYPE_INFERENCE, SCHEMA_INVARIANT, DATA,
+            case NOT_IMPLEMENTED, RAW_SQL_REFUSAL, WALLED_BODY, RESOLUTION, ISLAND_SYNTAX, TYPE_INFERENCE, SCHEMA_INVARIANT, DATA,
                     ASSERT_FAILED, DIALECT_CAPABILITY, NOT_A_CONSTANT, DATE_TIME -> true;
             case MODEL, MAPPING_RESOLUTION, ILLEGAL_STATE, ILLEGAL_ARGUMENT, UNSUPPORTED_OPERATION, ARITHMETIC,
                     NUMBER_FORMAT, NULL_POINTER, CLASS_CAST, INDEX_OUT_OF_BOUNDS, NO_SUCH_ELEMENT, UNCHECKED_IO -> false;

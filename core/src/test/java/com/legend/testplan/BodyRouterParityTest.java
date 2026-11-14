@@ -1004,6 +1004,35 @@ class BodyRouterParityTest {
         }
     }
 
+    /** The column-lineage scan -- the plan handles' one scan that lowers its query through the root's
+     *  Compiler.lowerResolved -- over a query holding an executeInDb read: the raw-SQL refusal
+     *  ({@code com.legend.error.RawSqlRefusal}) reaches the body's failure as itself, under both judges, never answered
+     *  "no rows" by the scan's catch ({@code PlanAllocations.noLineageRows}; the final audit of 9af16fbe58's J7; the C4
+     *  final fix round's nit, 2026-11-14: until then ArchitectureTest proved only that each catch asks, and the refusal
+     *  was told apart by its words). The relation-lineage scan (scanRelations) and the plan scan (executionPlan) over
+     *  the same query raise no refusal (measured that day: neither lowers through lowerResolved); their catches ask too
+     *  (ArchitectureTest.thePlanHandlesScansLetTheRawSqlRefusalThrough), so the refusal would pass them as well. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void theColumnLineageScanLetsTheRawSqlRefusalThroughAsItself(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String read = "meta::relational::metamodel::execute::executeInDb('select ID as A from FIRM', ^meta::external::"
+                + "store::relational::runtime::TestDatabaseConnection(type=meta::relational::runtime::DatabaseType."
+                + backend.type().name() + "), 0, 1000)";
+        String query = "{|let n = " + read + ".columnNames; x::Firm.all()->project([f|$f.name], ['name']);}";
+        String body = "{| let p = " + query + ".expressionSequence->at(0)->evaluateAndDeactivate()"
+                + "->meta::pure::lineage::scanProperties::scanProperties("
+                + "^meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>(), [], []);"
+                + " let tree = $p.result->meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree();"
+                + " let f = $tree->meta::pure::lineage::scanColumns::scanColumns(x::M)->removeDuplicates();"
+                + " assertEquals(1, $f->size());}";
+        for (var mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
+                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+            Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertTrue(r.outcome.startsWith("RawSqlRefusal: an executeInDb's SQL in a query"), mode + ": " + r.outcome);
+        }
+    }
+
     /** M10c item 4: a USER-WRITTEN ASSERT HELPER at the root ({@code x::assertSame(expected, actual)}: lets, then an
      *  assert over class values, as toPostgresModel's {@code assertConversion}) is inlined and its reduced root planned
      *  as the assert it is on both roads, under that assert's name -- the walk's own rule (a class value asserted or a

@@ -661,7 +661,9 @@ final class ArchitectureTest {
     /** The plan handles' scans each ask {@code PlanAllocations.noLineageRows} before answering "no rows" for a
      *  lowering's failure, so the raw-SQL refusal propagates by name (the final audit of 9af16fbe58's J7, 2026-11-14:
      *  the catches swallowed Compiler.lowerResolved's refusal). The predicate is ProductStatementsTest's
-     *  theLineageScansLetTheRawSqlRefusalThrough. */
+     *  theLineageScansLetTheRawSqlRefusalThrough (the refusal told apart by its class, com.legend.error.RawSqlRefusal);
+     *  that the refusal is rethrown, BodyRouterParityTest's theColumnLineageScanLetsTheRawSqlRefusalThroughAsItself
+     *  (a body's failure is the refusal itself, under both judges; the C4 final fix round's nit, 2026-11-14). */
     @Test
     void thePlanHandlesScansLetTheRawSqlRefusalThrough() {
         com.tngtech.archunit.core.domain.JavaClass allocations = CORE_PROD_CLASSES.get(

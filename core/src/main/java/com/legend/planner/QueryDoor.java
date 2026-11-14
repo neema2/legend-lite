@@ -184,17 +184,16 @@ public final class QueryDoor {
         }
     }
 
-    /** Whether {@code e} is the raw-SQL refusal ({@link TestOnly#RAW_SQL}'s, {@link #refuseRawSql}), by its exact words:
-     *  a catch answering "no rows" for a lowering's failure lets it through (the final audit of 9af16fbe58's J7). */
+    /** Whether {@code e} is the raw-SQL refusal, by its class ({@link com.legend.error.RawSqlRefusal}): a catch
+     *  answering "no rows" for a lowering's failure lets it through (the final audit of 9af16fbe58's J7). */
     public static boolean isRawSqlRefusal(Throwable e) {
-        return e instanceof NotImplementedException && RAW_SQL_REFUSAL.equals(e.getMessage());
+        return e instanceof com.legend.error.RawSqlRefusal;
     }
 
-    private static final String RAW_SQL_REFUSAL = message(TestOnly.RAW_SQL);
-
-    /** {@code kind}'s refusal, by name. */
+    /** {@code kind}'s refusal, by name: the raw-SQL refusal its own class ({@link com.legend.error.RawSqlRefusal}). */
     private static NotImplementedException refused(TestOnly kind) {
-        return new NotImplementedException(message(kind));
+        return kind == TestOnly.RAW_SQL ? new com.legend.error.RawSqlRefusal(message(kind))
+                : new NotImplementedException(message(kind));
     }
 
     /** {@code kind}'s refusal's words. */

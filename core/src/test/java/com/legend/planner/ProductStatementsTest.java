@@ -227,11 +227,15 @@ class ProductStatementsTest {
         com.legend.error.NotImplementedException refusal = assertThrows(com.legend.error.NotImplementedException.class,
                 () -> Compiler.lowerResolved(resolved, ctx, "s::RT", false));
         assertTrue(QueryDoor.isRawSqlRefusal(refusal));
+        assertInstanceOf(com.legend.error.RawSqlRefusal.class, refusal);
         assertEquals(false, PlanAllocations.noLineageRows(refusal));
         assertEquals(true, PlanAllocations.noLineageRows(new com.legend.error.NotImplementedException("a wall")));
         assertEquals(true, PlanAllocations.noLineageRows(new IllegalStateException("a wall")));
-        // the same words from another refusal are not it: the exact refusal alone
+        // the same words from another refusal are not it, of either class: the refusal's own class alone (the C4 final
+        // fix round's nit, 2026-11-14: until then the words were matched)
         assertEquals(true, PlanAllocations.noLineageRows(new IllegalStateException(refusal.getMessage())));
+        assertEquals(true, PlanAllocations.noLineageRows(new com.legend.error.NotImplementedException(
+                refusal.getMessage())));
     }
 
     @Test
