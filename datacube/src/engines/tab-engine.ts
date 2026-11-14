@@ -204,24 +204,34 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
       throw new CompileError(e instanceof Error ? e.message : String(e), call, { cause: e });
     }
   };
-  const planners = new Map<string, Planner>();
-  /** The plane's planner over `model` (Q20), the one kept for it while recent: its model compiled once. */
-  const plannerOver = (model: string, runtime: string, how: ModelOptions = {}): Planner => {
-    const key = `${runtime}\u0000${JSON.stringify(how)}\u0000${model}`;
-    const kept = planners.get(key);
-    if (kept !== undefined) {
+  /** The planners kept, least recent first, each with how many calls are using it now. */
+  const planners = new Map<string, { readonly planner: Planner; busy: number }>();
+  /** Lets go of the least recent planners past PLANNERS_KEPT -- only those no call is using: a planner is never disposed
+   *  under a running call; with every kept one busy, the cap is passed until one is free. */
+  const evictIdle = (): void => {
+    for (const [key, kept] of planners) {
+      if (planners.size <= PLANNERS_KEPT) return;
+      if (kept.busy > 0) continue;
       planners.delete(key);
-      planners.set(key, kept);
-      return kept;
+      kept.planner.dispose?.();
     }
-    const made = o.plane.another(model, runtime, how);
-    planners.set(key, made);
-    while (planners.size > PLANNERS_KEPT) {
-      const [oldest, gone] = planners.entries().next().value!;
-      planners.delete(oldest);
-      gone.dispose?.();
+  };
+  /** `use` given the plane's planner over `model` (Q20), the one kept for it while recent (its model compiled once),
+   *  pinned while `use` runs. */
+  const withPlanner = async <T>(model: string, runtime: string, how: ModelOptions, use: (p: Planner) => Promise<T>): Promise<T> => {
+    const key = `${runtime}\u0000${JSON.stringify(how)}\u0000${model}`;
+    let kept = planners.get(key);
+    if (kept !== undefined) planners.delete(key);
+    else kept = { planner: o.plane.another(model, runtime, how), busy: 0 };
+    planners.set(key, kept);
+    kept.busy++;
+    evictIdle();
+    try {
+      return await use(kept.planner);
+    } finally {
+      kept.busy--;
+      evictIdle();
     }
-    return made;
   };
   /** The model a query plans over (R3a): refused by name with a connection or runtime, or a runtime the tab does not
    *  own; else the model the tab served as that text, or the text with the tab's own runtime added, DataCube's library
@@ -256,10 +266,10 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
       ...(ask.library !== undefined ? { overLibrary: { model, library: ask.library } } : {}),
     } };
   };
-  /** The plane's planner over a query's model (Q20): what types and plans it. */
-  const plannerFor = async (ask: QueryAsk, call: CallName): Promise<{ readonly planner: Planner; readonly model: string }> => {
+  /** `use` given the plane's planner over a query's model (Q20) -- what types and plans it -- and that model. */
+  const withPlannerFor = async <T>(ask: QueryAsk, call: CallName, use: (p: Planner, model: string) => Promise<T>): Promise<T> => {
     const r = await resolved(ask, call);
-    return { planner: plannerOver(r.model, ask.runtime, r.how), model: r.model };
+    return withPlanner(r.model, ask.runtime, r.how, (p) => use(p, r.model));
   };
   /** A runtime the tab owns, its Connection and Runtime text; refused by name where it owns none of that name. */
   const ownRuntime = (ask: QueryAsk, call: CallName): string => {
@@ -486,8 +496,8 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
       async describe(handle) {
         open('describe');
         const h = sourceOf(handle, 'describe');
-        const p = plannerOver(h.model, h.runtime);
-        return { columns: columnsOf(await planned('describe', () => p.relationType(lambda([], h.relation)))) };
+        return withPlanner(h.model, h.runtime, {}, async (p) =>
+          ({ columns: columnsOf(await planned('describe', () => p.relationType(lambda([], h.relation)))) }));
       },
       async drop(handle) {
         open('drop');
@@ -511,16 +521,17 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
       },
       async typeOf(ask) {
         open('typeOf');
-        const { planner: p } = await plannerFor(ask, 'typeOf');
-        return { columns: columnsOf(await planned('typeOf', () => p.relationType(ask.query))) };
+        return withPlannerFor(ask, 'typeOf', async (p) =>
+          ({ columns: columnsOf(await planned('typeOf', () => p.relationType(ask.query))) }));
       },
       async query(ask, opts) {
         open('query');
-        const { planner: p, model } = await plannerFor(ask, 'query');
-        // THE MINT: one execution id for this plan run (Q7)
-        const executionId = mint();
-        // the planner is kept for the model's next query (plannerOver)
-        const plan = await planned('query', () => p.plan(ask.query, opts?.signal), executionId);
+        // the planner is pinned while it plans, and kept for the model's next query (withPlanner)
+        const { plan, model, executionId } = await withPlannerFor(ask, 'query', async (p, m) => {
+          // THE MINT: one execution id for this plan run (Q7)
+          const id = mint();
+          return { plan: await planned('query', () => p.plan(ask.query, opts?.signal), id), model: m, executionId: id };
+        });
         const on = await rowsOn(ask, model);
         const rows = await ran('query', executionId, () => on.execute(plan, 0, opts?.signal));
         // an Integer column's whole numbers as Int64: the one reader's word (types.ts), never a name compared here

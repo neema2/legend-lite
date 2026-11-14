@@ -118,4 +118,50 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
     await assert.rejects(() => engine.exclusive((held) => runPlan(unplannedPlan(made!), { databaseType: 'DuckDB', run: held.rows })),
       (e: unknown) => e instanceof PlanRefusal && /'#stamp0' reads its execution's stamp, and the run was given no id by its door/.test(e.message));
   });
+
+  it('never disposes a planner under a running query: the least recent busy while a 9th model is planned (2026-11-14)', async () => {
+    // the planners kept, 8 (tab-engine.ts PLANNERS_KEPT): a query held mid-plan on the least recent, eight more models
+    // planned meanwhile -- the busy one is passed over, an idle one let go; the held query then finishes whole
+    await engine.run(unplanned('CREATE OR REPLACE TABLE pin_t AS SELECT * FROM (VALUES (1, \'a\'), (2, \'b\')) v(id, name)'), 0);
+    const columns = await catalogColumns(engine, planner, 'pin_t');
+    let release!: () => void;
+    const gate = new Promise<void>((r) => { release = r; });
+    let planning!: () => void;
+    const started = new Promise<void>((r) => { planning = r; });
+    const disposed: number[] = [];
+    const plane = localPlane(planner);
+    const tab = tabEngine({ database: engine, writer: planner, files: db.files, plane: { ...plane,
+      another: (model, runtime, how) => {
+        const n = Number(/pin_(\d)::/.exec(model)![1]);
+        const real = plane.another(model, runtime, how);
+        return new Proxy(real, { get(t, k) {
+          if (k === 'plan') return async (...a: Parameters<typeof real.plan>) => { if (n === 0) { planning(); await gate; } return t.plan(...a); };
+          if (k === 'dispose') return () => { disposed.push(n); t.dispose?.(); };
+          const v = (t as unknown as Record<PropertyKey, unknown>)[k];
+          return typeof v === 'function' ? v.bind(t) : v;
+        } });
+      } } });
+    const asks = await Promise.all([...Array(9).keys()].map(async (n) => {
+      const written = await planner.tableModel(columns, { table: 'pin_t', pkg: `pin_${n}`, convertible: true, databaseType: 'DuckDB' });
+      const { model, runtime } = await tab.served(written.model, written.runtime);
+      return { model, runtime, query: { _type: 'lambda', parameters: [], body: [written.source] } } as const;
+    }));
+    const s = await tab.open();
+    const count = async (n: number) => {
+      let rows = 0;
+      for await (const b of (await s.query(asks[n]!)).rows) rows += b.numRows;
+      return rows;
+    };
+    const held = count(0);
+    await started;
+    for (let n = 1; n <= 8; n++) assert.equal(await count(n), 2, `model ${n}'s rows`);
+    assert.ok(!disposed.includes(0), `the busy planner kept: disposed ${JSON.stringify(disposed)}`);
+    assert.deepEqual(disposed, [1], 'past the cap, the least recent idle planner let go');
+    release();
+    assert.equal(await held, 2, 'the held query finishes whole');
+    assert.deepEqual(disposed, [1], 'at the cap once the idle one went: the freed planner kept for its next query');
+    assert.equal(await count(0), 2, 'and planned again by the planner kept');
+    assert.deepEqual(disposed, [1]);
+    await s.close();
+  });
 });

@@ -246,3 +246,14 @@ today); the UI's look.
   (a function generic over relations, S112) are read where upstream's exact grammar refuses them. The contract's
   `elements` call stays upstream-exact. C4's closed-planner-surface census lists the door (whichever branch merges
   second adds the row).
+- **The tab's engine keeps what it read (2026-11-14, the orchestrator; after merging main 3a217086a, #81, whose 4 MB
+  trading model was re-read, re-parsed and re-planned on every query -- a class page's first sheet 55-66 s, now
+  1.8-11.1 s):** per engine instance (the tab's life), each least-recently-used first out, bounded by COUNT (not bytes;
+  at #81's size about 16 texts and readings of ~4 MB and 8 compiled planners at worst), no time limit:
+  (1) a model text's parsed elements, keyed by the text -- at most 16 (`READINGS_KEPT`);
+  (2) a project's text, keyed by its coordinates -- at most 16 (`READINGS_KEPT`);
+  (3) the plane's planner over a model, keyed by runtime, read options and model text -- at most 8 (`PLANNERS_KEPT`),
+  a planner let go is disposed. A planner is PINNED while a call (`typeOf`, `query`'s planning, `describe`) uses it:
+  only idle planners are let go, so none is disposed under a running call; with all 8 busy, a 9th is made and the cap is
+  passed until one is free (`tab_engine_test`: a query held mid-plan on the least recent while eight more models are
+  planned finishes whole). A reading or text whose making failed is not kept.
