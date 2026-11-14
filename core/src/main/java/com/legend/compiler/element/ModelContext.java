@@ -145,6 +145,12 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    /** The {@code ###Lakehouse} ingest for {@code fqn}, if present &mdash; its database is the Database of the same name
+     *  ({@code include Ingest}); what an ingest's plans land a table's rows by ({@code planner.IngestPlanner}). */
+    default Optional<com.legend.model.IngestDefinition> findIngest(String fqn) {
+        return Optional.empty();
+    }
+
     /** The {@code ###DataSpace} element for {@code fqn}, if present &mdash; the graph a Cypher island's
      *  {@code USE} names (docs/CYPHER_STUDY_2026_10_15.md §12.45). */
     default Optional<com.legend.model.DataSpaceDefinition> findDataSpace(String fqn) {

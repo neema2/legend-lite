@@ -61,8 +61,8 @@ export interface MarketSettings {
   readonly flushes?: boolean;
 }
 
-/** Where the world's rows go: a table's rows (one write: a stream's appended, a keyed table's upserted, the reference
- *  put in once), the number of them, each column as made. */
+/** Where the world's rows go: a table's rows (one write, landed as the table's ingest says: live-market.ts), the number
+ *  of them, each column as made. */
 export type MarketSink = (table: MarketTable, count: number, rows: Record<string, MadeColumn>) => Promise<unknown>;
 
 /** What the world has done, for a page that shows it and a test that checks it. */

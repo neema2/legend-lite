@@ -77,15 +77,17 @@ class PlannedSqlTest {
             // the planner clients: Query's and Studio's, DataCube's, and the reader of a server's generatePlan
             // 2026-11-12, 8 -> 14 (the re-audit's M1): its five plan answers (fileLoad, remoteMount, snapStream,
             // synthesize, authored) typed as read, and the mint's import; 14 -> 15 (the final audit's item 1(b),
-            // 2026-11-12): a snapshot's copy's plan (snapCopy) typed as read
-            "engine-client/src/legend/wasm-grammar.ts", 15,
+            // 2026-11-12): a snapshot's copy's plan (snapCopy) typed as read; 15 -> 18 (2026-11-14, the desk roadmap's C0,
+            // the user's go of that day): an ingest's three plans (ingestPlans: make, land, keep) typed as read
+            "engine-client/src/legend/wasm-grammar.ts", 18,
             // 2026-11-12, 8 -> 9 (the C final audit's H2): DataCube's table model's copy select list, typed as its answer
             // is read, since a host operation's selectList takes a PlannedSql alone
             // 2026-11-12, 9 -> 15 (M1): its five plan answers (executionPlan, fileLoad, remoteMount, snapStream, synthesize)
             // typed as read, and the mint's import; 15 -> 16 (the final audit's items 1 and 2, 2026-11-12): the copy
             // select list's typing gone with it (a host operation takes no SQL: convert), a snapshot's copy's plan
-            // (snapCopy) and a table Output's (outputPlan) typed as read
-            "datacube/src/lite-planner.ts", 16,
+            // (snapCopy) and a table Output's (outputPlan) typed as read; 16 -> 19 (2026-11-14, the desk roadmap's C0, the
+            // user's go of that day): an ingest's three plans (ingestPlans: make, land, keep) typed as read
+            "datacube/src/lite-planner.ts", 19,
             "datacube/src/planner.ts", 2,
             // the definitions themselves, and the mints' own test
             // 2026-11-12, 7 -> 9 (M1): planFromAnswer defined, and the project database's load typed by it
@@ -152,7 +154,8 @@ class PlannedSqlTest {
             Map.entry("engine-client/src/duckdb.ts", 1),
             Map.entry("engine-client/src/engine-remote.ts", 1),
             Map.entry("engine-client/src/legend/planner-worker.ts", 1),
-            Map.entry("engine-client/src/plan-runner.ts", 1),
+            // (engine-client/src/plan-runner.ts's one, an attach step's name read through a cast: gone 2026-11-14, the
+            // desk roadmap's C0 -- the attach step typed, and attached by the host's values)
             Map.entry("engine-client/src/snap.ts", 1),
             Map.entry("engine-client/src/warehouse.ts", 2),
             Map.entry("pure-protocol/src/validate.ts", 1),
@@ -196,6 +199,14 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/verify-real-data.mjs", List.of("conn.query(", "conn.query(", "conn.query(")),
             Map.entry("datacube/demo/verify-remote.mjs", List.of("conn.query(", "conn.query(", "conn.query(", "db.copyFileToBuffer")),
             Map.entry("datacube/demo/widget-loader.ts", List.of("model.send(")),
+            // 2026-11-14 (the Deephaven line's merge of main; the market world's K2, 2026-10-24): the demo's crypto feed's
+            // one send, its subscription to a public market data WebSocket (JSON naming products and channels) -- it
+            // reaches no database of ours and carries no statement; the world falls back to its simulation without it
+            Map.entry("datacube/demo/market-sim/coinbase.ts", List.of("socket.send(")),
+            // 2026-11-14 (the same merge; stage A's capacity measurement, docs/DUCKDB_LIVE_2026_10_25.md): the measurement
+            // times DuckDB-WASM's own requests by wrapping its worker's postTask, each task forwarded as DuckDB made it
+            // (the bind and the wrapper) -- it adds none, and no statement is written there
+            Map.entry("datacube/demo/market-sim/measure/measure.ts", List.of("d.postTask", "d.postTask")),
             Map.entry("datacube/src/headless/host.ts", List.of("calls.query(")),
             Map.entry("engine-client/src/duckdb.ts", List.of("conn.insertArrowFromIPCStream", "conn.query(", "prepared.query(", "prepared.query(", "prepared.send(", "this.#conn.prepare(", "this.#conn.query(")),
             Map.entry("query/src/app/app.ts", List.of("recent.query(")),
@@ -207,7 +218,17 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/verify-real-data.mjs", List.of("db.connect(")),
             Map.entry("datacube/demo/verify-remote.mjs", List.of("db.connect(")),
             Map.entry("datacube/src/app/datacube-app.ts", List.of("modelHome.connect(", "modelHome.connect(")),
-            Map.entry("datacube/src/app/sources.ts", List.of(".connect(", "modelHome.connect(", "on.connect(", "on.connect(")),
+            // 2026-11-14 (the Deephaven line's merge of main, measured): sources.ts's anonymous connect named, the model
+            // home's (the line's D5: projects from the model home's releases)
+            Map.entry("datacube/src/app/sources.ts", List.of("modelHome.connect(", "modelHome.connect(", "on.connect(", "on.connect(")),
+            // 2026-11-14 (the same merge, measured): the Deephaven desk's model home; the market world's crypto feed (K2:
+            // a public WebSocket, OTHER_HTTP_KEPT); and the live DuckDB's connections, each a DuckDbEngine the tab's
+            // DuckDbInTab.connect makes (the live engine's option, the live market's host and stage A's measurement)
+            Map.entry("datacube/demo/deephaven/market/desk.ts", List.of("modelHome.connect(")),
+            Map.entry("datacube/demo/market-sim/market.ts", List.of("feed.connect(", "this.feed.connect(")),
+            Map.entry("datacube/demo/market-sim/local-host.ts", List.of("o.duck.connect(")),
+            Map.entry("datacube/demo/market-sim/measure/measure.ts", List.of("tab.connect(")),
+            Map.entry("engine-client/src/duckdb-live.ts", List.of("options.connect(")),
             Map.entry("datacube/src/services/browser.ts", List.of("driver.connect(", "o.duckdb.connect(")),
             // THE raw connection, made once and handed to DuckDbEngine
             Map.entry("engine-client/src/duckdb-tab.ts", List.of("db.connect(")),
@@ -219,7 +240,11 @@ class PlannedSqlTest {
             Map.entry("engine-client/src/warehouse.ts", List.of("this.#call<Step>('submit'")));
     /** 2026-11-12 (H13, measured): Node's XMLHttpRequest stand-in, which answers DuckDB's extension requests from the
      *  pinned files and sends nothing (node-require.ts answerExtensionRequests). */
-    static final Set<String> OTHER_HTTP_KEPT = Set.of("engine-client/src/node-require.ts");
+    static final Set<String> OTHER_HTTP_KEPT = Set.of("engine-client/src/node-require.ts",
+            // 2026-11-14 (the Deephaven line's merge of main; the market world's K2, 2026-10-24): the demo's crypto feed,
+            // a public market data WebSocket it reads quotes and trades from (its one send DATABASE_SENDS's, the
+            // subscription) -- never a database's, never a statement
+            "datacube/demo/market-sim/coinbase.ts");
     static final Map<String, List<String>> FETCHES = Map.ofEntries(
             // 2026-11-12 (the re-audit's S10, measured): by call site, the receiver and the member -- a server's API (legend-lite's, an SDLC's, a depot's, a query store's, Python's page), a site's own assets, a harness's, and the warehouse's (warehouse.ts, whose statement is SUBMITS's)
             Map.entry("datacube/demo/boot.ts", List.of("fetch('./trades.pure'")),
@@ -236,7 +261,17 @@ class PlannedSqlTest {
             Map.entry("datacube/src/headless/calls.ts", List.of("fetch(method: string")),
             Map.entry("datacube/src/headless/host-tables.ts", List.of("fetch('/warehouse.json'")),
             Map.entry("datacube/src/headless/host.ts", List.of("fetch(init?.method ?? 'GET'")),
-            Map.entry("datacube/src/services/browser.ts", List.of("fetch(url")),
+            // (datacube/src/services/browser.ts's fetchText, a project's files by their URLs: gone 2026-11-14 with
+            // the Deephaven line's D5 -- projects are the model home's released versions, whose index model-home.ts reads)
+            // 2026-11-14 (the Deephaven line's merge of main, measured): the released versions' index of the site's model
+            // home; a Deephaven page's own config (its servers); the stage A measurement's own released model files; and
+            // the Deephaven session's transport -- its sign-in and each gRPC-web call, every message the planner's
+            // (DeephavenPlanner: a batch, an export's read, a publish, a release), the server's API and no SQL
+            Map.entry("depot-client/src/model-home.ts", List.of("fetch(url.href")),
+            Map.entry("datacube/demo/deephaven/board.ts", List.of("fetch('config.json'")),
+            Map.entry("datacube/demo/deephaven/cube.ts", List.of("fetch('config.json'")),
+            Map.entry("datacube/demo/market-sim/measure/measure.ts", List.of("fetch(f")),
+            Map.entry("engine-client/src/deephaven.ts", List.of("fetch(input")),
             Map.entry("datacube/src/services/python-host.ts", List.of("fetch(`${link.baseUrl}${path}`", "fetch(`${link.baseUrl}/${at}&version=${version}${as}`", "fetch(`${link.baseUrl}/${path}`", "fetch(`${link.baseUrl}/${path}`", "fetch(`${link.baseUrl}/plan-and-run.json`", "fetch(`${link.baseUrl}/version.json?${query}`", "fetch(input")),
             Map.entry("datacube/src/ui/timeseries-view.ts", List.of("fetch(", "fetch(", "fetch(", "fetch(")),
             Map.entry("depot-client/src/client.ts", List.of("fetch(`${this.#api}${path}`")),
@@ -1381,6 +1416,9 @@ class PlannedSqlTest {
             Map.entry("datacube/src/table-output.ts", List.of("runPlan(")),
             Map.entry("datacube/src/upload.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
+            // 2026-11-14 (the desk roadmap's C0, the user's go of that day): the live DuckDB's table made, each batch
+            // landed and its retention kept, by an ingest's plans (the planner's ingestPlans answer)
+            Map.entry("engine-client/src/duckdb-live.ts", List.of("runLoad(")),
             Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),
             // 2026-11-12 (the final audit's item 1(b)): a snapshot's local copy, its plan the planner's of the pull
             // (snapCopy)

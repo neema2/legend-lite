@@ -290,6 +290,20 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** How a dataset's rows land, as plans ({@code Boundary.ingestPlans}: an ingest's make, land and keep, the roadmap's C0):
+     *  the tab's {@code ingestPlansOrError}, a headless host's. */
+    @CEntryPoint(name = "lite_ingest_plans")
+    static CCharPointer ingestPlans(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.ingestPlans(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** A host's value read as a relation, as a plan ({@code Boundary.frameLoad}, the user's ruling of 2026-11-11):
      *  Python's frames. */
     @CEntryPoint(name = "lite_frame_load")

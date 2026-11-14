@@ -68,21 +68,21 @@ Database riskdb::DB
 // MARKET DATA, streamed from the ticker plant (the market data team)
 Ingest marketdata::MarketDataFeed Stream
 [
-  MARKET_TRADE( |#>{tickerplant::Topics."tp.us-equities.trades.v3"}# ) pk=[ PRINT_ID ] writeMode=AppendOnly retention=Last('PT8H');
+  MARKET_TRADE( |#>{tickerplant::Topics."tp.us-equities.trades.v3"}# ) pk=[ PRINT_ID ] writeMode=AppendOnly retention=LastRows(25000);
   MARKET_QUOTE( |#>{tickerplant::Topics."tp.us-equities.nbbo.v2"}# ) pk=[ QUOTE_ID ] writeMode=LatestByKey;
   FX_RATE( |#>{tickerplant::Topics."tp.fx.spot.v1"}# ) pk=[ RATE_ID ] writeMode=LatestByKey;
 ]
 // NEWS, streamed from the vendor
 Ingest marketdata::NewsFeed Stream
 [
-  NEWS_STORY( |#>{newswire::Topics."vendor.newswire.stories.v1"}# ) pk=[ STORY_ID ] writeMode=AppendOnly retention=Last('PT24H');
+  NEWS_STORY( |#>{newswire::Topics."vendor.newswire.stories.v1"}# ) pk=[ STORY_ID ] writeMode=AppendOnly retention=LastRows(5000);
 ]
 // THE ORDER SYSTEM, streamed from its drop copy
 Ingest trading::OrderFlowFeed Stream
 [
   TRADE_ORDER( |#>{oms::Topics."oms.equities.orders.v4"}# ) pk=[ ORDER_ID ] writeMode=LatestByKey;
-  EXECUTION( |#>{oms::Topics."oms.equities.fills.v4"}# ) pk=[ EXECUTION_ID ] writeMode=AppendOnly;
-  ORDER_ROUTE( |#>{oms::Topics."oms.equities.routes.v4"}# ) pk=[ ROUTE_ID ] writeMode=AppendOnly;
+  EXECUTION( |#>{oms::Topics."oms.equities.fills.v4"}# ) pk=[ EXECUTION_ID ] writeMode=AppendOnly retention=LastRows(50000);
+  ORDER_ROUTE( |#>{oms::Topics."oms.equities.routes.v4"}# ) pk=[ ROUTE_ID ] writeMode=AppendOnly retention=LastRows(50000);
   RFQ( |#>{oms::Topics."oms.fx.rfqs.v2"}# ) pk=[ RFQ_ID ] writeMode=LatestByKey;
 ]
 // THE SECURITY MASTER, pulled each morning (the security master's team)

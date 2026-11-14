@@ -46,16 +46,10 @@ final class HostOperationsJson {
         return switch (op) {
             case "relation" -> new HostOperation.MakeRelation(kind(string(o, "kind")), name(object(o, "target")),
                     bool(o, "replace"), convert(o), source(object(o, "from")));
-            // the live engine's writes (docs/DUCKDB_LIVE_2026_10_25.md): a batch's rows from its staging table into a
-            // stream or a keyed table, and a stream's history bounded
-            case "insert" -> new HostOperation.Insert(name(object(o, "target")), columns(o), source(object(o, "from")));
-            case "upsert" -> {
-                if (!(source(object(o, "from")) instanceof HostOperation.Source.Relation from)) {
-                    throw new IllegalArgumentException("an upsert's rows come from a relation of the database");
-                }
-                yield new HostOperation.Upsert(name(object(o, "target")), columns(o), stringList(o, "key"), from);
-            }
-            case "bound" -> new HostOperation.Bound(name(object(o, "target")), string(o, "column"), keep(o));
+            // rows put into a declared table come from a person's file: a planned load's (B3: Boundary.fileLoad); rows
+            // that keep arriving, an ingest's plans' (Boundary.ingestPlans)
+            case "insert" -> throw new IllegalArgumentException("rows put into a declared table are a planned load's"
+                    + " (fileLoad), not an operation");
             case "drop" -> new HostOperation.Drop(kind(string(o, "kind")), name(object(o, "target")));
             case "schema" -> new HostOperation.MakeSchema(stringOrNull(o, "database"), string(o, "name"));
             case "dropSchema" -> new HostOperation.DropSchema(stringOrNull(o, "database"), string(o, "name"));
@@ -156,18 +150,6 @@ final class HostOperationsJson {
         return Integer.valueOf(Math.toIntExact(n.longValue()));
     }
 
-    private static List<HostOperation.Column> columns(Json.Obj o) {
-        if (!(o.has("columns") && o.get("columns") instanceof Json.Arr arr)) {
-            throw new IllegalArgumentException("rows put in name their columns, an array");
-        }
-        List<HostOperation.Column> out = new ArrayList<>();
-        for (Json.Node n : arr.items()) {
-            Json.Obj c = object(n, "a column");
-            out.add(new HostOperation.Column(string(c, "target"), string(c, "from")));
-        }
-        return out;
-    }
-
     private static List<String> stringList(Json.Obj o, String field) {
         if (!(o.has(field) && o.get(field) instanceof Json.Arr arr)) {
             throw new IllegalArgumentException("an operation's " + field + " is an array of strings");
@@ -218,21 +200,5 @@ final class HostOperationsJson {
             throw new IllegalArgumentException("an operation's " + field + " is true or false");
         }
         return b.value();
-    }
-
-    /** A stream's bound: its latest {@code rows}, or its rows within {@code millis} of its latest -- one of them. */
-    private static HostOperation.Bound.Keep keep(Json.Obj o) {
-        if (o.has("rows") == o.has("millis")) {
-            throw new IllegalArgumentException("a stream's bound is its latest rows or its latest millis, one of them");
-        }
-        return o.has("rows") ? new HostOperation.Bound.Keep.Rows(whole(o, "rows"))
-                : new HostOperation.Bound.Keep.Within(whole(o, "millis"));
-    }
-
-    private static long whole(Json.Obj o, String field) {
-        if (!(o.get(field) instanceof Json.Num n && n.isInteger())) {
-            throw new IllegalArgumentException("an operation's " + field + " is a whole number");
-        }
-        return n.longValue();
     }
 }

@@ -1,12 +1,14 @@
-// The live DuckDB (duckdb-live.ts, docs/DUCKDB_LIVE_2026_10_25.md L1) against a real DuckDB-WASM, its statements the
-// planner's (D5): what a grid's reader is told and when, what runs again at an emit and what does not, a keyed table's
-// latest row a key, a stream's bound, and one snapshot an emit -- every statement each connection is sent, counted.
-// The tables a test makes are its own SQL: a test is not a host (tools/guards/host_sql.txt reads product sources).
+// The live DuckDB (duckdb-live.ts, docs/DUCKDB_LIVE_2026_10_25.md L1) against a real DuckDB-WASM, its tables an ingest's
+// datasets landed by the planner's plans (an ingest's plans, docs/DESK_DATA_ROADMAP_2026_10_29.md C0): what a grid's
+// reader is told and when, what runs again at an emit and what does not, a keyed table's latest row a key, a table's
+// retention, and one snapshot an emit -- every statement each connection is sent, counted. What a test reads of a table
+// is its own SQL, on a connection of its own: a test is not a host (tools/guards/host_sql.txt reads product sources).
 
 import assert from 'node:assert/strict';
 import { after, before, describe, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import type { RawTable } from '../src/engine.ts';
 import { LiveDuckDb, type DuckDbLiveReader, type LiveRows } from '../src/duckdb-live.ts';
 import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import type { LiveEvent } from '../src/live.ts';
@@ -48,25 +50,45 @@ function counted(): ArrowishConnection {
   });
 }
 
-/** A live engine of its own, its tables made and declared: emitted by the test, no timer. `whole`: its connections read
- *  each result in one round trip (duckdb.ts), as the tab's live market's are. */
+/** The tables' ingest: four datasets of one Stream, appended (the prints keeping their latest 10) or latest by key. */
+const MODEL = `###Lakehouse
+Ingest live::Feed Stream
+[
+  PRINTS( SYMBOL: Varchar(8), SEQ: BigInt[1], PRICE: Double ) pk=[ SEQ ] writeMode=AppendOnly retention=LastRows(10);
+  NEWS( HEADLINE: Varchar(200)[1] ) pk=[ HEADLINE ] writeMode=AppendOnly;
+  QUOTES( SYMBOL: Varchar(8)[1], BID: Double, ASK: Double ) pk=[ SYMBOL ] writeMode=LatestByKey;
+  TAPE( SEQ: BigInt[1], PRINT_TIME: Timestamp, LIVE: Boolean ) pk=[ SEQ ] writeMode=AppendOnly;
+]
+
+###Relational
+Database live::DB
+(
+  include Ingest live::Feed
+)
+`;
+
+/** A dataset's landing, asked of the planner as the tab's live market asks it. */
+const ask = (table: string, model = MODEL) => planner.ingestPlans({
+  databaseType: 'DuckDB', model, database: 'live::DB', schema: 'default', table, held: 'batch',
+});
+
+/** A live engine of its own, its tables made by their plans and declared: emitted by the test, no timer. `whole`: its
+ *  connections read each result in one round trip (duckdb.ts), as the tab's live market's are. */
 async function opened(whole = false): Promise<LiveDuckDb> {
   sent.length = 0;
   const live = await LiveDuckDb.open({ connect: () => new DuckDbEngine(counted(), { whole }), host: planner, timer: false });
-  for (const table of ['PRINTS', 'NEWS', 'QUOTES', 'TAPE', 'DIRECT']) await live.run(`DROP TABLE IF EXISTS ${table}`);
-  await live.run('CREATE TABLE PRINTS (SYMBOL VARCHAR, SEQ BIGINT, PRICE DOUBLE)');
-  await live.run('CREATE TABLE NEWS (HEADLINE VARCHAR)');
-  await live.run('CREATE TABLE QUOTES (SYMBOL VARCHAR PRIMARY KEY, BID DOUBLE, ASK DOUBLE)');
-  await live.run('CREATE TABLE TAPE (SEQ BIGINT, PRINT_TIME TIMESTAMP, LIVE BOOLEAN)');
-  await live.run('CREATE TABLE DIRECT (SYMBOL VARCHAR, SEQ INTEGER, PRICE DOUBLE)');
-  live.declare([
-    { name: 'PRINTS', kind: 'stream', keep: { column: 'SEQ', rows: 10 } },
-    { name: 'NEWS', kind: 'stream' },
-    { name: 'QUOTES', kind: 'keyed', key: ['SYMBOL'] },
-    { name: 'TAPE', kind: 'stream', keep: { column: 'PRINT_TIME', seconds: 30 } },
-    { name: 'DIRECT', kind: 'stream', columns: ['SYMBOL', 'SEQ', 'PRICE'] },
-  ]);
+  await live.declare(await Promise.all(['PRINTS', 'NEWS', 'QUOTES', 'TAPE'].map(async (name) => ({ name, held: 'batch', plans: await ask(name) }))));
   return live;
+}
+
+/** A table read by the test itself, on a connection of its own. */
+async function look(sql: string): Promise<RawTable> {
+  const engine = new DuckDbEngine(db.connect() as ArrowishConnection);
+  try {
+    return await engine.run(unplanned(sql), 0);
+  } finally {
+    await engine.close();
+  }
 }
 
 const SYMBOLS = ['AAPL', 'MSFT', 'NVDA'];
@@ -113,7 +135,7 @@ describe('the live DuckDB', () => {
     const readerSent = sent[1]!;
     const before = readerSent.length;
 
-    await live.append('PRINTS', ...prints(0, 3));
+    await live.write('PRINTS', ...prints(0, 3));
     await live.emit();
 
     assert.equal(told.length, 1, 'told once');
@@ -139,7 +161,7 @@ describe('the live DuckDB', () => {
     reader.rest();
     assert.equal(reader.following, 0, 'resting, it follows nothing');
     const before = readerSent.length;
-    await live.append('PRINTS', ...prints(0, 3));
+    await live.write('PRINTS', ...prints(0, 3));
     await live.emit();
     assert.equal(told.length, 0, 'a resting reader is told nothing');
     assert.equal(readerSent.slice(before).filter((s) => s.startsWith('SELECT')).length, 0, 'nothing of it ran at the emit');
@@ -147,7 +169,7 @@ describe('the live DuckDB', () => {
     // user, 2026-10-29: "stops ticking if you change tabs and come back") -- and it follows again what it followed
     assert.equal(value(await reader.execute(COUNT, 1)), 3);
     assert.equal(reader.following, 1, 'running again, it follows again');
-    await live.append('PRINTS', ...prints(3, 2));
+    await live.write('PRINTS', ...prints(3, 2));
     await live.emit();
     assert.equal(told.length, 1, 'following again, told');
     assert.equal(value(await reader.execute(COUNT, 3)), 5);
@@ -160,12 +182,12 @@ describe('the live DuckDB', () => {
     const { told } = await following(live, msft);
     await live.emit();
     assert.equal(live.counts.reruns, 0);
-    await live.append('PRINTS', ...prints(0, 2, 0)); // AAPL's: MSFT's top is as it was (none)
+    await live.write('PRINTS', ...prints(0, 2, 0)); // AAPL's: MSFT's top is as it was (none)
     await live.emit();
     assert.equal(live.counts.reruns, 1);
     assert.equal(live.counts.unchanged, 1);
     assert.equal(told.length, 0);
-    await live.append('PRINTS', ...prints(2, 1, 1)); // MSFT's
+    await live.write('PRINTS', ...prints(2, 1, 1)); // MSFT's
     await live.emit();
     assert.equal(told.length, 1);
     await live.close();
@@ -178,34 +200,26 @@ describe('the live DuckDB', () => {
       BID: { doubles: (i) => rows[i]![1] },
       ASK: { doubles: (i) => rows[i]![2] },
     }];
-    assert.equal(await live.upsert('QUOTES', ...quotes([[0, 1, 2], [1, 10, 11], [0, 3, 4]])), 2);
-    await live.upsert('QUOTES', ...quotes([[1, 12, 13], [2, 20, 21]]));
-    const book = await live.run('SELECT SYMBOL, BID, ASK FROM QUOTES ORDER BY SYMBOL');
+    await live.write('QUOTES', ...quotes([[0, 1, 2], [1, 10, 11], [0, 3, 4]]));
+    await live.write('QUOTES', ...quotes([[1, 12, 13], [2, 20, 21]]));
+    const book = await look('SELECT SYMBOL, BID, ASK FROM QUOTES ORDER BY SYMBOL');
     assert.deepEqual(book.columns.map((c) => c.values), [['AAPL', 'MSFT', 'NVDA'], [3, 12, 20], [4, 13, 21]]);
-    await assert.rejects(live.append('QUOTES', ...quotes([[0, 1, 2]])), /QUOTES is keyed: it is upserted into/);
-    await assert.rejects(live.upsert('PRINTS', ...prints(0, 1)), /PRINTS is a stream: it is appended to/);
+    await assert.rejects(live.write('NOPE', ...prints(0, 1)), /NOPE is not a live table: declare it first/);
     await live.close();
   });
 
-  it('a stream keeps its bound: its latest rows, or its rows within some seconds of its latest; a trim is a change', async () => {
+  it('a table keeps its retention, its latest rows by arrival, at the plan\'s cadence; a trim is a change; a time retention is refused here', async () => {
     live = await opened();
     const { told } = await following(live, COUNT);
-    await live.append('PRINTS', ...prints(0, 25));
+    await live.write('PRINTS', ...prints(0, 25));
     await live.emit();
-    const kept = await live.run('SELECT min(SEQ) AS lo, max(SEQ) AS hi, count(*) AS n FROM PRINTS');
+    const kept = await look('SELECT min(SEQ) AS lo, max(SEQ) AS hi, count(*) AS n FROM PRINTS');
     assert.deepEqual(kept.columns.map((c) => Number(c.values[0])), [15, 24, 10]);
     assert.equal(told.length, 1);
-
-    const minute = Date.UTC(2026, 9, 25, 14, 30);
-    await live.append('TAPE', 61, {
-      SEQ: { integers: (i) => i },
-      PRINT_TIME: { instants: (i) => minute + i * 1000 },
-      LIVE: { truths: (i) => i % 2 === 0 },
-    });
-    await live.emit();
-    const tape = await live.run("SELECT min(SEQ) AS lo, count(*) AS n, strftime(min(PRINT_TIME), '%H:%M:%S') AS first FROM TAPE");
-    assert.deepEqual(tape.columns.map((c) => (typeof c.values[0] === 'bigint' ? Number(c.values[0]) : c.values[0])), [30, 31, '14:30:30']);
-    assert.ok(live.counts.trims >= 2);
+    assert.equal(live.counts.trims, 1);
+    // a duration reads when each row arrived, which a DuckDB table does not record
+    await assert.rejects(ask('PRINTS', MODEL.replace('retention=LastRows(10)', "retention=Last('PT30S')")),
+      /keeps Last\('PT30S'\), which reads when each row arrived/);
     await live.close();
   });
 
@@ -236,7 +250,7 @@ describe('the live DuckDB', () => {
     assert.equal(reader.following, 2);
     const told: LiveEvent[] = [];
     reader.onLive((e) => told.push(e));
-    await live.append('NEWS', 1, { HEADLINE: { text: ['Fed holds'], pick: () => 0 } });
+    await live.write('NEWS', 1, { HEADLINE: { text: ['Fed holds'], pick: () => 0 } });
     await live.emit();
     assert.equal(told.length, 0, 'NEWS is no longer followed');
     await live.close();
@@ -246,7 +260,7 @@ describe('the live DuckDB', () => {
     live = await opened();
     const again = plan('SELECT count(*) AS m FROM PRINTS', ['m', 'Integer']);
     const { reader } = await following(live, COUNT, again);
-    await live.append('PRINTS', ...prints(0, 2));
+    await live.write('PRINTS', ...prints(0, 2));
     // a write on a connection of its own the moment the emit's first run is sent, before its second
     const elsewhere = db.connect() as ArrowishConnection;
     afterSent = (sql) => {
@@ -258,31 +272,31 @@ describe('the live DuckDB', () => {
     assert.equal(afterSent, null, 'the write landed among the emit\'s runs');
     assert.equal(value(await reader.execute(COUNT, 2)), 2);
     assert.equal(value(await reader.execute(again, 2)), 2, 'both read the moment before it');
-    assert.equal(value(await live.run('SELECT count(*) AS n FROM PRINTS')), 3);
+    assert.equal(value(await look('SELECT count(*) AS n FROM PRINTS')), 3);
     await live.close();
   });
 
-  it('a stream\'s batch of its declared columns, in order, goes straight in; any other through staging, each value in its own column', async () => {
+  it('a batch lands by its plan alone: each column by its name, whatever its order, every statement the plan\'s', async () => {
     live = await opened(true);
     const writer = sent[0]!;
     const before = writer.length;
-    await live.append('DIRECT', ...prints(0, 3));
-    assert.equal(writer.length, before, 'straight in: no statement, the rows put in as Arrow');
-    // the same columns in another order: by name, through staging (by position it would put prices in SEQ)
+    await live.write('PRINTS', ...prints(0, 3));
+    // the same columns in another order: by name (by position it would put prices in SEQ)
     const [n, rows] = prints(3, 2);
-    await live.append('DIRECT', n, { PRICE: rows.PRICE!, SYMBOL: rows.SYMBOL!, SEQ: rows.SEQ! });
-    assert.ok(writer.length > before, 'through staging: the planner\'s statements');
-    const table = await live.run('SELECT SYMBOL, SEQ, PRICE FROM DIRECT ORDER BY SEQ');
+    await live.write('PRINTS', n, { PRICE: rows.PRICE!, SYMBOL: rows.SYMBOL!, SEQ: rows.SEQ! });
+    const landed = writer.slice(before);
+    const { land } = await ask('PRINTS');
+    assert.ok(landed.length > 0 && landed.every((sql) => land.includes(JSON.stringify(sql))), `the land plan's statements alone: ${landed.join(' | ')}`);
+    const table = await look('SELECT SYMBOL, SEQ, PRICE FROM PRINTS ORDER BY SEQ');
     assert.deepEqual(table.columns.map((c) => c.values.map((v) => (typeof v === 'bigint' ? Number(v) : v))), [
       ['AAPL', 'MSFT', 'NVDA', 'AAPL', 'MSFT'], [0, 1, 2, 3, 4], [100, 101, 102, 103, 104],
     ]);
     // a reader over whole connections: followed, told, and its tick answered from what the emit kept
-    const count = plan('SELECT count(*) AS n FROM DIRECT', ['n', 'Integer']);
-    const { reader, told } = await following(live, count);
-    await live.append('DIRECT', ...prints(5, 1));
+    const { reader, told } = await following(live, COUNT);
+    await live.write('PRINTS', ...prints(5, 1));
     await live.emit();
     assert.equal(told.length, 1);
-    const ticked = await reader.execute(count, 2);
+    const ticked = await reader.execute(COUNT, 2);
     assert.equal(value(ticked), 6);
     assert.equal(ticked.elapsedMs, 0);
     await live.close();
@@ -292,7 +306,7 @@ describe('the live DuckDB', () => {
     live = await opened();
     const { reader, told } = await following(live, COUNT);
     await reader.close();
-    await live.append('PRINTS', ...prints(0, 1));
+    await live.write('PRINTS', ...prints(0, 1));
     await live.emit();
     assert.equal(told.length, 0);
     assert.equal(live.counts.reruns, 0);

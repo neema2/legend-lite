@@ -222,6 +222,7 @@ node_test(
     name = "duckdb_live_test",
     size = "small",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/planner.ts",

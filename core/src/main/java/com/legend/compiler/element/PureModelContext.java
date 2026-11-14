@@ -559,6 +559,12 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Optional<com.legend.model.IngestDefinition> findIngest(String fqn) {
+        Objects.requireNonNull(fqn, "fqn");
+        return model.findIngest(fqn);
+    }
+
+    @Override
     public java.util.Optional<com.legend.model.DataSpaceDefinition> findDataSpace(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findDataSpace(fqn);

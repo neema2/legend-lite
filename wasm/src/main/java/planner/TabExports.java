@@ -171,6 +171,12 @@ public final class TabExports {
         return Folded.of(() -> Boundary.synthesize(request));
     }
 
+    /** {@link Boundary#ingestPlans}: how a dataset's rows land, as plans (an ingest's make, land and keep). */
+    @JSExport
+    public static String ingestPlansOrError(String request) {
+        return Folded.of(() -> Boundary.ingestPlans(request));
+    }
+
     /** {@link Boundary#databaseFromCatalog}. */
     @JSExport
     public static String databaseFromCatalogOrError(String catalogJson) {

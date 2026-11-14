@@ -154,7 +154,10 @@ type LoadStep =
   | { readonly _type: 'file'; readonly ref: DataRef }
   | BoundStep
   | StreamStep
+  | AttachStep
   | { readonly _type: string };
+/** A value the host holds, attached by name as a relation (PlanJson's `attach`): never its bytes. */
+interface AttachStep { readonly _type: 'attach'; readonly held: string; readonly as: string; readonly reach: 'DATABASE' | 'CONNECTION' }
 /** A remote plane's answer streamed into a table (PlanJson's `stream`): the plane by name, never a row. */
 interface StreamStep {
   readonly _type: 'stream'; readonly plane: string; readonly sql: string; readonly schema: string | null;
@@ -323,6 +326,17 @@ export interface HostStreams {
   };
 }
 
+/**
+ * THE VALUES A HOST HOLDS, BY NAME (an ingest's plans, the desk roadmap's C0, the user's go of 2026-11-14): what a
+ * plan's attach step names -- a batch of rows the host's source handed it -- put into the relation the plan names by the
+ * database's own Arrow import, read once by the plan's statements after it (DATABASE reach), which drop it. Main's one
+ * entry for a host's value (Python's frames take the same step, LoadPlanner.frameLoad); a name the host does not hold is
+ * refused by name.
+ */
+export interface HostValues {
+  attach(held: string, as: string): Promise<void>;
+}
+
 /** A remote plane: its answer to a statement as Arrow IPC streams, one per chunk, and the receipt its done step issues
  *  (its count of the answer's rows) before the first chunk (warehouse.ts arrowChunks). */
 export interface HostPlane {
@@ -392,7 +406,7 @@ async function stream(load: Load, step: StreamStep, streams: HostStreams | undef
  *  that undo the delivery run whatever its outcome; a remote plane's answer streamed through `streams` in one
  *  transaction (`stream`). */
 async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: HostFiles,
-  secrets?: HostSecrets, streams?: HostStreams, landed: Landed[] = []): Promise<KeptSetting[]> {
+  secrets?: HostSecrets, streams?: HostStreams, landed: Landed[] = [], values?: HostValues): Promise<KeptSetting[]> {
   const settings: KeptSetting[] = [];
   for (const step of load.steps) {
     if (step._type === 'statement') {
@@ -444,8 +458,11 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
     } else if (step._type === 'stream') {
       landed.push(await stream(load, step as StreamStep, streams));
     } else if (step._type === 'attach') {
-      // a value the host holds attached by name (a Python frame): Python's host alone attaches one
-      throw new PlanRefusal(`the load ${load.identity} attaches the host's value '${(step as unknown as { readonly held: string }).held}', and this host attaches none`);
+      // a value the host holds attached by name: an ingest's batch (the tab's), read once by the load's own statements
+      const attach = step as AttachStep;
+      if (values === undefined) throw new PlanRefusal(`the load ${load.identity} attaches the host's value '${attach.held}', and this host attaches none`);
+      if (attach.reach !== 'DATABASE') throw new PlanRefusal(`the load ${load.identity} keeps '${attach.held}' attached on every connection (${attach.reach}), and this host attaches a value for its load alone`);
+      await values.attach(attach.held, attach.as);
     } else {
       throw new PlanRefusal(`a load's step is a statement, a statements blob, a file, a bound statement or a stream, not a ${step._type}`);
     }
@@ -466,7 +483,7 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
  * whole, a file put in one transaction, a stream rolled back).
  */
 export async function runLoad(plan: PlanText, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
-  host: { readonly files?: HostFiles; readonly secrets?: HostSecrets; readonly streams?: HostStreams } = {}):
+  host: { readonly files?: HostFiles; readonly secrets?: HostSecrets; readonly streams?: HostStreams; readonly values?: HostValues } = {}):
   Promise<{ readonly settings: readonly KeptSetting[]; readonly landed: readonly Landed[] }> {
   const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
   if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
@@ -475,7 +492,7 @@ export async function runLoad(plan: PlanText, run: (sql: PlannedSql, params: rea
   if (root.cadence !== 'ONCE' && root.cadence !== 'HOST_SESSION') throw new PlanRefusal(`a load's plan is ONCE or HOST_SESSION, not ${root.cadence}`);
   const landed: Landed[] = [];
   const settings = await deliver(root, { run: (sql, params) => run(sql, params).then(() => []) }, host.files, host.secrets,
-    host.streams, landed);
+    host.streams, landed, host.values);
   return { settings, landed };
 }
 

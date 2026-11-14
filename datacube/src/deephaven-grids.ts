@@ -54,7 +54,7 @@ export class DeephavenGrids {
     this.#o = o;
     // For the browser harness ONLY (test/deephaven/desk.mjs, beside the app's own `__dataPage`): the server's counts --
     // what was sent to it and read from it, which no page shows. Not product code.
-    (window as unknown as { __deephaven?: unknown }).__deephaven = { counts: () => this.#counts() };
+    Object.assign(window, { __deephaven: { counts: () => this.#counts() } });
   }
 
   /** A source's rows on `server`: planned over `model` against `runtime`, whose `stores` the server holds. */

@@ -25,16 +25,17 @@ import { DESK_MODEL, IN_TAB } from '../../deephaven/market/model.ts';
 import { DESK } from '../../deephaven/market/screens.ts';
 import { openLiveMarket, type LiveMarket } from '../live-market.ts';
 
-/** A run's settings, from the page's address: the tape kept, the seconds warmed and measured a tab, the tabs. */
+/** A run's settings, from the page's address: the prints the world writes as it starts (the tape's bound is the model's
+ *  ingest's, LastRows(25000): the desk roadmap's C0), the seconds warmed and measured a tab, the tabs. */
 const params = new URLSearchParams(location.search);
-const TAPE = Number(params.get('tape') ?? 100_000);
+const TAPE = Number(params.get('tape') ?? 25_000);
 const WARM_S = Number(params.get('warm') ?? 5);
 const MEASURE_S = Number(params.get('seconds') ?? 20);
 const ONLY = params.get('tabs')?.split(',');
 /** The fixes the baseline's round trips called for (docs/DUCKDB_LIVE_2026_10_25.md §2), each on unless switched off:
- *  results read whole (one round trip a statement), appends straight in, and one cycle (written, then refreshed). */
+ *  results read whole (one round trip a statement), and one cycle (written, then refreshed). A batch lands by its
+ *  ingest's plan (the desk roadmap's C0), so the straight append went with the engine's own Arrow load. */
 const WHOLE = params.get('whole') !== '0';
-const DIRECT = params.get('direct') !== '0';
 const CYCLE = params.get('cycle') !== '0';
 
 /** Durations (ms), summarised. */
@@ -61,14 +62,19 @@ interface Report {
   report?: unknown;
 }
 const out: Report = { progress: 'starting', done: false };
-(globalThis as unknown as { __measure: Report }).__measure = out;
+Object.assign(globalThis, { __measure: out });
+
+/** The JS heap in use (Chrome's own `performance.memory`), null where the browser reports none. */
+function heapUsed(): number | null {
+  const memory: unknown = Reflect.get(performance, 'memory');
+  const used: unknown = typeof memory === 'object' && memory !== null ? Reflect.get(memory, 'usedJSHeapSize') : undefined;
+  return typeof used === 'number' ? used : null;
+}
 const say = (what: string): void => {
   out.progress = what;
   console.log(`[measure] ${what}`);
 };
 
-/** DuckDB's own memory, bytes (duckdb_memory()): what the measurement reads of the database itself. */
-const MEMORY_SQL = 'SELECT sum(memory_usage_bytes) AS bytes FROM duckdb_memory()';
 
 /**
  * EVERY REQUEST TO DUCKDB'S WORKER, logged: DuckDB-WASM posts each (a query run, a pending query started, polled, its
@@ -134,7 +140,7 @@ async function main(): Promise<void> {
   const duckdbMs = performance.now() - t0 - plannerMs;
   say(`the market's tables and world (a tape of ${TAPE})`);
   const market: LiveMarket = await openLiveMarket({
-    connect: () => tab.connect({ whole: WHOLE }), planner, model, tape: TAPE, timer: false, directAppends: DIRECT,
+    connect: () => tab.connect({ whole: WHOLE }), planner, model, timer: false,
     settings: { feed: 'off', timer: false, morningPrints: TAPE },
   });
   const { live, world } = market;
@@ -189,13 +195,9 @@ async function main(): Promise<void> {
   // a click's query: planned once, run as the app runs a new one (no kept result answers it)
   const probePlan = await planner.planText("products::Equity.all()->project(~[t:x|$x.ticker, cap:x|$x.marketCap])->sort(~cap->descending())->limit(20)");
   const probe = await live.reader();
-  const memory = async (): Promise<number | null> => {
-    try {
-      return Number((await probe.run(MEMORY_SQL, 0)).columns[0]?.values[0] ?? Number.NaN);
-    } catch {
-      return null;
-    }
-  };
+  // DuckDB's own memory is not read: a page sends only statements a plan carries (main's total wall), and none reads the
+  // database's memory -- the browser's heap is read below
+  const memory = async (): Promise<number | null> => null;
 
   const startup = {
     plannerMs: Math.round(plannerMs), duckdbMs: Math.round(duckdbMs), ddlMs: Math.round(market.started.ddl),
@@ -215,7 +217,7 @@ async function main(): Promise<void> {
   out.report = {
     settings: {
       tape: TAPE, warmS: WARM_S, measureS: MEASURE_S, names: world.equities.length, emitMs: 250, flushMs: 250, beatMs: 50,
-      whole: WHOLE, direct: DIRECT, cycle: CYCLE,
+      whole: WHOLE, cycle: CYCLE,
     },
     environment: { userAgent: navigator.userAgent, hardwareConcurrency: navigator.hardwareConcurrency },
     startup, refused, tabs, written: world.counts.rows, trims: live.counts.trims,
@@ -322,7 +324,7 @@ async function main(): Promise<void> {
     ];
     await new Promise((r) => setTimeout(r, WARM_S * 1000));
     const before = { ...live.counts };
-    const heap0 = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null;
+    const heap0 = heapUsed();
     const duck0 = await memory();
     measuring = true;
     const from = performance.now();
@@ -334,7 +336,7 @@ async function main(): Promise<void> {
     await world.flush();
     await live.emit();
     const after = { ...live.counts };
-    const heap1 = (performance as unknown as { memory?: { usedJSHeapSize: number } }).memory?.usedJSHeapSize ?? null;
+    const heap1 = heapUsed();
     const duck1 = await memory();
 
     // ISOLATED, the clock stopped: a quarter-second's rows written alone, then a refresh alone -- each one's time and its

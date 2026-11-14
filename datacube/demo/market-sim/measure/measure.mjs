@@ -3,7 +3,7 @@
 // pinned Chromium once for each tape size, a fresh page each; each run's report judged against the budgets stated
 // before any number came in, printed, and written to the test's outputs (market-measure.json).
 //
-//   MEASURE_TAPES    the tape sizes, prints kept (25000,100000,250000)
+//   MEASURE_TAPES    the prints the world writes as it starts (25000: the tape's bound, its ingest's LastRows)
 //   MEASURE_SECONDS  each tab's measured seconds (20), MEASURE_WARM its warm-up (5), MEASURE_TABS the tabs (all)
 
 import '../../../../tools/browser/pinned-chromium.mjs';
@@ -25,7 +25,7 @@ const BUDGETS = [
 ];
 const STARTUP_BUDGET_MS = 5000;
 
-const tapes = (process.env.MEASURE_TAPES ?? '25000,100000,250000').split(',').map(Number);
+const tapes = (process.env.MEASURE_TAPES ?? '25000').split(',').map(Number);
 const seconds = Number(process.env.MEASURE_SECONDS ?? 20);
 const warm = Number(process.env.MEASURE_WARM ?? 5);
 const only = process.env.MEASURE_TABS;

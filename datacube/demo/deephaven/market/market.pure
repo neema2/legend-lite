@@ -6,11 +6,19 @@
 // runs is the third file's (environments.pure: the tab's DuckDB, a Deephaven server -- the data space's execution
 // contexts). PROGRAMS, not the platform's: the database computes every value they define, live.
 
+###Lakehouse
+// the world's own status, outside the corpus: what each part of the market world is (simulated, live, connecting) -- a
+// dataset the world writes into the ingest's own topic, each item's latest state kept (docs/DESK_DATA_ROADMAP_2026_10_29.md
+// C0: every table the world writes is a dataset)
+Ingest market::WorldStatus Stream<Json>
+[
+  world( item: Varchar(16)[1], state: Varchar(16)[1], detail: Varchar(256)[1] ) pk=[ item ] writeMode=LatestByKey;
+]
+
 ###Relational
-// the world's own status table, outside the corpus: what each part of the market world is (simulated, live, connecting)
 Database market::World
 (
-  Table world (item VARCHAR(16) PRIMARY KEY, state VARCHAR(16) NOT NULL, detail VARCHAR(256) NOT NULL)
+  include Ingest market::WorldStatus
 )
 
 ###Pure

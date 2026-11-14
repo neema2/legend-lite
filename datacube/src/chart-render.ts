@@ -169,15 +169,24 @@ function zoomNow(chart: echarts.ECharts): ZoomNow[] | null {
     })) : null;
 }
 
+/** ECharts' model as far as an axis's drawn scale: what its public API has no other way to read. */
+interface DrawnModel {
+  getComponent(type: string, index: number): { axis?: { scale?: { getExtent?: () => number[] } } } | undefined;
+}
+
+/** The extent ECharts drew `key`'s axis `index` at (its model's scale, as `getExtent` gives it: what the axis shows);
+ *  undefined where it has none. */
+export function drawnExtent(chart: echarts.ECharts, key: string, index: number): number[] | undefined {
+  const getModel: unknown = Reflect.get(chart, 'getModel');
+  const model = typeof getModel === 'function' ? (getModel.call(chart) as DrawnModel | undefined) : undefined;
+  return model?.getComponent(key, index)?.axis?.scale?.getExtent?.();
+}
+
 /** The extent ECharts drew each of `hold`'s axes at (its model's scale: what the axis shows), null where none. */
 export function drawnExtents(chart: echarts.ECharts, hold: AxisHold): (Extent | null)[] {
-  // ECharts' model, which its public API has no other way to read: an axis's scale, as `getExtent` gives it
-  const model = (chart as unknown as {
-    getModel?: () => { getComponent(type: string, index: number): { axis?: { scale?: { getExtent?: () => number[] } } } | undefined };
-  }).getModel?.();
   return hold.extents.map((values, i) => {
     if (values === null) return null;
-    const e = model?.getComponent(hold.key, i)?.axis?.scale?.getExtent?.();
+    const e = drawnExtent(chart, hold.key, i);
     const [lo, hi] = e ?? [];
     return lo !== undefined && hi !== undefined && Number.isFinite(lo) && Number.isFinite(hi) ? [lo, hi] : null;
   });

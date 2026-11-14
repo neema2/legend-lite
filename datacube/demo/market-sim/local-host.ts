@@ -25,9 +25,9 @@ export interface MarketInTabOptions {
   /** The world's size and pace (market.ts MarketSettings). */
   readonly settings?: MarketSettings;
   /**
-   * The prints the tape keeps (25,000). Measured (docs/DUCKDB_LIVE_2026_10_25.md stage A): at 25,000 every tab ticks in
-   * under a second; at 100,000 the Stock and News tabs take 4-11 s a tick, DuckDB's moving average of a price that may
-   * be null folding each print's whole history (DuckDb.windowCall).
+   * The prints the world writes as it starts (25,000: the tape's whole bound, which the model's ingest keeps -- its
+   * `retention=LastRows(25000)`, measured in docs/DUCKDB_LIVE_2026_10_25.md stage A: at 25,000 every tab ticks in under
+   * a second; at 100,000 the Stock and News tabs take 4-11 s a tick).
    */
   readonly tape?: number;
 }
@@ -46,13 +46,13 @@ export function marketInTab(o: MarketInTabOptions): (model: () => Promise<string
         // the world's code a chunk of its own, fetched with the market, not with the page
         const { openLiveMarket } = await import('./live-market.ts');
         const market = await openLiveMarket({
-          connect: () => o.duck.connect({ whole: true }), planner, model: text, tape: o.tape ?? 25_000,
+          connect: () => o.duck.connect({ whole: true }), planner, model: text,
           settings: { ...o.settings, morningPrints: o.settings?.morningPrints ?? o.tape ?? 25_000 },
         });
         addEventListener('pagehide', () => { market.close().catch(() => { /* the page is gone */ }); });
         // For the browser harness ONLY (test/market/live-desk.mjs): the market's counts -- the world's rows written and
         // the engine's emits -- which no page shows. Not product code.
-        (window as unknown as { __market?: unknown }).__market = { counts: () => ({ world: market.world.counts, live: market.live.counts }) };
+        Object.assign(window, { __market: { counts: () => ({ world: market.world.counts, live: market.live.counts }) } });
         return { model: text, planner, reader: () => market.live.reader() };
       })()),
     };

@@ -201,6 +201,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   snapCopy: "a snap's copy is the tab's own database's (Python snaps its own: snap.json)",
   outputPlan: "a table Output is written into the tab's own database (Python's flow.run writes its own)",
   synthesize: "rows made for a declared table are the tab's own database's (SYNTHESIZE, DuckDB alone)",
+  ingestPlans: "a dataset's rows land in the tab's own database (an ingest's plans: the live desk in the tab)",
   authored: "a person's own statement is Studio's SQL playground's, on the tab's own database",
   sessionSetup: "a session's setup is the tab's own database's",
   projectData: "a project's Data rows are held by Python itself (C5)",

@@ -42,17 +42,6 @@ export type HostOperation =
     readonly convert?: readonly CatalogColumn[];
     readonly from: HostSource;
   }
-  /** Rows put into a declared table, each declared column from the source's column of its name. */
-  | { readonly op: 'insert'; readonly target: HostName; readonly columns: readonly { readonly target: string; readonly from: string }[]; readonly from: HostSource }
-  /** Rows put into a keyed table from a table of the database, each the latest of its key: a row of the key there
-   *  replaced, and of the source's rows of one key its last (the live DuckDB's upsert: duckdb-live.ts). */
-  | {
-    readonly op: 'upsert'; readonly target: HostName; readonly columns: readonly { readonly target: string; readonly from: string }[];
-    readonly key: readonly string[]; readonly from: { readonly relation: HostName };
-  }
-  /** A stream's rows past its bound deleted: older, by `column`, than its latest `rows`, or than its latest less `millis`. */
-  | { readonly op: 'bound'; readonly target: HostName; readonly column: string; readonly rows: number }
-  | { readonly op: 'bound'; readonly target: HostName; readonly column: string; readonly millis: number }
   | { readonly op: 'drop'; readonly kind: 'table' | 'view'; readonly target: HostName }
   | { readonly op: 'schema'; readonly database?: string; readonly name: string }
   | { readonly op: 'dropSchema'; readonly database?: string; readonly name: string }
@@ -191,6 +180,34 @@ export type SynthesizeKnob =
 export interface SynthesizeSource {
   /** The plan, PlanJson's text: one HOST_SESSION load (the table made as declared, then one statement filling it). */
   synthesize(request: SynthesizeRequest): Promise<PlanText>;
+}
+
+/**
+ * HOW A DATASET'S ROWS LAND, as the planner is asked for their plans (Boundary.ingestPlans: an ingest's plans, the desk
+ * roadmap's C0, the user's go of 2026-11-14): the host's database, the model's text, a table an ingest's dataset makes
+ * (reached from `database` through its includes), and the name the host holds each batch under. Never a row.
+ */
+export interface IngestPlansRequest {
+  readonly databaseType: string;
+  readonly model: string;
+  readonly database: string;
+  readonly schema: string;
+  readonly table: string;
+  readonly held: string;
+}
+
+/** A dataset's three plans, each one HOST_SESSION load the hosts' runner runs (runLoad): its table made as declared,
+ *  one batch landed (the value held under the request's `held` attached by name, put in by the write mode), and its
+ *  retention kept, run once `every` rows have arrived since the last -- null for a dataset that keeps every row. */
+export interface IngestPlans {
+  readonly make: PlanText;
+  readonly land: PlanText;
+  readonly keep: { readonly plan: PlanText; readonly every: number } | null;
+}
+
+/** Where a dataset's landing plans come from: legend-lite's planner (DataCube's LitePlanner). */
+export interface IngestPlansSource {
+  ingestPlans(request: IngestPlansRequest): Promise<IngestPlans>;
 }
 
 /** What answers a host's operations: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */

@@ -33,6 +33,7 @@ KINDS: dict[str, tuple[str, Callable[[dict[str, Any]], tuple[str, ...]]]] = {
     'snapCopy': ('lite_snap_copy', lambda m: (m['request'],)),
     'outputPlan': ('lite_output_plan', lambda m: (m['request'],)),
     'synthesize': ('lite_synthesize', lambda m: (m['request'],)),
+    'ingestPlans': ('lite_ingest_plans', lambda m: (m['request'],)),
     'sessionSetup': ('lite_session_setup', lambda m: (m['databaseType'],)),
     'projectData': ('lite_project_data', lambda m: (m['model'], m['databaseType'])),
     'hostOperations': ('lite_host_operations', lambda m: (m['databaseType'], m['operations'])),

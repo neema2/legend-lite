@@ -65,6 +65,7 @@ function fakeExports(
     snapCopyOrError: () => 'ERR\nfake\nnot in this fake',
     outputPlanOrError: () => 'ERR\nfake\nnot in this fake',
     synthesizeOrError: () => 'ERR\nfake\nnot in this fake',
+    ingestPlansOrError: () => 'ERR\nfake\nnot in this fake',
     authoredOrError: () => 'ERR\nfake\nnot in this fake',
     sessionSetupOrError: () => 'ERR\nfake\nnot in this fake',
     projectDataOrError: () => 'ERR\nfake\nnot in this fake',

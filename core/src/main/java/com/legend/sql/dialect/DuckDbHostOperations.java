@@ -251,7 +251,6 @@ final class DuckDbHostOperations implements HostOperations {
         return name;
     }
 
-    /** A catalog question's database: the one named, or the current one. */
     /** The source's last row of each key (its row order: a table's, as its rows went in), each replacing the target's
      *  row of the key; the key's source columns those its target columns come from. */
     private static String upsert(HostOperation.Upsert u) {
@@ -264,19 +263,15 @@ final class DuckDbHostOperations implements HostOperations {
                 + " ORDER BY rowid DESC) AS \"__latest\" FROM " + name(u.from().name()) + ") WHERE \"__latest\" = 1";
     }
 
-    /** Every row older than the oldest a stream keeps: its latest rows' last, or its latest value less the span. */
+    /** Every row older, by arrival, than the latest {@code rows}: DuckDB's row order is its rows' arrival, kept across
+     *  a checkpoint's renumbering (the roadmap's C0, measured 2026-11-14). */
     private static String bound(HostOperation.Bound b) {
         String table = name(b.target());
-        String column = b.target().declared() ? physicalName(b.column()) : quoted(b.column());
-        String oldest = switch (b.keep()) {
-            case HostOperation.Bound.Keep.Rows r -> "(SELECT " + column + " FROM " + table + " ORDER BY " + column
-                    + " DESC LIMIT 1 OFFSET " + (r.rows() - 1) + ")";
-            case HostOperation.Bound.Keep.Within w -> "(SELECT max(" + column + ") - to_milliseconds(" + w.millis()
-                    + ") FROM " + table + ")";
-        };
-        return "DELETE FROM " + table + " WHERE " + column + " < " + oldest;
+        return "DELETE FROM " + table + " WHERE rowid < (SELECT rowid FROM " + table + " ORDER BY rowid DESC LIMIT 1"
+                + " OFFSET " + (b.rows() - 1) + ")";
     }
 
+    /** A catalog question's database: the one named, or the current one. */
     private static String databaseIs(@com.legend.base.Nullable String database) {
         return database == null ? "database_name = current_database()" : "database_name = " + literal(database);
     }

@@ -1,41 +1,39 @@
-// THE MARKET LIVE IN THE TAB'S DUCKDB (docs/DUCKDB_LIVE_2026_10_25.md L2-L3): every table of the market's made by the
-// planner's own statements (model-data.ts SeedSource: the store's DDL, its column types and keys the model's), declared
-// to the live engine as the world writes it -- the tape, the wire, the fills and routes streams, each bounded; the
-// quotes, orders, rates and requests keyed; the reference written once -- and the world started, its rows written into
-// them. Spells no SQL: every statement is the planner's.
+// THE MARKET LIVE IN THE TAB'S DUCKDB (docs/DUCKDB_LIVE_2026_10_25.md L2-L3): every table of the market's an ingest's
+// dataset (core's stress/29-desk-sources.pure, the desk's market.pure), landed by the planner's plans for it (an
+// ingest's plans, docs/DESK_DATA_ROADMAP_2026_10_29.md C0: made empty as declared, each batch put in by the dataset's
+// write mode, its retention kept at the plan's cadence) -- and the world started, its rows written into them. Spells no
+// SQL and loads no data outside a plan: every statement is the planner's, each batch a value the land plan attaches.
 
-import { LiveDuckDb, type Keep, type LiveTable } from '../../../engine-client/src/duckdb-live.ts';
+import { LiveDuckDb, type LiveTable } from '../../../engine-client/src/duckdb-live.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
-import type { HostOperationsSource } from '../../../engine-client/src/host-operations.ts';
-import type { SeedSource } from '../../../engine-client/src/model-data.ts';
+import type { HostOperationsSource, IngestPlansSource } from '../../../engine-client/src/host-operations.ts';
 import { MarketWorld, type MarketSettings } from './market.ts';
 import { MARKET_TABLES, WORLD, type MarketTable } from './tables.ts';
 
-/** The store the market's tables are the model's of, and the world's own status table's. */
+/** The store the market's tables are the model's of, and the world's own status store's. */
 const STORE = 'store::DB';
 const STATUS = 'market::World';
+
+/** The name each batch is held under while its land plan runs (the plans are asked for with it). */
+const HELD = 'batch';
 
 export interface LiveMarketOptions {
   /** A connection of the tab's DuckDB, set up (duckdb-tab.ts DuckDbInTab.connect): the writer's and each reader's. */
   readonly connect: () => Promise<DuckDbEngine>;
-  /** The planner, over `model`: each table's statements, and every statement the live engine runs. */
-  readonly planner: HostOperationsSource & SeedSource;
+  /** The planner, over `model`: each table's plans, and a reader's snapshot statements. */
+  readonly planner: HostOperationsSource & IngestPlansSource;
   /** The model the tables are declared by: the corpus, the desk's own and its environments (model.ts DESK_MODEL). */
   readonly model: string;
   /** The world's size and pace. */
   readonly settings?: MarketSettings;
-  /** The prints the tape keeps (100000): its latest, by sequence. */
-  readonly tape?: number;
   /** How often the market's rows are written and its followed results run again, in one cycle (250 ms); `timer` false:
    *  the caller beats, writes and emits. */
   readonly cycleMs?: number;
   readonly timer?: boolean;
-  /** False: every append through a staging table, none straight in (the measurement's comparison, §2). */
-  readonly directAppends?: boolean;
 }
 
 /** The market live: its engine, its world, and how long each part of its start took (ms): the planner writing the
- *  tables' statements, DuckDB running them, the world's reference and morning written. */
+ *  tables' plans, DuckDB making the tables, the world's reference and morning written. */
 export interface LiveMarket {
   readonly live: LiveDuckDb;
   readonly world: MarketWorld;
@@ -44,47 +42,29 @@ export interface LiveMarket {
   close(): Promise<void>;
 }
 
-/** What each stream keeps of its history: the tape its latest `tape` prints, the rest a working day's worth. */
-function keepOf(table: MarketTable, tape: number): Keep | undefined {
-  switch (table.name) {
-    case 'MARKET_TRADE': return { column: 'SEQUENCE_NUMBER', rows: tape };
-    case 'NEWS_STORY': return { column: 'PUBLISH_TIME', rows: 5_000 };
-    case 'EXECUTION': return { column: 'SEQUENCE_NUMBER', rows: 50_000 };
-    case 'ORDER_ROUTE': return { column: 'ROUTE_DATE', rows: 50_000 };
-    default: return undefined;
-  }
-}
-
-/** The live table each market table is, as the world writes it: a stream's batches its whole rows, in its order
- *  (tables.ts TableRows), so they go straight in. */
-function liveTable(table: MarketTable, tape: number, direct: boolean): LiveTable {
-  if (table.write.kind === 'keyed') return { name: table.name, kind: 'keyed', key: [table.write.key] };
-  const keep = keepOf(table, tape);
-  return {
-    name: table.name, kind: 'stream', ...(keep === undefined ? {} : { keep }),
-    ...(direct ? { columns: Object.keys(table.shape) } : {}),
-  };
+/** The Database a market table is declared by: the corpus's store, or the world's own status store. */
+function databaseOf(table: MarketTable): string {
+  return table === WORLD ? STATUS : STORE;
 }
 
 export async function openLiveMarket(o: LiveMarketOptions): Promise<LiveMarket> {
-  const tape = o.tape ?? 100_000;
   const t0 = performance.now();
   // the engine's own timer off: the market's cycle emits, right after it writes
   const live = await LiveDuckDb.open({ connect: o.connect, host: o.planner, timer: false });
-  // each table made empty by the planner's statements (a header alone), the store's and the world's own
-  const header = (t: MarketTable): string => Object.keys(t.shape).join(',');
-  const store = MARKET_TABLES.filter((t) => t !== WORLD);
-  const seeds = [
-    ...await o.planner.testDataSql(o.model, STORE, store.map((t) => ({ schema: 'default', table: t.name, csv: header(t) }))),
-    ...await o.planner.testDataSql(o.model, STATUS, [{ schema: 'default', table: WORLD.name, csv: header(WORLD) }]),
-  ];
+  // each table's plans, the planner's from its ingest's declaration
+  const tables: LiveTable[] = await Promise.all(MARKET_TABLES.map(async (t) => ({
+    name: t.name,
+    held: HELD,
+    plans: await o.planner.ingestPlans({
+      databaseType: live.databaseType, model: o.model, database: databaseOf(t), schema: 'default', table: t.name, held: HELD,
+    }),
+  })));
   const tDdl = performance.now();
-  for (const seed of seeds) for (const sql of seed.sql) await live.run(sql);
-  live.declare(MARKET_TABLES.map((t) => liveTable(t, tape, o.directAppends !== false)));
+  await live.declare(tables);
   const t1 = performance.now();
   const timer = o.timer !== false;
-  const world = await MarketWorld.open({ ...o.settings, timer, flushes: false, morningPrints: o.settings?.morningPrints ?? tape },
-    (table, count, rows) => (table.write.kind === 'keyed' ? live.upsert(table.name, count, rows) : live.append(table.name, count, rows)));
+  const world = await MarketWorld.open({ ...o.settings, timer, flushes: false },
+    (table, count, rows) => live.write(table.name, count, rows));
   // ONE CYCLE: the world's rows since the last written, then every reader's stale results run again over them -- a tick
   // waits one cycle, never a write's timer and then a refresh's
   let cycling = false;

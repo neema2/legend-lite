@@ -93,18 +93,19 @@ function feedFields(h: FormHost, spec: ChartSpec, columns: readonly { readonly n
   const of = (keep: (type: string) => boolean): { value: string; label: string }[] =>
     columns.filter((c) => c.type !== undefined && keep(c.type)).map((c) => ({ value: c.name, label: c.name }));
   const text = of((t) => familyOf(t) === 'text');
-  const any = columns.map((c) => ({ value: c.name, label: c.name }));
+  const everyColumn = columns.map((c) => ({ value: c.name, label: c.name }));
   /** One slot told: the feed as it is at the event with it changed (none: taken away); a headline or time, required. */
   const slot = (key: Exclude<keyof ChartFeed, 'tags'>, label: string, choices: { value: string; label: string }[],
     required = false): HTMLElement => field(h.doc, label, dropdown<string>(h.doc, feed?.[key], choices, (v) => {
     if (required && !v) return;
-    const next: Record<string, unknown> = { ...current(h)?.feed };
+    const next: { -readonly [K in keyof ChartFeed]?: ChartFeed[K] } = { ...current(h)?.feed };
     if (v) next[key] = v;
     else delete next[key];
-    if (typeof next['headline'] === 'string' && typeof next['time'] === 'string') h.set({ feed: next as unknown as ChartFeed });
+    const { headline, time } = next;
+    if (headline !== undefined && time !== undefined) h.set({ feed: { ...next, headline, time } });
   }, { allowNone: !required }));
   const tags = feed?.tags ?? [];
-  const tag = (i: number): HTMLElement => field(h.doc, `Tag ${i + 1}:`, dropdown<string>(h.doc, tags[i], any, (v) => {
+  const tag = (i: number): HTMLElement => field(h.doc, `Tag ${i + 1}:`, dropdown<string>(h.doc, tags[i], everyColumn, (v) => {
     const now = current(h)?.feed;
     if (!now) return;
     const next = [...(now.tags ?? [])];
@@ -117,14 +118,14 @@ function feedFields(h: FormHost, spec: ChartSpec, columns: readonly { readonly n
   return [
     slot('headline', 'Headline:', text, true),
     slot('time', 'Time:', of(isTemporal), true),
-    slot('source', 'Source:', any),
+    slot('source', 'Source:', everyColumn),
     tag(0),
     tag(1),
-    slot('weight', 'Weight:', any),
+    slot('weight', 'Weight:', everyColumn),
     slot('tickers', 'Tickers:', text),
     slot('tone', 'Tone:', of(isNumeric)),
     slot('body', 'Body:', text),
-    slot('key', 'Order ties by:', any),
+    slot('key', 'Order ties by:', everyColumn),
     field(h.doc, 'At most:', numberInput(h.doc, spec.options.limit, (v) => {
       if (v !== undefined && Number.isInteger(v) && v >= 1) h.setOption('limit', v);
     }, { width: 110 })),

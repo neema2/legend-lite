@@ -637,14 +637,14 @@ export function chartOption(
     const fitted = spec.options.fitAxis === true;
     let lo = fitted ? Infinity : 0;
     let hi = fitted ? -Infinity : 0;
-    let any = false;
+    let seen = false;
     const up = categories.map(() => 0);
     const down = categories.map(() => 0);
     for (const s of on) {
       const stacks = stacked && (s.mark !== 'line' || chartMark === 'line');
       s.values.forEach((v, i) => {
         if (v === null || !Number.isFinite(v) || !inWindow(i)) return;
-        any = true;
+        seen = true;
         if (!stacks) {
           lo = Math.min(lo, v);
           hi = Math.max(hi, v);
@@ -658,8 +658,8 @@ export function chartOption(
       });
     }
     // a reference line kept in view over the whole time across; a span shows its own values
-    if (any && index === 0 && fitted && windowStart === undefined) for (const r of referenceValues) { lo = Math.min(lo, r); hi = Math.max(hi, r); }
-    return any ? [lo, hi] : null;
+    if (seen && index === 0 && fitted && windowStart === undefined) for (const r of referenceValues) { lo = Math.min(lo, r); hi = Math.max(hi, r); }
+    return seen ? [lo, hi] : null;
   };
   const extents = [...(twoAxes ? [extentOf(0), extentOf(1)] : [extentOf(0)]), ...(pane ? [null] : [])];
   const labelMeasure = spec.label;

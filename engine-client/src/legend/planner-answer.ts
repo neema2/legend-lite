@@ -30,6 +30,7 @@ export interface PlannerModule {
     snapCopyOrError(request: string): string;
     outputPlanOrError(request: string): string;
     synthesizeOrError(request: string): string;
+    ingestPlansOrError(request: string): string;
     authoredOrError(request: string): string;
     sessionSetupOrError(databaseType: string): string;
     projectDataOrError(model: string, databaseType: string): string;
@@ -61,6 +62,7 @@ export function answer(m: PlannerModule, r: RequestBody): string {
     case 'snapCopy': return m.exports.snapCopyOrError(r.request);
     case 'outputPlan': return m.exports.outputPlanOrError(r.request);
     case 'synthesize': return m.exports.synthesizeOrError(r.request);
+    case 'ingestPlans': return m.exports.ingestPlansOrError(r.request);
     case 'authored': return m.exports.authoredOrError(r.request);
     case 'sessionSetup': return m.exports.sessionSetupOrError(r.databaseType);
     case 'projectData': return m.exports.projectDataOrError(r.model, r.databaseType);

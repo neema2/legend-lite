@@ -545,39 +545,6 @@ export class DuckDbEngine implements QueryEngine {
   }
 
   /**
-   * Replace `target` with the rows of `chunks`, each a whole Arrow IPC stream
-   * (the warehouse's chunks): the first creates the table, the rest append.
-   * On the query queue, so no query reads a half-loaded table.
-   */
-  async loadArrow(
-    /** `append`: the table is there already, and every chunk is appended to it -- by POSITION (DuckDB's insert from
-     *  Arrow): each chunk's columns are the table's, in its order, or a value lands in another's column. */
-    target: { readonly schema?: string; readonly table: string; readonly append?: boolean },
-    chunks: AsyncIterable<Uint8Array>,
-    /** The planner's statements run first, in the same turn (its schema made, the table there dropped: snap.ts). */
-    prepare: readonly PlannedSql[] = [],
-  ): Promise<void> {
-    const insert = this.#conn.insertArrowFromIPCStream;
-    if (typeof insert !== 'function') {
-      throw new Error('this DuckDB connection cannot load Arrow data');
-    }
-    const where = target.schema ? `${target.schema}.${target.table}` : target.table;
-    return this.#serialised(async () => {
-      for (const sql of prepare) await this.#conn.query(sql);
-      let first = true;
-      for await (const bytes of chunks) {
-        await insert.call(this.#conn, bytes, {
-          name: target.table,
-          ...(target.schema ? { schema: target.schema } : {}),
-          create: first && target.append !== true,
-        });
-        first = false;
-      }
-      if (first) throw new Error(`no data came back to load into ${where}`);
-    });
-  }
-
-  /**
    * One query on the connection at a time.
    *
    * A DuckDB connection holds ONE pending query. Overlapping them

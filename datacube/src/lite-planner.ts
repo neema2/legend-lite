@@ -34,7 +34,7 @@ import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
+import type { IngestPlans, IngestPlansRequest, RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
 import type { HostOperation } from '../../engine-client/src/host-operations.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
@@ -800,6 +800,20 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    */
   async synthesize(request: SynthesizeRequest): Promise<PlanText> {
     return planFromAnswer(decode(await this.#call({ kind: 'synthesize', request: JSON.stringify(request) }), `the rows made for ${request.table}`));
+  }
+
+  /**
+   * How a dataset's rows land, as plans (Boundary.ingestPlans: an ingest's make, land and keep, the desk roadmap's C0):
+   * each PlanJson's text the hosts' runner runs (runLoad), and the rows that arrive between two keeps -- never a row.
+   */
+  async ingestPlans(request: IngestPlansRequest): Promise<IngestPlans> {
+    const answer = JSON.parse(decode(await this.#call({ kind: 'ingestPlans', request: JSON.stringify(request) }),
+      `the landing of ${request.table}`)) as { readonly make: string; readonly land: string; readonly keep: string | null; readonly keepEvery: number | null };
+    return {
+      make: planFromAnswer(answer.make),
+      land: planFromAnswer(answer.land),
+      keep: answer.keep === null || answer.keepEvery === null ? null : { plan: planFromAnswer(answer.keep), every: answer.keepEvery },
+    };
   }
 
   /**

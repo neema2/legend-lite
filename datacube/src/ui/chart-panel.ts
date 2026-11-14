@@ -674,7 +674,7 @@ export class ChartPanel {
       // across a change of stock kept the old one's prices in view)
       const { epoch: _epoch, ...reads } = snapshot as typeof snapshot & { readonly epoch?: number };
       // written as the protocol writes it: a snapshot holds exact numbers, which JSON.stringify refuses
-      const key = toJson(reads as never);
+      const key = toJson(reads);
       chart.show(drawing, { ticked: ticked && key === this.#drawnQuery });
       this.#drawnQuery = key;
       // the page's charts with the same column across (at the same grain) share a crosshair: those with an axis of

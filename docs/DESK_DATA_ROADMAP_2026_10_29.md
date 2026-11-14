@@ -216,6 +216,41 @@ Python model reads `###Lakehouse` (its generated files byte-identical).
 
 **B5. Dropped** (decision X: "no need for tansu just use door"). The door is the only Kafka the desk runs against.
 
+### C0. Ingest plans: how a dataset's rows land, planned once (agreed 2026-11-14; built first)
+
+The user, 2026-11-14, merging main into this branch: "What is the right design for this clean sheet", then "Okay
+let's do it". Main's total wall (`docs/TOTAL_WALL_START_HERE_2026_11_11.md`: data enters a database only through a
+planned load; a host sends only statements a plan carries, typed `PlannedSql`) deleted `testDataSql` and forbids the
+live engine's own Arrow loads and its insert, upsert and trim operations (`DataMechanismCensusTest`). This replaces them
+with no exception, and is the core of C1 and the base of B2.
+
+**An ingest dataset becomes a standing load plan**, made by the planner once per dataset and target database from the
+ingest's own declaration (A1), and run by the host for every batch:
+
+| Part | What it does | DuckDB (the tab, now) | Deephaven (B2) |
+|---|---|---|---|
+| **Make** | the table, as the ingest declares it | the declared table made empty (the seed's DDL, a header alone) | the subscription to the dataset's topic, its columns the dataset's |
+| **Land** | one batch of rows, by the write mode | the batch attached by name (`attach`: the host holds it, the plan never does), then `AppendOnly` an insert from it, `LatestByKey` an upsert (each key's last row in the batch replaces the table's), then the attached copy dropped | the server's own Kafka reader: append, or a blink table's `lastBy(key)`; a key that goes is a row with `Deleted` set, then `where(Deleted != true)` (measured 2026-10-30, §2's P) |
+| **Keep** | the retention, and how often it runs | `LastRows(n)`: the rows older than the latest n by arrival deleted -- arrival is the table's row order, which a checkpoint renumbers but never reorders (measured 2026-11-14 on DuckDB 1.5.6: 200 rounds of 3,000 appended and trimmed to 10,000, four checkpoints, exactly the latest kept every round); run when n/10 rows have arrived since the last, the cadence the planner's answer carries as data | a ring of n rows; `Last(d)` a window on the record's Kafka time |
+
+- **The host** holds the three plans, attaches each batch under the name it asked for, runs Land, and runs Keep at the
+  cadence the plan gives. It writes no SQL and knows no write mode. Its one Arrow load is the plan runner's `attach`
+  step (engine-client `plan-runner.ts`), main's one entry for a host's value (Python's frames use the same step).
+- **Where rows come from is the source's, not the landing's:** in the tab the `Simulated` world hands each batch to the
+  host; on Deephaven the world publishes it to the door's topic.
+- **`Last(duration)` on DuckDB is refused by name:** it reads when each row arrived, which a DuckDB table does not
+  record. The desk's ingests keep what the tab measured (stage A, docs/DUCKDB_LIVE_2026_10_25.md: "at 25,000 every tab
+  ticks"): the tape its latest 25,000 prints, the wire 5,000 stories, fills and routes 50,000 each -- `LastRows`, one
+  setting for the tab and for Deephaven; how many prints the world writes at its start stays the world's own setting.
+- **The world's status table** (`market::World`) becomes an ingest too (`Stream<Json>`, latest by key): every table the
+  world writes is a dataset.
+- **The planner protocol** gains one kind, `ingestPlans`, answered by the same `Boundary` function in the tab's worker
+  and in Python's native library, as every kind is.
+- **Deleted:** the planner's `testDataSql` use, the engine's `loadArrow`, the live engine's insert, upsert and bound host
+  operations, `live-market.ts`'s retention table and the tables' write kinds.
+- **Done when:** the merge's lanes are green with main's guard unchanged, the in-tab desk ticks, and the stage A
+  measurement is repeated beside its old numbers.
+
 ### C. The tab (does not touch Deephaven; the one-connection plan's steps 6 and 7)
 
 **C1. The tab's tables from the ingests.**
@@ -292,7 +327,8 @@ A0 -> A1 -> A2 -+-> B1 -> B2 -> B3 -> B4
                          all of it -> E
 ```
 
-**Recommended:** A0, A1, A2, B1, B2, B3, B4, C1, C2, D1, D2, E.
+**Recommended:** A0, A1, A2, B1, B2, B3, B4, C1, C2, D1, D2, E. **2026-11-14:** C0 (ingest plans) first, with main's
+merge: main's total wall needs it for the in-tab desk, and B2 renders the same plan for Deephaven.
 
 - Deephaven first, as the user asked (D6 ahead of step 6).
 - The tab next: it deletes the last hand-copied column lists.

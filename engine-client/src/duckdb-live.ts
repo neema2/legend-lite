@@ -1,10 +1,11 @@
 // A LIVE DUCKDB (docs/DUCKDB_LIVE_2026_10_25.md): a streaming engine's concepts on a DuckDB the page holds -- the tab's
 // DuckDB-WASM, no server -- at a demo's scale. A dev, demo and simulation tool, not a streaming database.
 //
-//   STREAMS AND KEYED TABLES. A stream is a table written only by appends, its history bounded (`keep`: the latest rows
-//   by a column, or those within some seconds of its latest), so a day's tape never outgrows a tab; a keyed table holds
-//   the latest row a key, written by upserts (Proton's versioned_kv: a name's quote). Every write marks its table
-//   changed: a version, one a write.
+//   TABLES, AS THEIR INGESTS LAND THEM (an ingest's plans, docs/DESK_DATA_ROADMAP_2026_10_29.md C0): each table the
+//   engine writes is a dataset of an ingest, and lands by its three plans, the planner's (Boundary.ingestPlans) --
+//   made empty as declared; each batch attached by name and put in by the dataset's write mode (appended, or latest by
+//   key: Proton's versioned_kv, a name's quote); its retention kept at the plan's cadence, so a day's tape never
+//   outgrows a tab. The engine knows no write mode. Every write marks its table changed: a version, one a write.
 //
 //   READERS. A grid's reader (live.ts LiveReader) runs its plans on a connection of its own; the results its landed view
 //   read are FOLLOWED, as the Deephaven reader's are (deephaven-engine.ts): those read in the view followed last, or
@@ -16,42 +17,29 @@
 //   new result is kept, and the reader is told only when one differs from what it was. The grid's run at that tick is
 //   answered from the kept results: nothing runs twice.
 //
-// It spells no SQL (D5, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md): a write's rows go in as Arrow, through a staging table,
-// and every statement it runs -- a write's, a bound's, a snapshot's transaction -- is the planner's, for an operation it
-// names (host-operations.ts), asked once a shape. Every followed result runs again whole (an incremental view,
+// It spells no SQL and loads no data outside a plan (D5, docs/ONE_PLATFORM_PROGRAM_2026_10_12.md; main's total wall,
+// docs/TOTAL_WALL_START_HERE_2026_11_11.md): a batch's rows are a value it holds, which the land plan's attach step
+// puts in (plan-runner.ts runLoad, HostValues), and every statement it runs -- a plan's, a snapshot's transaction (the
+// planner's, host-operations.ts) -- is the planner's. Every followed result runs again whole (an incremental view,
 // ClickHouse's lesson, only where measured: §3).
 
 import { arrowIpcStream, type MadeColumn } from './arrow-ipc.ts';
-import type { DuckDbEngine } from './duckdb.ts';
+import type { DuckDbEngine, HeldConnection } from './duckdb.ts';
 import type { RawTable } from './engine.ts';
-import type { HostName, HostOperation, HostOperationsSource } from './host-operations.ts';
-import type { PlannedSql } from './planned-sql.ts';
+import type { HostOperationsSource, IngestPlans } from './host-operations.ts';
+import { runLoad, type PlanValue } from './plan-runner.ts';
+import type { PlannedSql, PlanText } from './planned-sql.ts';
 import type { LiveEvent, LiveReader } from './live.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable } from './result.ts';
 
-/** How a stream's history is bounded: its latest `rows` by `column`, or its rows within `seconds` of `column`'s latest
- *  (a time column: the stream's own clock, which a simulated market runs at its own speed). */
-export type Keep =
-  | { readonly column: string; readonly rows: number }
-  | { readonly column: string; readonly seconds: number };
-
-/** A table the live engine follows writes to: a stream (appends, bounded by `keep`) or a keyed table (upserts). */
+/** A table the live engine writes and follows: as the model declares it (MARKET_TRADE), and the plans its ingest lands
+ *  its rows by (host-operations.ts IngestPlans, the planner's: Boundary.ingestPlans), each batch held under `held`. */
 export interface LiveTable {
-  /** As the model declares it, and the planner's SQL names it (MARKET_TRADE). */
   readonly name: string;
-  /** Its schema, where it is not the database's default one. */
-  readonly schema?: string;
-  readonly kind: 'stream' | 'keyed';
-  /** A keyed table's key: its primary key's columns (`INSERT OR REPLACE` replaces by it). */
-  readonly key?: readonly string[];
-  readonly keep?: Keep;
-  /**
-   * A stream's columns, in the table's order: a batch of exactly these, in this order, goes straight into the table
-   * (Arrow appended by position: one round trip); any other batch through a staging table, by name. Measured
-   * (docs/DUCKDB_LIVE_2026_10_25.md §2): the staging path's four statements were most of a write's time.
-   */
-  readonly columns?: readonly string[];
+  readonly plans: IngestPlans;
+  /** The name the plans' land step attaches a batch by: the one the plans were asked for with. */
+  readonly held: string;
 }
 
 /** Rows a page made, a column at a time (arrow-ipc.ts MadeColumn), each named as the table's column it goes in. */
@@ -61,7 +49,7 @@ export interface LiveDuckDbOptions {
   /** A connection of the database's own: the writer's, and each reader's (each reads its own snapshot) -- the tab's set
    *  up as every connection of its is (duckdb-tab.ts DuckDbInTab.connect). */
   readonly connect: () => DuckDbEngine | Promise<DuckDbEngine>;
-  /** The planner, which writes each statement the live engine runs (D5): a write's, a bound's, a transaction's. */
+  /** The planner, which writes the statements of a reader's snapshot (its transaction: D5); a table's are its plans'. */
   readonly host: HostOperationsSource;
   /** The session every connection is set up with first (the planner's: engine.ts setUpSession). */
   readonly setup?: readonly PlannedSql[];
@@ -80,7 +68,7 @@ export interface LiveCounts {
   unchanged: number;
   /** Times a reader was told its results changed. */
   told: number;
-  /** Writes (appends, upserts), the rows they wrote, and the bounds that trimmed a stream. */
+  /** Writes (batches landed), the rows they wrote, and the keeps that trimmed a table. */
   writes: number;
   rows: number;
   trims: number;
@@ -115,29 +103,23 @@ interface Kept {
   epoch: number;
 }
 
-/** A table's state: its version (one a write), and the rows appended since its bound last trimmed it. */
+/** A table's state: its version (one a write), and the rows arrived since its keep last ran. */
 interface TableState {
   readonly table: LiveTable;
-  /** As the planner names it: the model's declared table. */
-  readonly target: HostName;
-  /** The staging table a write's rows land in first: a name of the engine's own. */
-  readonly staging: HostName;
   version: number;
-  appended: number;
-  /** A staging table a failed write left: dropped before the next is loaded. */
-  stagingLeft: boolean;
+  arrived: number;
 }
 
 export class LiveDuckDb {
+  /** The database its tables' plans are asked for (the planner's name for it). */
+  readonly databaseType = DATABASE;
   readonly #options: LiveDuckDbOptions;
   readonly #writer: DuckDbEngine;
   readonly #snapshot: Snapshot;
   readonly #tables = new Map<string, TableState>();
   readonly #readers = new Set<DuckDbLiveReader>();
-  /** The planner's statements, by the operations' shape: asked once each. */
-  readonly #written = new Map<string, Promise<PlannedSql[][]>>();
   #timer: ReturnType<typeof setInterval> | undefined;
-  /** Writes one at a time: each through a staging table of its table's. */
+  /** Writes one at a time: each a land plan's load on the writer's connection, held for it alone. */
   #writing: Promise<unknown> = Promise.resolve();
   #emitting: Promise<void> | null = null;
   /** The time (performance.now) of the first write since the last emit; null: none. */
@@ -169,64 +151,26 @@ export class LiveDuckDb {
     return new LiveDuckDb(options, await connected(options), { begin: begin ?? [], commit: commit ?? [] });
   }
 
-  /** The tables written through this engine, each made beforehand (the planner's DDL, `run`): a stream or a keyed table. */
-  declare(tables: readonly LiveTable[]): void {
+  /** The tables written through this engine, each made as its ingest declares it, empty (its make plan). */
+  async declare(tables: readonly LiveTable[]): Promise<void> {
     for (const table of tables) {
       if (this.#tables.has(table.name)) throw new Error(`the live table ${table.name} is declared already`);
-      if (table.kind === 'keyed' && (table.key === undefined || table.key.length === 0)) throw new Error(`${table.name}: a keyed table names its key`);
-      if (table.kind === 'keyed' && table.keep !== undefined) throw new Error(`${table.name}: a keyed table keeps a row a key, not a history`);
-      if (table.kind === 'stream' && table.key !== undefined) throw new Error(`${table.name}: a stream is appended to, never keyed`);
-      this.#tables.set(table.name, {
-        table,
-        target: { ...(table.schema === undefined ? {} : { schema: table.schema }), name: table.name, declared: true },
-        staging: { name: `__live_${table.schema === undefined ? '' : `${table.schema}_`}${table.name}` },
-        version: 0,
-        appended: 0,
-        stagingLeft: true,
-      });
+      this.#tables.set(table.name, { table, version: 0, arrived: 0 });
     }
+    for (const table of tables) await this.#write(() => this.#run(table.plans.make));
   }
 
-  /** A statement the planner wrote, on the writer's connection -- a table made, its first rows: no write a reader is told of. */
-  run(sql: PlannedSql): Promise<RawTable> {
-    return this.#write(() => this.#writer.run(sql, 0));
-  }
-
-  /** `count` rows appended to the stream `table`, each column the table's of its name (any it lacks, null): straight in
-   *  when they are the table's declared columns in its order (LiveTable.columns), else through its staging table. */
-  async append(table: string, count: number, rows: LiveRows): Promise<number> {
-    const state = this.#state(table, 'stream');
-    const names = Object.keys(rows);
-    const declared = state.table.columns;
-    if (declared !== undefined && declared.length === names.length && declared.every((c, i) => c === names[i])) {
-      return this.#write(async () => {
-        await this.#writer.loadArrow({ ...(state.table.schema === undefined ? {} : { schema: state.table.schema }), table: table, append: true },
-          once(arrowIpcStream(count, rows)));
-        state.appended += count;
-        this.#changed(state, count);
-        return count;
-      });
-    }
-    const columns = names.map((name) => ({ target: name, from: name }));
+  /** `count` rows of `table` landed by its land plan -- appended, or each key's latest kept, as its ingest says: the
+   *  batch held under the plan's name while the plan's load runs, never written into a statement. */
+  async write(table: string, count: number, rows: LiveRows): Promise<number> {
+    const state = this.#tables.get(table);
+    if (state === undefined) throw new Error(`${table} is not a live table: declare it first`);
+    const ipc = arrowIpcStream(count, rows);
     return this.#write(async () => {
-      const written = await this.#staged(state, arrowIpcStream(count, rows), `append ${table} ${names.join(',')}`,
-        { op: 'insert', target: state.target, columns, from: { relation: state.staging } });
-      state.appended += written;
-      this.#changed(state, written);
-      return written;
-    });
-  }
-
-  /** `count` rows upserted into the keyed table `table`: each the latest of its key, an older row of the key replaced --
-   *  the batch's last row of a key where it holds more than one. */
-  async upsert(table: string, count: number, rows: LiveRows): Promise<number> {
-    const state = this.#state(table, 'keyed');
-    const columns = Object.keys(rows).map((name) => ({ target: name, from: name }));
-    return this.#write(async () => {
-      const written = await this.#staged(state, arrowIpcStream(count, rows), `upsert ${table} ${Object.keys(rows).join(',')}`,
-        { op: 'upsert', target: state.target, columns, key: state.table.key ?? [], from: { relation: state.staging } });
-      this.#changed(state, written);
-      return written;
+      await this.#run(state.table.plans.land, { [state.table.held]: ipc });
+      state.arrived += count;
+      this.#changed(state, count);
+      return count;
     });
   }
 
@@ -286,38 +230,23 @@ export class LiveDuckDb {
     return next;
   }
 
-  /** The planner's statements for `operations`, asked once for each `shape` (a write's table and columns, a bound's). */
-  #statements(shape: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]> {
-    let asked = this.#written.get(shape);
-    if (asked === undefined) {
-      asked = this.#options.host.hostOperations(DATABASE, operations);
-      this.#written.set(shape, asked);
-      asked.catch(() => { this.#written.delete(shape); });
-    }
-    return asked;
-  }
-
-  /** `ipc` loaded into the table's staging table, then written from it into the table by `write`: the rows written. The
-   *  staging table is dropped after, and before only where a failed write left one. */
-  async #staged(state: TableState, ipc: Uint8Array, shape: string, write: HostOperation): Promise<number> {
-    const [drop, into] = await this.#statements(shape, [{ op: 'drop', kind: 'table', target: state.staging }, write]);
-    await this.#writer.loadArrow({ table: state.staging.name }, once(ipc), state.stagingLeft ? drop ?? [] : []);
-    state.stagingLeft = true;
-    try {
-      let written: RawTable | undefined;
-      for (const sql of into ?? []) written = await this.#writer.run(sql, 0);
-      return Number(written?.columns[0]?.values[0] ?? 0);
-    } finally {
-      for (const sql of drop ?? []) await this.#writer.run(sql, 0);
-      state.stagingLeft = false;
-    }
-  }
-
-  #state(table: string, kind: LiveTable['kind']): TableState {
-    const state = this.#tables.get(table);
-    if (state === undefined) throw new Error(`${table} is not a live table: declare it first`);
-    if (state.table.kind !== kind) throw new Error(`${table} is ${state.table.kind === 'stream' ? 'a stream: it is appended to' : 'keyed: it is upserted into'}`);
-    return state;
+  /** `plan`'s load on the writer's connection, held for it alone; an attach step puts in the value `held` names (the
+   *  batch, as Arrow IPC, by the database's own Arrow import). Its last statement's first cell answered: a keep's rows
+   *  deleted. */
+  #run(plan: PlanText, held: Readonly<Record<string, Uint8Array>> = {}): Promise<number> {
+    return this.#writer.exclusive(async (conn: HeldConnection) => {
+      let last: unknown[][] = [];
+      await runLoad(plan, async (sql: PlannedSql, params: readonly PlanValue[]) => { last = await conn.rows(sql, params); }, {
+        values: {
+          attach: async (name, as) => {
+            const bytes = Object.hasOwn(held, name) ? held[name] : undefined;
+            if (bytes === undefined) throw new Error(`the plan attaches '${name}', which this write does not hold`);
+            await conn.insertArrow(bytes, { table: as }, true);
+          },
+        },
+      });
+      return Number(last[0]?.[0] ?? 0);
+    });
   }
 
   #changed(state: TableState, rows: number): void {
@@ -327,19 +256,14 @@ export class LiveDuckDb {
     this.counts.rows += rows;
   }
 
-  /** Each stream past its bound by a tenth of it (a span's: by any append) trimmed back to it: a change of its own. */
+  /** Each table whose keep's cadence has come round (its plan's `every` rows arrived since it last ran) kept: its
+   *  rows past its retention deleted, a change of its own where any were. */
   async #bound(): Promise<void> {
     for (const state of this.#tables.values()) {
-      const keep = state.table.keep;
-      if (keep === undefined || state.appended === 0) continue;
-      if ('rows' in keep && state.appended < Math.max(1, keep.rows / 10)) continue;
-      const operation: HostOperation = 'rows' in keep
-        ? { op: 'bound', target: state.target, column: keep.column, rows: keep.rows }
-        : { op: 'bound', target: state.target, column: keep.column, millis: Math.round(keep.seconds * 1000) };
-      const [bound] = await this.#statements(`bound ${state.table.name}`, [operation]);
-      let deleted = 0;
-      for (const sql of bound ?? []) deleted += Number((await this.#writer.run(sql, 0)).columns[0]?.values[0] ?? 0);
-      state.appended = 0;
+      const keep = state.table.plans.keep;
+      if (keep === null || state.arrived < keep.every) continue;
+      const deleted = await this.#run(keep.plan);
+      state.arrived = 0;
       if (deleted > 0) {
         this.counts.trims++;
         state.version++;
@@ -499,17 +423,12 @@ async function connected(options: LiveDuckDbOptions): Promise<DuckDbEngine> {
   return engine;
 }
 
-/** One chunk, as the async iterable an Arrow load reads. */
-async function* once(bytes: Uint8Array): AsyncIterable<Uint8Array> {
-  yield bytes;
-}
-
 function escaped(name: string): string {
   return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** A result's values as one string to compare (a bigint as its text, a typed array as its values). */
+/** A result's values as one string to compare (a bigint as its text, a typed array as its bytes). */
 function digest(result: ResultTable): string {
   return JSON.stringify([result.rowCount, result.columns.map((c) => c.values)], (_k, v: unknown) =>
-    (typeof v === 'bigint' ? v.toString() : ArrayBuffer.isView(v) ? Array.from(v as unknown as ArrayLike<number>) : v));
+    (typeof v === 'bigint' ? v.toString() : ArrayBuffer.isView(v) ? Array.from(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)) : v));
 }

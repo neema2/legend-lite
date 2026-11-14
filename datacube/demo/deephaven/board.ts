@@ -13,6 +13,7 @@
 // the extent it drew it at, each draw.
 
 import { getInstanceByDom } from 'echarts/core';
+import { drawnExtent } from '../../src/chart-render.ts';
 import { CubeApp } from '../../src/app.ts';
 import type { CubeView } from '../../src/cube.ts';
 import { openCube } from '../../src/cube-document.ts';
@@ -72,9 +73,11 @@ interface Shown {
 const shown: Shown = {
   status: 'starting', error: '', reconnects: 0, opened: 0, grids: {}, charts: {}, counts: null, bases: [], paused: false,
 };
+/** The charts whose draws are counted already. */
+const watched = new WeakSet<object>();
 /** Where Save keeps the page: this browser's storage. */
 const SAVED = 'legend-lite.deephaven.board';
-(window as unknown as { __board: Shown }).__board = shown;
+Object.assign(window, { __board: shown });
 
 const byId = (id: string): HTMLElement => {
   const e = document.getElementById(id);
@@ -272,13 +275,12 @@ async function main(): Promise<void> {
           all = false;
           continue;
         }
-        if ((chart as unknown as { __watched?: boolean }).__watched) continue;
-        (chart as unknown as { __watched?: boolean }).__watched = true;
+        if (watched.has(chart)) continue;
+        watched.add(chart);
         chart.on('finished', () => {
           const series = (chart.getOption() as { series?: { data?: unknown[] }[] }).series ?? [];
           c.values = (series[0]?.data ?? []).map((d) => (Array.isArray(d) ? d[d.length - 1] : (d as { value?: unknown })?.value ?? d));
-          const axis = (chart as unknown as { getModel(): { getComponent(t: string, i: number): { axis?: { scale?: { getExtent(): number[] } } } } })
-            .getModel().getComponent('yAxis', 0)?.axis?.scale?.getExtent();
+          const axis = drawnExtent(chart, 'yAxis', 0);
           if (axis && axis.length === 2) keep2(c.axes, [axis[0]!, axis[1]!]);
           const since = tickedAt.get(c.grid);
           if (since === undefined) return;

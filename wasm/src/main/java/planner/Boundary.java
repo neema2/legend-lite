@@ -597,6 +597,36 @@ public final class Boundary {
                         count, knobs)));
     }
 
+    /**
+     * HOW A DATASET'S ROWS LAND, AS PLANS (an ingest's plans: docs/DESK_DATA_ROADMAP_2026_10_29.md C0, the user's go of
+     * 2026-11-14): {@code request} is {@code {"databaseType", "model", "database", "schema", "table", "held"}} -- the
+     * host's database's type, the model's text, a table an ingest's dataset makes (reached from that Database through its
+     * includes), and the name the host holds each batch under. Any other key is refused by name, so no row can ride in
+     * one. The answer is {@code {"make", "land", "keep", "keepEvery"}}: the three plans (PlanJson's text; {@code keep}
+     * and its cadence {@code keepEvery}, rows arrived between two runs, null for a dataset that keeps every row), each one
+     * HOST_SESSION load the host's runner runs ({@code com.legend.planner.IngestPlanner}). A model this host holds is
+     * read as held, compiled no more.
+     */
+    public static String ingestPlans(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "an ingest's plans", "databaseType", "model", "database", "schema", "table", "held");
+        String databaseType = in.getString("databaseType");
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        com.legend.executionplan.DatabaseType type =
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
+        return MODELS.withText(in.getString("model"), ctx -> {
+            com.legend.planner.IngestPlanner.Plans plans = com.legend.planner.IngestPlanner.plans(dialect, type,
+                    new com.legend.planner.LoadPlanner.DeclaredTable(ctx, in.getString("database"),
+                            in.getString("schema"), in.getString("table")), in.getString("held"));
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("make", com.legend.executionplan.PlanJson.write(plans.make()));
+            out.put("land", com.legend.executionplan.PlanJson.write(plans.land()));
+            out.put("keep", plans.keep() == null ? null : com.legend.executionplan.PlanJson.write(plans.keep()));
+            out.put("keepEvery", plans.keepEvery());
+            return com.legend.json.Json.toCompact(out);
+        });
+    }
+
     /** A knob's value as written: a number's own token, or a text. */
     private static String scalar(com.legend.json.Json.Node v, String column) {
         return switch (v) {

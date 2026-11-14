@@ -156,7 +156,8 @@ public sealed interface HostOperation {
     }
 
     /**
-     * Rows put into a keyed table from a table of the database (a live table's upsert, docs/DUCKDB_LIVE_2026_10_25.md):
+     * Rows put into a keyed table from a table of the database (an ingest's latest-by-key landing, {@code
+     * planner.IngestPlanner}; docs/DESK_DATA_ROADMAP_2026_10_29.md C0):
      * each the latest row of its {@code key} -- the target's columns, its primary key's -- so a row of the key the table
      * holds is replaced, and of the source's rows of one key its last is put in. Each target column from the source's
      * column {@link Column#from}, the key's columns among them.
@@ -194,28 +195,15 @@ public sealed interface HostOperation {
     }
 
     /**
-     * A stream's rows past its bound deleted (a live table's history, docs/DUCKDB_LIVE_2026_10_25.md): those older, by
-     * {@code column}, than its latest {@code rows}, or than its latest value less {@code millis} (a time column).
+     * A table's rows past its retention deleted (an ingest's keep, {@code planner.IngestPlanner}; docs/DESK_DATA_ROADMAP
+     * _2026_10_29.md C0): those older, by ARRIVAL, than its latest {@code rows} -- arrival the table's own row order,
+     * which its database keeps as rows are appended (DuckDB renumbers its rows at a checkpoint and never reorders them:
+     * measured 2026-11-14, the roadmap's C0).
      */
-    record Bound(Name target, String column, Keep keep) implements HostOperation {
-        /** What a stream keeps of its history. */
-        public sealed interface Keep {
-            /** Its latest rows: a whole number, at least one. */
-            record Rows(long rows) implements Keep {
-                public Rows {
-                    if (rows < 1) {
-                        throw new IllegalArgumentException("a stream keeps at least one row, not " + rows);
-                    }
-                }
-            }
-
-            /** Its rows within this many milliseconds of its latest. */
-            record Within(long millis) implements Keep {
-                public Within {
-                    if (millis < 0) {
-                        throw new IllegalArgumentException("a stream keeps a span of no less than nothing, not " + millis + " ms");
-                    }
-                }
+    record Bound(Name target, long rows) implements HostOperation {
+        public Bound {
+            if (rows < 1) {
+                throw new IllegalArgumentException("a table keeps at least one row, not " + rows);
             }
         }
     }

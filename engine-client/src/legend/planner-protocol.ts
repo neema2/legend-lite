@@ -26,6 +26,7 @@ export const REQUEST_KINDS = [
   'snapCopy',
   'outputPlan',
   'synthesize',
+  'ingestPlans',
   'authored',
   'sessionSetup',
   'projectData',
@@ -77,6 +78,8 @@ export type RequestBody =
   // rows the database generates into a declared table, as a plan (SYNTHESIZE, the user's ruling of 2026-11-12): the
   // request's JSON, the table and its knobs, never a row (Boundary.synthesize)
   | { readonly kind: 'synthesize'; readonly request: string }
+  // how a dataset's rows land, as plans: an ingest's make, land and keep (Boundary.ingestPlans; the desk roadmap's C0)
+  | { readonly kind: 'ingestPlans'; readonly request: string }
   // a statement a person wrote, as a plan (Studio's SQL playground, the user's ruling of 2026-11-12): the request's JSON,
   // the database and the person's one text, carried as written (Boundary.authored)
   | { readonly kind: 'authored'; readonly request: string }

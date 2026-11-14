@@ -11,7 +11,7 @@ import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 import type { FileLoadRequest } from '../model-data.ts';
-import type { RemoteMountRequest, SnapCopyRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
+import type { IngestPlans, IngestPlansRequest, RemoteMountRequest, SnapCopyRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../planned-sql.ts';
@@ -288,6 +288,21 @@ export class WasmGrammar implements Grammar {
    */
   async synthesize(request: SynthesizeRequest): Promise<PlanText> {
     return planFromAnswer(unfold(await this.#port.ask({ kind: 'synthesize', request: JSON.stringify(request) })));
+  }
+
+  /**
+   * How a dataset's rows land, as plans (Boundary.ingestPlans: an ingest's make, land and keep, the desk roadmap's C0):
+   * each PlanJson's text the hosts' runner runs (runLoad), and the rows that arrive between two keeps -- never a row.
+   */
+  async ingestPlans(request: IngestPlansRequest): Promise<IngestPlans> {
+    const answer = JSON.parse(unfold(await this.#port.ask({ kind: 'ingestPlans', request: JSON.stringify(request) }))) as {
+      readonly make: string; readonly land: string; readonly keep: string | null; readonly keepEvery: number | null;
+    };
+    return {
+      make: planFromAnswer(answer.make),
+      land: planFromAnswer(answer.land),
+      keep: answer.keep === null || answer.keepEvery === null ? null : { plan: planFromAnswer(answer.keep), every: answer.keepEvery },
+    };
   }
 
   /**

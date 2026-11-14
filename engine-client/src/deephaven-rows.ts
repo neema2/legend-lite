@@ -20,7 +20,7 @@ import type { FollowedRows } from './deephaven-live.ts';
 export function deephavenRows(stream: Uint8Array, epoch: number, elapsedMs: number): RawTable {
   const table = tableFromIPC(stream);
   const columns = table.schema.fields.map((field, c) => {
-    const vector = table.getChildAt(c) as unknown as ArrowishVector | null;
+    const vector: ArrowishVector | null = table.getChildAt(c);
     const decode = decoderOf(field.name, String(field.type), field.metadata.get('deephaven:type'), field.type);
     const values: Scalar[] = new Array<Scalar>(table.numRows);
     for (let r = 0; r < table.numRows; r++) values[r] = vector ? decode(vector, r) : null;

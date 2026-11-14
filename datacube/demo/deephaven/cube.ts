@@ -63,7 +63,7 @@ const shown: Shown = {
   status: 'starting', error: '', views: 0, reconnects: 0, ticks: 0, refreshes: 0, tickToPaint: [], runMs: [], tickParts: [], counts: null,
   epoch: 0, followed: 0, columns: [], rows: [], window: null, base: null, paused: false,
 };
-(window as unknown as { __cube: Shown }).__cube = shown;
+Object.assign(window, { __cube: shown });
 
 const byId = (id: string): HTMLElement => {
   const e = document.getElementById(id);
