@@ -115,8 +115,20 @@ Deployment market::Desk
   (post-actions). On Deephaven the plan is data for a fixed, reconciling loader; in the tab, exec runs it (C0's plans).
 - **The runtime is untouched** (upstream's): it says where queries go. On connect, the engine a runtime names must hold
   every table and view its mapping reads, with the declared types, or the desk is refused, naming what is missing.
+- **A function activator is not reused for it** (the user, 2026-11-14: "Should we just reuse function activator or
+  no"; the answer, no). An activator deploys one function; a deployment lands datasets from sources and keeps their
+  history, which an activator's metamodel (`function`, `ownership`, `activationConfiguration`, `actions`) has no
+  place for. Each activator is one backend, the limit this design removes; an environment is dozens of elements, each
+  an activator repeating its target and owner; an activator's environment is the server's configuration, not the
+  model's. The user also turned down a per-backend `DeephavenTable` activator (2026-10-29) and called upstream's
+  `DeephavenApp` half built (2026-10-22). Taken from it: the target is a connection, `ownership: Deployment {
+  identifier }`, rendering without applying, one entry with a generator per backend.
+- **The bridge to activators:** a `Deployment` is, in the metamodel, a kind of upstream's `DeploymentConfiguration`
+  (an empty marker class, what an activator's `activationConfiguration` points at). A later activator can then deploy
+  a function into the same environment: upstream's `HostedService` serving a screen with `activationConfiguration:
+  market::DeskOnDeephaven`, its connections and owner reused. Activators stay the tool for serving functions, later.
 
-## 5. The whole thing, end to end
+## 5. The whole thing, end to end (written out in full: the appendix)
 
 **Part 1, what the data is (names no engine):**
 1. Topic stores, by their producers: a `###Relational` table per topic, its key the table's (a source that exists on
@@ -163,3 +175,386 @@ Then, each its own decision: materialized views on both live targets; the histor
 Deephaven and DuckDB; the cut between history and live); data products served where deployed; production
 configuration (Avro with Legend's schemas published to a registry, a lane against a real broker, reading less on
 restart).
+
+## Appendix: the whole model, as a person would write it (2026-11-14)
+
+One of each kind: an event stream, a keyed stream, reference data with deletes, a delivered snapshot, a delivered
+topic, a materialized view, two environments. New against today: upstream's ingest words (`Delta<JSON>`,
+`deleteIndicator`, `BatchMilestoned`, the key taken from the topic); `Derived` for a materialized view (spelling
+open); an access point with no target, `LH(|...)` (lite's spelling); the connection types `Files`, `Iceberg` and
+`TabLog`; a Kafka connection with no `format` (it is the read mode's) and no `store` (the deployment says what it
+feeds); the `Deployment` element. Everything else exists today.
+
+```
+// ================================================================
+// PART 1: WHAT THE DATA IS (names no engine)
+// ================================================================
+
+###Relational
+// SOURCES: topics, each declared by the team that publishes it
+
+Database tickerplant::Topics
+(
+  Table "tp.us-equities.trades.v3"
+  (
+    PRINT_ID      VARCHAR(200) PRIMARY KEY,
+    PRINT_TIME    TIMESTAMP NOT NULL,
+    INSTRUMENT_ID VARCHAR(200) NOT NULL,
+    PRICE         DOUBLE NOT NULL,
+    QUANTITY      DOUBLE NOT NULL
+  )
+  Table "tp.us-equities.nbbo.v2"
+  (
+    INSTRUMENT_ID VARCHAR(200) PRIMARY KEY,
+    QUOTE_TIME    TIMESTAMP NOT NULL,
+    BID           DOUBLE,
+    ASK           DOUBLE,
+    MID           DOUBLE
+  )
+)
+
+Database secmaster::Topics
+(
+  Table "secmaster.instruments.v1"
+  (
+    INSTRUMENT_ID VARCHAR(200) PRIMARY KEY,
+    TICKER        VARCHAR(20) NOT NULL,
+    NAME          VARCHAR(200) NOT NULL,
+    DELETED       BIT
+  )
+)
+
+
+###Lakehouse
+// DESTINATIONS: what lands, in upstream's words
+
+// Market data, read from the ticker plant's topics
+Ingest marketdata::MarketDataFeed Delta<JSON>
+  owner=AppDir(production='1001')
+[
+  MARKET_TRADE( |#>{tickerplant::Topics."tp.us-equities.trades.v3"}# )
+    writeMode=AppendOnly;
+  MARKET_QUOTE( |#>{tickerplant::Topics."tp.us-equities.nbbo.v2"}# )
+    writeMode=BatchMilestoned;
+]
+
+// Reference data, the security master's change-capture topic
+Ingest products::SecurityMaster Delta<JSON>
+  owner=AppDir(production='1002')
+  deleteIndicator=(deleteField: 'DELETED', deleteValues: ['true'])
+[
+  INSTRUMENT( |#>{secmaster::Topics."secmaster.instruments.v1"}# )
+    writeMode=BatchMilestoned;
+]
+
+// Positions: start-of-day snapshot files, delivered to the ingest
+Ingest positions::StartOfDay Snapshot<Parquet>
+  owner=AppDir(production='1003')
+[
+  POSITION( POSITION_ID:   Varchar(200)[1],
+            BOOK_ID:       Varchar(200)[1],
+            INSTRUMENT_ID: Varchar(200)[1],
+            QUANTITY:      Double[1] )
+    pk=[ POSITION_ID ] writeMode=BatchMilestoned;
+]
+
+// The world's status: records delivered to the ingest's own topic
+Ingest market::WorldStatus Delta<JSON>
+[
+  STATUS( ITEM: Varchar(16)[1], STATE: Varchar(16)[1] )
+    pk=[ ITEM ] writeMode=BatchMilestoned;
+]
+
+// A materialized view over landed datasets
+Ingest desk::Views Derived
+[
+  TRADED_VOLUME(
+    |#I{marketdata::MarketDataFeed.MARKET_TRADE}#
+      ->groupBy(~[INSTRUMENT_ID],
+                ~[VOLUME: x | $x.QUANTITY : y | $y->plus(),
+                  TRADES: x | $x.PRINT_ID : y | $y->count()]) )
+    pk=[ INSTRUMENT_ID ];
+]
+
+
+###Relational
+// WHAT THE MODEL READS: the landed datasets as tables, joined
+
+Database store::DB
+(
+  include Ingest marketdata::MarketDataFeed
+  include Ingest products::SecurityMaster
+  include Ingest positions::StartOfDay
+  include Ingest market::WorldStatus
+  include Ingest desk::Views
+
+  Join Trade_Instrument(
+    MARKET_TRADE.INSTRUMENT_ID = INSTRUMENT.INSTRUMENT_ID)
+  Join Position_Instrument(
+    POSITION.INSTRUMENT_ID = INSTRUMENT.INSTRUMENT_ID)
+)
+
+
+###Pure
+// THE BUSINESS VIEW
+
+Class products::Instrument
+{
+  instrumentId: String[1];
+  ticker:       String[1];
+  name:         String[1];
+}
+
+Class marketdata::MarketTrade
+{
+  printId:   String[1];
+  printTime: DateTime[1];
+  price:     Float[1];
+  quantity:  Float[1];
+}
+
+Class positions::Position
+{
+  positionId: String[1];
+  bookId:     String[1];
+  quantity:   Float[1];
+}
+
+Association marketdata::Trade_Instrument
+{
+  trades:     marketdata::MarketTrade[*];
+  instrument: products::Instrument[1];
+}
+
+Association positions::Position_Instrument
+{
+  positions:  positions::Position[*];
+  instrument: products::Instrument[1];
+}
+
+
+###Mapping
+Mapping desk::DeskMapping
+(
+  products::Instrument: Relational
+  {
+    ~mainTable [store::DB] INSTRUMENT
+    instrumentId: [store::DB] INSTRUMENT.INSTRUMENT_ID,
+    ticker:       [store::DB] INSTRUMENT.TICKER,
+    name:         [store::DB] INSTRUMENT.NAME
+  }
+  marketdata::MarketTrade: Relational
+  {
+    ~mainTable [store::DB] MARKET_TRADE
+    printId:   [store::DB] MARKET_TRADE.PRINT_ID,
+    printTime: [store::DB] MARKET_TRADE.PRINT_TIME,
+    price:     [store::DB] MARKET_TRADE.PRICE,
+    quantity:  [store::DB] MARKET_TRADE.QUANTITY
+  }
+  positions::Position: Relational
+  {
+    ~mainTable [store::DB] POSITION
+    positionId: [store::DB] POSITION.POSITION_ID,
+    bookId:     [store::DB] POSITION.BOOK_ID,
+    quantity:   [store::DB] POSITION.QUANTITY
+  }
+  marketdata::Trade_Instrument: Relational
+  {
+    AssociationMapping
+    (
+      trades:     [store::DB]@Trade_Instrument,
+      instrument: [store::DB]@Trade_Instrument
+    )
+  }
+  positions::Position_Instrument: Relational
+  {
+    AssociationMapping
+    (
+      positions:  [store::DB]@Position_Instrument,
+      instrument: [store::DB]@Position_Instrument
+    )
+  }
+)
+
+
+###Pure
+// A SCREEN
+
+function desk::screens::tape(): Relation<(at: DateTime[1],
+    ticker: String[1], price: Float[1], size: Float[1])>[1]
+{
+  marketdata::MarketTrade.all()
+    ->project(~[at:     x | $x.printTime,
+                ticker: x | $x.instrument.ticker,
+                price:  x | $x.price,
+                size:   x | $x.quantity])
+}
+
+
+###DataProduct
+// THE PUBLISHED API
+
+DataProduct marketdata::MarketData
+{
+  title: 'Market data'
+  description: 'Trades and quotes from the ticker plant, live'
+  accessPoints: [
+    model ('The market data classes') Model
+    {
+      mapping: desk::DeskMapping;
+      compatibleRuntimes: [ deephaven: market::DeephavenRuntime,
+                            inTab: market::InTabRuntime ];
+      defaultRuntime: deephaven;
+    }
+    [
+      // no target: served wherever the product is deployed
+      volume ('Traded volume by instrument'):
+        LH(|#I{desk::Views.TRADED_VOLUME}#)
+    ]
+  ]
+}
+
+
+// ================================================================
+// PART 2: WHERE IT RUNS (the only part demo and production differ in)
+// ================================================================
+
+###Connection
+
+RelationalDatabaseConnection market::Kafka
+{
+  type: Kafka;
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
+  auth: Test;
+}
+
+RelationalDatabaseConnection market::PositionsDrop
+{
+  type: Files;
+  specification: Files { location: 'file:///var/desk/positions/'; };
+  auth: Test;
+}
+
+RelationalDatabaseConnection market::Deephaven
+{
+  store: store::DB;
+  type: Deephaven;
+  specification: Deephaven
+  {
+    host: 'localhost';
+    port: 10000;
+    useTls: true;
+  };
+  auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
+}
+
+RelationalDatabaseConnection market::Lake
+{
+  store: store::DB;
+  type: Iceberg;
+  specification: Iceberg { warehouse: 'file:///var/desk/lake/'; };
+  auth: Test;
+}
+
+RelationalDatabaseConnection market::InTab
+{
+  store: store::DB;
+  type: DuckDB;
+  specification: DuckDB { };
+  auth: Test;
+}
+
+// the world's log and files inside the browser tab
+RelationalDatabaseConnection market::TabLog
+{
+  type: TabLog;
+  specification: TabLog { };
+  auth: Test;
+}
+
+RelationalDatabaseConnection market::TabFiles
+{
+  type: Files;
+  specification: Files { location: 'tab://positions/'; };
+  auth: Test;
+}
+
+
+###Lakehouse
+// DEPLOYMENTS: what lands where, and how much each target keeps
+
+Deployment market::DeskOnDeephaven
+{
+  deploys: [ marketdata::MarketDataFeed,
+             products::SecurityMaster,
+             positions::StartOfDay,
+             market::WorldStatus,
+             desk::Views ];
+  sources: [ market::Kafka: [ tickerplant::Topics,
+                              secmaster::Topics,
+                              market::WorldStatus ],
+             market::PositionsDrop: [ positions::StartOfDay ] ];
+  live: market::Deephaven
+    keep [ appended: LastRows(10000),
+           milestoned: current,
+           MARKET_TRADE: LastRows(25000) ];
+  history: market::Lake
+    keep [ appended: all,
+           milestoned: versions ];
+}
+
+Deployment market::DeskInTab
+{
+  deploys: [ marketdata::MarketDataFeed,
+             products::SecurityMaster,
+             positions::StartOfDay,
+             market::WorldStatus,
+             desk::Views ];
+  sources: [ market::TabLog: [ tickerplant::Topics,
+                               secmaster::Topics,
+                               market::WorldStatus ],
+             market::TabFiles: [ positions::StartOfDay ] ];
+  live: market::InTab
+    keep [ appended: LastRows(5000),
+           milestoned: current ];
+}
+
+
+###Runtime
+// WHERE QUERIES GO
+
+Runtime market::DeephavenRuntime
+{
+  mappings: [ desk::DeskMapping ];
+  connections: [ store::DB: [ live: market::Deephaven ] ];
+}
+
+Runtime market::InTabRuntime
+{
+  mappings: [ desk::DeskMapping ];
+  connections: [ store::DB: [ live: market::InTab ] ];
+}
+
+
+###DataSpace
+// THE DESK
+
+DataSpace market::TradingDesk
+{
+  executionContexts:
+  [
+    {
+      name: 'Deephaven';
+      mapping: desk::DeskMapping;
+      defaultRuntime: market::DeephavenRuntime;
+    },
+    {
+      name: 'In this tab';
+      mapping: desk::DeskMapping;
+      defaultRuntime: market::InTabRuntime;
+    }
+  ];
+  defaultExecutionContext: 'Deephaven';
+  title: 'Trading desk';
+}
+```
