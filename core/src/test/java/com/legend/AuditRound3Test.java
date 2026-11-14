@@ -217,6 +217,24 @@ class AuditRound3Test {
     }
 
     @Test
+    @DisplayName("audit: a malformed date pattern and a zone-shifted Z not at the end are refused BY NAME")
+    void malformedDatePatternsAreRefusedByName() {
+        // an unterminated quote: a malformed input, a ModelException of the LOWER phase (b915e2940, F-M3-1; upstream's
+        // DateFormatPattern answers IllegalArgumentException "Missing closing quote in format string: ...", legend-pure
+        // 5.99.0); kept as is by the C4 final fix round's ruling of B3, 2026-11-14
+        var unterminated = assertThrows(com.legend.error.ModelException.class,
+                () -> scalar("|format('%t{yyyy\"P}', [%2014-03-05])"));
+        assertTrue(String.valueOf(unterminated.getMessage()).contains("unterminated quote in date pattern: yyyy\"P"),
+                unterminated.getMessage());
+        // a Z inside a zone-shifted pattern: not implemented, refused by name (the C4 final fix round's B4: until then a
+        // bare IllegalStateException, which the server answered 500 as a bug)
+        var zoned = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> scalar("|format('%t{[UTC]yyyy Z dd}', [%2014-03-05T01:02:03])"));
+        assertTrue(String.valueOf(zoned.getMessage()).contains(
+                "a zone-shifted date pattern supports Z only as a suffix: [UTC]yyyy Z dd"), zoned.getMessage());
+    }
+
+    @Test
     @DisplayName("audit: add(set, index, val) errors on an out-of-range index — no silent clamp")
     void addOutOfBoundsIsLoud() throws Exception {
         var ex = assertThrows(Exception.class,
