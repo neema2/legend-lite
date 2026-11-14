@@ -83,7 +83,10 @@ public final class PeRatchets {
             "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
                     + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
             "own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models,"
-                    + " measured by //parser-equivalence:update_ratchets");
+                    + " measured by //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3262 -> 3268 (2026-11-16, PR #93, the unstructured study, rebased onto main at 4dfbb5b76;"
+                    + " it read 3246 -> 3252 on 3a217086a): the branch's models over main's, as measured by"
+                    + " //parser-equivalence:update_ratchets, not attributed element by element");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
