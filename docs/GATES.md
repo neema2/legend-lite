@@ -22082,3 +22082,4 @@ What CI sees, in the `checks` lane: `//projects/unstructured:freeze_test`, the a
 `//tools/unstructured-oracle:judge_logic_test`; `//projects/unstructured:unstructured_test`; and, through `//:generated`,
 `//tools/unstructured-oracle:update_generated_tests`, which diff-tests `summary.tsv` against the ledger. `OpenMappingGapsPinTest` runs in
 `//core:core_tests_compiler` (the `core` lane). `//projects/unstructured:corpus_test` is in `heavy`, manual, because it needs the EDGAR corpus.
+No workflow runs `corpus_test`: it is run by hand, by its target, once the EDGAR corpus is fetched.
