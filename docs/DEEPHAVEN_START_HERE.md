@@ -321,6 +321,9 @@ tested); and this branch carries the MongoDB line's commits, which are not on `m
 
 ## Now: the desk's data, end to end (agreed 2026-10-29)
 
+**2026-11-14:** C0 (ingest plans) and B1 (the world as a feed behind our own Kafka door, read by the pinned Deephaven,
+every row once) are done; next is B2, the generated startup program (docs/DESK_DATA_ROADMAP_2026_10_29.md §3).
+
 **docs/DESK_DATA_ROADMAP_2026_10_29.md**: every desk table declared by an ingest and made by the platform; on Deephaven
 a generated startup program fed through our own Kafka door, `market.groovy` deleted; the tab written directly; the desk
 a data space of data products. It orders docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md and takes over the

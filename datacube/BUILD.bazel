@@ -2803,6 +2803,96 @@ browser_test(
     },
 )
 
+# THE WORLD AS A FEED, BEHIND THE DOOR (docs/DESK_DATA_ROADMAP_2026_10_29.md B1's done-when): the pinned Deephaven with a
+# test's probe as its application (test/deephaven/door/: each topic consumed from its beginning by Deephaven's own Kafka
+# reader), the desk model's topics as the planner answers them, the door (demo/market-sim/door) holding them, and the
+# market world writing every table a stream reads through it -- every row read once. Manual, as the market lane is.
+legend_java_binary(
+    name = "deephaven_door_fixture",
+    testonly = True,
+    data = [
+        "test/deephaven/door/door.app",
+        "test/deephaven/door/door.groovy",
+        "@embedded_deephaven//:deephaven",
+        "@embedded_deephaven//:deephaven/DEEPHAVEN_ROOT",
+    ],
+    jvm_flags = [
+        "-Dembedded.deephaven.root=$(rlocationpath @embedded_deephaven//:deephaven/DEEPHAVEN_ROOT)",
+        "-Dembedded.deephaven.application=$(rlocationpath test/deephaven/door/door.app)",
+    ],
+    main_class = "com.legend.testing.EmbeddedDeephaven",
+    runtime_deps = ["//testing"],
+)
+
+executable_of(
+    name = "deephaven_door_fixture_executable",
+    testonly = True,
+    binary = ":deephaven_door_fixture",
+)
+
+node_test(
+    name = "deephaven_door_test",
+    size = "medium",
+    tags = ["manual"],
+    data = glob([
+        "demo/market-sim/**/*.ts",
+        "demo/deephaven/market/*.ts",
+    ]) + [
+        "demo/deephaven/market/environments.pure",
+        "demo/deephaven/market/market.pure",
+        "test/catalog-builder.ts",
+        "test/host/node.ts",
+        "test/lite-compiler.ts",
+        ":deephaven_door_fixture",
+        ":deephaven_door_fixture_executable",
+        ":src",
+        "//engine-client:engine_client",
+        "//pure-protocol:typescript_sources",
+        "//scripts/corpus:trading_model",
+    ],
+    entry_point = "test/deephaven/door-world.test.ts",
+    env = {
+        "DOOR_FIXTURE": "$(rlocationpath :deephaven_door_fixture_executable)",
+        "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
+        "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
+        "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+    },
+    wasm = True,
+)
+
+# THE FEED, AS A PROCESS (B1): `bazel run //datacube:market_feed` -- the market world behind the door on the loopback
+# (DOOR_PORT, 19092), for a Deephaven beside it to read (demo/market-sim/door/feed-main.ts says the settings)
+js_binary(
+    name = "market_feed",
+    testonly = True,
+    data = glob([
+        "demo/market-sim/**/*.ts",
+        "demo/deephaven/market/*.ts",
+    ]) + [
+        "demo/deephaven/market/environments.pure",
+        "demo/deephaven/market/market.pure",
+        ":src",
+        "//engine-client:engine_client",
+        "//pure-protocol:typescript_sources",
+        "//scripts/corpus:trading_model",
+        "//tools/js:runfiles",
+        "//wasm:planner_dir",
+    ],
+    entry_point = "demo/market-sim/door/feed-main.ts",
+    env = {
+        "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
+        "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
+        "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
+        "WASM_PLANNER": "$(rlocationpath //wasm:planner_dir)",
+    },
+    node_options = [
+        "--experimental-strip-types",
+        "--experimental-wasm-exnref",
+        "--disable-warning=ExperimentalWarning",
+    ],
+    tags = ["manual"],
+)
+
 # THE MARKET WORLD'S FEED, MISBEHAVING (docs/DEEPHAVEN_START_HERE.md, the desk under load, 5): the world's feed pointed
 # at a fake one on the loopback (test/deephaven/fake-feed.mjs) that sends each message in parts, one that is not JSON and
 # a price that is not a number, then goes quiet in the middle of a message; read as the market lane reads the world.

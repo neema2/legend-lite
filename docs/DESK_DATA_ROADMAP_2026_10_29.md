@@ -175,6 +175,21 @@ Python model reads `###Lakehouse` (its generated files byte-identical).
   - the protocol tests pass: encoding, the checksum, an unknown request refused by name;
   - the pinned Deephaven reads every table the world writes, every row once.
 - *Medium.*
+- **Done (2026-11-14):**
+  - **The topics are the model's** (`planner/IngestTopics`, the `deephaven` request's op `topics`): each Stream dataset
+    a database reaches, named as its topic store's table; a dataset whose columns are written out takes its ingest's
+    own topic, the ingest's path with a dot for each `::` and then the dataset (`market.WorldStatus.world`: the design
+    named no form for it). Each carries its columns with Deephaven's types (DH16's one mapping), its key when it lands
+    latest by key, its retention when appended. Pulled and filed datasets are not topics (B3).
+  - **The door** (`datacube/demo/market-sim/door/kafka-door.ts`), the feed's sink (`door-feed.ts`), the feed
+    (`feed.ts`; `bazel run //datacube:market_feed`, the world's 9 topics on the loopback, DOOR_PORT 19092).
+  - **The protocol tests** (`//datacube:kafka_door_test`): versions, metadata, offsets by end and by time, records and
+    their CRC-32C, retention, compaction (a compacted log's start stays 0, as Kafka's), the fetch's wait, a request it
+    does not answer refused by name; the desk model's nine topics through the planner.
+  - **The pinned Deephaven reads every table, every row once** (`//datacube:deephaven_door_test`, manual): a 30-name
+    world for 15 s, each topic consumed from its beginning by Deephaven's own reader (a test probe,
+    `test/deephaven/door/door.groovy`): trades 8,569 of 8,569, news 113 of 113, fills 25 of 25, routes 25 of 25, each
+    once; the keyed topics every key (quotes 38 of 38, FX 10, orders 9, RFQs 24, the world's status 4).
 
 **B2. The generated startup program: streams.**
 
