@@ -731,8 +731,15 @@ final class RelOpTranslator {
         return switch (d.resolution()) {
             case PURE -> call.name();
             case SHIM -> d.liteFqn();
-            case TRANSLATED -> throw new IllegalStateException("dynafunction '" + call.name()
-                    + "' is declared TRANSLATED but no translator arm rewrote it");
+            // a TRANSLATED name in a shape no arm above rewrites (an arm's guard -- its argument count, a literal it
+            // needs -- did not match): the user's call, refused by name as the UNSUPPORTED arm below refuses one.
+            // Until 2026-11-14 a raw IllegalStateException ("declared TRANSLATED but no translator arm rewrote it"),
+            // from a user's text (ruling 29, the normalizer slice's step 1; RefusalsNotCrashesTest). The group
+            // reducers' callers (GroupBySynthesis, ViewRelation) ask only for PURE names.
+            case TRANSLATED -> throw new com.legend.error.NotImplementedException(
+                    "engine dynafunction '" + call.name() + "' is not supported by this platform yet in this shape ("
+                    + call.args().size() + (call.args().size() == 1 ? " argument" : " arguments") + "; DynaFn."
+                    + d.name() + ": no translator arm rewrites it)");
             case UNSUPPORTED -> throw new com.legend.error.NotImplementedException(
                     "engine dynafunction '" + call.name() + "' is not supported by this platform yet (DynaFn."
                     + d.name() + "; the engine's dialects that register it: docs/engine-dynafunctions.tsv)");

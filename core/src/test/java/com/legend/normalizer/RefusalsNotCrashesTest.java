@@ -87,4 +87,43 @@ class RefusalsNotCrashesTest {
         assertEquals(Map.of("t::DB$view$V", inView), viewModule.walls());
         assertEquals(inView, poison(viewModule, "t::M", "t::Person"));
     }
+
+    // ---- RelOpTranslator: a translated dynafunction in a shape no arm rewrites ----
+
+    private static final String TRANSLATED_SHAPE = """
+            Class t::Person { name: String[1]; }
+            ###Relational
+            Database t::DB ( Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(100)) )
+            ###Mapping
+            Mapping t::M ( *t::Person: Relational { ~mainTable [t::DB] T name: isNull([t::DB] T.NAME, [t::DB] T.ID) } )
+            """;
+
+    private static final String TRANSLATED_SHAPE_IN_A_VIEW = """
+            Class t::Person { name: String[1]; }
+            ###Relational
+            Database t::DB (
+              Table T (ID INTEGER PRIMARY KEY, NAME VARCHAR(100))
+              View V (ID: T.ID PRIMARY KEY, NAME: concat(T.NAME))
+            )
+            ###Mapping
+            Mapping t::M ( *t::Person: Relational { ~mainTable [t::DB] V name: [t::DB] V.NAME } )
+            """;
+
+    @Test
+    @DisplayName("a translated dynafunction no arm rewrites is refused by name, not an IllegalStateException")
+    void aTranslatedDynafunctionInAShapeNoArmRewritesIsRefusedByName() {
+        String isNull = "engine dynafunction 'isNull' is not supported by this platform yet in this shape"
+                + " (2 arguments; DynaFn.IS_NULL: no translator arm rewrites it)";
+        assertEquals(List.of(), strict(TRANSLATED_SHAPE), "a roadmap gap defers: the class is poisoned");
+        Compiler.BuiltModule shapeModule = module(TRANSLATED_SHAPE);
+        assertEquals(Map.of(), shapeModule.walls());
+        assertEquals(isNull, poison(shapeModule, "t::M", "t::Person"));
+
+        String concat = "engine dynafunction 'concat' is not supported by this platform yet in this shape"
+                + " (1 argument; DynaFn.CONCAT: no translator arm rewrites it)";
+        assertEquals(List.of(concat), strict(TRANSLATED_SHAPE_IN_A_VIEW), "the view's lift refuses the model");
+        Compiler.BuiltModule viewModule = module(TRANSLATED_SHAPE_IN_A_VIEW);
+        assertEquals(Map.of("t::DB$view$V", concat), viewModule.walls());
+        assertEquals(concat, poison(viewModule, "t::M", "t::Person"));
+    }
 }
