@@ -53,7 +53,7 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Column should now be called fullName
-            assertEquals("Alice", result.rows().get(0).values().get(1));
+            assertEquals("Alice", result.rows().get(0).get(1));
         }
 
         @Test
@@ -67,8 +67,8 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
                     #->rename(~score, ~points)->sort(ascending(~id))""");
             assertNotNull(result);
             assertEquals(2, result.rows().size());
-            assertEquals(95, result.rows().get(0).values().get(2));
-            assertEquals(87, result.rows().get(1).values().get(2));
+            assertEquals(95L, result.rows().get(0).get(2));
+            assertEquals(87L, result.rows().get(1).get(2));
         }
 
         @Test
@@ -83,7 +83,7 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
             assertEquals(3, result.rows().size());
             // position-preserving rename: fullName stays at 0 (corpus
             // row-data pin; T-Z+V set arithmetic has no order)
-            var names = result.rows().stream().map(r -> r.values().get(0)).toList();
+            var names = result.rows().stream().map(r -> r.get(0)).toList();
             assertEquals(List.of("Bob", "Jane", "John"), names);
         }
     }
@@ -106,9 +106,9 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // Data should be preserved
-            assertEquals(1, result.rows().get(0).values().get(0));
-            assertEquals("Alice", result.rows().get(0).values().get(1));
-            assertEquals(95, result.rows().get(0).values().get(2));
+            assertEquals(1L, result.rows().get(0).get(0));
+            assertEquals("Alice", result.rows().get(0).get(1));
+            assertEquals(95L, result.rows().get(0).get(2));
         }
 
         @Test
@@ -121,7 +121,7 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
                       ->sort(ascending(~fullName))""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
-            var names = result.rows().stream().map(r -> r.values().get(0)).toList();
+            var names = result.rows().stream().map(r -> r.get(0)).toList();
             assertEquals(List.of("Bob", "Jane", "John"), names);
         }
     }
@@ -145,8 +145,8 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
             assertNotNull(result);
             assertEquals(2, result.rows().size());
             // position-preserving rename: userId stays at 0
-            assertEquals(2, result.rows().get(0).values().get(0));
-            assertEquals(3, result.rows().get(1).values().get(0));
+            assertEquals(2L, result.rows().get(0).get(0));
+            assertEquals(3L, result.rows().get(1).get(0));
         }
 
         @Test
@@ -161,9 +161,9 @@ public class RenameCheckerTest extends AbstractDatabaseTest {
                     #->rename(~name, ~fullName)->sort(ascending(~fullName))""");
             assertNotNull(result);
             assertEquals(3, result.rows().size());
-            assertEquals("Alice", result.rows().get(0).values().get(1));
-            assertEquals("Bob", result.rows().get(1).values().get(1));
-            assertEquals("Charlie", result.rows().get(2).values().get(1));
+            assertEquals("Alice", result.rows().get(0).get(1));
+            assertEquals("Bob", result.rows().get(1).get(1));
+            assertEquals("Charlie", result.rows().get(2).get(1));
         }
     }
 

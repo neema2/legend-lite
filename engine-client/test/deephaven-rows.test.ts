@@ -12,6 +12,7 @@ import { ipcStream } from '../src/deephaven.ts';
 import { byPosition, deephavenRows, followedTable, followedValue } from '../src/deephaven-rows.ts';
 import type { Plan } from '../src/relation-type.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
+import { unplanned } from './unplanned.ts';
 
 const messages = readFileSync(runfileFromEnv('DOGET_ANSWER'), 'utf8').trim().split('\n')
   .map((hex) => Uint8Array.from(hex.match(/../g) ?? [], (b) => parseInt(b, 16)));
@@ -19,7 +20,7 @@ const messages = readFileSync(runfileFromEnv('DOGET_ANSWER'), 'utf8').trim().spl
 const raw = deephavenRows(ipcStream(messages), 7, 1);
 
 const PLAN: Plan = {
-  sql: '{"ops": []}',
+  sql: unplanned('{"ops": []}'),
   columns: [
     { name: 'x', type: 'Integer' }, { name: 'l', type: 'Integer' }, { name: 'd', type: 'Float' },
     { name: 's', type: 'String' }, { name: 'b', type: 'Boolean' }, { name: 'ts', type: 'DateTime' },

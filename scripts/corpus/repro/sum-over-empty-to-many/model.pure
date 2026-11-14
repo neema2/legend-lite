@@ -1,0 +1,175 @@
+// F82: `sum` over a to-many navigation that lands on nothing answers NULL, not 0.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/sum-over-empty-to-many/model.pure \
+//       --testable=demo::IsEmpty --testable=demo::MapSum --testable=demo::PathSum
+//
+// `$x.children->map(c|$c.v)->sum()` is legend-pure's collection sum, `plus()` of the values, 0 over nothing: P3 has
+// no children, so its sum is 0. legend-engine 4.145.0 writes the navigation as an outer join with SUM over it, and
+// SQL's SUM of no rows is NULL. The path form `$x.children.v->sum()` answers the same. Not a groupBy, whose native
+// never reduces an empty group (F75, withdrawn): a plain Pure function over an empty collection, as count() is in F6.
+// IsEmpty passes, so the navigation itself is right; MapSum and PathSum fail on P3 alone.
+###Pure
+Class demo::Parent
+{
+  id: String[1];
+  g: String[1];
+}
+
+Class demo::Child
+{
+  id: String[1];
+  v: Integer[1];
+}
+
+Association demo::ParentChild
+{
+  parent: demo::Parent[1];
+  children: demo::Child[*];
+}
+
+###Relational
+Database demo::DB
+(
+  Table P (ID VARCHAR(4) PRIMARY KEY, G VARCHAR(4))
+  Table C (ID VARCHAR(4) PRIMARY KEY, PID VARCHAR(4), V INTEGER)
+  Join PC(P.ID = C.PID)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Parent: Relational
+  {
+    ~primaryKey ( [demo::DB]P.ID )
+    ~mainTable [demo::DB]P
+    id: [demo::DB]P.ID,
+    g: [demo::DB]P.G
+  }
+  demo::Child: Relational
+  {
+    ~primaryKey ( [demo::DB]C.ID )
+    ~mainTable [demo::DB]C
+    id: [demo::DB]C.ID,
+    v: [demo::DB]C.V
+  }
+  demo::ParentChild: Relational
+  {
+    AssociationMapping
+    (
+      children: [demo::DB]@PC,
+      parent: [demo::DB]@PC
+    )
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.P:
+      'ID,G\n' +
+      'P1,a\n' +
+      'P2,b\n' +
+      'P3,a\n';
+    default.C:
+      'ID,PID,V\n' +
+      'C1,P1,1\n' +
+      'C2,P1,3\n' +
+      'C3,P2,2\n';
+  }#
+}
+
+###Service
+Service demo::IsEmpty
+{
+  pattern: '/demo/isempty';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Parent.all()->project(~[id:x|$x.id, e:x|$x.children->isEmpty()])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    IsEmpty_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"P1","e":false}, {"id":"P2","e":false}, {"id":"P3","e":true} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::MapSum
+{
+  pattern: '/demo/mapsum';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Parent.all()->project(~[id:x|$x.id, s:x|$x.children->map(c|$c.v)->sum()])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    MapSum_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"P1","s":4}, {"id":"P2","s":2}, {"id":"P3","s":0} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::PathSum
+{
+  pattern: '/demo/pathsum';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Parent.all()->project(~[id:x|$x.id, s:x|$x.children.v->sum()])->sort([~id->ascending()]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    PathSum_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"P1","s":4}, {"id":"P2","s":2}, {"id":"P3","s":0} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

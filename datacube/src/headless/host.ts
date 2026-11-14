@@ -12,7 +12,8 @@ import type { ArrowishConnection, ArrowishTable } from '../../../engine-client/s
 import type { PlannerWorker, Request, Response } from '../../../engine-client/src/legend/planner-protocol.ts';
 import type { PythonLink } from '../services/python-host.ts';
 import { hostCalls, type HostCalls } from './calls.ts';
-import { base64, fromBase64 } from './web.ts';
+import { fromBase64 } from './web.ts';
+import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
 
 export { hostCalls, type HostCalls };
 
@@ -94,11 +95,9 @@ export function hostEngine(calls: HostCalls): PythonLink {
   return { baseUrl: '', fetch: carried as unknown as typeof fetch };
 }
 
-/** What a host's database gives beside its connection: DuckDB-WASM's file registration, the host's folder behind it. */
+/** The host's database: its connection (a test's files are its own host's: datacube/test/host/headless.ts). */
 export interface HostDatabase {
   readonly connection: ArrowishConnection;
-  registerFileBuffer(name: string, bytes: Uint8Array): Promise<void>;
-  registerFileText(name: string, text: string): Promise<void>;
 }
 
 /**
@@ -110,13 +109,25 @@ export interface HostDatabase {
  */
 export function hostDatabase(calls: HostCalls): HostDatabase {
   const connection: ArrowishConnection = {
-    async query(sql: string): Promise<ArrowishTable> {
+    async query(sql: PlannedSql): Promise<ArrowishTable> {
       return arrowIpcTable(fromBase64(await calls.query(sql)));
     },
+    // a write's step, its values bound by the host's database (table-output.ts)
+    prepare: (sql: PlannedSql) => ({
+      query: async (...params: unknown[]): Promise<ArrowishTable> => arrowIpcTable(fromBase64(await calls.statement(sql, JSON.stringify(params)))),
+    }),
   };
-  return {
-    connection,
-    registerFileBuffer: (name, bytes) => calls.registerFile(name, base64(bytes)),
-    registerFileText: (name, text) => calls.registerFile(name, base64(new TextEncoder().encode(text))),
-  };
+  return { connection };
+}
+
+/**
+ * A host call's failure in its database's own words (calls.ts `query`, `statement`): the host's exception is carried as
+ * its traceback's text (`Error running Python function: ... duckdb.CatalogException: Catalog Error: ...`), its last line
+ * the database's -- that line's message; any other failure, its message as it is.
+ */
+export function hostWords(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  if (!message.includes('Error running Python function')) return message;
+  const last = message.split('\n').map((l) => l.trim()).filter((l) => /^[\w.]+(Error|Exception): /.test(l)).at(-1);
+  return last === undefined ? message : last.replace(/^[\w.]+(Error|Exception): /, '');
 }

@@ -13,6 +13,7 @@ import { relationColumns, type Plan } from '../../../engine-client/src/relation-
 import { openServerLog } from '../../demo/deephaven/server-log.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
 import { load } from './wasm-gc-module-runtime.js';
+import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 /** The part of Deephaven's JS library the seeding uses: a console session of the test server's. */
 interface SeedingClient {
@@ -478,7 +479,7 @@ try {
     if (!plan.startsWith('OK\n')) throw new Error(`the planner refused it: ${plan.replace(/\n/g, ' | ')}`);
     // the module's answer, {sql, type}, as DataCube's planner reads it (lite-planner.ts): the SQL and the columns
     const body = JSON.parse(plan.slice(3)) as { sql: string; type: Parameters<typeof relationColumns>[0] };
-    return { sql: body.sql, columns: relationColumns(body.type) };
+    return { sql: unplanned(body.sql), columns: relationColumns(body.type) };
   };
   const planOf = (query: string): string => planned(query).sql;
   const live = await LiveClient.open(server, (why) => { verdict.setupError ??= `the live reader ended: ${why}`; });

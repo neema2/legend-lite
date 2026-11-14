@@ -20,6 +20,9 @@ _DATABASE_MEASURED = ["database-engine-order-register"]
 
 def _pass_flags(golden):
     return program_jvm_flags("spec") + [
+        # the replay referee's H2, legend-engine's own (2.1.214), by path and never on the classpath (the user,
+        # 2026-11-05; testbackend/EngineH2Referee)
+        "-Dlegend.referee.h2=$(execpath @h2_engine//jar:file)",
         # DuckDB's JDBC driver loads its library: allowed, so the JDK prints no warning on the build's console
         "--enable-native-access=ALL-UNNAMED",
         _SCAN_ORDER,
@@ -72,7 +75,7 @@ def corpus_lane(
     java_run(
         name = host,
         testonly = True,
-        srcs = data + UPSTREAM_TREES + host_srcs + committed,
+        srcs = data + UPSTREAM_TREES + host_srcs + committed + ["@h2_engine//jar:file"],
         roots = UPSTREAM_ROOTS,
         outs = [host + "/judge-host.tsv", host + "/verdict.txt", host + "/host.log"] + host_measured,
         arguments = ["{OUT_DIR}/verdict.txt", "{OUT_DIR}/host.log", "{OUT_DIR}/judge-host.tsv"] +
@@ -91,7 +94,7 @@ def corpus_lane(
     java_run(
         name = database,
         testonly = True,
-        srcs = data + UPSTREAM_TREES + host_srcs + committed + [":" + host],
+        srcs = data + UPSTREAM_TREES + host_srcs + committed + ["@h2_engine//jar:file", ":" + host],
         roots = database_roots,
         outs = [database + "/judge-database.tsv", database + "/verdict.txt", database + "/database.log"] +
                database_measured,

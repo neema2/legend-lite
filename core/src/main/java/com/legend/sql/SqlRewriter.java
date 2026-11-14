@@ -27,6 +27,12 @@ public abstract class SqlRewriter {
         return u;
     }
 
+    /** Post-order hook for a WITH, at every depth (a pass that reshapes a statement's common table expressions:
+     *  SharedRelationsInPlace, ported 2026-11-04 with #83's hook). Default: identity. */
+    protected SqlQuery with(SqlWith w) {
+        return w;
+    }
+
     protected SqlSource source(SqlSource s) {
         return s;
     }
@@ -82,7 +88,7 @@ public abstract class SqlRewriter {
                     return q2 == c.query() ? c : new SqlWith.Cte(c.name(), q2, c.materialized());
                 });
                 SqlQuery b2 = rewrite(w.body());
-                yield cs == w.ctes() && b2 == w.body() ? w : w.with(cs, b2);
+                yield with(cs == w.ctes() && b2 == w.body() ? w : w.with(cs, b2));
             }
         };
     }
@@ -95,6 +101,12 @@ public abstract class SqlRewriter {
             case SqlSource.SourceUrl u -> u;
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql r -> r;   // carried text: a leaf
+            // a raw grid's report: its grid is a lowered query, rewritten as any subselect is (the seam program's
+            // S3c audit, 2026-10-31: until then a leaf, which no dialect pass saw inside)
+            case SqlSource.GridReport g -> {
+                SqlQuery i = rewrite(g.grid());
+                yield i == g.grid() ? g : new SqlSource.GridReport(i, g.part(), g.alias(), g.outputs());
+            }
             case SqlSource.Catalog c -> c;   // a leaf
             case SqlSource.Subselect sub -> {
                 SqlQuery i = rewrite(sub.inner());
@@ -106,7 +118,7 @@ public abstract class SqlRewriter {
                         r -> mapList(r, this::rewriteExpr));
                 yield rows == v.rows() ? v
                         : new SqlSource.Values(rows, v.columns(), v.alias(),
-                                v.outputs());
+                                v.outputs(), v.payload());
             }
             case SqlSource.Join j -> {
                 SqlSource l = rewriteSource(j.left());
@@ -279,6 +291,16 @@ public abstract class SqlRewriter {
                 }
                 yield same ? t : t.withChildren(cs);
             }
+            case SqlExpr.TaggedList tl -> {
+                java.util.List<SqlExpr> cs = new java.util.ArrayList<>();
+                boolean same = true;
+                for (SqlExpr c : tl.children()) {
+                    SqlExpr r = rewriteExpr(c);
+                    same &= r == c;
+                    cs.add(r);
+                }
+                yield same ? tl : tl.withChildren(cs);
+            }
             case SqlExpr.ScalarSubquery sq -> {
                 SqlQuery sub = rewrite(sq.subquery());
                 yield sub == sq.subquery() ? sq
@@ -316,8 +338,15 @@ public abstract class SqlRewriter {
                     return e2 == k.expr() ? k : new SqlSelect.SortKey(
                             e2, k.ascending(), k.nullOrder(), k.outputName());
                 });
-                yield fn2 == w.fn() && pb == w.partitionBy() && ob == w.orderBy()
-                        ? w : new SqlExpr.WindowCall(fn2, pb, ob, w.frame());
+                // the offsets the database computes, rewritten as any expression
+                SqlExpr.WindowCall.Frame fr = w.frame();
+                if (fr != null && fr.computed()) {
+                    List<SqlExpr> os = fr.offsets();
+                    List<SqlExpr> os2 = mapList(os, this::rewriteExpr);
+                    fr = os2 == os ? fr : fr.withOffsets(os2);
+                }
+                yield fn2 == w.fn() && pb == w.partitionBy() && ob == w.orderBy() && fr == w.frame()
+                        ? w : new SqlExpr.WindowCall(fn2, pb, ob, fr);
             }
             case SqlExpr.Lambda l -> {
                 SqlExpr b = rewriteExpr(l.body());

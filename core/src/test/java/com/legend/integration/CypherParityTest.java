@@ -3,8 +3,8 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
@@ -85,7 +85,7 @@ class CypherParityTest {
                     inferred, SHOWCASE_LANES[1][1]));
             texts.put("pure.txt", com.legend.protocol.PureComposer.valueSpecification(
                     com.legend.compiler.spec.CypherIslands.translate(new com.legend.protocol.spec.SqlIsland(
-                            main.query(), null, com.legend.protocol.spec.SqlIsland.CYPHER, null), ctx),
+                            main.query(), null, com.legend.protocol.spec.IslandLanguage.CYPHER, null), ctx),
                     com.legend.protocol.PureComposer.Style.STANDARD) + "\n");
             for (String[] lane : SHOWCASE_LANES) {
                 texts.put(lane[0] + ".sql", com.legend.Compiler.query(com.legend.Compiler.compileModel(
@@ -182,7 +182,6 @@ class CypherParityTest {
         problems.addAll(CypherParity.decisionGuards(cases, Runfile.property("cypher.parity.decisions")));
         Map<String, SqlParity.Outcome> outcomes;
         try (Connection session = PLATFORM.open()) {
-            QueryService service = new QueryService();
             outcomes = CypherParity.run(cases, answers.answers(), decisions, new CypherParity.Lane() {
                 @Override
                 public String connection() {
@@ -195,8 +194,8 @@ class CypherParityTest {
                 }
 
                 @Override
-                public ExecutionResult run(String model, String island) throws Exception {
-                    return service.execute(model, island, CypherGraph.RUNTIME, session);
+                public Lean.Result run(String model, String island) throws Exception {
+                    return Lean.run(model, island, CypherGraph.RUNTIME, session);
                 }
 
                 @Override

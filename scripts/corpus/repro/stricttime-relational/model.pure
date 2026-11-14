@@ -1,0 +1,86 @@
+// F63: a StrictTime literal or parameter in a relational query fails plan generation.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/stricttime-relational/model.pure \
+//       --testable=demo::Projected --testable=demo::LiteralEq --testable=demo::ParamEq
+//
+// The relational grammar has no TIME column type, so the StrictTime property reads a VARCHAR, and projecting it
+// works (Projected passes). Comparing it does not, on legend-engine 4.145.0:
+//
+//   LiteralEq  Execution error at (resource:/core_relational/relational/pureToSQLQuery/pureToSQLQuery.pure line:8856
+//              column:10), "Match failure: ClassInstanceHolderObject instanceOf ClassInstanceHolder"
+//   ParamEq    Execution error at (resource:/core_relational_duckdb/relational/sqlQueryToString/duckdbExtension.pure
+//              line:24 column:120), "Cannot cast a collection of size 0 to multiplicity [1]"
+//
+// The engine says as much in its sources: core_relational's and core_relational_duckdb's Pure-type-to-SQL-type maps
+// carry `// pair(|$path == 'StrictTime', |fail('not supported yet!'))` commented out, and StrictTime is not one of
+// the external parameter types. legend-pure gives StrictTime only `==` and `!=` (no greaterThan or lessThan takes
+// one), so equality is the whole comparison surface. All three PASS on an engine that writes a StrictTime into SQL.
+Class demo::Cutoff
+{
+  id: String[1];
+  cutoff: StrictTime[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table CUTOFF (ID VARCHAR(4) PRIMARY KEY, CUTOFF VARCHAR(8))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Cutoff: Relational
+  {
+    ~primaryKey ( [demo::DB]CUTOFF.ID )
+    ~mainTable [demo::DB]CUTOFF
+    id: [demo::DB]CUTOFF.ID,
+    cutoff: [demo::DB]CUTOFF.CUTOFF
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.CUTOFF:
+      'ID,CUTOFF\n' +
+      'C1,17:30:00\n' +
+      'C2,09:00:00\n';
+  }#
+}
+
+###Service
+Service demo::Projected
+{
+  pattern: '/demo/projected';
+  documentation: '';
+  execution: Single { query: |demo::Cutoff.all()->project(~[id:x|$x.id, cutoff:x|$x.cutoff]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ Projected_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"C1","cutoff":"17:30:00"},{"id":"C2","cutoff":"09:00:00"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::LiteralEq
+{
+  pattern: '/demo/literal';
+  documentation: '';
+  execution: Single { query: |demo::Cutoff.all()->filter(x|$x.cutoff == %17:30:00)->project(~[id:x|$x.id]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ LiteralEq_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"C1"}]'; }#; }# ] } ] } ]
+}
+
+Service demo::ParamEq
+{
+  pattern: '/demo/param';
+  documentation: '';
+  execution: Single { query: {p: StrictTime[1]|demo::Cutoff.all()->filter(x|$x.cutoff == $p)->project(~[id:x|$x.id])}; mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ ParamEq_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { parameters: [ p = %17:30:00 ] serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"C1"}]'; }#; }# ] } ] } ]
+}

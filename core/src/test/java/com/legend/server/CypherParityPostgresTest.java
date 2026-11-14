@@ -3,7 +3,8 @@
 
 package com.legend.server;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
+
 import com.legend.testcases.CypherAnswers;
 import com.legend.testcases.CypherGraph;
 import com.legend.testcases.CypherParity;
@@ -55,7 +56,6 @@ class CypherParityPostgresTest {
         Map<String, SqlParity.Outcome> outcomes;
         try (Connection admin = DriverManager.getConnection(pg.jdbcUrl("postgres"))) {
             ensureThisAccount(admin);
-            QueryService service = new QueryService();
             String connection = String.format(Locale.ROOT, "type: Postgres;\n    specification: Static { host:"
                     + " '127.0.0.1'; port: %d; name: 'postgres'; };\n    auth: Test;", pg.port());
             outcomes = CypherParity.run(cases, answers.answers(), decisions, new CypherParity.Lane() {
@@ -71,8 +71,8 @@ class CypherParityPostgresTest {
                 }
 
                 @Override
-                public ExecutionResult run(String model, String island) throws Exception {
-                    return service.execute(model, island, CypherGraph.RUNTIME, admin);
+                public Lean.Result run(String model, String island) throws Exception {
+                    return Lean.run(model, island, CypherGraph.RUNTIME, admin);
                 }
 
                 @Override

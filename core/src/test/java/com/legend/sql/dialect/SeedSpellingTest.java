@@ -98,7 +98,7 @@ class SeedSpellingTest {
             SqlDialect d = Databases.dialect(type);
             String table = d.storedName("Orders", true);
             String amt = d.storedName("Amt", true);
-            List<String> seed = CsvSeed.steps(csv, "q::DB", ctx, d).stream().map(s -> s.text(d)).toList();
+            List<String> seed = CsvSeed.steps(csv, "q::DB", ctx, d).stream().flatMap(s -> s.texts(d).stream()).toList();
             String create = seed.stream().filter(s -> s.toUpperCase(java.util.Locale.ROOT).startsWith("CREATE TABLE"))
                     .findFirst().orElseThrow();
             String insert = seed.stream().filter(s -> s.startsWith("INSERT")).findFirst().orElseThrow();

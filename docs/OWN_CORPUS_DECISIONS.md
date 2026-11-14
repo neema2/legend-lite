@@ -116,6 +116,10 @@ relation-function surface depends on it).
 | 20 | rcorpus/RelationalCorpusRunner#6 | `meta::pure::tds::extensions::firstNotNull<T>` — a REAL engine-checkout helper the corpus harness registers |
 
 - **DECISION:** DECIDED: **KEEP** (2026-08-11, confirmed) — was proposed: **KEEP**.
+- 2026-10-26 (the user, docs/SEMANTICS_REGISTER.md S112): +1, `integration/UserFunctionIntegrationTest$RelationGeneric`'s
+  recursion witness `test::loop<T>`, a function generic over relations, which lite expands at each call; the pin in
+  `OwnCorpusConformanceTest` is 9. Its columns-by-name library (`test::mean<T,X,Z,V,O>`) reads `⊆`, so the census counts
+  it a PURE-DIALECT-signatures row (16 -> 17).
 
 ## 3. DIALECT-milestoning-range — 1 row
 
@@ -376,7 +380,7 @@ docs/DESK_DATA_ROADMAP_2026_10_29.md A1): where datasets land, how their rows ar
 is closed: legend-engine's public history never held a parser for it, so lite's is its own, Studio's one written form
 kept exactly and every other field spelled by that form's conventions; the JSON is Legend's, held to legend-studio's
 round-trip fixtures (`core/src/test/resources/lakehouse/`). Lite adds the `Stream` and `Pull` read modes, the
-`LatestByKey` write mode and a dataset's `retention` (SEMANTICS_REGISTER S113-S117). A store's `include Ingest x::Y`
+`LatestByKey` write mode and a dataset's `retention` (SEMANTICS_REGISTER S401-S405). A store's `include Ingest x::Y`
 includes the database the ingest makes, a table for each dataset.
 
 | # | row | construct |

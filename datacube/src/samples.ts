@@ -315,20 +315,32 @@ const INSTRUMENTS = [
 /** The markets sample's columns, in order. */
 export const MARKET_COLUMNS = ['symbol', 'asset_class', 'date', 'open', 'high', 'low', 'close', 'volume'] as const;
 
+/** One instrument's day of the markets sample: its prices as written (two places, four for a currency) and its whole
+ *  volume. */
+export interface MarketBar {
+  readonly symbol: string;
+  readonly asset: string;
+  readonly day: string;
+  readonly open: string;
+  readonly high: string;
+  readonly low: string;
+  readonly close: string;
+  readonly volume: number;
+}
+
 /**
- * DAILY PRICES for a timeseries tile (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): five years of business days of
- * ten instruments -- indices, equities, gold, a bond fund, a currency -- each an open, a high, a low, a close and a
- * volume, moved by one market and its own noise (so they correlate as a market does), through a crash in the spring of
- * 2020 and a bear market in 2022. Prices have two places (four for a currency; a DOUBLE to DuckDB: a Float), the volume
- * is whole (an Integer), the date a date (a StrictDate). `rows`: the rows asked for, divided among the instruments, its
- * days counted back from the last.
+ * THE MARKETS SAMPLE'S DAYS (marketsCsv's, and the trading model's tables', stress-markets.ts): five years of business
+ * days of ten instruments -- indices, equities, gold, a bond fund, a currency -- each an open, a high, a low, a close and
+ * a volume, moved by one market and its own noise (so they correlate as a market does), through a crash in the spring
+ * of 2020 and a bear market in 2022; day by day, each day's instruments in order. `rows`: the rows asked for, divided
+ * among the instruments, its days counted back from the last.
  */
-export function marketsCsv(rows = 13_050, seed = 20261058): string {
+export function marketBars(rows = 13_050, seed = 20261058): MarketBar[] {
   const rand = rng(seed);
   const all = businessDays('2020-01-02', '2024-12-31');
   const days = all.slice(Math.max(0, all.length - Math.max(1, Math.ceil(rows / INSTRUMENTS.length))));
   const close: number[] = INSTRUMENTS.map((x) => x.start);
-  const out: string[] = [MARKET_COLUMNS.join(',')];
+  const out: MarketBar[] = [];
   for (const day of days) {
     // the market's day: a crash (Feb-Mar 2020), its rebound, a bear market (2022), and calm otherwise
     const regime = day >= '2020-02-20' && day <= '2020-03-23' ? { mu: -0.012, sigma: 2.8 }
@@ -345,9 +357,21 @@ export function marketsCsv(rows = 13_050, seed = 20261058): string {
       close[i] = next;
       const places = x.asset === 'FX' ? 4 : 2;
       const volume = x.volume === 0 ? 0 : Math.round(x.volume * (0.7 + 0.3 * Math.abs(shock)) * (0.85 + rand() * 0.3));
-      out.push([x.symbol, x.asset, day, open.toFixed(places), high.toFixed(places), low.toFixed(places), next.toFixed(places), String(volume)]
-        .map(csvCell).join(','));
+      out.push({ symbol: x.symbol, asset: x.asset, day, open: open.toFixed(places), high: high.toFixed(places), low: low.toFixed(places), close: next.toFixed(places), volume });
     });
+  }
+  return out;
+}
+
+/**
+ * DAILY PRICES for a timeseries tile (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): the markets sample's days
+ * (marketBars) as one table -- a row an instrument and day. Prices have two places (four for a currency; a DOUBLE to
+ * DuckDB: a Float), the volume is whole (an Integer), the date a date (a StrictDate).
+ */
+export function marketsCsv(rows = 13_050, seed = 20261058): string {
+  const out: string[] = [MARKET_COLUMNS.join(',')];
+  for (const b of marketBars(rows, seed)) {
+    out.push([b.symbol, b.asset, b.day, b.open, b.high, b.low, b.close, String(b.volume)].map(csvCell).join(','));
   }
   return `${out.join('\n')}\n`;
 }
@@ -398,6 +422,106 @@ export function ratesCsv(rows = 6525, seed = 20261026): string {
   return `${out.join('\n')}\n`;
 }
 
+/** The macro sample's columns, in order. */
+export const MACRO_COLUMNS = ['series', 'date', 'value'] as const;
+
+/**
+ * MONTHLY MACRO DATA beside the markets sample (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, the next phases' 1
+ * and 3): ten years of month-ends of three series a macro desk reads -- a consumer price index (rising, faster through
+ * 2021 and 2022, a mild season: prices rise most in the first months of a year), retail sales in billions (growing, a
+ * December peak and a January trough, the spring of 2020 collapsing) and the unemployment rate in percent (falling, its
+ * 2020 spike, back) -- each dated at its month's last calendar day, a weekend some months, so a timeseries reads two
+ * calendars beside the daily prices. `rows`: divided among the three, the months counted back from the last.
+ */
+export function macroCsv(rows = 360, seed = 20261031): string {
+  const rand = rng(seed);
+  const months: { readonly y: number; readonly m: number }[] = [];
+  for (let y = 2015; y <= 2024; y++) for (let m = 0; m < 12; m++) months.push({ y, m });
+  const kept = months.slice(Math.max(0, months.length - Math.max(1, Math.ceil(rows / 3))));
+  const endOf = (y: number, m: number): string => new Date(Date.UTC(y, m + 1, 0)).toISOString().slice(0, 10);
+  // the unemployment rate's path: straight lines between turns, by month
+  const turns: readonly (readonly [number, number])[] = [[2015, 5.7], [2019.95, 3.5], [2020.2, 3.6], [2020.26, 14.7], [2020.95, 6.7], [2021.95, 3.9], [2023.5, 3.6], [2024.95, 4.2]];
+  const rate = (t: number): number => {
+    for (let i = 1; i < turns.length; i++) {
+      const [a, va] = turns[i - 1]!;
+      const [b, vb] = turns[i]!;
+      if (t <= b) return va + (vb - va) * (t - a) / (b - a);
+    }
+    return turns.at(-1)![1];
+  };
+  // retail sales' season by month (a December peak, a January trough), and the spring of 2020
+  const season = [0.92, 0.91, 1.01, 1.0, 1.04, 1.02, 1.03, 1.04, 0.98, 1.0, 1.03, 1.16];
+  const spring2020: Readonly<Record<string, number>> = { '2020-2': 0.93, '2020-3': 0.82, '2020-4': 0.95 };
+  let cpi = 237;
+  let retail = 440;
+  const out: string[] = [MACRO_COLUMNS.join(',')];
+  for (const { y, m } of months) {
+    const t = y + m / 12;
+    const inflation = t >= 2021.25 && t < 2022.75 ? 0.006 : t >= 2022.75 && t < 2023.5 ? 0.003 : 0.0015;
+    cpi *= 1 + inflation + (m < 4 ? 0.0012 : m >= 10 ? -0.0008 : 0) + normal(rand) * 0.0005;
+    retail *= 1.003 + normal(rand) * 0.002;
+    const sales = retail * season[m]! * (spring2020[`${y}-${m}`] ?? 1) * (1 + normal(rand) * 0.005);
+    const unemployment = Math.max(3.2, rate(t) + normal(rand) * 0.08);
+    if (!kept.some((k) => k.y === y && k.m === m)) continue;
+    const day = endOf(y, m);
+    out.push(['CPI', day, cpi.toFixed(3)].map(csvCell).join(','), ['RETAIL', day, sales.toFixed(1)].map(csvCell).join(','),
+      ['UNRATE', day, unemployment.toFixed(1)].map(csvCell).join(','));
+  }
+  return `${out.join('\n')}\n`;
+}
+
+/** The cash sample's columns, in order. */
+export const CASH_COLUMNS = ['currency', 'date', 'rate', 'index'] as const;
+
+/** Each currency of gs-quant's risk-free rates (econometrics.RiskFreeRateCurrency): its overnight rate's day count and
+ *  its policy path's steps (a date and the rate in percent from it), shaped like SOFR's, €STR's, SONIA's, TONA's,
+ *  SARON's, AONIA's and SWESTR's through 2020-2024 -- a sample's, not their fixings. */
+const CASH: readonly { readonly currency: string; readonly basis: 360 | 365; readonly steps: readonly (readonly [string, number])[] }[] = [
+  { currency: 'USD', basis: 360, steps: [['2020-01-02', 1.55], ['2020-03-04', 1.1], ['2020-03-16', 0.05], ['2022-03-17', 0.3], ['2022-05-05', 0.8], ['2022-06-16', 1.55],
+    ['2022-07-28', 2.3], ['2022-09-22', 3.05], ['2022-11-03', 3.8], ['2022-12-15', 4.3], ['2023-02-02', 4.55], ['2023-03-23', 4.8], ['2023-05-04', 5.05],
+    ['2023-07-27', 5.31], ['2024-09-19', 4.83], ['2024-11-08', 4.58], ['2024-12-19', 4.33]] },
+  { currency: 'EUR', basis: 360, steps: [['2020-01-02', -0.54], ['2022-07-27', -0.09], ['2022-09-14', 0.66], ['2022-11-02', 1.41], ['2022-12-21', 1.91],
+    ['2023-02-08', 2.41], ['2023-03-22', 2.91], ['2023-05-10', 3.16], ['2023-06-21', 3.41], ['2023-08-02', 3.66], ['2023-09-20', 3.91], ['2024-06-12', 3.66],
+    ['2024-09-18', 3.41], ['2024-10-23', 3.16], ['2024-12-18', 2.91]] },
+  { currency: 'GBP', basis: 365, steps: [['2020-01-02', 0.7], ['2020-03-11', 0.2], ['2020-03-19', 0.05], ['2021-12-16', 0.19], ['2022-02-03', 0.44], ['2022-03-17', 0.69],
+    ['2022-05-05', 0.94], ['2022-06-16', 1.19], ['2022-08-04', 1.69], ['2022-09-22', 2.19], ['2022-11-03', 2.93], ['2022-12-15', 3.43], ['2023-02-02', 3.93],
+    ['2023-03-23', 4.18], ['2023-05-11', 4.43], ['2023-06-22', 4.93], ['2023-08-03', 5.19], ['2024-08-01', 4.95], ['2024-11-07', 4.7]] },
+  { currency: 'JPY', basis: 365, steps: [['2020-01-02', -0.02], ['2024-03-19', 0.08], ['2024-08-01', 0.23]] },
+  { currency: 'CHF', basis: 360, steps: [['2020-01-02', -0.7], ['2022-06-17', -0.2], ['2022-09-23', 0.45], ['2022-12-16', 0.95], ['2023-03-24', 1.45], ['2023-06-23', 1.7],
+    ['2024-03-22', 1.45], ['2024-06-21', 1.2], ['2024-09-27', 0.95], ['2024-12-13', 0.45]] },
+  { currency: 'AUD', basis: 365, steps: [['2020-01-02', 0.75], ['2020-03-04', 0.5], ['2020-03-20', 0.25], ['2020-11-04', 0.03], ['2022-05-04', 0.31], ['2022-06-08', 0.81],
+    ['2022-07-06', 1.31], ['2022-08-03', 1.81], ['2022-09-07', 2.31], ['2022-10-05', 2.56], ['2022-11-02', 2.81], ['2022-12-07', 3.06], ['2023-02-08', 3.31],
+    ['2023-03-08', 3.56], ['2023-05-03', 3.81], ['2023-06-07', 4.06], ['2023-11-08', 4.31]] },
+  { currency: 'SEK', basis: 360, steps: [['2020-01-02', -0.08], ['2022-05-04', 0.17], ['2022-07-06', 0.67], ['2022-09-21', 1.67], ['2022-11-30', 2.42], ['2023-02-15', 2.92],
+    ['2023-05-03', 3.42], ['2023-07-05', 3.67], ['2023-09-27', 3.92], ['2024-05-15', 3.67], ['2024-08-21', 3.42], ['2024-09-25', 3.17], ['2024-11-13', 2.67],
+    ['2024-12-20', 2.42]] },
+];
+
+/**
+ * THE RISK-FREE DATA MODEL'S SAMPLE (docs/TS_DECISIONS_2026_11_07.md item 13b): an overnight rate for each of gs-quant's
+ * seven risk-free currencies over the markets sample's business days, in percent a year to two places (as published),
+ * each its policy path's steps and a basis point's wobble; and its cash index -- 100 at the first date, each the one
+ * before grown by the rate before over the days between on the currency's day count (cash_index's rule, so
+ * `cash_index(rate['USD'])` is `index['USD']`) -- the cash a price's excess returns, and its Sharpe ratio, are over.
+ */
+export function cashCsv(seed = 20261108): string {
+  const rand = rng(seed);
+  const days = businessDays('2020-01-02', '2024-12-31');
+  const out: string[] = [CASH_COLUMNS.join(',')];
+  for (const c of CASH) {
+    let index = 100;
+    let before: { readonly day: string; readonly rate: number } | undefined;
+    for (const day of days) {
+      const step = c.steps.filter(([from]) => from <= day).at(-1)![1];
+      const rate = Math.round((step + normal(rand) * 0.01) * 100) / 100;
+      if (before !== undefined) index *= 1 + before.rate / 100 * ((Date.parse(day) - Date.parse(before.day)) / 86_400_000) / c.basis;
+      out.push([c.currency, day, rate.toFixed(2), index.toFixed(8)].map(csvCell).join(','));
+      before = { day, rate };
+    }
+  }
+  return `${out.join('\n')}\n`;
+}
+
 export const SAMPLES: readonly Sample[] = [
   {
     id: 'trades',
@@ -440,6 +564,22 @@ export const SAMPLES: readonly Sample[] = [
       + 'timeseries to read beside the prices (a spread, a bond fund against its yield).',
     defaultRows: 6525,
     build: (rows, seed) => ratesCsv(rows, seed),
+  },
+  {
+    id: 'macro',
+    label: 'Macro -- monthly, for timeseries',
+    about: 'Ten years of month-ends of a price index, retail sales (a December peak) and the unemployment rate: a monthly '
+      + 'grid for a timeseries to read beside the daily prices (two calendars combined, a season taken out).',
+    defaultRows: 360,
+    build: (rows, seed) => macroCsv(rows, seed),
+  },
+  {
+    id: 'cash',
+    label: 'Cash -- overnight rates and their indices',
+    about: 'An overnight rate for each of seven currencies (USD, EUR, GBP, JPY, CHF, AUD, SEK) over the markets sample\'s '
+      + 'days, and its cash index: the risk-free cash a price\'s excess returns and Sharpe ratio are over.',
+    defaultRows: 9_135,
+    build: (_rows, seed) => cashCsv(seed),
   },
   {
     // the sales sample's countries: a table to join its orders to (examples/prep-joins.ts)

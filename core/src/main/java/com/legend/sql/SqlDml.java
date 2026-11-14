@@ -14,7 +14,8 @@ import java.util.List;
  * quoted ({@code "Amt"}), and the dialect spells each as its queries reference it ({@code SqlDialect.storedName}).
  */
 public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTable, SqlDml.DeleteAll,
-        SqlDml.CreateTempTableAs, SqlDml.InsertSelect, SqlDml.Update, SqlDml.DeleteWhere, SqlDml.Merge {
+        SqlDml.CreateTempTableAs, SqlDml.CreateTableAs, SqlDml.InsertSelect, SqlDml.Update, SqlDml.DeleteWhere,
+        SqlDml.Merge, SqlDml.LoadCsv {
 
     /** {@code INSERT INTO [schema.]table [(columns)] VALUES (row), ...};
      *  {@code columns} empty: every column in declared order. */
@@ -34,6 +35,30 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
         public InsertFromTable {
             columns = List.copyOf(columns);
             quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
+        }
+    }
+
+    /** A CSV file's rows into a table ({@code loadCsvToDbTable}, the user's ruling of 2026-11-06): the statement names
+     *  NO file and holds no row (docs/DATA_IN_THE_PLAN_2026_11_09.md 2.5, 2026-11-09: the plan carries the file's
+     *  reference, the runner delivers its verified bytes). Its first line a header; its cells text the database casts
+     *  into the columns, positionally, each to its declared type ({@code types}, one per column: the store's). {@code
+     *  delimiter} and {@code quote}: the file's declared format (decision 6). A dialect spells its database's own reader
+     *  over the runner's copy of the file, or one row's insert of the runner's cells ({@code SqlDialect.csvLoad}). */
+    record LoadCsv(@com.legend.base.Nullable String schema, String table, NameQuoting quoting, List<String> columns,
+                   java.util.Set<String> quotedColumns, List<SqlDdl.ColumnType> types, char delimiter, char quote,
+                   int sizeLimitMegabytes)
+            implements SqlDml {
+        public LoadCsv {
+            columns = List.copyOf(columns);
+            quotedColumns = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(quotedColumns));
+            types = List.copyOf(types);
+            if (types.size() != columns.size()) {
+                throw new IllegalArgumentException("a CSV load's " + columns.size() + " column(s) and " + types.size()
+                        + " declared type(s)");
+            }
+            if (sizeLimitMegabytes <= 0) {
+                throw new IllegalArgumentException("a CSV load's size limit is positive: " + sizeLimitMegabytes);
+            }
         }
     }
 
@@ -62,6 +87,17 @@ public sealed interface SqlDml permits SqlDml.InsertValues, SqlDml.InsertFromTab
          *  them, in {@code query}'s order. */
         public static CreateTempTableAs staged(String table, SqlQuery query, List<String> columns) {
             return new CreateTempTableAs(table, query, columns, true);
+        }
+    }
+
+    /** {@code CREATE TABLE [schema.]table AS query}: a table of the host's own database holding a query's rows, its
+     *  columns the query's (a snapshot's copy, the final audit's 1(b), 2026-11-12: the pull's own statement, written
+     *  from its tree, so its bound values are the pull's in placeholder order). The names are a person's or a host's:
+     *  each always delimited, whatever it holds. */
+    record CreateTableAs(@com.legend.base.Nullable String schema, String table, SqlQuery query) implements SqlDml {
+        public CreateTableAs {
+            java.util.Objects.requireNonNull(table, "table");
+            java.util.Objects.requireNonNull(query, "query");
         }
     }
 

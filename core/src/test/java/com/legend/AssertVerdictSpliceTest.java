@@ -3,8 +3,9 @@
 
 package com.legend;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -118,18 +119,24 @@ class AssertVerdictSpliceTest {
         conn.close();
     }
 
-    private static ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(MODEL, query, "e::RT", conn);
+    private static Lean.Result run(String query) throws SQLException {
+        return Program.last(MODEL, query, "e::RT", conn);
+    }
+
+    /** {@code query} under backwards-compatibility mode's rules (upstream's), the lane's judge. */
+    private static Lean.Result runCompat(String query) throws SQLException {
+        return Program.last(MODEL, query, "e::RT", conn,
+                ExecuteOptions.NONE.withJudgeMode(Program.laneJudge()).withEngineCompat(true));
     }
 
     @Test
     @DisplayName("assertEquals over $result.values reads adjudicates (splice pin)")
     void assertOverExecuteHandleAdjudicates() throws Exception {
-        Object v = ((ExecutionResult.Scalar) run(
+        Object v = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->filter(p|$p.age > 0), e::M, e::RT.runtimeValue, []);"
                 + " assertEquals(['p1','p2'],"
-                + " $result.values.name->sort());}")).value();
+                + " $result.values.name->sort());}").one();
         assertEquals(Boolean.TRUE, v);
     }
 
@@ -137,13 +144,13 @@ class AssertVerdictSpliceTest {
     @DisplayName("sql(result) reads the activity log — the frame's own"
             + " rendered SQL (engine helperFunctions bodies, verbatim)")
     void sqlReadFoldsToFrameRender() throws Exception {
-        Object v = ((ExecutionResult.Scalar) run(
+        Object v = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name], ['name']), e::M, e::RT.runtimeValue, []);"
                 + " $result.activities->filter(a|$a->instanceOf("
                 + "meta::relational::mapping::RelationalActivity))->at(0)"
                 + "->cast(@meta::relational::mapping::RelationalActivity)"
-                + ".sql;}")).value();
+                + ".sql;}").one();
         assertEquals("select \"root\".NAME as \"name\" from P as \"root\"", v);
     }
 
@@ -151,7 +158,7 @@ class AssertVerdictSpliceTest {
     @DisplayName("sqlRemoveFormatting($result) through the VERBATIM helper"
             + " functions folds at the call (exact FQN, pre-inline)")
     void sqlProducerCallFolds() throws Exception {
-        Object v = ((ExecutionResult.Scalar) run(
+        Object v = (run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name], ['name']), e::M, e::RT.runtimeValue, []);"
                 + " meta::relational::mapping::sqlRemoveFormatting($result);}"))
@@ -178,9 +185,9 @@ class AssertVerdictSpliceTest {
     void incidentalOrderPolicy() throws Exception {
         // golden written in the REVERSED order of arrival — engine
         // goldens encode H2's incidental order, ours is DuckDB's
-        Object v = ((ExecutionResult.Scalar) run(
+        Object v = run(
                 "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
-                + " assertEquals([40, 30], $result.values.age);}")).value();
+                + " assertEquals([40, 30], $result.values.age);}").one();
         assertEquals(Boolean.TRUE, v);
         // a SORTED chain pins the order — the reversed golden FAILS
         com.legend.error.AssertFailed e = assertThrows(
@@ -195,37 +202,44 @@ class AssertVerdictSpliceTest {
     @DisplayName("D3 grid pair: two relation-stamped sides adjudicate via the"
             + " grid owner (columns + rows), not a byte decline")
     void gridPairVerdict() throws Exception {
-        Object v = ((ExecutionResult.Scalar) run(
+        Object v = run(
                 "{|assertEquals(#TDS\n  age\n  30\n  40\n#,"
                 + " e::Person.all()->project([p|$p.age], ['age'])"
-                + "->sort('age')->from(e::M, e::RT));}")).value();
+                + "->sort('age')->from(e::M, e::RT));}").one();
         assertEquals(Boolean.TRUE, v);
         com.legend.error.AssertFailed e = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
                 "{|assertEquals(#TDS\n  age\n  30\n  41\n#,"
                 + " e::Person.all()->project([p|$p.age], ['age'])"
                 + "->sort('age')->from(e::M, e::RT));}"));
-        assertTrue(String.valueOf(e.getMessage()).contains("assertEquals"),
+        // upstream's words under either judge (2026-11-03, the core parity program)
+        assertTrue(String.valueOf(e.getMessage()).contains("expected: [30, 41]"),
                 e.getMessage());
     }
 
     @Test
     @DisplayName("assertSize envelope rule: $r.values of a relation execute is ONE"
-            + " carrier; a rows read counts rows; assertContains judges membership")
+            + " carrier (upstream's count, backwards-compatibility mode; lite refuses it, S137);"
+            + " a rows read counts rows; assertContains judges membership")
     void sizeEnvelopeAndContains() throws Exception {
-        Object one = ((ExecutionResult.Scalar) run(
-                "{|let result = execute(|e::Person.all()"
+        String envelope = "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
-                + " assertSize($result.values, 1);}")).value();
+                + " assertSize($result.values, 1);}";
+        Object one = runCompat(envelope).one();
         assertEquals(Boolean.TRUE, one);
-        Object rows = ((ExecutionResult.Scalar) run(
+        // lite's own rules refuse the relation counted as one value (register S137, the user's ruling of 2026-11-05)
+        com.legend.error.ModelException refused = assertThrows(com.legend.error.ModelException.class,
+                () -> run(envelope));
+        assertTrue(refused.getMessage().contains("assertSize over a relation counts the relation as ONE value"),
+                refused.getMessage());
+        Object rows = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
-                + " assertSize($result.values.rows, 2);}")).value();
+                + " assertSize($result.values.rows, 2);}").one();
         assertEquals(Boolean.TRUE, rows);
-        Object member = ((ExecutionResult.Scalar) run(
+        Object member = run(
                 "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
-                + " assertContains($result.values.age, 30);}")).value();
+                + " assertContains($result.values.age, 30);}").one();
         assertEquals(Boolean.TRUE, member);
         com.legend.error.AssertFailed miss = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
@@ -242,14 +256,14 @@ class AssertVerdictSpliceTest {
         String prefix = "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
                 + " e::M, e::RT.runtimeValue, []);";
-        Object ordered = ((ExecutionResult.Scalar) run(prefix
+        Object ordered = run(prefix
                 + " assertEquals(['p1', 30, 'p2', 40],"
-                + " $result.values.rows.values);}")).value();
+                + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, ordered);
         // whole-row swap: DB arrival order is incidental — holds
-        Object swapped = ((ExecutionResult.Scalar) run(prefix
+        Object swapped = run(prefix
                 + " assertEquals(['p2', 40, 'p1', 30],"
-                + " $result.values.rows.values);}")).value();
+                + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, swapped);
         // cross-row CELL shuffle: same loose cells, broken row
         // cohesion — must FAIL (audit 9)
@@ -257,7 +271,9 @@ class AssertVerdictSpliceTest {
                 com.legend.error.AssertFailed.class, () -> run(prefix
                 + " assertEquals(['p1', 40, 'p2', 30],"
                 + " $result.values.rows.values);}"));
-        assertTrue(String.valueOf(e.getMessage()).contains("TDSRow.values"),
+        // upstream's words under either judge (2026-11-03, the core parity program: the host's "(TDSRow.values)"
+        // prefix was lite's)
+        assertTrue(String.valueOf(e.getMessage()).contains("expected: ['p1', 40, 'p2', 30]"),
                 e.getMessage());
     }
 
@@ -265,12 +281,12 @@ class AssertVerdictSpliceTest {
     @DisplayName("§8 leg 1: the golden's TDSNull sentinel matches a NULL"
             + " cell (expected direction, byte + host)")
     void flatCellsTdsNullSentinel() throws Exception {
-        Object v = ((ExecutionResult.Scalar) run(
+        Object v = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.nick], ['name','nick']),"
                 + " e::M, e::RT.runtimeValue, []);"
                 + " assertEquals(['p1', 'TDSNull', 'p2', 'TDSNull'],"
-                + " $result.values.rows.values);}")).value();
+                + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, v);
     }
 
@@ -278,12 +294,12 @@ class AssertVerdictSpliceTest {
     @DisplayName("§8 leg 1: assertSameElements over flat cells is the"
             + " LOOSE cell pool (cross-row shuffle holds there)")
     void flatCellsSameElementsLoosePool() throws Exception {
-        Object v = ((ExecutionResult.Scalar) run(
+        Object v = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.name, p|$p.age], ['name','age']),"
                 + " e::M, e::RT.runtimeValue, []);"
                 + " assertSameElements(['p1', 40, 'p2', 30],"
-                + " $result.values.rows.values);}")).value();
+                + " $result.values.rows.values);}").one();
         assertEquals(Boolean.TRUE, v);
         com.legend.error.AssertFailed miss = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
@@ -297,19 +313,24 @@ class AssertVerdictSpliceTest {
     }
 
     @Test
-    @DisplayName("§8 leg 1: emptiness of a TABULAR side is its row count")
+    @DisplayName("§8 leg 1: emptiness of a TABULAR side's rows is its row count (the relation itself refused, S137)")
     void gridEmptiness() throws Exception {
-        Object notEmpty = ((ExecutionResult.Scalar) run(
+        Object notEmpty = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
-                + " assertNotEmpty($result.values);}")).value();
+                + " assertNotEmpty($result.values.rows);}").one();
         assertEquals(Boolean.TRUE, notEmpty);
-        Object emptied = ((ExecutionResult.Scalar) run(
+        Object emptied = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->filter(p|$p.age > 99)"
                 + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
-                + " assertEmpty($result.values);}")).value();
+                + " assertEmpty($result.values.rows);}").one();
         assertEquals(Boolean.TRUE, emptied);
+        // the relation itself: upstream counts it as one value, so lite's own rules refuse it (register S137)
+        assertThrows(com.legend.error.ModelException.class, () -> run(
+                "{|let result = execute(|e::Person.all()"
+                + "->project([p|$p.age], ['age']), e::M, e::RT.runtimeValue, []);"
+                + " assertNotEmpty($result.values);}"));
     }
 
     @Test
@@ -317,13 +338,13 @@ class AssertVerdictSpliceTest {
             + " query's multiplicity — .values types String[1] and the"
             + " strict JSON signature accepts it")
     void resultMultiplicityRefinesForJsonAssert() throws Exception {
-        Object v = ((ExecutionResult.Scalar) run(
+        Object v = run(
                 "{|let result = execute(|e::Person.all()"
                 + "->graphFetch(#{e::Person{name}}#)"
                 + "->serialize(#{e::Person{name}}#), e::M, e::RT.runtimeValue, []);"
                 + " assertJsonStringsEqual("
                 + "'[{\"name\":\"p1\"},{\"name\":\"p2\"}]',"
-                + " $result.values);}")).value();
+                + " $result.values);}").one();
         assertEquals(Boolean.TRUE, v);
         com.legend.error.AssertFailed miss = assertThrows(
                 com.legend.error.AssertFailed.class, () -> run(
@@ -340,13 +361,13 @@ class AssertVerdictSpliceTest {
     @Test
     @DisplayName("assert condition + assertSize over frame reads adjudicate")
     void conditionAndSizeLanesSplice() throws Exception {
-        Object c = ((ExecutionResult.Scalar) run(
+        Object c = run(
                 "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
-                + " assert($result.values.name->size() == 2);}")).value();
+                + " assert($result.values.name->size() == 2);}").one();
         assertEquals(Boolean.TRUE, c);
-        Object s = ((ExecutionResult.Scalar) run(
+        Object s = run(
                 "{|let result = execute(|e::Person.all(), e::M, e::RT.runtimeValue, []);"
-                + " assertSize($result.values.age, 2);}")).value();
+                + " assertSize($result.values.age, 2);}").one();
         assertEquals(Boolean.TRUE, s);
     }
 }

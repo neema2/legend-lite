@@ -86,6 +86,13 @@ public enum CoreFn {
     EMPTY_LAST("emptyLast"),
     /** Relation {@code select(~cols)} &mdash; column projection by name; {@code newTDSRelationAccessor} is its legacy alias. */
     SELECT("select", "newTDSRelationAccessor"),
+    /** Relation {@code without(~cols)} &mdash; the relation less the named columns ({@code T-Z}), typed as the select
+     *  of every other column (lite surface; Pure.Lite.WITHOUT, 2026-10-27). */
+    WITHOUT("without"),
+    /** {@code $r->read(~col)} &mdash; a row's column through a column spec written at the call, as {@code $r.col} is (lite
+     *  surface; Pure.Lite.READ, 2026-10-27); {@code $r->read(~[a, b])}, the row's values in several columns, a list
+     *  without the columns that have none (2026-11-02). */
+    READ("read"),
     /** Relation {@code distinct} / {@code distinct(~[cols])} &mdash; row dedup, optionally narrowing. */
     DISTINCT("distinct"),
     /** Relation {@code concatenate} &mdash; UNION ALL of two same-schema relations. */
@@ -199,7 +206,8 @@ public enum CoreFn {
     /** {@code over(~partition [, asc(~key)…])} &mdash; a window definition ({@code _Window<T>[1]}). */
     OVER("over");
 
-    private static final Map<String, CoreFn> BY_NAME = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<String, CoreFn> BY_NAME =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     /** Every parse-time name (aliases included) with its construct — the
      *  CoreFn CLAIMS ({@link com.legend.builtin.Claims}, kind CORE_FN): every
@@ -302,6 +310,10 @@ public enum CoreFn {
         m.put(SELECT, java.util.Set.of(
                 "meta::pure::functions::relation::select",
                 "meta::pure::metamodel::relation::newTDSRelationAccessor"));
+        m.put(WITHOUT, java.util.Set.of(
+                "meta::legend::lite::without"));
+        m.put(READ, java.util.Set.of(
+                "meta::legend::lite::read"));
         m.put(DISTINCT, java.util.Set.of(
                 "meta::pure::functions::collection::distinct",
                 "meta::pure::functions::relation::distinct",
@@ -460,5 +472,10 @@ public enum CoreFn {
         // no name-tail fallback is needed (deleted 2026-09-25 with its three
         // alias arms, all of which OWNS already covered)
         return Optional.ofNullable(OWNER_OF.get(parseName));
+    }
+
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        BY_NAME.seal();
     }
 }

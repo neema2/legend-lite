@@ -3,7 +3,8 @@
 
 package com.legend.integration;
 
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.IqParity;
@@ -102,7 +103,6 @@ class IqCorpusTest {
             StringBuilder rowsOut = System.getProperty("iq.corpus.rows") != null ? new StringBuilder() : null;
             try (Connection session = PLATFORM.open()) {
                 IqParity.seed(PLATFORM, session, tables);
-                QueryService service = new QueryService();
                 for (Query q : queries) {
                     IqParity.Case c = new IqParity.Case("corpus/" + name, q.id(), q.sql(), List.of(profile), null,
                             null, null, null, null, null, null, null);
@@ -123,7 +123,7 @@ class IqCorpusTest {
                             continue;
                         }
                         Future<SqlParity.Outcome> judged = pool.submit(() -> IqParity.outcome(parityRun, snap,
-                                tables, names, is -> service.execute(model, is, IqParity.RUNTIME, session)));
+                                tables, names, is -> Lean.run(model, is, IqParity.RUNTIME, session)));
                         String verdict;
                         String detail;
                         try {
@@ -131,7 +131,7 @@ class IqCorpusTest {
                             verdict = o.status().name();
                             detail = o.detail().replaceAll("\\s+", " ").strip();
                             if (o.status() == SqlParity.Status.FAIL && !detail.contains("Column")
-                                    && sameRowsUnordered(parityRun, snap, service, model, island, session)) {
+                                    && sameRowsUnordered(parityRun, snap, model, island, session)) {
                                 // a real-world query's ORDER BY may tie: the rows are IQ's, in another order
                                 verdict = "PASS_UNORDERED";
                             }
@@ -148,7 +148,7 @@ class IqCorpusTest {
                         if (rowsOut != null && verdict.equals("FAIL")) {
                             // IQ island, 2026-10-16: lite's own rows, for reading a FAIL beside the live IQ's
                             try {
-                                SqlParity.Grid g = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME,
+                                SqlParity.Grid g = SqlParity.grid(Lean.run(model, island, IqParity.RUNTIME,
                                         session));
                                 rowsOut.append("{\"id\":").append(json(q.id())).append(",\"columns\":[");
                                 rowsOut.append(String.join(",", g.columns().stream().map(IqCorpusTest::json)
@@ -167,7 +167,7 @@ class IqCorpusTest {
                         continue;
                     }
                     Future<Status> run = pool.submit(() -> {
-                        service.execute(model, island, IqParity.RUNTIME, session);
+                        Lean.run(model, island, IqParity.RUNTIME, session);
                         return Status.ANSWERED;
                     });
                     Result r;
@@ -242,13 +242,13 @@ class IqCorpusTest {
     /** Whether lite's rows are the live IQ's as a multiset, each cell compared by IQ's type
      *  ({@link IqParity#cellEquals}): a judged FAIL that only orders tied rows otherwise. */
     private static boolean sameRowsUnordered(IqParity.Run run, com.legend.testcases.IqAnswers.Snap snap,
-            QueryService service, String model, String island, Connection session) {
+            String model, String island, Connection session) {
         try {
             if (!(com.legend.testcases.IqAnswers.expected(run, snap) instanceof SqlParity.Rows rows)) {
                 return false;
             }
             SqlParity.Grid expected = rows.grid();
-            SqlParity.Grid actual = SqlParity.grid(service.execute(model, island, IqParity.RUNTIME, session));
+            SqlParity.Grid actual = SqlParity.grid(Lean.run(model, island, IqParity.RUNTIME, session));
             if (expected.rows().size() != actual.rows().size() || expected.rows().size() > 5000) {
                 return false;
             }

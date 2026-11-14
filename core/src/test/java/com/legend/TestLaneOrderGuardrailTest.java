@@ -96,7 +96,8 @@ class TestLaneOrderGuardrailTest {
         assertEquals(new TreeSet<>(List.of(
                 // 2026-10-18 (the plan path program's step 6, both judges on plans): the judges' canon-ordered side,
                 // the assert's own wrap over a plan -- a judge's path, no product render
-                "com/legend/JudgePlans.java",
+                // (the driver's until slice 5, 2026-11-09: the test's planner's since)
+                "com/legend/testplan/JudgePlans.java",
                 "com/legend/lowering/CanonicalRenderSql.java",
                 "com/legend/sql/dialect/StableScanOrder.java")),
                 filesMatching(STABILIZE),

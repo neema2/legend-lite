@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.integration;
 
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+
 import com.legend.resolver.ResolvedSql;
-import com.legend.testbackend.TestBackends;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
-import com.legend.server.QueryService;
 import java.sql.Connection;
 import java.util.ArrayList;
 import java.util.List;
@@ -23,6 +25,7 @@ import org.junit.jupiter.api.Test;
  * semantics (a firm with no employees appears ONCE with a null), members
  * matched in both sets, a member matched in one set only.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class UnionTargetLeanJoinTest {
     private static final String MODEL = """
             ###Pure
@@ -90,10 +93,10 @@ class UnionTargetLeanJoinTest {
             """;
 
     private static List<List<Object>> rows(Connection connection, String query) throws Exception {
-        var result = new QueryService().execute(MODEL, query, "ul::rt", connection);
+        var result = Lean.run(MODEL, query, "ul::rt", connection);
         List<List<Object>> out = new ArrayList<>();
         for (var row : result.rows()) {
-            out.add(new ArrayList<>(row.values()));
+            out.add(new ArrayList<>(row));
         }
         out.sort((x, y) -> String.valueOf(x).compareTo(String.valueOf(y)));
         return out;
@@ -128,7 +131,7 @@ class UnionTargetLeanJoinTest {
     @Test
     @DisplayName("routes sharing one condition into a union target: one equi-join, outer semantics kept")
     void leanUnionJoinKeepsRows() throws Exception {
-        try (Connection connection = TestBackends.platform().open()) {
+        try (Connection connection = LaneFloor.backend().open()) {
             try (var stmt = connection.createStatement()) {
                 stmt.execute("create table FIRM (ID int primary key, NAME varchar(20))");
                 stmt.execute("create table P1 (ID int primary key, LAST varchar(20), FIRM_ID int)");

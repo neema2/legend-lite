@@ -149,10 +149,12 @@ def candidates(c: model.Corpus, tables: dict[str, list[dict]]) -> list[str]:
     generator does not model — milestoning, or a many-to-many — so it is left alone rather
     than filled with rows that would be wrong in a way nobody notices.
     """
+    import seed
+
     seeded = {t for t, rows in tables.items() if rows}
     out = []
     for name, table in sorted(c.tables.items()):
-        if name in seeded or name in c.views or len(table.pk) != 1:
+        if name in seeded or name in c.views or len(table.pk) != 1 or name in seed.PACK_TABLES:
             continue
         fks = _fk_targets(c, name, seeded)
         if not fks:
@@ -331,7 +333,8 @@ def _reserved() -> set[str]:
     table whose whole job was to have none.
     """
     import partition
-    return {partition.EMPTY, *partition.BY_ASSET_CLASS.values()}
+    import seed
+    return {partition.EMPTY, *partition.BY_ASSET_CLASS.values(), *seed.PACK_TABLES}
 
 
 def bootstrap(c: model.Corpus, tables: dict[str, list[dict]]) -> dict[str, list[dict]]:

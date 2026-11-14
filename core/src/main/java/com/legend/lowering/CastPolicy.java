@@ -112,22 +112,6 @@ final class CastPolicy {
                 && PlatformTypes.isVariant(jt)) {
             return value;
         }
-        // THE NO-RE-WRAP DECISION (M4 §3.3): a LITERAL-marked value is
-        // a self-describing Any carrier — an Any-conformance keeps the
-        // mark unchanged. The carrier casts below would re-carrier
-        // spelled texts as JSON (bare numbers silently re-kind, quoted
-        // strings malform — the parked branch's gate-caught witness,
-        // testUsingSameAggFunctionTwice). Labels distinguish carriers;
-        // casts never re-carrier. Decided on the STORED fact — the
-        // typed IR's clean read; the branch needed a node-shape sniff
-        // (its judge) for the same decision. Dormant until the claim
-        // lands: no live flow routes a LITERAL-marked value here today.
-        if (value.type() instanceof com.legend.sql.TypeFact.Typed vt
-                && (vt.type() == SqlType.Scalar.LITERAL
-                        || (vt.type() instanceof SqlType.Array va
-                                && va.element() == SqlType.Scalar.LITERAL))) {
-            return value;
-        }
         if (many) {
             boolean variantTarget = c.target() instanceof Type.ClassType t
                     && PlatformTypes.isVariant(t);
@@ -255,7 +239,14 @@ final class CastPolicy {
         if (tgt == Type.Primitive.DATE) {
             return src == Type.Primitive.STRICT_DATE || src == Type.Primitive.DATE_TIME;
         }
-        return false;
+        // a Decimal to a Decimal of another shape (a literal's own scale, Numeric(p, s), a column's DECIMAL(p, s)) is
+        // a type ASSERTION as Pure's cast is: the value as it is (2026-11-05, the user: "do the cast as part of this
+        // PR" -- 1.25D->cast(@Numeric(10, 2)) answered 1.250000000000000000 through a DECIMAL(38,18) cast; register S140)
+        return decimalKind(src) && decimalKind(tgt);
+    }
+
+    private static boolean decimalKind(Type t) {
+        return t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal;
     }
 
     static boolean isSqlPrimitive(Type t) {

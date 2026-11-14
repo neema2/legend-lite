@@ -3,11 +3,11 @@
 
 package com.legend.test;
 
+
 import com.legend.Compiler;
-import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.PureModelContext;
-import com.legend.exec.ExecutionResult;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ConnectionSpecification;
@@ -20,10 +20,7 @@ import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
-import com.legend.values.PureDateLiteral;
 
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -64,7 +61,7 @@ import java.util.Map;
  *   <li><b>execution</b>: parameters bind as query VARIABLES ({@code let}
  *       statements ahead of the body — never text substitution); the body
  *       executes through the ONE production entry
- *       ({@link Compiler#executeResolved}) against the test runtime;</li>
+ *       ({@link Execution#runProgram}) against the test runtime;</li>
  *   <li><b>serialization</b>: {@code PURE_TDSOBJECT} (and {@code RAW})
  *       render a tabular result as one object per row keyed by column; a
  *       graph result is the JSON envelope the platform produced
@@ -113,8 +110,11 @@ public final class ServiceTestRunner implements AutoCloseable {
      *  it, so the platform picks that dialect (an H2 session refuses a
      *  runtime whose connections declare anything else). */
     private final ConnectionDefinition.DatabaseType sessionType;
-    /** test runtime name → the shared session (SHARED policy). */
-    private final Map<String, Connection> shared = new LinkedHashMap<>();
+    /** The data a session is seeded with → the shared session (SHARED policy). One database per distinct data set,
+     *  whichever runtimes read it (2026-11-07: keyed by runtime, the stress lane held 46 seeded databases, 26 of them
+     *  the same stress::TestData, ~340 MB each; the program's seed step is keyed by its content and skipped on a
+     *  session that holds it, so a second runtime over the same data seeds nothing). */
+    private final Map<List<ProvisionKey>, com.legend.exec.Sessions.Session> shared = new LinkedHashMap<>();
     /** the runtime and its provisioning, BY VALUE → the test runtime (an
      *  overlay context + its runtime name). Value records, never a hash of
      *  the data: two suites whose CSVs differ but hash alike ("Aa"/"BB")
@@ -136,8 +136,9 @@ public final class ServiceTestRunner implements AutoCloseable {
     private record RuntimeKey(String runtimeFqn, List<ProvisionKey> provisions) {
     }
 
-    /** A suite's test runtime: the overlay context that resolves it, by name. */
-    private record TestRuntime(PureModelContext ctx, String runtimeFqn) {
+    /** A suite's test runtime: the overlay context that resolves it, by name, and the data it is seeded with (the
+     *  shared session's key). */
+    private record TestRuntime(PureModelContext ctx, String runtimeFqn, List<ProvisionKey> data) {
     }
 
     /** One test's computed answer, as its serialization format spells it,
@@ -200,7 +201,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                 } catch (Skip s) {
                     r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.SKIPPED,
                             String.valueOf(s.getMessage()), 0);
-                } catch (RuntimeException | SQLException e) {
+                } catch (RuntimeException e) {
                     r = new Result(svc.qualifiedName(), suite.id(), test.id(), Status.FAIL,
                             "harness: " + e.getClass().getSimpleName() + ": "
                                     + PureTestRunner.whole(e.getMessage()), 0);
@@ -212,15 +213,17 @@ public final class ServiceTestRunner implements AutoCloseable {
         return out;
     }
 
-    private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
-            Protocol.PServiceTestSuite.PSuiteTest test) throws SQLException {
+    /** The test runtime a suite's test runs on and the program it runs: the parameters as let-bound variables, then
+     *  the service's body. */
+    private record Program(TestRuntime rt, List<ValueSpecification> statements) {
+    }
+
+    private Program program(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+            Protocol.PServiceTestSuite.PSuiteTest test) {
         String runtimeFqn = runtimeOf(svc);
         RuntimeDefinition runtime = ctx.findRuntime(runtimeFqn).orElseThrow(
                 () -> new Skip("runtime '" + runtimeFqn + "' is not in the model"));
-        List<Provision> provisions = provisions(suite, runtime);
-        TestRuntime rt = testRuntime(runtime, provisions);
-
-        // the program: parameters as let-bound variables, then the body
+        TestRuntime rt = testRuntime(runtime, provisions(suite, runtime));
         List<ValueSpecification> statements = new ArrayList<>();
         if (test.parameters() != null) {
             for (Protocol.PServiceTestSuite.PSuiteParam p : test.parameters()) {
@@ -229,29 +232,66 @@ public final class ServiceTestRunner implements AutoCloseable {
             }
         }
         statements.addAll(body(svc.functionBody()));
+        return new Program(rt, statements);
+    }
+
+    /** The TEST PLAN {@code svc}'s test {@code testId} of suite {@code suiteId} runs, as JSON, planned and never run
+     *  (the data-in-the-plan design's M4 guard, 2026-11-09: a suite's data reaches the plan only as a load). */
+    public String planJson(ServiceDefinition svc, String suiteId, String testId) {
+        return planJson(svc, suiteId, testId, com.legend.ExecuteOptions.NONE);
+    }
+
+    /** {@link #planJson(ServiceDefinition, String, String)} planned under {@code options} (an edge's, for one). */
+    public String planJson(ServiceDefinition svc, String suiteId, String testId, com.legend.ExecuteOptions options) {
+        for (Protocol.PServiceTestSuite suite : java.util.Objects.requireNonNull(svc.testSuites())) {
+            for (Protocol.PServiceTestSuite.PSuiteTest test : suite.tests()) {
+                if (suite.id().equals(suiteId) && test.id().equals(testId)) {
+                    Program p = program(svc, suite, test);
+                    ValueSpecification resolved = Compiler.resolveQuery(p.statements(), new ImportScope(List.of()),
+                            p.rt().ctx());
+                    return com.legend.testexecutionplan.TestPlanJson.write(TestExecution.planBody(
+                            Compiler.queryResolved(p.rt().ctx(), resolved), p.rt().runtimeFqn(), options));
+                }
+            }
+        }
+        throw new IllegalArgumentException("no test " + suiteId + "." + testId + " in " + svc.qualifiedName());
+    }
+
+    private Result runOne(ServiceDefinition svc, Protocol.PServiceTestSuite suite,
+            Protocol.PServiceTestSuite.PSuiteTest test) {
+        Program program = program(svc, suite, test);
+        TestRuntime rt = program.rt();
         ValueSpecification resolved;
         try {
-            resolved = Compiler.resolveQuery(statements, new ImportScope(List.of()), rt.ctx());
+            resolved = Compiler.resolveQuery(program.statements(), new ImportScope(List.of()), rt.ctx());
         } catch (RuntimeException e) {
             return fail(svc, suite, test, "resolve: " + PureTestRunner.whole(e.getMessage()));
         }
         boolean privateSession = policy == Sessions.FRESH_PER_TEST
                 || Compiler.hasStatementEffects(resolved, rt.ctx());
-        Connection conn = privateSession ? opener.open() : shared(rt.runtimeFqn());
+        com.legend.exec.Sessions.Session conn = privateSession ? opener.open() : shared(rt.data());
         try {
-            ExecutionResult result;
+            java.io.StringWriter out = new java.io.StringWriter();
             try {
-                result = Execution.executeResolved(resolved, rt.ctx(), rt.runtimeFqn(), conn);
+                // the one entry for a program (track C, 2026-10-29): the test's body typed once, run on the
+                // session; its last statement's answer streams through the boundary's writer for the test's format
+                // (the doors, 2026-10-29) -- what the service would serve, read back below as the tree the
+                // assertions compare
+                TestExecution.runProgram(Compiler.queryResolved(rt.ctx(), resolved), rt.runtimeFqn(),
+                        com.legend.exec.SessionSource.given(conn), null, null, com.legend.ExecuteOptions.NONE,
+                        new com.legend.result.Output.Rows(new ServiceAnswer(out, test.serializationFormat())));
+            } catch (Skip s) {
+                throw s;
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();   // the same diagnostic switch the resolver walls honor
                 }
                 return fail(svc, suite, test, "execute: " + PureTestRunner.whole(e.getMessage()));
             }
-            if (result == null) {
+            if (out.getBuffer().length() == 0) {
                 return fail(svc, suite, test, "execute: the platform produced no result");
             }
-            Object actual = serialize(result, test.serializationFormat());
+            Object actual = com.legend.sql.Json.parse(out.toString());
             if (rowsSink != null) {
                 rowsSink.accept(new Rows(svc.qualifiedName(), suite.id(), test.id(), actual));
             }
@@ -358,11 +398,21 @@ public final class ServiceTestRunner implements AutoCloseable {
             }
             value = dd.body().value();
         }
-        if (!(value instanceof Protocol.PRelationalCsvData csv)) {
-            throw new Skip("embedded data kind '"
-                    + value.getClass().getSimpleName().substring(1)
-                    + "' is not provisioned by this runner");
-        }
+        // every kind a suite's data may be, classified (B2e, 2026-11-11, census M17: until then a kind but relational CSV
+        // was a skip): a store's relational rows are provisioned; the rest is a feature not implemented yet, by name
+        String feature = "a service test's data for the store " + store;
+        Protocol.PRelationalCsvData csv = switch (value) {
+            case Protocol.PRelationalCsvData r -> r;
+            case Protocol.PDataReference r -> throw new IllegalStateException("a reference resolved above: " + r);
+            case Protocol.PModelStoreData m -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(m, feature));
+            case Protocol.PExternalFormatData e -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(e, feature));
+            case Protocol.PServiceStoreData st -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(st, feature));
+            case Protocol.PRelationData r -> throw new com.legend.error.NotImplementedException(
+                    com.legend.protocol.EmbeddedDataKinds.notImplemented(r, feature));
+        };
         for (Protocol.PRelationalCsvTable t : csv.tables()) {
             if (t.values() == null) {
                 // JSON may leave a table's values out; with no header line there are no columns to seed
@@ -385,7 +435,7 @@ public final class ServiceTestRunner implements AutoCloseable {
             return cached;
         }
         if (provisions.isEmpty()) {
-            TestRuntime plain = new TestRuntime(ctx, runtime.qualifiedName());
+            TestRuntime plain = new TestRuntime(ctx, runtime.qualifiedName(), List.of());
             runtimes.put(key, plain);
             return plain;
         }
@@ -422,85 +472,90 @@ public final class ServiceTestRunner implements AutoCloseable {
         runtime.connectionIds().forEach((id, s) -> ids.put(id, s));
         RuntimeDefinition rt = new RuntimeDefinition(rtName, runtime.mappings(),
                 Map.of(store, List.of(connName)), List.of(), List.of(), ids);
-        TestRuntime built = new TestRuntime(ctx.withExecutionOverlay(rt, conn), rtName);
+        TestRuntime built = new TestRuntime(ctx.withExecutionOverlay(rt, conn), rtName, key.provisions());
         runtimes.put(key, built);
         return built;
     }
 
-    private Connection shared(String testRuntimeFqn) throws SQLException {
-        Connection conn = shared.get(testRuntimeFqn);
+    private com.legend.exec.Sessions.Session shared(List<ProvisionKey> data) {
+        com.legend.exec.Sessions.Session conn = shared.get(data);
         if (conn == null) {
             conn = opener.open();
-            shared.put(testRuntimeFqn, conn);
+            shared.put(data, conn);
         }
         return conn;
     }
 
     // ---- SERIALIZE + JUDGE ----------------------------------------------------
 
-    /** The result as the JSON tree its serialization format produces (public for the stress corpus on Deephaven, whose
-     *  desk cases expect DuckDB's answer so serialized: StressOnDeephaven, 2026-10-27). */
-    public static @com.legend.base.Nullable Object serialize(ExecutionResult result,
-            @com.legend.base.Nullable String format) {
-        String fmt = format == null ? "DEFAULT" : format;
-        return switch (result) {
-            case ExecutionResult.Graph g -> {
-                Object tree = com.legend.sql.Json.parse(g.json());
-                if (tree instanceof Map<?, ?> m && m.containsKey("builder")) {
-                    yield tree;
-                }
-                Map<String, Object> env = new LinkedHashMap<>();
-                env.put("builder", Map.of("_type", "json"));
-                env.put("values", tree);
-                yield env;
-            }
-            case ExecutionResult.Tabular t -> {
-                if (!fmt.equals("PURE_TDSOBJECT") && !fmt.equals("RAW")) {
-                    throw new Skip("serialization format " + fmt
-                            + " of a tabular result is not rendered by this runner");
-                }
-                List<Object> rows = new ArrayList<>(t.rows().size());
-                for (var row : t.rows()) {
-                    Map<String, Object> o = new LinkedHashMap<>();
-                    for (int i = 0; i < t.columns().size(); i++) {
-                        o.put(t.columns().get(i).name(), cell(row.values().get(i)));
-                    }
-                    rows.add(o);
-                }
-                yield rows;
-            }
-            case ExecutionResult.Scalar s -> cell(s.value());
-            case ExecutionResult.Collection c -> {
-                List<Object> vs = new ArrayList<>(c.values().size());
-                c.values().forEach(v -> vs.add(cell(v)));
-                yield vs;
-            }
-            case ExecutionResult.TdsText tt -> throw new Skip(
-                    "a TDS-text result is not rendered by this runner");
-        };
-    }
+    /** The writer the test's serialization format names, for the answer's shape (the doors, 2026-10-29: the body's
+     *  last statement streams through the boundary's writers as the service's answer would; until then this runner
+     *  assembled the tree in Java from a materialized side -- its own cell rules until track Z, the boundary's
+     *  {@code CellText.engine} after). A graph fetch's objects as legend-engine's JSON envelope
+     *  ({@link com.legend.result.PureV1Writer#objects}); a relation or a value as {@code PURE_TDSOBJECT}
+     *  ({@link com.legend.result.TdsObjectsWriter}: objects keyed by column, legend-engine's cell tokens); another
+     *  format of a relation is not rendered by this runner. The text is read back as the plain tree the assertions
+     *  compare. */
+    /** The service's answer as the test reads it back: told the answer's shape before its columns, it writes in the
+     *  test's serialization format -- a graph fetch's objects as the engine's JSON, a relation as TDS objects where the
+     *  format is one this runner renders (else the test is skipped by name). A receiver, deciding nothing the run does
+     *  (2026-11-09: the run called a factory of the runner's until then). */
+    private static final class ServiceAnswer implements com.legend.result.ResultSink {
+        private final java.io.Writer out;
+        private final String format;
+        private com.legend.result.@com.legend.base.Nullable ResultSink writer;
+        private java.util.@com.legend.base.Nullable UUID execution;
 
-    /** A result cell as a JSON tree leaf (the engine's value transformer:
-     *  dates as their engine string, numbers as numbers, the rest as-is). */
-    private static @com.legend.base.Nullable Object cell(@com.legend.base.Nullable Object v) {
-        return switch (v) {
-            case null -> null;
-            case PureDateLiteral d -> d.toEngineJson();   // the engine's JSON spelling: nanos + "+0000" on time-bearing values
-            case Map<?, ?> m -> {
-                Map<String, Object> o = new LinkedHashMap<>();
-                m.forEach((k, x) -> o.put(String.valueOf(k), cell(x)));
-                yield o;
+        ServiceAnswer(java.io.Writer out, @com.legend.base.Nullable String format) {
+            this.out = out;
+            this.format = format == null ? "DEFAULT" : format;
+        }
+
+        @Override
+        public void answers(com.legend.executionplan.ExecutionPlan.TdsResult.Shape shape) {
+            if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS) {
+                writer = com.legend.result.PureV1Writer.objects(out);
+                return;
             }
-            case List<?> l -> {
-                List<Object> o = new ArrayList<>(l.size());
-                l.forEach(x -> o.add(cell(x)));
-                yield o;
+            if (shape == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION
+                    && !format.equals("PURE_TDSOBJECT") && !format.equals("RAW")) {
+                throw new Skip("serialization format " + format + " of a tabular result is not rendered by this runner");
             }
-            case Number n -> n;
-            case Boolean b -> b;
-            case String s -> s;
-            default -> String.valueOf(v);
-        };
+            writer = new com.legend.result.TdsObjectsWriter(out, shape);
+        }
+
+        @Override
+        public void execution(java.util.UUID id) {
+            // told before its shape: handed on to the writer the shape makes
+            execution = id;
+        }
+
+        private com.legend.result.ResultSink writer() {
+            com.legend.result.ResultSink w = writer;
+            if (w == null) {
+                throw new IllegalStateException("the service's answer was not told its shape before its rows");
+            }
+            return w;
+        }
+
+        @Override
+        public void columns(java.util.List<com.legend.executionplan.ExecutionPlan.Column> columns)
+                throws java.io.IOException {
+            if (execution != null) {
+                writer().execution(execution);
+            }
+            writer().columns(columns);
+        }
+
+        @Override
+        public void batch(com.legend.result.Batch batch) throws java.io.IOException {
+            writer().batch(batch);
+        }
+
+        @Override
+        public void end() throws java.io.IOException {
+            writer().end();
+        }
     }
 
     private static @com.legend.base.Nullable String judge(Protocol.PTestAssertion a,
@@ -528,17 +583,17 @@ public final class ServiceTestRunner implements AutoCloseable {
 
     // ---- SESSIONS -------------------------------------------------------------
 
-    /** The shared sessions opened so far, by test runtime. */
-    public Map<String, Connection> sessions() {
-        return Collections.unmodifiableMap(shared);
+    /** The shared sessions opened so far: one per distinct data set. */
+    public java.util.Collection<com.legend.exec.Sessions.Session> sessions() {
+        return Collections.unmodifiableCollection(shared.values());
     }
 
     @Override
     public void close() {
-        for (Connection c : shared.values()) {
+        for (com.legend.exec.Sessions.Session c : shared.values()) {
             try {
                 c.close();
-            } catch (SQLException ignored) {
+            } catch (com.legend.error.DataError ignored) {
                 // a session that fails to close cannot poison the next
             }
         }

@@ -7,38 +7,22 @@
 # array, so a list parameter's plan is refused by name when it is made; today's path inlines the list.
 sqlite	CSV	|let ns = [1, 3];#>{s::DB.T}#->filter(r|!$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
 sqlite	JSON	|let ns = [1, 3];#>{s::DB.T}#->filter(r|!$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
-sqlite	STREAMED_JSON	|let ns = [1, 3];#>{s::DB.T}#->filter(r|!$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
 sqlite	CSV	|let ns = [1, 3];#>{s::DB.T}#->filter(r|$r.ID->in($ns))->select(~[ID, NAME])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
 sqlite	JSON	|let ns = [1, 3];#>{s::DB.T}#->filter(r|$r.ID->in($ns))->select(~[ID, NAME])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
-sqlite	STREAMED_JSON	|let ns = [1, 3];#>{s::DB.T}#->filter(r|$r.ID->in($ns))->select(~[ID, NAME])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
 sqlite	CSV	|let ns = [2, 3];#>{s::DB.T}#->filter(r|$ns->contains($r.ID))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
 sqlite	JSON	|let ns = [2, 3];#>{s::DB.T}#->filter(r|$ns->contains($r.ID))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
-sqlite	STREAMED_JSON	|let ns = [2, 3];#>{s::DB.T}#->filter(r|$ns->contains($r.ID))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
 sqlite	CSV	|let ns = [];#>{s::DB.T}#->filter(r|$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
 sqlite	JSON	|let ns = [];#>{s::DB.T}#->filter(r|$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
-sqlite	STREAMED_JSON	|let ns = [];#>{s::DB.T}#->filter(r|$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
 sqlite	CSV	|let ss = ['a', 'O\'Brien'];#>{s::DB.T}#->filter(r|$r.ID->in([1, 2]) && $ss->contains($r.NAME->toOne()))->select(~[ID, NAME])->sort(~ID->ascending());	refused: list plan parameter 'ss' reached SQLite, which binds no array
 sqlite	JSON	|let ss = ['a', 'O\'Brien'];#>{s::DB.T}#->filter(r|$r.ID->in([1, 2]) && $ss->contains($r.NAME->toOne()))->select(~[ID, NAME])->sort(~ID->ascending());	refused: list plan parameter 'ss' reached SQLite, which binds no array
-sqlite	STREAMED_JSON	|let ss = ['a', 'O\'Brien'];#>{s::DB.T}#->filter(r|$r.ID->in([1, 2]) && $ss->contains($r.NAME->toOne()))->select(~[ID, NAME])->sort(~ID->ascending());	refused: list plan parameter 'ss' reached SQLite, which binds no array
 sqlite	CSV	|let sts = [s::Status.ACTIVE];s::Acct.all()->filter(a|$a.status->in($sts))->project(~[id: a|$a.id])->sort(~id->ascending());	refused: list plan parameter 'sts' reached SQLite, which binds no array
 sqlite	JSON	|let sts = [s::Status.ACTIVE];s::Acct.all()->filter(a|$a.status->in($sts))->project(~[id: a|$a.id])->sort(~id->ascending());	refused: list plan parameter 'sts' reached SQLite, which binds no array
-sqlite	STREAMED_JSON	|let sts = [s::Status.ACTIVE];s::Acct.all()->filter(a|$a.status->in($sts))->project(~[id: a|$a.id])->sort(~id->ascending());	refused: list plan parameter 'sts' reached SQLite, which binds no array
 sqlite	CSV	|let ts = [%2024-01-02T10:30:00, %2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ts' reached SQLite, which binds no array
 sqlite	JSON	|let ts = [%2024-01-02T10:30:00, %2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ts' reached SQLite, which binds no array
-sqlite	STREAMED_JSON	|let ts = [%2024-01-02T10:30:00, %2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ts' reached SQLite, which binds no array
 sqlite	CSV	|let ts = [%2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ts' reached SQLite, which binds no array
 sqlite	JSON	|let ts = [%2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ts' reached SQLite, which binds no array
-sqlite	STREAMED_JSON	|let ts = [%2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ts' reached SQLite, which binds no array
 # 2026-10-22 (main's merge into the plan path branch): the branch's TDS text output runs every case too, and is
 # refused alike: SQLite binds no array.
-sqlite	TDS_TEXT	|let ns = [1, 3];#>{s::DB.T}#->filter(r|!$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
-sqlite	TDS_TEXT	|let ns = [1, 3];#>{s::DB.T}#->filter(r|$r.ID->in($ns))->select(~[ID, NAME])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
-sqlite	TDS_TEXT	|let ns = [2, 3];#>{s::DB.T}#->filter(r|$ns->contains($r.ID))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
-sqlite	TDS_TEXT	|let ns = [];#>{s::DB.T}#->filter(r|$r.ID->in($ns))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ns' reached SQLite, which binds no array
-sqlite	TDS_TEXT	|let ss = ['a', 'O\'Brien'];#>{s::DB.T}#->filter(r|$r.ID->in([1, 2]) && $ss->contains($r.NAME->toOne()))->select(~[ID, NAME])->sort(~ID->ascending());	refused: list plan parameter 'ss' reached SQLite, which binds no array
-sqlite	TDS_TEXT	|let sts = [s::Status.ACTIVE];s::Acct.all()->filter(a|$a.status->in($sts))->project(~[id: a|$a.id])->sort(~id->ascending());	refused: list plan parameter 'sts' reached SQLite, which binds no array
-sqlite	TDS_TEXT	|let ts = [%2024-01-02T10:30:00, %2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ts' reached SQLite, which binds no array
-sqlite	TDS_TEXT	|let ts = [%2024-01-05T00:00:00];#>{s::DB.T}#->filter(r|%2024-01-02T10:30:00->in($ts))->select(~[ID])->sort(~ID->ascending());	refused: list plan parameter 'ts' reached SQLite, which binds no array
 # 2026-10-16 (Phase 6, as above): a Decimal parameter answers 2.500000000000000000 in CSV on SQLite, where today's path
 # answers 2.50. A defect of SQLite's plan path (the plan's defect 11).
 sqlite	CSV	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	ID,p,x\r\n1,2.500000000000000000,2.500000000000000000\r\n2,2.500000000000000000,5.000000000000000000\r\n3,2.500000000000000000,7.500000000000000000\r\n
@@ -47,4 +31,26 @@ sqlite	CSV	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->sel
 # branch): the plan's JSON writes a Decimal as its text (register S104, the value's own scale), so SQLite's bound value
 # shows its eighteen places here as in CSV: the same defect.
 sqlite	JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	[{"ID":1,"p":2.500000000000000000,"x":2.500000000000000000},{"ID":2,"p":2.500000000000000000,"x":5.000000000000000000},{"ID":3,"p":2.500000000000000000,"x":7.500000000000000000}]
-sqlite	STREAMED_JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	[{"ID":1,"p":2.500000000000000000,"x":2.500000000000000000},{"ID":2,"p":2.500000000000000000,"x":5.000000000000000000},{"ID":3,"p":2.500000000000000000,"x":7.500000000000000000}]
+# 2026-11-09 (the total wall's M2, P4: the type hole deleted; D1, ruled 2026-11-07): a run-time parameter is typed by
+# its DECLARED Pure type, as upstream's database extension writes its template, never by its value. On H2 a Float
+# parameter is upstream's CAST(? AS FLOAT): its arithmetic is binary, where the query with the literal (a decimal in
+# the database, the numeric charter's Rule 1) is exact. Posted to the user for a register row.
+h2	CSV	|let f = 1.1;#>{s::DB.T}#->extend(~x: r|$r.ID * $f)->select(~[ID, x])->sort(~ID->ascending());	ID,x\r\n1,1.1\r\n2,2.2\r\n3,3.3000000000000003\r\n
+h2	JSON	|let f = 1.1;#>{s::DB.T}#->extend(~x: r|$r.ID * $f)->select(~[ID, x])->sort(~ID->ascending());	[{"ID":1,"x":1.1},{"ID":2,"x":2.2},{"ID":3,"x":3.3000000000000003}]
+# 2026-11-09 (P4, D1): on H2 a Decimal parameter is a DECFLOAT, the closest exact fixed type: a value's trailing zeros
+# are not kept (2.50 answers 2.5, ID * 2.50 answers 5), where the literal's NUMERIC(3,2) keeps them. Posted to the user.
+h2	CSV	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	ID,p,x\r\n1,2.5,2.5\r\n2,2.5,5\r\n3,2.5,7.5\r\n
+h2	JSON	|let p = 2.50D;#>{s::DB.T}#->extend(~[p: r|$p, x: r|$r.ID * $p])->select(~[ID, p, x])->sort(~ID->ascending());	[{"ID":1,"p":2.5,"x":2.5},{"ID":2,"p":2.5,"x":5},{"ID":3,"p":2.5,"x":7.5}]
+# 2026-11-09 (P4, D1): a Date parameter is a timestamp, as upstream writes it on every database but BigQuery: a
+# StrictDate value answers as a midnight date-time, where the query with the StrictDate literal answers the date.
+# Upstream's own outcome (D1); posted to the user with the two above.
+h2	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000000+0000\r\n2,2024-01-02T00:00:00.000000000+0000\r\n3,2024-01-02T00:00:00.000000000+0000\r\n
+h2	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":2,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":3,"d":"2024-01-02T00:00:00.000000000+0000"}]
+duckdb	CSV	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	ID,d\r\n1,2024-01-02T00:00:00.000000000+0000\r\n2,2024-01-02T00:00:00.000000000+0000\r\n3,2024-01-02T00:00:00.000000000+0000\r\n
+duckdb	JSON	|let d = %2024-01-02->cast(@Date);#>{s::DB.T}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending());	[{"ID":1,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":2,"d":"2024-01-02T00:00:00.000000000+0000"},{"ID":3,"d":"2024-01-02T00:00:00.000000000+0000"}]
+# 2026-11-09 (the correctness re-audit's 1; the user's ruling that day, "Duckdb timestamp is fine, later we need a
+# nanosecond pure type"): a DateTime parameter on DuckDB is upstream's microsecond TIMESTAMP, where lite's own literal
+# keeps a nanosecond digit (TIMESTAMP_NS). 2026-11-10 (S181 RULED, A7): a value of a finer digit than the slot keeps
+# is refused by the statement's own raise, never cut (until A7 it was cut to .123456).
+duckdb	CSV	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)
+duckdb	JSON	|let t = %2024-01-02T10:30:00.123456789;#>{s::DB.T}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending());	refused: the DateTime parameter 't' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)

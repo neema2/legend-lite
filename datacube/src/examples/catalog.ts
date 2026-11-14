@@ -1,5 +1,6 @@
 // THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3): a saved page per batch of charts, simple to complex,
-// a sheet per family, and one of joins -- each over samples DataCube makes itself, so it needs no file and no network.
+// a sheet per family, and one of joins -- each over samples DataCube makes itself, so it needs no file and no network;
+// and one over a project the site serves (its `project`), offered where the page compiles against it.
 // This list is small and loads with the Open window; each page is built by a module of its own, fetched when opened.
 
 import type { PageDocument } from '../page-document.ts';
@@ -11,6 +12,9 @@ export interface ExamplePage {
   readonly label: string;
   /** What it shows. */
   readonly about: string;
+  /** The project its grids' saved queries belong to, opened by name from the page's model home when picked (a version
+   *  the site releases: docs/ONE_CONNECTION_DESK_2026_10_28.md D5); absent, a page over DataCube's own samples. */
+  readonly project?: { readonly groupId: string; readonly artifactId: string; readonly versionId: string };
   /** The page, built: its own chunk, fetched now. */
   build(): Promise<PageDocument>;
 }
@@ -67,6 +71,36 @@ export const EXAMPLE_PAGES: readonly ExamplePage[] = [
       + 'relationships, technicals and math -- then the ways to read a tile: a line per symbol, a month at a time, a log '
       + 'scale, every line from one start, its styles, and two grids in one query; over the markets and rates samples.',
     build: async () => (await lazily(() => import('./timeseries-gallery.ts'))).timeseriesGalleryPage(),
+  },
+  {
+    // the user, 2026-10-27: "start all the charts from Class models projected to Relation ... the same Stress data
+    // model ... richer joins to reference data and be able to plot trades"
+    id: 'markets-classes',
+    label: 'Markets on the trading model',
+    about: 'The markets sample as the trading model\'s classes -- a quote a day of each instrument, the bank\'s trades -- '
+      + 'each grid a saved query of the site\'s markets project, read through its mapping: lines by sector and by listing '
+      + 'venue through the instruments\' associations, and the trades against the close in one tile.',
+    project: { groupId: 'demo', artifactId: 'markets', versionId: '0.0.0' },
+    build: async () => (await lazily(() => import('./markets-classes.ts'))).marketsClassesPage(),
+  },
+  {
+    // the user, 2026-11-07 (docs/TS_DECISIONS_2026_11_07.md §4, a'): "copies of the charts that start with classes"
+    id: 'markets-on-classes',
+    label: 'Markets: timeseries, on classes',
+    about: 'The markets example over the trading model\'s classes: every chart as it is there, each grid a saved query of the '
+      + 'site\'s markets project -- the prices a MarketQuote a day, the Treasury curve its CurvePoints -- read through the '
+      + 'project\'s mapping, so a figure is the class\'s, answered by the database.',
+    project: { groupId: 'demo', artifactId: 'markets', versionId: '0.0.0' },
+    build: async () => (await lazily(() => import('./on-classes.ts'))).marketsOnClassesPage(),
+  },
+  {
+    id: 'gallery-on-classes',
+    label: 'Timeseries gallery, on classes',
+    about: 'Every function of the timeseries tile, as the gallery shows them, over the markets project\'s classes: the '
+      + 'prices, the curve and the macro series each a class of the project (MarketQuote, CurvePoint, MacroObservation), '
+      + 'a sheet per family as there.',
+    project: { groupId: 'demo', artifactId: 'markets', versionId: '0.0.0' },
+    build: async () => (await lazily(() => import('./on-classes.ts'))).galleryOnClassesPage(),
   },
   {
     // a flow to open, rather than one to build first (docs/DATACUBE_FLOW_MODE_2026_10_24.md)

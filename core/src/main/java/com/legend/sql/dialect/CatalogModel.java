@@ -3,6 +3,9 @@
 
 package com.legend.sql.dialect;
 
+
+import com.legend.sql.DialectCapability;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -59,6 +62,33 @@ public final class CatalogModel {
     /** A Database of several tables: its text, and each table as {@link Database} says one (its accessor, conversions
      *  and columns left out; its {@code text} the whole Database's), in the order given. */
     public record Several(String text, List<Database> tables) {
+    }
+
+    /**
+     * The conversions a COPY of a table of {@code columns} (its catalog rows) applies in {@code dialect}'s database, so
+     * the copy holds the declared types: a convertible table's, as {@link #database} reads it -- each column whose type
+     * the copy converts, under its name; a column no Database type holds is copied as it is. What a host's copy names
+     * (the final audit's 1(d), 2026-11-12: a host names a copy's columns, never its conversions' SQL); its select list is
+     * the dialect's ({@link SqlDialect#copySelectList}).
+     */
+    public static List<Conversion> copyConversions(List<Column> columns, SqlDialect dialect) {
+        List<Conversion> conversions = new ArrayList<>();
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        for (Column c : columns) {
+            if (!seen.add(c.name().toLowerCase(java.util.Locale.ROOT))) {
+                throw new IllegalArgumentException("a copy's columns name '" + c.name() + "' twice");
+            }
+            CatalogType t;
+            try {
+                t = dialect.catalogType(c);
+            } catch (DialectCapability e) {
+                throw new DialectCapability("column '" + c.name() + "': " + e.getMessage());
+            }
+            if (t.read() != CatalogType.Read.LEFT_OUT && t.conversion() != null) {
+                conversions.add(new Conversion(c.name(), t.conversion().replace("%s", sqlIdent(c.name()))));
+            }
+        }
+        return List.copyOf(conversions);
     }
 
     /** One table's part of a Database: its declaration, where it sits, and what reading it takes. */

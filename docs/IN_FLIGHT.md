@@ -3,6 +3,26 @@
 This file says who is working, on what files, in what order, and the rules between sessions; each line's status lives
 in its own plan (plan rule 0b.16).
 
+**The goals of record, P1, 2026-11-08 (branch `claude/corpus-walk-deletion`):** the plan as data, designed and ruled in
+`docs/PLAN_AS_DATA_2026_11_07.md`; step 0 under way (the census moved to `diagnostics`). It touches `core/` widely
+(driver, judge, exec, testplan, executionplan, planner) over its steps, and lands in slices through PRs on the user's
+word. The milestone lanes' baseline is GATES 2026-11-07.
+
+**The test-is-the-product program, 2026-11-06:** PCT and core at 100% landed (PR #83 merged, `1aa9a34b`). Active now:
+**the corpus burn-down** (branch `claude/wizardly-dirac-rw6tim-seam`, restarted from `main`), then the walk's deletion.
+A session picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` (§0 the state, §10 the order).
+
+**The adversarial markets fixture, 2026-11-07** (branch `abs/ts-adversarial-fixture`, on `claude/timeseries-language`;
+`docs/TS_ADVERSARIAL_FIXTURE_2026_11_07.md`): `projects/timeseries/fixtures/adversarial/` (generate.py and its four
+files) with `//projects:timeseries_adversarial_fixture_test`, and `//core:ts_adversarial_test` with its ledger
+(`core/src/test/resources/ts-adversarial/`). Beyond them: `core/BUILD.bazel` (the target; its source and ledger left
+out of `core_tests_lib`), `gates/BUILD.bazel` (the core lane), `projects/BUILD.bazel` (the fixture's exports and its
+test), the parser-equivalence ratchet (`own_corpus.matched` 3117 -> 3119: this PR's +1, the test's model; the other +1
+the base's own drift, 3118 on the bare base). The register file untouched (a contributor never edits it): the
+last-print-wins proposal's full row is in PR #90, for the owner to rule and land. The gs-quant oracle (`tools/gs-quant-oracle`) is the companion PR's and reads the same files:
+prices.csv is in file order on purpose, and the consumer sorts by (symbol, date); the oracle's PR leaves the ratchet
+alone, so this one merges first.
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:
@@ -164,6 +184,22 @@ with the compiler's plan/execution split**, in this order:
    icon sets, rules), Excel's number format codes and date patterns (`datacube/src/format-code.ts`) and a column's
    values grouped by hand (`ValueGroups`); P4's text tiles (`datacube/src/page-text.ts`, a `text` page view) -- the doc's §4
    rows say which.
+   **The timeseries line (2026-10-27, branch `claude/timeseries-viewer-datacube-tsm0nb`, not pushed while its roadmap
+   runs: the user):** DataCube's timeseries tile and its Pure library, now over the stress corpus's classes
+   (`docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md` §11, Phase 6). Beyond `datacube/`: `scripts/corpus/trading_model.py`
+   and its rule in `scripts/corpus/BUILD.bazel`, **taken as they are from the Deephaven line**
+   (`claude/deephaven-3-browser`, `d38144cc`: the one trading model, DH34), and `core/BUILD.bazel`'s export of
+   `StressExclusions.java` to it -- whichever line lands first, the other takes the same file; a change to either is
+   that line's, told to the other. **Told (2026-10-27):** this line's one change to `trading_model.py` -- it leaves out
+   every `###Data` section too (eleven service tests' seeds; two contend for one table, so a page filling a project's
+   database from the Data it carries was refused), as its own header says it leaves the test data out; the trader
+   pages, which seed nothing, are unchanged by it. Core asks of the library's (S112-S114) were this line's own, landed
+   with it. **Ported from the Deephaven line (2026-10-27), unchanged:** `f6022ba0` (a pure/v1 request whose model the
+   tab holds answered over the held model: `HeldModels.withText`, `HeldStore.withKeyOr`, `PureV1Api.Models`,
+   `ModelInput.with`, `Boundary`'s `HELD`) and `66bc9ca2` (`ModelBuilder.legacySetsWithId`, `UnionSynthesis`) -- a saved
+   query of the 4.1 MB markets project took two relation-type compiles of 5-6 s each to open. Whichever line lands
+   first, the other's merge takes the same text; a change to either is told to the other. This line's own addition
+   beside them: `Boundary.projectData` reads a held model by its text too (`MODELS.withText`).
    **Step 1 landed 2026-10-10 (fe7961b7b; run 38090412797; GATES "Compile once, plan many").** **Step 2's first
    landing, Create a Class…, landed 2026-10-11 (0cee56761; run 38109599876; GATES "Create a Class…")** -- no file
    touched beyond the announced list. **Step 2's second landing, Create an Association… and Create a Data Space…,
@@ -2882,6 +2918,217 @@ properties and edge classes), typed once, run on any backend, returning Neo4j's 
   repaired the union's one break, the WebAssembly planner past 1 MiB (`3cf01887`, PARK-40). Pushed to `main` without
   the user's word on 2026-10-26, red on 15 CI lanes, reverted and reset (GATES' merge entry, item 5; AGENTS.md
   "Pushing to main", the new rule): it re-lands through a PR when the user says.
+  **2026-10-27:** phases 1 to 4 on the branch; the user paused phase 5 for an audit, and its plan runs (the
+  program's §9). Phase 5's first half (the old executor deleted) is green; it touched `exec/` (JdbcStatements,
+  JdbcDecode, PlanSessions, VerdictBatch, a new NonFiniteJson), `sql/dialect/` (SqlDialect's driver facts, the
+  dialects' dead `normalize` hooks deleted, MariaDB's and BigQuery's counted MODE), `executionplan/` (format 16),
+  `lowering/Scalars.java`, `result/RowDecode.java`, the PCT ledgers of six lanes, and the parity harnesses under
+  `core/src/test/java/com/legend/testcases/`. Six lane sessions measure every head of it, measure only.
+  **2026-10-28:** PARK-34 closed (legend-engine asked: a Variant column is `SEMISTRUCTURED`, its cell a string of its
+  JSON); every lane measured the PCT relation crossing as legend-engine's own adapter reads it, exact, and it is
+  switched (`d8ab8434`: `PureTdsText` deleted). The handoff is rewritten as the whole roadmap
+  (`docs/RESULT_BOUNDARY_START_HERE.md`, with its evidence in `docs/result-boundary-homework/`). S1.4 begun: the
+  negative zero (`b944a42e`, `result/CellText.java`, register S117 (S114 until S1.0)); the `0.00010` fix ruled, not built. The session
+  that wrote this line (`session_01Vz1L3X6p56AZdTCQXUXYfE`) writes no more code: the next session opens with the
+  start page's §12. **S1.0 done 2026-10-28** on `claude/wizardly-dirac-rw6tim` (GATES, the S1.0 entry: `main` at
+  `369bb176` merged, both sides kept; the branch's register rows S115 to S117 now). **2026-10-29: the user's upstream-fidelity tenet** (AGENTS.md; the program's §8 item 12) **recorded; S1.4's two open
+  questions settled by it** (the start page's §4; the relation cell's nine digits and the midnight rule's end built
+  2026-10-29, the decisions log D4 to D6). **The program continues without stopping (the user, 2026-10-29), a deep
+  audit and the decisions log posted after each phase.** **S1.4 done 2026-10-28, corrected 2026-10-29** (GATES,
+  the S1.4 entries; audited 2026-10-29, the findings fixed with S1.5). **S1.5 done 2026-10-29** (the records commit
+  `3e9e739a`, the code commit after it: the 51 differences classified by upstream's answer, two moves toward
+  upstream, the decisions log D12 to D27). **S1.6 open 2026-10-29: draft PR #80** (`https://github.com/neema2/legend-lite/pull/80`, the first CI on every OS
+  since phase 1; the merge the user's). **Track B announced 2026-10-29** (a test body as a sequence of plans; the start
+  page's track B block carries the design): `core/src/main/java/com/legend/exec/Statements.java`, `JdbcStatements.java`,
+  `PlanSessions.java`, `ColumnProbe.java`, `GridProbe.java`, `WireTypes.java`, `DynamicPivot.java`, `SetupRunner.java`,
+  `SystemDatabase.java`; `core/src/main/java/com/legend/StatementExecutor.java`, `BodyCompiler.java`, `JudgePlans.java`,
+  `HostJudge.java`, `DatabaseJudge.java`, `AssertVerdicts.java`, `SqlTextVerdicts.java`, `Execution.java`,
+  `testdatagen/TestDataGenerationNatives.java`; `ArchitectureTest`, `JavaEvalLedgerTest`, `TenetRatchetTest` (pins, dated);
+  the connector sessions under `core/src/main/mongodb`. **B1a built 2026-10-29** (the probes, seeds and the static pivot on the session seam: `Statements.columns`, `describe`, `load`; the decisions log D33). **B1b built 2026-10-29** (the `Connection` out of the driver, the judges, `VerdictBatch`, `SqlReplayReferee` and the generator's natives; `exec/SessionState.java` new; `spec/.../harness/ReplayReferee.java` takes the session; the decisions log D35). **B2 built 2026-10-29** (`Execution.runProgram`, the one entry for a program; `TypedQuery.resolved()`; the old door's entries shims; the decisions log D37; B3 deferred to track D, D36). **Track C built 2026-10-29** (`core/.../test/PureTestRunner.java`, `ServiceTestRunner.java`, `pct/.../channelb/ChannelB.java` on `Execution.runProgram`; the decisions log D39). **Track T begun 2026-10-29** (`core/src/test/java/com/legend/testing/Lean.java` new; `integration/AbstractDatabaseTest.java`, `CheckerResults.java` and the 28 subclasses on it; the decisions log D42). **T-b built 2026-10-29** (the integration package's remaining 31 files; `testing/Program.java` new; in main `lowering/TypedRows.flat`, `JudgePlans`, `plan/PlanColumns`, `TypedQuery`, `executionplan/ColumnFacts`; the decisions log D44). **T-b2 and T-c built 2026-10-29** (the other packages' 68 test files, the six integration files the first rule missed, the parity harnesses `testcases/{SqlParity,CypherParity,CypherValues,IqParity,ReservedNames,SqlStressOnPostgres}.java` and their lane tests; in main `json/.../Json.java` (negative zero), `result/RowDecode.java` and `result/CellText.java` (identity fields), `server/QueryService.java` (the sink entry), `lowering/TypedRows.java`, `PlanMaker.java`, `JudgePlans.java`, `executionplan/ColumnFacts.java`; `core/BUILD.bazel` (`:test_cases` holds the reader); the decisions log D45, D46). **T-d built 2026-10-29** (`core/src/test/java/com/legend/testing/LaneFloor.java` new; `core/src/test/resources/lanes/{sqlite,h2}.txt` new; `core/BUILD.bazel` `:core_tests_integration_{sqlite,h2}`, `:core_tests_lanes`; `gates/BUILD.bazel`; five integration tests' harness text (four assumptions); the decisions log D47). Track T is built but for Arrow (track A). **Track D built 2026-10-29** (`Execution.java` 286 -> 159 lines; `server/QueryService.java`; `exec/ExecutionResult.java` -> `exec/TypedSide.java` and its 35 references; `StatementExecutor.java` -> `BodyDriver.java` and its 36 references, `tools/native-axes.py`, `core/BUILD.bazel`; the guards' entries; `AGENTS.md`, `core/README.md`; the decisions log D48). **T-d2 built 2026-10-29** (every integration test on the lanes; the floors re-measured: sqlite 89, h2 270 + 1 not-run pin; the T-d and track D audits' fixes; GATES, the T-d2 entry; D49). **Track L announced 2026-10-29** (mixed lists as typed values, the program's step 6; the decisions log D50): `core/src/main/java/com/legend/sql/SqlExpr.java` (a `TaggedList` variant), `SqlType.java`, `SqlTyping.java`, `SqlRewriter.java`, `SubselectPrune.java`, `Windows.java`, `executionplan/MirJson.java`, `ColumnFacts.java`, `PlanJson.java` (a format bump); `lowering/MixedEncoding.java`, `Lowerer.java` (the hetero-literal arm, the root), `Scalars.java` (sort, dedup, contains, in, at, map, print, equality), `Dedup.java`, `ListEncodings.java`, `LiteralSpelling.java`, `Fold.java`, `CanonicalRenderSql.java`; `result/RowDecode.java`, `exec/JdbcDecode.java`; the dialects' literal-text arms and `CarrierStrategies.java` (the zipped unnest at a root); then the deletions (`SqlType.Scalar.LITERAL`, `values/LiteralText.java`, `Fold.conformValueEgress`). **L1 built 2026-10-29** (the tagged list and its operations; GATES, the L1 entry); **L2 built 2026-10-29** (the spelling carrier deleted; GATES, the L2 entry; D51 open for the user). **The L2 audit folded 2026-10-29** (`lowering/ValueCollections.java`, `TaggedLists.java`, `Lowerer.java` (the mixed filter), `MixedEncoding.java`, `Sorts.java` (`carriedName` package-private), `sql/dialect/LateralExplodeToUnion.java`, `executionplan/ColumnFacts.java`, `PlanJson.java`, `compiler/spec/TdsDesugars.java` (the cells' size); `exec/TaggedListTest.java`; D54; S123, S124). **Track A built 2026-10-29** (`arrow_ipc/` new: `FlatBuilder` moved from `warehouse/.../duck/`, `ArrowType`, `ArrowField`, `ArrowIpc`, `ZstdFrame`; `warehouse/.../duck/ArrowStreams.java` delegating; `core/.../result/ArrowWriter.java` new, `Batch.java` (a many-valued column's cells), `RowDecode.java` (`taggedSlots`); `server/PureV1Api.java` (`executeArrow`, `arrowAnswer`, a binary `Answer`), `LegendHttpServer.java`; `wasm/.../Boundary.java`, `Folded.java`, `TabExports.java`; `native/.../Compiler.java`; `python/legend_lite/_library.py` (the arity); `tools/deps/ArrowClosureTest.java` new, `WarehouseClosureTest.java`; `core/src/test/.../result/ArrowWriterTest.java` and `core/src/test/python/arrow_matches_rows.py` new; the guards' rows; D55, D56). Then tracks A, F, then Z, an audit and the log after each (tracks A and F built 2026-10-29, `1e3065d4`; Z's audit folded the same day, the commit after). **Track A's audit folded 2026-10-29** (D57): `result/ArrowWriter.java`, `RowDecode.java` and `exec/JdbcDecode.java` (the 63-bit bound), `server/PureV1Api.java` (the stated-columns envelope), `wasm/.../Boundary.java` (the refusal's text), `arrow_ipc/.../ArrowIpc.java` and `ZstdFrame.java` (the `put` helper: TeaVM has no `writeBytes`), `core/src/test/python/arrow_matches_rows.py`, `result/ArrowWriterTest.java` (seven cases), `WriterCarriageGuardTest.java` (`abs` in the vocabulary), `JavaEvalLedgerTest.java` (the result register's `ArrowWriter.java` row), `tools/deps/core-layers.txt` and `CoreLayeringTest.java` (`arrow_ipc` below core), `core/BUILD.bazel` (`core_next`'s dep, the dated notes). **Track F worked 2026-10-29** (D58): `lowering/Scalars.java` (S116), `sql/dialect/H2.java` and `H2Modern.java` (the JSON parse cast), `result/TaggedCell.java` new, `Batch.java`, `RowDecode.java`, `exec/JdbcDecode.java` and `result/ArrowWriter.java` (the tag in the batch), `integration/AsOfJoinCheckerTest.java` (the comment), `lanes/sqlite.txt` and `lanes/h2.txt` (the as-of reasons), `integration/GraphFetchCheckedIntegrationTest.java` (the empty to-many probe), `spec/src/test/resources/rcorpus/h2-*` (63 tests gained), `docs/result-boundary-homework/probes/asof_empty_right.txt`, the register rows S125 and S126, S116 to outcome. **Track Z, the final audit, folded 2026-10-29** (D59): `test/ServiceTestRunner.java` (its cells through `CellText.engine`, no spelling of its own), `core/BUILD.bazel` (`:test`'s deps), `tools/deps/core-layers.txt`, `WriterCarriageGuardTest.java` (the runner scanned), `setup/CsvSeed.java` (a javadoc), the register citations (S119, S120, S121, S123, S125), the register row S127, AGENTS.md's census sentence, this file, the start page (§0, §1, §2, §3, §10a the open questions, §12), the program's §9 (order; the Z entry), `core/README.md` (two dates), the homework README §9, the probe's `floatLayout` note, GATES (the Z entry). The program's work on the branch is complete; the landing is the user's. **The DuckDB driver bumped 2026-10-29** (D60): `tools/deps/jars_table.bzl` (`duckdb_jdbc` 1.5.6.0), `integration/AsOfJoinCheckerTest.java` (the spec asserted), `lanes/sqlite.txt` and `lanes/h2.txt` (the as-of line gone), the register row S126, `docs/result-boundary-homework/probes/duckdb_1_5_6.txt`. **The doors announced and doors 3-5 built 2026-10-29** (the user's ask after Z; the decisions log D61): `exec/PlanRunner.java` (`columns`, `describe`, `setUp`, `opened`), `exec/Sessions.java` (`inTransaction`, `ownsTransaction`), `exec/ColumnProbe.java`, `GridProbe.java`, `WireTypes.java`, `DynamicPivot.java`, `exec/SystemDatabase.java`, `exec/PlanSessions.java` (`statementsOf` gone), `exec/SetupRunner.java` DELETED, `executionplan/ExecutionPlan.java` (`Sql.of`), `setup/CsvSeed.java` (`Planned`, `planned`), `setup/Ddl.java` (`metamodelSteps`), `PlanMaker.java`, `JudgePlans.java` (`target(decided, version)`), `Execution.java` (`dialectOf` on a session), `BodyDriver.java` (`planSessions()`, `target()`); the tests `exec/RowLoadDuckDbTest`, `RowLoadH2Test`, `WireTypesTest`, `DynamicPivotKeyLiteralH2Test`, `PlanMakerTest`; the guards `ArchitectureTest` (the new rule; `EXEC_PLANNING_REFERENCES`), `JavaEvalLedgerTest` (three size pins, `EXEC_CLASSES`), `JdbcSurfaceCensusTest` and `RawSqlLedgerTest` (notes). **Door 2 built 2026-10-29** (D62): `testdatagen/TestDataGenerator.java` (the plan sessions and target in its `Session`; `effect`, `rows`; `captureRows` describes then reads typed rows; `csvEnvelope`'s reported text columns and VALUE lines; the temps a resource of the run (`Temps`); `pureRepr` on the typed carriers; `isTextType` gone), `TestDataGenerationNatives.java` (the sessions and the target through `foldCensus`, `transcript`, `seedStringOrDataError`), `BodyCompiler.java` and `SqlTextVerdicts.java` (the env's `planSessions()`/`target()`), `testdatagen/ReservedNamesGenerationTest.java` and `PureReprTest.java`, `ArchitectureTest.java` (the funnel tightened, the B1b rule widened), `JavaEvalLedgerTest.java` (the no-connection spelling pin), `JdbcSurfaceCensusTest.java` (the generator leaves), `core/BUILD.bazel` and `tools/deps/core-layers.txt` (`execution_plan`), the corpus outside-body registers' `tdg=` texts. **Door 1 built 2026-10-29** (D63): `Execution.java` (`Answer`, `runProgram(..., answer)`, `ProgramReport` gone), `BodyDriver.java` (`execute` void; `answerValue`, `executeTyped(..., answer)`, `toOneReader`), `BodyCompiler.java` (`execute(..., answer)`; `Segments.run`, `answers`), `JudgePlans.java` (`rowsPlan(..., shape)`, `streamResult`, `host`, `Cardinality`), `CodeShapeGuardrailTest.java` (the writer's and the cardinality sink's cursors), `core/BUILD.bazel` and `tools/deps/core-layers.txt` (`driver` reaches `json`), `result/TdsObjectsWriter.java` NEW, `test/ServiceTestRunner.java` (`writer`; `serialize` and `cell` gone), `testing/Lean.java` (`Capturing.of(shape)`, `answered`; `of(TypedSide)` retired), `testing/Program.java`, `JavaEvalLedgerTest.java` (the result register; the body driver's size pin). **The audit folded 2026-10-29** (D64): `BodyCompiler.java` (the effect-last answer after its script), `testdatagen/TestDataGenerator.java` (every temp dropped), `exec/PrepTrace.java`, `exec/SqlTypeCensus.java`, `exec/TypedSide.java`, `testing/Lean.java` (the dead arms), `exec/PlanSessions.java`, `JudgePlans.java`, `WriterCarriageGuardTest.java` (the stale sentences), `BodyDriver.java` (`statementOf` on `Sql.of`; the size pin), `JdbcSurfaceCensusTest.java` (two files off), `JavaEvalLedgerTest.java`. **The three routings built 2026-10-29** (D65): `exec/PlanSessions.java` (`setUp` through the runner; `runSetup` gone), `server/ConnectionResolver.java` (the fill through the runner), `exec/DatabaseConnector.java` (`raiseRecovery` as data; `raisedMessage` gone) and every connector, `exec/JdbcStatements.java` (`held`), `exec/Sessions.java`, `exec/RaisedErrors.java`, `sql/dialect/MariaDb.java` (javadoc), `exec/RaiseRecoveryTest.java` NEW, `exec/ConnectorsTest.java`, `JdbcSurfaceCensusTest.java`, `DatabaseOwners.java`. The independent audit of the routings is folded (D65). **PR #80 MERGED 2026-10-30** (`7bc0797d`); the branch restarted from main. **The java.sql revamp, step 1 built 2026-10-30** (D66): `exec/SessionState.java` (the session statements' memo, `rolledBack`), `exec/PlanRunner.java` (`opened` once per connection), `exec/JdbcStatements.java` and `exec/Sessions.java` (the rollback sites clear the memo), `sql/dialect/SqlDialect.java` (javadoc), `exec/SessionStatementsOnceH2Test.java` NEW. **Step 2a built 2026-10-30** (D67): `Execution.java` (on sessions), `exec/PlanSessions.java` (`given`/`setUp` of a session), `exec/Sessions.java` (`check` of a session), `server/ConnectionResolver.java` (public; `RUNNER`, `SOURCE` public), `server/LegendHttpServer.java`, `server/QueryService.java` and `server/OutputFormat.java` DELETED, six connectors (an unused import), `exec/PlanRunner.java` and `exec/JdbcStatements.java` (`nullType`), the tests (`ConnectionLeaseTest`, `StreamingIntegrationTest`, `PureV1ApiTest`, `testing/Lean.java`, thirteen integration tests' unused fields), `JdbcSurfaceCensusTest.java` (nine files off), `JavaEvalLedgerTest.java`, `ArchitectureTest.java` (the layer map's server representative). **Step 2b built 2026-10-30** (D68): `exec/Sessions.java` (`given(Session)`), `exec/PlanSessions.java` (`owned` public, `view`), `test/PureTestRunner.java`, `test/ServiceTestRunner.java`, `test/TestObserver.java` (sessions, no `java.sql`), `testbackend/TestBackend.java` (`openSession`), six runner callers, `spec`'s `MinimalCorpus.java` (the observer on sessions), `JdbcSurfaceCensusTest.java` (three files off). **Step 3 built 2026-10-30** (D69): `JdbcSurfaceCensusTest.java` (the register a table of classes and their acts, measured), `ArchitectureTest.java` (the funnel on that one list; `noJdbcTypeInAPublicSignatureOutsideTheSeam`), `exec/SqlReplayReferee.java` (no `SQLException` on `rows`), `spec`'s `harness/ReplayReferee.java` (its dead catch). The revamp's three steps are built. **The seam's step A built 2026-10-30** (D70): `exec/Sessions.java` (the abstract session, the one way in, the openers returning sessions), `exec/PlanSessions.java`, `exec/SessionState.java` (no map), `exec/SystemDatabase.java`, `exec/JdbcStatements.java`, `exec/RaisedErrors.java`, `mongodb`'s connector, `server/ConnectionResolver.java` (no lease), `testbackend/TestSessions.java` (new), 40 test and harness files on the one way in, `ArchitectureTest.java` (`onlyTheSeamMakesSessions`; the static-state register), `JdbcSurfaceCensusTest.java` (four files off). **The seam's step B1 built 2026-10-30** (D71): thirteen judge classes `exec/` -> `judge/` (new package `com.legend.judge`, `//core:judge`), the probes `exec/ColumnProbe.java`, `exec/GridProbe.java`, `exec/DynamicPivot.java` to the root and the new root `WireProbe.java` split from `exec/WireTypes.java`, `exec/Census.java` (no dialect name), `core/BUILD.bazel` and `tools/deps/core-layers.txt` (judge; exec minus lowering, plan, platform), the moved tests, `spec`'s `MinimalCorpusTest.java` (reads `StableScanOrder.firings`), `ArchitectureTest.java`, `JavaEvalLedgerTest.java`, `VerdictChannelRegisterTest.java`, `HarnessDisciplineTest.java` (dated), ~70 files of import rewrites. **The seam's step B2 built 2026-10-30, the wall** (D72): `exec/Column.java`, `exec/Row.java` -> `judge/`; `exec/SystemDatabase.java` -> the root; `exec/DatabaseConnector.java` (`decoding`), the five connectors with a fact, `exec/JdbcStatements.java`, `exec/JdbcDecode.java` (`Driver` public), `sql/dialect/SqlDialect.java` and five dialects (the four hooks deleted), `Execution.java` (`Source`), `exec/Sessions.java` (no `Source`, no `given`), `exec/WireTypes.java` (names), `WireProbe.java`, `GridProbe.java`, `BodyDriver.java`, `server/ConnectionResolver.java`, the test runners, ~20 test and harness files; `core/BUILD.bazel` (exec's deps), `tools/deps/core-layers.txt`, `ArchitectureTest.java` (the ratchet deleted, `execReachesNoPlanning`), `JavaEvalLedgerTest.java`. **Step C built 2026-10-30** (D73): six root files -> `planner/`, twenty-five -> `driver/` (git mv; package lines, imports, the crossed members public), `core/BUILD.bazel` (the doors by name, each package a glob; two lanes), two root tests -> `core/src/test/java/com/legend/driver/`, `ArchitectureTest.java` (two rules, the no-JDBC regex, the RawSql seam), `JavaEvalLedgerTest.java` (three registers, the pins re-pathed), `VerdictChannelRegisterTest.java`, `LegacyReachbackCensusTest.java`, `TestLaneOrderGuardrailTest.java`, the root's `package-info.java`, AGENTS.md, core's README. The seam-and-wall program is complete.
+  `exec/JdbcDecode.java`, `result/RowDecode.java`, `MongoDbDecode.java`, `executionplan/` for the precision fact, the
+  two writer guards the user approved 2026-10-28), S1.5 (records), S1.6 (a draft PR on the user's word); then tracks B
+  (the body runner: `StatementExecutor`, `BodyCompiler`, `Execution`, the judges), T (core's tests as the LEAN twin:
+  `core/src/test/.../integration/AbstractDatabaseTest.java` and the test helpers, new per-lane targets), C (the corpus,
+  channel B, the service test runner), D (the deletions). Each announces its files here before it starts. **The seam and the wall built 2026-10-30** (steps A, B1, B2, C: the decisions log D70 to D73; GATES; PR #82 a draft, the
+  landing the user's). **Announced 2026-10-30: the planner-driver seam program PLANNED, no code**
+  (`docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md`, D74): it will touch `executionplan/ExecutionPlan.java` (new node kinds),
+  `exec/PlanRunner.java` (their arms), `planner/` (a body planner grown from `PlanMaker.program`; `JudgePlans` moves in),
+  `driver/` (`BodyCompiler` and the four probes deleted; `BodyDriver` the interpreter), `TypedQuery` (its internals into
+  `planner/`), the guards and `tools/deps/core-layers.txt`. Rewritten the same day in lite's execution model after the
+  user's correction (D75: no allocation node, no variable map; the database executes, the verdict is its or the host
+  judge's, the `Keyed` pattern for a shape the planner cannot know). **Ruled a GO 2026-10-30 (D77)**; the work on the
+  stacked branch `claude/wizardly-dirac-rw6tim-seam` (PR #83), S1a and S1b built that day (D78, D80), step H measured
+  (D79). **PR #82 merged by the user 2026-10-30 as `efff0406`**; PR #83 retargeted to `main`. **S2e built 2026-10-30 (D82)**: `judge/VerdictBatch.java` runs its verdicts as a verdict group through `PlanRunner.program` (`driver/JudgePlans.java`, `driver/DatabaseJudge.java`, `exec/PlanRunner.java`'s sink and transaction bracket; `//core:judge` gains `:execution_plan` and `:result`). **S2f built 2026-10-30 (D83, D84)**: `driver/HostSides.java` (new), `driver/HostJudge.java`, `driver/AssertVerdicts.java`, `driver/JudgePlans.java` (plan, run and shape halves; the constant side), `driver/BodyDriver.java` (`PlannedValue.joined`), `compiler/spec/typed/Literals.java` (`bare`), `executionplan/ExecutionPlan.java` and `PlanJson.java` (format 21), `exec/PlanRunner.java` (`collected`), the TypeScript runner's pin, the ledger's pins. **The step after S2f built 2026-10-30 (D85)**: `driver/HostJudge.java` (the quantified assert's row form), `driver/VerdictArm.java`, `driver/AgreementArm.java`, `driver/DatabaseJudge.java`, `driver/AssertVerdicts.java`, `compiler/spec/VerdictQueries.java` (the unroll reads nothing). **The user's go of 2026-10-30 for the whole remainder** (S2g to S5 and Z, through full severance, in this session). **S3a's first part built 2026-10-30 (D86)**: `driver/ColumnProbe.java` DELETED, `lowering/Render.java` (the deferral triggers), `driver/BodyDriver.java` (the refusal by name), the ledger's register and pin. **S3b built 2026-10-30 (D87)**: `lowering/CanonicalRenderSql.java` (`textOrStamp`), `driver/WireProbe.java` (the reconcile deleted), `driver/BodyDriver.java`, `judge/VerdictBatch.java` (the split rung member by member), `exec/Census.java` (two keys gone), `spec`'s `MinimalCorpusTest.java` and `h2-database-outside-body-register.txt`, `WireProbeTest.java`, `JavaEvalLedgerTest.java`, `parser-equivalence`'s `ratchets.tsv`. **S3c's first part built 2026-10-30 (D88)**: `resolver/RawGridSchema.java` (the demand), `executionplan/ColumnFacts.java` (`rawGridCell`), `driver/BodyDriver.java` (`wrapSide`), `exec/ExecuteInDbProbeCountTest.java`, the ledger's pin, the two database outside-body registers. **S3c's second part built 2026-10-30 (D89)**: `executionplan/ExecutionPlan.java` (a relation of no column), `exec/Statements.java`, `exec/JdbcStatements.java`, `mongodb`'s `MongoDbStatements.java` (`reportedRows`), `exec/WireTypes.java` (`column`), `exec/PlanRunner.java`, `driver/JudgePlans.java`, `driver/WireProbe.java` (the staticizer deleted), `testdatagen/TestDataGenerator.java` (a comment), `engine-client/src/plan-runner.ts` and its test, `exec/ReportedColumnsTest.java` (new), `WireProbeTest.java`. **The CI red on S3b's head fixed 2026-10-31 (77dfa672)**: `spec`'s `duckdb-database-engine-order-register.txt`, `native-claims.tsv`, GATES. **S3c's third part built 2026-10-31 (D90)**, reworked and its audit folded: `sql/SqlSource.java` (`GridReport`), `sql/SqlRewriter.java` (the `with` hook; a report's grid rewritten), `sql/dialect/AnsiSqlRenderer.java`, `DuckDb.java`, `H2.java`, `GridReportCtesInline.java` (new), `lowering/Lowerer.java`, `lowering/Render.java`, `planner/PlanMaker.java`, `exec/PlanRunner.java`, `exec/JdbcStatements.java`, `exec/WireTypes.java`, `exec/SessionState.java`, `judge/VerdictBatch.java`, `driver/BodyCompiler.java`, `driver/BodyDriver.java`, `driver/JudgePlans.java`, `driver/AssertVerdicts.java`, `resolver/StagedRows.java`, `executionplan/ExecutionPlan.java`, `PlanJson.java` (format 22), `ColumnFacts.java`, `MirJson.java`; DELETED `resolver/RawGridSchema.java`, `driver/GridProbe.java`, `driver/WireProbe.java`, `sql/PlanProbe.java`; the guards' allowlists and pins, the registers, the TypeScript runner's pin. **S3a's remainder built 2026-10-31 (D91)**: `driver/DynamicPivot.java` DELETED, `driver/BodyDriver.java`, `lowering/KeyedPivot.java` (the key as the database's text), `KeyedPivotKeyRoundTripTest.java` (new; `DynamicPivotKeyLiteralH2Test` retired into it), the ledger, `ArchitectureTest`, `SqlDialect`, `SqlExpr`, the driver's `package-info`. S3 done. **S2g's first two steps built 2026-10-31 (D92)**: `planner/PlanEnv.java`, `planner/BodyPlanner.java`, `planner/EnginePlans.java` (new); `PlanAllocations`, `PlanEnvelope`, `EngineText`, `SqlTextInputs`, `AggAwareActivities` moved from `driver/` and `InstanceIds` from `judge/` to `planner/`; `driver/BodyDriver.java` (the environment split, the helpers gone), `driver/BodyCompiler.java`, `driver/SqlTextVerdicts.java`, `testdatagen/TestDataGenerationNatives.java` (`planTextResult` returns the text); `ArchitectureTest`, `JavaEvalLedgerTest`, `HarnessDisciplineTest`, `DatabaseOwners`. **S2g's third step built 2026-10-31 (D93)**: `planner/FramePlanner.java` (new), `planner/EnginePlans.java` (`engineTestSql`), `driver/BodyDriver.java` (`buildFrame` the run, the comment, the CTE). **S2b built 2026-10-31 (D94)**: `planner/LetPlanner.java` (new), `planner/ConnectionLets.java` (moved from `driver/`), `driver/BodyCompiler.java` (the let branch dispatches on the kind), `driver/BodyDriver.java` (`aliasFrame` gone). **S2h built 2026-10-31 (D95)**: `planner/SystemRoutes.java` (new), `driver/BodyDriver.java` (`routeSystemDatabase` opens and checks; `ExecEnv.withSystemRoute` gone), `database/Databases.java` (a doc). **The shared preparation built 2026-10-31 (D96)**: `planner/Prepared.java` (new), `planner/BodyPlanner.java` (`prepare`, `bare`), `planner/FramePlanner.java` (`cte`), `planner/EnginePlans.java` (`ddlText`), `driver/BodyDriver.java` (the prelude dispatches; the handle arm, the DDL text and the frame's CTE gone). **S2d built 2026-10-31 (D97)**: `planner/EffectPlanner.java` (new), `driver/BodyDriver.java` (the effect arms send planned statements). **S2j's first piece 2026-10-31 (D98)**: `planner/BodyPlanner.java` (`viewSql`), `driver/BodyDriver.java`; S4's brief (the plan's §3.4b). **S4a's first piece 2026-10-31 (D99)**: `planner/SidePlanner.java` (new), `lowering/CanonRider.java` (moved from `judge/`), `driver/BodyDriver.java` (`openRoute`, `answer`; the prelude, `planStaged` and `wrapSide` delegate), `driver/DatabaseJudge.java`, `driver/HostJudge.java`, `judge/TdsCompare.java` (the import), the ledger, `HarnessDisciplineTest`. **Paused 2026-10-31 by the user's ruling (a test body is the product plan; the fused verdict statement kept):** the byte-for-byte relocation stops; the plan to merge the test road onto the product planner is drafted for the user's review, `docs/TEST_IS_THE_PRODUCT_PLAN_2026_10_31.md` (evidence `docs/test-is-product-homework/A_CODE_INVENTORY.md`). No code until it is agreed. **The plan v2 agreed
+2026-10-31 (R1-R14). M0 measured 2026-10-31 (no product change)**:
+`docs/test-is-product-homework/C_M0_MEASUREMENTS.md`, the probe as text in `docs/test-is-product-homework/probes/`
+(`M0Census.java.txt`, `m0-hooks.diff.txt`, `m0-agg.py.txt`). Checkpoint: the PR branch pushed, CI, the lane sessions
+asked. **The user's go for the whole program 2026-10-31, back to back, each step ending with an independent audit
+(R15). M1 built 2026-10-31 (D100)**: `lowering/ObjectSites.java` (one minter, its spelling),
+`compiler/spec/UserCallInliner.java` and `TypedQuery.java` (a program's statement inlined under its mark),
+`planner/PlanMaker.java` (one minter per program), `planner/PlanEnv.java`, `driver/BodyDriver.java`,
+`lowering/Lowerer.java` (a doc); `planner/InstanceIds.java` DELETED; `planner/ProgramObjectSitesTest.java` (new);
+`JavaEvalLedgerTest`. **M2 built 2026-10-31 (D101)**: `planner/ProductStatements.java` (new), `planner/PlanMaker.java`,
+`TypedQuery.java` (`lower` on the new road; `resolve` deleted), `planner/PlanEnv.java` (the dialect optional,
+`writtenIn`), `planner/BodyPlanner.java`, `SidePlanner.java`, `EffectPlanner.java`, `EnginePlans.java` (a call's own
+runtime renames), `executionplan/ExecutionPlan.java` (`Constant`, `Keyed.shape`), `PlanJson.java` (format 23),
+`exec/PlanRunner.java`, `Execution.java`, `driver/LiteralFold.java`, `driver/BodyDriver.java`, the TypeScript runner
+and its test, `planner/ProductStatementsTest.java` (new), `ConstantPlanParityTest`, the ledger and the ratchet. **M3
+built 2026-10-31 to 2026-11-01 (D103; sub-steps M3a-M3i)**: `planner/QueryDoor.java`, `ProgramState.java`,
+`ProgramKinds.java`, `ProgramFrames.java` (new), `planner/PlanMaker.java`, `ProductStatements.java`, `BodyPlanner.java`,
+`FramePlanner.java`, `LetPlanner.java`, `PlanAllocations.java`, `PlanEnv.java`; the test-planning library
+`testplan/TestDoor.java`, `TestKinds.java`, `Seeds.java` (new) and `EffectPlanner.java` (moved from `planner/`);
+`executionplan/ExecutionPlan.java`, `PlanJson.java` (format 24); `exec/PlanRunner.java`, `Statements.java`,
+`JdbcStatements.java`, `SessionState.java`, `ExecutionTrace.java`, mongodb's `MongoDbStatements.java`;
+`sql/dialect/SqlDialect.java`, `Postgres.java`, `DuckDb.java`; `judge/VerdictBatch.java`; `driver/BodyDriver.java`,
+`JudgePlans.java`; `resolver/ClassSources.java`, `ConstructedInstances.java`, `StoreResolver.java`;
+`compiler/spec/StatementEffects.java`, `compiler/spec/typed/TypedTds.java`; `plan/LazyRows.java`;
+`lowering/Lowerer.java`; `builtin/NativeFn.java`; the TypeScript runner and its test; the guards (`ArchitectureTest`,
+`JavaEvalLedgerTest`, the funnel registers, `TypedSpecChildrenTest`); `core/BUILD.bazel` (`//core:testplan`). Next:
+the M3 checkpoint, then M4 (brief B13). **MR built 2026-11-01 (D104; the user's R20, B14)**: `exec/PlanRunner.java`,
+`SessionState.java`; `planner/PlanMaker.java`, `ProgramState.java`, `ProgramFrames.java`, `ProgramKinds.java`,
+`ProductStatements.java`, `BodyPlanner.java`, `FramePlanner.java`, `PlanAllocations.java`, `QueryDoor.java`,
+`LetPlanner.java`, `SidePlanner.java`, `PlanEnv.java`; `testplan/TestKinds.java`, `TestDoor.java`, `Seeds.java`,
+`EffectPlanner.java`; `compiler/spec/ResultEnvelopeSplice.java`; `exec/SessionStateTest.java` (new),
+`testplan/TestDoorTest.java`; `JavaEvalLedgerTest`. Next (R19): M5, then M4. **M5's first class built 2026-11-01
+(D105; R16, B1)**: `driver/BodyRouter.java` (new), `Execution.java`; `testplan/BodyClass.java`, `EffectSegment.java`
+(new), `TestDoor.java`, `TestKinds.java`; `exec/PlanRunner.java`, `Census.java`; `planner/BodyPlanner.java`
+(`handleType` shared), `QueryDoor.java` (`declaresTestData` shared), `ProductStatements.java` (`asTheWalkAnswers`),
+`PlanMaker.java`; `driver/BodyDriver.java`, `BodyCompiler.java` (the segment's spelling shared); spec's
+`MinimalCorpusTest.java` (the moved count); `driver/BodyRouterParityTest.java` (new), `testplan/BodyClassTest.java`
+(new), `TestDoorTest.java`; the guards (`ArchitectureTest`, `CodeShapeGuardrailTest`, `JavaEvalLedgerTest`);
+AGENTS.md (the one-caller sentence). **M5f built 2026-11-01 (D106)**: `testplan/BodyClass.java` (`QUERY_PROGRAM`),
+`driver/BodyRouter.java` (the walk's answer contract and timing), `JudgePlans.java` (`holding`), `BodyDriver.java`
+(the to-one rule delegated), `planner/ProductStatements.java` (`toOneReader`), `exec/PlanRunner.java` (the answering
+statement's label), `StatementOrigin.java` (`observing`); the tests (`BodyRouterParityTest`, `BodyClassTest`); the
+ledger; `parser-equivalence`'s `ratchets.tsv`. **The answer facts as upstream answers them 2026-11-01 (D107, R21)**:
+`driver/JudgePlans.java` (the host scalar), `planner/ProductStatements.java` (`asATestAnswers`), `PlanMaker.java`
+(the value column), `testplan/TestKinds.java`; `upstream-api/m5-answers.{json,pure}`. M4 DEFERRED (R23, 2026-11-01);
+M6-M10 and Z at R22's cadence, no questions (R23). **M6 half-built and HANDED OFF 2026-11-01**, then **built 2026-11-01
+(D108)** by the session that took the handoff (`docs/TEST_IS_THE_PRODUCT_HANDOFF_2026_11_01.md`, closed): the WIP commit
+`89e604de` brought in by cherry-pick and the audit's S1-S4 folded -- `driver/HostSides.java` (`Check`, `Planned.NONE`),
+`HostJudge.java` (the `planX` halves), `AssertVerdicts.java` (`HostAssert`, `planHost`/`planArm`, `judgedAtItsStep`,
+`sideRefused`), `HostAsserts.java` (new), `BodyRouter.java`, `BodyDriver.java` (`bodyEnv`), `SqlTextVerdicts.java`
+(`mayArm`); `exec/PlanRunner.java` (`sidesFailed`, `constantsAlone`); `executionplan/ExecutionPlan.java` (`answers`);
+`planner/PlanMaker.java` (`sqls`); `testplan/BodyClass.java` (`ASSERT_PROGRAM`), `TestDoor.java` (`Asserts`),
+`TestKinds.java`; the tests (`BodyRouterParityTest`, `BodyClassTest`, `TestDoorTest`, `CodeShapeGuardrailTest`,
+`ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`); `pct`'s `PctCensusGate` (the moved-bodies count printed);
+`docs/test-is-product-homework/REVALIDATION_2026_11_01.md` (the plan revalidated with the user: the order M9, M7, M8,
+M10a-d; B3 struck -- the host judge is the harness; the engine-text asserts' appeal a Java harness on every lane; M4
+narrow in M10a with a product follow-up). **M9 built 2026-11-01 (D109)** in the same session, four sub-steps each
+audited and folded (the plan's §9 "M9a"-"M9d"): `testplan/BodyClass.java` (`FRAME_PROGRAM`, `Kind`, `sideKind`,
+`frameQueryKind`, `systemElementReference`, `framesAndHandlesAsTheirQueries`, `writesAStore`), `BodyKinds.java` (new,
+the kind census), `TestDoor.java` (`Asserts.frameStamp`), `TestKinds.java` (the adopted stamp); `driver/HostAsserts.java`
+(frames, stamps, the session guard, the pending-let rule), `BodyDriver.java` (`plannedFrame`), `BodyRouter.java` (the
+census record); `planner/PlanEnv.java` (`stamps`), `BodyPlanner.java` (the stamps bound), `ProgramFrames.java`
+(`adoptStamp`), `LetPlanner.java` (`badAliasIndex`, `unwrap`), `FramePlanner.java` (`relationRooted`);
+`compiler/spec/ExecuteChainAssembly.java` (`queryLambda`, `peeled`, `refused`); `exec/Census.java` (`STAYED_KINDS`),
+`PlanRunner.java` (`originOf`); the tests (`BodyRouterParityTest`, `BodyClassTest`, `ArchitectureTest`'s register,
+`HarnessDisciplineTest`, `JavaEvalLedgerTest`'s pins); `spec`'s `MinimalCorpusTest` (the histogram). **M7 built
+2026-11-01 (D110)** in the same session, its audit folded (the plan's §9 "M7"): `judge/VerdictBatch.java` (`plan`,
+`Planned`, `Group`, `wall`, `counted`), `driver/DatabaseAsserts.java` (new), `AssertVerdicts.java` (`planDatabase`,
+`DatabasePlan`, `databasePlansWithoutReading`), `BodyRouter.java` (the planner by judge mode; the sink's database
+verdicts), `BodyDriver.java` (`plannedFrame` under a batch), `HostAsserts.java` (a one-step list);
+`testplan/TestDoor.java` (`Asserts.at` a list, `runsFrames`), `TestKinds.java`, `BodyClass.java` (`of(..., oneJudge)`);
+the tests (`BodyRouterParityTest`'s DATABASE-mode runs, `ArchitectureTest`'s V3 exemption, `CodeShapeGuardrailTest`,
+`ErrorShapeGuardrailTest`, `JavaEvalLedgerTest`). **M8a built 2026-11-01 (D111)** in the same session, its audit
+folded (the plan's §9 "M8a"): `driver/HostJudgment.java` (new), `HostJudge.java` (`judge`, the `planX` facts, the
+`xOf` over records), `HostSides.java` (`Check` over data), `AssertVerdicts.java` (`isDecided`, `Raise`;
+`instanceKeys`/`structuredSide` gone); `compiler/element/EqualityKeys.java` (`Key.declaredClass`, `declaresKeys`,
+`isKeyStereotype`), `ClassCompiler.java` (the shared stereotype test); the tests (`BodyRouterParityTest`'s
+`keyedClassPrograms` and the audit's cases, `JavaEvalLedgerTest`'s pins and register). **M8b built 2026-11-01 (D112)**:
+`lowering/VerdictSql.java` (`selfContained`, `HOLDS`, `MESSAGE`, the batch and verdict schemas), `judge/VerdictBatch.java`
+(`SelfContained`, `Judge.judge(name, row)`, `Pending` without polarity), `driver/DatabaseJudge.java` (`verdictOf(name,
+row)`), `BodyDriver.java`, `HostSides.java`, `HostAsserts.java`; `executionplan/ExecutionPlan.java` (`Verdict` without
+`wantEqual`), `PlanJson.java` (25); the tests (`ProgramRunnerTest`, `PlanJsonTest`, `PlanRoundTrip`,
+`JavaEvalLedgerTest`). **M8c OPEN 2026-11-01** (a design question posted:
+`docs/test-is-product-homework/M8C_DESIGN_QUESTION.md`; the identity lane unchanged until the ruling). **M10a built
+2026-11-01 (D113)**: `executionplan/ExecutionPlan.java` (`Database.System`), `PlanJson.java` (26);
+`exec/PlanSessions.java` (the system opener); `planner/SystemRoutes.java` (`inProcess`), `PlanMaker.java`
+(`testProgram(..., systemRouted)`); `testplan/BodyClass.java` (`systemRouted`, `readsStore`, `userStoreRead`,
+`sideKind(..., routed)`, `Kind.CSV_CENSUS`), `TestDoor.java`; `driver/BodyRouter.java`, `BodyDriver.java` (`systemRoute`,
+`systemRouteOf`), `JudgePlans.java` (`target`), `SystemDatabase.java` (`engineOf`); the tests
+(`BodyRouterParityTest.systemRoutedPrograms`, `PlanJsonTest`, `PlanRoundTrip`, `ProgramRunnerTest`,
+`JavaEvalLedgerTest`); with it M8b's omissions (the ladder goldens, `ratchets.tsv`, engine-client's `PLAN_VERSION`
+26). **M10b built 2026-11-02 (D114)**: `driver/SqlTextVerdicts.java` (`plan`, `judge`, `decide`, `Collector`,
+`Collected`, `NotAConstant`), `AssertVerdicts.java` (`planHost`'s root arms and producer shapes, `databaseGate`,
+`HostAssert.judge`'s route count), `HostJudgment.java` (`EngineText`), `HostJudge.java`, `JudgePlans.java`
+(`evalSide`'s constant guard), `BodyDriver.java` (`ExecEnv.engineText`, `withEngineText`), `DatabaseAsserts.java`
+(the static pass's gate); `testplan/BodyClass.java` (`Kind.TDG_GENERATOR`, the routine as its query, the let rule);
+`compiler/spec/VerdictQueries.java` (`text`); the tests (`BodyRouterParityTest.engineTextPrograms` with a referee
+double, `JavaEvalLedgerTest`). **M10c in progress 2026-11-02**: item 1a built (`driver/DatabaseAsserts.java`: `plannable`'s `scanned`;
+`BodyRouterParityTest`'s frame model carries the engine's `assertEqualsH2Compatible` body); item 2 built
+(`driver/VerdictArm.java` `gridPair`, its three arms in `HostJudge`, `DatabaseJudge`, `AgreementArm`;
+`AssertVerdicts.java` `adjudicate`'s pair branch, `databaseGate`, `staticGrid`, `renderedStatic`; the witness
+`gridPairsAndRenderedTextsUnderTheDatabaseJudge`); item 3 built (`testplan/BodyClass.java` `anotherWay`'s scan rule;
+`AssertVerdicts.java` `planHost`'s lineage rewrite; `DatabaseAsserts.java` `plannable(typed, systemRouted)`; the witness
+`lineagePrograms`); item 4 built (`driver/BodyDriver.java` `isHelperAssertRoot`, `helperAssertRoot`;
+`AssertVerdicts.java` `isHelperCall`, `planHost`, `databaseGate`, `planDatabase`; the witness `helperAssertPrograms`);
+item 5 built (`AssertVerdicts.java` `quantifiedForm`, `quantifiedShape`, `planQuantified`, `composite`, the forAll arm;
+`HostJudgment.java` `AllRows`, `Unrolled`; `HostJudge.java` `planAllRows`, `allRowsOf`, `unrolledOf`, `quantifiedRows`'s
+polarity; the witness `quantifiedPrograms`; the two database-host-compared registers); item 7 built
+(`testplan/BodyClass.java`'s element-let rule; the witness `consumedElementReferencePrograms`; the design note
+`docs/test-is-product-homework/MIXED_SYSTEM_USER_BODIES_DESIGN.md`, whose §6 read the 204 stayed system-read bodies by
+what they send: one genuine mixed body); item 7b built (`testplan/ElementConsumption.java`, replacing the two element-let
+predicates; `NativeFn.Effect.readsArgumentsAtPlanning`; `ElementConsumptionTest`; the chain bodies in
+`consumedElementReferencePrograms`); item 7c built (`testplan/Seeds.seedForm`, `TestKinds.effect`'s mapped seed form,
+`BodyClass.seedFormEffectMap`, `StatementEffects.reaches`' subsumed stop; the probe `//spec:consumption_probe`; the
+witnesses `seedFormEffectMapPrograms`, `aSubsumedCallsBodyIsNoKindOfTheStatement`); item 8 built
+(`driver/SqlTextVerdicts.java` `Collector.defer`, `TextAppeal`, `oursText`, `judge`; `JudgePlans.evalSide`;
+`AssertVerdicts.deferredTextOrigin`, `HostAssert.run`; `HostAsserts.find`; `BodyRouter`'s sink `deferredTextOrigins`; the
+witness `deferredTextPrograms`); item 9 built (`driver/HostJudge.java` `planCellPool`, `cellPoolOf`;
+`HostJudgment.CellPool`; `AssertVerdicts.planArm`; the witness `cellPoolPrograms`); item 10 built
+(`driver/HostAsserts.java` `plan(..., bodyEnv)`, `planAssert(..., env, program)`; `BodyRouter`; the witness
+`systemRoutedEngineTextPrograms`); item 11 built (`testplan/BodyClass.java` `frameProgram`: seeds on a let before
+anything sent, the frame's query through its let; the witness `inlineSeedFramePrograms`); item 12 built
+(`compiler/spec/typed/FreeVars.ofBodyReadingTrees`, read by `planner/ProductStatements.prepare`;
+`ProgramFrames.consumed`; `BodyClass.frameQueryKind`, `frameProgram`'s frame-name rule; the witness
+`graphFramePrograms`); item 13 built (`BodyClass.effectProgram`'s unread let; the witness
+`anUnreadLetInAnEffectProgram`). The
+user's rulings of 2026-11-02:
+burn to zero before the deletion (the walk stays the reference), no per-test system seeding, the one genuine mixed body
+last. Next, in this order: the generator (T8), the refused assert shapes with M8c (R24) in its slot, the frame shapes,
+the tails (item 6, item 1b), the database pass's extra bodies, the last body, then M10d, Z, in this session. **The walker-deletion
+program, 2026-11-02 (the user: "keep going until we can actually delete all the walkers and they cannot hide or come
+back")**: the inventory measured with the walk forbidden
+(`docs/test-is-product-homework/walker-deletion/INVENTORY_2026_11_02.md`); the agreement judge moved to the program road
+(`driver/AgreementAsserts.java`, `DatabaseAsserts.planEach`, `AssertVerdicts`' agreement step, `BodyRouter`'s BOTH
+branch, `PlanEnv.stamp`): channel B's residue 23 bodies. Next: core's 104 by group (system-routed query programs, raw
+grids and objects, frames ending in a query, `assertError`, seeded runtimes), channel B's 23, the corpus residue, then
+the deletion and the guards that keep it deleted. **2026-11-03:** the user's let rule built (`LetPlanner.unreadAsStatements`,
+`Execution.runProgram`, `BodyClass.check`, `PlanRunner`'s check origin, `DatabaseAsserts`' frame-check refusal;
+register S129). Next, the user's order: the seed-record fix (A, B, A), the statement-level store census, per-statement
+routing (the system database a read-only second target: the first step to a real cross-store join), then the
+generator (T8) and the system catalog's stage 1. **2026-11-03, built:** the seed record (A, B, A), the statement-level
+store census (no statement names both stores), per-statement routing (`PlanRunner`'s `Routes`, `ProgramKinds.targetOf`,
+`JudgePlans.plannedOf`, `BodyClass.storesOf`): the host pass's walked bodies 120 -> 105, none held by a system read. **2026-11-03, built:** the walk's door (`driver/WalkDoor`, `-Dlegend.walk.allowed`, shrink-only lists; core's 73
+tests, channel B on DuckDB `none`: zero bodies walk), `assertError` an ordinary verdict (the runner hands every verdict
+its side's rows or error; `sideRefused` deleted), the let rule on the last statement (S129), channel B's floors exact.
+The audit of PCT A and B (2026-11-03) and the user's order of fixes ("need to fix everything above now"): 1 the gauges
+(the type census rewired, channel B's own ledger by message, the walk closed on every channel B lane), 2 the judges
+strict (the user: sort strict, an unsorted query a multiset -- "no sort can be multiset compare"; corrected 2026-11-03, the first record misread it), 3 assert messages upstream's, 4 `assertError` as
+N3 under both judges, 5 planning sends nothing, 6 channel A through `Execution.run`, S119 refuse NaN, 7 re-measure
+every lane; then core, the corpus, the deletion.
+**2026-11-03, built (PCT closed out):** channel A through `Execution.run` (the lane's session per plan, `PctBackend.executionSource`), `assertError` its own verdict step under the database judge, the judges strict (S131's order rule, no `[x] ≡ x`, the engine's one-object-bare rule for an engine `execute()` value alone), float tolerance (S132, different doubles only), IEEE Float (S119), upstream's assert messages, channel B's ledgers by message on every lane (`channelb/ledger.tsv`), the system store seeded by the plan (`SystemRoutes.seeds`; `SystemDatabase` only opens). The database judge's planner covers channel B on DuckDB (1,239 of 1,240 alone; decided segments, instanceOf over a concrete primitive, eq with one primitive side); the door asks no version of a connector's own session (MongoDB). Measured on every lane (rounds 14-16): channel A exact everywhere but BigQuery's Track L item; channel B exact under BOTH but SQLite's held-out Track L item. Open, measured: the mixed-kind sort regressed at `63ddd3f4` (Track L (1), bisected); the database judge alone on the server lanes (the Variant cell, planning-time raises as steps, a server engine's system route, upstream's failure text, MySQL's doubled JSON read that kills mysqld); BigQuery's literal-list order through `filter`; Snowflake channel B essential 2x slower since `e8c341d0`; message arguments, element-identity `assertIs` text and `'TDSNull'` (no PCT body). Next: the database judge on every lane, then core's 73 walkers, the corpus, the deletion. **2026-11-03, built (the database judge on par with the host, GATES "The database judge on par with the host"):** a system-store verdict group a step naming that target, an unspelled segment and a planning-time raise decided steps, a declined side rendered first, the Variant cell, upstream's message text (the rendered-text family quoted), MySQL's single-copy JSON read; round 17: the same census under the database judge alone and BOTH on every lane, every lane at or above main's own channel B floor but SQLite essential (the Track L statement, the next change: first bad commit `63ddd3f4` by the Snowflake lane's bisect, also Snowflake's timeout). **2026-11-03, built (Track L's size, GATES "Track L's size"):** `SqlFn.LIST_AT`, a tagged list's reads written once on every dialect: the mixed-kind statements back from megabytes to under 85K chars (`TaggedListStatementSizeTest`); SQLite essential at main's floor; Snowflake's time and the server lanes are round 18's.
+  **The product path's perf, 2026-11-01 (branch `claude/product-path-perf`, from `efff0406`; GATES "The product
+  path's payoff measured")**: `exec/JdbcDecode.java` (`Reader`), `JdbcStatements.java`; `values/PureDateLiteral.java`;
+  `json/.../Json.java` (`escapeTo`); `result/JsonRowsWriter.java`, `PureV1Writer.java`, `ArrowWriter.java`; the tests
+  (`JdbcDecodeDuckDbTest`, `JdbcDecodeH2Test`, `PureDateSpellingTest` (new)) and the manual benchmark
+  (`SeamBenchmark*`); PR #85. Isolated from the seam program's branch (PR #83) at the user's word; every output
+  byte-identical. PR #83 touches `JdbcStatements.java`'s read loop too: whichever lands second takes the reader there --
+  PR #83 merged `main` on 2026-11-02 and took it (its wire-typed column read and `reportedRows` feed the reader).
+  **Announced 2026-10-28, the next session (branch `claude/wizardly-dirac-rw6tim`, from `7a9a368b`; the start page's
+  §12): S1.0 then S1.4.** S1.0 touches every file the merge of `origin/main` touches (the twelve both-sides files:
+  `core/BUILD.bazel`, `lowering/Fold.java`, `lowering/Lowerer.java`, `server/PureV1Api.java`, `ArchitectureTest.java`,
+  `CodeShapeGuardrailTest.java`, `integration/SelectDistinctCheckerTest.java`, `server/PureV1ApiTest.java`, this file,
+  `docs/SEMANTICS_REGISTER.md`, `python/legend_lite/engine.py`, `wasm/src/main/java/planner/Boundary.java`) and the
+  renumbering's citations (`result/CellText.java`, `ResultWritersTest.java`, `PureV1ApiTest.java`,
+  `datacube/test/python-engine/execute.test.ts`, `docs/GATES.md`, `docs/PARKED_WORK_LEDGER.md`, the program, the start
+  page, the homework README and its probes). S1.4 touches `result/` (`CellText`, `RowDecode`, the writers),
+  `exec/JdbcDecode.java`, `core/src/main/mongodb/.../MongoDbDecode.java`, `executionplan/` (`ExecutionPlan.Column`,
+  `ColumnFacts`, `PlanJson`, `MirJson`: a format bump) and `PlanJsonTest`, `ResultWritersTest`, the guards
+  (`ArchitectureTest`, a new `WriterCarriageGuardTest`, `JavaEvalLedgerTest`), and the nits' files
+  (`server/OutputFormat`, `FloatPrintText`, `result/CsvWriter`, `server/PureV1Api`). Records: GATES, this file, the
+  program's §9, the register.
 - **Landed, 2026-10-18:** neema2/legend-lite#58 (the TCK at 3600 of 3880 on both lanes; the review's fixes).
 - **Next on this line, announced 2026-10-18: writes** (`docs/WRITES_DESIGN_2026_10_18.md`, the design agreed with the
   user). There are two kinds of graph:
@@ -3000,7 +3247,8 @@ Community License) with live results beside typed rows; DataCube the first live 
   writes (after the Cypher writes branch lands), cross-store with explicit `from(runtime)` boundaries, the modelled
   publisher, and DataCube's ticking mode (once the DataCube line has settled).
 - **State, 2026-10-27: start at `docs/DEEPHAVEN_START_HERE.md`.** The work is on `claude/deephaven-3-browser` (L1, L2
-  and everything since, stacked; none on `main` yet; `main` merged into it on 2026-10-27, PRs #73 to #78): DataCube on
+  and everything since, stacked; none on `main` yet; `main` merged into it on 2026-10-27, PRs #73 to #78, and again on
+  2026-11-14, PRs #77 to #98; its register rows S400 to S499 since): DataCube on
   Deephaven straight from the browser, ticking, through the single-user audit (A1), and the trading desk (the trader
   demos' plan). Open, waiting on the user or counsel: the licence question on the protocol table, section 4's guard
   before writes, the whole system's sign-in design. Next by the result boundary program (PR #78): the Deephaven line
@@ -3012,3 +3260,291 @@ Community License) with live results beside typed rows; DataCube the first live 
   name); `model/FromProtocol.java`; the registries'
   arms (`database/Databases.java`, `exec/Connectors.java`, `EngineText.java`, test `TestBackends.java`); tests
   `parser/DeephavenConnectionTest`, `ConnectorsTest`, `ConnectionWireTest`; `docs/SEMANTICS_REGISTER.md` S48, `docs/OWN_CORPUS_DECISIONS.md` §15.
+
+## A fourteenth line, 2026-10-21: the stress corpus plan (the user's ask, rule 5)
+
+The user asked to start the stress corpus plan (`docs/STRESS_CORPUS_PLAN_2026_10_19.md`) and took its five decisions
+(its "Decisions": D1 to D5). Under D1 its Phase 0 takes over the Bazel program's Exec-2 (the old P3-25, the stress
+corpus through legend-engine as a Bazel tool and a manual test), which no clone holds as a draft, so it is rewritten.
+Status lives in the plan's Progress table (rule 0b.16).
+- **Branches (the user, 2026-10-23):** `stress_test/report` holds the plan and the feature report (with the report's
+  tools); `stress_test/corpus` holds the changes to the corpus and its tools, built on `main`, and never the plan or
+  the report. They land together, as one PR from a branch that merges both (the user, 2026-11-01), so the plan's path
+  cited here and in the corpus's files lands with them.
+- **Owned for the line's length:**
+  - `scripts/corpus/` (the generators, the oracle, the engine run `run.py`, `changed.py`, `quarantine.py`)
+  - `core/src/test/resources/stress/` (the generated files, and the hand-written packs the phases add)
+  - `core/stress.bzl`, `tools/wrongrows/`, `docs/stress-corpus-feature-report-2026-09-29/tools/`
+  - the corpus's docs: `docs/RUNNING_THE_CORPUS.md`, `docs/UPSTREAM_FINDINGS.md` (F59 added 2026-10-21)
+  - the stress suites' `MIN_PASS` (`StressServiceSuitesTest`, `StressServiceSuitesH2Test`), moved per phase with a
+    dated note
+- **Cross-area, Phase 0 (announced here before it lands):**
+  - `tools/engine-runner/` (the Bazel program's): `TestableMain` runs testables one at a time and gains `@<file>`
+    arguments, `--report=` and `--limit=`; the smoke test gains a fixture that executes; `:testable` is visible to
+    `//scripts/corpus`. No output line the probes read changes.
+  - `tools/engine-runner/`: after every testable `TestableMain` closes legend-engine's connection pools
+    (`ConnectionStateManager.clearAllConnections()`, as legend-engine's own test helpers do); left open, each later
+    test's data setup slowed (F59).
+  - `gates/BUILD.bazel` and `docs/GATES.md` (the Bazel program's): `//scripts/corpus:engine_stress` in `heavy`,
+    `:changed_test` and `:run_test` in `checks`, `:tools_build_test` in `core`.
+  - `docs/build-inventory/program/PHASE_8.md`: Exec-2's row, taken over.
+- **Cross-area, Phase 1 (announced 2026-10-23, before it lands):**
+  - `tools/engine-runner/` (the Bazel program's): an ERROR line from `TestableMain` carries the exception's causes
+    (`<- caused by: ...`), because a suite that fails to start ("Error initializing test suite session") names its
+    reason only in a cause, and a quarantine entry needs the reason. Only `run.py` reads the detail, and it echoes it.
+- **Phase 2 (started 2026-10-27): data that reaches the bottom of deep queries.** Inside the owned files only: a new
+  seed pass `scripts/corpus/spines.py`, called from `flat.all_tables` after the expansion; `deepstack.py`,
+  `stacks.py`, `spread.py` and `graphs.py`; an emptiness check in `build.py`; every generated file; both `MIN_PASS`.
+  Most expected results change (the plan's D2).
+- **Cross-area, Phase 2 (announced 2026-10-27, before it lands):**
+  - `repro/datediff-hours-off-boundary/README.md`: its "where it shows" list loses the two `DSLocal_` services,
+    which now pass on the engine (their F58 quarantine entries are removed in `quarantine.py`).
+- **Phase 3 (started 2026-10-28): milestoning at time of day.** Inside the owned files only: a hand-written pack
+  `8113-intraday.pure` (its store included by `store::DB` in `30-store.pure`, its mapping by `89-all-mapping.pure`),
+  its seed in `seed.py`, a generator `scripts/corpus/intraday.py` writing a new generated file
+  `99-intraday-services.pure` (`core/stress.bzl`'s `STRESS_GENERATED` and the layout JSON), the oracle's
+  milestoning, `executed.py`'s ratchet, `quarantine.py`, three repros under `scripts/corpus/repro/`, F66 and F67 in
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 3 (announced 2026-10-28, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (twelve to thirteen), as
+    Phase 1's did.
+- **Cross-area, the rebase onto `main` (2026-10-28):**
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-typed-services.pure` and `99-intraday-services.pure`, the services Phases 1 and 3 generate, so the trading
+    model stays classes, stores and mappings. Without it 396 services (about 670 KB) came into the model.
+- **Phase 4 (started 2026-10-28): the function vocabulary.** It lands in stages, each committed when green. First the
+  23 functions `docs/FUNCTIONS_EXECUTED.tsv` records as disagreeing with the oracle are adjudicated, each an oracle
+  fix or an upstream finding, before any goes into a service. Inside the owned files: the oracle, the probes
+  (`probe_functions.py` and `probe_collection.py` start the engine through `run.py`'s one launcher, the plan's
+  P7-03 shape) and their manual `py_binary`s in `scripts/corpus/BUILD.bazel`, a generator `scripts/corpus/vocab.py`
+  writing a new generated file `99-vocab-services.pure` (`core/stress.bzl`'s `STRESS_GENERATED` and the layout
+  JSON), `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and
+  both `MIN_PASS`.
+- **Cross-area, Phase 4 (announced 2026-10-28, before it lands):**
+  - `docs/FUNCTIONS_EXECUTED.tsv` (the function scoreboard's evidence, read by `//scripts/corpus:functions_gate`):
+    the scalar and collection probes' rows, refreshed at the pin.
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (thirteen to fourteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-vocab-services.pure`.
+  - `repro/substring-two-answers/README.md` (announced 2026-10-29): a dated note that F37's property-mapping half is
+    withdrawn, a mapping's `substring` being the relational dynafunction (the plan's D9, taken for it by the user).
+  - `core/src/main/java/com/legend/normalizer/RelOpTranslator.java` (announced 2026-10-29, the user's choice): the
+    `substring` dynafunction's operands wrap in the dyna lane's `toOne`, as the generic dyna path's do, so a column
+    reached through a join types against Pure's strict `substring(String[1], ...)`; the corpus's new substring cells
+    met it.
+- **Phase 7 (started 2026-10-29): declared but unreached.** It lands in stages, each committed when green. Inside the
+  owned files: a generator `scripts/corpus/unreached.py` writing a new generated file `99-unreached-services.pure`
+  (`core/stress.bzl`'s `STRESS_GENERATED` and the layout JSON); runtimes for `stress::DenseMapping` in
+  `91-runtime.pure` and `28-external.pure`; the router union and the inheritance operation moved out of
+  `71-mapping-surface2.pure` into a hand-written pack lite loads, with the merge services' store in
+  `74-surface-last.pure`; mappings for the unused joins (a hand-written `89-join-links.pure` over the products,
+  counterparty, back-office, OTC, core-fx and hier stores, and `70-surface-store2.pure`'s join conditions), and the ten
+  joins the user agreed to delete (2026-10-29: the six `dense_*` in `dense_store.py`, `HierInstrument_Issuer`,
+  `surface_TestNotEqual`, `surface_AnsiNotEqual`, `TierVersion_Trade`); a profile on the new pack's classes; their
+  seed in `seed.py`, apart from the expansion (`expand.py`, `flat.py`); `model.py` and the oracle for the operation
+  forms; the model-walking generators (`stacks.py`, `graphs.py`, `aggregates.py`, `tomany.py`, `spread.py`) walk only
+  the ends `stress::AllMapping` maps (`model.walked`); `executed.py`, `quarantine.py`, repros under
+  `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 7 (announced 2026-10-29, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (fourteen to fifteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-unreached-services.pure`.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: kept consistent
+    with the split of `71-mapping-surface2.pure` (it stays excluded for its M2M explosion; the moved operations are
+    loaded).
+- **Phase 5 (started 2026-10-30): M2M.** `stress_test/corpus` rebased onto `upstream/main` (`7bc0797d9`) first, with
+  no conflicts. Inside the owned files: `55-canonical-store.pure` split, its M2M mapping, `ModelChainConnection` and
+  `stress::CanonicalRT` moving to `55-canonical-chain.pure`, which has no Money measure, so `M1_TradeCanonical` and
+  `M2_CanonicalWithEnum` load in lite (only the measure's mapping, runtime and service stay excluded); a hand-written
+  `m2m::` pack, `8114-m2m.pure` (source classes mapped relationally over the seeded TRADE, COUNTERPARTY, BOOK and
+  ALLOCATION, M2M mappings over them, one `ModelChainConnection`, runtimes), with the two constructs lite refuses at
+  model build, the M2M enumeration transforms and the complex property passthrough, in `8115-m2m-gaps.pure`, which
+  lite excludes (the user's choice, 2026-10-30: exclude them rather than defer them in lite); 75-surface-gaps.pure's
+  local property given a source mapping, a chain and a value computed from the source; a generator
+  `scripts/corpus/m2m.py` writing `99-m2m-services.pure` and `94-gap-services.pure`, the latter the services over
+  8115's and 75's mappings, excluded with them (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON,
+  `scripts/corpus/BUILD.bazel`'s module lists), each M2M service with a relational twin in
+  `battery.INVARIANCE_GROUPS`; `model.py` (an Integer enumeration source value), `emit.py` (a TDS's sort and cut),
+  `spread.py` (no template over a class no table maps), `executed.py`, `quarantine.py`, four repros under
+  `scripts/corpus/repro/`, F84 to F87 in `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`.
+- **Cross-area, Phase 5 (announced 2026-10-30, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (fifteen to seventeen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-m2m-services.pure` and `94-gap-services.pure`. The new hand-written pack and the file split out of
+    `55-canonical-store.pure` hold classes, mappings, connections and runtimes, which the trading model keeps, as it
+    keeps Phase 7's packs.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: kept consistent
+    with the split of `55-canonical-store.pure` (it stays excluded for its Money measure alone), and
+    `8115-m2m-gaps.pure` and `94-gap-services.pure` excluded, each refusal with a case of its own.
+- **Phase 6 (started 2026-10-30): relation (`~func`) mappings.** `stress_test/corpus` was rebased onto `upstream/main`
+  (`efff04068`) first, with no conflicts. It lands in stages, each committed when green. Inside the owned files: a
+  hand-written `relmap::` pack, `8116-relmap.pure` (relation class mappings over tables that already have seed rows,
+  one or more per relation-mapping feature: `~src`, a filter, a group-by and a window function in the source relation,
+  expression right-hand sides, a primary key, a local property, embedded and inline embedded, a union, a binding
+  transformer, a model join and an XStore association, with relationally mapped twins over the same tables and
+  runtimes); a generator `scripts/corpus/relmap.py` writing a new generated file `99-relmap-services.pure`
+  (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON, `scripts/corpus/BUILD.bazel`'s module lists), each
+  relation-mapped service with a relational twin in `battery.INVARIANCE_GROUPS` where the feature allows, and the
+  oracle's `RELATION_IMPL` evaluating a `~func` body where it does not; `model.py` (the pack's relation mappings
+  skipped, as `modeljoin::JoinMapping` is), `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`,
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. No seed change is planned. As built (stage 1): `battery.py` (the
+  pack's groups), `build.py` (the new file; a mirror's columns follow its twin's relation operations), `spread.py`
+  (the pack's services neither its templates nor its baseline, so no existing service moves), `differential.py` (the
+  binding transformer's two relational twins in `lite_blind`, the user's choice, 2026-10-30: lite stops on any
+  Binding transformer, which the differential cannot hold as a known divergence), and, cross-area,
+  `docs/SURFACE_BLOCKED.tsv` (the scoreboard's ledger: REL-03 and REL-04 now written, out; REL-02's reason restated).
+- **Cross-area, Phase 6 (announced 2026-10-30, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files (seventeen to eighteen).
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out
+    `99-relmap-services.pure`. The hand-written pack holds classes, functions, mappings and runtimes, which the trading
+    model keeps, as it keeps Phase 5's and Phase 7's packs.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a relation-mapping construct when it builds the model; the options go to the user first.
+- **Phase 8 (started 2026-10-31): constraints and test shapes.** `stress_test/corpus` was already on `upstream/main`
+  (`efff04068`), so the rebase was a no-op; the tree built (`bazel build //...`) and its gate was the desk's known reds
+  alone. It lands in stages, each committed when green, constraints first. Inside the owned files: a hand-written
+  `checks::` pack (classes whose constraints combine dates, enumerations, string functions, `exists` and `forAll`
+  over to-many properties, `if` and navigated properties; its own store, seed rows that violate each constraint, kept
+  out of the expansion through `seed.PACK_TABLES`); a generator `scripts/corpus/checks.py` writing a new generated
+  file of graph fetch services that check them (`core/stress.bzl`'s `STRESS_GENERATED`, the layout JSON,
+  `scripts/corpus/BUILD.bazel`'s module lists); `model.py` reading constraints and the oracle evaluating them over the
+  fetched graph (`graphFetchChecked`'s defects); mapping test suites mirroring existing services, with `run.py`,
+  `changed.py` and the engine runner taking a `stress::` mapping's test suites as testables; several tests per suite,
+  several assertions per test, and `EqualTo` (and `EqualToTDS` if the pin parses it) on existing services;
+  `executed.py`, `quarantine.py`, repros under `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both
+  `MIN_PASS`. As built (done 2026-10-31, three stages: `9582d30d2`, `346fd9bcf`, `9823f0701`): the pack is
+  `8117-checks.pure` with `checks.py` writing `99-checks-services.pure`; `mapping_tests.py` writes
+  `99-mapping-tests.pure` (nine `stress::MT_` mappings, 60 suites); `shapes.py` gives 36 services a second test;
+  `oracle.py`, `model.py`, `emit.py`, `query.py`, `build.py`, `run.py`, `changed.py`, `executed.py`; F89 with a repro
+  and two non-findings in `docs/UPSTREAM_FINDINGS.md`; no quarantine entry.
+- **Cross-area, Phase 8 (announced 2026-10-31, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files.
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out the new generated
+    files.
+  - `tools/engine-runner/` (the Bazel program's): only if `TestableMain` needs a change to run a mapping's test suites
+    or to report a non-JSON assertion's failure. As built: with `--dump`, it writes a non-JSON assertion's whole
+    failure message too (stage 3); a mapping's suites needed no change.
+  - `docs/SURFACE_BLOCKED.tsv` (the scoreboard's ledger): TA-01 and TST-15 restated or removed if a stage writes
+    `EqualTo` or `EqualToTDS`.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a constraint or a mapping test suite when it builds the model; the options go to the user first.
+- **Phase 9 (started 2026-10-31): store breadth.** `stress_test/corpus` was already on `upstream/main` (`efff04068`),
+  so the rebase was a no-op; the tree built (`bazel build //...`) and its gate was the desk's known reds alone (61 diff
+  tests). It lands in stages, each committed when green, semi-structured data first. Inside the owned files: seed rows
+  for `66-store-surface.pure`'s `SURFACE_TYPES`, its `C_SEMI SEMISTRUCTURED` and `C_JSON JSON` columns holding JSON
+  documents, kept out of the expansion through `seed.PACK_TABLES` and from the walking generators
+  (`literals.FIXTURE_TABLES`); a hand-written pack mapping classes over them (navigation, array index, flatten, and
+  explode and the wildcard path if the pin runs them), and outer-join hops in property-mapping join chains with seed
+  rows on one side only; a generator writing a new generated file of services over them (`core/stress.bzl`'s
+  `STRESS_GENERATED`, the layout JSON, `scripts/corpus/BUILD.bazel`'s module lists); `model.py` and the oracle
+  evaluating each navigation over the seeded JSON; `executed.py`, `quarantine.py`, repros under
+  `scripts/corpus/repro/`, `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. As built (done 2026-10-31, two stages:
+  `411eece77`, `2a71bc502`): SURFACE_TYPES's `C_SEMI` is seeded for the H2 side and a pack table,
+  `SEMI_DOC`, for the DuckDB side (DuckDB cannot create SURFACE_TYPES; a Relation service runs its tests on DuckDB);
+  `C_JSON` stays NULL (F91); the pack is `8118-semi.pure` with `semi.py` writing `99-semi-services.pure`, and
+  `8119-outer.pure` with `outer.py` writing `99-outer-services.pure` (no full or right outer join has a form in a
+  mapping at the pin, `repro/mapping-join-types/`; the typed joins it has, in a property chain and a `~filter`);
+  `oracle.py`, `model.py`, `query.py`, `build.py`, `differential.py` (the documents' tables out of its seed),
+  `executed.py`, `quarantine.py` (F90); F90 to F93 and F53's note in `docs/UPSTREAM_FINDINGS.md`, each with a repro.
+- **Cross-area, Phase 9 (announced 2026-10-31, before it lands):**
+  - `core/BUILD.bazel`: the comment on `:stress_files` counting the generated files.
+  - `scripts/corpus/trading_model.py` (the timeseries line's): `SERVICES_AND_DATA` also leaves out the new generated
+    file.
+  - `docs/SURFACE_BLOCKED.tsv` and `docs/ENGINE_SURFACE.tsv` (the scoreboard's ledgers): a semi-structured or join row a
+    stage makes stale.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a semi-structured or outer-join construct when it builds the model; the options go to the user first.
+- **Finishing the plan (started 2026-11-01): Phase 0's Linux run and the plan-wide EMIT target.** No Phase 9 PR has
+  merged (none is open upstream), so there was no rebase. Two items. First, the whole engine verdict on a GitHub-hosted
+  Linux runner, which Phase 0 left undone; its shape waits for the user's choice. Second, at least 80 of the 109 EMIT
+  features judged on the engine (Phase 9 ended at 74). The report's `profile.py`, on `stress_test/report`, tags the
+  features the corpus already exercises, and new packs and generators add the ones it lacks. Inside the owned files:
+  `run.py` and a merge of its shards' verdicts if the run is split across jobs; the packs, seed (kept out of
+  `seed.PACK_TABLES` and `literals.FIXTURE_TABLES`), oracle, generators, `executed.py`, `quarantine.py`, repros,
+  `docs/UPSTREAM_FINDINGS.md`, and both `MIN_PASS`. As built (done 2026-11-01, three commits: `bfeb61b6e`,
+  `79de7cb6a`, `2f3b002fd`): the user chose a standalone workflow, `engine-verdict.yml`, with `run.py --shard` and
+  `verdicts.py`'s merge. The EMIT target is met at 81 of 109 on the engine (63 in lite), through one polymorphic query
+  (`UO_Downcast`, `UO_DowncastTds`) and the report's tools tagging what the corpus already exercised (`9f6b917cf` on
+  `stress_test/report`). The Linux verdict, run 41364493432 at `2f3b002fd`: 5,948 pass, 108 known-fail, 1 not run, 0
+  unexpected, of 6,057. That is the Windows verdict testable by testable (fingerprint `f6e70f085df7e57b`). The plan
+  marks Phase 0 done (`9ae092636` on `stress_test/report`).
+- **Cross-area, finishing the plan (announced 2026-11-01, before it lands):**
+  - `.github/workflows/` (the Bazel program's): a new `engine-verdict.yml`, as the user chose (2026-11-01): a
+    standalone workflow, dispatched with a platform (linux, linux-arm, macos, windows), that runs `engine_stress`'s
+    eight slices as eight jobs (`run.py --shard K/8`) and merges them (`scripts/corpus/verdicts.py`, tested in
+    `:run_test`). gate.yml, gates-run.yml and `gates/BUILD.bazel` don't change. It can be dispatched only once the
+    file is on the default branch.
+  - `docs/build-inventory/program/PHASE_8.md`: a note against Test-11 saying what the run covers and what it doesn't.
+  - `core/BUILD.bazel` (the comment on `:stress_files`) and `scripts/corpus/trading_model.py`'s `SERVICES_AND_DATA`
+    (the timeseries line's), for each new generated file.
+  - `core/src/test/java/com/legend/integration/StressExclusions.java` and `LegendLiteGapTest.java`: only if lite
+    refuses a new construct when it builds the model; the options go to the user first.
+  - `parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv` (parser equivalence's, announced
+    2026-11-01): `own_corpus.matched` 3009 -> 3017, regenerated by `//parser-equivalence:update_ratchets`. Phase 5's two
+    `LegendLiteGapTest` snippets (`m2mEnumerationTransform`, `m2mComplexPropertyPassthrough`, `9e2d8a518`) joined the
+    own corpus, and their 8 elements match. Phase 5 left the ratchet unmoved, and the desk's gate missed it behind
+    fc.exe's "cannot open". So the branch's CI was red in `parser_equivalence` (`OwnCorpusParityTest`) and in `checks`
+    (`//:generated`) from Phase 5 on.
+- **The first Linux run (2026-11-01, run 41322461475, at `79de7cb6a`): 504 unexpected, each put to the user.** It
+  agreed with Windows on every other testable. 497 ERRORs came from how the runner was launched (F94): Bazel's Linux stub
+  names external jars by `../`, and ClassGraph 4.8.25, which builds the classpath for the engine's Java compiler, drops
+  those entries. `run.py` now passes `--classpath_limit=0` everywhere but Windows, as the user chose. In WSL, with the
+  Linux JDK, all 497 pass. The other 7 were glibc's `cbrt`, which misses even on perfect cubes (F60, reopened):
+  `combos.seed_cubes` now writes cubes of powers of two, as the user chose, a seed change and so a whole engine run.
+  `verdicts.py`'s annotations now escape their titles, which GitHub cut at the comma, and cut a long list of names to
+  fit. All of these are owned files. Fixed in `2f3b002fd`: the second Linux run (41364493432) gave 0 unexpected.
+- **PR #87's review (2026-11-02), cross-area, on `stress_test/landing` (the PR's branch, rebased onto `upstream/main`
+  `cf73e6ef7`):**
+  - `REPO.bazel` (new) and `tools/guards/defs.bzl` (the Bazel program's): `ignore_directories(["bazel-*"])`. The
+    root package's `//:all_files` glob walked the convenience links into the output tree, and on Windows the walk
+    failed the warehouse lane's analysis ("Inconsistent filesystem operations", run 41375140384). The exclude that
+    filtered without stopping the walk is gone, and `//tools/guards:inventory_test` holds the rest.
+  - `.github/workflows/engine-verdict.yml`: macOS on `macos-15`, as gate.yml since #85, and its comments on the
+    sharding. `gates/BUILD.bazel` gains `//scripts/corpus:quarantine_test` in the lane `:run_test` is in.
+  - `core/src/test/java/com/legend/integration/DynaFunctionIntegrationTest.java` (core's): a focused test of the
+    `substring` dynafunction over a joined column (the review's finding 8).
+  - `parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv` (parser equivalence's):
+    `own_corpus.matched` 3017 -> 3020. The new test's model (`model::E`, `store::DB`, `model::M`) joined the own corpus
+    and matches. The desk's local runs missed it (the parity lane was not among them), and PR #87's CI caught it
+    (run 41483336882: `OwnCorpusParityTest` and `update_ratchets_test` on every OS).
+- **The rebase onto `main` (2026-11-06), cross-area, on `stress_test/landing`:** rebased onto `upstream/main`
+  `2cfab7658` (228 commits; the merge of `stress_test/report` kept), every one of the branch's 74 commits applied with
+  its diff unchanged but two.
+  - `parser-equivalence/src/test/resources/com/legend/equivalence/ratchets.tsv` (parser equivalence's): main's own
+    count had moved 3009 -> 3079, so the branch's two moves are now 3079 -> 3087 -> 3090, each commit saying so.
+    Measured: `[own-parity] MATCH=3090, REFERENCE_REJECTED=263, diffs=0`.
+  - `core/src/main/java/com/legend/sql/dialect/H2.java` (core's): main's H2 2.5.252 (`53b52c805`) guards `ASIN` and
+    `ACOS` to NaN outside [-1, 1], and its `ELSE` also took an absent argument to NaN. So `VN_Acos` and `VN_Asin` (an
+    absent `rateOpt` through `map`) answered `true` where the engine's H2 answers null, and `//core:stress_suites_h2`
+    passed 5517 against its floor of 5519. They were the only two services the rebase moved on either stress lane. A
+    NULL now falls through to NULL, as SQLite's and MariaDB's guards do (`d8bd6f8fd`). DuckDB's, Postgres's and
+    Snowflake's guards have the same `ELSE` shape; DuckDB answers these two services null, and nothing here probes
+    why.
+  - `.github/workflows/engine-verdict.yml`: the Linux shards on `ubuntu-24.04`, as gate.yml since `99a004061`
+    (ubuntu-latest's image has no libxml2). `docs/GATES.md`'s heavy row: `engine_stress` has 16 shards, not 8
+    (`ca3e790f2`).
+  - The measures: both stress lanes' pass lists are identical, test by test, to the branch's own run before the
+    rebase (`f907f921d`): DuckDB 5614, H2 5519. Green: `//gates:local`, `//gates:stress`, `//gates:parser_equivalence`,
+    `//gates:corpus_duckdb`, `//gates:corpus_h2`, `//pct:pct_h2`, `//core:core_tests_judges`. This desk's known reds
+    are left out: every `update_*` diff test and `//tools/java_run:pins_test`, where fc.exe cannot open the
+    case-sensitive clone (each pair compared directly, all identical), and three datacube browser tests
+    (`live_channel_test`, `live_soak_test`, `page_app_test`) that run past their limit here even alone and depend on no
+    file the branch changes (`bazel query`).
+
+## A fifteenth line, 2026-11-07: the gs-quant oracle for #TS (the user's ask, rule 5)
+
+Branch `abs/ts-gsquant-oracle` (absnarang/legend-lite), stacked on #90 (`abs/ts-adversarial-fixture`, the adversarial
+markets fixture, at `0f76abe80` on `claude/timeseries-language` `aad8e762a`): #90 merges first. Every word of `#TS`
+held to `gs_quant.timeseries` itself at one pinned release (`tools/gs-quant-oracle/README.md`; GATES "The gs-quant
+oracle for #TS").
+
+- **Its own files:** `tools/gs-quant-oracle/` (new), `core/src/test/java/com/legend/integration/TsGsquantParityTest.java`
+  (new).
+- **Cross-area (announced 2026-11-07, before it lands):** `core/BUILD.bazel` (the timeseries line's and the Bazel
+  program's: the target `:ts_gsquant_parity_test` beside #90's `:ts_adversarial_test`, reading #90's two price files,
+  and its source excluded from `:core_tests`' glob beside the other `Ts*` lanes'); `gates/BUILD.bazel` (the `core` lane
+  gains `//core:ts_gsquant_parity_test`, `checks` `//tools/gs-quant-oracle:tools_build_test`); the root `BUILD.bazel`
+  (`//:generated` gains `//tools/gs-quant-oracle:update_generated_tests`, `//:update_generated` its two writers);
+  `docs/GATES.md`; this file. No main source, no word of the library and no register row is touched (a contributor
+  never edits `docs/SEMANTICS_REGISTER.md`, the user's standing rule, 2026-11-08): each DIFF is posted with the PR and
+  its proposed register row written there in full, for the user to rule.

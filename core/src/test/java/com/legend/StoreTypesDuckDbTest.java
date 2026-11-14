@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Lean;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
@@ -36,7 +37,7 @@ class StoreTypesDuckDbTest {
                 st.execute("INSERT INTO HOSTS VALUES (1, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'),"
                         + " (2, 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'), (3, 'b1ffcd00-0000-4000-8000-000000000001')");
             }
-            var r = Execution.execute(model, "|#>{s::DB.HOSTS}#->filter(x|$x.REF->toOne()->startsWith('a0ee'))"
+            var r = Lean.run(model, "|#>{s::DB.HOSTS}#->filter(x|$x.REF->toOne()->startsWith('a0ee'))"
                     + "->groupBy(~[REF], ~[n: x|$x.ID : y|$y->count()])", "s::RT", c);
             assertEquals(List.of("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11|2"),
                     r.rows().stream().map(row -> row.get(0) + "|" + row.get(1)).toList());

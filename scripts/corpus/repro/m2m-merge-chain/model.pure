@@ -1,0 +1,192 @@
+// F86: an M2M merge over a ModelChainConnection fails before it runs.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/m2m-merge-chain/model.pure \
+//       --testable=demo::OneSet --testable=demo::Merged
+//
+// Two source classes over one relational table, each with part of a person, reached through a ModelChainConnection;
+// demo::Person is their merge, the two Pure sets joined by the validation lambda on the key both carry, as
+// legend-engine's own merge tests write it (core/store/m2m/tests/legend/merge.pure, over JsonModelConnections).
+// legend-engine 4.145.0:
+//   OneSet  one of the two sets alone, as the root of its own mapping, fetched as a graph: passes
+//   Merged  the merge, fetched as a graph: fails at test setup, "Execution error at
+//           (resource:/core/store/m2m/chain.pure line:245 column:103), "Cast exception:
+//           MergeOperationSetImplementation cannot be cast to PureInstanceSetImplementation""
+// chain.pure's reprocess casts every set it routes through to a Pure instance set, so an Operation set over a chain
+// fails there; projected (a TDS) the merge fails the same way, and so does a union. A union fetched as a graph does
+// run (stress::MX_TicketTree), so only the merge has no form that runs over a chain.
+###Pure
+Class demo::src::PersonName
+{
+  id: String[1];
+  name: String[1];
+}
+
+Class demo::src::PersonYear
+{
+  id: String[1];
+  born: Integer[1];
+}
+
+Class demo::Person
+{
+  id: String[0..1];
+  name: String[0..1];
+  born: Integer[0..1];
+}
+
+Class demo::Named
+{
+  id: String[1];
+  name: String[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table PERSON (ID VARCHAR(8) PRIMARY KEY, NAME VARCHAR(32), BORN INTEGER)
+)
+
+###Mapping
+Mapping demo::SrcMapping
+(
+  demo::src::PersonName: Relational
+  {
+    ~mainTable [demo::DB]PERSON
+    id: [demo::DB]PERSON.ID,
+    name: [demo::DB]PERSON.NAME
+  }
+  demo::src::PersonYear: Relational
+  {
+    ~mainTable [demo::DB]PERSON
+    id: [demo::DB]PERSON.ID,
+    born: [demo::DB]PERSON.BORN
+  }
+)
+
+Mapping demo::OneSetMapping
+(
+  *demo::Named: Pure
+  {
+    ~src demo::src::PersonName
+    id: $src.id,
+    name: $src.name
+  }
+)
+
+Mapping demo::MergeMapping
+(
+  *demo::Person: Operation
+  {
+    meta::pure::router::operations::merge_OperationSetImplementation_1__SetImplementation_MANY_([named, born],
+      {a: demo::src::PersonName[1], b: demo::src::PersonYear[1] | $a.id == $b.id})
+  }
+  demo::Person[named]: Pure
+  {
+    ~src demo::src::PersonName
+    id: $src.id,
+    name: $src.name
+  }
+  demo::Person[born]: Pure
+  {
+    ~src demo::src::PersonYear
+    born: $src.born
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: H2;
+  specification: LocalH2 { };
+  auth: DefaultH2;
+}
+
+ModelChainConnection demo::Chain
+{
+  mappings: [ demo::SrcMapping ];
+}
+
+###Runtime
+Runtime demo::OneSetRT
+{
+  mappings: [ demo::OneSetMapping ];
+  connections: [ ModelStore: [ chain: demo::Chain ], demo::DB: [ env: demo::Conn ] ];
+}
+
+Runtime demo::MergeRT
+{
+  mappings: [ demo::MergeMapping ];
+  connections: [ ModelStore: [ chain: demo::Chain ], demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.PERSON:
+      'ID,NAME,BORN\n' +
+      'P1,Ann,1975\n' +
+      'P2,Bob,1990\n';
+  }#
+}
+
+###Service
+Service demo::OneSet
+{
+  pattern: '/oneSet';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Named.all()->graphFetch(#{demo::Named{id,name}}#)->serialize(#{demo::Named{id,name}}#);
+    mapping: demo::OneSetMapping;
+    runtime: demo::OneSetRT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"id":"P1","name":"Ann"},{"id":"P2","name":"Bob"}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::Merged
+{
+  pattern: '/merged';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Person.all()->graphFetch(#{demo::Person{id,name,born}}#)->serialize(#{demo::Person{id,name,born}}#);
+    mapping: demo::MergeMapping;
+    runtime: demo::MergeRT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"id":"P1","name":"Ann","born":1975},{"id":"P2","name":"Bob","born":1990}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

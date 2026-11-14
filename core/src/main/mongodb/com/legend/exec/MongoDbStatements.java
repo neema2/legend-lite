@@ -4,8 +4,9 @@
 package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
-import com.legend.model.ConnectionDefinition;
+import com.legend.executionplan.PlannedSql;
 import com.mongodb.MongoException;
+import com.mongodb.client.AggregateIterable;
 import com.mongodb.client.MongoCursor;
 import com.mongodb.client.MongoDatabase;
 import org.bson.BsonArray;
@@ -14,7 +15,6 @@ import org.bson.BsonDateTime;
 import org.bson.BsonDecimal128;
 import org.bson.BsonDocument;
 import org.bson.BsonDouble;
-import org.bson.BsonInt32;
 import org.bson.BsonInt64;
 import org.bson.BsonNull;
 import org.bson.BsonString;
@@ -32,18 +32,22 @@ import java.util.Map;
 
 /**
  * A MongoDB session's {@link Statements} (docs/MONGODB_PLAN_2026_10_16.md §5.1 and §5.2): the plan's statement is a
- * command in Extended JSON, as the MongoDb dialect writes it; a plan parameter is the marker document
- * {@code {"$legendParam": "?"}} at its place, replaced in place by the bound value of the slot at its place among the
- * markers, in document order, as SQL's {@code ?} is (decision D5, the driver's own encoding of each value; a dynamic
- * pivot's per-key region is copied as text, 2026-10-20); an {@code aggregate} command runs through the driver's cursor, and each row's one
- * field is the text the pipeline wrote (D10): carried, never read as a value. A raise the pipeline wrote (a
+ * command in Extended JSON, as the MongoDb dialect writes it; an {@code aggregate} command runs through the driver's
+ * cursor, and each row's one field is the text the pipeline wrote (D10): carried, never read as a value. A plan
+ * parameter is the pipeline variable {@code "$$lpN"}, bound through the command's {@code let}: {@code lpN} the N-th of
+ * the statement's parameter slots, each value in the driver's own encoding (decision D5), and the pipeline sent as
+ * the plan holds it (the C checkpoint's NOTE, 2026-11-12: until then each parameter was a marker document this session
+ * replaced in place). A dynamic pivot's key cell is the one marker left ({@code {"$legendParam": "?"}}): the runner
+ * writes the per-key region once per key (the charter's A3(a)) and this session binds each copy's key at its marker,
+ * as JDBC binds a key's {@code ?}. A raise the pipeline wrote (a
  * conversion of a message between the platform's sentinels) comes back as the platform's own text, as a SQL raise
  * does through the executor's funnel. Since the plan path program's step 7 (2026-10-18) the session answers typed
  * rows too ({@link #rows}: each document's fields read by the plan's columns, {@link MongoDbDecode}).
  */
 final class MongoDbStatements implements Statements {
 
-    private static final String PARAMETER_MARKER = "$legendParam";
+    /** A dynamic pivot's key cell, as the MongoDb dialect writes it in each copy of the per-key region. */
+    private static final String KEY_MARKER = "$legendParam";
 
     private final MongoDatabase database;
 
@@ -53,35 +57,32 @@ final class MongoDbStatements implements Statements {
 
     @Override
     public void check(ExecutionPlan.Target target) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         if (!(target.database() instanceof ExecutionPlan.Database.Declared d)
-                || d.connection().databaseType() != ConnectionDefinition.DatabaseType.MongoDB) {
+                || d.connection().databaseType() != com.legend.executionplan.DatabaseType.MongoDB) {
             throw new com.legend.error.NotImplementedException("the query executes on " + target.database().type()
                     + " but the session is MongoDB — dialect/connection mismatch");
         }
-        switch (target.servers()) {
-            case ExecutionPlan.Servers.Every every -> {
-                // the spelling depends on no version
-            }
-            case ExecutionPlan.Servers.Versions versions -> {
-                String version = run(new BsonDocument("buildInfo", new BsonInt32(1))).get("version", BsonNull.VALUE)
-                        .asString().getValue();
-                if (versions.prefixes().stream().noneMatch(version::startsWith)) {
-                    throw new com.legend.error.NotImplementedException("the plan's statements are written for MongoDB "
-                            + versions.prefixes() + ", and the session is MongoDB " + version + ": not run");
-                }
-            }
-        }
+        // no command of the session's own: the server's version is not read (the user's ruling of 2026-11-12, the C
+        // final audit's J3, "delete mongo check for sure": until then buildInfo was sent, a command exec wrote). A
+        // server before 5.0 refuses a pipeline's let with its own error; a pipeline with no parameter sends none
     }
 
     @Override
-    public void execute(String statement) {
-        run(command(statement));
+    public boolean execute(PlannedSql statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        try (Replies ignored = send(statement, List.of(), List.of())) {
+            return false;
+        } catch (MongoException e) {
+            throw failure(e);
+        }
     }
 
     /** {@inheritDoc} MongoDB: a keyed plan's two commands share no transaction (the dialect says {@code NONE}: a
      *  server that is no replica set has none across commands), so a snapshot is asked of it only as {@code NONE}. */
     @Override
     public void inSnapshot(ExecutionPlan.Keyed.Snapshot snapshot, Work work) throws IOException {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         if (snapshot != ExecutionPlan.Keyed.Snapshot.NONE) {
             throw new IllegalStateException("a " + snapshot + " snapshot asked of a MongoDB session: its keyed plans"
                     + " take none");
@@ -92,23 +93,66 @@ final class MongoDbStatements implements Statements {
     /** A write plan's step: not designed on MongoDB (its writes are the bulk load alone, docs/MONGODB_PLAN_2026_10_16.md);
      *  refused by name. */
     @Override
-    public long update(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+    public long update(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
         throw new com.legend.error.NotImplementedException("a write plan's step on MongoDB: a program that changes a"
                 + " store is not designed for MongoDB (its writes are the bulk load alone)");
     }
 
     @Override
     public <T> T inTransaction(java.util.function.Supplier<T> work) {
+        com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
         throw new com.legend.error.NotImplementedException("a transaction over a plan's steps on MongoDB: a program that"
                 + " changes a store is not designed for MongoDB");
     }
 
     @Override
-    public void query(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public boolean ownsTransaction() {
+        com.legend.base.RunScope.opening("a transaction bracket");   // the owner's act: refused while planning
+        throw new com.legend.error.NotImplementedException("a transaction over a plan's steps on MongoDB: a program that"
+                + " changes a store is not designed for MongoDB");
+    }
+
+    /** A MongoDB session describes no statement before running it: the body driver's schema probes (a raw grid's
+     *  roster, a deferred relation's columns, a wire-decided kind) are not designed for MongoDB; refused by name. */
+    @Override
+    public List<Reported> columns(PlannedSql statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        throw new com.legend.error.NotImplementedException("a statement's reported columns asked of a MongoDB session:"
+                + " the body driver's schema probes are not designed for MongoDB");
+    }
+
+    @Override
+    public List<Reported> describe(PlannedSql statement) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        throw new com.legend.error.NotImplementedException("a statement described before running asked of a MongoDB"
+                + " session: the body driver's schema probes are not designed for MongoDB");
+    }
+
+    /** A raw grid is an authored SQL text: a MongoDB session answers none, so no relation of reported columns. */
+    @Override
+    public void reportedRows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+            ReportedColumns columns, Cells cells) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        throw new com.legend.error.NotImplementedException("a relation of the columns its result reports asked of a"
+                + " MongoDB session: a raw grid is an authored SQL text, which a MongoDB database does not run");
+    }
+
+    /** A MongoDB database reads no runner's file: refused by name (a plan loads nothing into a connector's own). */
+    @Override
+    public void readsFile(PlannedSql statement, String path) {
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        throw new com.legend.error.NotImplementedException("a file's load asked of a MongoDB session: its databases are"
+                + " the connector's own, and a plan loads none");
+    }
+
+    @Override
+    public void query(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             Rows rows) throws IOException {
-        try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
-            while (cursor.hasNext()) {
-                rows.row(text(cursor.next()));
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        try (Replies replies = send(statement, slots, values)) {
+            while (replies.hasNext()) {
+                rows.row(text(replies.next()));
             }
         } catch (MongoException e) {
             throw failure(e);
@@ -118,38 +162,100 @@ final class MongoDbStatements implements Statements {
     /** {@inheritDoc} Each document's fields read by the plan's columns ({@link MongoDbDecode}: a field by its
      *  column's name, its value by the slot and the Pure type). */
     @Override
-    public void rows(String statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    public void rows(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             List<ExecutionPlan.Column> columns, Cells cells) throws IOException {
-        try (MongoCursor<BsonDocument> cursor = cursor(statement, slots, values)) {
-            while (cursor.hasNext()) {
-                cells.row(MongoDbDecode.row(cursor.next(), columns));
+        com.legend.base.RunScope.statement("a statement");   // THE WALL's rule 3, per act (2026-11-06)
+        try (Replies replies = send(statement, slots, values)) {
+            while (replies.hasNext()) {
+                cells.row(MongoDbDecode.row(replies.next(), columns));
             }
         } catch (MongoException e) {
             throw failure(e);
         }
     }
 
-    /** The aggregate command's cursor: the plan's command with its markers bound, run through the driver. */
-    private MongoCursor<BsonDocument> cursor(String statement, List<ExecutionPlan.Slot> slots,
-            List<PlanParameters.Checked> values) {
-        int[] next = {0};
-        BsonDocument command = bound(command(statement), slots, values, next).asDocument();
-        if (next[0] != slots.size()) {
-            throw new IllegalStateException("the plan's statement holds " + next[0] + " parameter markers, and the plan"
-                    + " has " + slots.size() + " slots");
+    /**
+     * THE ONE PLACE THIS SESSION REACHES THE SERVER (the C final audit's J3, the user's question of 2026-11-12: "how do
+     * we stop this from actually being able to be added without loud alarm bells?"): the plan's statement, as the plan
+     * holds it, each slot's value bound -- a plan parameter as its variable in the command's {@code let} ({@code lp1},
+     * {@code lp2}, ... in slot order, as the MongoDb dialect names them: {@code MongoJson.parameterVariable}), a key
+     * cell's slot (the plan's {@code Binding.Key}, once per copy of a per-key region, its value the key's text) at its
+     * marker, in document order. Every call of the MongoDB driver that sends is made here and nowhere else, and it takes
+     * the plan's type, never a document exec built ({@code ArchitectureTest.theMongoDbDriverSendsAtOneChokePoint}): an
+     * aggregate answers its cursor, another command its one reply.
+     */
+    private Replies send(PlannedSql statement, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values) {
+        BsonDocument let = new BsonDocument();
+        List<ExecutionPlan.Slot> keySlots = new ArrayList<>();
+        List<PlanParameters.Checked> keys = new ArrayList<>();
+        for (int i = 0; i < slots.size(); i++) {
+            ExecutionPlan.Slot slot = slots.get(i);
+            // a key slot by its type (J7, 2026-11-12: until then by an empty name and a One binding, the runner's own)
+            if (slot.binding() instanceof ExecutionPlan.Binding.Key) {
+                keySlots.add(slot);
+                keys.add(values.get(i));
+            } else {
+                let.append("lp" + (let.size() + 1), literal(value(slot, values.get(i), i + 1)));
+            }
+        }
+        BsonDocument command = command(statement);
+        if (!keySlots.isEmpty()) {
+            int[] next = {0};
+            command = keyed(command, keySlots, keys, next).asDocument();
+            if (next[0] != keySlots.size()) {
+                throw new IllegalStateException("the plan's statement holds " + next[0] + " key markers, and its"
+                        + " regions bind " + keySlots.size() + " keys");
+            }
         }
         BsonValue aggregate = command.get("aggregate");
+        if (aggregate == null) {
+            // another command: sent as the plan holds it, and it binds nothing
+            if (!slots.isEmpty()) {
+                throw new IllegalStateException("the plan's statement binds " + slots.size() + " values, and it is no"
+                        + " aggregate command, which alone binds them: " + command.keySet());
+            }
+            return new Replies(List.of(database.runCommand(command, BsonDocument.class)).iterator(), null);
+        }
         BsonValue pipeline = command.get("pipeline");
-        if (aggregate == null || pipeline == null || !pipeline.isArray()) {
+        if (pipeline == null || !pipeline.isArray()) {
             throw new IllegalStateException("the plan's statement is not an aggregate command: " + command.keySet());
         }
         List<BsonDocument> stages = new ArrayList<>();
         for (BsonValue stage : pipeline.asArray()) {
             stages.add(stage.asDocument());
         }
-        return (aggregate.isString()
+        AggregateIterable<BsonDocument> run = aggregate.isString()
                 ? database.getCollection(aggregate.asString().getValue(), BsonDocument.class).aggregate(stages)
-                : database.aggregate(stages, BsonDocument.class)).iterator();
+                : database.aggregate(stages, BsonDocument.class);
+        MongoCursor<BsonDocument> cursor = (let.isEmpty() ? run : run.let(let)).iterator();
+        return new Replies(cursor, cursor);
+    }
+
+    /** What a sent command answers: an aggregate's cursor (its continuation and its close the driver's, of the plan's
+     *  own command), or another command's one reply. */
+    private static final class Replies implements AutoCloseable {
+        private final java.util.Iterator<BsonDocument> rows;
+        private final @com.legend.base.Nullable MongoCursor<BsonDocument> cursor;
+
+        Replies(java.util.Iterator<BsonDocument> rows, @com.legend.base.Nullable MongoCursor<BsonDocument> cursor) {
+            this.rows = rows;
+            this.cursor = cursor;
+        }
+
+        boolean hasNext() {
+            return rows.hasNext();
+        }
+
+        BsonDocument next() {
+            return rows.next();
+        }
+
+        @Override
+        public void close() {
+            if (cursor != null) {
+                cursor.close();
+            }
+        }
     }
 
     /** The row's one text: its one field, a string or null; anything else is not text, refused by name. */
@@ -168,19 +274,11 @@ final class MongoDbStatements implements Statements {
         throw new IllegalStateException("the plan's statement wrote a " + v.getBsonType() + ", not text");
     }
 
-    private static BsonDocument command(String statement) {
+    private static BsonDocument command(PlannedSql statement) {
         try {
-            return BsonDocument.parse(statement);
+            return BsonDocument.parse(statement.text());
         } catch (org.bson.json.JsonParseException | org.bson.BsonInvalidOperationException e) {
             throw new IllegalStateException("the plan's statement is not a MongoDB command: " + e.getMessage(), e);
-        }
-    }
-
-    private BsonDocument run(BsonDocument command) {
-        try {
-            return database.runCommand(command, BsonDocument.class);
-        } catch (MongoException e) {
-            throw failure(e);
         }
     }
 
@@ -190,35 +288,52 @@ final class MongoDbStatements implements Statements {
         return new com.legend.error.DataError(unwrapped == null ? String.valueOf(e.getMessage()) : unwrapped, e);
     }
 
-    /** {@code v} with each parameter marker replaced, in place and in document order, by the bound value of the slot
-     *  at its place among the markers; {@code next} the place of the next marker. */
-    private static BsonValue bound(BsonValue v, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
+    /** A key slot's value: the key's text, as the runner's expansion gives it (J7, 2026-11-12). */
+    private static BsonValue keyText(PlanParameters.Checked checked, int index) {
+        if (!(checked instanceof PlanParameters.One one && one.value() instanceof String text)) {
+            throw new IllegalStateException("key " + index + " binds a key's cell given no key's text");
+        }
+        return new BsonString(text);
+    }
+
+    /** {@code v} with each key marker replaced, in place and in document order, by the key of the slot at its place
+     *  among the markers, as JDBC binds a key's {@code ?}; {@code next} the place of the next marker. */
+    private static BsonValue keyed(BsonValue v, List<ExecutionPlan.Slot> slots, List<PlanParameters.Checked> values,
             int[] next) {
         if (v.isDocument()) {
             BsonDocument d = v.asDocument();
-            BsonValue marker = d.get(PARAMETER_MARKER);
+            BsonValue marker = d.get(KEY_MARKER);
             if (marker != null && d.size() == 1) {
                 int n = next[0]++;
                 if (n >= slots.size()) {
-                    throw new IllegalStateException("the plan's statement holds more parameter markers than the plan's "
-                            + slots.size() + " slots");
+                    throw new IllegalStateException("the plan's statement holds more key markers than its regions'"
+                            + " " + slots.size() + " keys");
                 }
-                return value(slots.get(n), values.get(n), n + 1);
+                return literal(keyText(values.get(n), n + 1));
             }
             BsonDocument out = new BsonDocument();
             for (Map.Entry<String, BsonValue> e : d.entrySet()) {
-                out.append(e.getKey(), bound(e.getValue(), slots, values, next));
+                out.append(e.getKey(), keyed(e.getValue(), slots, values, next));
             }
             return out;
         }
         if (v.isArray()) {
             BsonArray out = new BsonArray();
             for (BsonValue e : v.asArray()) {
-                out.add(bound(e, slots, values, next));
+                out.add(keyed(e, slots, values, next));
             }
             return out;
         }
         return v;
+    }
+
+    /** {@code v} as the expression that answers it: MongoDB evaluates a {@code let}'s values and a marker's place as
+     *  expressions, so a bound value is a {@code $literal} -- a text {@code "$name"} is that text, never a field path,
+     *  a variable or an operator's document (measured 2026-11-12 on 8.0: bare, a {@code let}'s {@code "$name"} is
+     *  refused, Location4890500, a command's let reading no field; until then a marker was replaced by the bare
+     *  value in an expression's place, which reads a {@code $}-led text as a path). */
+    private static BsonDocument literal(BsonValue v) {
+        return new BsonDocument("$literal", v);
     }
 
     /** A slot's value as BSON, as the slot says: one value (an absent one a null), or a list as one array (an absent
@@ -245,6 +360,10 @@ final class MongoDbStatements implements Statements {
             };
             case ExecutionPlan.Binding.Key key -> throw new IllegalStateException("slot " + index + " binds a key's"
                     + " cell: the runner binds each copy's key before the statement reaches the session");
+            case ExecutionPlan.Binding.Source src -> throw new com.legend.error.NotImplementedException("a MongoDB"
+                    + " statement reads no file source ('" + src.location() + "'): its databases are the connector's own");
+            case ExecutionPlan.Binding.Payload payload -> throw new IllegalStateException("slot " + index + " binds a"
+                    + " data: payload: MongoDB's delivery is the pipeline's own $documents, never a bound payload");
         };
     }
 

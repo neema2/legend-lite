@@ -1,0 +1,98 @@
+// The data: session-table probe for MongoDB (B, the orchestrator's item (b) of 2026-11-11; to be run by the MongoDB
+// lane's session at the B checkpoint's lane round). Usage:
+//   java -cp <mongodb-driver-sync>:<mongodb-driver-core>:<bson>:. MongoDbDataTableProbe '<mongodb connection string>' <database>
+// What it asks, in order, each answer printed (a refusal printed, never hidden):
+//   1. a USER's collection of the session table's name, holding the user's document;
+//   2. the "session table" made as lite would have to make it -- MongoDB has no session-scoped (temporary)
+//      collection, so the candidate is a collection of the digest's name in the connection's database -- two records
+//      inserted (a quote and a line break in their text) and read back by an aggregation ordered by their place;
+//   3. whether the make reaches the user's collection (it does if the name is the same: no session scope), and
+//      whether a SECOND client sees the collection while it lives (it must not, for a session table);
+//   4. the drop, then the user's collection read: its document must be there (it will not be if the names collide).
+// The candidate is written from MongoDB's documentation before it was measured (its output below). Expected (documentation): a collection is the
+// database's, visible to every client, and a drop by name is the user's collection's drop: no session table, so a
+// data: source stays refused by name on MongoDB (DialectCapability), with a register row. The probe's output decides.
+// A pipeline's $documents stage (5.1+) would carry the records in the statement's text: data in the plan as a literal,
+// which A5 refuses (data enters a database by a load, never written into a statement), so it is not a candidate.
+import com.mongodb.client.MongoClient;
+import com.mongodb.client.MongoClients;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import org.bson.Document;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public class MongoDbDataTableProbe {
+    static final String NAME = "legend_data_probe";
+
+    public static void main(String[] a) {
+        try (MongoClient client = MongoClients.create(a[0]); MongoClient other = MongoClients.create(a[0])) {
+            MongoDatabase db = client.getDatabase(a[1]);
+            step("1 the user's collection and document", () -> {
+                db.getCollection(NAME).insertOne(new Document("data", "the user's row"));
+                return "ok";
+            });
+            step("2 make: list the collection's documents before the session's make (a session table starts empty)",
+                    () -> list(db.getCollection(NAME)));
+            step("2 fill", () -> {
+                MongoCollection<Document> c = db.getCollection(NAME);
+                c.insertMany(List.of(new Document("data", new Document("t", "it's")).append("u_frame_ord__", 0),
+                        new Document("data", new Document("t", "a\nb")).append("u_frame_ord__", 1)));
+                return "ok";
+            });
+            step("2 read, ordered by place", () -> {
+                List<String> rows = new ArrayList<>();
+                db.getCollection(NAME).aggregate(List.of(
+                        new Document("$match", new Document("u_frame_ord__", new Document("$exists", true))),
+                        new Document("$sort", new Document("u_frame_ord__", 1)),
+                        new Document("$project", new Document("_id", 0)))).forEach(d -> rows.add(d.toJson()));
+                return rows.toString();
+            });
+            step("3 the user's document beside the session's (a session table would not share its collection)",
+                    () -> list(db.getCollection(NAME)));
+            step("3 a second client sees the collection (must not, for a session table)",
+                    () -> list(other.getDatabase(a[1]).getCollection(NAME)));
+            step("4 drop", () -> {
+                db.getCollection(NAME).drop();
+                return "ok";
+            });
+            step("4 the user's collection after the drop (its document must be there)",
+                    () -> list(db.getCollection(NAME)));
+            step("4 drop again (the session holds none)", () -> {
+                db.getCollection(NAME).drop();
+                return "ok";
+            });
+        }
+    }
+
+    static String list(MongoCollection<Document> c) {
+        List<String> rows = new ArrayList<>();
+        c.find().projection(new Document("_id", 0)).forEach(d -> rows.add(d.toJson()));
+        return rows.toString();
+    }
+
+    interface Step {
+        String run();
+    }
+
+    static void step(String what, Step s) {
+        try {
+            System.out.println(what + " :: " + s.run());
+        } catch (RuntimeException e) {
+            System.out.println(what + " :: REFUSED " + e.getClass().getSimpleName() + ": "
+                    + String.valueOf(e.getMessage()).split("\n")[0]);
+        }
+    }
+}
+
+// MEASURED 2026-11-11 on MongoDB 8.0.17 (the embedded lane's server), mongodb-driver-sync 5.13.0; its output:
+//   1 the user's collection and document :: ok
+//   2 make: list the collection's documents before the session's make (a session table starts empty) :: [{"data": "the user's row"}]
+//   2 fill :: ok
+//   2 read, ordered by place :: [{"data": {"t": "it's"}, "u_frame_ord__": 0}, {"data": {"t": "a\nb"}, "u_frame_ord__": 1}]
+//   3 the user's document beside the session's (a session table would not share its collection) :: [{"data": "the user's row"}, {"data": {"t": "it's"}, "u_frame_ord__": 0}, {"data": {"t": "a\nb"}, "u_frame_ord__": 1}]
+//   3 a second client sees the collection (must not, for a session table) :: [{"data": "the user's row"}, {"data": {"t": "it's"}, "u_frame_ord__": 0}, {"data": {"t": "a\nb"}, "u_frame_ord__": 1}]
+//   4 drop :: ok
+//   4 the user's collection after the drop (its document must be there) :: []
+//   4 drop again (the session holds none) :: ok

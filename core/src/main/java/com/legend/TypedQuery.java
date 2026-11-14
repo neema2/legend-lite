@@ -3,6 +3,10 @@
 
 package com.legend;
 
+import com.legend.planner.CrossStoreGuard;
+import com.legend.planner.PlanMaker;
+import com.legend.planner.QueryParameters;
+
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -21,11 +25,45 @@ public final class TypedQuery {
     private final com.legend.protocol.spec.ValueSpecification resolved;
     private final SpecCompiler specs;
     private @com.legend.base.Nullable List<TypedSpec> body;
+    /** Lite's own planning options this query is planned under (none unless asked for: {@link #withOptions}). */
+    private final java.util.Set<com.legend.platform.PlanOption> options;
 
     TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved) {
         this.ctx = ctx;
         this.resolved = resolved;
         this.specs = new SpecCompiler(ctx);
+        this.options = java.util.Set.of();
+    }
+
+    /** This query with {@code body} as its typed statements (a body the test door rewrote statement for statement, the
+     *  places kept: {@code LetPlanner.unreadAsStatements}); the model, the resolved query and the spec compiler shared.
+     *  An internal of the execution door's, public for the driver's tests as {@link #specs} is. */
+    public TypedQuery withBody(List<TypedSpec> body) {
+        TypedQuery q = new TypedQuery(ctx, resolved, specs, options);
+        q.body = List.copyOf(body);
+        return q;
+    }
+
+    /** This query planned under lite's own planning options ({@link com.legend.platform.PlanOption}: each off unless
+     *  asked for -- the tests ask for {@code DETERMINISTIC_AS_OF}). */
+    public TypedQuery withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
+        TypedQuery q = new TypedQuery(ctx, resolved, specs,
+                o.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(o)));
+        q.body = body;
+        return q;
+    }
+
+    /** The planning options this query is planned under. */
+    public java.util.Set<com.legend.platform.PlanOption> options() {
+        return options;
+    }
+
+    private TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved, SpecCompiler specs,
+            java.util.Set<com.legend.platform.PlanOption> options) {
+        this.ctx = ctx;
+        this.resolved = resolved;
+        this.specs = specs;
+        this.options = options;
     }
 
     /** The compiled model this query is typed against. */
@@ -34,8 +72,18 @@ public final class TypedQuery {
     }
 
     /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). */
-    SpecCompiler specs() {
+    /** The spec compiler the query was typed by. This and the members below (resolved, lower,
+     *  lowerer, writes) are the planner's and the driver's internals, public since step C (D73, 2026-10-30) because
+     *  the machinery left this package; the product API of a typed query is plan, lower(runtime), resultType,
+     *  expression, target and parameters. */
+    public SpecCompiler specs() {
         return specs;
+    }
+
+    /** The name-resolved query the body is typed from (the body driver reads a parameterless lambda's protocol
+     *  statements off it: the source-shaped lets a handle's rows are built from; track B's B2, 2026-10-29). */
+    public com.legend.protocol.spec.ValueSpecification resolved() {
+        return resolved;
     }
 
     /** The query's statements typed as a query body (Phase G), once. */
@@ -77,30 +125,49 @@ public final class TypedQuery {
         return List.copyOf(out);
     }
 
+    /**
+     * Whether the query answers a diagnostic's call ({@code print}, {@code println}): a value the program wrote that
+     * legend-engine refuses when the lambda is built (register S128), where a String or Boolean literal or a model's DDL
+     * text is a value it folds (generatePlan answers upstream's ConstantExecutionNode for those: M5, the user's ruling of
+     * 2026-11-11). Read off the last statement's typed root, as the planner's statement road reads it
+     * ({@code BodyPlanner}'s effect dispatch).
+     */
+    public boolean answersADiagnostic() {
+        List<TypedSpec> b = body();
+        TypedSpec root = b.get(b.size() - 1);
+        while (root instanceof com.legend.compiler.spec.typed.TypedFrom fr) {
+            root = fr.source();
+        }
+        return root instanceof com.legend.compiler.spec.typed.TypedNativeCall nc
+                && com.legend.builtin.NativeFn.Effect.isInertDiagnostic(nc.callee().id());
+    }
+
     /** The query typed as ONE expression (Phase G): its typed HIR, the front half only. */
     public TypedSpec expression() {
         return specs.typeExpression(resolved);
     }
 
-    /** The {@link Compiler.Target} the query names: the runtime its {@code ->from(runtime)} binds and the database its
-     *  {@code #>{db...}#} accessor reads, off the typed tree by node type. */
+    /** The {@link Compiler.Target} the query names: the database its {@code #>{db...}#} accessor reads, off the typed
+     *  tree by node type. Its runtime is {@link #runtime}'s, one rule for every door. */
     public Compiler.Target target() {
-        String runtime = null;
         String store = null;
         java.util.ArrayDeque<TypedSpec> work = new java.util.ArrayDeque<>(body());
         while (!work.isEmpty()) {
             TypedSpec n = work.poll();
-            if (runtime == null && n instanceof com.legend.compiler.spec.typed.TypedFrom f
-                    && f.runtime().isPresent()) {
-                runtime = f.runtime().get().fullPath();
-            }
             if (store == null
                     && n instanceof com.legend.compiler.spec.typed.TypedTableReference r) {
                 store = r.store();
             }
             work.addAll(n.children());
         }
-        return new Compiler.Target(runtime, store);
+        return new Compiler.Target(store);
+    }
+
+    /** The runtime the query runs on: {@code given}, else the one its {@code ->from}s name, a from() inside a function
+     *  it calls included (read after G½); a query naming several and given none is refused by name; null where it
+     *  names none. Every door's one rule ({@code PlanMaker.runtimeOf}; the checkpoint tenets audit's 1, 2026-11-10). */
+    public @com.legend.base.Nullable String runtime(@com.legend.base.Nullable String given) {
+        return com.legend.planner.PlanMaker.runtimeOf(this, given);
     }
 
     /** The query lowered for {@code runtime}: inlined (G½), resolved (H) against the runtime, every touched store
@@ -113,34 +180,16 @@ public final class TypedQuery {
     /** {@link #lower(String, boolean)} with the query's declared parameters as {@code slots}: each {@code $name} of a
      *  slot lowers to it, a value the statement binds (a plan's parameters, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
      *  §9, step 2's landing 2). */
-    Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
+    public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
             List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
-        Resolved r = resolve(new java.util.ArrayList<>(body()), runtime);
-        return new Compiler.LoweredQuery(lowerer(r.temporal(), streaming, slots, features).lower(r.body()), r.root(),
-                ctx);
-    }
-
-    /** Statements inlined (G½) and resolved (H) for a runtime, every store they touch bound to it: what a lowering
-     *  reads. {@code temporal}: whether a temporal class is read (the exists-join form is the engine's otherwise). */
-    record Resolved(List<TypedSpec> body, boolean temporal) {
-        TypedSpec root() {
-            return body.get(body.size() - 1);
-        }
-    }
-
-    /** {@code statements} (a query's body, or one statement of a program with the lets before it: a write plan's step,
-     *  docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) inlined, resolved against {@code runtime}, every touched store
-     *  checked against its connections -- every planning step before the lowering, no database. */
-    Resolved resolve(List<TypedSpec> statements, @com.legend.base.Nullable String runtime) {
-        List<TypedSpec> b = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(
-                new java.util.ArrayList<>(statements));   // Phase G½
-        boolean temporalRoot = com.legend.compiler.element.Temporal.anyTemporalGetAll(b, ctx);
-        b = new com.legend.resolver.StoreResolver(ctx, specs).resolve(b, runtime);   // Phase H
-        // the SQL is for this runtime's session: the runtime decided first (no runtime is refused there, by
-        // name), then every store the query touches must be bound to it (C3b)
-        Compiler.executesOn(ctx, runtime);
-        CrossStoreGuard.check(b, ctx, runtime);
-        return new Resolved(b, temporalRoot);
+        // the product's statement road (the test-is-the-product plan's M2, B11): the test road's front half, the
+        // product's lowering
+        com.legend.planner.ProductStatements.Statement s = com.legend.planner.ProductStatements.prepare(this,
+                body(), runtime, null, features);
+        com.legend.planner.Prepared.Planned p = com.legend.planner.ProductStatements.planned(s);
+        com.legend.sql.SqlQuery plan = com.legend.planner.ProductStatements.lower(this, p, s.temporal(), streaming,
+                slots, new com.legend.lowering.ObjectSites());
+        return new Compiler.LoweredQuery(plan, p.body().get(p.body().size() - 1), ctx);
     }
 
     /** The Lowerer a planned statement lowers with (the wire path's): the model's object layouts (every object its
@@ -148,13 +197,21 @@ public final class TypedQuery {
      *  relation on every lane, the plan's too), the engine's exists-join form unless a temporal class is read
      *  ({@code temporal}), the streaming graph root if asked, the query's feature flags, each slot a value the
      *  statement binds. */
-    com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
+    public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
             List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
+        return lowerer(temporal, streaming, slots, features, new com.legend.lowering.ObjectSites());
+    }
+
+    /** {@link #lowerer(boolean, boolean, List, java.util.Set)} naming its objects' sites with {@code sites}: the
+     *  program's one minter, shared by every statement of a program (the test-is-the-product plan's B9, 2026-10-31). */
+    public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
+            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features,
+            com.legend.lowering.ObjectSites sites) {
         com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
                 t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
                 f -> ctx.findClass(f).isPresent(), ctx.implementations())
                 .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
-                .withObjectIdentity(new com.legend.lowering.ObjectSites()::idOf);
+                .withObjectIdentity(sites::idOf);
         if (!temporal) {
             planLw = planLw.withEngineExistsJoinForm();
         }
@@ -172,7 +229,7 @@ public final class TypedQuery {
 
     /** Whether the query is a program that changes a store (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): a statement
      *  writes a store table ({@code StatementEffects.writesStore}), or a let stages rows for the writes after it. */
-    boolean writes() {
+    public boolean writes() {
         java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
         for (TypedSpec s : body()) {
             if (com.legend.compiler.spec.StatementEffects.writesStore(s, specs, memo)
@@ -183,69 +240,72 @@ public final class TypedQuery {
         return false;
     }
 
-    /** The query planned for {@code runtime}: the SQL in the runtime's dialect, the root's type and its result shape —
-     *  what the executor would consume, minus execution. */
-    public com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime) {
-        return plan(runtime, false);
-    }
-
-    /** {@link #plan} with the STREAMING graph root: one json_object per row, so a streaming executor stays O(one row). */
-    public com.legend.plan.QueryPlan planStreaming(@com.legend.base.Nullable String runtime) {
-        return plan(runtime, true);
-    }
-
-    /** The text a caller asks a plan for: CSV, JSON, or JSON whose rows stream as the database answers them (a
-     *  relation's rows, a graph fetch's objects; a value's text is whole). */
-    /** The form a plan's text takes: CSV, JSON (the whole result), one JSON object per row, or Pure's TDS text
-     *  (TDS_TEXT: a header of {@code name:Type[multiplicity]} and a row per line in Pure's print forms -- the form
-     *  legend-pure's {@code stringToTDS} reads, so the PCT harness's; a value's is the one-column relation
-     *  {@code value}; 2026-10-17). */
-    public enum Output { CSV, JSON, STREAMED_JSON, TDS_TEXT }
-
-    /** The query's execution plan for {@code runtime} (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9): the text the
-     *  database writes in the form {@code output} asks for, final for its target, run by a model-free runner. */
-    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output) {
-        return PlanMaker.plan(this, runtime, output, java.util.Set.of());
-    }
-
-    /** {@link #executionPlan(String, Output)} under the engine's execution feature flags ({@code features}: a lowering
-     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name). */
-    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output, java.util.Set<com.legend.platform.Feature> features) {
-        return PlanMaker.plan(this, runtime, output, features);
-    }
-
-    /** {@link #executionPlan(String, Output, java.util.Set)} for a session whose server is {@code serverVersion}
-     *  (the caller's fact, read off its session): where the database's spelling depends on the version (H2), the
-     *  plan is written in that version's dialect and names it as what it is for; null plans for the dialect's
-     *  declared target (2026-10-19, the plan path program's step 9). */
-    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
-            Output output, java.util.Set<com.legend.platform.Feature> features,
-            @com.legend.base.Nullable String serverVersion) {
-        return PlanMaker.plan(this, runtime, output, features, serverVersion);
-    }
-
     /**
-     * The SQL whose one value is the whole relation as the JSON wire ({@code [row, ...]}, each row the database's own
-     * {@code json_object}), in the runtime's dialect: what legend-lite's server runs for execute's rows
-     * ({@code Execution.executeWire}), for a host that runs it on its own database (the tab: its DuckDB;
-     * docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1). The database renders every value; nothing here does. The dialect is
-     * the runtime's own, not a connection's {@code forServer(version)} as the server's is: only H2's answers differently
-     * by its server's version, and a host runs DuckDB.
+     * The query planned for {@code runtime} as a TEXT plan: its execution plan's one answering statement -- its text,
+     * the root's type and its result shape -- with the statement's target (its session statements and the LOADS that
+     * establish it: test data, a project's Data, a {@code data:} source's session table) and its slots (a {@code file:}
+     * source's path the run binds) carried beside it (B3, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "the text plan
+     * renders from the execution plan"; until then it lowered the query again and refused a live source by name). A
+     * query whose plan answers through no one statement (a program that writes, a pivot whose columns the data names, a
+     * value the program wrote) is refused by name: its text would not be what runs.
      */
-    public String wireSql(@com.legend.base.Nullable String runtime) {
-        Compiler.LoweredQuery l = lower(runtime, false);
-        // the engine's API, hosted: the engine's text (WireRender.Spelling.ENGINE), as the server's execute answers
-        return Compiler.dialectOf(ctx, runtime).render(com.legend.lowering.WireRender.wrap(l.plan(),
-                com.legend.lowering.WireRender.schema(l.root().info()), com.legend.lowering.WireRender.Format.JSON,
-                com.legend.lowering.WireRender.Spelling.ENGINE));
+    public com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime) {
+        com.legend.executionplan.ExecutionPlan plan = executionPlan(runtime);
+        if (!plan.answers() || !plan.sendsTheAnswer() || plan.root() instanceof com.legend.executionplan.ExecutionPlan.Sequence) {
+            throw new com.legend.error.NotImplementedException("a text plan is the statement that answers, and this"
+                    + " query's execution plan " + (!plan.answers() ? "answers nothing"
+                    : !plan.sendsTheAnswer() ? "answers a value the program wrote, sending no statement"
+                    // (a reading plan is steps too where its statement's shared relations are made as tables first:
+                    // ClickHouse's, PR #81's staging -- main's #95 merged in, 2026-11-13)
+                    : "is a program of steps (a write, or a statement's shared relations made as tables ahead of"
+                    + " it)") + ": run the execution plan");
+        }
+        com.legend.compiler.element.type.ExprType root = resultType();
+        com.legend.plan.ResultShape shape = switch (plan.answerShape()) {
+            case OBJECTS -> com.legend.plan.ResultShape.GRAPH;
+            case RELATION -> com.legend.plan.ResultShape.TABULAR;
+            // a value's elements: one or many by the root's multiplicity
+            case VALUE -> root.multiplicity().requireBounded("a text plan").isMany()
+                    ? com.legend.plan.ResultShape.COLLECTION : com.legend.plan.ResultShape.SCALAR;
+        };
+        return new com.legend.plan.QueryPlan(plan, root, shape);
     }
 
-    private com.legend.plan.QueryPlan plan(@com.legend.base.Nullable String runtime, boolean streaming) {
-        Compiler.LoweredQuery l = lower(runtime, streaming);
-        String sql = Compiler.dialectOf(ctx, runtime).render(l.plan());
-        return new com.legend.plan.QueryPlan(sql, l.root().info(), com.legend.plan.ResultShape.of(l.root()),
-                com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
+    /** The query's TYPED execution plan for {@code runtime} (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md §5, step 1):
+     *  every statement final for its target, its answer typed rows read by the plan's column facts (a relation's rows,
+     *  a value's elements, a graph fetch's objects), no output format in it -- a writer at the edge spells them. */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime) {
+        return executionPlan(runtime, java.util.Set.of());
     }
+
+    /** {@link #executionPlan(String)} under the engine's execution feature flags ({@code features}: a lowering
+     *  concern, {@code Lowerer.withFeatures}; a flag nothing consumes is refused by name). The one planning entry of a
+     *  product query (slice 5, 2026-11-09: the door's and pure/v1's own copies of these lines are gone): planned under
+     *  the wall's planning scope (THE WALL's rule 2: no session opens and no run starts while it is planned), and, where
+     *  the test lanes ask ({@code -Dlegend.plan.roundtrip=true}, every junit lane: tools/junit/defs.bzl), refused if
+     *  it does not survive its JSON (G11) -- a product query pays nothing for the check. */
+    public com.legend.executionplan.ExecutionPlan executionPlan(@com.legend.base.Nullable String runtime,
+            java.util.Set<com.legend.platform.Feature> features) {
+        return planned(runtime, features, false);
+    }
+
+    /** The query planned as the server runs it (legend-engine's {@code pure/v1/execution/execute}): its target names
+     *  the project's own database, made from the model's stores and filled with its Data rows where it is made
+     *  ({@code ExecutionPlan.Project}). Every other road plans {@link #executionPlan}: the database itself (the full
+     *  audit, 2026-11-09). */
+    public com.legend.executionplan.ExecutionPlan projectPlan(@com.legend.base.Nullable String runtime) {
+        return planned(runtime, java.util.Set.of(), true);
+    }
+
+    private com.legend.executionplan.ExecutionPlan planned(@com.legend.base.Nullable String runtime,
+            java.util.Set<com.legend.platform.Feature> features, boolean projectDatabase) {
+        try (var planning = com.legend.base.RunScope.plans("a query")) {
+            com.legend.executionplan.ExecutionPlan plan = PlanMaker.plan(this, runtime, features, projectDatabase);
+            if (Boolean.getBoolean("legend.plan.roundtrip")) {
+                com.legend.executionplan.PlanJson.requireRoundTrip(plan);
+            }
+            return plan;
+        }
+    }
+
 }

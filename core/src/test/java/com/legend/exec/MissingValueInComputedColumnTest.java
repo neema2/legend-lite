@@ -3,7 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.Execution;
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -42,33 +42,33 @@ class MissingValueInComputedColumnTest {
                 """.formatted(backend.connectionBody());
     }
 
-    private static List<Row> run(Connection conn, TestBackend type, String query) throws Exception {
+    private static List<List<Object>> run(Connection conn, TestBackend type, String query) throws Exception {
         try (Statement st = conn.createStatement()) {
             st.execute("CREATE TABLE T (ID INTEGER PRIMARY KEY, STR VARCHAR(10), N INTEGER)");
             st.execute("INSERT INTO T VALUES (1, 'a', 5), (2, NULL, NULL)");
         }
-        ExecutionResult r = Execution.execute(model(type), query, "h5::RT", conn);
-        return ((ExecutionResult.Tabular) r).rows();
+        Lean.Result r = Lean.run(model(type), query, "h5::RT", conn);
+        return r.rows();
     }
 
     private static void probe(Connection conn, TestBackend type) throws Exception {
         // a computed column over a missing value: false, legend-pure's own value (the lowering guards the missing
         // value; plain SQL three-valued logic would give NULL), on every database
-        List<Row> rows = run(conn, type, "|#>{h5::db.T}#->extend(~[inA: c|$c.STR->in(['a']), big: c|$c.N > 3])"
+        List<List<Object>> rows = run(conn, type, "|#>{h5::db.T}#->extend(~[inA: c|$c.STR->in(['a']), big: c|$c.N > 3])"
                 + "->sort(~ID->ascending())->select(~[ID, inA, big])");
         assertEquals(2, rows.size());
-        assertEquals(true, rows.get(0).values().get(1), type + " row 1 inA");
-        assertEquals(true, rows.get(0).values().get(2), type + " row 1 big");
-        assertEquals(false, rows.get(1).values().get(1), type + ": a missing value is not in ['a']");
-        assertEquals(false, rows.get(1).values().get(2), type + ": a missing value is not > 3");
+        assertEquals(true, rows.get(0).get(1), type + " row 1 inA");
+        assertEquals(true, rows.get(0).get(2), type + " row 1 big");
+        assertEquals(false, rows.get(1).get(1), type + ": a missing value is not in ['a']");
+        assertEquals(false, rows.get(1).get(2), type + ": a missing value is not > 3");
         // the same predicates in a filter keep the same rows as legend-pure would (the missing row is out)
         try (Statement st = conn.createStatement()) {
             st.execute("DROP TABLE T");
         }
         // (parenthesized: Pure reads binary operators left to right, without precedence)
-        List<Row> kept = run(conn, type, "|#>{h5::db.T}#->filter(c|($c.STR->in(['a'])) && ($c.N > 3))->select(~[ID])");
+        List<List<Object>> kept = run(conn, type, "|#>{h5::db.T}#->filter(c|($c.STR->in(['a'])) && ($c.N > 3))->select(~[ID])");
         assertEquals(1, kept.size(), type + " filter keeps the present row only");
-        assertEquals(1L, ((Number) kept.get(0).values().get(0)).longValue());
+        assertEquals(1L, ((Number) kept.get(0).get(0)).longValue());
     }
 
     @ParameterizedTest(name = "{0}: a computed column over a missing value is false; a filter keeps the same rows")

@@ -4,7 +4,7 @@
 package com.legend.sql.dialect;
 
 import com.legend.Compiler;
-import com.legend.Execution;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -56,8 +56,8 @@ class DuckDbSharedSubtreesTest {
                 st.execute("CREATE TABLE t (sym VARCHAR(8), seq INTEGER PRIMARY KEY, px DOUBLE)");
                 st.execute("INSERT INTO t VALUES ('A', 1, 3.0), ('A', 2, 4.0), ('B', 3, -2.0), ('B', 4, NULL)");
             }
-            var r = Execution.execute(MODEL, "|" + query, "local::RT", c);
-            return r.rows().stream().map(row -> String.join("|", row.values().stream().map(String::valueOf).toList())).toList();
+            var r = Lean.run(MODEL, "|" + query, "local::RT", c);
+            return r.rows().stream().map(row -> String.join("|", row.stream().map(String::valueOf).toList())).toList();
         }
     }
 

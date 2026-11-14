@@ -1,0 +1,981 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.planner;
+
+import com.legend.Compiler;
+import com.legend.TypedQuery;
+
+import com.legend.database.Databases;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.testcases.PlanCases;
+import com.legend.testcases.PlanCases.OptionalCase;
+import com.legend.testcases.PlanCases.Parameterised;
+import com.legend.testcases.PlanCases.Written;
+import com.legend.testbackend.TestBackend;
+import com.legend.testbackend.TestBackends;
+import org.junit.jupiter.api.Test;
+
+import java.io.StringWriter;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+/**
+ * The planner's plans (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 2's landing 2): a plan answers exactly as
+ * today's wire and streaming paths answer the same query. Each query runs twice, on two fresh databases: through
+ * {@link Execution} (its connection's declared test data established first, as the server establishes it), and through
+ * its plan — the target's session statements, its setup steps, its statement — run here as each step describes itself
+ * (the runner is step 3; the cases and the run are {@link PlanCases}'). The texts must be equal, byte for byte.
+ * Each in-process database answers; Postgres's case is {@code PostgresArmTest}'s (it needs the embedded Postgres). What
+ * one database's plan says (its versions, its session, its bindings) is that database's test, {@code PlanMaker<Db>Test}
+ * (the dialect program's Phase 6, 2026-10-16).
+ */
+class PlanMakerTest {
+
+    /** The register of each database's known differences from today's paths, shrink-only: a row is its backend, the
+     *  output, the query (today's form: its values as lets) and the plan's own answer, exactly, or its refusal
+     *  ({@code refused: } and its message), escaped to one line; lines starting {@code #} are its reasons (the dialect
+     *  program's Phase 6, 2026-10-16, when the cases first ran on SQLite; exact since the audit of the branch). */
+    private static final String DIFFERENCES_FILE = "plan-maker/differences.tsv";
+
+    private static final java.util.Map<String, String> DIFFERENCES = differences();
+
+    /** The register's rows the cases reached, so that a row no case reaches fails ({@link #everyDifferenceIsACase}). */
+    private static final java.util.Set<String> CONSULTED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    private static java.util.Map<String, String> differences() {
+        java.util.Map<String, String> rows = new java.util.LinkedHashMap<>();
+        try (var in = java.util.Objects.requireNonNull(PlanMakerTest.class.getClassLoader()
+                .getResourceAsStream(DIFFERENCES_FILE), DIFFERENCES_FILE)) {
+            for (String line : new String(in.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
+                if (line.isBlank() || line.startsWith("#")) {
+                    continue;
+                }
+                String[] cells = line.split("\t");
+                if (cells.length != 4) {
+                    throw new IllegalStateException(DIFFERENCES_FILE + ": a row is backend, output, query, answer: "
+                            + line);
+                }
+                rows.put(cells[0] + "\t" + cells[1] + "\t" + cells[2], cells[3]);
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return rows;
+    }
+
+    /** The register's rows, at most: 31 measured 2026-10-16, when the cases first ran on SQLite (the dialect
+     *  program's Phase 6). Lowered with the rows; raised only with a dated reason. 31 -> 35 (2026-10-22, main's merge
+     *  into the plan path branch): the branch's TDS text output runs every case, and SQLite refuses its eight list
+     *  parameters as it refuses the other outputs' (it binds no array, +8); a Date or DateTime parameter answers in
+     *  JSON on SQLite as today now (its four rows removed, -4). 35 -> 26 (2026-10-27, the result boundary program's
+     *  phase 3): the streamed JSON output is gone -- every answer streams, written by the writers at the edge -- and
+     *  its nine rows with it (-9). 26 -> 18 (2026-10-27, the program's phase 4): the TDS text output is gone -- the
+     *  PCT writes Pure's TDS text from typed rows -- and SQLite's eight list-parameter refusals under it with it (-8).
+     *  18 -> 26 (2026-11-09, the total wall's M2, P4 under D1 as ruled 2026-11-07: a run-time parameter typed by its
+     *  declared type, the type hole deleted -- H2's Float parameter a FLOAT, its Decimal a DECFLOAT, a Date parameter a
+     *  timestamp on H2 and DuckDB: each case's CSV and JSON, +8; each posted to the user for a register row). 26 -> 28
+     *  (2026-11-09, the correctness re-audit's 1, the user's ruling "Duckdb timestamp is fine": DuckDB's Date and
+     *  DateTime parameter upstream's microsecond TIMESTAMP, so a nanosecond DateTime value's digit is cut where lite's
+     *  literal keeps it -- its CSV and JSON, +2, until the nanosecond Pure type the user named for later). */
+    private static final int MAX_DIFFERENCES = 28;
+
+    /** The test methods run in this class, so that unreached rows are judged on a whole run only. */
+    private static final java.util.concurrent.atomic.AtomicInteger RAN = new java.util.concurrent.atomic.AtomicInteger();
+
+    @org.junit.jupiter.api.AfterEach
+    void ran() {
+        RAN.incrementAndGet();
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void everyDifferenceIsACase() {
+        assertTrue(DIFFERENCES.size() <= MAX_DIFFERENCES, DIFFERENCES_FILE + " has " + DIFFERENCES.size()
+                + " rows, above its ceiling " + MAX_DIFFERENCES + ": a row is added only with a dated reason");
+        long declared = java.util.Arrays.stream(PlanMakerTest.class.getDeclaredMethods())
+                .filter(m -> m.isAnnotationPresent(Test.class)).count();
+        if (RAN.get() < declared) {
+            return;   // a run of some of the methods reaches some of the rows
+        }
+        java.util.Set<String> unreached = new java.util.TreeSet<>(DIFFERENCES.keySet());
+        unreached.removeAll(CONSULTED);
+        assertEquals(java.util.Set.of(), unreached, "rows of " + DIFFERENCES_FILE + " no case reaches: remove them");
+    }
+
+    /** The databases a plan is run on here: every in-process one. */
+    static final List<DatabaseType> IN_PROCESS = TestBackends.inProcess().stream().map(TestBackend::type).toList();
+
+    /** A table of three rows, declared as the connection's test data; {@code type} is the connection's database. */
+    static String model(String type) {
+        return """
+                Class s::Item { id: Integer[1]; name: String[0..1]; price: Decimal[0..1]; }
+                ###Relational
+                Database s::DB ( Table T ( ID INTEGER PRIMARY KEY, NAME VARCHAR(20), PRICE DECIMAL(10,2) ) )
+                ###Mapping
+                Mapping s::M ( *s::Item: Relational { ~mainTable [s::DB] T
+                    id: [s::DB] T.ID, name: [s::DB] T.NAME, price: [s::DB] T.PRICE } )
+                ###Connection
+                RelationalDatabaseConnection s::Conn
+                {
+                    store: s::DB;
+                    type: %s;
+                    specification: LocalH2 { testDataSetupCSV: 'default\\nT\\nID,NAME,PRICE\\n1,a,1.50\\n2,O\\'Brien,---null---\\n3,---null---,3.25\\n'; };
+                    auth: DefaultH2;
+                }
+                ###Runtime
+                Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                """.formatted(type);
+    }
+
+    /** A DateTime parameter read where the connection's time zone applies is that zone's wall time, as its literal is
+     *  (the re-audit's B-2, 2026-11-09): upstream wraps the placeholder in {@code GMTtoTZ}
+     *  ({@code processDatePlaceHolder}), lite's lowering in the database's local-in conversion. A Date parameter there
+     *  is refused by name (upstream's conversion depends on the value's shape); on GMT, nothing is converted. */
+    @Test
+    void aDateTimeParameterInAZoneIsConvertedAsItsLiteral() {
+        TypedQuery dateTime = Compiler.query(Compiler.compileModel(""), "{t: DateTime[1]|$t}");
+        String est = lowered(dateTime, "EST");
+        // (the placeholder the platform database's microsecond slot, its value's finer digit raised: S181, A7)
+        assertTrue(est.contains("timezone('EST', timezone('UTC', " + platformDateTime() + "))"), est);
+        assertEquals("SELECT " + platformDateTime() + " AS value", lowered(dateTime, "GMT").strip());
+        TypedQuery date = Compiler.query(Compiler.compileModel(""), "{d: Date[1]|$d}");
+        var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> lowered(date, "EST"));
+        assertTrue(String.valueOf(refused.getMessage()).contains("time zone is EST"), refused.getMessage());
+    }
+
+    /** {@code query}'s body lowered with its parameters as the statement's slots, in {@code zone}, written for the platform's database. */
+    private static String lowered(TypedQuery query, String zone) {
+        List<com.legend.sql.SqlExpr.PlanParam> slots = query.parameters().stream()
+                .map(QueryParameters.Declared::slot).toList();
+        com.legend.sql.SqlQuery q = query.lowerer(false, false, slots, java.util.Set.of()).withDbTimeZone(zone)
+                .lower(query.body());
+        return Databases.dialect(Databases.PLATFORM).renderStatement(q).sql();
+    }
+
+    /** Each database's placeholder of a Date and of a DateTime parameter, as its dialect writes it from upstream's
+     *  literal processor for the type (the re-audit's B-1 and B-2, 2026-11-09): Trino's {@code Timestamp'%s'} at nine
+     *  digits, ClickHouse lite's own naive UTC {@code DateTime64(6)} read in range or raised (S179, 2026-11-10), BigQuery's
+     *  Date upstream's own {@code PARSE_DATE} (A6, 2026-11-10: S182 withdrawn), Databricks' {@code to_date} and
+     *  {@code to_timestamp}, Snowflake's {@code '…'::timestamp} at nine digits; a dialect that writes none refuses by
+     *  name, never inheriting another's. */
+    @Test
+    void eachDatabaseWritesItsOwnDatePlaceholder() {
+        // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
+        // (ClickHouse's raise as the timeseries branch writes it since #81's final review, 2026-11-09: each ends in an
+        // empty text of a rand(n) of its own, no materialize -- main's #95 merged in 2026-11-13)
+        java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
+        for (String line : """
+                Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
+                Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
+                Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
+                BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
+                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('a date outside the years 1900 to 2299
+                """.strip().split("\n")) {
+            String[] cells = line.split("\t");
+            spelled.put(cells[0], new String[] {cells[1], cells[2]});
+        }
+        for (var e : spelled.entrySet()) {
+            String model = model(e.getKey());
+            String[] kinds = {"d: Date[1]", "t: DateTime[1]"};
+            for (int i = 0; i < kinds.length; i++) {
+                String name = kinds[i].substring(0, 1);
+                String query = "{" + kinds[i] + "|#>{s::DB.T}#->extend(~v: r|$" + name + ")->select(~[ID, v])}";
+                if (e.getValue()[i].equals("REFUSED")) {
+                    // a database whose date-time types clamp an out-of-range value in silence refuses the parameter
+                    // by name (the correctness re-audit's 2, 2026-11-09)
+                    var refused = assertThrows(RuntimeException.class,
+                            () -> Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT"));
+                    assertTrue(String.valueOf(refused.getMessage()).contains("clamp"), refused.getMessage());
+                    continue;
+                }
+                ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT");
+                String sql = plan.answerSql().statement();
+                assertTrue(sql.contains(e.getValue()[i]), e.getKey() + " " + kinds[i] + ": " + sql);
+            }
+        }
+    }
+
+    private static final String RELATION = "|#>{s::DB.T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())";
+    private static final String NONE = "|#>{s::DB.T}#->filter(r|$r.ID > 99)->select(~[ID, NAME])";
+    private static final String PROJECT = "|s::Item.all()->project(~[name: i|$i.name, price: i|$i.price])"
+            + "->sort(~name->ascending())";
+    private static final String GRAPH = "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)"
+            + "->serialize(#{s::Item{id, name, price}}#)";
+
+    /** #81's final review, item 14k (9), 2026-11-10, and S360 (MongoDB, 2026-11-13): where a database computes a WITH
+     *  again at each read and has no table to compute a shared relation once in, one that picks its rows by no order (a limit with no sort,
+     *  here or in a WITH it reads) is refused; one that is the same rows each time, or sorted, stays a WITH. */
+    @Test
+    void aSharedRelationPickedByNoOrderIsRefusedWhereEachReadComputesItAgain() {
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null, null);
+        com.legend.sql.SqlSource.Table table = new com.legend.sql.SqlSource.Table("t", "t0", List.of(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
+        com.legend.sql.SqlSelect limited = com.legend.sql.SqlSelect.starOf(table).withLimit(3L);
+        com.legend.sql.SqlSelect sorted = limited.withOrderBy(List.of(new com.legend.sql.SqlSelect.SortKey(
+                com.legend.sql.SqlExpr.Column.of("t0", new com.legend.sql.OutputCol("a",
+                        com.legend.sql.SqlType.Scalar.BIGINT, false)), true, null, null)));
+        java.util.function.Function<com.legend.sql.SqlQuery, com.legend.sql.SqlWith> shared = body ->
+                new com.legend.sql.SqlWith(List.of(new com.legend.sql.SqlWith.Cte("__let0", body)),
+                        com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+        // the databases that compute a WITH again at each read and have no table to stage one in, by their facts:
+        // Trino, BigQuery, and MongoDB, whose pipeline writes each read in place (the user's ruling, 2026-11-13, S360)
+        List<com.legend.sql.dialect.SqlDialect> unstaged = Databases.implemented().stream().map(Databases::dialect)
+                .filter(d -> d.writesEachReadOfAWithAgain() && !d.stagesSharedRelations()).toList();
+        assertEquals(java.util.Set.of("Trino", "BigQuery", "MongoDb"), unstaged.stream()
+                .map(d -> d.getClass().getSimpleName()).collect(java.util.stream.Collectors.toSet()));
+        for (com.legend.sql.dialect.SqlDialect d : unstaged) {
+            var refused = assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> PlanMaker.stagedShared(d, shared.apply(limited), target, 0));
+            assertTrue(refused.getMessage().contains("picks its rows by no order"), refused.getMessage());
+            // read through another WITH of the statement
+            com.legend.sql.SqlWith through = new com.legend.sql.SqlWith(List.of(
+                    new com.legend.sql.SqlWith.Cte("picked", limited),
+                    new com.legend.sql.SqlWith.Cte("__let0", com.legend.sql.SqlSelect.starOf(
+                            new com.legend.sql.SqlSource.Cte("picked", "p", List.of())))),
+                    com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+            assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> PlanMaker.stagedShared(d, through, target, 0));
+            // the same rows each time: the WITH as it is, no table
+            for (com.legend.sql.SqlQuery body : List.of(sorted, com.legend.sql.SqlSelect.starOf(table))) {
+                PlanMaker.Staged staged = PlanMaker.stagedShared(d, shared.apply(body), target, 0);
+                assertTrue(staged.tables().isEmpty(), d.getClass().getSimpleName());
+            }
+        }
+    }
+
+    /** #81's final review, item 14k (4), 2026-11-10: a shared relation staged as a table of the session
+     *  carries the WITH's other relations it reads -- staged without them, its statement named one it did not have. */
+    @Test
+    void aStagedRelationCarriesTheWithsItReads() {
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null, null);
+        com.legend.sql.SqlSelect base = com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Table("t", "t0",
+                List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE));
+        com.legend.sql.SqlWith with = new com.legend.sql.SqlWith(List.of(
+                new com.legend.sql.SqlWith.Cte("plain", base),
+                new com.legend.sql.SqlWith.Cte("unread", base),
+                new com.legend.sql.SqlWith.Cte("__let0", com.legend.sql.SqlSelect.starOf(
+                        new com.legend.sql.SqlSource.Cte("plain", "p", List.of())))),
+                com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+        // the databases that stage a shared relation as a table of the session, by their facts
+        List<com.legend.sql.dialect.SqlDialect> staging = Databases.relational().stream().map(Databases::dialect)
+                .filter(d -> d.writesEachReadOfAWithAgain() && d.stagesSharedRelations()).toList();
+        assertFalse(staging.isEmpty(), "some database stages a shared relation");
+        for (com.legend.sql.dialect.SqlDialect d : staging) {
+            PlanMaker.Staged staged = PlanMaker.stagedShared(d, with, target, 0);
+            assertEquals(1, staged.tables().size(), staged.tables().toString());
+            com.legend.sql.SqlQuery made = staged.queries().get(staged.tables().get(0));
+            assertInstanceOf(com.legend.sql.SqlWith.class, made, "the staged relation carries what it reads");
+            assertEquals(List.of("plain"), ((com.legend.sql.SqlWith) made).ctes().stream()
+                    .map(com.legend.sql.SqlWith.Cte::name).toList(), "what it reads, and nothing it does not");
+        }
+    }
+
+    @Test
+    void aRelationsPlanAnswersAsTodaysPaths_everyOutput() throws Exception {
+        for (DatabaseType type : IN_PROCESS) {
+            for (String query : List.of(RELATION, NONE, PROJECT)) {
+                for (Written output : Written.values()) {
+                    assertAnswersAsToday(type, query, output);
+                }
+            }
+        }
+    }
+
+    @Test
+    void aGraphFetchsPlanAnswersAsTodaysPaths_inJson() throws Exception {
+        for (DatabaseType type : IN_PROCESS) {
+            assertAnswersAsToday(type, GRAPH, Written.JSON);
+            ExecutionPlan plan = plan(type, GRAPH, Written.JSON);
+            var refused = assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> new com.legend.result.CsvWriter(new StringWriter(), plan.answerShape()));
+            assertTrue(refused.getMessage().contains("a graph fetch's objects have no CSV"), refused.getMessage());
+        }
+    }
+
+    /** A double that is no number prints as Pure prints it ({@code NaN}; {@code Infinity} and {@code -Infinity}
+     *  the same way), whatever the database writes for it: the channel A shadow run of 2026-10-18 found
+     *  {@code acos(2.0)} printed {@code nan.0} on DuckDB (the plan path program's step 7). */
+    @Test
+    void aDoubleThatIsNoNumberPrintsAsPurePrintsIt() throws Exception {
+        assertNoNumberPrintsAsPure(Databases.PLATFORM);    // and on H2: PlanMakerH2Test
+    }
+
+    /** {@link #aDoubleThatIsNoNumberPrintsAsPurePrintsIt} on {@code type}. */
+    static void assertNoNumberPrintsAsPure(DatabaseType type) throws Exception {
+        try (Connection c = fresh(type)) {
+            assertEquals("value\r\nNaN\r\n",
+                    PlanCases.write(plan(type, "|2.0->acos()", Written.CSV), c, java.util.Map.of(), Written.CSV::writer),
+                    type.name());
+        }
+    }
+
+    /** The target names its connection on every database; its versions, session and rows are each database's own
+     *  ({@code PlanMaker<Db>Test}). */
+    @Test
+    void theTargetNamesItsConnection() {
+        for (DatabaseType type : IN_PROCESS) {
+            ExecutionPlan.Target t = target(plan(type, RELATION, Written.JSON));
+            assertEquals("s::Conn", ((ExecutionPlan.Database.Declared) t.database()).connection().qualifiedName(),
+                    type.name());
+        }
+    }
+
+    @Test
+    void aRuntimeOfModelDataRunsOnThePlatformsEngine() throws Exception {
+        String model = """
+                Class m::Raw { name: String[1]; }
+                Class m::P { name: String[1]; }
+                ###Mapping
+                Mapping m::MM ( *m::P: Pure { ~src m::Raw name: $src.name } )
+                ###Runtime
+                Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonModelConnection {
+                    class: m::Raw; url: 'data:application/json,[{"name":"b"},{"name":"a"}]'; } }# ] ]; }
+                """;
+        String query = "|m::P.all()->project(~[name: p|$p.name])->sort(~name->ascending())";
+        com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(model), query);
+        ExecutionPlan plan = typed.executionPlan("m::RT");
+        ExecutionPlan.Target t = target(plan);
+        // the platform's own engine (hole 7, 2026-11-08); a product plan names the engine alone -- the project's
+        // database, its key and its fill, is the server's road's (the full audit, 2026-11-09: TypedQuery.projectPlan)
+        assertTrue(t.database() instanceof ExecutionPlan.Database.Platform p
+                && p.type() == com.legend.planner.ConnectionPlans.type(Databases.PLATFORM)
+                && p.project() == null, String.valueOf(t.database()));
+        // no load: the data: source is the statement's own bound parameter (the JSON pass, 2026-11-11; until then a
+        // session table its load made and its release dropped)
+        assertEquals(List.of(), t.loads(), String.valueOf(t.loads()));
+        // the server's plan: the project's database, keyed by the model's stores, filled with nothing -- the run
+        // finds it from the plan alone
+        ExecutionPlan.Target served = target(typed.projectPlan("m::RT"));
+        assertTrue(served.database() instanceof ExecutionPlan.Database.Platform q
+                && q.project() != null && served.loads().isEmpty(), String.valueOf(served));
+        try (Connection today = TestBackends.platform().open();
+             Connection planned = TestBackends.platform().open()) {
+            StringWriter out = new StringWriter();
+            assertEquals(PlanCases.today(model, query, "m::RT", today, Written.JSON),
+                    PlanCases.write(plan, planned, java.util.Map.of(), Written.JSON::writer));
+        }
+    }
+
+    @Test
+    void aRuntimeOfTwoDifferentConnectionsIsRefusedWhenThePlanIsMade() {
+        // a second store with a connection of its own, another database of the same type: the query reads only the
+        // first store, but the runtime binds both, and a query runs on one session (the server refuses it as it opens)
+        String model = model("H2").replace("""
+                ###Runtime
+                Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                """, """
+                ###Connection
+                RelationalDatabaseConnection s::Other { store: s::DB2; type: H2; specification: LocalH2 { }; auth: DefaultH2; }
+                ###Relational
+                Database s::DB2 ( Table U ( ID INTEGER PRIMARY KEY ) )
+                ###Runtime
+                Runtime s::RT { mappings: [s::M]; connections: [ s::DB: [ c1: s::Conn ], s::DB2: [ c2: s::Other ] ]; }
+                """);
+        assertTrue(model.contains("c2: s::Other"), model);
+        var refused = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> Compiler.query(Compiler.compileModel(model), RELATION).executionPlan("s::RT"));
+        assertTrue(refused.getMessage().contains("different connections: a query runs on one session"),
+                refused.getMessage());
+    }
+
+    private static final List<Parameterised> SCALARS = PlanCases.scalars("T");
+
+    @Test
+    void anOptionalParametersPlanAnswersAsTheQuery_withItsValueAndWithNone() throws Exception {
+        for (DatabaseType type : IN_PROCESS) {
+            for (OptionalCase q : PlanCases.optionals("T")) {
+                for (Written output : Written.values()) {
+                    assertAnswersAsToday(type, q.withParameter(), q.withValue(), java.util.Map.of("x", q.value()),
+                            output);
+                    assertAnswersAsToday(type, q.withParameter(), q.withNone(),
+                            java.util.Collections.singletonMap("x", null), output);
+                }
+            }
+        }
+    }
+
+    /** {@link PlanCases#enumModel} with its rows as an in-memory connection's declared test data. */
+    private static String enumModel(DatabaseType type) {
+        return PlanCases.enumModel("type: " + type.name() + "; specification: LocalH2 { testDataSetupCSV: '"
+                + PlanCases.enumRows("A").replace("\n", "\\n") + "'; }; auth: DefaultH2;", "A");
+    }
+
+    @Test
+    void anEnumerationParametersPlanAnswersAsTheQueryWithItsValue() throws Exception {
+        for (DatabaseType type : IN_PROCESS) {
+            for (Parameterised q : PlanCases.enumerations()) {
+                for (Written output : Written.values()) {
+                    assertAnswersAsToday(enumModel(type), type, q.withParameters(), q.withLets(),
+                            q.values(), output);
+                }
+            }
+        }
+    }
+
+    @Test
+    void aListParametersPlanAnswersAsTheQueryWithItsValues_everyOutput() throws Exception {
+        for (DatabaseType type : IN_PROCESS) {
+            for (Parameterised q : PlanCases.lists("T")) {
+                for (Written output : Written.values()) {
+                    assertAnswersAsToday(type, q.withParameters(), q.withLets(), q.values(), output);
+                }
+            }
+            for (Written output : Written.values()) {
+                assertAnswersAsToday(enumModel(type), type, "{sts: s::Status[*]|s::Acct.all()->filter(a|$a.status->in($sts))"
+                        + "->project(~[id: a|$a.id])->sort(~id->ascending())}", "|let sts = [s::Status.ACTIVE];"
+                        + "s::Acct.all()->filter(a|$a.status->in($sts))->project(~[id: a|$a.id])->sort(~id->ascending());",
+                        java.util.Map.of("sts", List.of("ACTIVE")), output);
+            }
+        }
+    }
+
+    /** A list of decimals is refused by name (a list's one array is each database's: {@code PlanMaker<Db>Test}). */
+    @Test
+    void aListOfDecimalsIsRefusedByName() {
+        var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(Databases.PLATFORM,
+                "{ps: Decimal[*]|#>{s::DB.T}#->filter(r|$r.ID->in($ps))}", Written.JSON));
+        assertTrue(refused.getMessage().contains("PARK-20"), refused.getMessage());
+    }
+
+    /** Compared with a mapped column, an enumeration's name is translated by a value table at that place, so the
+     *  comparison reads the stored column and keeps its index (§9, measured: probes/enum-index-results.txt). */
+    @Test
+    void anEnumerationParameterIsComparedThroughAValueTable() {
+        ExecutionPlan plan = Compiler.query(Compiler.compileModel(enumModel(Databases.PLATFORM)),
+                PlanCases.enumerations().get(0).withParameters()).executionPlan("s::RT");
+        String statement = plan.answerSql().statement();
+        assertTrue(statement.contains("IN (SELECT") && statement.contains("VALUES ('A', 'ACTIVE'), ('X', 'ACTIVE'),"
+                + " ('C', 'CLOSED')"), statement);
+        assertTrue(!statement.contains("THEN 'ACTIVE'"), "the column is read stored, never decoded: " + statement);
+    }
+
+    @Test
+    void anOptionalParametersEqualityIsNullSafe() {
+        ExecutionPlan.Sql sql = plan(Databases.PLATFORM, PlanCases.optionals("T").get(0).withParameter(), Written.JSON)
+                .answerSql();
+        assertTrue(sql.statement().contains("IS NOT DISTINCT FROM ?"), sql.statement());
+    }
+
+    /** Trees planted by city and year, for a pivot whose columns the database names itself. */
+    private static final String TREES = "#TDS\n city, year, treePlanted\n NYC, 2011, 5\n NYC, 2000, 15\n SAN, 2011, 2\n"
+            + " SAN, 2000, 1\n SAN, 2000, 2\n#";
+
+    /**
+     * A DYNAMIC pivot's probe plan (2026-10-20, docs/PLAN_PATH_PROGRAM_2026_10_17.md §9): a pivot no cast names has
+     * columns its data names, so its plan reads the keys first (their text, and each generated column's name as the
+     * output writes one, both by the database) and its body is written once per key in the regions the runner repeats,
+     * each copy binding its key; every output and every database alike. Judged against the legacy probe route's text
+     * on DuckDB, and the same answers on H2 and SQLite, which have no dynamic PIVOT (the row-as-JSON form this replaces
+     * had no form there; DuckDB's streamed rows dropped the generated columns). Every carrier names a generated column
+     * as the engine labels it, the quotes part of the name (the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md).
+     */
+    @Test
+    void aDynamicPivotsPlanReadsItsKeysFirst_everyOutputEveryDatabase() throws Exception {
+        String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
+                + "->sort(~city->ascending())";
+        String json = "[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
+                + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]";
+        for (DatabaseType type : IN_PROCESS) {
+            String model = model(type.name());
+            ExecutionPlan typed = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT");
+            assertTrue(typed.root() instanceof ExecutionPlan.Keyed, type + ": a keyed typed plan");
+            com.legend.testcases.PlanRoundTrip.assertRoundTrips(typed, query);
+            for (Written output : List.of(Written.CSV, Written.JSON)) {
+                try (Connection c = fresh(type)) {
+                    assertEquals(output == Written.CSV
+                            ? "city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n" : json,
+                            PlanCases.write(typed, c, java.util.Map.of(), output::writer), type + " " + output);
+                }
+            }
+        }
+        // a STATIC pivot (the engine's form: one column, its values, one aggregate) has its columns from the typer,
+        // named bare; both wires present them the same way, one statement
+        String statics = TREES + "->pivot(~year, [2000, 2011], ~newCol : x | $x.treePlanted : y | $y->plus())"
+                + "->sort(~city->ascending())";
+        String model = model(Databases.PLATFORM.name());
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            ExecutionPlan typed = Compiler.query(Compiler.compileModel(model), statics).executionPlan("s::RT");
+            assertEquals("city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n",
+                    PlanCases.write(typed, c, java.util.Map.of(), Written.CSV::writer));
+            assertEquals(json, PlanCases.write(typed, c, java.util.Map.of(), Written.JSON::writer));
+        }
+    }
+
+    /**
+     * A dynamic pivot's probe plan is made on every SQL database, each select's per-key projections one region: a dialect
+     * writing its own select writes its per-key run through the base's projections (2026-10-21: Snowflake's wrote each
+     * projection itself and refused its ten uncast pivots "a per-key name outside a per-key region", found on its lane;
+     * no other test made a plan on a cloud database).
+     */
+    @Test
+    void aDynamicPivotsProbePlanIsMadeOnEverySqlDatabase() {
+        String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
+                + "->sort(~city->ascending())";
+        for (DatabaseType type : Databases.relational()) {
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
+            assertTrue(plan.root() instanceof ExecutionPlan.Keyed, type + ": a keyed plan");
+            // every reference to a per-key column carries the runner's per-key name, never the bare stem (Snowflake
+            // read the outer select's as a plain column, measured on its lane 2026-10-21)
+            String body = ((ExecutionPlan.Keyed) plan.root()).body().statement();
+            assertTrue(!java.util.regex.Pattern.compile("(?<!_pk_)_u0").matcher(body).find(), type + ": " + body);
+            com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + query);
+        }
+    }
+
+    /**
+     * A probe plan's keys run first and its body is written for them: no key (an empty source) answers the fixed
+     * columns alone; a key written into the data between plans is the next run's column (2026-10-20).
+     */
+    @Test
+    void aDynamicPivotsProbePlanAnswersForTheKeysItsRunFinds() throws Exception {
+        String empty = "#TDS\n city, year, treePlanted\n NYC, 2011, 5\n#->filter(r | $r.city == 'none')"
+                + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])";
+        for (DatabaseType type : IN_PROCESS) {
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), empty).executionPlan("s::RT");
+            try (Connection c = fresh(type)) {
+                assertEquals("city\r\n", csv(plan, c), type.name());
+            }
+        }
+    }
+
+    /**
+     * A keyed result as a STEP of a sequence runs as the root keyed plan does (the planner-driver seam program's S1a,
+     * 2026-10-30; refused by name until then, the plan's F5): a test body's dynamic pivot stands beside its lets and
+     * its verdicts. The sequence's transaction is the two statements' snapshot, opened at the isolation the keyed step
+     * asks (H2's REPEATABLE READ; DuckDB's and SQLite's own transaction): the same columns and rows on every
+     * in-process database, a step before it or not, and the sequence reads back from its JSON as any does.
+     */
+    @Test
+    void aKeyedResultAsAStepOfASequenceRunsAsTheRootKeyedPlanDoes() throws Exception {
+        String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
+                + "->sort(~city->ascending())";
+        for (DatabaseType type : IN_PROCESS) {
+            ExecutionPlan root = Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
+            ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root(), type.name());
+            ExecutionPlan sequence = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(keyed)));
+            assertEquals(ExecutionPlan.TdsResult.Shape.RELATION, sequence.answerShape());
+            assertEquals(sequence, com.legend.executionplan.PlanJson.read(com.legend.executionplan.PlanJson.write(sequence)),
+                    type + ": the sequence read back");
+            String expected;
+            try (Connection c = fresh(type)) {
+                expected = csv(root, c);
+            }
+            try (Connection c = fresh(type)) {
+                assertEquals(expected, csv(sequence, c), type + ": the keyed step's answer");
+            }
+        }
+        // a step before the keyed one, on the platform's database: the sequence's one transaction holds both
+        ExecutionPlan root = Compiler.query(Compiler.compileModel(model(Databases.PLATFORM.name())), query)
+                .executionPlan("s::RT");
+        ExecutionPlan.Keyed keyed = assertInstanceOf(ExecutionPlan.Keyed.class, root.root());
+        ExecutionPlan sequence = ExecutionPlan.reading(List.of(), new ExecutionPlan.Sequence(List.of(
+                new ExecutionPlan.Check(ExecutionPlan.Sql.of("SELECT 1", keyed.keys().target())), keyed)));
+        String expected;
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            expected = csv(root, c);
+        }
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            assertEquals(expected, csv(sequence, c), "a check, then the keyed step");
+        }
+    }
+
+    /** The PCT's trees by city, country and year, with a coefficient (testPivot_SingleMultiple_Dynamic_Aggregation). */
+    private static final String TREES_PCT = "#TDS\n city, country, year, treePlanted, coefficient\n NYC, USA, 2011, 5000, 1\n"
+            + " NYC, USA, 2000, 5000, 2\n SAN, USA, 2000, 2000, 1\n SAN, USA, 2011, 100, 2\n LDN, UK, 2011, 3000, 2\n"
+            + " SAN, USA, 2011, 2500, 1\n NYC, USA, 2000, 10000, 2\n NYC, USA, 2012, 7600, 1\n NYC, USA, 2012, 7600, 2\n#";
+
+    /** The same trees without the coefficient (the PCT's cast cases): a column no aggregate reads stays a group key. */
+    private static final String TREES_4 = "#TDS\n city, country, year, treePlanted\n NYC, USA, 2011, 5000\n NYC, USA, 2000, 5000\n"
+            + " SAN, USA, 2000, 2000\n SAN, USA, 2011, 100\n LDN, UK, 2011, 3000\n SAN, USA, 2011, 2500\n"
+            + " NYC, USA, 2000, 10000\n NYC, USA, 2012, 7600\n NYC, USA, 2012, 7600\n#";
+
+    private static final String CAST_PIVOT = "->cast(@meta::pure::metamodel::relation::Relation<(city:String[0..1],"
+            + " country:String[0..1], '\\'2000__|__newCol\\'':Integer[0..1], '\\'2011__|__newCol\\'':Integer[0..1],"
+            + " '\\'2012__|__newCol\\'':Integer[0..1])>)";
+
+    /**
+     * Two holes the channel A shadow run found (2026-10-18; the plan path program's step 7): an aggregate over an
+     * EXPRESSION removes every column it reads from the pivot's static columns (the engine's expected rows of
+     * testPivot_SingleMultiple_Dynamic_Aggregation), and a cast naming a dynamic pivot's generated columns projects
+     * them, so a filter, a sort or a groupBy over the cast answers through the plan as an ordinary relation.
+     */
+    @Test
+    void aPivotOverAnExpressionAndACastOverADynamicPivotAnswerAsTheEngine() throws Exception {
+        String model = model(Databases.PLATFORM.name());
+        var ctx = Compiler.compileModel(model);
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            String expression = TREES_PCT + "->pivot(~[year], ~[sum: x | $x.treePlanted->toOne() * $x.coefficient->toOne()"
+                    + " : y | $y->plus(), count: x | 1 : y | $y->plus()])->sort(~city->ascending())";
+            assertEquals("city,country,'2000__|__sum','2000__|__count','2011__|__sum','2011__|__count','2012__|__sum',"
+                    + "'2012__|__count'\r\nLDN,UK,,,6000,1,,\r\nNYC,USA,30000,2,5000,1,22800,2\r\nSAN,USA,2000,1,2700,2,,\r\n",
+                    csv(Compiler.query(ctx, expression).executionPlan("s::RT"), c));
+
+            String pivot = TREES_4 + "->pivot(~[year], ~[newCol: x | $x.treePlanted : y | $y->plus()])" + CAST_PIVOT;
+            assertEquals("city,country,'2000__|__newCol','2011__|__newCol','2012__|__newCol'\r\nLDN,UK,,3000,\r\n"
+                    + "NYC,USA,15000,5000,15200\r\nSAN,USA,2000,2600,\r\n",
+                    csv(Compiler.query(ctx, pivot + "->sort(~city->ascending())").executionPlan("s::RT"), c));
+            assertEquals("country,'2011__|__newCol'\r\nUK,3000\r\nUSA,7600\r\n",
+                    csv(Compiler.query(ctx, pivot + "->groupBy(~[country], ~['\\'2011__|__newCol\\'': x |"
+                            + " $x.'\\'2011__|__newCol\\'' : y | $y->plus()])->sort(~country->ascending())")
+                            .executionPlan("s::RT"), c));
+            ExecutionPlan csv = Compiler.query(ctx, pivot + "->filter(x | $x.city == 'NYC')").executionPlan("s::RT");
+            assertEquals("city,country,'2000__|__newCol','2011__|__newCol','2012__|__newCol'\r\nNYC,USA,15000,5000,15200\r\n",
+                    PlanCases.write(csv, c, java.util.Map.of(), Written.CSV::writer));
+        }
+    }
+
+    /**
+     * A cast over a DYNAMIC pivot on a database without a dynamic PIVOT (the plan path program's step 9, 2026-10-19:
+     * the PCT's four composition cases, {@code test_Pivot_Filter} among them, refused on every lane but DuckDB with
+     * "pivot reached a dialect without a PIVOT strategy"): the keys the cast names are the pivot's NAMED values
+     * ({@code SqlSource.Pivot.named}), each the ON key's typed literal, which the dialect's static emulation pivots
+     * on (H2's grouped CASE aggregation) with no row pinned -- the group whose key the cast does not name keeps its
+     * row, its named cells null, as DuckDB's dynamic form answers through the same cast. DuckDB itself keeps the
+     * dynamic form (engine-exact); the plan round-trips with the named values (format 7).
+     */
+    @Test
+    void aCastOverADynamicPivotAnswersOnADatabaseWithoutADynamicPivot() throws Exception {
+        String cast = "->cast(@meta::pure::metamodel::relation::Relation<(city:String[0..1], country:String[0..1],"
+                + " '\\'2011__|__newCol\\'':Integer[0..1], '\\'2012__|__newCol\\'':Integer[0..1])>)";
+        String query = TREES_4 + "->pivot(~[year], ~[newCol: x | $x.treePlanted : y | $y->plus()])" + cast
+                + "->sort(~city->ascending())";
+        String expected;
+        try (Connection c = fresh(Databases.PLATFORM)) {
+            ExecutionPlan dynamic = Compiler.query(Compiler.compileModel(model(Databases.PLATFORM.name())), query)
+                    .executionPlan("s::RT");
+            assertTrue(dynamic.answerSql().statement().contains("PIVOT"), "the platform's dynamic form");
+            expected = csv(dynamic, c);
+        }
+        // the 2000 group (SAN's 2000 trees, NYC's 15000) keeps its row with its named cells null
+        assertEquals("city,country,'2011__|__newCol','2012__|__newCol'\r\nLDN,UK,3000,\r\nNYC,USA,5000,15200\r\n"
+                + "SAN,USA,2600,\r\n", expected);
+        // every in-process database without a dynamic PIVOT (its dialect's static emulation; main's merge,
+        // 2026-10-22: it named H2)
+        int emulated = 0;
+        for (DatabaseType type : IN_PROCESS) {
+            if (!Databases.dialect(type).needsStaticPivot()) {
+                continue;
+            }
+            emulated++;
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model(type.name())), query)
+                    .executionPlan("s::RT");
+            com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, query);
+            String statement = plan.answerSql().statement();
+            assertFalse(statement.contains("PIVOT"), type + ": " + statement);
+            assertTrue(statement.contains("CASE WHEN") && statement.contains("= 2011") && statement.contains("= 2012"),
+                    type + ": " + statement);
+            try (Connection c = fresh(type)) {
+                assertEquals(expected, csv(plan, c), type.name());
+            }
+        }
+        assertTrue(emulated > 0, "no in-process database emulates the pivot");
+    }
+
+    @Test
+    void aScalarParametersPlanAnswersAsTheQueryWithItsValue_everyOutput() throws Exception {
+        for (DatabaseType type : IN_PROCESS) {
+            for (Parameterised q : SCALARS) {
+                for (Written output : Written.values()) {
+                    assertAnswersAsToday(type, q.withParameters(), q.withLets(), q.values(), output);
+                }
+            }
+        }
+    }
+
+    /** A DateTime parameter is cast to its DECLARED type's SQL type on every database, written when the plan is made
+     *  and bound as its text (D1, P4, 2026-11-09: each one's spelling is its own test's, {@code PlanMaker<Db>Test});
+     *  absent, a null a TIMESTAMP. No statement has a hole the runner writes into. */
+    @Test
+    void aDateTimeParameterIsCastToItsDeclaredTypeOnEveryDatabase() {
+        for (DatabaseType type : IN_PROCESS) {
+            ExecutionPlan.Sql sql = dateTimeSql(type);
+            ExecutionPlan.Binding.One one = (ExecutionPlan.Binding.One) sql.slots().get(0).binding();
+            assertTrue(one.asText() != null, type + ": bound as its text");
+            assertTrue(sql.statement().contains("CAST(? AS "), type + ": " + sql.statement());
+            assertEquals("TIMESTAMP", one.nullType(), type.name());
+        }
+    }
+
+    /** The platform database's placeholder of a DateTime parameter named {@code t}: its microsecond TIMESTAMP, a value
+     *  of a finer digit raised by the statement (S181, A7, 2026-11-10). */
+    static String platformDateTime() {
+        return "CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS"
+                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('the DateTime parameter ''t'' has more fraction digits"
+                + " than " + Databases.dialect(Databases.PLATFORM).getClass().getSimpleName() + " keeps (6): refused,"
+                + " never cut (S181)') || chr(31)) WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS"
+                + " VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP)";
+    }
+
+    /** The statement of a DateTime parameter, written as a column's value, on {@code type}. */
+    static ExecutionPlan.Sql dateTimeSql(DatabaseType type) {
+        return plan(type, "{t: DateTime[1]|#>{s::DB.T}#->extend(~t: r|$t)->select(~[ID, t])}", Written.JSON)
+                .answerSql();
+    }
+
+    /** The cast a DateTime parameter's placeholder is written with on {@code type}, and how it is bound: a slot that
+     *  keeps fewer than nine digits of a second its guard (S181, A7), the raise elided. */
+    static String dateTimeCast(DatabaseType type) {
+        ExecutionPlan.Sql sql = dateTimeSql(type);
+        String text = sql.statement();
+        int guard = text.indexOf("CAST(CASE WHEN LENGTH(");
+        int at = guard >= 0 ? guard : text.indexOf("CAST(? AS ");
+        int end = at + "CAST(".length();
+        for (int depth = 1; depth > 0; end++) {
+            depth += text.charAt(end) == '(' ? 1 : text.charAt(end) == ')' ? -1 : 0;
+        }
+        String cast = text.substring(at, end);
+        if (guard >= 0) {
+            // the raise elided: the guard's test and the kept digits' read are the spelling pinned
+            int then = cast.indexOf(" THEN ");
+            cast = cast.substring(0, then) + " THEN …" + cast.substring(cast.indexOf(" WHEN ", then));
+        }
+        ExecutionPlan.AsText asText = ((ExecutionPlan.Binding.One) sql.slots().get(0).binding()).asText();
+        return cast + " " + (asText == null ? "bare" : "text");
+    }
+
+    /** What a plan does not bind yet is refused when the plan is made, by name (PARK-21): a class instance, an
+     *  optional enumeration (its absence's answer unmeasured against legend-engine). */
+    @Test
+    void anUnboundParameterKindIsRefusedByName() {
+        var aClass = assertThrows(com.legend.error.NotImplementedException.class, () -> plan(Databases.PLATFORM,
+                "{i: s::Item[1]|#>{s::DB.T}#->filter(r|$r.ID == $i.id)}", Written.JSON));
+        assertTrue(aClass.getMessage().contains("a class instance is not bound") && aClass.getMessage().contains("PARK-21"),
+                aClass.getMessage());
+        var optionalEnum = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(
+                Compiler.compileModel(enumModel(Databases.PLATFORM)), "{st: s::Status[0..1]|s::Acct.all()"
+                        + "->filter(a|$a.status == $st)->project(~[id: a|$a.id])}").executionPlan("s::RT"));
+        assertTrue(optionalEnum.getMessage().contains("an optional enumeration's absence")
+                && optionalEnum.getMessage().contains("PARK-21"), optionalEnum.getMessage());
+    }
+
+    /** A list parameter is bound only as a whole list (in, contains); written where one value goes, it is refused by
+     *  name, never bound as something it is not. */
+    @Test
+    void aListParameterWrittenWhereOneValueGoesIsRefusedByName() {
+        var refused = assertThrows(com.legend.sql.DialectCapability.class, () -> plan(Databases.PLATFORM,
+                "{ns: Integer[*]|#>{s::DB.T}#->extend(~n: r|$ns->size())->select(~[ID, n])}", Written.JSON));
+        assertTrue(refused.getMessage().contains("is bound only as a whole list"), refused.getMessage());
+    }
+
+    /** A value's answer — a scalar's, a collection's — is the one-column relation {@code value} in every output, as
+     *  today's path writes it. */
+    @Test
+    void aValuesPlanAnswersAsTodaysPaths_everyOutput() throws Exception {
+        for (DatabaseType type : IN_PROCESS) {
+            for (String query : List.of("|#>{s::DB.T}#->select(~[ID])->size()",
+                    "|s::Item.all()->map(i|$i.id)->sort()")) {
+                for (Written output : Written.values()) {
+                    assertAnswersAsToday(type, query, output);
+                }
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------
+
+    /** The plan path program's step 1a (docs/PLAN_PATH_PROGRAM_2026_10_17.md §3): every result column carries its
+     *  Pure type and multiplicity, the SQL type of its slot, and its store's declared type by provenance -- or none,
+     *  said so: a computed column has no declared type, a mapped property reads its column's. */
+    @Test
+    void aColumnCarriesItsThreeTypeFacts() {
+        List<ExecutionPlan.Column> cols = columns(plan(Databases.PLATFORM, RELATION, Written.CSV));
+        assertEquals(List.of("ID", "NAME", "PRICE"), cols.stream().map(ExecutionPlan.Column::name).toList(),
+                cols.toString());
+        // (the store fact typed, spelled here as the relational grammar spells it: the tenets audit's 3)
+        assertEquals(List.of("INTEGER", "VARCHAR(20)", "DECIMAL(10,2)"),
+                cols.stream().map(c -> com.legend.executionplan.ColumnFacts.store(c.store())).toList(), cols.toString());
+        assertEquals("String", cols.get(1).type(), cols.toString());
+        assertEquals("VARCHAR", cols.get(1).slot(), cols.toString());
+        assertEquals("DECIMAL(10,2)", cols.get(2).slot(), cols.toString());
+        List<ExecutionPlan.Column> computed = columns(plan(Databases.PLATFORM,
+                "|#>{s::DB.T}#->extend(~NEXT: r|$r.ID + 1)->select(~[NAME, NEXT])", Written.CSV));
+        assertEquals(new com.legend.sql.SqlDdl.ColumnType.Sized("VARCHAR", 20), computed.get(0).store(),
+                computed.toString());
+        assertEquals(null, computed.get(1).store(), computed.toString());
+        assertEquals("Integer", computed.get(1).type(), computed.toString());
+        List<ExecutionPlan.Column> project = columns(plan(Databases.PLATFORM, PROJECT, Written.CSV));
+        assertEquals(List.of("VARCHAR(20)", "DECIMAL(10,2)"), project.stream()
+                .map(c -> com.legend.executionplan.ColumnFacts.store(c.store())).toList(), project.toString());
+        List<ExecutionPlan.Column> value = columns(plan(Databases.PLATFORM, "|1 + 2", Written.CSV));
+        assertEquals(1, value.size(), value.toString());
+        assertEquals("value", value.get(0).name(), value.toString());
+        assertEquals("Integer", value.get(0).type(), value.toString());
+        assertEquals(null, value.get(0).store(), value.toString());
+        assertEquals(new ExecutionPlan.Multiplicity(1, 1), value.get(0).multiplicity(), value.toString());
+    }
+
+    /** The plan path program's step 1b (docs/PLAN_PATH_PROGRAM_2026_10_17.md §2, §3): a plan written to its JSON and
+     *  read back is the same plan, its typed SQL tree included, and the tree read back renders the same statement
+     *  with the same bindings on the plan's own dialect. */
+    @Test
+    void aPlansTypedTreeReadsBackAndRendersTheSameStatement() {
+        for (DatabaseType type : IN_PROCESS) {
+            for (String query : List.of(RELATION, NONE, PROJECT, "|1 + 2",
+                    "|#>{s::DB.T}#->extend(~NEXT: r|$r.ID + 1)->select(~[NAME, NEXT])",
+                    "|#>{s::DB.T}#->groupBy(~[NAME], ~[total: r|$r.PRICE : y|$y->sum()])->sort(~NAME->ascending())",
+                    "|#>{s::DB.T}#->extend(over(~NAME->ascending()), ~rank: {p, w, r | $p->rank($w, $r)})",
+                    "|#>{s::DB.T}#->select(~[ID])->concatenate(#>{s::DB.T}#->select(~[ID]))->sort(~ID->ascending())")) {
+                ExecutionPlan plan = plan(type, query, Written.CSV);
+                com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + query);
+            }
+            com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan(type, GRAPH, Written.JSON),
+                    type + " JSON " + GRAPH);
+        }
+    }
+
+    private static List<ExecutionPlan.Column> columns(ExecutionPlan plan) {
+        return switch (plan.root()) {
+            case ExecutionPlan.TdsResult t -> t.columns();
+            default -> throw new IllegalArgumentException("no columns: " + plan.root());
+        };
+    }
+
+    /** The PCT's {@code getAll::testBasic} shape: the system metamodel store read by a plan. */
+    private static final String CLASSES = "|meta::pure::metamodel::type::Class.all()->isEmpty()";
+
+    /**
+     * The system metamodel store's tables on every relational database are the process's CATALOG (B4, 2026-11-11, the
+     * user's ruling: every statement reading the store runs on the in-process catalog; until then a server's plan
+     * carried the store as its session's temporary tables, or as the query's inline rows, census M6's forms 2 and 3,
+     * deleted): the catalog of the runtime's own engine where the platform runs it in process, DuckDB's for a server,
+     * the query written in that catalog's dialect, its ONCE load making the tables, and nothing of the store in the
+     * user's database or session.
+     */
+    @Test
+    void theMetamodelStoresTablesAreTheInProcessCatalogsOnEveryDatabase() throws Exception {
+        java.util.Set<DatabaseType> engines = new java.util.TreeSet<>();
+        for (DatabaseType type : Databases.relational()) {
+            com.legend.sql.dialect.SqlDialect dialect = Databases.dialect(type);
+            ExecutionPlan plan = plan(type, CLASSES, Written.CSV);
+            com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, type + " " + CLASSES);
+            ExecutionPlan.Target target = target(plan);
+            String sql = plan.answerSql().statement();
+            assertTrue(target.database() instanceof ExecutionPlan.Database.System, type + ": " + target);
+            var system = (ExecutionPlan.Database.System) target.database();
+            DatabaseType catalog = ConnectionPlans.model(system.type());
+            engines.add(catalog);
+            assertEquals(dialect.inProcess() ? type : Databases.PLATFORM, catalog, type.name());
+            com.legend.sql.dialect.SqlDialect written = Databases.dialect(catalog);
+            assertTrue(written.inProcess(), type + ": " + catalog);
+            assertEquals(written.sessionSetup(), target.session(), type.name());
+            assertTrue(target.loads().stream().filter(l -> l.cadence() == ExecutionPlan.Load.Cadence.ONCE)
+                    .flatMap(l -> l.steps().stream()).anyMatch(s -> s instanceof ExecutionPlan.LoadStep.Statement st
+                    && st.sql().contains("classes")), type + ": " + target.loads());
+            // the store's tables under their own names, never a session's temporary table or the query's own rows
+            assertFalse(sql.contains("metamodel_classes"), type + ": " + sql);
+            assertTrue(target.session().stream().noneMatch(s -> s.contains("classes")), type + ": "
+                    + target.session());
+            // the same statement the catalog's own engine plans
+            assertEquals(plan(catalog, CLASSES, Written.CSV).answerSql().statement(), sql, type.name());
+        }
+        // the in-process engines' own catalogs and none other
+        assertEquals(new java.util.TreeSet<>(Databases.relational().stream().filter(t -> Databases.dialect(t)
+                .inProcess()).toList()), engines);
+    }
+
+    /** A query reading the system metamodel store beside a user's table is refused by name on every database (B4: no
+     *  session holds both; the catalog answers the metamodel alone). */
+    @Test
+    void aQueryReadingTheCatalogBesideAUsersTableIsRefusedOnEveryDatabase() {
+        for (DatabaseType type : Databases.relational()) {
+            var ctx = Compiler.compileModel(model(type.name()));
+            var refused = assertThrows(com.legend.error.NotImplementedException.class, () -> Compiler.query(ctx,
+                    "|meta::pure::metamodel::type::Class.all()->size() + s::Item.all()->size()")
+                    .executionPlan("s::RT"), type.name());
+            assertTrue(refused.getMessage().contains("system metamodel store"), type + ": " + refused.getMessage());
+        }
+    }
+
+    static ExecutionPlan plan(DatabaseType type, String query, Written output) {
+        return Compiler.query(Compiler.compileModel(model(type.name())), query).executionPlan("s::RT");
+    }
+
+    static ExecutionPlan.Target target(ExecutionPlan plan) {
+        return plan.answerSql().target();
+    }
+
+    /** {@code plan}'s typed answer on {@code c} (its setup run first), written as lite's CSV. */
+    private static String csv(ExecutionPlan plan, Connection c) throws java.io.IOException {
+        return PlanCases.write(plan, c, java.util.Map.of(), Written.CSV::writer);
+    }
+
+    private static void assertAnswersAsToday(DatabaseType type, String query, Written output)
+            throws Exception {
+        assertAnswersAsToday(type, query, query, java.util.Map.of(), output);
+    }
+
+    /** {@code withParameters}'s plan, run with {@code values}, answers as today's path answers {@code query}. */
+    private static void assertAnswersAsToday(DatabaseType type, String withParameters, String query,
+            java.util.Map<String, Object> values, Written output) throws Exception {
+        assertAnswersAsToday(model(type.name()), type, withParameters, query, values, output);
+    }
+
+    /** {@link #assertAnswersAsToday(DatabaseType, String, String, java.util.Map, Written)} over
+     *  {@code model}, whose runtime is {@code s::RT}. */
+    private static void assertAnswersAsToday(String model, DatabaseType type, String withParameters, String query,
+            java.util.Map<String, Object> values, Written output) throws Exception {
+        String key = TestBackends.of(type).name() + "\t" + output + "\t" + query;
+        String known = DIFFERENCES.get(key);
+        CONSULTED.add(key);
+        String what = type + " " + output + " " + withParameters;
+        String[] answers;
+        try {
+            answers = answers(model, type, withParameters, query, values, output, what);
+        } catch (RuntimeException refused) {
+            if (known == null) {
+                throw refused;
+            }
+            assertEquals(known, escaped("refused: " + refused.getMessage()), key + ": the plan's refusal moved");
+            return;
+        }
+        if (known == null) {
+            assertEquals(answers[0], answers[1], what);
+            return;
+        }
+        assertNotEquals(answers[0], answers[1], key + ": answers as today now; remove its row from " + DIFFERENCES_FILE);
+        assertEquals(known, escaped(answers[1]), key + ": the plan's answer moved");
+    }
+
+    /** {@code s} on one register line: its backslashes, tabs, returns and new lines escaped. */
+    private static String escaped(String s) {
+        return s.replace("\\", "\\\\").replace("\t", "\\t").replace("\r", "\\r").replace("\n", "\\n");
+    }
+
+    /** Today's path's answer to {@code query} and the plan's to {@code withParameters} with {@code values}, each on a
+     *  fresh database of {@code type}; a plan refused when it is made throws. */
+    private static String[] answers(String model, DatabaseType type,
+            String withParameters, String query, java.util.Map<String, Object> values, Written output,
+            String what) throws Exception {
+        TypedQuery parameterised = Compiler.query(Compiler.compileModel(model), withParameters);
+        ExecutionPlan plan = parameterised.executionPlan("s::RT");
+        try (Connection today = fresh(type); Connection planned = fresh(type)) {
+            var ctx = Compiler.compileModel(model);
+            var dialect = Databases.dialect(type);
+            // the declared test data: today's door establishes its target's loads on the session it acquires (the M1
+            // tenets audit's finding 7, 2026-11-09: until then this harness seeded the session itself)
+            // today's path: the query with its values as lets, run as the server runs it, on the connection its declared
+            // test data was established on
+            return new String[] {PlanCases.today(model, query, "s::RT", today, output),
+                    PlanCases.write(plan, planned, values, output::writer)};
+        }
+    }
+
+    private static Connection fresh(DatabaseType type) throws SQLException {
+        return TestBackends.of(type).open();
+    }
+}

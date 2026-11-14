@@ -142,40 +142,6 @@ public final class CanonicalRenderSql {
         List<SqlExpr> canons = new java.util.ArrayList<>();
         int literalIndex = -1;
         String instFqn = com.legend.compiler.element.EqualityKeys.fqnOf(t);
-        if (valueCol.type() == SqlType.Scalar.LITERAL) {
-            // F10 slice 2 — the KIND-FAITHFUL CARRIER: the cell already
-            // IS the canonical pure-literal spelling (LiteralSpelling
-            // wrote it at construction), so the canon is the identity
-            // and the ONE candidate is the literal channel.
-            return new CanonWrap(new com.legend.sql.SqlSelect(
-                    List.of(new com.legend.sql.SqlSelect.Projection(
-                                    valueRef, valueCol.name(), valueCol),
-                            new com.legend.sql.SqlSelect.Projection(
-                                    new SqlExpr.Cast(valueRef,
-                                            SqlType.Scalar.VARCHAR),
-                                    "__canon0",
-                                    new com.legend.sql.OutputCol("__canon0",
-                                            SqlType.Scalar.VARCHAR, true))),
-                    false,
-                    new com.legend.sql.SqlSource.Subselect(plan, "side",
-                            null),
-                    null, List.of(), null, null,
-                    canonicalOrder
-                            ? List.of(new com.legend.sql.SqlSelect.SortKey(
-                                    new SqlExpr.Cast(valueRef,
-                                            SqlType.Scalar.VARCHAR),
-                                    true, null, null))
-                            : List.of(),
-                    null, null,
-                    List.of(valueCol, new com.legend.sql.OutputCol(
-                            "__canon0", SqlType.Scalar.VARCHAR, true))),
-                    List.of(t),
-                    rootInfo.multiplicity().requireBounded("canon side")
-                            .upper() == null
-                            || rootInfo.multiplicity()
-                                    .requireBounded("canon side").upper() > 1,
-                    0, null);
-        }
         boolean jsonCol = valueCol.type() == SqlType.Scalar.JSON;
         if (jsonCol || (t instanceof Type.ClassType anyCt
                 && com.legend.compiler.element.type.PlatformTypes
@@ -461,6 +427,7 @@ public final class CanonicalRenderSql {
         for (int i = 0; i < width; i++) {
             com.legend.sql.OutputCol col = plan.outputs().get(i);
             Type kind = schema.columns().get(i).type();
+            Type declaredKind = kind;
             // the engine's boundary rule (dataTypeTransformer; the same rule
             // Equality.effectiveKind applies): a NUMERIC declaration converts
             // the wire cell; any other declaration keeps the WIRE's kind — a
@@ -495,8 +462,17 @@ public final class CanonicalRenderSql {
                     schema.columns().get(i).type());
             boolean typeValued = declFqn != null
                     && com.legend.compiler.element.type.PlatformTypes.isTypeClassifier(declFqn);
+            // a VARIANT cell (a JSON value): its whole value's text as the database writes it, a Pure String's
+            // spelling -- the host judge's cell exactly (the database's compact JSON text, keys in the database's
+            // order, read as a String: JdbcDecode's JSON slot), so the two judges agree by construction; never
+            // anyJsonCanon, whose tree marker declines an object (2026-11-03, the JSON inventory: no canonical-JSON
+            // function needed, nor wanted -- sorted keys would pass where the host and upstream fail)
+            boolean variant = com.legend.compiler.element.type.PlatformTypes.isVariant(kind)
+                    && col.type() == SqlType.Scalar.JSON;
             SqlExpr lit = typeValued
                     ? new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR)
+                    : variant
+                    ? LiteralSpelling.literal(new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR), Type.Primitive.STRING)
                     : LiteralSpelling.literal(
                             kind == Type.Primitive.FLOAT
                                     ? LiteralSpelling.declaredDouble(ref) : ref,
@@ -528,6 +504,8 @@ public final class CanonicalRenderSql {
                                                         TDS_CELL_SEP)),
                                         new SqlExpr.IntLit(0)),
                                 new SqlExpr.NullLit())), cell);
+            } else if (declaredKind == Type.Primitive.STRING && kind == Type.Primitive.INTEGER) {
+                cell = textOrStamp(ref, cell);
             }
             cellCanons.add(cell);
         }
@@ -592,6 +570,36 @@ public final class CanonicalRenderSql {
                 List.of()), null);
     }
 
+    /**
+     * A String-declared cell over an integral store column, spelled by the kind the DATABASE holds (the
+     * planner-driver seam program's S3b, 2026-10-30): the engine reads a String declaration's cell by its result-set
+     * type, and a fixture may store the column as text where the store declares INT (the simple model's
+     * {@code Interaction.id}: {@code InteractionTable("id" VARCHAR(200))} under {@code ID INT}). Until S3b a
+     * prepare at planning asked the database for the column's type and re-typed the slot (the wire probe's
+     * reconcile); now the statement asks the value itself: its JSON form starts with a double quote exactly when it
+     * is text (measured on H2 2.1.214 and DuckDB 1.5.6, 2026-10-30: {@code "1"} for the text, {@code 1} for the
+     * integer) -- quoted as a string then, with the string's separator guard; otherwise {@code stampCell}, the
+     * integer's spelling, unchanged. A date's JSON form is a string too, so only the integral stamp takes the test.
+     */
+    private static SqlExpr textOrStamp(SqlExpr ref, SqlExpr stampCell) {
+        SqlExpr text = new SqlExpr.Cast(ref, SqlType.Scalar.VARCHAR);
+        SqlExpr isText = SqlExpr.Call.of(SqlFn.STARTS_WITH,
+                new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.TO_VARIANT, ref), SqlType.Scalar.VARCHAR),
+                new SqlExpr.StringLit("\""));
+        SqlExpr quoted = new SqlExpr.Cast(
+                Objects.requireNonNull(LiteralSpelling.literal(text, Type.Primitive.STRING)),
+                SqlType.Scalar.VARCHAR);
+        return new SqlExpr.Case(List.of(
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, ref),
+                        new SqlExpr.StringLit("TDSNull")),
+                new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.AND, isText,
+                        SqlExpr.Call.of(SqlFn.GREATER,
+                                SqlExpr.Call.of(SqlFn.STRPOS, text, new SqlExpr.StringLit(TDS_CELL_SEP)),
+                                new SqlExpr.IntLit(0))),
+                        new SqlExpr.NullLit()),
+                new SqlExpr.Case.When(isText, quoted)), stampCell);
+    }
+
     /** The plan a {@link #wrapTdsCanon} wrap was built over: its rows, with
      * none of the canon spelled. What only COUNTS rows (assertSize,
      * assertEmpty on a grid) reads this — formatting every cell to count
@@ -624,11 +632,17 @@ public final class CanonicalRenderSql {
         return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
                 SqlExpr.Call.of(SqlFn.IS_NULL, v),
                 new SqlExpr.NullLit())),
-                new SqlExpr.JsonObject(List.of(
-                        new SqlExpr.StringLit("_type"),
-                        new SqlExpr.StringLit(fqn),
-                        new SqlExpr.StringLit("_id"),
-                        trackedId(v))));
+                identityText(trackedId(v), new SqlExpr.StringLit(fqn)));
+    }
+
+    /** An identity as Pure's {@code %r} prints an object, {@code <id instanceOf T>}: the canon of a keyless
+     *  instance at every site (a struct's value, a construction, a JSON slot), so two identities compare as before
+     *  -- one text against another -- and a failing assert's message reads upstream's (2026-11-03, the database judge
+     *  on par with the host: the canon was the JSON {@code {"_type", "_id"}}, which the message printed). */
+    static SqlExpr identityText(SqlExpr id, SqlExpr type) {
+        return SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("<"),
+                new SqlExpr.Cast(id, SqlType.Scalar.VARCHAR), new SqlExpr.StringLit(" instanceOf "), type,
+                new SqlExpr.StringLit(">"));
     }
 
     /** An object's identity where it is read (compared, printed): an object whose evaluations the product does not
@@ -879,10 +893,8 @@ public final class CanonicalRenderSql {
         if (keys == null) {
             SqlExpr.StructLit.Field idF = byName.get(
                     com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID);
-            return new SqlExpr.JsonObject(List.of(
-                    new SqlExpr.StringLit("_type"), new SqlExpr.StringLit(classFqn),
-                    new SqlExpr.StringLit("_id"),
-                    idF == null ? new SqlExpr.NullLit() : idF.value()));
+            return identityText(idF == null ? new SqlExpr.StringLit("null") : idF.value(),
+                    new SqlExpr.StringLit(classFqn));
         }
         List<SqlExpr> kv = new java.util.ArrayList<>();
         kv.add(new SqlExpr.StringLit("_type"));
@@ -963,9 +975,7 @@ public final class CanonicalRenderSql {
         SqlExpr id = new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.VARIANT_GET, v,
                 new SqlExpr.StringLit(com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID)),
                 SqlType.Scalar.VARCHAR);
-        SqlExpr identity = new SqlExpr.JsonObject(List.of(
-                new SqlExpr.StringLit("_type"), type,
-                new SqlExpr.StringLit("_id"), tracked(id)));
+        SqlExpr identity = identityText(tracked(id), type);
         return new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, v),
                         new SqlExpr.NullLit()),
@@ -1000,7 +1010,7 @@ public final class CanonicalRenderSql {
     /**
      * The canon of a tagged root (a mixed selection's winner, docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): the
      * literal spelling of the slot the tag names, each slot by its own kind -- the one candidate is the literal
-     * channel, as a LITERAL-carried root's is. The root's columns (the tag and its slots) ride through.
+     * channel. The root's columns (the tag and its slots) ride through.
      */
     private static CanonWrap taggedCanon(com.legend.sql.SqlQuery plan, SqlType.Tagged tg, Type t,
             com.legend.compiler.element.type.ExprType rootInfo, boolean canonicalOrder) {
@@ -1011,8 +1021,13 @@ public final class CanonicalRenderSql {
             SqlType.Tagged.Slot slot = tg.slots().get(i);
             SqlExpr ref = SqlExpr.Column.of(null, SqlType.Tagged.slotColumn(tagCol.name(), i), slot.type(), true,
                     com.legend.sql.OutputCol.Origin.DERIVED);
-            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)),
-                    Objects.requireNonNull(literalCanon(ref, MixedEncoding.kindType(slot.kind())))));
+            // a DateTime at a WRITTEN precision (the kind DateTime(n): a literal's digits, a relation cell's nine)
+            // canons at exactly those digits, as its literal spells (the spelling carrier's identity canon kept
+            // them; the TIMESTAMP's trimmed text would equate .000 with none, which Pure does not: A1)
+            Integer digits = MixedEncoding.writtenDigits(slot.kind());
+            SqlExpr canonOf = digits != null ? LiteralSpelling.dateTimeLiteralAt(ref, digits)
+                    : Objects.requireNonNull(literalCanon(ref, MixedEncoding.kindType(slot.kind())));
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.EQUAL, tag, new SqlExpr.IntLit(i)), canonOf));
         }
         SqlExpr canon = new SqlExpr.Case(whens, null);
         List<com.legend.sql.SqlSelect.Projection> projections = new java.util.ArrayList<>();

@@ -78,13 +78,6 @@ final class Dedup {
                                 new SqlExpr.IntLit(0)),
                         new SqlExpr.IntLit(0)),
                 list)), reduced);
-        // F10 3b: dedup preserves ELEMENTS — a LITERAL-carried input's
-        // result re-marks (LIST_REDUCE is beyond the judgment; the
-        // construction site knows)
-        return list instanceof SqlExpr.Cast km
-                && km.target() instanceof SqlType.Array ka
-                && ka.element() == SqlType.Scalar.LITERAL
-                ? new SqlExpr.Cast(out, new SqlType.Array(SqlType.Scalar.LITERAL))
-                : out;
+        return out;
     }
 }

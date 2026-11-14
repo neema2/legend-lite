@@ -123,7 +123,8 @@ public final class Pure {
     // ================================================================
 
     /** Native classes in declaration order. Populated by {@link #nativeClass(String)}. */
-    private static final List<ClassDefinition> ALL_CLASSES = new ArrayList<>();
+    private static final com.legend.base.Sealed.SealedList<ClassDefinition> ALL_CLASSES =
+            com.legend.base.Sealed.list(new ArrayList<>());
 
     /** Snapshot of every native class declared by {@link Pure}, declaration order. */
     public static List<ClassDefinition> allNativeClasses() {
@@ -299,7 +300,8 @@ public final class Pure {
     // ================================================================
 
     /** Native enums in declaration order. Populated by {@link #nativeEnum(String)}. */
-    private static final List<EnumDefinition> ALL_ENUMS = new ArrayList<>();
+    private static final com.legend.base.Sealed.SealedList<EnumDefinition> ALL_ENUMS =
+            com.legend.base.Sealed.list(new ArrayList<>());
 
     /** Snapshot of every native enum declared by {@link Pure}, declaration order. */
     public static List<EnumDefinition> allNativeEnums() {
@@ -366,7 +368,8 @@ public final class Pure {
      * can change tie-breaks; the golden catalog file pins it) and NOT
      * constant name. Populated by {@link #signature(String)}.
      */
-    private static final List<NativeFunctionDefinition> ALL = new ArrayList<>();
+    private static final com.legend.base.Sealed.SealedList<NativeFunctionDefinition> ALL =
+            com.legend.base.Sealed.list(new ArrayList<>());
 
     /**
      * The lite-internal native package's vocabulary, as COMPILE-TIME
@@ -598,6 +601,18 @@ public final class Pure {
         public static final String DELETE = PKG + "delete";
         public static final String UPDATE = PKG + "update";
         public static final String MERGE = PKG + "merge";
+        /** A relation less the named columns (2026-10-27, docs/SEMANTICS_REGISTER.md S113):
+         *  {@code rel->without(~[a, b])} is {@code Relation<T-Z>}, typed as the {@code select} of every other column
+         *  (SelectChecker), so its SQL is that select's column list. legend-pure 5.99.0 and legend-engine 4.145.0
+         *  drop rows ({@code drop}) but never columns: {@code rename}'s {@code T-Z+V} is upstream's only signature
+         *  that subtracts columns. A function generic over any table (S112) cannot name the caller's columns to
+         *  select them, so it drops the ones it made; user-facing, so bare-name resolvable. */
+        public static final String WITHOUT = PKG + "without";
+        /** A row's column read through a column spec (2026-10-27, docs/SEMANTICS_REGISTER.md S114): {@code $r->read(~close)}
+         *  is {@code $r.close}, typed as that read (ReadChecker), so a function generic over any table reads the column
+         *  its caller names without renaming it first. Upstream reads a column only as a reflected {@code Column}
+         *  evaluated on a row ({@code $rel->columns()}, typed {@code Any}); a {@code ColSpec} there is a name alone. */
+        public static final String READ = PKG + "read";
 
         private Lite() {
         }
@@ -659,7 +674,9 @@ public final class Pure {
                     liteLocalName(Lite.DELETE),
                     liteLocalName(Lite.UPDATE),
                     liteLocalName(Lite.MERGE),
-                    liteLocalName(Lite.EMA));
+                    liteLocalName(Lite.EMA),
+                    liteLocalName(Lite.WITHOUT),
+                    liteLocalName(Lite.READ));
 
     /** The same surface by FUNCTION ID: each bare name ({@link #LITE_SURFACE}) and the lite overloads it stands for,
      *  the catalog's generated AT_ groups. EngineHandlers adds them to the engine surface, joined by id like the
@@ -673,7 +690,9 @@ public final class Pure {
                 liteLocalName(Lite.DELETE), AT_LEGEND_LITE_DELETE,
                 liteLocalName(Lite.UPDATE), AT_LEGEND_LITE_UPDATE,
                 liteLocalName(Lite.MERGE), AT_LEGEND_LITE_MERGE,
-                liteLocalName(Lite.EMA), AT_LEGEND_LITE_EMA);
+                liteLocalName(Lite.EMA), AT_LEGEND_LITE_EMA,
+                liteLocalName(Lite.WITHOUT), AT_LEGEND_LITE_WITHOUT,
+                liteLocalName(Lite.READ), AT_LEGEND_LITE_READ);
     }
 
     /** Every registered native in the lite-internal package — the
@@ -700,9 +719,12 @@ public final class Pure {
     // ====================================================================
 
     private static final class Index {
-        static final java.util.Map<String, ClassDefinition> CLASS_BY_FQN = new java.util.HashMap<>();
-        static final java.util.Map<String, EnumDefinition> ENUM_BY_FQN = new java.util.HashMap<>();
-        static final java.util.Map<String, List<NativeFunctionDefinition>> FN_BY_FQN = new java.util.HashMap<>();
+        static final com.legend.base.Sealed.SealedMap<String, ClassDefinition> CLASS_BY_FQN =
+                com.legend.base.Sealed.map(new java.util.HashMap<>());
+        static final com.legend.base.Sealed.SealedMap<String, EnumDefinition> ENUM_BY_FQN =
+                com.legend.base.Sealed.map(new java.util.HashMap<>());
+        static final com.legend.base.Sealed.SealedMap<String, List<NativeFunctionDefinition>> FN_BY_FQN =
+                com.legend.base.Sealed.map(new java.util.HashMap<>());
         /** bare name -> the USER-RESOLVABLE overloads across packages, in
          *  catalog order — THE LOWERING'S REGISTRATION SURFACE ONLY
          *  (a rule table registers the catalog's generated overload GROUPS, every overload
@@ -712,11 +734,13 @@ public final class Pure {
          *  {@link Pure#nativeFunctionsAt} refuses a bare name. The lite
          *  partition: lite-internal defs are excluded, LITE_SURFACE names stay. */
         /** The FQNs a USER may name: every non-lite native and the lite product surface. */
-        static final java.util.Set<String> USER_RESOLVABLE_FQNS = new java.util.LinkedHashSet<>();
+        static final com.legend.base.Sealed.SealedSet<String> USER_RESOLVABLE_FQNS =
+                com.legend.base.Sealed.set(new java.util.LinkedHashSet<>());
         /** engine signature id -> the one overload that declares it (a function's
          *  element name upstream IS its id; the id is generated from the
          *  declaration, SignatureMangle.mangle) */
-        static final java.util.Map<String, NativeFunctionDefinition> FN_BY_ID = new java.util.HashMap<>();
+        static final com.legend.base.Sealed.SealedMap<String, NativeFunctionDefinition> FN_BY_ID =
+                com.legend.base.Sealed.map(new java.util.HashMap<>());
 
         static {
             for (ClassDefinition cd : ALL_CLASSES) {
@@ -726,7 +750,7 @@ public final class Pure {
                 ENUM_BY_FQN.put(ed.qualifiedName(), ed);
             }
             for (NativeFunctionDefinition nfd : ALL) {
-                FN_BY_FQN.computeIfAbsent(nfd.qualifiedName(), k -> new ArrayList<>()).add(nfd);
+                FN_BY_FQN.computeIfAbsent(nfd.qualifiedName(), k -> com.legend.base.Sealed.list(new ArrayList<>())).add(nfd);
                 FN_BY_ID.put(com.legend.model.SignatureMangle.mangle(nfd), nfd);
                 String bare = nfd.qualifiedName().contains("::")
                         ? nfd.qualifiedName().substring(nfd.qualifiedName().lastIndexOf("::") + 2)
@@ -737,6 +761,15 @@ public final class Pure {
                     USER_RESOLVABLE_FQNS.add(nfd.qualifiedName());
                 }
             }
+            // the index is a constant of the process from here on (2026-11-09, base.Sealed)
+            for (List<NativeFunctionDefinition> overloads : FN_BY_FQN.values()) {
+                ((com.legend.base.Sealed.Seal) overloads).seal();
+            }
+            CLASS_BY_FQN.seal();
+            ENUM_BY_FQN.seal();
+            FN_BY_FQN.seal();
+            USER_RESOLVABLE_FQNS.seal();
+            FN_BY_ID.seal();
         }
     }
 
@@ -1095,7 +1128,10 @@ public final class Pure {
      *  docs/CYPHER_STUDY_2026_10_15.md §12.8): {@code instantIn} is the instant a wall time names in a zone,
      *  {@code localIn} the wall time of an instant in a zone — each two of the database's zone conversions (the
      *  convertTimeZone lowering's pair), a Pure DateTime in and out. Upstream knows zones only at formatting and on
-     *  the connection; a spelled offset needs neither (the translator spells it as adjust steps). */
+     *  the connection; a spelled offset needs neither (the translator spells it as adjust steps). At a DST change the
+     *  rule is java.time's ({@code ZonedDateTime.ofLocal}): a repeated wall time names its EARLIER offset's instant, a
+     *  missing one is shifted forward by the gap (A6, 2026-11-10). Measured: Trino and Databricks follow it whole; H2 and
+     *  ClickHouse read a missing wall time in its later offset; DuckDB reads a repeated one in its later offset. */
     public static final NativeFunctionDefinition QUOTIENT__INTEGER_1__INTEGER_1 = signature("native function meta::legend::lite::quotient(dividend:meta::pure::metamodel::type::Integer[1], divisor:meta::pure::metamodel::type::Integer[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition INSTANT_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::instantIn(local:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
     public static final NativeFunctionDefinition LOCAL_IN__DATE_1__STRING_1 = signature("native function meta::legend::lite::localIn(instant:meta::pure::metamodel::type::Date[1], zone:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::type::DateTime[1];");
@@ -1611,7 +1647,7 @@ public final class Pure {
     // lacks, so the corpus copy is signature-broken and drops at
     // overload collection. This native carries the TYPE; the harness
     // splices the SAME semantics by EMISSION (TypedConcatenate fold in
-    // StatementExecutor.buildFrame). CARRIER verbatim (audit R4: the
+    // BodyDriver.buildFrame). CARRIER verbatim (audit R4: the
     // LambdaFunction formal is nominal — eta refs and Function-typed
     // values must NOT conform; witnessed). INTERIOR is a DECLARED
     // deviation: the engine's TabularDataSet spelling schema-ERASES,
@@ -2286,6 +2322,11 @@ public final class Pure {
     public static final NativeFunctionDefinition OVER__COL_SPEC_ARRAY_1__SORT_INFO_MANY__ROWS_1 = signature("native function meta::pure::functions::relation::over<T>(cols:meta::pure::metamodel::relation::ColSpecArray<(?:?)⊆T>[1], sortInfo:meta::pure::functions::relation::SortInfo<(?:?)⊆T>[*], rows:meta::pure::functions::relation::Rows[1]):meta::pure::functions::relation::_Window<T>[1];");
     public static final NativeFunctionDefinition OVER__COL_SPEC_ARRAY_1__SORT_INFO_1__RANGE_1 = signature("native function meta::pure::functions::relation::over<T>(cols:meta::pure::metamodel::relation::ColSpecArray<(?:?)⊆T>[1], sortInfo:meta::pure::functions::relation::SortInfo<(?:?)⊆T>[1], range:meta::pure::functions::relation::_Range[1]):meta::pure::functions::relation::_Window<T>[1];");
     public static final NativeFunctionDefinition OVER__COL_SPEC_ARRAY_1__SORT_INFO_1__RANGE_INTERVAL_1 = signature("native function meta::pure::functions::relation::over<T>(cols:meta::pure::metamodel::relation::ColSpecArray<(?:?)⊆T>[1], sortInfo:meta::pure::functions::relation::SortInfo<(?:?)⊆T>[1], rangeInterval:meta::pure::functions::relation::_RangeInterval[1]):meta::pure::functions::relation::_Window<T>[1];");
+    // read (Lite.READ, lite surface, 2026-10-27): a row's column through a column spec, as $row.name is
+    public static final NativeFunctionDefinition READ__T_1__COL_SPEC_1 = signature("native function meta::legend::lite::read<T,Z,V>(row:T[1], column:meta::pure::metamodel::relation::ColSpec<Z=(?:V)⊆T>[1]):V[0..1];");
+    // read over several columns (2026-11-02, the user: "Yes array read"): the row's values in the columns, a list --
+    // a column with no value contributes none, as [$r.a, $r.b] would if Pure took a [0..1] element in a literal
+    public static final NativeFunctionDefinition READ__T_1__COL_SPEC_ARRAY_1 = signature("native function meta::legend::lite::read<T,Z>(row:T[1], columns:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1]):meta::pure::metamodel::type::Any[*];");
     public static final NativeFunctionDefinition REDUCE__RELATION_1__WINDOW_1__T_1__FUNCTION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::reduce<T,V,U|m>(rel:meta::pure::metamodel::relation::Relation<T>[1], w:meta::pure::functions::relation::_Window<T>[1], row:T[1], map:meta::pure::metamodel::function::Function<{T[1]->V[*]}>[1], agg:meta::pure::metamodel::function::Function<{V[*]->U[m]}>[1]):U[m];");
     public static final NativeFunctionDefinition FROM_JSON__STRING_1 = signature("native function meta::pure::functions::variant::convert::fromJson(json:meta::pure::metamodel::type::String[1]):meta::pure::metamodel::variant::Variant[1];");
     public static final NativeFunctionDefinition LATERAL__RELATION_1__FUNCTION_1 = signature("native function meta::pure::functions::relation::lateral<T,V>(rel:meta::pure::metamodel::relation::Relation<T>[1], f:meta::pure::metamodel::function::Function<{T[1]->meta::pure::metamodel::relation::Relation<V>[1]}>[1]):meta::pure::metamodel::relation::Relation<T+V>[1];");
@@ -2398,6 +2439,9 @@ public final class Pure {
     // decompose reads (value, weight) positionally either way).
     public static final NativeFunctionDefinition WAVG_ROW_MAPPER__NUMBER_0_1__NUMBER_0_1 = signature("native function meta::pure::functions::math::wavgUtility::wavgRowMapper(quantity:meta::pure::metamodel::type::Number[0..1], weight:meta::pure::metamodel::type::Number[0..1]):meta::pure::functions::math::wavgUtility::WavgRowMapper[1];");
     public static final NativeFunctionDefinition WEEK_OF_YEAR__DATE_1 = signature("native function meta::pure::functions::date::weekOfYear(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
+    // without (Lite.WITHOUT, lite surface, 2026-10-27): select's two shapes, the result the relation less the columns
+    public static final NativeFunctionDefinition WITHOUT__RELATION_1__COL_SPEC_1 = signature("native function meta::legend::lite::without<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpec<Z⊆T>[1]):meta::pure::metamodel::relation::Relation<T-Z>[1];");
+    public static final NativeFunctionDefinition WITHOUT__RELATION_1__COL_SPEC_ARRAY_1 = signature("native function meta::legend::lite::without<T,Z>(r:meta::pure::metamodel::relation::Relation<T>[1], cols:meta::pure::metamodel::relation::ColSpecArray<Z⊆T>[1]):meta::pure::metamodel::relation::Relation<T-Z>[1];");
     public static final NativeFunctionDefinition WRITE__RELATION_1__ACCESSOR_1 = signature("native function meta::pure::functions::relation::write<T>(rel:meta::pure::metamodel::relation::Relation<T>[1], relationElementAccessor:meta::pure::metamodel::relation::RelationElementAccessor<T>[1]):meta::pure::metamodel::type::Integer[1];");
     public static final NativeFunctionDefinition XOR__BOOLEAN_1__BOOLEAN_1 = signature("native function meta::pure::functions::boolean::xor(first:meta::pure::metamodel::type::Boolean[1], second:meta::pure::metamodel::type::Boolean[1]):meta::pure::metamodel::type::Boolean[1];");
     public static final NativeFunctionDefinition YEAR__DATE_1 = signature("native function meta::pure::functions::date::year(d:meta::pure::metamodel::type::Date[1]):meta::pure::metamodel::type::Integer[1];");
@@ -2536,6 +2580,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_OTHERWISE = com.legend.model.FunctionId.ofAll(OTHERWISE__T_1__T_0_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_PARSE_DATE_FORMAT = com.legend.model.FunctionId.ofAll(PARSE_DATE_FORMAT__STRING_0_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_QUOTIENT = com.legend.model.FunctionId.ofAll(QUOTIENT__INTEGER_1__INTEGER_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_READ = com.legend.model.FunctionId.ofAll(READ__T_1__COL_SPEC_1, READ__T_1__COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_RECURSE = com.legend.model.FunctionId.ofAll(RECURSE__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_ROUTE = com.legend.model.FunctionId.ofAll(ROUTE__C_MANY__RELATION_1__FUNCTION_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_SOURCE_URL = com.legend.model.FunctionId.ofAll(SOURCE_URL__STRING_1);
@@ -2548,6 +2593,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_TYPE_AS_DECLARED = com.legend.model.FunctionId.ofAll(TYPE_AS_DECLARED__ANY_01__T_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_UNLINK = com.legend.model.FunctionId.ofAll(UNLINK__RELATION_1__CLASS_1__COL_SPEC_1__COL_SPEC_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_UPDATE = com.legend.model.FunctionId.ofAll(UPDATE__ACCESSOR_1__FUNCTION_1__FUNC_COL_SPEC_ARRAY_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_WITHOUT = com.legend.model.FunctionId.ofAll(WITHOUT__RELATION_1__COL_SPEC_1, WITHOUT__RELATION_1__COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_WRITE_INSTANCES = com.legend.model.FunctionId.ofAll(WRITE_INSTANCES__RELATION_1__CLASS_1__COL_SPEC_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_TEST_MAY_EXECUTE_LEGEND_TEST = com.legend.model.FunctionId.ofAll(MAY_EXECUTE_LEGEND_TEST);
     public static final List<com.legend.model.FunctionId> AT_ALLOY_CONNECTIONS_RELATIONAL_MAPPER_POST_PROCESSOR = com.legend.model.FunctionId.ofAll(RELATIONAL_MAPPER_PP);
@@ -2997,4 +3043,12 @@ public final class Pure {
     // SYSTEM_PRELUDE_DESIGN §10, PRELUDE_MODULE_HOMEWORK). It is not in
     // this catalog: this catalog is the native signatures, Lite, and the
     // hand shapes Java constructs before a model exists.
+
+    // the platform's registry is a constant of the process from here on: every native's constant above registered
+    // itself as it initialised (2026-11-09, base.Sealed: a registration after this is refused)
+    static {
+        ALL_CLASSES.seal();
+        ALL_ENUMS.seal();
+        ALL.seal();
+    }
 }

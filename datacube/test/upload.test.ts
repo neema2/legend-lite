@@ -18,6 +18,7 @@ import { plannerFor } from './catalog-builder.ts';
 import {
   asc, col as column, derive, fn, from, lambda, lit, to, toMany, type, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 // legend-lite's one model writer, in the module the tab loads (infer.ts `TableModels`)
 const writer = plannerFor('', 'local::RT');
@@ -31,7 +32,7 @@ before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
   copyOut = async (name) => {
-    const read = await db.connection.query(`SELECT content FROM read_blob('${name}')`);
+    const read = await db.connection.query(unplanned(`SELECT content FROM read_blob('${name}')`));
     return read.getChildAt(0)!.get(0) as Uint8Array;
   };
   files = db.files;
@@ -72,7 +73,7 @@ describe('ingestFile with JSON', () => {
 
       // The table keeps DuckDB's own nested storage -- no rewrite at ingest
       // (docs/VARIANT_STORAGE_CENSUS_2026_09_27.md) ...
-      const described = await engine.run(`DESCRIBE "${r.table}"`, 0);
+      const described = await engine.run(unplanned(`DESCRIBE "${r.table}"`), 0);
       const names = described.columns.find((c) => c.name === 'column_name')!;
       const types = described.columns.find((c) => c.name === 'column_type')!;
       const duck = new Map(names.values.map((n, i) => [n, String(types.values[i])]));
@@ -105,10 +106,10 @@ describe('ingestFile with JSON', () => {
     // A CSV cannot carry a LIST, so build the nested column the way
     // Parquet delivers one: typed, not text.
     await engine.run(
-      `COPY (SELECT 1 AS id, [1, 2, 3] AS xs, {'a': 1} AS s)
-         TO 'nested.json' (FORMAT JSON)`, 0);
+      unplanned(`COPY (SELECT 1 AS id, [1, 2, 3] AS xs, {'a': 1} AS s)
+         TO 'nested.json' (FORMAT JSON)`), 0);
     const text = String((await engine.run(
-      `SELECT content FROM read_text('nested.json')`, 0)).columns[0]!.values[0]);
+      unplanned(`SELECT content FROM read_text('nested.json')`), 0)).columns[0]!.values[0]);
     const r = await ingestFile(engine, files, picked('nested.json', text), writer);
     assert.match(r.model, /id BIGINT/);
     assert.match(r.model, /xs SEMISTRUCTURED/);
@@ -119,19 +120,19 @@ describe('ingestFile with JSON', () => {
     // (No file carries a HUGEINT: Parquet has no 128-bit integer and DuckDB writes one as a
     // DOUBLE. Its declaration, DECIMAL(38,0), is pinned by core's CatalogModelTest.)
     await engine.run(
-      `COPY (SELECT TIMESTAMPTZ '2024-01-02 03:04:05.123456+02' AS stamp,
+      unplanned(`COPY (SELECT TIMESTAMPTZ '2024-01-02 03:04:05.123456+02' AS stamp,
                     18446744073709551615::UBIGINT AS big,
                     '4ac7a9e2-5b8f-4c1e-9a3d-2f6b8c0d1e7f'::UUID AS id,
                     TIME '13:14:15.678901' AS tod)
-         TO 'zoned.parquet' (FORMAT PARQUET)`, 0);
+         TO 'zoned.parquet' (FORMAT PARQUET)`), 0);
     const bytes = await copyOut('zoned.parquet');
     const r = await ingestFile(engine, files, new File([bytes.slice()], 'zoned.parquet'), writer);
     for (const [column, sql] of [['stamp', 'TIMESTAMP'], ['big', 'DECIMAL\\(20,0\\)'],
       ['id', 'OTHER'], ['tod', 'OTHER']] as const) {
       assert.match(r.model, new RegExp(`${column} ${sql}`), column);
     }
-    const row = await engine.run(`SELECT CAST(stamp AS VARCHAR), CAST(big AS VARCHAR),
-        id, tod, typeof(stamp), typeof(big), typeof(id) FROM "${r.table}"`, 0);
+    const row = await engine.run(unplanned(`SELECT CAST(stamp AS VARCHAR), CAST(big AS VARCHAR),
+        id, tod, typeof(stamp), typeof(big), typeof(id) FROM "${r.table}"`), 0);
     assert.deepEqual(row.columns.map((c) => c.values[0]),
       ['2024-01-02 01:04:05.123456', '18446744073709551615',
         // a uuid and a time of day are declared OTHER and kept as stored: every query reads them as text
@@ -199,7 +200,7 @@ describe('a text file read by its encoding: the bytes every host\'s DuckDB is gi
       [0xe9], [...',M'].map((c) => c.charCodeAt(0)), [0xfc], [...'nchen\n'].map((c) => c.charCodeAt(0))));
     const r = await ingestFile(engine, files, pickedBytes('latin1.csv', latin1), writer);
     assert.equal(r.rowCount, 1);
-    const row = await engine.run(`SELECT name, city FROM "${r.table}"`, 0);
+    const row = await engine.run(unplanned(`SELECT name, city FROM "${r.table}"`), 0);
     assert.deepEqual(row.columns.map((c) => c.values[0]), ['José', 'München']);
   });
 

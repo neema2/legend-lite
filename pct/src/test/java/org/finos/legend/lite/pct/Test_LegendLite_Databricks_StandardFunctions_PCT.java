@@ -30,7 +30,18 @@ public class Test_LegendLite_Databricks_StandardFunctions_PCT extends PCTReportC
 
     // First measured 2026-10-11 on the account (Databricks SQL warehouse); burned down the same day. Its last row,
     // testFloatStdDev, was unpinned 2026-10-11: a list's moments are DuckDB's own update, so DuckDB's bits.
-    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.empty();
+    private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): Databricks keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)"),
+            one("meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)")
+    );
 
     public static Test suite() {
         return PctCensusGate.wrap("Standard", wrapSuite(

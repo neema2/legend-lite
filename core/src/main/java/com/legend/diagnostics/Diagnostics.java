@@ -18,16 +18,18 @@ import java.util.Map;
  *   <li>{@code pct-cases}: record each PCT case's model and expression (the render census's input)</li>
  *   <li>{@code pct-shapes}: record each PCT case's result shape -- its kind, Pure type and value classes (the MongoDB
  *       line's homework, 2026-10-17: which shapes a lane's result route must carry)</li>
- *   <li>{@code pct-shadow-plan}: beside each PCT case's result, plan the same expression to Pure's TDS text
- *       ({@code TypedQuery.Output.TDS_TEXT}), run it by the plan runner and record whether the two agree (the MongoDB
- *       line's homework 2, 2026-10-17)</li>
  *   <li>{@code corpus-trace}, {@code detach-trace}, {@code progress}, {@code timing}: the corpus runner's traces</li>
  *   <li>{@code corpus-containing=TEXT}: parser-equivalence's corpus, only the sources containing TEXT (iteration)</li>
  *   <li>{@code chb-only=TEXT}: Channel B, only the PCT tests whose name contains TEXT (iteration; no pins)</li>
- *   <li>{@code primitives}: tally the MIR primitives of every statement the executor sends, by outcome, printed at
- *       the JVM's exit (the coverage map's input, exec/PrimitiveCensus)</li>
  *   <li>{@code plan-sizes}: record, for every plan the round-trip gate judges, its JSON's size with and without the
  *       typed tree and its statements' characters (docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §8, 2026-10-18)</li>
+ *   <li>{@code sql-sizes}: print each statement's characters and the running test's name before it is sent (the core
+ *       program's size measurement, 2026-11-03)</li>
+ *   <li>{@code judge-declines}: print each assert the database judge declines or leaves UNJUDGED, with the running
+ *       test's name (the core program's 100% check, 2026-11-04: a decline under BOTH is the host's to decide, so a
+ *       green run alone does not show the database judge decided every assert)</li>
+ *   <li>{@code body-class}: print the assert program's class rule that refused a body, by statement (the walk
+ *       deletion's measurement, 2026-11-06)</li>
  * </ul>
  */
 public final class Diagnostics {
@@ -36,8 +38,22 @@ public final class Diagnostics {
 
     /** The vocabulary: the switches that exist. */
     public static final List<String> NAMES = List.of(
-            "dump-sql", "pct-cases", "pct-shapes", "pct-shadow-plan", "corpus-trace", "detach-trace", "progress", "timing",
-            "corpus-containing", "chb-only", "primitives", "plan-sizes");
+            "dump-sql", "pct-cases", "pct-shapes", "corpus-trace", "detach-trace", "progress", "timing",
+            // ("primitives" deleted 2026-11-09 with its census, PrimitiveCensus, which had no feeder: a dead switch)
+            "corpus-containing", "chb-only", "plan-sizes",
+            // the core program's SQL size (2026-11-03, the user's "core test SQL much smaller than PCT/corpus"): each
+            // statement sent, its characters and the test that sent it, before it is sent
+            "sql-sizes",
+            // the core program's 100% check (2026-11-04): each database-judge decline or UNJUDGED, with its test
+            "judge-declines",
+            // the walk deletion's measurement (2026-11-06): the assert program's class rule that refused a body
+            // (testplan/BodyClass, which reads the switch by name: the test-planning library depends on no switchboard)
+            "body-class",
+            // the plan-as-data design (2026-11-07): each test body's plan printed as its JSON (TestPlanner)
+            "plan-json",
+            // guard 3 in report mode (the plan-as-data design's step 3, 2026-11-08): every test body run on its plan
+            // READ BACK from its JSON, never the planner's objects (TestPlanner)
+            "decoded-plan");
 
     private static final Map<String, String> ON = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(parse(System.getProperty("legend.diagnostics", ""))));
 
@@ -67,6 +83,26 @@ public final class Diagnostics {
     /** The switch's value, or null when it is off. */
     public static @com.legend.base.Nullable String value(String name) {
         return ON.get(name);
+    }
+
+    /** {@code judge-declines}: one line per database-judge decline or UNJUDGED, with the running test (the core
+     *  program's 100% check, 2026-11-04). Measurement only: prints, decides nothing. */
+    public static void judgeDecline(String kind, String name, String reason) {
+        if (on("judge-declines")) {
+            System.err.println("[judge-decline] " + kind + " " + System.getProperty("legend.test.current", "?") + " "
+                    + name + ": " + reason.replace('\n', ' '));
+        }
+    }
+
+    /** {@code judge-declines}, its second half: one line per statement a verdict sends AFTER the plan's rows are read
+     *  -- a split rung, a ruled fallback, an appeal, a caller's message, a verdict statement run with no batch -- and
+     *  per host step the database judge's plan holds (the strict database judge's measurement, 2026-11-05: after the
+     *  plan decides, the harness may only explain a failure, never change the verdict). Measurement only. */
+    public static void judgeSend(String kind, String name) {
+        if (on("judge-declines")) {
+            System.err.println("[judge-send] " + kind + " " + System.getProperty("legend.test.current", "?") + " "
+                    + name);
+        }
     }
 
     /** {@code dump-sql}; the LEGEND_LITE_DUMP_SQL env flag still turns it on until P7-14 retires the env flags. */

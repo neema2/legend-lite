@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -16,6 +18,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -96,8 +99,8 @@ class ClickHouseDialectTest {
         SqlExpr w = new SqlExpr.WindowCall(new SqlAgg.Reducer(fn, List.of(v), false, List.of()), List.of(),
                 List.of(new SqlSelect.SortKey(k, true, null, null)),
                 new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.RANGE,
-                        new SqlExpr.WindowCall.Frame.Bound.Preceding(0.5),
-                        new SqlExpr.WindowCall.Frame.Bound.Following(0.5)));
+                        SqlExpr.WindowCall.Frame.Bound.Preceding.of(0.5),
+                        SqlExpr.WindowCall.Frame.Bound.Following.of(0.5)));
         return render(select(table("t", "t0", "k", SqlType.Scalar.DOUBLE), null, w));
     }
 
@@ -115,5 +118,124 @@ class ClickHouseDialectTest {
         assertFalse(median.contains("'median'"), median);
         // anything else is refused by name
         assertThrows(DialectCapability.class, () -> fractionalRange(SqlAgg.Fn.MODE));
+    }
+
+    @Test
+    void aNegationBracketsItsWholeOperand() {
+        // ClickHouse reads `NOT (` as its function not(: an operand that only starts with a bracket would be cut short
+        // (PCT round 21, 2026-11-05: `NOT (SELECT ...) = (SELECT ...)` refused, "failed at position ... (toInt64)")
+        SqlSource.Table t = table("t", "t0", "k", SqlType.Scalar.BIGINT);
+        SqlExpr k = col("t0", "k", SqlType.Scalar.BIGINT);
+        SqlExpr one = new SqlExpr.ScalarSubquery(select(t, null, k),
+                new com.legend.sql.TypeFact.Typed(SqlType.Scalar.BIGINT, true));
+        SqlExpr two = new SqlExpr.ScalarSubquery(select(t, null, k),
+                new com.legend.sql.TypeFact.Typed(SqlType.Scalar.BIGINT, true));
+        String sql = render(select(t, SqlExpr.Call.of(SqlFn.NOT, SqlExpr.Call.of(SqlFn.EQUAL, one, two)), k));
+        assertTrue(sql.contains("WHERE NOT ((SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\")"
+                + " = (SELECT \"t0\".\"k\" AS \"c0\" FROM \"t\" AS \"t0\"))\n"), sql);
+    }
+
+    /**
+     * A table of the database's own is legend-engine's ClickHouse table, {@code ENGINE = MergeTree ORDER BY tuple()}; a
+     * keyed one sorts by its key (register S157, 2026-11-07: ClickHouse refuses the engine's text for a keyed table); a
+     * session's TEMPORARY table names no engine.
+     */
+    @Test
+    void aTableIsAMergeTreeOneSortedByItsKey() {
+        com.legend.sql.SqlDdl.ColumnType text = new com.legend.sql.SqlDdl.ColumnType.Plain(
+                com.legend.sql.SqlDdl.ColumnType.Kind.DATE);
+        List<com.legend.sql.SqlDdl.Column> keyed = List.of(new com.legend.sql.SqlDdl.Column("d", false, text, false,
+                true), new com.legend.sql.SqlDdl.Column("e", false, text, false, true),
+                new com.legend.sql.SqlDdl.Column("v", false, text, false, false));
+        List<com.legend.sql.SqlDdl.Column> loose = List.of(new com.legend.sql.SqlDdl.Column("v", false, text, false,
+                false));
+        ClickHouse ch = new ClickHouse();
+        String k = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, keyed));
+        assertTrue(k.endsWith(") ENGINE = MergeTree ORDER BY (\"d\", \"e\");"), k);
+        assertTrue(k.contains("PRIMARY KEY("), k);
+        String l = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, loose));
+        assertTrue(l.endsWith(") ENGINE = MergeTree ORDER BY tuple();"), l);
+        String temp = ch.render(new com.legend.sql.SqlDdl.CreateTable(null, "t", com.legend.sql.NameQuoting.BARE, loose,
+                true));
+        assertFalse(temp.contains("ENGINE"), temp);
+    }
+
+    @Test
+    void aStagedTableIsDroppedAsTheSessionsOwn() {
+        // the plain drop of a name the session holds no temporary table of drops the database's table of that name
+        // (measured 2026-11-09 on 26.3 with clickhouse local; the final review of PR #81)
+        ClickHouse ch = new ClickHouse();
+        assertEquals("DROP TEMPORARY TABLE IF EXISTS \"__stage0__let0\";", ch.render(
+                new com.legend.sql.SqlDdl.DropTable(null, "__stage0__let0", com.legend.sql.NameQuoting.BARE, true)));
+        assertTrue(ch.render(new com.legend.sql.SqlDdl.DropTable(null, "t", com.legend.sql.NameQuoting.BARE))
+                .startsWith("Drop table if exists "));
+    }
+
+    @Test
+    void aComputedKeyIsGroupedByItsName() {
+        // each raise is written with a number of its own, so a key holding one (a date's range guard) written twice
+        // differed from itself and ClickHouse refused the select (measured 2026-11-09 on 26.3; the final review of PR
+        // #81): a computed key the select names is grouped by that name, a plain column as it is
+        SqlSource.Table t = table("t", "t0", "d", SqlType.Scalar.DATE);
+        SqlExpr d = col("t0", "d", SqlType.Scalar.DATE);
+        SqlExpr later = new SqlExpr.Call(SqlFn.ADD_INTERVAL, List.of(new SqlExpr.DatePartLit(com.legend.sql.DatePart.DAY),
+                new SqlExpr.IntLit(1), d));
+        SqlSelect grouped = new SqlSelect(List.of(new SqlSelect.Projection(later, "d2", null),
+                new SqlSelect.Projection(d, "d", null)), false, t, null, List.of(later, d), null, null, List.of(), null,
+                null, List.of());
+        String sql = render(grouped);
+        String keys = sql.substring(sql.indexOf("GROUP BY "));
+        assertTrue(keys.startsWith("GROUP BY \"d2\", \"t0\".\"d\""), sql);
+        assertEquals(1, sql.split("a date outside the years", -1).length - 1, "the guard written once: " + sql);
+    }
+
+    /** ClickHouse's {@code *} reads no ARRAY JOIN column, so a star over a lateral explosion names the exploded column
+     *  after it; with the root's columns labeled (0276a473e) the star is each source but the explosion, so every column
+     *  is named once (round 37, 2026-11-12: {@code testVariantMapColumn_values_LateralFlatten} answered 4 columns for
+     *  its 3, the exploded one twice). */
+    @Test
+    void aStarOverAnArrayJoinNamesEachColumnOnce() {
+        SqlType ints = new SqlType.Array(SqlType.Scalar.BIGINT);
+        SqlSource.Table people = new SqlSource.Table("people", "t0", List.of(new OutputCol("id", SqlType.Scalar.BIGINT,
+                true), new OutputCol("xs", ints, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE);
+        SqlSelect marker = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Call(SqlFn.UNNEST,
+                List.of(col("t0", "xs", ints))), "x", null)), false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        for (SqlSource.Join.Kind kind : List.of(SqlSource.Join.Kind.CROSS_LATERAL, SqlSource.Join.Kind.LEFT_LATERAL)) {
+            // a LEFT lateral carries ON TRUE (its join requires one); a CROSS lateral none
+            SqlSource from = new SqlSource.Join(people, new SqlSource.Subselect(marker, "t1", null), kind,
+                    kind == SqlSource.Join.Kind.LEFT_LATERAL ? new SqlExpr.BoolLit(true) : null);
+            String sql = render(new SqlSelect(List.of(), false, from, null, List.of(), null, null, List.of(), null, null,
+                    List.of()));
+            String head = sql.substring(0, sql.indexOf("FROM"));
+            assertTrue(sql.contains("ARRAY JOIN"), sql);
+            assertTrue(head.contains("AS \"id\""), sql);
+            assertTrue(head.contains("AS \"xs\""), sql);
+            assertTrue(head.indexOf("AS \"x\"") >= 0 && head.indexOf("AS \"x\"") == head.lastIndexOf("AS \"x\""), sql);
+            assertFalse(head.contains("*"), sql);
+        }
+    }
+
+    /** A source joined after an explosion keeps its place: the select answers the join's order, as the plan declares
+     *  it, since rows are read by position (the B close's audit, SHOULD-FIX 2, 2026-11-12: the exploded columns were
+     *  written after every source's star). */
+    @Test
+    void aSourceAfterAnArrayJoinKeepsTheJoinsOrder() {
+        SqlType ints = new SqlType.Array(SqlType.Scalar.BIGINT);
+        SqlSource.Table people = new SqlSource.Table("people", "t0", List.of(new OutputCol("id", SqlType.Scalar.BIGINT,
+                true), new OutputCol("xs", ints, true)), false, Map.of(), com.legend.sql.NameQuoting.BARE);
+        SqlSource.Table towns = table("towns", "t2", "town", SqlType.Scalar.VARCHAR);
+        SqlSelect marker = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.Call(SqlFn.UNNEST,
+                List.of(col("t0", "xs", ints))), "x", null)), false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, List.of());
+        SqlSource exploded = new SqlSource.Join(people, new SqlSource.Subselect(marker, "t1", null),
+                SqlSource.Join.Kind.CROSS_LATERAL, null);
+        SqlSource from = new SqlSource.Join(exploded, towns, SqlSource.Join.Kind.CROSS, null);
+        String sql = render(new SqlSelect(List.of(), false, from, null, List.of(), null, null, List.of(), null, null,
+                List.of()));
+        String head = sql.substring(0, sql.indexOf("FROM"));
+        int id = head.indexOf("AS \"id\""), xs = head.indexOf("AS \"xs\""), x = head.indexOf("AS \"x\""),
+                town = head.indexOf("AS \"town\"");
+        assertTrue(id >= 0 && id < xs && xs < x && x < town, sql);
     }
 }

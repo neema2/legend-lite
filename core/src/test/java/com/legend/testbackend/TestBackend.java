@@ -6,7 +6,7 @@ package com.legend.testbackend;
 import com.legend.database.Databases;
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.dialect.SqlDialect;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -24,6 +24,12 @@ public interface TestBackend {
     /** The database type its sessions are on. */
     DatabaseType type();
 
+    /** The plan's name for this backend's database type (the same constant): what a plan's target and the run's system
+     *  connections are keyed by (slice 5, 2026-11-09). */
+    default com.legend.executionplan.DatabaseType planType() {
+        return com.legend.executionplan.DatabaseType.valueOf(type().name());
+    }
+
     /** Its name as a lane spells it ({@code LEGENDLITE_PCT_BACKEND}): lower case. */
     String name();
 
@@ -31,11 +37,36 @@ public interface TestBackend {
      *  server's database; a cloud, the suite's one session (closing it is a no-op). */
     Connection open() throws SQLException;
 
+    /** {@link #open()} as a session the runner owns: closing it closes the connection (D68, 2026-10-30: the test
+     *  runners hold sessions, not connections); a connection the driver refuses is a {@code DataError} (a backend
+     *  that opens no JDBC session refuses by its own name, as before). */
+    default com.legend.exec.Sessions.Session openSession() {
+        try {
+            return TestSessions.owning(open());
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+    }
+
     /** Whether it runs in-process (the platform opens its own private instances of it), or is a server. */
     boolean inProcess();
 
-    /** A NEW session for the platform's system database on this server (closing it closes it). An in-process backend
-     *  has none: the platform opens its own private instance. */
+    /** The statements a test runs on a fresh session of this backend so the suite's answers are deterministic
+     *  (the platform's: its clock in UTC); none for a backend whose session takes the launcher's one zone (track T,
+     *  T-d, 2026-10-29: the decision is the backend's, never a test's). */
+    default java.util.List<String> sessionSetUp() {
+        return java.util.List.of();
+    }
+
+    /** A statement answering the year of this backend's own clock, as text (a test of {@code now()} reads it either
+     *  side of its query); ANSI's {@code EXTRACT}, which SQLite has not (T-d2, 2026-10-29). */
+    default String yearOfNowSql() {
+        return "SELECT CAST(EXTRACT(YEAR FROM CURRENT_TIMESTAMP) AS VARCHAR)";
+    }
+
+    /** A NEW session on this server, owned (closing it closes it): a server lane's session per plan where it holds
+     *  none ({@code PctBackend}). An in-process backend has none: the platform opens its own private instance. (The
+     *  platform's system database on a server, which it opened until B4, 2026-11-11, is the in-process catalog.) */
     Connection openSystem() throws SQLException;
 
     /** The suite's one held session ({@link #open}'s: closing it is a no-op, the JVM's exit closes it), where a login is
@@ -75,14 +106,6 @@ public interface TestBackend {
      *  other workspaces, and gone when it closes. Refused by name where none is built. */
     default Connection openWorkspace() throws SQLException {
         throw new com.legend.error.NotImplementedException("no corpus workspace on the test backend '" + name() + "'");
-    }
-
-    /** Sets a clashing fixture ASIDE in {@code workspace}, a connection {@link #openWorkspace} opened: the fixture's
-     *  tables apart from the workspace's own, read after them once it has run. Refused by name where this backend
-     *  cannot isolate one: no fixture runs unisolated over a workspace's tables (the plan's defect 5). */
-    default FixtureAside setFixtureAside(Connection workspace) throws SQLException {
-        throw new com.legend.error.NotImplementedException("no fixture isolation on the test backend '" + name()
-                + "': an on-demand fixture would run over the workspace's own tables");
     }
 
     /** A second reader of {@code session}'s data, a connection of its own (the referee reads our side's rows while

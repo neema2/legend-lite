@@ -15,6 +15,7 @@
 import type { Plan } from './relation-type.ts';
 import type { Receipt } from './receipt.ts';
 import type { ResultTable, Scalar } from './result.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /** A raw read's column: its name and values, and NO Pure type -- no compiler typed it. */
 export interface RawColumn {
@@ -63,6 +64,8 @@ export interface QueryEngine {
    * check the signal before starting, and say so in its own doc.
    */
   execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable>;
+  // (a plan's `params` -- the values its statement binds, M3 -- are bound by `execute` and `stream`, or refused by name by
+  // an engine that binds none: never dropped)
   /**
    * A WINDOW of a planned query's result, and the result's size: what a grid of more rows than a page holds asks for
    * (docs/DEEPHAVEN_PLAN_2026_10_22.md V1). An engine that keeps a result where it ran and follows part of it (a
@@ -77,8 +80,12 @@ export interface QueryEngine {
    * as one chunk, and says so in its own doc. Same `signal` rules as `execute`.
    */
   stream(plan: Plan, epoch: number, onChunk: (chunk: ResultTable) => void, signal?: AbortSignal): Promise<void>;
-  /** Run raw SQL no planner wrote: names and values, no types. Same `signal` rules. */
-  run(sql: string, epoch: number, signal?: AbortSignal): Promise<RawTable>;
+  /**
+   * Run raw SQL no planner wrote -- or a plan's statement as its text (a host's pure/v1 execute) -- answering names and
+   * values, no types. Same `signal` rules. `params`: the values its `?`s bind, in order (a plan's data: payloads,
+   * plan-params.ts, the tenets audit's M3); an engine that binds none refuses them by name, never runs the text alone.
+   */
+  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable>;
   close(): Promise<void>;
 }
 
@@ -92,7 +99,7 @@ export interface QueryEngine {
  * of a tab's DuckDB).
  */
 export async function setUpSession(engine: Pick<QueryEngine, 'run'> & { readonly databaseType: string },
-  setup: (databaseType: string) => Promise<readonly string[]>): Promise<void> {
+  setup: (databaseType: string) => Promise<readonly PlannedSql[]>): Promise<void> {
   for (const statement of await setup(engine.databaseType)) await engine.run(statement, 0);
 }
 

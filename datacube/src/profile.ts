@@ -3,12 +3,12 @@
 // asked of the database as one query over those rows, a row of aggregates (`profileLambda`), and read back off its one
 // row (`profileOf`). Nothing is counted here: the database counts -- each column's empties and its share filled too, and
 // its one row even over no rows (a keyless `aggregate`, never a grouping, which gives no group of none). Asked when the
-// profile is shown, never before.
+// profile is shown, never before; a column's most frequent values (`topValuesLambda`) when that column is opened.
 //
 // PURE: no DOM, no planner.
 
 import {
-  agg, colSpecs, derive, divide, eq, fn, from, lambda, lit, minus, property, variable, type ColSpec, type Lambda, type ValueSpecification,
+  agg, asc, colSpecs, derive, desc, divide, eq, fn, from, lambda, lit, minus, property, variable, type ColSpec, type Lambda, type ValueSpecification,
 } from '../../pure-protocol/src/index.ts';
 import { familyOf } from '../../engine-client/src/types.ts';
 import type { ResultTable, Scalar } from '../../engine-client/src/result.ts';
@@ -31,6 +31,8 @@ export interface ColumnProfile {
   readonly distinct: number;
   readonly smallest?: Scalar;
   readonly largest?: Scalar;
+  /** Its name among the rows asked, where it is handed on by another (`name`): what its top values are asked of. */
+  readonly column?: string;
 }
 
 /** The profile of a box's rows: how many, each column's, and how its number columns move together. */
@@ -91,6 +93,42 @@ export function profileLambda(rows: ValueSpecification, columns: readonly Profil
         lambda([], divide(counted(named(i, 'filled')), counted(ROWS)))))),
     ]))
     .lambda();
+}
+
+/** A value of a column and how many rows have it: one of its most frequent (Alteryx's Field Summary's top values). */
+export interface TopValue {
+  readonly value: Scalar;
+  readonly count: number;
+}
+
+/** How many of a column's most frequent values are asked. */
+export const TOP_VALUES = 10;
+
+const TOP_COUNT = '__top_count__';
+
+/**
+ * A COLUMN'S MOST FREQUENT VALUES over `rows`: its rows grouped by it, each value's rows counted by the database, the
+ * most first and, of as many, the smallest value first (an empty last, as Pure's empty is the largest) -- `n` of them.
+ * An empty value is a value here: how many rows have none is among them.
+ */
+export function topValuesLambda(rows: ValueSpecification, column: string, n: number = TOP_VALUES): Lambda {
+  return from(rows)
+    .groupBy([column], [agg(TOP_COUNT, lambda(['x'], lit.integer(1)), lambda(['y'], fn('count', variable('y'))))])
+    .sort([desc(TOP_COUNT), asc(column)])
+    .limit(n)
+    .lambda();
+}
+
+/** The top values read back off their question's rows (`table`), the column's values named `column`: thrown where a
+ *  count is none (AGENTS.md invariant 4). */
+export function topValuesOf(table: ResultTable, column: string): TopValue[] {
+  const values = table.columns.find((c) => c.name === column)?.values;
+  const counts = table.columns.find((c) => c.name === TOP_COUNT)?.values;
+  if (values === undefined || counts === undefined) throw new Error(`the top values' answer has no column ${values === undefined ? column : TOP_COUNT}`);
+  return counts.map((n, i) => {
+    if (n === null || !Number.isFinite(Number(n))) throw new Error(`the top values' answer has no count for its row ${i + 1}`);
+    return { value: values[i] ?? null, count: Number(n) };
+  });
 }
 
 /** Each pair's correlation's column: the two columns' places, never their names. */

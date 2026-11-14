@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlDdl;
@@ -857,6 +858,8 @@ final class DeephavenBatch {
             case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> false;
             case SqlExpr.WindowCall.Frame.Bound.Preceding p -> false;
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> false;
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding p -> false;
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing f -> true;
         };
     }
 
@@ -1059,6 +1062,9 @@ final class DeephavenBatch {
             case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> null;
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding i -> null;
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing i -> null;
+            // an offset the database computes is no fixed count of rows: refused by name (windowScale)
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> null;
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> null;
         };
     }
 
@@ -1085,6 +1091,8 @@ final class DeephavenBatch {
             case SqlExpr.WindowCall.Frame.Bound.Following f -> null;
             case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> null;
             case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> null;
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> null;
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> null;
         };
     }
 
@@ -1595,6 +1603,8 @@ final class DeephavenBatch {
                     + " source");
             case SqlSource.Pivot p -> throw new DialectCapability("a native pivot reached Deephaven: a pivot is a"
                     + " group of conditional aggregates there, not shaped from this node yet");
+            case SqlSource.GridReport g -> throw new DialectCapability("a grid's report (a dynamic pivot's keys)"
+                    + " reached Deephaven: no shape yet");
         };
     }
 

@@ -3,6 +3,8 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.builtin.Pure;
 import com.legend.compiler.element.type.Type;
 import com.legend.protocol.spec.AppliedFunction;
@@ -75,9 +77,38 @@ final class StaticFold {
 
     /** A bare type reference in expression position ({@code $col.type == Integer}): its path (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9,
      *  2026-10-20; {@code PlatformTypes.typeValuePath}), so two namesakes are two types; it prints its name. */
-    record TypeToken(String path) {
+    record TypeToken(String path, @com.legend.base.Nullable PackageableElementPtr node) {
+        /** A type a column's {@code .type} names: no node it was read from. */
+        TypeToken(String path) {
+            this(path, null);
+        }
+
         String simpleName() {
             return simple(path);
+        }
+
+        /** A type, wherever it was read from (2026-10-28: the node it reifies to is not part of what it is). */
+        @Override
+        public boolean equals(Object o) {
+            return o instanceof TypeToken t && t.path.equals(path);
+        }
+
+        @Override
+        public int hashCode() {
+            return path.hashCode();
+        }
+    }
+
+    /** An enumeration's value as spelled ({@code timeseries::Grain.month}): an option a call's argument named, compared by
+     *  its spelling alone (docs/WORLD_MAP.md: compare, never compute), so an {@code if} on it folds to the branch it names,
+     *  as a spelled string's does (2026-10-28: a function's options as enums, the type checker refusing a value the
+     *  enumeration has not). It reifies to the node it was read from, so a parameter bound to it and used whole
+     *  ({@code hash($digestHashType)}, an unrolled element) is written back as the argument was, never left unbound
+     *  (2026-10-28: the corpus's {@code extendWithDigestOnColumns} passes {@code HashType.MD5} to {@code hash}). */
+    record EnumToken(com.legend.protocol.spec.EnumValue node) {
+        /** Its enumeration, by path (two tokens are one value when the node's path and value are: EnumValue's equality). */
+        String enumeration() {
+            return node.fullPath();
         }
     }
 
@@ -97,6 +128,11 @@ final class StaticFold {
     }
 
     private ValueSpecification fold(ValueSpecification v, Map<String, Object> scope) {
+        // a table a generic call typed already, spliced into its body: folded where it was typed, kept as it is (the node
+        // its typing is found by, Typer.withPretyped)
+        if (typer.pretyped(v)) {
+            return v;
+        }
         // a lambda literal is an opaque VALUE to eval (a pair list of
         // accessors filters statically) but its body still FOLDS here
         ValueSpecification lit = v instanceof LambdaFunction ? null : reify(eval(v, scope));
@@ -136,6 +172,9 @@ final class StaticFold {
     /** Every function-valued helper call mentioning {@code pv}, replaced
      * by its raw expansion ({@link Typer#rawSchemaErasedExpansion}). */
     private ValueSpecification expandHelperCallsOver(ValueSpecification v, String pv) {
+        if (typer.pretyped(v)) {
+            return v;
+        }
         if (v instanceof AppliedFunction call && mentions(call, pv)
                 && typer.functionValuedHelperCall(call)) {
             ValueSpecification ex = typer.rawSchemaErasedExpansion(call);
@@ -214,11 +253,22 @@ final class StaticFold {
     /** THE callee a call may be inlined as: the one bodied candidate of the
      * call's arity — among the call's OWN candidates (the resolver's, or the
      * bare-name rule's), never a bare re-lookup — and not already on the
-     * fold's stack (a recursive program never terminates statically). */
+     * fold's stack (a recursive program never terminates statically). A
+     * function generic over relations is never one: it is expanded at its
+     * call by its own path (Overloads#inlineNormalized, docs/SEMANTICS_REGISTER.md
+     * S112), which renames its working columns and holds its declared return,
+     * and folds its body there (2026-10-27: a library function's call nested
+     * in another's body was inlined here, unrenamed, and met a caller's column). */
     private com.legend.compiler.element.@com.legend.base.Nullable TypedFunction bodiedCallee(AppliedFunction af) {
         List<com.legend.compiler.element.TypedFunction> bodied = new ArrayList<>();
         for (var f : typer.functionCandidates(af)) {
-            if (f.body().isPresent() && f.parameters().size() == af.parameters().size()) {
+            if (f.parameters().size() != af.parameters().size()) {
+                continue;
+            }
+            if (RelationGenerics.of(f)) {
+                return null;
+            }
+            if (f.body().isPresent()) {
                 bodied.add(f);
             }
         }
@@ -233,34 +283,50 @@ final class StaticFold {
         if (callee == null) {
             return null;
         }
+        // each argument the caller's: read in the caller's scope, never in the parameters bound before it
+        List<Object> given = new ArrayList<>(ps.size());
+        for (ValueSpecification p : ps) {
+            given.add(eval(p, scope));
+        }
+        if (given.stream().allMatch(Objects::isNull)) {
+            return null;
+        }
+        AlphaRename.Apart apart = apart(callee);
+        if (apart == null) {
+            return null;
+        }
         Map<String, Object> inner = new LinkedHashMap<>(scope);
         Map<String, ValueSpecification> subst = new LinkedHashMap<>();
-        boolean anyStatic = false;
         for (int i = 0; i < ps.size(); i++) {
-            String name = callee.parameters().get(i).name();
-            Object v = eval(ps.get(i), inner);
-            if (v != null) {
-                inner.put(name, v);
-                anyStatic = true;
+            String name = apart.parameters().get(i);
+            if (name == null) {
+                continue;   // a parameter the body never reads
+            }
+            if (given.get(i) != null) {
+                inner.put(name, given.get(i));
             } else {
-                inner.remove(name);
                 subst.put(name, fold(ps.get(i), scope));
             }
         }
-        if (!anyStatic) {
-            return null;
-        }
-        ValueSpecification single = singleBody(callee);
-        if (single == null) {
-            return null;
-        }
-        ValueSpecification body = SourceSubst.substitute(typer.alphaRename(single), subst);
+        ValueSpecification body = SourceSubst.substitute(apart.body(), subst);
         inlining.push(callee.id());
         try {
             return fold(body, inner);
         } finally {
             inlining.pop();
         }
+    }
+
+    /** The callee's body as one expression, its parameters and its binders renamed apart (each a fresh
+     *  {@code _nr<N>}, {@link AlphaRename#apart}): a caller's variable spelled as a parameter is never captured by that
+     *  parameter's binding (the second review, 2026-10-28: {@code swap(a, b)} calling {@code cat($b, $a)} answered
+     *  {@code y-y} inside a generic body, {@code y-x} outside it). Null when the body has non-let statements. */
+    private AlphaRename.@com.legend.base.Nullable Apart apart(com.legend.compiler.element.TypedFunction callee) {
+        ValueSpecification single = singleBody(callee);
+        if (single == null) {
+            return null;
+        }
+        return typer.renameApart(callee.parameters().stream().map(com.legend.compiler.element.TypedParameter::name).toList(), single);
     }
 
     /** The callee's body as ONE expression (its lets inlined through the shared
@@ -283,21 +349,28 @@ final class StaticFold {
         if (callee == null) {
             return null;
         }
-        Map<String, Object> inner = new LinkedHashMap<>(scope);
-        for (int i = 0; i < ps.size(); i++) {
-            Object v = eval(ps.get(i), inner);
+        // each argument read in the caller's scope (inlineUserCall's rule)
+        List<Object> given = new ArrayList<>(ps.size());
+        for (ValueSpecification p : ps) {
+            Object v = eval(p, scope);
             if (v == null) {
                 return null;
             }
-            inner.put(callee.parameters().get(i).name(), v);
+            given.add(v);
         }
-        ValueSpecification single = singleBody(callee);
-        if (single == null) {
+        AlphaRename.Apart apart = apart(callee);
+        if (apart == null) {
             return null;
+        }
+        Map<String, Object> inner = new LinkedHashMap<>(scope);
+        for (int i = 0; i < ps.size(); i++) {
+            if (apart.parameters().get(i) != null) {
+                inner.put(apart.parameters().get(i), given.get(i));
+            }
         }
         inlining.push(callee.id());
         try {
-            return eval(typer.alphaRename(single), inner);
+            return eval(apart.body(), inner);
         } finally {
             inlining.pop();
         }
@@ -308,6 +381,10 @@ final class StaticFold {
     // =====================================================================
 
     private @com.legend.base.Nullable Object eval(ValueSpecification v, Map<String, Object> scope) {
+        // a typed table is no static value: its columns are its typing's (relationColumns)
+        if (typer.pretyped(v)) {
+            return null;
+        }
         if (v instanceof LambdaFunction) {
             // a lambda LITERAL is an opaque static value: a pair list of
             // (type, accessor lambda) filters statically to the one
@@ -332,7 +409,8 @@ final class StaticFold {
                 yield out;
             }
             case PackageableElementPtr p -> new TypeToken(
-                    com.legend.compiler.element.type.PlatformTypes.typeValuePath(p.fullPath()));
+                    com.legend.compiler.element.type.PlatformTypes.typeValuePath(p.fullPath()), p);
+            case com.legend.protocol.spec.EnumValue ev -> new EnumToken(ev);
             case AppliedProperty ap -> evalProperty(ap, scope);
             case AppliedFunction af -> evalCall(af, scope);
             default -> null;
@@ -792,7 +870,14 @@ final class StaticFold {
         };
     }
 
-    private static Boolean staticEquals(Object a, Object b) {
+    /** Two static values compared. An enumeration's value equals only itself (an EnumToken's equality), so against a
+     *  string or another enumeration's value it is false, as legend-pure answers and as a query's spelled comparison
+     *  does (the user, 2026-10-30, S169: {@code LiteralUnroll.neverEqual}); the fold had left those to the database,
+     *  which compared the value's name, since the second review of 2026-10-28 held a body and a query to one answer. */
+    private static @com.legend.base.Nullable Boolean staticEquals(Object a, Object b) {
+        if (a instanceof EnumToken || b instanceof EnumToken) {
+            return a.equals(b);
+        }
         if (a instanceof TypeToken ta && b instanceof TypeToken tb) {
             return ta.path().equals(tb.path());
         }
@@ -840,6 +925,11 @@ final class StaticFold {
                 yield new PureCollection(vs);
             }
             case LambdaFunction lf -> lf;
+            case EnumToken t -> t.node();
+            // a type, or a function by its reference, as it was written (the second review, 2026-10-28: a function
+            // a helper was given and evaluates, $f->eval($s), was left unbound as an enumeration's value had been);
+            // a column's type was written nowhere, so its AST is kept
+            case TypeToken t -> t.node();
             case null, default -> null;
         };
     }

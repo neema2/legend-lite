@@ -37,10 +37,13 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, attrs: Attrs | 
   return el;
 }
 
+/** Whether a child is a list of children (Array.isArray narrows to a mutable unknown[]: json-unknown.ts). */
+const isChildren = (c: Child): c is readonly Child[] => Array.isArray(c);
+
 function append(el: Node, children: readonly Child[]): void {
   for (const c of children) {
     if (c === null || c === undefined || c === false) continue;
-    if (Array.isArray(c)) append(el, c);
+    if (isChildren(c)) append(el, c);
     else el.appendChild(typeof c === 'string' || typeof c === 'number' ? document.createTextNode(String(c)) : c as Node);
   }
 }

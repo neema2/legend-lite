@@ -2,15 +2,17 @@
 // imports nothing beyond web.ts, so install-web.ts can install the digest before any module that needs it loads.
 
 import { base64, fromBase64 } from './web.ts';
+import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
 
 /** What the host answers. Bytes cross as base64: an engine and its host share strings, not memory. */
 export interface HostCalls {
   /** One planner request (engine-client's planner-protocol.ts's Request, as JSON), answered as its Response (JSON). */
   planner(request: string): Promise<string>;
   /** One SQL statement run by the host's database: its result as an Arrow IPC stream, base64. */
-  query(sql: string): Promise<string>;
-  /** A file the database can read by `name` (DuckDB-WASM's registerFileBuffer): its bytes, base64. */
-  registerFile(name: string, bytes: string): Promise<void>;
+  query(sql: PlannedSql): Promise<string>;
+  /** One SQL statement run with its `?`s bound (`params`: their values, a JSON list) -- a write's step (an Output into a
+   *  table: table-output.ts), run in no read of the host's: its result as `query`'s. */
+  statement(sql: PlannedSql, params: string): Promise<string>;
   /** A digest (crypto.subtle.digest): the algorithm's name ('SHA-256', ...) and the data, base64; the digest, base64. */
   digest(algorithm: string, data: string): Promise<string>;
   /**

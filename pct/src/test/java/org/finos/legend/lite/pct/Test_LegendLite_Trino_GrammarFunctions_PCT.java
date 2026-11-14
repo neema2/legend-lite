@@ -47,8 +47,8 @@ public class Test_LegendLite_Trino_GrammarFunctions_PCT extends PCTReportConfigu
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
             // NOTE 2026-10-20 (the parity phase): the instance tests whose unset property was a NULL of no type
             // unpinned -- the field takes the slot its builder declared (Trino.structLit)
-            // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
-            // table the system metamodel store's tables are the query's own rows, inline (PlanMaker.inlineRows)
+            // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- the system metamodel store's tables
+            // were the query's own rows, inline; since B4 (2026-11-11) it reads the process's in-process catalog
             // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.

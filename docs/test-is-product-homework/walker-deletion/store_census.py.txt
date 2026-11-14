@@ -1,0 +1,61 @@
+#!/usr/bin/env python3
+"""Per STATEMENT of a corpus-trace + dump-sql log: whether it names a metamodel table, a user table, or both
+(a table after FROM/JOIN/INTO/UPDATE/TABLE that is not a CTE the statement defines). Measurement, deciding nothing."""
+import sys, re, collections
+log = sys.argv[1]
+meta_re = re.compile(r'"?\bmetamodel"?\s*\.\s*"?([A-Za-z_]+)', re.I)
+tab_re = re.compile(r'\b(?:from|join|into|update|table)\s+(?:if\s+(?:not\s+)?exists\s+)?((?:"[^"]+"|[A-Za-z_][\w$]*)(?:\s*\.\s*(?:"[^"]+"|[A-Za-z_][\w$]*))*)', re.I)
+cte_re = re.compile(r'(?:\bwith\b(?:\s+recursive)?|,)\s*("?[A-Za-z_][\w$]*"?)\s+as\s*\(', re.I)
+skip = {'dual', 'unnest', 'values', 'lateral', 'generate_series', 'range', 'json_each', 'read_csv'}
+def classify(text):
+    t = text
+    metas = set(m.lower() for m in meta_re.findall(t))
+    ctes = set(c.strip('"').lower() for c in cte_re.findall(t))
+    users = set()
+    for m in tab_re.findall(t):
+        name = m.strip()
+        if name.startswith('('):
+            continue
+        low = re.sub(r'\s+', '', name).replace('"', '').lower()
+        if low.startswith('metamodel.'):
+            continue
+        base = low.split('.')[-1]
+        if base in ctes or low in ctes or base in skip:
+            continue
+        users.add(low)
+    return metas, users
+cur = None; origin = None; text = []
+rows = []
+def flush():
+    if cur is None or origin is None:
+        return
+    s = '\n'.join(text)
+    metas, users = classify(s)
+    rows.append((cur, origin, bool(metas), bool(users), sorted(metas), sorted(users), s[:300].replace('\n', ' ')))
+for line in open(log, errors='replace'):
+    m = re.match(r'\[corpus2\] run (\S+)', line)
+    if m:
+        flush(); origin, text = None, []; cur = m.group(1); continue
+    m = re.match(r'\[sql:([a-z_]+)\] (.*)', line)
+    if m:
+        flush(); origin, text = m.group(1), [m.group(2)]; continue
+    if line.startswith('[') or line.startswith('INFO') or line.startswith('Picked up'):
+        flush(); origin, text = None, []; continue
+    if origin is not None:
+        text.append(line.rstrip('\n'))
+flush()
+c = collections.Counter((r[2], r[3]) for r in rows)
+print('statements', len(rows), 'meta-only', c[(True, False)], 'user-only', c[(False, True)], 'BOTH', c[(True, True)],
+      'neither', c[(False, False)])
+bodies = collections.defaultdict(lambda: [0, 0, 0])
+for r in rows:
+    b = bodies[r[0]]
+    if r[2] and r[3]: b[2] += 1
+    elif r[2]: b[0] += 1
+    elif r[3]: b[1] += 1
+print('bodies', len(bodies), 'with a meta statement', sum(1 for b in bodies.values() if b[0] or b[2]),
+      'with meta and user statements', sum(1 for b in bodies.values() if (b[0] or b[2]) and (b[1] or b[2])),
+      'with a BOTH statement', sum(1 for b in bodies.values() if b[2]))
+for r in rows:
+    if r[2] and r[3]:
+        print('BOTH', r[0], r[1], r[4], r[5], r[6][:220])

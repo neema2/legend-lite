@@ -96,7 +96,9 @@ class CoreLayeringTest {
             }
             s = s.replaceFirst("^//core:", "")
                     .replaceFirst("^//base(:base)?$", "base")
-                    .replaceFirst("^//json(:json)?$", "json");
+                    .replaceFirst("^//json(:json)?$", "json")
+                    // track A, 2026-10-29: the Arrow IPC framer, the third module below core
+                    .replaceFirst("^//arrow_ipc(:arrow_ipc)?$", "arrow_ipc");
             out.add(s);
         }
         return String.join(" ", out);

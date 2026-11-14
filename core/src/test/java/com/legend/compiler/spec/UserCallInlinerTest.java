@@ -1,9 +1,9 @@
 package com.legend.compiler.spec;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -72,13 +72,13 @@ class UserCallInlinerTest {
         conn.close();
     }
 
-    private ExecutionResult run(String query) throws SQLException {
-        return Execution.execute(MODEL, query, "m::RT", conn);
+    private Lean.Result run(String query) throws SQLException {
+        return Lean.run(MODEL, query, "m::RT", conn);
     }
 
-    private java.util.List<?> col(ExecutionResult r) {
-        return ((ExecutionResult.Tabular) r).rows().stream()
-                .map(row -> row.values().get(0)).toList();
+    private java.util.List<?> col(Lean.Result r) {
+        return r.rows().stream()
+                .map(row -> row.get(0)).toList();
     }
 
     @Test
@@ -215,9 +215,9 @@ class UserCallInlinerTest {
         assertTrue(String.valueOf(call.getMessage()).contains("m::sq")
                 && call.getMessage().contains("TypedUserCall"), call.getMessage());
         // read once, or drawn where it is written, it stands
-        assertEquals(true, ((ExecutionResult.Scalar) run("|let r = random(); $r < 1.0;")).value());
+        assertEquals(true, run("|let r = random(); $r < 1.0;").one());
         assertEquals(java.util.List.of(true, true, true),
                 col(run("m::Person.all()->project(~[v: p | m::once(random()) < 2.0])")));
-        assertEquals(true, ((ExecutionResult.Scalar) run("|random() < 1.0")).value());
+        assertEquals(true, run("|random() < 1.0").one());
     }
 }

@@ -160,7 +160,7 @@ def _chains(c: model.Corpus, root: str, seeded: set[str], depth: int = 3):
             # the depth it reaches. So the exclusion is per-END rather than per-root.
             inherited = _inherited_ends(c, cls)
             for (owner, name), end in c.ends.items():
-                if owner != cls or end.to_many or not end.join:
+                if owner != cls or end.to_many or not model.walked(c, end):
                     continue
                 if name in inherited:
                     continue
@@ -233,7 +233,28 @@ def _unique_aliases(projections: list[Proj]) -> list[Proj]:
     return out
 
 
-def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
+def build(c: model.Corpus, seeded: set[str], tables) -> list[Spec]:
+    """The dense services, each filter comparing against a value of its column and each limit
+    cutting rows (the improvement plan's Phase 2, selective.py)."""
+    import selective
+
+    specs = _build(c, seeded)
+    for spec in specs:
+        selective.tune(c, spec, tables)
+    return specs
+
+
+def spine_targets(c: model.Corpus, seeded: set[str], tables) -> list:
+    """Every navigated column a dense service projects: spines.py gives each paths that arrive,
+    so a service that reads four chains reads four values."""
+    import spines
+
+    return [spines.Target(s.root, tuple(p.path), s.as_of, s.short, filtered=False)
+            for s in _build(c, seeded)
+            for p in s.projections if len(p.path) > 1 and not p.agg and not p.func]
+
+
+def _build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
     """Generated services must DIFFER from one another, not merely exist.
 
     The first version of this emitted four services whose navigation was identical --
@@ -340,14 +361,15 @@ def build(c: model.Corpus, seeded: set[str]) -> list[Spec]:
             # chosen to exclude nothing, which exercises the predicate path but asserts
             # nothing about what a predicate does.
             #
-            # And it agrees with the engine on NULLs, where `!=` does not. F28 makes `!=`
-            # keep a row whose operand is NULL while `==` and `>` exclude it; once the
-            # seeder nulled every nullable column, thirty of these services diverged at once
-            # for that one reason. F28 is pinned deliberately by CB_NotEqualsNull and its
-            # two passing companions, and by repro/not-equals-null/ -- so this is the same
-            # split aggregates.py makes around F6, not a defect being routed around:
-            # tangled together one defect blocks all the coverage, separated it blocks only
-            # the part it actually affects.
+            # And it drops the NULL rows, where `!=` would keep them: Pure compares an
+            # absent value as false and `!=` as true (oracle._cmp). Once the seeder nulled
+            # every nullable column, thirty of these services diverged at once on that rule
+            # while the oracle read `!=` as SQL does (F28, withdrawn 2026-10-23). The rule is
+            # pinned by CB_NotEqualsNull and its two companions and by the typed services
+            # (literals.py); these keep to `>`, the split aggregates.py makes around F6.
+            #
+            # Written as the guard; build() then compares against a value of the column
+            # instead, so the filter also drops some present rows (selective.py, decision D5).
             spec.filters = [Pred([scalar], ">", " ")]
             features.add("queryFilter")
         query.apply_temporal(c, spec)

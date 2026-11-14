@@ -1,8 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -32,10 +32,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * </pre>
  */
 @DisplayName("JSON Source M2M Chain Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class JsonM2MChainIntegrationTest {
 
     private Connection conn;
-    private final QueryService qs = new QueryService();
 
     // ==================== JSON Data ====================
 
@@ -344,7 +344,7 @@ class JsonM2MChainIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -354,24 +354,27 @@ class JsonM2MChainIntegrationTest {
 
     // ==================== Helpers ====================
 
-    private ExecutionResult exec(String model, String runtime, String query) throws SQLException {
-        return qs.execute(model, query, runtime, conn);
+    /** The directories a {@code file:} source may read (L6: a pointer, admitted by the run): the file-source cases'. */
+    private com.legend.exec.SourceAdmission admitted = com.legend.exec.SourceAdmission.none();
+
+    private Lean.Result exec(String model, String runtime, String query) throws SQLException {
+        return Lean.run(model, query, runtime, conn, admitted);
     }
 
     private String execGraph(String model, String runtime, String query) throws SQLException {
         var result = exec(model, runtime, query);
-        assertInstanceOf(ExecutionResult.Graph.class, result);
-        return result.asGraph().json();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+        return result.json();
     }
 
-    private List<String> col(ExecutionResult r, int idx) {
+    private List<String> col(Lean.Result r, int idx) {
         return r.rows().stream()
                 .map(row -> row.get(idx) != null ? row.get(idx).toString() : null)
                 .collect(Collectors.toList());
     }
 
     // shorthand for chain model
-    private ExecutionResult exec(String query) throws SQLException {
+    private Lean.Result exec(String query) throws SQLException {
         return exec(CHAIN_MODEL, "test::ChainRT", query);
     }
 
@@ -958,6 +961,9 @@ class JsonM2MChainIntegrationTest {
             var url = getClass().getClassLoader().getResource(resourcePath);
             assertNotNull(url, resourcePath + " must be on classpath");
             if ("file".equals(url.getProtocol())) {
+                // the run admits the file's directory, as a test admits its resource roots
+                admitted = com.legend.exec.SourceAdmission.of(java.nio.file.Path.of(java.net.URI.create(url.toString()))
+                        .getParent());
                 return url.toString();
             }
             // Packaged as a jar entry (Bazel packs test resources into the test
@@ -972,6 +978,7 @@ class JsonM2MChainIntegrationTest {
                 java.nio.file.Files.copy(in, file);
                 file.toFile().deleteOnExit();
                 dir.toFile().deleteOnExit();
+                admitted = com.legend.exec.SourceAdmission.of(dir);
                 return file.toUri().toString();
             } catch (java.io.IOException e) {
                 throw new java.io.UncheckedIOException(e);
@@ -1120,6 +1127,19 @@ class JsonM2MChainIntegrationTest {
             var names = col(r, 0);
             assertTrue(names.contains("ALICE SMITH"));
             assertTrue(names.contains("CAROL WHITE"));
+        }
+
+        /** A run that admits no directory reads no file (L6, the user's ruling of 2026-11-10: a source is a pointer, its
+         *  guard the run's admission): refused by name, never read. */
+        @Test
+        @DisplayName("File source: a run admitting nothing refuses the file by name")
+        void aRunAdmittingNothingRefusesTheFile() {
+            String model = fileModel("test-data/persons-ndjson.txt");
+            admitted = com.legend.exec.SourceAdmission.none();
+            var e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class, () -> exec(model,
+                    "test::FileRT", "model::StaffMember.all()->project(~[fullName:x|$x.fullName])"));
+            assertTrue(String.valueOf(e.getMessage()).contains("is not a file this run admits"),
+                    e.getMessage());
         }
 
         // ---------- NDJSON (newline-delimited) ----------

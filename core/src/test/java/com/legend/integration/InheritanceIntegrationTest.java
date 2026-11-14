@@ -1,8 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -19,6 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * for queries that access inherited properties.
  */
 @DisplayName("Class Inheritance Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class InheritanceIntegrationTest {
 
     /**
@@ -31,7 +32,6 @@ class InheritanceIntegrationTest {
     class EndToEndTests {
 
         private Connection connection;
-        private QueryService queryService;
 
         /**
          * Complete Pure model with inheritance hierarchy:
@@ -129,8 +129,7 @@ class InheritanceIntegrationTest {
 
         @BeforeEach
         void setUp() throws Exception {
-            connection = TestBackends.platform().open();
-            queryService = new QueryService();
+            connection = LaneFloor.backend().open();
 
             // Create table with all columns (including inherited)
             try (Statement stmt = connection.createStatement()) {
@@ -160,8 +159,8 @@ class InheritanceIntegrationTest {
             }
         }
 
-        private ExecutionResult executeQuery(String pureQuery) throws SQLException {
-            return queryService.execute(
+        private Lean.Result executeQuery(String pureQuery) throws SQLException {
+            return Lean.run(
                     INHERITANCE_MODEL,
                     pureQuery,
                     "test::TestRuntime",
@@ -285,7 +284,7 @@ class InheritanceIntegrationTest {
                     "SQL should contain filter value");
         }
 
-        private int findColumnIndex(ExecutionResult result, String columnName) {
+        private int findColumnIndex(Lean.Result result, String columnName) {
             for (int i = 0; i < result.columns().size(); i++) {
                 if (result.columns().get(i).name().equals(columnName)) {
                     return i;

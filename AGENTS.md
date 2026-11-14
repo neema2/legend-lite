@@ -2,6 +2,21 @@
 
 > **This file is read by AI coding assistants. Follow these rules strictly.**
 >
+> **The goals of record (ratified by the user, 2026-11-07): `docs/GOALS_OF_RECORD_2026_11_07.md`.
+> Read it before reopening any "where does this live / may this run here" debate.**
+> - **G1 One road:** one compiler, one planner, one exec. No walk, no second evaluator.
+> - **G2 Judge parity:** the host and database judges reach the same verdict everywhere.
+> - **G3 A lean product path:** typed values matched by type and value, lean SQL, fast exec.
+> - **G4 Provable separation:** plan only plans, exec only execs, judge and driver included.
+>   - The plan is SQL and data only, never Java and never stuffed to dodge the rule.
+>   - Exec runs only the plan's statements.
+>   - It is proven at run time (`RunScope`) and at compile time (ArchUnit).
+> - **G5 Compatibility at the edge:** contained, one direction (the edge depends on the product, never the reverse).
+> - **G6 The database does the work.** Small Java formatting, the appeals and the referee are allowed only at the edge.
+>
+> G7-G11 were accepted by the user (2026-11-07): no fallbacks, ledgered fidelity, a guard for every goal, determinism,
+> and the plan as portable data.
+>
 > **North-star tenet:** *Total Knowledge, Demand-Driven Work* — be eager and
 > total about Knowledge (parse/index/manifest), lazy about Work (type-check
 > bodies, lower, SQL, execute). See `docs/TENETS.md` before any "lazy vs
@@ -24,7 +39,33 @@
 > mechanical, with known limits (guards catch drift, not adversaries —
 > the audit's §3): `JavaEvalLedgerTest` (shrink-only pins on the
 > registered residue), `ArchitectureTest.javaSqlIsFunnelledToTheCharteredSeam`
-> (JDBC only at the chartered seams) and
+> (JDBC and the drivers only in the JDBC census's registered classes: one
+> list with `JdbcSurfaceCensusTest.REGISTER`, each class pinned to the acts
+> it may perform -- opens, checks, sends, loads, decodes, transacts, closes
+> -- and no `java.sql` or driver type in a public signature outside `exec`,
+> `noJdbcTypeInAPublicSignatureOutsideTheSeam`; D69, 2026-10-30; a session
+> is made by `exec` alone -- its connection the seam's, its state its own --
+> `onlyTheSeamMakesSessions`, D70, 2026-10-30; the judges and the
+> probes are planning-side work the runtime does not carry --
+> `com.legend.judge` and the driver (the root until step C), D71,
+> 2026-10-30 -- and THE WALL:
+> `exec` depends on no planning library: `//core:exec`'s deps are base,
+> json, the records (model, execution_plan, sql, values, result) and the
+> switchboards (cache, diagnostics, error), pinned by
+> `tools/deps/core-layers.txt`, and the class-level rule
+> `ArchitectureTest.execReachesNoPlanning` allows an exec class those
+> packages and no other of `com.legend` -- D72, 2026-10-30),
+> `ArchitectureTest.theRunnerIsTheOneCallerOfTheSessionsStatements` (every
+> statement a session runs is the plan runner's: the probes, the seeds,
+> the system store's rows, the plan path's and the server's held database's
+> seeds are plan setup steps it sends -- "the doors", 2026-10-29, and the
+> three routings, D65; a raise a MariaDB or MySQL session holds is read
+> back by the seam from the two statements the plan's target declares (C2,
+> 2026-11-12; the charter's A3(c)); in core's
+> main sources the seam `JdbcStatements` is the only JDBC sender (its
+> DuckDB bulk loader went with A2, 2026-11-10), the census's SENDS act -- the warehouse's server
+> and client, the datacube's Postgres tool and the test harnesses send
+> their own) and
 > `ArchitectureTest.theInterpreterPerformsNoJdbc` (the metamodel channel
 > cannot reach a connection — grid chains COMPILE to SQL at the exec
 > seam, `GridReads.tryLower`, scheduled for deletion by the
@@ -49,6 +90,19 @@
 > (violation)? Mechanical guard: `Runner.registerLibrarySource` refuses
 > `meta::pure::functions::` elements
 > (`LibraryPlatformNamespaceGuardTest`).
+>
+> **Upstream-fidelity tenet (the user, 2026-10-29):** wherever possible,
+> lite does EXACTLY what legend-pure and legend-engine do. Every decision
+> -- a spelling, an outcome, an error, a type, a rule -- is settled by one
+> question, asked first: "can we do exactly as pure/engine does?" Where
+> exactness is too expensive, lite does the closest thing, and that
+> divergence is POSTED to the user before it lands (case by case: the
+> expression, upstream's answer, lite's) and LEDGERED as a row of
+> `docs/SEMANTICS_REGISTER.md`. Upstream's answer is READ from the pinned
+> sources or ASKED of the engine runner
+> (`docs/result-boundary-homework/README.md` §7), never recalled or
+> guessed. A divergence that is not a row is a defect; a row the user did
+> not rule is a defect too.
 >
 > **World-map tenet — ratified 2026-09-03 (`docs/WORLD_MAP.md`,
 > `docs/TENET_CHARTER.md` Clause 6):** Pure code is NATIVES (one Java SQL
@@ -113,7 +167,8 @@ text                                                             [FRONTEND]
                                                                  [BACKEND]
   J  sql/dialect/      SqlDialect.render              SqlQuery → SQL string
                                                                  [RUNTIME]
-  K  exec/             Executor.execute               SQL + JDBC → ExecutionResult
+  K  exec/             PlanRunner.stream              a plan + a session → typed rows to a sink
+                       result/                        (the writers spell each cell at the boundary)
 ```
 
 **G½ runs on every execution path** — do not omit it when reasoning about the
@@ -134,16 +189,32 @@ user-visible error carries one of these eight.
 | `Compiler.compileErrors(String)` | A→F, then eager G over all bodies: a whole model | its errors as a list: the first element error alone, else every body's; both `compilation/compile` routes answer from it |
 | `Compiler.query(ctx, query)` | names + G, typed once → `TypedQuery` | STRICT |
 | `TypedQuery.plan(runtime)` | G½ → J (also `.lower`, `.resultType`, `.expression`, `.target`) | STRICT — **the production seam** |
-| `Execution.execute(...)` | A→K | STRICT — **the production seam** |
-| `Execution.executeResolved(...)` | G½→K, the one back-half sequence | STRICT |
+| `Execution.run(...)` | A→K: the query planned by its one planning entry (`TypedQuery.executionPlan`), the plan run by exec's product run (`ProductRun`), its rows written in the caller's `Output` (a format and a stream, data: the result library makes the writer from the plan; 2026-11-09); `Execution.runOnProjectDatabases` is the server's (pure/v1's execute) | STRICT — **the production seam** |
+| `TestExecution.runProgram(...)` | a TEST BODY planned whole by the test planner (`testplan/TestPlanner`; `testplan/BodyClass` names its class) into a test plan, which is data, and run by the test runner (`testexec/TestRunner`), its asserts judged at their verdict steps; a body the program road does not plan is refused by name (the walk was deleted 2026-11-06); the verdicts to a listener, the last statement's answer written in the caller's `Output` (data, the writer the result library's). Its halves `planBody`/`runBody` let a caller run a package's setups (`runFixture`) before a body; no fixture is provided between a body's halves (2026-11-10, census M9) | STRICT |
+
+The old door (`Execution.execute*`, `executeResolved`, the query service's materialized `execute`, a materialized
+`ExecutionResult` as a product answer) was deleted 2026-10-29 (the result boundary program's track D): a product
+answer is a plan, written at the boundary; `docs/result-boundary-homework/probes/oldpath_census.py.txt` reads zero on every
+old-door symbol (two named residues remain by the user's question D51 and by a shared name: `Fold.conformValueEgress`,
+and MariaDB's own `floatLayout` literal helper; the Z audit, 2026-10-29).
 
 `compileModel` and `buildModule` differ by **one argument**:
 `NameResolver.resolve(parsed)` vs `resolve(parsed, walls)`. If you want every
 error rather than the first, you want `buildModule`.
 
-`StatementExecutor` is **package-private by design** — reachable only through
-`Execution.executeResolved`. The driver never re-implements a step; the
-executor never decides pipeline order.
+**The driver and judge packages are deleted (slice 5, 2026-11-09, docs/PLAN_AS_DATA_2026_11_07.md section 11).** A
+test body is planned by `testplan/` (`TestPlanner`: the body's class, `BodyClass`; each assert planned by its judge's
+planner, `HostAsserts`, `DatabaseAsserts`, `AgreementAsserts`; `BodyDriver` is what remains of the body's planning
+environment) into a test plan, which is data (`testexecutionplan/`), and the plan is run by `testexec/` (`TestRunner`:
+exec's program runner with the judges as its callback), which reaches no planning library. **The walk is deleted
+(2026-11-06)**; a body no class admits, or whose judge's planner refuses an assert, is refused by name
+(`NotImplementedException: the program road does not plan this body`, with its kinds and the class rule's reason).
+The root package holds the public doors alone: `Compiler`, `TypedQuery`, `HeldModels` (the plan side, `//core:planner`),
+`Execution` (the product's door, `//core:execution`) and `TestExecution`, `ExecuteOptions` (the test body's door,
+`//core:test_execution`); each door mints its run's one execution id (C's final audit, 2026-11-12); beside the doors, only the server's two host routes mint one, `PureV1Api.arrowPlan` and `jsonPlan`, for the run a host performs, which `jsonAnswer` reads back (`ArchitectureTest.theServersMintsAreItsHostDoorsAlone`; the final full audit, 2026-11-12). Each door method is one planning call and one run call (`ArchitectureTest.theDoorsOnlyCompose`,
+`JavaEvalLedgerTest.theDoorsHoldNoLogic`); only the test door sees both halves of a test (`onlyTheDoorSeesBothHalves`),
+and a class above the doors reaches each side through its public types alone (`onlyTheDoorsCompose`). The planner depends
+on no execution class (`plannerIsExecutionFree`).
 
 ## Layer ownership (the contract)
 
@@ -158,7 +229,8 @@ executor never decides pipeline order.
 | **StoreResolver** | logical `TypedSpec` → physical | re-running type checks |
 | **Lowerer** | `TypedSpec` → `SqlQuery` | naming SQL functions; SQL syntax; importing a dialect; any `String` field encoding a SQL operation |
 | **SqlDialect** | `SqlQuery` → SQL string | inferring types; rewriting HIR; consulting the model |
-| **Executor** | SQL + JDBC → `ExecutionResult` | everything above |
+| **PlanRunner / the writers** | a plan + a session → typed rows; a cell's text at the boundary (`result/`) | everything above; a writer decides nothing (`WriterCarriageGuardTest`) |
+| **The judges** (`judge/`, D71 2026-10-30) | a test body's verdict over typed rows: the host lattice, the grid compare, the canonical instruments, the referee, the verdict batch | sending a statement; reaching a connection; a product query's path (reachable from the verdict seam alone: `hostVerdictIsReachableOnlyFromTheVerdictSeam`) |
 
 ## Invariants
 
@@ -226,11 +298,27 @@ writer (so its dispatching switch stays an expression javac checks, below) — n
 pastes (a piece pasted twice would carry its parameter once); a method that only spells a name, a literal or a type
 returns its text; a helper that wraps SQL it does not build takes or returns a `SqlWriter.Piece`, never that SQL's
 text. E is complete (2026-10-09): every dialect writes all of a query, and DML's rows, into the writer; DDL spells only
-names, types and keywords, so it is text. Never edit rendered SQL after it is written — but for one designed hole
-(2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, step 3): where a plan's placeholder takes the type of its
-value's literal (H2 types a placeholder when it prepares it; a date-time on every database), the dialect writes no type
-at a place the writer records (`SqlWriter.typeHole`), and the runner writes there, before it prepares the statement,
-the type the plan's own spelling table gives the value's kind; the value itself is bound, never written. The legacy engine-text printer
+names, types and keywords, so it is text. Never edit rendered SQL after it is written, at planning or at run: the
+runner sends a plan's text as it is. Exec may do THREE things beyond that, and nothing else (`docs/TENET_CHARTER.md`
+A3 says what and why; the user ratified the list, 2026-11-12):
+(a) **keyed regions**: a dynamic pivot's columns are data, so the runner writes the plan's fragment once per key read
+by the plan's first statement, each copy's key BOUND (`PlanRunner.expand`; the hosts' `expandKeyed`);
+(b) **planned branches**: a test body's `if` whose sides hold asserts -- the database computes the Boolean, the runner
+sends the named side's planned statements and never the other (a product `if` stays the database's `CASE`);
+(c) **declared read-backs**: statements the plan's target declares, sent as written -- MariaDB's and MySQL's raised
+error (a SELECT cannot raise our text there: `SIGNAL` runs only in a stored program, so the message waits in
+`@legend_raise` and is read back after the failure, `SqlDialect.raiseReadBack`; D4, C2), and H2's settings, which the
+DATABASE compares on a session lite did not open (`JdbcStatements.verifySettings`). A bound parameter is not an
+exception. The per-execution trace comment `JdbcStatements.stamped`
+wrote at run (D3) went with C1, 2026-11-12: the execution id is a bound value, S304. It is proven by type: a session's
+statements take a `PlannedSql` and no `String`, minted only where a plan is read and by `expand`
+(`ArchitectureTest.onlyThePlansReadersMintPlannedSql`, `aSessionsStatementsTakeNoText`; the C checkpoint's MUST-FIX 1,
+2026-11-12), and witnessed at run on every road (`SentStatementsAreThePlansTest`; MongoDB's command,
+`MongoDbPlanTest.theCommandSentIsThePlans_itsParametersBoundByTheLet`).
+A run-time parameter's placeholder is typed by its DECLARED Pure type when the plan
+is made, per database, as upstream's database extension writes its template (D1 of docs/GOALS_OF_RECORD_2026_11_07.md;
+`SqlDialect`'s `parameterType`, a date or date-time bound as its text); the type hole that let the runner write a
+value's type into the statement was deleted 2026-11-09 (the total wall's M2, P4). The legacy engine-text printer
 (`EngineStyleH2`, the backwards-compatibility mode) writes legend-engine's own spellings directly — lowercase keywords and
 function names through the `keyword` and `aggregateName` hooks, `listagg ... within group` — and its one text step is
 legend-engine's own: a rendered column quoted into a FreeMarker template argument (each `'` as `\'`).
@@ -241,7 +329,8 @@ legend-engine's own: a rendered column quoted into a FreeMarker template argumen
 
 Dialects: `AnsiSqlRenderer` → `DuckDb`, `Postgres`, `SQLite`, `MariaDb` (→ `MySql`), `Trino`,
 `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`, `MongoDb` (whose text is an aggregation pipeline, not SQL:
-docs/MONGODB_PLAN_2026_10_16.md); `H2` → `H2Modern`; `EngineStyleH2` →
+docs/MONGODB_PLAN_2026_10_16.md); `H2` (lite's one H2, 2.5.252; `H2Modern`, the second dialect a server's version
+chose, went 2026-11-05 with every plan's server versions); `EngineStyleH2` →
 `EngineStyleDB2` → `EngineStyleComposite`. `com.legend.database.Databases` constructs the
 one a declared database type runs on.
 
@@ -365,12 +454,18 @@ otherwise, which is how it drifted:
 
 | Doc | What it is |
 |---|---|
+| `docs/TOTAL_WALL_START_HERE_2026_11_11.md` | **Start here for the total-wall program** (branch `claude/total-wall`, the user's go of 2026-11-11): total plan/exec separation, phases A-F, then ONE PR. The orchestrator's handoff: every ruling, the state, what remains in order, the runbook (fast loop, lane rounds, audits, checkpoints), the sessions, and the templates for a fresh worker, lane round and audit |
+| `docs/DATA_IN_THE_PLAN_2026_11_09.md` | **Data in the plan** (the user's go, 2026-11-09): data enters a database through a load and only a load -- a reference with a digest (never a machine path, never large rows), resolved, verified and delivered by exec, the delivery chosen at planning per database; today's 17 mechanisms each replaced and deleted (13) or bounded by a guard (4, not loads); the deletion census as the proof; slices L1-L8. Evidence: `docs/data-in-the-plan-homework/` |
+| `docs/PLAN_AS_DATA_2026_11_07.md` | **Start here for P1's remaining work** (branch `claude/corpus-walk-deletion`, the user's rulings of 2026-11-08): a test body's run reads only its plan, which is data; two plan types; the judgments, failures and connection description as plan data; the edge's typed extension point; exec as the one walker with a callback; no `driver` package (`testplan`/`testexec` beside `planner`/`exec`); the guards that prove no code is in the plan; the order of work and its verification |
+| `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` | **Start here for the test-is-the-product program** (branch `claude/wizardly-dirac-rw6tim-seam`, PR #83): the state on 2026-11-06, the user's rulings, the concepts (the program road, the three judges, the runtime and exec walls, channels A and B), the roadmap from PCT and core at 100% through the corpus, the walk's deletion, the special-casing audit and lean SQL, the measurements and the lessons |
 | `docs/build-inventory/program/START_HERE.md` | **Start here**: the build rebuild and the self-contained bump (the plan: `docs/REBUILD_PROGRAM_2026_10_06.md`) |
 | `docs/PLAN_PATH_PROGRAM_2026_10_17.md` | **The plan path program** (the user, 2026-10-17): everything executes through a plan -- the types in the plan, the text carrier, both judges, the callers switched, the legacy executor deleted; its §0 the rulings, §7 the order, §9 the status |
 | `docs/PLAN_AND_RESULT_MODEL_2026_10_18.md` | **The plan and the result** (ratified 2026-10-18): one plan record with three renderers, one result model that is a stream with sinks, per-row formatting, the typed session seam, the fast path's invariants; governs the program from step 7 |
-| `docs/RESULT_BOUNDARY_START_HERE.md` | **The result boundary program, start here** (handoff 2026-10-26): where everything is, the state, the rules, how to run every check, the cloud lanes, a brief per step, the traps; the plan itself is `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` (revision 2: the plan in plain words, rules R1 to R8 with guards, step 0 measures first, steps 1 to 8 each ending in a deletion, the rulings it waits on in its §8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md` |
+| `docs/RESULT_BOUNDARY_START_HERE.md` | **The result boundary program, start here** (rewritten 2026-10-28 for a session from any account): the whole remaining roadmap in order with a brief per item (stage 1's S1.4 to S1.6; tracks B the body runner, T core's tests as the LEAN twin of PCT and the corpus, C the corpus on plans, D the deletions, L mixed lists, A Arrow, F open findings), the state with every commit, the rules, how to run every check, how to raise the lanes, the traps, the user's rulings verbatim; its evidence is `docs/result-boundary-homework/` (the audit, the code maps, the measurements, every probe's source); the program and its rulings are `docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md` (§8); its design is `docs/RESULTS_AND_RENDERERS_2026_10_22.md` |
+| `docs/PLANNER_DRIVER_SEAM_PROGRAM_2026_10_30.md` | **The planner-driver seam program** (planned 2026-10-30, NOT ratified; the user rules on its §6 first): lite's execution model applied to the test body -- planned once as one `Sequence` the database executes, the verdict the database's (or the host judge's, D7), a shape the planner cannot know a step whose rows fill the next statement's regions (the `Keyed` pattern), the driver the runner plus the judges, the four probes retired shape by shape, step C's widenings reverted; its evidence `docs/planner-driver-seam-homework/` (the code measured; upstream read in the pinned sources as spec input, not as a model to copy) |
 | `docs/EXECUTION_PLAN_2026_09_26.md` | The compiler rebuild's plan (rev H4): **parked since 2026-10-04**, reference until the user resumes it |
 | `docs/SEMANTICS_REGISTER.md` | Every deliberate difference from the reference, with evidence |
+| `docs/CORE_SQL_SIZE_2026_11_04.md` | **Core's SQL size, measured** (the user's question, 2026-11-03): 85% of core's SQL is the system metamodel's seed re-sent per test; the metamodel queries' 84K statements are the generic lowering's (no metamodel special case in lowering or SQL); where the metamodel IS special; the H2 OOM; what to do once the walkers and doors are gone (the user's order) |
 | `docs/GATES.md` | The gate chain. **Read before claiming anything is green.** |
 | `docs/CLOUD_SESSIONS.md` | Bazel in a Claude Code cloud session: GitHub archives refused (`tools/cloud-distdir.sh`), the disk allowance, root |
 | `docs/ENGINEERING_LOG.md` | Standing tenets (its active queue is history; the plan above replaced it) |

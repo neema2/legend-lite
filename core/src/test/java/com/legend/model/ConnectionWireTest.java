@@ -5,7 +5,6 @@ package com.legend.model;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.executionplan.ExecutionPlan.Database;
-import com.legend.executionplan.ExecutionPlan.Servers;
 import com.legend.executionplan.ExecutionPlan.Sql;
 import com.legend.executionplan.ExecutionPlan.Target;
 import com.legend.executionplan.ExecutionPlan.TdsResult;
@@ -56,9 +55,9 @@ class ConnectionWireTest {
         for (DatabaseType type : DatabaseType.values()) {
             for (ConnectionSpecification spec : SPECIFICATIONS) {
                 for (AuthenticationSpec auth : AUTHENTICATIONS) {
-                    Target t = new Target(new Database.Declared(new ConnectionDefinition("store::Conn", "store::DB",
-                            type, spec, auth)), new Servers.Every(), List.of(), List.of());
-                    ExecutionPlan plan = new ExecutionPlan(List.of(), new TdsResult(List.of(),
+                    Target t = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",
+                            type, spec, auth)), null), List.of(), List.of(), null, null, null);
+                    ExecutionPlan plan = ExecutionPlan.reading(List.of(), new TdsResult(TdsResult.Shape.RELATION, List.of(),
                             new Sql("select 1", List.of(), t, null)));
                     assertEquals(plan, PlanJson.read(PlanJson.write(plan)), type + " / " + spec + " / " + auth);
                 }

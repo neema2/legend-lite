@@ -11,6 +11,7 @@ import gc
 import hashlib
 import json
 import os
+import re
 import sys
 import tempfile
 import threading
@@ -131,7 +132,7 @@ class Document(Paged):
     def test_a_page_is_datacubes_own_document_one_cube_per_grid_over_its_frame(self):
         page, grid, chart = self.built()
         doc = page.to_dict()
-        self.assertEqual((doc['kind'], doc['version'], doc['name']), ('datacube.page', 6, 'Q3 review'))
+        self.assertEqual((doc['kind'], doc['version'], doc['name']), ('datacube.page', 7, 'Q3 review'))
         cube = doc['cubes'][0]
         self.assertEqual(cube['id'], grid.id)
         self.assertEqual(cube['cube']['source']['_type'], 'frame')
@@ -816,7 +817,7 @@ class Document(Paged):
 
     def test_a_timeseries_tile_reads_many_grids_and_says_every_figure_in_datacubes_words(self):
         # DataCube's timeseries viewer (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of two grids along one time
-        # axis, each an expression in gs-quant's vocabulary read by DataCube's parser, by the commands its viewer sends
+        # axis, each a #TS expression in gs-quant's vocabulary read by core, by the commands its viewer sends
         # (addTimeseries, setTimeseries); each grid's date and instrument columns DataCube's to choose
         page = ll.Page('Markets')
         days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']).date
@@ -824,7 +825,7 @@ class Document(Paged):
         yields = pd.DataFrame({'tenor': ['10Y'] * 4, 'obs_date': days, 'yield': [4.0, 4.1, 3.9, 4.2]})
         px = page.grid(prices, name='prices')
         rates = page.grid(yields, name='rates')
-        tile = page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX]', 'rates:yield[10Y]', 'correlation($A, $B, 3)'],
+        tile = page.timeseries({'px': px, 'rates': rates}, ["px.close['SPX']", "rates.yield['10Y']", "correlation(A, B, w => 3)"],
                                range={'last': '1y'})
         self.assertEqual(tile.id, 'timeseries-1')
         self.assertIn(tile, page.timeseries_tiles)
@@ -832,19 +833,23 @@ class Document(Paged):
         self.assertEqual([(s['alias'], s['cube'], s['date'], s.get('key')) for s in tile.spec['sources']],
                          [('px', px.id, 'day', 'symbol'), ('rates', rates.id, 'obs_date', 'tenor')])
         self.assertEqual([s['id'] for s in tile.series], ['A', 'B', 'C'])
-        self.assertEqual(tile.series[2]['expr'], {'kind': 'call', 'fn': 'correlation', 'args': [
-            {'kind': 'ref', 'series': 'A'}, {'kind': 'ref', 'series': 'B'}], 'params': {'w': 3}})
-        tile.plot('volatility($A, 2)', pane=1, name='SPX vol')
+        # each series its #TS text as core prints it (A3 step 3: DataCube keeps the text, core reads it)
+        self.assertEqual(tile.series[2]['text'], 'correlation(A, B, w => 3)')
+        tile.plot("volatility(A, w => 2, type => 'simple')", pane=1, name='SPX vol')
         self.assertEqual(tile.series[-1]['id'], 'D')
         tile.options(view={'compare': 'rebase'}, grain='week')
         self.assertEqual((tile.spec['view'], tile.spec['grain']), ({'compare': 'rebase'}, 'week'))
         tile.unplot('D')
         self.assertEqual(len(tile.series), 3)
-        # refused in DataCube's words: what its parser cannot read, what DataCube does not compute, a word it has not
+        # refused in DataCube's words: what core cannot read, what DataCube does not compute, a word it has not
         with self.assertRaisesRegex(ValueError, r'series D: there is no function vola'):
-            tile.plot('vola($A)')
-        with self.assertRaisesRegex(ValueError, 'recursion'):
-            tile.plot('macd($A)')
+            tile.plot("vola(A)")
+        with self.assertRaisesRegex(ValueError, 'an iterative procedure'):
+            tile.plot("smooth_outliers(A)")
+        with self.assertRaisesRegex(ValueError, r'series D: .*line 1'):
+            tile.plot("vola(A")
+        with self.assertRaisesRegex(ValueError, "a series' formula is its #TS text now"):
+            page.timeseries({'px': px}, [{'expr': 'close'}])
         with self.assertRaisesRegex(ValueError, 'frequency "hour"'):
             tile.options(grain='hour')
         # its values, every figure the database's (headless timeseriesQuery, the viewer's own queries): a grid's series,
@@ -856,6 +861,8 @@ class Document(Paged):
         tile.options(view=None, grain=None)
         a = tile.frame('A')
         self.assertEqual(list(a.columns), ['A'])
+        # none named: the tile's first, by DataCube's rule (headless seriesOf), its answer naming it (the review's §9 A)
+        self.assertTrue(tile.frame().equals(a), 'its first series, A')
         self.assertEqual([d.strftime('%Y-%m-%d') for d in a.index], ['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05'])
         self.assertEqual(list(a['A']), [100.0, 101.0, 99.5, 102.0])
         both = tile.frame('C')
@@ -867,13 +874,13 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'has no series Z'):
             tile.frame('Z')
         # a candle per week: its first, highest, lowest and last close, each the database's
-        candles = page.timeseries({'px': px}, ['ohlc(close[SPX], close[SPX], close[SPX], close[SPX])'], grain='week')
+        candles = page.timeseries({'px': px}, ["ohlc(close['SPX'], close['SPX'], close['SPX'], close['SPX'])"], grain='week')
         week = candles.frame()
         self.assertEqual((list(week.columns), week.iloc[0].tolist()), (['open', 'high', 'low', 'close'], [100.0, 102.0, 99.5, 102.0]))
         page.remove(candles)
         # a grid's own: its date and instrument columns chosen, its first series a line per instrument
         alone = px.timeseries()
-        self.assertEqual(alone.series, [{'id': 'A', 'expr': {'kind': 'column', 'column': 'close'}, 'split': 'symbol'}])
+        self.assertEqual(alone.series, [{'id': 'A', 'text': 'close', 'split': 'symbol'}])
         # a price per instrument compared from 100, as the screen's Create ▸ Timeseries makes it (timeseries-expr.ts
         # firstPlot); a column per instrument, every one 100 at its first date
         self.assertEqual(alone.spec['view'], {'compare': 'rebase'})
@@ -885,6 +892,442 @@ class Document(Paged):
         page.remove(alone)
         self.assertNotIn(alone, page.timeseries_tiles)
 
+    def test_a_timeseries_tables_are_its_screens_each_figure_the_databases(self):
+        # the expert tables (2026-10-26): the screen's statistics panel's Summary, Risk, Drawdowns and Correlations tabs,
+        # each the same query (headless timeseriesQuery's table), held here to pandas' own figures
+        page = ll.Page('Tables')
+        days = pd.date_range('2024-01-01', periods=12, freq='D').date
+        s = [100.0, 102.0, 101.0, 104.0, 99.0, 97.0, 103.0, 106.0, 105.0, 108.0, 104.0, 110.0]
+        t = [50.0, 50.5, 51.0, 50.0, 49.0, 49.5, 51.5, 52.0, 51.0, 53.0, 52.5, 54.0]
+        prices = pd.DataFrame({'symbol': ['S'] * 12 + ['T'] * 12, 'day': list(days) * 2, 'close': s + t})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ["close['S']", "close['T']", "returns(close['S'], 1, 'simple')"])
+        # under a year: its growth not annualized, said as the screen says it (the E9 review's 10: a NaN said nothing)
+        with self.assertWarnsRegex(UserWarning, 'A: these dates span under a year, so its growth is not annualized'):
+            stats = tile.statistics()
+        self.assertEqual(list(stats.index), ['A', 'B', 'C'])
+        self.assertEqual((stats.loc['A', 'count'], stats.loc['A', 'last'], stats.loc['A', 'high']), (12, 110.0, 110.0))
+        rs = pd.Series(s).pct_change().dropna()
+        self.assertAlmostEqual(stats.loc['A', 'skew'], rs.skew(), places=9)
+        self.assertAlmostEqual(stats.loc['A', 'kurtosis'], rs.kurt(), places=9)
+        self.assertAlmostEqual(stats.loc['A', 'worst'], rs.min(), places=12)
+        self.assertAlmostEqual(stats.loc['A', 'var'], rs.quantile(0.05), places=12)
+        self.assertTrue(pd.isna(stats.loc['C', 'vol']), 'a return is no level: no volatility')
+        drawdowns = tile.drawdowns()
+        self.assertEqual(sorted(set(drawdowns['line'])), ['A', 'B'], 'the levels alone')
+        deepest = drawdowns[drawdowns['line'] == 'A'].iloc[0]
+        self.assertEqual([str(deepest[k])[:10] for k in ('peak', 'trough', 'recovered')], ['2024-01-04', '2024-01-06', '2024-01-08'])
+        self.assertAlmostEqual(deepest['depth'], 97.0 / 104.0 - 1, places=12)
+        self.assertEqual((deepest['rank'], deepest['decline'], deepest['recovery']), (1, 2, 2))
+        corr = tile.correlations()
+        self.assertEqual(list(corr.index), ['A', 'B', 'C'])
+        rt = pd.Series(t).pct_change().dropna()
+        self.assertAlmostEqual(corr.loc['A', 'B'], rs.corr(rt), places=9)
+        self.assertAlmostEqual(corr.loc['B', 'A'], rs.corr(rt), places=9)
+        self.assertAlmostEqual(corr.loc['A', 'C'], 1.0, places=9, msg="a level's returns with the same returns")
+        # each line with itself the database's (the E9 review's 13)
+        self.assertAlmostEqual(corr.loc['B', 'B'], 1.0, places=12)
+        # over a window: the dates kept by the database before every figure
+        late = tile.statistics(start='2024-01-06')
+        self.assertEqual((late.loc['A', 'count'], late.loc['A', 'first']), (7, 97.0))
+        # no dates asked: the tile's range, as its screen's tables read it (the E9 review's 7: every date had been read)
+        tile.options(range={'from': '2024-01-06'})
+        ranged = tile.statistics()
+        self.assertEqual((ranged.loc['A', 'count'], ranged.loc['A', 'first']), (7, 97.0))
+        self.assertEqual(tile.statistics(start='2024-01-01').loc['A', 'count'], 12, 'dates asked: those')
+        # two series of one name: each line apart, by its id
+        tile.edit('A', "close['S']", name='Same')
+        tile.edit('B', "close['T']", name='Same')
+        self.assertEqual(list(tile.correlations().index), ['Same (A)', 'Same (B)', 'C'])
+
+    def test_a_timeseries_combines_two_calendars_by_its_align_and_reads_gs_quants_functions(self):
+        # the next phases' 1 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): a tile's align, Python's
+        # options(align=...) as the viewer's Settings sets it, and one of gs-quant's remaining functions, each the database's
+        page = ll.Page('Calendars')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        daily = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 102.0, 103.0, 104.0, 105.0]})
+        sparse = pd.DataFrame({'symbol': ['T'] * 2, 'day': [days[0], days[3]], 'close': [10.0, 20.0]})
+        px = page.grid(pd.concat([daily, sparse]), name='prices')
+        tile = page.timeseries({'px': px}, ["close['S'] - close['T']"])
+        self.assertEqual(list(tile.frame()['A']), [90.0, 83.0], 'the dates both have')
+        tile.options(align='step')
+        self.assertEqual(tile.spec['align'], 'step')
+        self.assertEqual(list(tile.frame()['A']), [90.0, 91.0, 92.0, 83.0, 84.0, 85.0], 'every date, T its last close')
+        with self.assertRaisesRegex(ValueError, 'alignment "sideways" is not one of'):
+            tile.options(align='sideways')
+        tile.plot("weekday(close['S'])")
+        self.assertEqual(list(tile.frame('B')['B']), [d.weekday() for d in days])
+
+    def test_a_timeseries_swaps_an_instrument_shows_its_query_and_its_lines_side_by_side(self):
+        # the next phases' 2 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): the screen's Swap, Query
+        # window and Data tab -- swap() by the tile's one rule, query() the compiler's print and the plan's SQL (nothing
+        # run), table() every series' frame side by side by date
+        page = ll.Page('Swap')
+        days = pd.date_range('2024-01-01', periods=4, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 4 + ['T'] * 4, 'day': list(days) * 2,
+                               'close': [100.0, 101.0, 102.0, 103.0, 10.0, 11.0, 12.0, 13.0]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ["close['S']", "mean(close['S'], 2)"])
+        tile.edit('A', "close['S']", name='S close')
+        tile.swap('S', 'T')
+        self.assertEqual([s['name'] if 'name' in s else None for s in tile.series], ['T close', None], 'a name saying it says the other')
+        self.assertEqual(list(tile.frame('A')['T close']), [10.0, 11.0, 12.0, 13.0])
+        with self.assertRaisesRegex(ValueError, 'no series reads S'):
+            tile.swap('S', 'T')
+        q = tile.query('B')
+        # a lambda, braced where it binds its grids first (`{| let px = ...; #TS{...}#...}`: the tile's #TS, 2026-10-31)
+        self.assertRegex(q['pure'].lstrip(), r'^\{?\|', q['pure'])
+        self.assertIn("'T'", q['pure'], 'the instrument swapped in, in the query DataCube wrote')
+        self.assertIn('SELECT', q['sql'].upper())
+        both = tile.table()
+        # (sma is gs-quant's alias of mean: the screen writes the expression by the catalog's own name)
+        self.assertEqual(list(both.columns), ['T close', "mean(close['T'], 2)"], "named as the screen's Data tab names its columns")
+        self.assertEqual(list(both['T close']), [10.0, 11.0, 12.0, 13.0])
+        # gs-quant's mean of two: its first two points dropped (helper.apply_ramp; docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
+        self.assertTrue(pd.isna(both["mean(close['T'], 2)"].iloc[:2]).all(), 'a mean of two has none on the first two dates')
+        self.assertEqual(list(both["mean(close['T'], 2)"].iloc[2:]), [11.5, 12.5])
+        self.assertEqual(len(tile.table(start='2024-01-03')), 2, "the dates kept as frame keeps them")
+        # the Phase 2 review's 3: the screen's lines alone -- none hidden, no condition -- over the tile's range, an index's
+        # base its first date shown; frame and query as the screen draws them, every date, that base
+        tile.plot("rebase(close['T'], base => 100)", name='Rebased')
+        tile.plot("close['T'] > 11", name='Up')
+        tile.hide('B')
+        tile.options(range={'from': '2024-01-02'})
+        shown = tile.table()
+        self.assertEqual(list(shown.columns), ['T close', 'Rebased'])
+        self.assertEqual(len(shown), 3, "the tile's range")
+        self.assertEqual(shown['Rebased'].iloc[0], 100.0, 'its base the first date shown')
+        drawn = tile.frame('C')
+        self.assertEqual((len(drawn), drawn['Rebased'].iloc[1]), (4, 100.0), 'every date, its base the first shown')
+        self.assertIn('2024-01-02', tile.query('C')['pure'], "the query the screen's Query window shows: its base")
+        # the Phase 2 review's 5: an instrument column of numbers swapped by numbers, the spaces round a name not of it
+        coded = page.grid(pd.DataFrame({'code': [10] * 4 + [20] * 4, 'day': list(days) * 2, 'close': [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]}), name='coded')
+        numbered = page.timeseries({'c': {'grid': coded, 'key': 'code'}}, ['close[10]'])
+        numbered.swap(10, 20)
+        self.assertEqual(list(numbered.frame()['A']), [5.0, 6.0, 7.0, 8.0])
+        tile.swap(' T ', ' S ')
+        self.assertEqual(list(tile.frame('A')['S close']), [100.0, 101.0, 102.0, 103.0])
+
+    def test_a_timeseries_views_are_its_screens_each_figure_the_databases(self):
+        # the next phases' 3 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): the screen's Scatter,
+        # Seasonality, Histogram, Curve and Calendar, each the same query (headless timeseriesQuery's table), held here to
+        # numpy's and pandas' own figures
+        import numpy as np
+        page = ll.Page('Views')
+        months = pd.date_range('2022-01-31', periods=30, freq='ME').date
+        s = [100.0 + 3 * i + (5.0 if i % 12 == 6 else 0.0) for i in range(30)]
+        t = [50.0 + 1.5 * i + (i % 3) for i in range(30)]
+        px = page.grid(pd.DataFrame({'symbol': ['S'] * 30 + ['T'] * 30, 'day': list(months) * 2, 'close': s + t}), name='prices')
+        tile = page.timeseries({'px': px}, ["close['S']", "close['T']"], grain='month')
+        # a scatter of the first two, T up and S across: y's least squares on x, the database's
+        sc = tile.scatter()
+        self.assertEqual((list(sc.columns), len(sc)), (["close['S']", "close['T']"], 30))
+        slope, intercept = np.polyfit(s, t, 1)
+        fit = sc.attrs['regression']
+        self.assertAlmostEqual(fit['slope'], slope, places=9)
+        self.assertAlmostEqual(fit['intercept'], intercept, places=6)
+        self.assertAlmostEqual(fit['r2'], pd.Series(s).corr(pd.Series(t)) ** 2, places=9)
+        self.assertEqual(fit['n'], 30)
+        self.assertEqual(len(tile.scatter(start='2024-01-01')), 6, "the dates kept as the screen's window keeps them")
+        # seasonality by month: 2024 against the year before's range at each month
+        sea = tile.seasonality('A', years=1)
+        self.assertEqual(sorted(set(sea['year'])), [2023, 2024])
+        late = sea[sea['year'] == 2024].set_index('place')
+        before = dict(zip(range(1, 13), s[12:24]))
+        self.assertEqual(list(late.index), [1, 2, 3, 4, 5, 6])
+        for m in late.index:
+            self.assertEqual((late.loc[m, 'low'], late.loc[m, 'high'], late.loc[m, 'mean']), (before[m],) * 3, f'month {m}: 2023 alone before')
+        self.assertEqual(sea.attrs['latest'], 2024)
+        with self.assertRaisesRegex(ValueError, 'years 0 is not a whole number of 1 to 20'):
+            tile.seasonality('A', years=0)
+        # a histogram of 5 bins: every value counted, its 5th percentile pandas' (linear, as the database's continuous)
+        h = tile.histogram('A', bins=5)
+        self.assertEqual((int(h['count'].sum()), h['low'].iloc[0]), (30, min(s)))
+        self.assertAlmostEqual(h['high'].iloc[-1], max(s), places=9)
+        self.assertAlmostEqual(h.attrs['p5'], pd.Series(s).quantile(0.05), places=9)
+        self.assertEqual(h.attrs['n'], 30)
+        # the calendar: each month's return from the month before's, each year's from the year before's, latest first
+        cal = tile.calendar('A')
+        self.assertEqual(list(cal.index), [2024, 2023, 2022])
+        self.assertAlmostEqual(cal.loc[2023, 'Mar'], s[14] / s[13] - 1, places=12)
+        self.assertAlmostEqual(cal.loc[2023, 'Year'], s[23] / s[11] - 1, places=12)
+        self.assertTrue(pd.isna(cal.loc[2022, 'Jan']) and pd.isna(cal.loc[2022, 'Year']), 'no level before the first')
+        self.assertTrue(pd.isna(cal.loc[2024, 'Dec']), 'a month it has not')
+        # a curve across a split's tenors, in the screen's order (3M before 2Y), as of the latest and a month back
+        days = pd.date_range('2024-01-01', periods=70, freq='D').date
+        tenors = {'2Y': 4.0, '10Y': 4.5, '3M': 5.0}
+        rates = page.grid(pd.DataFrame({'tenor': [k for k in tenors for _ in days], 'day': list(days) * 3,
+                                        'rate': [v + i / 100 for v in tenors.values() for i in range(70)]}), name='rates')
+        curve = page.timeseries({'r': rates}, [{'text': 'rate', 'split': 'tenor'}])
+        c = curve.curve(dates=['latest', '1m'])
+        self.assertEqual((list(c.index), list(c.columns)), (['3M', '2Y', '10Y'], ['latest', '1m']))
+        self.assertAlmostEqual(c.loc['10Y', 'latest'], 4.5 + 69 / 100, places=12)
+        # a month back from 2024-03-10: 2024-02-10, the 41st day
+        self.assertAlmostEqual(c.loc['3M', '1m'], 5.0 + 40 / 100, places=12)
+        self.assertEqual(c.attrs['dates'], {'latest': '2024-03-10', '1m': '2024-02-10'})
+        self.assertEqual(c.attrs['line_dates']['latest'], {'3M': '2024-03-10', '2Y': '2024-03-10', '10Y': '2024-03-10'}, "each line's own day")
+        # the Phase 3 review's 11: a series against itself, two columns
+        self.assertEqual(list(tile.scatter('A', 'A').columns), ["close['S'] (x)", "close['S'] (y)"])
+        with self.assertRaisesRegex(ValueError, 'a curve is of a line per value of a column'):
+            tile.curve('A')
+
+    def test_a_timeseries_lists_every_query_it_asks_each_its_pure_and_its_sql(self):
+        # the user, 2026-10-26: "show all the pure queries used to create a timeseries chart" -- the screen's Query
+        # window's every question, by its one rule (headless timeseriesAsks: timeseries-query.ts tileAsks), each written
+        # by the screen's own function (askQuery) and planned, nothing run
+        page = ll.Page('Queries')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ["close['S']", "returns(close['S'], 1, 'simple')"])
+        asked = tile.queries()
+        self.assertEqual([(q['kind'], q.get('series', q.get('source')), q.get('with'), q['serves']) for q in asked], [
+            ('bounds', 'px', None, 'chart'), ('series', 'A', None, 'chart'), ('series', 'B', None, 'chart'),
+            ('statistics', 'A', None, 'statistics'), ('statistics', 'B', None, 'statistics'), ('drawdowns', 'A', None, 'drawdowns'),
+            ('correlations', 'A', 'A', 'correlations'), ('correlations', 'A', 'B', 'correlations'),
+            ('correlations', 'B', 'B', 'correlations'), ('calendar', 'A', None, 'calendar')])
+        for q in asked:
+            self.assertNotIn('refused', q, q['what'])
+            self.assertRegex(q['pure'].lstrip(), r'^\{?\|', q['what'])  # braced where it binds its grids first
+            self.assertIn('SELECT', q['sql'].upper(), q['what'])
+        self.assertEqual(asked[1]['what'], "Series A (close['S']): its points")
+        self.assertIn("'S'", asked[1]['pure'])
+        # a return is #TS's returns (2026-10-31, the tile's #TS), which the compiler writes as the timeseries library's
+        # call (timeseries::returns), planned over the model with the library after it (datacube/src/pure-library.ts)
+        self.assertIn('#TS{SELECT returns(', asked[2]['pure'])
+        # a view's question with them, as the screen asks it: after the series', before the panel's
+        tile.options(view={'mode': 'histogram'})
+        kinds = [(q['kind'], q.get('series')) for q in tile.queries()]
+        self.assertEqual(kinds[3], ('histogram', 'A'))
+        # a series' points as the screen draws them, as query() reads them, but for the drawing's limit: whole dates, the
+        # date it crosses at kept too (timeseries-query.ts seriesQuery, the review's Q12)
+        self.assertIn('ts_cut_first <= 100001', asked[1]['pure'])
+
+    def test_a_timeseries_shades_a_column_where_it_is_not_zero_in_one_step(self):
+        # Phase 5's shade from a column (FRED's recession bars): a condition series of it, by the tile's one rule
+        # (timeseries-edit.ts shade), its periods the database's -- 1 where the column is not 0
+        page = ll.Page('Shade')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0],
+                               'rec': [0, 1, 1, 0, 1, 0], 'side': ['a'] * 6})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ["close['S']"])
+        tile.shade('rec', where=[{'value': 'S'}], name='Recessions')
+        added = tile.spec['series'][-1]
+        self.assertEqual((added['id'], added['name']), ('B', 'Recessions'))
+        frame = tile.frame('B')
+        self.assertEqual([int(v) for v in frame['Recessions']], [0, 1, 1, 0, 1, 0], 'where it is not 0, each date')
+        with self.assertRaisesRegex(ValueError, "plots 'side', which is not a number"):
+            tile.shade('side')
+
+    def test_a_timeseries_projects_a_trend_each_figure_the_databases_as_the_screen_draws_it(self):
+        # Phase 5's trend projected: the series' least-squares line over its last observations on their day numbers,
+        # and its fit at the first, the last and `ahead` past it, by the screen's one rule (projectionQuery)
+        import numpy as np
+        page = ll.Page('Projection')
+        days = pd.date_range('2024-01-01', periods=8, freq='D').date
+        close = [100.0, 101.0, 99.0, 103.0, 104.0, 102.0, 106.0, 107.5]
+        prices = pd.DataFrame({'symbol': ['S'] * 8, 'day': list(days), 'close': close})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ["close['S']"])
+        tile.project('A', window=5, ahead='10d', label='Trend')
+        self.assertEqual(tile.spec['annotations'], [{'kind': 'projection', 'series': 'A', 'window': 5, 'ahead': '10d', 'label': 'Trend'}])
+        got = tile.projections()
+        self.assertEqual(list(got.columns), ['name', 'series', 'start', 'start_value', 'last', 'last_value', 'end', 'end_value', 'slope', 'n'])
+        r = got.iloc[0]
+        x = np.array([pd.Timestamp(d).toordinal() for d in days[-5:]], dtype=float)
+        slope, intercept = np.polyfit(x, np.array(close[-5:]), 1)
+        self.assertEqual((r['name'], r['series'], int(r['n'])), ('Trend', 'A', 5))
+        self.assertEqual([r['start'].date(), r['last'].date(), r['end'].date()], [days[-5], days[-1], days[-1] + pd.Timedelta(days=10)])
+        self.assertAlmostEqual(r['slope'], slope, places=9)
+        for at, want in (('start_value', x[0]), ('last_value', x[-1]), ('end_value', x[-1] + 10)):
+            self.assertAlmostEqual(r[at], intercept + slope * want, places=6, msg=at)
+        # listed with the tile's every query, its place told
+        asked = [q for q in tile.queries() if q['kind'] == 'projection']
+        self.assertEqual([(q['series'], q['projection']) for q in asked], [('A', 0)])
+        self.assertIn('SELECT', asked[0]['sql'].upper())
+        # refused by the tile's reader, in its words: a series it has not
+        with self.assertRaisesRegex(ValueError, 'annotation 2 projects "Z", which is none of the tile\'s series'):
+            tile.project('Z')
+        # under a compare, in DataCube's words, as the screen leaves it out
+        tile.options(view={'compare': 'rebase'})
+        with self.assertRaisesRegex(ValueError, "a projection is of a line's own values"):
+            tile.projections()
+
+    def test_a_timeseries_takes_a_persons_drawings_by_the_screens_rule(self):
+        # Phase 5's drawings (the screen's Draw): a line from a point to a point, a note pinned at one -- annotations of
+        # the tile's one rule, read by its one reader (timeseries-spec.ts tsProblem), refused in its words
+        page = ll.Page('Drawings')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        tile = page.timeseries({'px': page.grid(prices, name='prices')}, ["close['S']"])
+        line = {'kind': 'line', 'from': {'date': '2024-01-01', 'value': 100.0}, 'to': {'date': '2024-01-06', 'value': 104.5}, 'label': 'Trend'}
+        note = {'kind': 'note', 'at': {'date': '2024-01-04', 'value': 103.0}, 'text': 'Earnings'}
+        tile.annotate(line).annotate(note)
+        self.assertEqual(tile.spec['annotations'], [line, note])
+        with self.assertRaisesRegex(ValueError, 'annotation 3 says nothing: a note has its text'):
+            tile.annotate({'kind': 'note', 'at': {'date': '2024-01-04', 'value': 103.0}, 'text': ' '})
+        with self.assertRaisesRegex(ValueError, "annotation 3's to is not a point: a date"):
+            tile.annotate({'kind': 'line', 'from': {'date': '2024-01-01', 'value': 1}, 'to': {'date': 'later', 'value': 2}})
+        tile.unannotate(0)
+        self.assertEqual(tile.spec['annotations'], [note])
+
+    def test_a_timeseries_marks_a_grids_rows_each_the_databases_as_the_screen_marks_them(self):
+        # marks from a grid's rows (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6's D4: the trades; Phase
+        # 5's events from a grid): each trade at its price on its day, its quantity beside it, by the screen's one rule
+        # (timeseries-query.ts marksQuery), listed with the tile's queries
+        page = ll.Page('Marks')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 6, 'day': list(days), 'close': [100.0, 101.0, 99.0, 103.0, 104.0, 102.0]})
+        trades = pd.DataFrame({'symbol': ['S', 'S', 'S', 'T'], 'day': [days[1], days[3], days[4], days[2]], 'side': ['BUY', 'SELL', 'BUY', 'BUY'],
+                               'price': [100.5, 103.2, 103.9, 50.0], 'quantity': [100.0, 300.0, 200.0, 10.0]})
+        px, tr = page.grid(prices, name='prices'), page.grid(trades, name='trades')
+        tile = page.timeseries({'px': px, 'tr': {'grid': tr, 'date': 'day', 'key': 'symbol'}}, ["px.close['S']"])
+        tile.annotate({'kind': 'marks', 'source': 'tr', 'where': [{'value': 'S'}, {'column': 'side', 'value': 'BUY'}],
+                       'at': 'price', 'text': 'quantity', 'shape': 'up', 'label': 'Bought'})
+        marks = tile.marks()
+        self.assertEqual(list(marks.columns), ['name', 'date', 'value', 'text'])
+        self.assertEqual([(r.name, r.date.date(), r.value, float(r.text)) for r in marks.itertuples()],
+                         [('Bought', days[4], 103.9, 200.0), ('Bought', days[1], 100.5, 100.0)], "each S buy, latest first")
+        asked = tile.queries()
+        mark = next(q for q in asked if q['kind'] == 'marks')
+        self.assertEqual((mark['what'], mark['marks'], mark['source']), ('Marks "Bought": source tr\'s rows at their price', 0, 'tr'))
+        self.assertIn("'BUY'", mark['pure'])
+        self.assertIn('SELECT', mark['sql'].upper())
+        # refused by the tile's one rule, in its words: a source it has not
+        with self.assertRaisesRegex(ValueError, "source \"fx\" is none of the tile's"):
+            tile.annotate({'kind': 'marks', 'source': 'fx'})
+
+    def test_a_timeseries_writes_the_code_that_builds_it_and_the_python_builds_it_again(self):
+        # the user, 2026-10-26: "an option that shows how exactly to build that chart programmatically from TS and python"
+        # -- the screen's Code, by its one rule (headless timeseriesCode: timeseries-code.ts tileCode); 2026-10-28: "a
+        # generic snippet ... to just create exactly that tile in their own datacube": the Python run makes a page of its
+        # own, a grid over the person's frame, and a tile of the very spec over it, each formula's Pure printed
+        page = ll.Page('Code')
+        days = pd.date_range('2024-01-01', periods=8, freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * 8 + ['T'] * 8, 'day': list(days) * 2,
+                               'close': [100.0 + i for i in range(8)] + [50.0 - i for i in range(8)]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ["close['S']", {'text': "returns(close['T'], 1, 'log')", 'name': "T's log returns", 'pane': 1},
+                                            "basket(A, 0.5, close['T'], 0.5, rebalance => 'weekly')"], title='Two',
+                               view={'stats': True}, annotations=[{'kind': 'level', 'value': 0, 'pane': 1}])
+        code = tile.code()
+        self.assertIn('page = ll.Page()', code)
+        self.assertIn("prices = page.grid(prices_frame, name='prices')", code)
+        self.assertIn('tile = prices.timeseries(', code)
+        # each series gs-quant's call of it (B4: legend_lite.timeseries)
+        self.assertIn('from legend_lite.timeseries import ', code)
+        self.assertIn("'term': returns(column('close', 'T'), obs=1, type=Returns.LOGARITHMIC)", code)
+        for lookup in ('Page.load', 'page.sheets', 'page.grids', '.id =='):
+            self.assertNotIn(lookup, code)
+        # run, the person's frame given it: a page of its own, its one tile of the same spec over its own grid
+        shown, printed = [], []
+        shim = type('ll', (), {'Page': ll.Page, 'show': staticmethod(shown.append)})
+        ran = {'ll': shim, 'prices_frame': prices, 'print': lambda *a, **k: printed.append(a)}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        own = ran['page']
+        self.assertIsNot(own, page)
+        self.assertEqual(shown, [own])
+        made = own.timeseries_tiles
+        self.assertEqual(len(made), 1)
+        cubes = lambda spec: {**spec, 'sources': [{**s, 'cube': None} for s in spec['sources']]}
+        self.assertEqual(cubes(made[0].spec), cubes(tile.spec))
+        self.assertEqual(made[0].title, 'Two')
+        # each formula's Pure, as the tile writes it
+        self.assertEqual([p[0] for p in printed], ['A', 'B', 'C'])
+        self.assertTrue(all('timeseries::' in p[1] or '#>{' in p[1] for p in printed), printed)
+        typescript = tile.code('typescript')
+        self.assertIn("kind: 'addTimeseries'", typescript)
+        self.assertIn('export function withTile(page: PageDocument, sheet: string)', typescript)
+        with self.assertRaisesRegex(ValueError, 'written in python or typescript, not "rust"'):
+            tile.code('rust')
+
+    def test_a_timeseries_code_is_a_program_whatever_its_names_say(self):
+        # the review of the generated code, 2026-10-28: a title with a line end in it ended its comment and
+        # wrote a line of code; two grids over one frame read two frames of the person's; a tile of no instrument column
+        # left DataCube to choose one when run
+        page = ll.Page('Names')
+        days = pd.date_range('2024-01-01', periods=6, freq='D').date
+        # a text column, so a tile not told its key would take this one
+        prices = pd.DataFrame({'day': list(days), 'symbol': ['S'] * 6, 'close': [100.0 + i for i in range(6)],
+                               'open': [99.0 + i for i in range(6)]})
+        one = page.grid(prices, name='prices', title='Line\rends\u2028here')
+        two = page.grid(prices, name='prices', title='Again')
+        tile = page.timeseries({'a': {'grid': one, 'date': 'day', 'key': None}, 'b': {'grid': two, 'date': 'day', 'key': None}},
+                               ['a.close', 'b.open'], title='Two\nlines\r\nimport os')
+        code = tile.code()
+        compile(code, 'tile.py', 'exec')
+        self.assertEqual([line for line in code.splitlines() if line.startswith(('import', 'print'))], ['import legend_lite as ll'])
+        self.assertIn("page.grid(prices_frame, name='prices')", code)
+        self.assertNotIn('prices_2_frame', code)
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: None}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        cubes = lambda spec: {**spec, 'sources': [{**s, 'cube': None} for s in spec['sources']]}
+        self.assertEqual(cubes(ran['page'].timeseries_tiles[0].spec), cubes(tile.spec))
+        self.assertEqual(ran['page'].timeseries_tiles[0].title, tile.title)
+        # one source of no instrument column: said as none, and run, none still
+        alone = page.timeseries({'grid': two, 'date': 'day', 'key': None}, ['open'])
+        code = alone.code()
+        self.assertIn("key=None", code)
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: None}
+        exec(compile(code.replace('import legend_lite as ll\n', ''), 'tile.py', 'exec'), ran)
+        self.assertNotIn('key', ran['page'].timeseries_tiles[0].spec['sources'][0])
+        # the second review, 2026-10-28: a title on the program's first line read as its encoding (PEP 263) -- `coding=
+        # utf-7` decoded `+ACc-` as a quote and `+AAo-` as a line end inside the title's string. Compiled from its bytes,
+        # as a file is, it runs as written
+        attack = 'coding=utf-7 +ACc-,+AAo-x=print(+ACc-INJECTED+ACc-),+AAo-#'
+        titled = page.timeseries({'grid': two, 'date': 'day', 'key': None}, ['open'], title=attack)
+        code = titled.code()
+        self.assertNotIn('coding', ''.join(code.splitlines()[:2]))
+        printed = []
+        ran = {'ll': type('ll', (), {'Page': ll.Page, 'show': staticmethod(lambda p: None)}), 'prices_frame': prices,
+               'print': lambda *a, **k: printed.append(a)}
+        exec(compile(code.replace('import legend_lite as ll\n', '').encode('utf-8'), 'tile.py', 'exec'), ran)
+        self.assertEqual(ran['page'].timeseries_tiles[0].title, attack)
+        self.assertFalse(any('INJECTED' in str(a) for a in printed), printed)
+
+    def test_a_timeseries_reads_an_analysts_packs_each_figure_the_databases(self):
+        # the next phases' 4 (2026-10-26, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11): technicals of a candle's
+        # columns and a rebalanced basket -- the screen's parser and queries, held to pandas
+        import numpy as np
+        page = ll.Page('Packs')
+        days = list(pd.bdate_range('2024-01-31', periods=30).date)
+        s_close = [100.0 + i * 0.5 + (i % 3) * 0.7 - (i % 5) * 0.4 for i in range(30)]
+        t_close = [50.0 + (i % 4) * 0.6 - i * 0.1 for i in range(30)]
+        prices = pd.DataFrame({'symbol': ['S'] * 30 + ['T'] * 30, 'day': days * 2, 'close': s_close + t_close,
+                               'high': [c + 1 for c in s_close + t_close], 'low': [c - 1 for c in s_close + t_close],
+                               'volume': [1000 + 10 * i for i in range(30)] * 2})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ["obv(close['S'], volume['S'])", "basket(close['S'], 0.5, close['T'], 0.5, rebalance => 'daily')",
+                                            "donchian_channels(high['S'], low['S'], w => 5)"])
+        sc, tc, vol = pd.Series(s_close), pd.Series(t_close), pd.Series([1000 + 10 * i for i in range(30)], dtype=float)
+        obv = (np.sign(sc.diff()).fillna(0) * vol).cumsum()
+        self.assertEqual(list(tile.frame('A')['A']), list(obv))
+        # rebalanced daily: 100 compounded by the weighted returns
+        daily = 100 * (1 + 0.5 * sc.pct_change().fillna(0) + 0.5 * tc.pct_change().fillna(0)).cumprod()
+        np.testing.assert_allclose(tile.frame('B')['B'].to_numpy(dtype=float), daily.to_numpy(), rtol=1e-9)
+        band = tile.frame('C')
+        np.testing.assert_allclose(band['upper'].to_numpy(dtype=float)[4:], (sc + 1).rolling(5).max().to_numpy()[4:], rtol=1e-12)
+        with self.assertRaisesRegex(ValueError, r'atr reads three series \(high, low and close\)'):
+            tile.plot("atr(high['S'], low['S'])")
+
+    def test_a_timeseries_tables_over_a_range_of_the_last_month_read_it_from_its_sources_latest_date(self):
+        # the E9 review's 7: the screen's window of a range of the last of a period -- each source's bounds the database's,
+        # the latest of them -- the tables' too (timeseries-query.ts rangeWindow, headless timeseriesWindow)
+        page = ll.Page('Range')
+        days = pd.date_range('2024-01-01', '2024-02-29', freq='D').date
+        prices = pd.DataFrame({'symbol': ['S'] * len(days), 'day': list(days), 'close': [100.0 + i for i in range(len(days))]})
+        px = page.grid(prices, name='prices')
+        tile = page.timeseries({'px': px}, ["close['S']"])
+        tile.options(range={'last': '1m'})
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            stats = tile.statistics()
+            # a month back from the latest, 2024-02-29: from 2024-01-29, 32 days
+            self.assertEqual((stats.loc['A', 'count'], stats.loc['A', 'first']), (32, 128.0))
+            self.assertEqual(tile.statistics(start='2024-01-01').loc['A', 'count'], 60)
+            self.assertTrue((tile.drawdowns().empty), 'a rising line has no drawdowns')
+
     def test_a_timeseries_is_changed_by_its_viewers_one_rule_and_refused_what_its_viewer_cannot_draw(self):
         # the review's A2, A3, A5, A6, A10 (docs/TIMESERIES_REVIEW_2026_10_25.md): every change Python makes is the tile's
         # one rule (timeseries-edit.ts editTimeseries, headless timeseriesEdit) -- the rule its viewer's editors ask -- and
@@ -895,9 +1338,9 @@ class Document(Paged):
         yields = pd.DataFrame({'tenor': ['10Y'] * 4, 'obs_date': days, 'yield': [4.0, 4.1, 3.9, 4.2]})
         px = page.grid(prices, name='prices')
         rates = page.grid(yields, name='rates')
-        tile = page.timeseries({'px': px, 'rates': rates}, ['close[SPX]', 'returns($A)'])
+        tile = page.timeseries({'px': px, 'rates': rates}, ["close['SPX']", "returns(A, 1, 'simple')"])
         # a series another reads is not taken off; a source a series reads -- by a column of no alias too -- is not let go
-        with self.assertRaisesRegex(ValueError, r'series B reads \$A'):
+        with self.assertRaisesRegex(ValueError, r'series B reads series A'):
             tile.unplot('A')
         with self.assertRaisesRegex(ValueError, 'series A, B read source px'):
             tile.unread('px')
@@ -912,12 +1355,12 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'is read already'):
             tile.read(rates)
         # a source renamed: every expression naming it follows
-        tile.plot(f"{read['alias']}:yield[10Y]")
+        tile.plot(f"{read['alias']}.yield['10Y']")
         tile.source(read['alias'], rename='curve')
-        self.assertEqual(tile.series[2]['expr']['source'], 'curve')
+        self.assertEqual(tile.series[2]['text'], "curve.yield['10Y']")
         # a line hidden and shown, an edit in place keeping it hidden; an edit of a series it has not, refused
         tile.hide('C')
-        tile.edit('C', 'curve:yield[10Y] * 2', name='twice')
+        tile.edit('C', "curve.yield['10Y'] * 2", name='twice')
         self.assertEqual((tile.series[2]['name'], tile.series[2]['hidden']), ('twice', True))
         tile.show('C')
         self.assertNotIn('hidden', tile.series[2])
@@ -936,8 +1379,9 @@ class Document(Paged):
             tile.plot('nosuch')
         with self.assertRaisesRegex(ValueError, "plots 'symbol', which is not a number"):
             tile.plot('symbol')
-        with self.assertRaisesRegex(ValueError, r'reads \$Z, which there is not'):
-            tile.plot('$Z')
+        # a name of no series reads a column (A3 step 3: a series is read by its id, as a column is by its name)
+        with self.assertRaisesRegex(ValueError, "reads 'Z', which source px has not"):
+            tile.plot("Z")
         with self.assertRaisesRegex(ValueError, "'symbol' is not a date"):
             page.timeseries({'px': {'grid': px, 'date': 'symbol'}}, ['close'])
         with self.assertRaisesRegex(ValueError, 'is 5, not a word'):
@@ -947,7 +1391,7 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'has no date column with a number to plot along it'):
             dates.timeseries()
         # an alias named `grid`, by alias: two sources, not one
-        both = page.timeseries({'grid': px, 'curve': rates}, ['grid:close[SPX]'])
+        both = page.timeseries({'grid': px, 'curve': rates}, ["grid.close['SPX']"])
         self.assertEqual([s['alias'] for s in both.spec['sources']], ['grid', 'curve'])
 
     def test_a_timeseries_is_judged_as_its_viewer_judges_it_and_its_frame_says_what_the_screen_says(self):
@@ -957,7 +1401,7 @@ class Document(Paged):
         days = pd.to_datetime(['2024-01-02', '2024-01-06', '2024-01-11', '2024-01-15', '2024-01-22']).date
         prices = pd.DataFrame({'symbol': ['SPX'] * 5, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0, 103.0]})
         px = page.grid(prices, name='prices')
-        tile = page.timeseries({'px': px}, ['close[SPX]', 'volatility($A, 2)'])
+        tile = page.timeseries({'px': px}, ["close['SPX']", "volatility(A, w => 2, type => 'simple')"])
         with self.assertRaisesRegex(ValueError, 'there is no "grian" among a tile\'s slots'):
             tile.options(grian='week')
         with self.assertRaises(AttributeError):
@@ -978,7 +1422,7 @@ class Document(Paged):
         days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05']).date
         prices = pd.DataFrame({'symbol': ['SPX'] * 4, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0]})
         px = page.grid(prices, name='prices')
-        tile = page.timeseries({'px': px}, ['close[SPX]'])
+        tile = page.timeseries({'px': px}, ["close['SPX']"])
         self.assertEqual(tile.state, 'dynamic')
         px.filter(('close', 'greaterThan', 100.0))
         self.assertEqual(list(tile.frame('A')['A']), [101.0, 102.0], 'it follows its grid')
@@ -1004,7 +1448,7 @@ class Document(Paged):
         yields = pd.DataFrame({'tenor': ['10Y'] * 4, 'obs_date': days, 'yield': [4.0, 4.0, 4.0, 4.0]})
         px = page.grid(prices, name='prices')
         rates = page.grid(yields, name='rates')
-        tile = page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX]', 'px:close[SPX] / rates:yield[10Y]'])
+        tile = page.timeseries({'px': px, 'rates': rates}, ["px.close['SPX']", "px.close['SPX'] / rates.yield['10Y']"])
         px.snap()
         px.update(prices.assign(close=[200.0, 202.0, 204.0, 206.0]))
         self.assertEqual(list(px.to_pandas()['close']), [100.0, 101.0, 102.0, 103.0], 'the grid reads its copy')
@@ -1017,7 +1461,7 @@ class Document(Paged):
         many = pd.DataFrame({'symbol': ['A'] * n + ['B'] * n, 'day': list(pd.date_range('1900-01-01', periods=n).date) * 2,
                              'close': [float(i) for i in range(n)] * 2})
         big = page.grid(many, name='many')
-        lines = page.timeseries({'m': big}, [{'expr': 'close', 'split': 'symbol'}]).frame()
+        lines = page.timeseries({'m': big}, [{'text': 'close', 'split': 'symbol'}]).frame()
         self.assertEqual((lines.shape, int(lines.notna().sum().sum())), ((n, 2), 2 * n))
 
     def test_a_text_box_points_to_its_files_never_copies_them(self):
@@ -1573,7 +2017,7 @@ class Document(Paged):
         unplaced['sheets'][0]['layout']['bands'] = []
         with self.assertRaisesRegex(ValueError, 'no sheet has a place for grid-1'):
             ll.Page.load(unplaced, frames={'trades': trades()})
-        with self.assertRaisesRegex(ValueError, r'written by a newer version \(99 > 6\)'):
+        with self.assertRaisesRegex(ValueError, r'written by a newer version \(99 > 7\)'):
             ll.Page.load({**doc, 'version': 99}, frames={'trades': trades()})
         twice = copy.deepcopy(doc)
         twice['sheets'].append({'id': 'sheet-1', 'layout': {'kind': 'bands', 'fit': True, 'bands': []}})
@@ -1588,7 +2032,7 @@ class Document(Paged):
         with self.assertRaisesRegex(ValueError, 'shows no cube of this page'):
             ll.Page.load(listed, frames={'trades': trades()})
         # an older page is not read (the user, 2026-10-17), in DataCube's words
-        with self.assertRaisesRegex(ValueError, r'saved by an older version \(3 < 6\): it is no longer read'):
+        with self.assertRaisesRegex(ValueError, r'saved by an older version \(3 < 7\): it is no longer read'):
             ll.Page.load({**doc, 'version': 3}, frames={'trades': trades()})
 
 
@@ -1795,8 +2239,8 @@ class Abilities(Paged):
         self.assertEqual(groups_of(grid.view(), 'doubled'), {'EMEA': 351.0, 'AMER': 500.0})
         with self.assertRaisesRegex(ValueError, 'a group-level column has no kind'):
             grid.calculate('kinded', '$x.notional', level='group', kind='measure')
-        with self.assertRaisesRegex(ValueError, 'median'):
-            grid.window('middle', 'median', column='notional')
+        with self.assertRaisesRegex(ValueError, 'mode'):
+            grid.window('middle', 'mode', column='notional')
         with self.assertRaisesRegex(ValueError, "a child aggregate is a group-level column"):
             grid._column({'name': 'rowwise', 'mode': 'children', 'child': {'fn': 'max', 'of': 'notional'}})
         # explode: each row once per element of what its expression gives
@@ -1870,7 +2314,11 @@ class Abilities(Paged):
         tags.split('tags', ',', name='tag', rows=True)
         self.assertEqual(sorted((int(r['id']), r['tag']) for r in tags.to_pandas().to_dict('records')),
                          [(1, 'a'), (1, 'b'), (1, 'c'), (2, 'd')])
-        with self.assertRaisesRegex(ValueError, 'its mode is match, replace or extract, not "find"'):
+        # tokenize: each match its own row (Alteryx's Tokenize), the database's matches exploded; no match, no row
+        coded = page.grid(pd.DataFrame({'id': [1, 2, 3], 'note': ['FX12 and IR7', 'none', None]}), name='coded')
+        coded.regex('note', '[0-9]+', 'tokenize')
+        self.assertEqual(sorted((int(r['id']), r['note_token']) for r in coded.to_pandas().to_dict('records')), [(1, '12'), (1, '7')])
+        with self.assertRaisesRegex(ValueError, 'its mode is match, replace, extract or tokenize, not "find"'):
             grid.regex('code', 'x', 'find')
         with self.assertRaisesRegex(ValueError, 'pick what to do to them'):
             grid.cleanse(['who'], trim=False)
@@ -1893,6 +2341,10 @@ class Abilities(Paged):
             grid.impute(['qty'], fill=0.5)
         with self.assertRaisesRegex(ValueError, "'notional_filled' is already a column"):
             grid.impute(['notional'], fill='largest')
+        # its median, the database's: 100, 300 and 900's middle
+        skewed = page.grid(pd.DataFrame({'n': [100.0, None, 300.0, 900.0]}), name='skewed')
+        skewed.impute(['n'], fill='median')
+        self.assertEqual(sorted(r['n_filled'] for r in skewed.to_pandas().to_dict('records')), [100.0, 300.0, 300.0, 900.0])
 
     def test_dates_read_and_taken_apart_as_a_flow_box_does(self):
         # (M3) grid.parse_date, grid.date_part: a flow's DateTime's other two ways (date-tools.ts dateToolCommands),
@@ -1912,6 +2364,15 @@ class Abilities(Paged):
         odd.parse_date('booked', 'dd/MM/yyyy')
         with self.assertRaisesRegex(ValueError, 'Could not parse string'):
             odd.to_pandas()
+        # a date written as text by a format, the database's strftime: an empty date an empty text
+        dated = page.grid(pd.DataFrame({'on': pd.to_datetime(['2024-01-03', None, '2024-02-15']).date, 'n': [1, 2, 3]}), name='dated')
+        dated.format_date('on', 'dd.MM.yyyy')
+        said = {r['n']: r['on_text'] for r in dated.to_pandas().to_dict('records')}
+        self.assertEqual(said[1], '03.01.2024')
+        self.assertEqual(said[3], '15.02.2024')
+        self.assertTrue(said[2] is None or pd.isna(said[2]), f'an empty date, an empty text: {said[2]!r}')
+        with self.assertRaisesRegex(ValueError, 'a format has no'):
+            dated.format_date('on', '{yyyy}')
 
     def test_columns_made_rows_as_a_flow_box_transposes_them(self):
         # (M4) grid.transpose: a flow's Transpose (transpose.ts transposeCommands) -- each row once per column, its name
@@ -1941,6 +2402,10 @@ class Abilities(Paged):
         self.assertNotIn('name', rows.columns, 'theirs left out')
         with self.assertRaisesRegex(ValueError, "the grid has no column 'nope'"):
             page.find_replace(mine, names, 'desk', 'desk', 'name')._preset({'kind': 'findReplace', 'column': 'nope', 'with': 'name'})
+        # a key theirs repeats matches its first row only (the join's once, C13): no row of mine repeats
+        twice = flow.grid(pd.DataFrame({'desk': ['FX', 'FX'], 'name': ['Forex', 'Foreign exchange']}), name='desk_names_twice')
+        once = flow.grid(input=page.find_replace(mine, twice, 'desk', 'desk', 'name')).to_pandas()
+        self.assertEqual(sorted(once['desk']), ['Foreign exchange', 'Rates', 'Rates'], 'each row once, the first of theirs (rising)')
 
     def test_rows_counted_as_count_records(self):
         # (M4) grid.count_records: a flow's Count Records (count-records.ts) -- one row, one column; the box after it reads
@@ -2052,6 +2517,14 @@ class Abilities(Paged):
         self.assertEqual(kept(), picked, 'the same seed, the same rows')
         many.sample('random', 50, seed=4)
         self.assertNotEqual(kept(), picked, 'another seed, other rows')
+        # an oversample: every row of the value of interest, the others to make it its share -- 5 of 50 the 1..5 rows,
+        # 25% of the rows: 15 others kept, chosen by the hash and the seed, the same for its seed
+        many.sample('oversample', 25, by='n', value=3, seed=1)
+        once = kept()
+        self.assertIn(3, once)
+        self.assertEqual(len(once), 4, f'one of interest, three others: {once}')
+        many.sample('oversample', 25, by='n', value=3, seed=1)
+        self.assertEqual(kept(), once, 'the same seed, the same rows')
         grid.sample(None)
         self.assertEqual(ns(), [1, 2, 3, 4, 5])
         with self.assertRaisesRegex(ValueError, 'one row of every 1 is every row'):
@@ -2918,7 +3391,19 @@ class Joined(Paged):
         matched = page.fuzzy_match(mine, theirs, ('who', 'name'), within=1)
         rows = matched.to_pandas()
         self.assertEqual(sorted(zip(rows['who'], rows['id'].astype(int))), [('Ana Diaz', 2), ('Jon Smith', 1)])
+        # each pair scored, the database's: one edit in ten letters, 90; in nine, 89
+        self.assertEqual(sorted(zip(rows['who'], rows['score'].astype(int))), [('Ana Diaz', 89), ('Jon Smith', 90)])
         self.assertEqual(len(page.fuzzy_match(mine, theirs, ('who', 'name'), within=0).to_pandas()), 0)
+        # every row of mine: no score (a pair's alone)
+        every = page.fuzzy_match(mine, theirs, ('who', 'name'), within=1, kind='left').to_pandas()
+        self.assertNotIn('score', every.columns)
+        # a score asked of every row of mine: refused in words, never dropped (the roadmap audit of 2026-10-26)
+        with self.assertRaisesRegex(Exception, 'a score is each matched pair'):
+            page.fuzzy_match(mine, theirs, ('who', 'name'), within=1, kind='left', score='sim')
+        # one of theirs for each of mine: a lookup's, never a right join's
+        with self.assertRaisesRegex(Exception, 'one of theirs for each of mine is a lookup of mine'):
+            page.join(mine, theirs, {'form': 'join', 'kind': 'right', 'on': {'rows': [{'left': 'who', 'op': '==', 'right': 'name'}]},
+                                     'prefix': 'c_', 'keep': None, 'once': True})
 
     def test_placed_on_its_first_inputs_sheet_and_named_as_its_grids_show(self):
         # docs/DATACUBE_ONE_API_PLAN_2026_10_21.md Z9: as the tab's Join… places and names one (join-flow.ts), by
@@ -3058,7 +3543,7 @@ class Joined(Paged):
         self.assertIn("'nope' is no grid nor cube of the page", body)
         # the second audit's P-4: a grid removed while a timeseries reads it -- its cube kept for the tile -- read with
         # the other as the tab reads them, not refused as no grid of the page
-        page.timeseries({'px': px, 'rates': rates}, ['px:close[SPX] / rates:yield[10Y]'])
+        page.timeseries({'px': px, 'rates': rates}, ["px.close['SPX'] / rates.yield['10Y']"])
         kept = rates.id
         page.remove(rates)
         self.assertIn(kept, [c['id'] for c in page.to_dict()['cubes']], 'its cube kept for the tile')
@@ -3186,18 +3671,21 @@ class Flows(Paged):
     def test_a_timeseries_of_a_box_and_another_grid(self):
         # a timeseries of several grids reads them together, one a flow's box: its input resolved against the page first,
         # as the box is read (headless join.ts sourcesOnHost; the review of 2026-10-26)
+        # six days: a windowed word's line begins where its ramp ends (gs-quant's apply_ramp; item 14i, 2026-11-09), so
+        # correlation(A, B, w => 2) needs more than the filter's first two prices to draw a point
         page = ll.Page('Markets')
-        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04']).date
-        prices = pd.DataFrame({'symbol': ['SPX'] * 3, 'day': days, 'close': [100.0, 101.0, 99.5]})
-        yields = pd.DataFrame({'tenor': ['10Y'] * 3, 'obs_date': days, 'yield': [4.0, 4.1, 3.9]})
+        days = pd.to_datetime(['2024-01-02', '2024-01-03', '2024-01-04', '2024-01-05', '2024-01-08', '2024-01-09']).date
+        prices = pd.DataFrame({'symbol': ['SPX'] * 6, 'day': days, 'close': [100.0, 101.0, 99.5, 102.0, 103.5, 101.5]})
+        yields = pd.DataFrame({'tenor': ['10Y'] * 6, 'obs_date': days, 'yield': [4.0, 4.1, 3.9, 4.2, 4.0, 4.3]})
         flow = page.flow()
         raw = flow.grid(prices, name='prices')
         px = flow.grid(input=raw)
         px.filter([('close', 'greaterThan', 99.6)])
         rates = page.grid(yields, name='rates')
-        tile = page.sheets[0].timeseries({'px': px, 'rates': rates}, ['px:close[SPX]', 'rates:yield[10Y]', 'correlation($A, $B, 2)'])
+        tile = page.sheets[0].timeseries({'px': px, 'rates': rates}, ["px.close['SPX']", "rates.yield['10Y']", "correlation(A, B, w => 2)"])
         alone = tile.frame('A')
-        self.assertEqual(sorted(v for v in alone.iloc[:, 0] if pd.notna(v)), [100.0, 101.0], "the box's rows, its filter kept")
+        self.assertEqual(sorted(v for v in alone.iloc[:, 0] if pd.notna(v)), [100.0, 101.0, 101.5, 102.0, 103.5],
+                         "the box's rows, its filter kept")
         # a series of both: the two read together, the box's input resolved
         self.assertGreater(len(tile.frame('C')), 0)
 
@@ -3303,6 +3791,62 @@ class Flows(Paged):
         self.assertNotIn('output', next(b for b in self.boxes(page, flow) if b['tile'] == big.id))
         with self.assertRaisesRegex(ValueError, 'is a board'):
             page.sheets[0].run('.')
+
+    def test_a_table_output_is_written_in_one_transaction_each_way(self):
+        # M6, FL13: a box set to write a table of the frames' database (grid.output_table) -- made for its rows, appended,
+        # its rows deleted then appended, merged by a key, made again -- by DataCube's one table writer, the compiler's
+        # write run in one transaction; what the run wrote said
+        page, flow, _source, big = self.flowed()
+        big.output_table('big_trades')
+        box = next(b for b in self.boxes(page, flow) if b['tile'] == big.id)
+        self.assertEqual(box['output'], {'format': 'table', 'name': 'big_trades', 'mode': 'create'})
+        con = page._session.frames.connection._con
+        table = lambda: sorted(con.execute('SELECT notional FROM big_trades').fetchall())
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(flow.run(folder), ['table big_trades'])
+            self.assertEqual(table(), [(100.0,), (250.0,)])
+            # made already: the database's words, and the table as it was
+            with self.assertRaisesRegex(ValueError, 'already exists'):
+                flow.run(folder)
+            self.assertEqual(table(), [(100.0,), (250.0,)])
+            big.output_table('big_trades', 'append')
+            flow.run(folder)
+            self.assertEqual(table(), [(100.0,), (100.0,), (250.0,), (250.0,)])
+            big.output_table('big_trades', 'deleteAppend')
+            flow.run(folder)
+            self.assertEqual(table(), [(100.0,), (250.0,)])
+            big.output_table('big_trades', 'overwrite')
+            self.assertEqual(flow.dry_run()['would_write'], ['table big_trades'])
+            flow.run(folder)
+            self.assertEqual(table(), [(100.0,), (250.0,)])
+        with self.assertRaisesRegex(ValueError, 'a merge matches its rows by a key'):
+            big.output_table('big_trades', 'merge')
+        with self.assertRaisesRegex(ValueError, 'letters, digits and underscores'):
+            big.output_table('big trades')
+        # a frame's own table is none an Output writes
+        big.output_table('trades', 'overwrite')
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "one of this page's own tables"):
+                flow.run(folder)
+
+    def test_a_table_output_is_refused_a_name_a_streaming_snap_has_reserved(self):
+        # the closing audit's item 1 (2026-11-13): a warehouse snap streams its rows into a name reserved with the frames
+        # let go (frames.streaming_file), and the name was in none of the page's own tables a table Output is refused, so
+        # an Output could make the table the snap's copy then dropped and replaced; refused by name now, nothing written
+        page, flow, _source, big = self.flowed()
+        frames = page._session.frames
+        con = frames.connection._con
+        big.output_table('snap', 'create')
+        with tempfile.TemporaryDirectory() as folder, frames.streaming_file('snap') as (name, _cursor):
+            self.assertEqual(name, 'snap')
+            with self.assertRaisesRegex(ValueError, "'snap' is one of this page's own tables"):
+                flow.run(folder)
+            self.assertEqual(con.execute("SELECT count(*) FROM information_schema.tables WHERE table_name = 'snap'")
+                             .fetchone()[0], 0, 'the Output wrote nothing under the reserved name')
+        # the snap let go of the name: the Output takes it
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(flow.run(folder), ['table snap'])
+        self.assertEqual(sorted(con.execute('SELECT notional FROM snap').fetchall()), [(100.0,), (250.0,)])
 
     def test_an_output_writes_what_the_box_hands_on(self):
         # one writer (flow-output.ts outputCsv, headless gridOutput; the review of 2026-10-26's B2, C1, C9, C10): every row
@@ -3494,6 +4038,59 @@ class Flows(Paged):
         again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
         self.assertTrue(next(b for s in again.to_dict()['sheets'] for b in s['layout'].get('boxes', []) if b['tile'] == checked.id).get('stops'))
 
+    def test_a_flow_runs_in_stages_says_its_messages_and_keeps_its_runs(self):
+        # M8: Block Until Done -- the boxes after a box that blocks run, and their Outputs are written, once every Output
+        # before it is (headless flowRun: the canvas's Run's stages); a Message's words (a warning warned, an error
+        # stopping the run from its stage on); each run kept in flow.runs (the run history, this process's)
+        page, flow, source, big = self.flowed()
+        source.output('first.csv')
+        big.block_until_done()
+        later = flow.grid(input=big)
+        later.output('later.csv')
+        checked = flow.grid(input=big)
+        checked.test([{'kind': 'between', 'column': 'notional', 'min': 0, 'max': 200}])
+        checked.stops_run()
+        with tempfile.TemporaryDirectory() as folder:
+            # the Test is after the block: the stage before it written, its own stage's not
+            with self.assertRaisesRegex(ValueError, r'stops the run: notional from 0 to 200: 1 row fails: no Output written \(written before it: .*first\.csv\)'):
+                flow.run(folder)
+            self.assertEqual(os.listdir(folder), ['first.csv'])
+            checked.stops_run(False)
+            self.assertEqual([p.name for p in flow.run(folder)], ['first.csv', 'later.csv'])
+            # a Message: a warning warned
+            big.message('{rows} big trades', when='rows', level='warning')
+            with self.assertWarnsRegex(UserWarning, re.escape(f'{big.id}: 2 big trades')):
+                flow.run(folder)
+            # an error, when its rows are as it asks: the run stopped from its stage on -- the block's own stage, so nothing
+            big.message('{rows} too many', when='rows', level='error')
+            with self.assertRaisesRegex(ValueError, re.escape(f'{big.id} said 2 too many: no Output written')):
+                flow.run(folder)
+            big.message('none at all', when='noRows', level='error')
+            self.assertEqual(len(flow.run(folder)), 2, 'its rows not as it asks: nothing said')
+        big.message('{rows} too many', when='rows', level='error')
+        dry = flow.dry_run()
+        self.assertEqual(dry['messages'], [{'box': big.id, 'level': 'error', 'said': '2 too many'}])
+        self.assertEqual(dry['would_write'], [])
+        self.assertEqual(set(dry['rows']), {source.id, big.id, later.id, checked.id}, 'every box counted all the same')
+        runs = flow.runs
+        self.assertEqual([r['dry'] for r in runs], [False, False, False, False, False, True])
+        self.assertEqual([Path(w).name for w in runs[0]['written']], ['first.csv'])
+        self.assertTrue(runs[0]['stopped'])
+        self.assertEqual((runs[1]['stopped'], runs[2]['messages']), ([], [{'box': big.id, 'level': 'warning', 'said': '2 big trades'}]))
+        with self.assertRaisesRegex(ValueError, 'says so already'):
+            big.message('{rows} too many', when='rows', level='error')
+        with self.assertRaisesRegex(ValueError, 'a message is info, warning, error, not "loud"'):
+            big.message('x', level='loud')
+        big.message(None)
+        with self.assertRaisesRegex(ValueError, 'says nothing'):
+            big.message(None)
+        # saved and loaded: it blocks still
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertTrue(next(b for s in again.to_dict()['sheets'] for b in s['layout'].get('boxes', []) if b['tile'] == big.id).get('blocks'))
+        big.block_until_done(False)
+        with self.assertRaisesRegex(ValueError, 'blocks no run'):
+            big.block_until_done(False)
+
     def test_a_cross_tab_with_its_columns_fixed_is_read_by_the_box_after_it(self):
         # FL2: a Cross Tab box (desk by region, its measures summed) -- its columns its values, which a box after it
         # reads once Load values pins them (grid.load_pivot_values: asked of the database), each value's column named
@@ -3515,7 +4112,7 @@ class Flows(Paged):
         # FL3: a value its rows hold that its columns lack, said by the database's answer -- and, set to stop a run (FL8),
         # no Output written; its values loaded again, written
         self.assertEqual(crossed.failing, [{'check': 'every region has a column', 'rows': 1,
-                                            'says': 'region AMER has no column of its own: Load values again to add it'}])
+                                            'says': 'region AMER has no column of its own: add it to its columns, or Load values again'}])
         after.output('crossed.csv')
         crossed.stops_run()
         with tempfile.TemporaryDirectory() as folder:
@@ -3525,6 +4122,12 @@ class Flows(Paged):
             crossed.load_pivot_values()
             self.assertEqual(crossed.failing, [])
             self.assertEqual([p.name for p in flow.run(folder)], ['crossed.csv'])
+        # Add to the cast (FL8): the value its columns lack added after those it has
+        crossed.pin_pivot(['EMEA'])
+        crossed.add_pivot_values(['AMER'])
+        self.assertEqual(list(after.to_pandas().columns), ['desk', 'EMEA_notional', 'EMEA_pnl', 'AMER_notional', 'AMER_pnl', 'Total_notional', 'Total_pnl'])
+        with self.assertRaisesRegex(ValueError, 'a column for each of them already'):
+            crossed.add_pivot_values(['AMER'])
         crossed.pin_pivot(['EMEA'])
         with self.assertRaisesRegex(ValueError, "'EMEA' is pinned twice"):
             crossed.pin_pivot(['EMEA', 'EMEA'])
@@ -3610,6 +4213,130 @@ class Flows(Paged):
         with self.assertRaises(ValueError):
             kept.custom_filter('$x.nope > 1')
 
+    def test_a_dynamic_replace_takes_its_rules_from_another_grid(self):
+        # §4's Dynamic Replace: grid.dynamic_replace -- rules read off another grid's rows (the database reading them), a
+        # column, a condition over $x and a value each; of a column's rules the first that holds, its own value where
+        # none does; pinned in place; the compiler typing each, refusing in its words, the rule named
+        page, flow, source, _big = self.flowed()
+        rules = flow.grid(pd.DataFrame({
+            'Column': ['region', 'region', 'notional'],
+            'Condition': ["$x.region == 'EMEA' && $x.desk == 'FX'", "$x.region == 'EMEA'", '$x.notional->toOne() > 200'],
+            'Value': ['Europe FX', 'Europe', '200'],
+        }), name='rules')
+        box = flow.grid(input=source)
+        box.dynamic_replace(rules)
+        rows = flow.grid(input=box).to_pandas().sort_values('pnl')
+        self.assertEqual(list(rows['region']), ['AMER', 'Europe', 'Europe FX'])
+        self.assertEqual(list(rows['notional']), [200.0, 75.5, 100.0])
+        self.assertNotIn('region_replaced', rows.columns, 'handed on in its column\'s place')
+        # loaded again, from rules given: region's alone, notional shown as it is
+        box.dynamic_replace([{'column': 'region', 'condition': "$x.desk == 'Rates'", 'value': 'R'}])
+        rows = flow.grid(input=box).to_pandas().sort_values('pnl')
+        self.assertEqual(list(rows['region']), ['R', 'R', 'EMEA'])
+        self.assertEqual(list(rows['notional']), [250.0, 75.5, 100.0])
+        # values as expressions, each Pure over $x
+        box.dynamic_replace([{'column': 'notional', 'condition': '$x.notional->toOne() < 90', 'value': '$x.notional->toOne() * 2.0'}],
+                            expressions=True)
+        self.assertEqual(sorted(flow.grid(input=box).to_pandas()['notional']), [100.0, 151.0, 250.0])
+        with self.assertRaisesRegex(ValueError, r"rule 1's value \"many\" is no Float, as 'notional' is"):
+            box.dynamic_replace([{'column': 'notional', 'condition': 'true', 'value': 'many'}])
+        with self.assertRaisesRegex(ValueError, "rule 1 replaces 'nope', which the grid has not"):
+            box.dynamic_replace([{'column': 'nope', 'condition': 'true', 'value': 1}])
+        with self.assertRaisesRegex(ValueError, "rule 1's condition"):
+            box.dynamic_replace([{'column': 'region', 'condition': '$x.region ==', 'value': 'a'}])
+        with self.assertRaisesRegex(ValueError, "its rules have no column 'Nope'"):
+            box.dynamic_replace(rules, value='Nope')
+
+    def test_a_parameter_is_read_by_any_pure_on_the_page(self):
+        # M8's parameters (an analytic app's inputs): a value of the page any Pure on it reads as $name, bound where each
+        # query is sent -- a Custom Filter's condition and a Pure box over it; its value changed, every box reads it so;
+        # a pick-list's value one of its choices; written into the page; taken off, a Pure still reading it refused
+        page, flow, source, _big = self.flowed()
+        page.parameter('min', 'Float', 90.0)
+        kept = flow.grid(input=source)
+        kept.custom_filter('$x.notional->toOne() > $min')
+        after = flow.grid(input=kept)
+        self.assertEqual(sorted(after.to_pandas()['notional']), [100.0, 250.0])
+        page.set_parameter('min', 200.0)
+        self.assertEqual(sorted(after.to_pandas()['notional']), [250.0], 'its value changed: read so')
+        page.parameter('region', 'String', 'EMEA', choices=['EMEA', 'AMER'], label='Region')
+        picked = flow.grid(input=source)
+        picked.pure('$input->filter(x|$x.region == $region)')
+        self.assertEqual(sorted(flow.grid(input=picked).to_pandas()['notional']), [75.5, 100.0])
+        page.set_parameter('region', 'AMER')
+        self.assertEqual(sorted(flow.grid(input=picked).to_pandas()['notional']), [250.0])
+        self.assertEqual(page.parameters, {'min': 200.0, 'region': 'AMER'})
+        self.assertEqual([p['name'] for p in page.to_dict()['parameters']], ['min', 'region'])
+        with self.assertRaisesRegex(ValueError, 'none of its choices'):
+            page.set_parameter('region', 'APAC')
+        with self.assertRaisesRegex(ValueError, 'is no Float'):
+            page.set_parameter('min', 'many')
+        with self.assertRaisesRegex(ValueError, "what DataCube's own expressions call"):
+            page.parameter('x', 'Integer', 1)
+        # a type no parameter has: refused in DataCube's words, never read as a column's type
+        with self.assertRaisesRegex(ValueError, 'rate is a String, Integer, Float, Decimal, Boolean, StrictDate, DateTime, not "Money"'):
+            page.parameter('rate', 'Money', 1)
+        with self.assertRaisesRegex(ValueError, "'nope' is not a parameter"):
+            page.set_parameter('nope', 1)
+        page.remove_parameter('min')
+        with self.assertRaisesRegex(Exception, r"unbound variable '\$min'"):
+            after.to_pandas()
+
+    def test_a_parameter_reaches_a_join_a_cache_and_keeps_a_decimal_exact(self):
+        # the roadmap audit of 2026-10-26: a join over a box reading a parameter opened with its value (it was unbound);
+        # a cached box after it copied again when its value changes (its copy was of the old one); a Decimal's digits kept
+        page, flow, source, big = self.flowed()
+        page.parameter('region', 'String', 'EMEA')
+        picked = flow.grid(input=source)
+        picked.custom_filter('$x.region == $region')
+        joined = page.join(picked, big, {'form': 'join', 'kind': 'inner', 'on': {'rows': [{'left': 'notional', 'op': '==', 'right': 'notional'}]},
+                                         'prefix': 'b_', 'keep': None})
+        self.assertEqual(sorted(joined.to_pandas()['notional']), [100.0])
+        cached = flow.grid(input=picked)
+        cached.cache()
+        after = flow.grid(input=cached)
+        self.assertEqual(sorted(after.to_pandas()['notional']), [75.5, 100.0])
+        page.set_parameter('region', 'AMER')
+        self.assertEqual(sorted(after.to_pandas()['notional']), [250.0], 'its cache copied again with the value now')
+        page.parameter('rate', 'Decimal', Decimal('1.10'))
+        self.assertEqual(next(p for p in page.to_dict()['parameters'] if p['name'] == 'rate')['value'], '1.10')
+        self.assertEqual(page.parameters['rate'], Decimal('1.10'))
+        # a table written from a cached copy: refused in words (this session's engine holds the copy)
+        after.output_table('regions_out')
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaisesRegex(ValueError, "this box reads a cached box's copy"):
+                flow.run(folder)
+
+    def test_a_macro_is_a_sub_flow_used_as_one_box(self):
+        # M8's standard macro: page.macro -- boxes, each over the one before it, saved as one Pure function of the first
+        # one's input's rows; used after another box by grid.use_macro, a Pure box named after it; a parameter it reads
+        # stays $name, read with its value now
+        page, flow, source, _big = self.flowed()
+        page.parameter('min', 'Float', 90.0)
+        first = flow.grid(input=source)
+        first.custom_filter('$x.notional->toOne() > $min')
+        second = flow.grid(input=first)
+        second.calculate('fee', '$x.notional->toOne() * 0.01', kind='dimension')
+        page.macro('Big fees', [first, second])
+        self.assertEqual(page.macros, ['Big fees'])
+        other = flow.grid(input=source)
+        other.use_macro('Big fees')
+        self.assertEqual(other.title, 'Big fees')
+        rows = flow.grid(input=other).to_pandas()
+        self.assertEqual(sorted(rows['notional']), [100.0, 250.0])
+        self.assertEqual(sorted(round(f, 6) for f in rows['fee']), [1.0, 2.5])
+        self.assertNotIn('CustomFilter', rows.columns, 'its boxes\' rows as they hand them on')
+        page.set_parameter('min', 200.0)
+        self.assertEqual(sorted(flow.grid(input=other).to_pandas()['notional']), [250.0], 'its parameter read with its value now')
+        with self.assertRaisesRegex(ValueError, 'reads none of'):
+            page.macro('Wrong', [second, first])
+        with self.assertRaisesRegex(ValueError, "reads no other box's rows"):
+            page.macro('Wrong', [source])
+        with self.assertRaisesRegex(ValueError, "'nope' is not a macro"):
+            other.use_macro('nope')
+        page.remove_macro('Big fees')
+        self.assertEqual(page.macros, [])
+
     def test_a_pure_box_makes_its_rows_a_function_of_its_inputs(self):
         # FL12: grid.pure -- its rows a function of its input's, in Pure over $input, parsed and its rows typed as a
         # relation by the compiler before the page sets it; a box after it reads its rows, its columns the compiler's;
@@ -3639,6 +4366,31 @@ class Flows(Paged):
             box.pure("$input->filter(x|$x.nope == 1)")
         with self.assertRaisesRegex(ValueError, "a Pure box reads another grid's rows"):
             source.pure('$input->limit(1)')
+
+    def test_a_pure_box_imported_as_boxes_a_step_each(self):
+        # FL12's Import Pure: grid.import_pure -- each step of its Pure a box of its own, this one its first, each after it
+        # over the one before; the last box's rows the whole's
+        page, flow, source, _big = self.flowed()
+        box = flow.grid(input=source)
+        # a box that read it, and its Output: each the last box's from then on (page-gestures.ts importedCommands)
+        reader = flow.grid(input=box)
+        box.output('imported.csv')
+        boxes = box.import_pure("$input->filter(x|$x.region == 'EMEA')->extend(~fee:x|$x.notional->toOne() * 0.01)->sort(~notional->descending())")
+        self.assertEqual(len(boxes), 3)
+        self.assertIs(reader.input, boxes[-1], 'what read it reads the last box')
+        self.assertIn('fee', reader.to_pandas().columns)
+        outputs = {b['tile']: b.get('output') for s in page.to_dict()['sheets'] for b in s['layout'].get('boxes', [])}
+        self.assertEqual((outputs[box.id], outputs[boxes[-1].id]), (None, {'format': 'csv', 'name': 'imported.csv'}), 'its Output with its rows')
+        self.assertIs(boxes[0], box)
+        rows = flow.grid(input=boxes[-1]).to_pandas()
+        self.assertEqual(list(rows['notional']), [100.0, 75.5])
+        self.assertEqual([round(f, 6) for f in rows['fee']], [1.0, 0.755])
+        # each box reads the one before it, each a Pure box of one step
+        cubes = {c['id']: c['cube'] for c in page.to_dict()['cubes']}
+        self.assertEqual([cubes[b._view['cube']]['source']['input'] for b in boxes[1:]], [{'grid': boxes[0].id}, {'grid': boxes[1].id}])
+        self.assertTrue(all(cubes[b._view['cube']]['source']['pure']['body'][0]['function'] in ('filter', 'extend', 'sort') for b in boxes))
+        with self.assertRaisesRegex(ValueError, r'its Pure never reads \$input'):
+            box.import_pure('1')
 
     def test_a_sample_hands_on_the_rest(self):
         # M3: a Sample a filter makes hands on the rest by its False (Alteryx's Create Samples, its estimation and holdout):
@@ -3696,6 +4448,44 @@ class Flows(Paged):
         copied = page.union(*board)
         self.assertEqual(copied.inputs, {})
         self.assertEqual(len(copied.to_pandas()), 3 * len(board[0].to_pandas()))
+
+    def test_a_dynamic_input_keeps_the_rows_of_the_input_a_parameter_names(self):
+        # M8's Dynamic Input: a Union kept to one input's rows, picked as it runs by a String parameter naming it
+        # (dynamic-input.ts pickCommands; join.ts appended: each input's rows filtered by `$source == '<its name>'`, the
+        # database keeping one); its value set, the other's rows; every input's again by pick(None)
+        page, flow, source, big = self.flowed()
+        n_source, n_big = len(source.to_pandas()), len(big.to_pandas())
+        union = page.union(source, big)
+        with self.assertRaisesRegex(ValueError, 'two of its inputs are named trades: a Dynamic Input picks one by its name'):
+            union.pick(True)
+        big.title = 'Big'
+        union.pick(True)
+        self.assertEqual(page.parameters, {'source': 'trades'}, 'a new parameter, its inputs\' names its choices, the first its value')
+        self.assertEqual(next(p for p in page.to_dict()['parameters'])['choices'], ['trades', 'Big'])
+        self.assertEqual(len(union.to_pandas()), n_source)
+        page.set_parameter('source', 'Big')
+        self.assertEqual(len(union.to_pandas()), n_big, 'its value set: the other input\'s rows')
+        self.assertEqual(sorted(flow.grid(input=union).to_pandas()['notional']), sorted(big.to_pandas()['notional']), 'a box after it reads them')
+        # saved and loaded: its pick kept
+        again = ll.Page.load(page.to_dict(), frames={'trades': trades()})
+        self.assertEqual(len(next(g for g in again.grids if g.id == union.id).to_pandas()), n_big)
+        # picked by a parameter of the page's own; every input's again
+        page.parameter('which', 'String', 'trades')
+        union.pick('which')
+        self.assertEqual(len(union.to_pandas()), n_source)
+        union.pick(None)
+        self.assertEqual(len(union.to_pandas()), n_source + n_big)
+        with self.assertRaisesRegex(ValueError, "'nope' is no parameter of the page"):
+            union.pick('nope')
+        page.parameter('n', 'Integer', 1)
+        with self.assertRaisesRegex(ValueError, 'n is no String, but Integer: a Dynamic Input picks an input by its name'):
+            union.pick('n')
+        with self.assertRaisesRegex(ValueError, 'is no Union'):
+            big.pick(True)
+        page.set_parameter('which', 'APAC')
+        with self.assertRaisesRegex(Exception, 'it picks "APAC", none of its inputs: trades, Big'):
+            union.pick('which')
+        self.assertEqual(len(union.to_pandas()), n_source + n_big, 'refused: nothing changed')
 
     def test_a_join_box_hands_on_the_rows_each_side_pairs_with_none(self):
         # M2: a Join's L and R ports (live-inputs.ts gridInput) -- the rows of its Left no row of its Right pairs with,
@@ -3802,6 +4592,29 @@ class Snapped(Paged):
         self.assertEqual(sorted(r[0] for r in grid.view().rows if r[0] is not None), ['EMEA'])
         with self.assertRaisesRegex(ValueError, 'reads its live rows already'):
             grid.live()
+
+    def test_a_cached_box_is_copied_and_the_box_after_it_reads_the_copy_whatever_its_frame_does(self):
+        # (FL10) grid.cache(): the box marked cached on its flow (setCache) and its rows copied (its snap) -- the box after
+        # it reads the copy (a link resolved to be opened reads its grid's copy: live-inputs.ts resolvedSource), so the
+        # frame moving reaches neither; cache(False): back live, and so the box after it
+        state, frame = self.moving()
+        page = ll.Page('Cache')
+        flow = page.flow()
+        box = flow.grid(frame, name='trades')
+        after = flow.grid(input=box)
+        self.assertFalse(box.cached)
+        self.assertIs(box.cache(), box)
+        self.assertTrue(box.cached)
+        self.assertIsNotNone(box.snapped)
+        self.assertEqual(page._page_commands[-2], {'kind': 'setCache', 'grid': box.id, 'cache': True})
+        state['df'] = trades().iloc[:1]
+        self.assertEqual(len(after.to_pandas()), len(trades()), 'the box after it reads its copy, not the frame as it is now')
+        box.cache(False)
+        self.assertFalse(box.cached)
+        self.assertIsNone(box.snapped)
+        self.assertEqual(len(after.to_pandas()), 1, 'live again: the frame as it is now')
+        with self.assertRaisesRegex(ValueError, 'is no box of a flow: a cache is a flow'):
+            page.grid(frame, name='board').cache()
 
     def test_a_copy_belongs_to_its_grid_snapped_again_or_removed_it_is_let_go(self):
         page = ll.Page('Snaps')
@@ -4108,6 +4921,31 @@ class OverFiles(Paged):
             page.grid(remote=gone)
         self.assertNotIn(gone, datacube._session.frames.hosted()['remotes'])
         self.assertEqual(len(page.grids), 2)
+
+    def test_a_presigned_link_is_saved_without_its_token_said_and_loaded_again_given_a_fresh_one(self):
+        # the user's ruling of 2026-11-11 ("can we strip the presigned and save the rest of report with warning?" --
+        # agreed): a remote file's link with a query string saved as its address alone, marked as needing a fresh link,
+        # said at the save; loaded again, its fresh link given by that address (links=), as a file is given (files=)
+        sentinel = 'SENTINEL-' + os.urandom(4).hex()
+        address = f'{self.base}/desks.csv'
+        page = ll.Page('Signed')
+        page.grid(remote=f'{address}?X-Amz-Signature={sentinel}', rows=['desk'], measures={'qty': 'sum'})
+        path = Path(tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))) / 'signed.page.json'
+        with self.assertWarnsRegex(UserWarning, "“desks.csv” is saved without its link's query string"):
+            page.save(path)
+        text = path.read_text('utf-8')
+        self.assertNotIn(sentinel, text)
+        source = json.loads(text)['cubes'][0]['cube']['source']
+        self.assertEqual((source['url'], source['freshLink']), (address, True))
+        # no fresh link given: refused in words, naming the file and its address
+        with self.assertRaisesRegex(ValueError, f'desks.csv \\({re.escape(address)}\\).*give fresh links, links='):
+            ll.Page.load(path)
+        # a link for an address the page saved none needing one at: refused, never ignored
+        with self.assertRaisesRegex(ValueError, 'the page saved no remote file needing a fresh link at https://elsewhere/x.csv'):
+            ll.Page.load(path, links={'https://elsewhere/x.csv': f'{address}?fresh=1'})
+        # given one: read from it (this machine's server ignores the query string, as a presigned link's host reads it)
+        loaded = ll.Page.load(path, links={address: f'{address}?X-Amz-Signature=fresh'})
+        self.assertEqual(groups_of(loaded.grids[0].view(), 'qty'), {'FX': 4, 'EQ': 2})
 
     def test_a_page_refused_as_it_loads_lets_go_of_the_files_it_read_for_it(self):
         path = self.file('desk,qty\nFX,1\nEQ,2\nFX,4\n')
@@ -4672,12 +5510,12 @@ class PublishedQueries(Paged):
         grid = page.grid(query='trades-1', rows=['desk'], measures={'notional': 'sum'})
         source = page.to_dict()['cubes'][-1]['cube']['source']
         self.assertEqual((source['query']['versionId'], [c['name'] for c in source['columns']]), ('1.0.0', ['desk', 'notional']))
-        # its rows are the version's own (the sample Create a Class… wrote, in the version's database) -- F44, declared:
-        # that database's tables are made by the DuckDB dialect's DDL, which spells an unquoted column upper case
-        # (DuckDb.ddlIdentifier), so a query selecting `t0.desk` unaliased is answered `DESK`, which its plan does not
-        # type. When the dialect line closes F44 this fails: assert the rows instead ({'FX': 100.0, 'Rates': 325.5})
-        with self.assertRaisesRegex(Exception, "the plan does not type the result column 'DESK'"):
-            grid.view()
+        # its rows are the version's own (the sample Create a Class… wrote, in the version's database). F44 closed
+        # 2026-11-12 (the total wall's B): that database's tables are made by the DuckDB dialect's DDL, which spells an
+        # unquoted column upper case (DuckDb.ddlIdentifier), and a query selecting `t0.desk` unlabeled was answered
+        # `DESK`, which its plan does not type; every column a statement answers now carries its Pure name
+        # (AnsiSqlRenderer#labeled)
+        self.assertEqual(groups_of(grid.view(), 'notional'), {'FX': 100.0, 'Rates': 325.5})
 
 
 class CorpusPage(unittest.TestCase):

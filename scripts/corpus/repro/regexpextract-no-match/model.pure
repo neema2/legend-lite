@@ -1,0 +1,138 @@
+// F70: regexpExtract that matches nothing returns the empty string, not nothing.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/regexpextract-no-match/model.pure //       --testable=demo::Matches --testable=demo::NoMatchIsEmpty --testable=demo::NoMatchFilter
+//
+// legend-engine's `regexpExtract(string, regexp, extractAll):String[*]` returns nothing when the pattern does not
+// match. 'alpha' has no 'b', so `regexpExtract('b.', false)->isEmpty()` is true for R1. legend-engine 4.145.0's DuckDB
+// SQL is regexp_extract, which answers '' for no match, so isEmpty() is false and a filter on it drops R1. Matches
+// ('abab', 'ba') passes; NoMatchIsEmpty and NoMatchFilter fail.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  s: String[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, S VARCHAR(20))
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    s: [demo::DB]T.S
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,S\n' +
+      'R1,alpha\n' +
+      'R2,abab\n';
+  }#
+}
+
+###Service
+Service demo::Matches
+{
+  pattern: '/demo/matches';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.id == 'R2')->project(~[id:x|$x.id, r:x|$x.s->toOne()->regexpExtract('b.', false)->toOne()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    Matches_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R2","r":"ba"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::NoMatchIsEmpty
+{
+  pattern: '/demo/nomatchisempty';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, r:x|$x.s->toOne()->regexpExtract('b.', false)->isEmpty()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    NoMatchIsEmpty_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","r":true}, {"id":"R2","r":false} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::NoMatchFilter
+{
+  pattern: '/demo/nomatchfilter';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->filter(x|$x.s->toOne()->regexpExtract('b.', false)->isEmpty())->project(~[id:x|$x.id])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    NoMatchFilter_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

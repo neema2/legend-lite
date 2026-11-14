@@ -7,19 +7,18 @@ on both sides. Every test runs on both, and the two engines' rows are compared a
 
 ## The two runners, rows mode
 
-The engine (the real legend-engine at the pinned release, `tools/engine-runner`):
+The engine (the real legend-engine at the pinned release, `tools/engine-runner`), through the stress corpus's engine
+run (`scripts/corpus/run.py`; `engine-rows.sh` is this line):
 
 ```
-bazel build //tools/engine-runner:testable
-bazel-bin/tools/engine-runner/testable <project files in order> <stress files> \
-    --testable=stress::S1 --testable=stress::S2 ... \
-    --rows=<dir>                       # every test's actual rows, one <suite>___<test>.rows.json each
-    [--data=<damaged.pure> ...]        # elements here replace the model's of the same path
+bazel run //scripts/corpus:run -- --rows <dir>   # every test's actual rows, one <suite>___<test>.rows.json each
+    [--data <damaged.pure>] ...                  # elements here replace the model's of the same path
+    [--only <file of service names>] [--jobs N]
 ```
 
 `--rows` replaces every `EqualToJson` expectation with a sentinel before the run, so the framework reports each
-test's ACTUAL; the summary counts total and errored, never passed. Project files first, in
-`StressCorpus.LINKED_PROJECTS` order (model, store, mapping per project), then the stress files.
+test's ACTUAL; nothing is judged. The run passes the project files first, in `core/stress.bzl`'s `LINKED_PROJECTS`
+order (model, store, mapping per project), then the stress files.
 
 Lite (`//core:stress_tool`, the same suites through `ServiceTestRunner`; the gate's knobs moved here, Bazel workplan
 P3-12):

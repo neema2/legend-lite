@@ -44,6 +44,14 @@ export type JoinHow =
     readonly form: 'join'; readonly kind: JoinKindWord; readonly on: JoinCondition; readonly prefix: string;
     /** Their columns brought over, by their own names, in the order given; null: all. */
     readonly keep: readonly string[] | null;
+    /** Each row of mine paired with one of theirs at most: their first row of each key -- their columns in the condition's
+     *  rows, every one `==` -- each key's rows in an order of their every column that sorts, rising (a lookup's, Alteryx's
+     *  Find Replace: a key theirs repeats matches once, C13). Absent: every match. */
+    readonly once?: true;
+    /** A Fuzzy Match's score (Alteryx's): each pair's likeness on its condition's first similar (`~`) row, 0 to 100 --
+     *  100 less its edits apart for each 100 letters of the longer, rounded -- a column of this name, the database's.
+     *  Matching rows only, so both texts have a value. Absent: none. */
+    readonly score?: string;
   }
   | {
     readonly form: 'asOf'; readonly match: JoinRow & { readonly op: AsOfOp }; readonly on: JoinCondition;
@@ -51,8 +59,10 @@ export type JoinHow =
   }
   /** My rows that have a match (semi), or that have none (anti): my columns only, each row once. */
   | { readonly form: 'semi' | 'anti'; readonly on: JoinCondition }
-  /** The rows of both, columns matched by name: a column one side lacks is empty on its rows. */
-  | { readonly form: 'append' };
+  /** The rows of both, columns matched by name: a column one side lacks is empty on its rows. `pick` (Dynamic Input,
+   *  docs/DATACUBE_FLOW_MODE_2026_10_24.md M8): an expression in Pure of no parameter -- a page parameter, `|$source` --
+   *  naming the one input whose rows it keeps, by its name: each input's rows filtered by it, the database keeping one. */
+  | { readonly form: 'append'; readonly pick?: Lambda };
 
 /** A join of every row of mine with every row of theirs: matching rows only, on no condition (Alteryx's Append Fields;
  *  docs/DATACUBE_FLOW_MODE_2026_10_24.md M2) -- the Join window's Every pair, a flow's Append Fields box. */
@@ -62,6 +72,32 @@ export const isEveryPair = (how: JoinHow): boolean =>
 /** A join pairing rows by similar text: a row of its condition `~` (a flow's Fuzzy Match box). */
 export const isFuzzy = (how: JoinHow): boolean =>
   how.form === 'join' && 'rows' in how.on && how.on.rows.some((r) => r.op === '~');
+
+/** Why an append's pick is no expression naming an input, in words, if it is not: one expression of no parameter. */
+export function pickProblem(pick: Lambda): string | undefined {
+  return pick.parameters.length > 0 || pick.body.length !== 1
+    ? "an append's pick is one expression of no parameter, as $source names a parameter of the page" : undefined;
+}
+
+/** A JOIN AS ITS PAGE HOLDS IT, OPENED (`held`, its source's own -- what it reads of the page's parameters `$name`,
+ *  never their values now: page-parameters.ts boundIn binds only what is opened), with what opening reconciled
+ *  (`opened`, join-open.ts reconciled: a kept column of theirs gone since left out) -- what a grid it opens writes. */
+export function heldHow(held: JoinHow, opened: JoinHow): JoinHow {
+  return (held.form === 'join' || held.form === 'asOf') && (opened.form === 'join' || opened.form === 'asOf') ? { ...held, keep: opened.keep } : held;
+}
+
+/** Why inputs called `names` cannot be picked among, in words, if they cannot: two called the same (a pick names one
+ *  by its name). */
+export function pickNamesProblem(names: readonly string[]): string | undefined {
+  const twice = names.find((n, i) => names.indexOf(n) !== i);
+  return twice === undefined ? undefined : `two of its inputs are named ${twice}: a Dynamic Input picks one by its name -- rename one`;
+}
+
+/** An append's pick in words: the parameter it reads (`$source`), or "an expression". */
+export function pickWords(pick: Lambda): string {
+  const e = pick.body[0];
+  return e?._type === 'var' ? `$${e.name}` : 'an expression';
+}
 
 export type JoinForm = JoinHow['form'];
 export const JOIN_FORMS: readonly JoinForm[] = ['join', 'asOf', 'semi', 'anti', 'append'];
@@ -147,14 +183,22 @@ export function readJoinHow(raw: unknown): JoinHow {
   const form = (raw as { form?: unknown } | null)?.form;
   switch (form) {
     case 'join': {
-      const o = object(raw, 'a join', ['form', 'kind', 'on', 'prefix', 'keep']);
+      const o = object(raw, 'a join', ['form', 'kind', 'on', 'prefix', 'keep', 'once', 'score']);
       if (typeof o['kind'] !== 'string' || !(JOIN_KINDS as readonly string[]).includes(o['kind'])) {
         throw new CubeRefusal(`a join's kind is one of ${JOIN_KINDS.join(', ')}, not ${JSON.stringify(o['kind'])}`);
       }
-      return {
+      if (o['once'] !== undefined && o['once'] !== true) throw new CubeRefusal(`a join's once is true or left out, not ${JSON.stringify(o['once'])}`);
+      const score = o['score'];
+      if (score !== undefined && (typeof score !== 'string' || score.trim() === '')) {
+        throw new CubeRefusal(`a join's score is the name of its column, not ${JSON.stringify(score)}`);
+      }
+      const how: JoinHow = {
         form, kind: o['kind'] as JoinKindWord, on: readJoinCondition(o['on'], "a join's condition"), prefix: readPrefix(o['prefix']),
-        keep: readKeep(o['keep']),
+        keep: readKeep(o['keep']), ...(o['once'] === true ? { once: true as const } : {}), ...(score !== undefined ? { score } : {}),
       };
+      const why = onceRefusal(how) ?? scoreRefusal(how);
+      if (why !== undefined) throw new CubeRefusal(why);
+      return how;
     }
     case 'asOf': {
       const o = object(raw, 'an as-of join', ['form', 'match', 'on', 'prefix', 'keep']);
@@ -168,9 +212,20 @@ export function readJoinHow(raw: unknown): JoinHow {
       const o = object(raw, `a ${form}-join`, ['form', 'on']);
       return { form, on: readJoinCondition(o['on'], `a ${form}-join's condition`) };
     }
-    case 'append':
-      object(raw, 'an append', ['form']);
-      return { form };
+    case 'append': {
+      const o = object(raw, 'an append', ['form', 'pick']);
+      if (o['pick'] === undefined) return { form };
+      let pick: Lambda;
+      try {
+        pick = readLambda(o['pick']);
+      } catch (e) {
+        if (!(e instanceof ProtocolError)) throw e;
+        throw new CubeRefusal(`an append's pick is an expression in Pure: ${e.message}`);
+      }
+      const why = pickProblem(pick);
+      if (why !== undefined) throw new CubeRefusal(why);
+      return { form, pick };
+    }
     default:
       throw new CubeRefusal(`a join's form is one of ${JOIN_FORMS.join(', ')}, not ${JSON.stringify(form)}`);
   }
@@ -247,6 +302,30 @@ export function quickJoins(mine: JoinColumns, others: readonly (JoinColumns & { 
     const key = suggestedKeys(mine, o).find((k) => k.row.left === clicked);
     return key ? [{ their: o.id, name: o.name, row: key.row, why: key.why }] : [];
   });
+}
+
+/** Why a join cannot pair each of mine with one of theirs (`once`), or undefined: their key is the columns of its
+ *  condition's rows, so the condition is rows, at least one, each `==`. */
+export function onceRefusal(how: JoinHow): string | undefined {
+  if (how.form !== 'join' || how.once !== true) return undefined;
+  // a lookup keeps mine: theirs' rows each one of a key, those of no match a right or full join would keep are
+  // theirs no more (the roadmap audit of 2026-10-26: theirs' rows of an empty key were one)
+  if (how.kind === 'right' || how.kind === 'full') return `one of theirs for each of mine is a lookup of mine: a matching or a left join, not ${how.kind === 'right' ? 'all of theirs' : 'everything'}`;
+  return 'rows' in how.on && how.on.rows.length > 0 && how.on.rows.every((r) => r.op === '==') ? undefined
+    : 'one of theirs for each of mine takes a key: rows of equal (==) columns';
+}
+
+/** The similar row a join's score is of (`score`): its condition's first `~` row, or undefined. */
+export function scoredRow(how: JoinHow): JoinRow | undefined {
+  return how.form === 'join' && 'rows' in how.on ? how.on.rows.find((r) => r.op === '~') : undefined;
+}
+
+/** Why a join cannot score its pairs (`score`), or undefined: a score is of a similar (`~`) row's two texts, each a
+ *  value -- matching rows only. */
+export function scoreRefusal(how: JoinHow): string | undefined {
+  if (how.form !== 'join' || how.score === undefined) return undefined;
+  if (scoredRow(how) === undefined) return 'a score is a Fuzzy Match\'s: its condition needs a row of similar text (~)';
+  return how.kind === 'inner' ? undefined : 'a score is each matched pair\'s: it takes matching rows only';
 }
 
 /** The forms a quick join is made in: all of mine (a lookup), matching only, mine with a match, mine with none. */

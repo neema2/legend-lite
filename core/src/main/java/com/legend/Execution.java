@@ -3,14 +3,29 @@
 
 package com.legend;
 
-import com.legend.compiler.element.ModelContext;
+import com.legend.exec.PlanSessions;
+import com.legend.exec.ProductRun;
+import com.legend.exec.SessionSource;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.result.Batcher;
+import com.legend.result.Output;
+
+import java.io.IOException;
+import java.util.Set;
 
 /**
- * THE EXECUTION FRONT DOOR (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): a query planned by
- * {@link Compiler} (the planner, which never touches a database — its library has no {@code exec}) run on a
- * session — handed by the caller and checked, or opened from the target the planner decided
- * ({@code Compiler.executesOn}, {@code exec.Sessions}). Execution reaches the planner only through its public API:
- * the compiled model, the resolved query, the target, and the lowered query ({@link Compiler.LoweredQuery}).
+ * THE PRODUCT'S DOOR (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md; thin since the plan-as-data
+ * design's slice 5, 2026-11-09): a query planned by its one planning entry ({@code TypedQuery.executionPlan}: the
+ * planner never touches a database) and the plan run by exec's product run ({@link ProductRun}: the plan alone says
+ * where it runs). Each method is one statement: its run call, its planning calls the run's argument (a query's
+ * text compiled, then planned), or a call of another of them -- no logic, no state
+ * ({@code ArchitectureTest.theDoorsOnlyCompose}, {@code JavaEvalLedgerTest.theDoorsHoldNoLogic}). Its own library ({@code //core:execution}); a test body's door
+ * is {@link TestExecution}, its own.
+ *
+ * <p>EACH CALL IS ONE EXECUTION (a query run; the user's ruling of 2026-11-12, "Do the exec id as part
+ * of C"): the door mints its id ({@code java.util.UUID.randomUUID}) and hands it to exec, which binds it to the
+ * statements' stamps and tells it to the listener, and makes no value of its own
+ * ({@code ArchitectureTest.execMakesNoValueOfItsOwn}). No caller supplies an id.
  */
 public final class Execution {
 
@@ -18,414 +33,77 @@ public final class Execution {
     }
 
     /**
-     * STREAMING execution — the {@link #planStreaming} lowering pushed all
-     * the way through {@link com.legend.exec.Executor#stream}: JSON rows go
-     * to {@code out} as they arrive from JDBC, O(one row) regardless of
-     * result size. The dialect binds to the ACTUAL SESSION (the H5.4
-     * reconciliation), unlike the plan-only surface which has no connection
-     * to consult. {@code out} is flushed per row and never closed.
+     * THE PRODUCTION EXECUTION (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state recorded 2026-10-27): a query
+     * typed once, planned as typed rows, run by the plan's runner, its rows streamed in batches in the caller's
+     * {@code output} (a format and a stream: the result library makes its writer from the plan before any statement
+     * runs). A plan that reads runs on the
+     * session {@code sessions} opens for its answer's target, established as {@code establish} says; a program that
+     * writes runs on {@code planSessions} (decision A). Returns the plan that ran.
      */
-    public static void executeStreaming(String model, String query,
-            @com.legend.base.Nullable String runtimeFqn, java.sql.Connection connection,
-            java.io.Writer out) throws java.io.IOException {
-        executeStreaming(model, query, runtimeFqn, com.legend.exec.Sessions.given(connection), out);
+    public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
+            Output output) throws IOException {
+        return ProductRun.run(typed.executionPlan(runtimeFqn), sessions, planSessions, establish, output,
+                Batcher.DEFAULT_CAPACITY, java.util.UUID.randomUUID());
     }
 
-    /** {@link #executeStreaming(String, String, String, java.sql.Connection, java.io.Writer)} on the session
-     *  {@code sessions} opens for the target this query's runtime declares ({@link Compiler#executesOn}): the
-     *  connection is decided from the compiled model, then opened (C3b). */
-    public static void executeStreaming(String model, String query,
-            @com.legend.base.Nullable String runtimeFqn, com.legend.exec.Sessions.Source sessions,
-            java.io.Writer out) throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.query(Compiler.compileModel(model), query).lower(runtimeFqn, true);
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
-            streamOn(l, runtimeFqn, session.connection(), out);
-        }
+    /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Output)} with the
+     *  rows handed to the sink in batches of up to {@code batchRows} (a writer writes and flushes each as it arrives). */
+    public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
+            Output output, int batchRows) throws IOException {
+        return ProductRun.run(typed.executionPlan(runtimeFqn), sessions, planSessions, establish, output, batchRows,
+                java.util.UUID.randomUUID());
     }
 
-    private static void streamOn(Compiler.LoweredQuery l, @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection, java.io.Writer out) throws java.io.IOException {
-        com.legend.sql.dialect.SqlDialect dialect =
-                dialectOf(l.ctx(), runtimeFqn, connection);
-        switch (com.legend.plan.ResultShape.of(l.root())) {
-            // E5: the JSON rows are PLAN-RENDERED (WireRender) — the
-            // executor writes bytes and array punctuation only
-            case GRAPH -> com.legend.exec.Executor.streamGraph(
-                    dialect.render(l.plan()), connection, dialect, out);
-            case TABULAR -> {
-                // a pivot no cast names: its probe plan, on this session (KeyedPivot, 2026-10-20)
-                com.legend.executionplan.ExecutionPlan keyed = PlanMaker.keyedWire(l, runtimeFqn, dialect,
-                        com.legend.exec.Sessions.version(connection), com.legend.lowering.KeyedPivot.Out.JSON,
-                        com.legend.lowering.WireRender.Spelling.PURE);
-                if (keyed != null) {
-                    com.legend.exec.PlanRunner.run(keyed, java.util.Map.of(),
-                            com.legend.exec.PlanSessions.given(connection), out);
-                } else {
-                    com.legend.exec.Executor.streamWireRows(dialect.render(com.legend.lowering.WireRender.rows(
-                            l.plan(), com.legend.lowering.WireRender.schema(l.root().info()))), connection, out);
-                }
-            }
-            case SCALAR, COLLECTION -> {
-                out.write(com.legend.exec.Executor.wireText(
-                        dialect.render(com.legend.lowering.WireRender.wrap(
-                                l.plan(), com.legend.lowering.WireRender.schema(l.root().info()),
-                                com.legend.lowering.WireRender.Format.JSON)),
-                        connection));
-                out.flush();
-            }
-        }
+    /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Output, int)} under
+     *  the query's FEATURE FLAGS: upstream's execution context carries them per query (its
+     *  {@code ExecutionOptionContext}'s {@code FeatureFlagOption}), and the lowering reads them (2026-11-03: the door's
+     *  own parameter, so a caller that sets a flag -- the PCT, the user's ruling of 2026-09-12 -- runs through it). */
+    public static ExecutionPlan run(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn,
+            SessionSource sessions, PlanSessions.Source planSessions, ProductRun.Establish establish,
+            Set<com.legend.platform.Feature> features, Output output, int batchRows)
+            throws IOException {
+        return ProductRun.run(typed.executionPlan(runtimeFqn, features), sessions, planSessions, establish, output,
+                batchRows, java.util.UUID.randomUUID());
     }
 
-    /**
-     * E5 (JAVA_EVICTION_PLAN): the PRODUCT WIRE execution — the plan
-     * renders the result text ({@link com.legend.lowering.WireRender})
-     * and the DATABASE produces the bytes; Java writes them through.
-     * Returns the typed COLUMN NAMES (a plan fact — the response
-     * envelope's columns, correct even for a zero-row result). GRAPH
-     * results are already DB-built JSON and pass verbatim (JSON only).
-     */
-    public static java.util.List<String> executeWire(String model,
-            String query, @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection,
-            com.legend.lowering.WireRender.Format format, java.io.Writer out)
-            throws java.io.IOException {
-        return executeWire(model, query, runtimeFqn, com.legend.exec.Sessions.given(connection), format, out);
+    /** A query run as legend-lite's server runs it (legend-engine's {@code pure/v1/execution/execute}): planned, then
+     *  run on its project's databases ({@link ProductRun#onProjectDatabases}). pure/v1's execute reaches it through the
+     *  runner the server hands the API (slice 5, 2026-11-09: pure/v1 compiles, the door plans and runs -- the API's own
+     *  plan-then-run is gone). */
+    public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, Output output) throws IOException {
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), output, java.util.UUID.randomUUID());
     }
 
-    /** {@link #executeWire(String, String, String, java.sql.Connection, com.legend.lowering.WireRender.Format,
-     *  java.io.Writer)} on the session {@code sessions} opens for the target the query's runtime declares (C3b). */
-    public static java.util.List<String> executeWire(String model,
-            String query, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions,
-            com.legend.lowering.WireRender.Format format, java.io.Writer out)
-            throws java.io.IOException {
-        Compiler.LoweredQuery l = Compiler.query(Compiler.compileModel(model), query).lower(runtimeFqn, false);
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
-            return wireOn(l, runtimeFqn, session.connection(), format, out);
-        }
+    /** {@link #runOnProjectDatabases(TypedQuery, String, Output)}, its live sources read under the fence the host's
+     *  configuration names, {@code admittedSources} ({@code SourceAdmission.configured}'s text: null, any file; the A
+     *  checkpoint's tenets audit, 11). */
+    public static ExecutionPlan runOnProjectDatabases(TypedQuery typed,
+            @com.legend.base.Nullable String runtimeFqn, @com.legend.base.Nullable String admittedSources,
+            Output output) throws IOException {
+        return ProductRun.onProjectDatabases(typed.projectPlan(runtimeFqn), admittedSources, output,
+                java.util.UUID.randomUUID());
     }
 
-    private static java.util.List<String> wireOn(Compiler.LoweredQuery l, @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection, com.legend.lowering.WireRender.Format format, java.io.Writer out)
-            throws java.io.IOException {
-        com.legend.sql.dialect.SqlDialect dialect =
-                dialectOf(l.ctx(), runtimeFqn, connection);
-        com.legend.plan.ResultShape shape =
-                com.legend.plan.ResultShape.of(l.root());
-        if (shape == com.legend.plan.ResultShape.GRAPH) {
-            if (format != com.legend.lowering.WireRender.Format.JSON) {
-                throw new com.legend.error.NotImplementedException(
-                        "graph results have no CSV wire");
-            }
-            var r = com.legend.exec.Executor.execute(dialect.render(l.plan()),
-                    l.plan(), l.root().info(), shape, connection, dialect, null);
-            out.write(r instanceof com.legend.exec.ExecutionResult.Graph g
-                    && g.json() != null ? g.json() : "[]");
-            return java.util.List.of();
-        }
-        com.legend.compiler.element.type.Type.RelationType schema =
-                com.legend.lowering.WireRender.schema(l.root().info());
-        // a pivot no cast names: its probe plan, on this session (KeyedPivot, 2026-10-20)
-        com.legend.executionplan.ExecutionPlan keyed = PlanMaker.keyedWire(l, runtimeFqn, dialect,
-                com.legend.exec.Sessions.version(connection), switch (format) {
-                    case CSV -> com.legend.lowering.KeyedPivot.Out.CSV;
-                    case JSON -> com.legend.lowering.KeyedPivot.Out.JSON;
-                }, com.legend.lowering.WireRender.Spelling.PURE);
-        if (keyed != null) {
-            com.legend.exec.PlanRunner.run(keyed, java.util.Map.of(), com.legend.exec.PlanSessions.given(connection),
-                    out);
-            return schema.columns().stream()
-                    .map(com.legend.compiler.element.type.Type.Column::name)
-                    .toList();
-        }
-        out.write(com.legend.exec.Executor.wireText(
-                dialect.render(com.legend.lowering.WireRender.wrap(
-                        l.plan(), schema, format)), connection));
-        return schema.columns().stream()
-                .map(com.legend.compiler.element.type.Type.Column::name)
-                .toList();
+    /** {@link #run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish, Output)} for a
+     *  model's text and a query's text, the target's loads established on the session it acquires. */
+    public static ExecutionPlan run(String model, String query,
+            @com.legend.base.Nullable String runtimeFqn, SessionSource sessions,
+            PlanSessions.Source planSessions, Output output) throws IOException {
+        return ProductRun.run(Compiler.query(Compiler.compileModel(model), query).executionPlan(runtimeFqn), sessions,
+                planSessions, ProductRun.Establish.DECLARED_SETUP, output, Batcher.DEFAULT_CAPACITY,
+                java.util.UUID.randomUUID());
     }
 
-    /**
-     * Upstream {@code pure/v1/execution/execute} (E8) for an already-parsed relation
-     * query: the runtime's connections are ESTABLISHED as legend-engine establishes them
-     * on every acquisition (a LocalH2 connection's declared test data runs first), then the
-     * database renders the rows as the JSON wire ({@code [row, ...]}) onto {@code out}.
-     * Returns the plan: its SQL (the activity the engine reports) and its root type.
-     */
-    public static com.legend.plan.QueryPlan executeWire(String model,
-            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
-            java.sql.Connection connection, java.io.Writer out) throws java.io.IOException {
-        return executeWire(model, query, runtimeFqn, com.legend.exec.Sessions.given(connection), out);
-    }
-
-    /** {@link #executeWire(String, com.legend.protocol.spec.ValueSpecification, String, java.sql.Connection,
-     *  java.io.Writer)} on the session {@code sessions} opens for the target the query's runtime declares (C3b). */
-    public static com.legend.plan.QueryPlan executeWire(String model,
-            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
-        return executeWire(Compiler.compileModel(model), query, runtimeFqn, sessions, out);
-    }
-
-    /** {@link #executeWire(String, com.legend.protocol.spec.ValueSpecification, String,
-     *  com.legend.exec.Sessions.Source, java.io.Writer)} over a model already compiled -- a text's or a JSON
-     *  model's, compiled once by the route (docs/PROTOCOL_PROGRAM_2026_10_05.md leg 8 step 3; the seam the execution
-     *  plan's step 4 builds on). */
-    public static com.legend.plan.QueryPlan executeWire(ModelContext model,
-            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
-        return wire(Compiler.query(model, query), runtimeFqn, sessions, out);
-    }
-
-    /** A query typed once, its rows written as the JSON wire on the session {@code sessions} opens for its runtime's
-     *  target: {@link #executeWire}'s, and {@link #executeUpstream}'s for a query that writes nothing. */
-    private static com.legend.plan.QueryPlan wire(TypedQuery typed, String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, java.io.Writer out) throws java.io.IOException {
-        Compiler.LoweredQuery l = typed.lower(runtimeFqn, false);
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(l.ctx(), runtimeFqn), l.ctx())) {
-            return wireOn(l, runtimeFqn, session.connection(), out);
-        }
-    }
-
-    /** {@link #executeUpstream(ModelContext, com.legend.protocol.spec.ValueSpecification, String,
-     *  com.legend.exec.Sessions.Source, com.legend.exec.PlanSessions.Source, java.io.Writer)} over a model's text,
-     *  compiled here. */
-    public static com.legend.plan.QueryPlan executeUpstream(String model,
-            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, com.legend.exec.PlanSessions.Source planSessions,
-            java.io.Writer out) throws java.io.IOException {
-        return executeUpstream(Compiler.compileModel(model), query, runtimeFqn, sessions, planSessions, out);
-    }
-
-    /**
-     * Upstream {@code pure/v1/execution/execute} (E8), the query compiled once: a program that WRITES a store
-     * (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7) from its execution plan ({@link TypedQuery#executionPlan}), run by
-     * the model-free runner on {@code planSessions}; any other query as {@link #executeWire} runs it, on
-     * {@code sessions}.
-     * The database's JSON rows are written to {@code out}. Returns the plan that ran: for a program, its answer's SQL
-     * and its root type. A program whose answer execute cannot write (a count, any value but a relation's rows or a
-     * graph fetch's objects: unprobed, as a read's) is refused by name before its plan runs, so its writes never land
-     * behind a refused answer. The model is compiled once by the route, as {@link #executeWire}'s is.
-     */
-    public static com.legend.plan.QueryPlan executeUpstream(ModelContext model,
-            com.legend.protocol.spec.ValueSpecification query, String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, com.legend.exec.PlanSessions.Source planSessions,
-            java.io.Writer out) throws java.io.IOException {
-        TypedQuery typed = Compiler.query(model, query);
-        if (!typed.writes()) {
-            return wire(typed, runtimeFqn, sessions, out);
-        }
-        com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(typed.body().get(typed.body().size() - 1));
-        if (shape != com.legend.plan.ResultShape.TABULAR && shape != com.legend.plan.ResultShape.GRAPH) {
-            throw new com.legend.error.NotImplementedException(
-                    "execute: a " + shape + " result's serialization is unprobed");
-        }
-        com.legend.executionplan.ExecutionPlan plan = typed.executionPlan(runtimeFqn, TypedQuery.Output.JSON);
-        com.legend.exec.PlanRunner.run(plan, java.util.Map.of(), planSessions, out);
-        com.legend.executionplan.ExecutionPlan.TextResult result = ((com.legend.executionplan.ExecutionPlan.Sequence)
-                plan.root()).steps().stream()
-                .filter(com.legend.executionplan.ExecutionPlan.TextResult.class::isInstance)
-                .map(com.legend.executionplan.ExecutionPlan.TextResult.class::cast)
-                .findFirst().orElseThrow();
-        // the result step's columns with their three facts (a value's answer has none to list)
-        java.util.List<com.legend.executionplan.ExecutionPlan.Column> columns =
-                result.type() instanceof com.legend.executionplan.ExecutionPlan.Relation r ? r.columns()
-                        : java.util.List.of();
-        return new com.legend.plan.QueryPlan(result.sql().statement(), typed.resultType(), shape, columns);
-    }
-
-    private static com.legend.plan.QueryPlan wireOn(Compiler.LoweredQuery l, String runtimeFqn, java.sql.Connection connection,
-            java.io.Writer out) throws java.io.IOException {
-        com.legend.plan.ResultShape shape = com.legend.plan.ResultShape.of(l.root());
-        if (shape == com.legend.plan.ResultShape.GRAPH) {
-            // a graph fetch: the database renders the objects' JSON array, as the text
-            // path above does (the Query app's G2)
-            com.legend.sql.dialect.SqlDialect dialect = dialectOf(l.ctx(), runtimeFqn, connection);
-            com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
-                    connection, dialect, null);
-            String sql = dialect.render(l.plan());
-            var r = com.legend.exec.Executor.execute(sql, l.plan(), l.root().info(), shape, connection, dialect, null);
-            out.write(r instanceof com.legend.exec.ExecutionResult.Graph g && g.json() != null ? g.json() : "[]");
-            return new com.legend.plan.QueryPlan(sql, l.root().info(), shape,
-                    com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
-        }
-        if (shape != com.legend.plan.ResultShape.TABULAR) {
-            throw new com.legend.error.NotImplementedException(
-                    "execute: a " + shape + " result's serialization is unprobed");
-        }
-        com.legend.sql.dialect.SqlDialect dialect = dialectOf(l.ctx(), runtimeFqn, connection);
-        com.legend.exec.SetupRunner.run(com.legend.setup.CsvSeed.declaredSteps(runtimeFqn, l.ctx(), dialect),
-                connection, dialect, null);
-        // a pivot no cast names: its probe plan, on this session (KeyedPivot, 2026-10-20), in the engine's text
-        com.legend.executionplan.ExecutionPlan keyed = PlanMaker.keyedWire(l, runtimeFqn, dialect,
-                com.legend.exec.Sessions.version(connection), com.legend.lowering.KeyedPivot.Out.JSON,
-                com.legend.lowering.WireRender.Spelling.ENGINE);
-        if (keyed != null) {
-            com.legend.exec.PlanRunner.run(keyed, java.util.Map.of(), com.legend.exec.PlanSessions.given(connection),
-                    out);
-            return new com.legend.plan.QueryPlan(((com.legend.executionplan.ExecutionPlan.Keyed) keyed.root()).body()
-                    .statement(), l.root().info(), shape, com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
-        }
-        // the engine's API answers in the engine's text (WireRender.Spelling.ENGINE), over Pure's values
-        out.write(com.legend.exec.Executor.wireText(dialect.render(com.legend.lowering.WireRender.wrap(
-                l.plan(), com.legend.lowering.WireRender.schema(l.root().info()),
-                com.legend.lowering.WireRender.Format.JSON, com.legend.lowering.WireRender.Spelling.ENGINE)),
-                connection));
-        return new com.legend.plan.QueryPlan(dialect.render(l.plan()), l.root().info(), shape,
-                com.legend.plan.PlanColumns.of(l.root().info(), l.plan()));
-    }
-
-    /**
-     * THE dialect of a query that executes on {@code connection}: the database its runtime executes on
-     * ({@link Compiler#executesOn}, upstream's {@code createDbConfig(connection.type)}), refined by the server's
-     * version ({@code SqlDialect.forServer}), with its session setup run once. The session is only
-     * CHECKED ({@code Sessions.check}): connected to another database than the one declared is refused,
-     * never reinterpreted.
-     */
-    static com.legend.sql.dialect.SqlDialect dialectOf(ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection) {
-        com.legend.model.ConnectionDefinition.DatabaseType declared = Compiler.executesOn(ctx, runtimeFqn).type();
-        com.legend.exec.Sessions.check(connection, declared);
-        com.legend.sql.dialect.SqlDialect dialect = com.legend.database.Databases.dialect(declared)
-                .forServer(com.legend.exec.Sessions.version(connection));
-        // B6: session setup rides the connection-dialect resolution -- the ONE seam every
-        // connection-bearing entry passes through; the dialect states the FACTS, the exec funnel executes
-        for (String s : dialect.sessionSetup()) {
-            try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SESSION)) {
-                com.legend.exec.Executor.executeRaw(connection, s);
-            }
-        }
-        return dialect;
-    }
-
-    /**
-     * The core QUERY SERVICE: frontend + Phase G + lowering + rendering +
-     * EXECUTION over the caller's connection, shaped per the result-type
-     * classification ({@link com.legend.plan.ResultShape}). The corpus
-     * bridge's target (PHASE_K_EXECUTION.md). Class queries need an
-     * execution context in the query itself ({@code ->from(...)}) on this
-     * overload; the 4-arg overload supplies a driver runtime.
-     */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query,
-            java.sql.Connection connection) {
-        return execute(model, query, null, connection);
-    }
-
-    /**
-     * The full pipeline with a DRIVER-SUPPLIED execution context — the
-     * service shape: queries carry no {@code ->from(...)}; the runtime
-     * arrives as an API argument (PHASE_K_EXECUTION.md §4). Phase H
-     * resolves class queries against the runtime's mapping between G and
-     * I; an explicit {@code from()} in the query always wins.
-     */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection) {
-        return execute(model, query, null, runtimeFqn, connection);
-    }
-
-    /**
-     * {@link #execute(String, String, String, java.sql.Connection)} with a
-     * SECTION import scope: the query resolves under {@code imports} (plus
-     * the prelude) against the model's element universe — real pure's rule
-     * for a query written in an import-bearing section. A {@code null}
-     * scope is the sectionless-query behavior.
-     */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query,
-            com.legend.model.@com.legend.base.Nullable ImportScope imports,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection) {
-        return execute(model, query, imports, runtimeFqn, connection, ExecuteOptions.NONE);
-    }
-
-    /** With the caller's execute OPTIONS (the PCT adapter's wire render). */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query,
-            com.legend.model.@com.legend.base.Nullable ImportScope imports,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection, ExecuteOptions options) {
-        ModelContext ctx = Compiler.compileModel(model);
-        // the ONE front door (resolveQuery: names, the statement splice, the
-        // desugars) — a text query is its statements under its section scope
-        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(query);
-        java.util.List<com.legend.protocol.spec.ValueSpecification> statements =
-                parsed instanceof com.legend.protocol.spec.LambdaFunction lf
-                        && lf.parameters().isEmpty() ? lf.body() : java.util.List.of(parsed);
-        return executeResolved(
-                Compiler.resolveQuery(statements,
-                        imports == null ? new com.legend.model.ImportScope(java.util.List.of())
-                                : imports, ctx),
-                ctx, runtimeFqn, connection, null, null, options);
-    }
-
-    /** {@link #execute(String, String, com.legend.model.ImportScope, String, java.sql.Connection, ExecuteOptions)}
-     *  on the session {@code sessions} opens for the target the query's runtime declares ({@link Compiler#executesOn}):
-     *  the model compiled once, the connection decided from it, then opened (C3b). */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult execute(
-            String model, String query, @com.legend.base.Nullable String runtimeFqn,
-            com.legend.exec.Sessions.Source sessions, ExecuteOptions options) {
-        ModelContext ctx = Compiler.compileModel(model);
-        com.legend.protocol.spec.ValueSpecification parsed = Compiler.parseQuery(query);
-        java.util.List<com.legend.protocol.spec.ValueSpecification> statements =
-                parsed instanceof com.legend.protocol.spec.LambdaFunction lf
-                        && lf.parameters().isEmpty() ? lf.body() : java.util.List.of(parsed);
-        var resolved = Compiler.resolveQuery(statements, new com.legend.model.ImportScope(java.util.List.of()), ctx);
-        try (com.legend.exec.Sessions.Session session = sessions.open(Compiler.executesOn(ctx, runtimeFqn), ctx)) {
-            return executeResolved(resolved, ctx, runtimeFqn, session.connection(), null, null, options);
-        }
-    }
-
-    /**
-     * Phases G&frac12;&rarr;K for an already NAME-RESOLVED query AST — THE
-     * one back-half sequence. Every driver path (text queries above,
-     * EngineTestExecutor's handle-splice path) comes through here; a second
-     * hand-rolled sequence is an orchestrator bug (audit 15 unified two).
-     */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection) {
-        return StatementExecutor.execute(resolved, ctx,
-                runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection);
-    }
-
-    /** Listener overload — the runner's scoring seam: observes each
-     * statement-root assert verdict; the platform keeps the judgment. */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener) {
-        return executeResolved(resolved, ctx, runtimeFqn, connection,
-                assertListener, null);
-    }
-
-    /** Registration overload (SQLTEXT charter §2): the harness supplies
-     * its {@link com.legend.exec.SqlReplayReferee} beside the listener;
-     * the env carries both. Production never calls this arity. */
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee) {
-        return executeResolved(resolved, ctx, runtimeFqn, connection, assertListener,
-                replayReferee, ExecuteOptions.NONE);
-    }
-
-    public static com.legend.exec.@com.legend.base.Nullable ExecutionResult executeResolved(
-            com.legend.protocol.spec.ValueSpecification resolved, ModelContext ctx,
-            @com.legend.base.Nullable String runtimeFqn,
-            java.sql.Connection connection,
-            com.legend.exec.@com.legend.base.Nullable AssertListener assertListener,
-            com.legend.exec.@com.legend.base.Nullable SqlReplayReferee replayReferee,
-            ExecuteOptions options) {
-        return StatementExecutor.execute(resolved, ctx,
-                runtimeFqn, dialectOf(ctx, runtimeFqn, connection), connection,
-                assertListener, replayReferee, options);
+    /** {@link #run(String, String, String, SessionSource, PlanSessions.Source, Output)} in batches of up to
+     *  {@code batchRows}. */
+    public static ExecutionPlan run(String model, String query,
+            @com.legend.base.Nullable String runtimeFqn, SessionSource sessions,
+            PlanSessions.Source planSessions, Output output, int batchRows)
+            throws IOException {
+        return ProductRun.run(Compiler.query(Compiler.compileModel(model), query).executionPlan(runtimeFqn), sessions,
+                planSessions, ProductRun.Establish.DECLARED_SETUP, output, batchRows, java.util.UUID.randomUUID());
     }
 }

@@ -1,0 +1,15 @@
+import sys, xml.etree.ElementTree as ET
+def times(p):
+    t = {}
+    for tc in ET.parse(p).getroot().iter('testcase'):
+        t[tc.get('classname', '') + '#' + tc.get('name', '')] = float(tc.get('time') or 0)
+    return t
+for suite in sys.argv[2:]:
+    d = sys.argv[1]
+    h, b = times(f'{d}/head_{suite}.xml'), times(f'{d}/base_{suite}.xml')
+    common = set(h) & set(b)
+    sh, sb = sum(h[k] for k in common), sum(b[k] for k in common)
+    print(f'{suite}: tests head={len(h)} base={len(b)} common={len(common)} sum head={sh:.1f}s base={sb:.1f}s ratio={sh/max(sb,1e-9):.2f}')
+    diffs = sorted(((h[k] - b[k], k) for k in common), reverse=True)
+    for dlt, k in diffs[:12]:
+        print(f'   +{dlt:6.2f}s  head={h[k]:6.2f} base={b[k]:6.2f}  {k[-110:]}')

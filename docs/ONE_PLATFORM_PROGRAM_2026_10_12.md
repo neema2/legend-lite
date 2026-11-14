@@ -934,7 +934,10 @@ see; Snap's preflight against a Postgres catalog (the warehouse's lane).
   DataCube's seeded-project path and its refusal on Python gone. `trading-seed.sql` stays the warehouse's fixture
   (`config-warehouse.json`). The rows' three copies -- the Data, the warehouse's fixture, the H2 connection's setup --
   are held equal by `//datacube:saved_queries_test` (each into a database of its own, every table compared row for row
-  both ways, NULLs and column types included; red on one changed cell).
+  both ways, NULLs and column types included; red on one changed cell). *Superseded 2026-11-12 (the total wall's C3
+  follow-up, the orchestrator's ruling that the warehouse's seed be a planned load):* the warehouse is made by the
+  project's own Data load (`Boundary.projectData`'s ONCE load, run by the hosts' plan runner on its catalog,
+  `query/demo/main.ts` `seed`); `trading-seed.sql` is deleted, and the test holds the two copies left equal.
 - **6, the demo's trades:** DataCube's 200,000 sample trades are made in the tab as Arrow columns
   (`datacube/src/sample-trades.ts`, over engine-client's `arrow-ipc.ts` `arrowIpcStream`) and put in by DuckDB's Arrow
   reader, where one `CREATE TABLE ... AS SELECT` over `range()` made them: `//datacube:sample_trades_test` holds every

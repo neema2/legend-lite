@@ -3,8 +3,9 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -49,7 +50,7 @@ class GroupByAverageMappingTest {
                 st.execute("CREATE TABLE T (K VARCHAR, QTY INTEGER)");
                 st.execute("INSERT INTO T VALUES ('a', 10), ('a', 20), ('b', 5)");
             }
-            var r = Execution.execute(MODEL,
+            var r = Lean.run(MODEL,
                     "|g::Acct.all()->project(~[k: x|$x.k, q: x|$x.avgQty])"
                             + "->sort(~k->ascending())", "g::RT", c);
             assertEquals(List.of("a|15.0", "b|5.0"),

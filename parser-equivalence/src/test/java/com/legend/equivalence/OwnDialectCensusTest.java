@@ -88,7 +88,10 @@ class OwnDialectCensusTest {
                     "PureV1ApiTest.java",
                     // the desk's data products, 2026-10-29 (REVIEWED): Legend's ###Lakehouse Ingest read by lite's own
                     // grammar, the declared extension LITE-DESIGN-lakehouse (OWN_CORPUS_DECISIONS §16)
-                    "LakehouseIngestTest.java");
+                    "LakehouseIngestTest.java",
+                    // overloads by a relation's column type, 2026-11-03 (REVIEWED, register S146, the user's 2a): a
+                    // user function's id spelling its relation's columns, its fixture two such overloads
+                    "SignatureMangleTest.java");
 
     /** F3.7 per-host accounting, both directions EXACT: membership alone
      *  gave a 3,483-line file unbounded excuse capacity (audit §7.5). A
@@ -142,7 +145,25 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("TdsLambdaProbeTest.java", 1),
                     java.util.Map.entry("TypeCheckerTest.java", 1),
                     java.util.Map.entry("UserCallInlinerTest.java", 1),
-                    java.util.Map.entry("UserFunctionIntegrationTest.java", 6),
+                    // 6 -> 8 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112): functions generic over
+                    // relations, the extension this host declares (OwnCorpusConformanceTest's generics 8 -> 9 and
+                    // signatures 16 -> 17); 8 -> 9 (2026-10-27, REVIEWED, S113): test::fromMean, a generic function
+                    // dropping its working column with without (signatures 17 -> 18); 9 -> 10 (2026-10-27, REVIEWED,
+                    // S112's hygiene): test::counted, a declared literal column kept by name (signatures 18 -> 19);
+                    // 10 -> 11 (2026-10-27, REVIEWED, S114): test::meanOf, its window whole and its column read;
+                    // 11 -> 12 (2026-10-27, REVIEWED, S112's hygiene of a nested call): test::offItsMean over
+                    // test::meanOf, the nested call's output column the body's own (signatures 20 -> 21); 12 -> 13
+                    // (2026-10-27, REVIEWED, S112's return check, the A4 review's 3): test::notATable, a body of no
+                    // table refused (generics 9 -> 10); 13 -> 15 (2026-10-28, REVIEWED, options checked when the
+                    // query compiles, docs/TIMESERIES_REVIEW_2026_10_25.md §20): test::statOf, an option an
+                    // enumeration, and test::digestsOf, an enumeration's value passed on whole (signatures 21 -> 23);
+                    // 15 -> 16 (2026-10-28, REVIEWED, enumeration mappings): test::ofFamily, a mapped enumeration's
+                    // column filtered by a generic body (signatures 23 -> 24); 16 -> 17 (2026-10-28, REVIEWED, the
+                    // second review): test::applyTo, a function-typed parameter (function-types 19 -> 20); 17 -> 19
+                    // (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a): aColumnsTypePicksTheOverload
+                    // (test::pick<K> beside key:All, generics 10 -> 12 with SignatureMangleTest's) and
+                    // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T>, signatures 24 -> 25)
+                    java.util.Map.entry("UserFunctionIntegrationTest.java", 19),
                     // D4 variance pins: the contravariance spec REQUIRES
                     // function-typed parameter signatures
                     // (Function<{Number[1]->String[1]}>) — pure-dialect
@@ -158,7 +179,9 @@ class OwnDialectCensusTest {
                     java.util.Map.entry("PureV1ApiTest.java", 1),
                     // the desk's data products, 2026-10-29 (REVIEWED): its two models, Legend's ###Lakehouse form and
                     // the desk's shapes
-                    java.util.Map.entry("LakehouseIngestTest.java", 2));
+                    java.util.Map.entry("LakehouseIngestTest.java", 2),
+                    // 0 -> 1 (2026-11-03, REVIEWED, S146): the id-spelling fixture, two overloads by a column's type
+                    java.util.Map.entry("SignatureMangleTest.java", 1));
 
     private static String hostOf(String id) {
         String f = id.substring(id.lastIndexOf('/') + 1);

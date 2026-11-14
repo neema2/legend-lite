@@ -16,7 +16,10 @@ import type { CubeAppOptions } from '../src/app.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { Gate } from './gate.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
-import { element } from '../../pure-protocol/src/index.ts';
+import { accessor, element, lambda, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
+import type { SnapPull } from '../../engine-client/src/host-operations.ts';
+import type { HostStreams } from '../../engine-client/src/plan-runner.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 export const SNAPSHOT: CubeSnapshot = {
   source: { query: element('trades') },
@@ -63,7 +66,7 @@ export class GateEngine extends FakeEngine {
 
 export class StubPlanner implements Planner {
   async plan(): Promise<Plan> {
-    return { sql: 'SELECT 1', columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
@@ -71,6 +74,40 @@ export class StubPlanner implements Planner {
   parse = fakeParse;
   print = fakePrint;
 }
+
+/**
+ * A PULL A SNAP'S COPY IS PLANNED FROM (the final audit's item 1, 2026-11-12: a copy is the planner's plan of the pull,
+ * Boundary.snapCopy, never a statement handed back): a model of the fixture's table and its accessor -- what a stub
+ * planner gives as a grid's pull, whatever its query, the copy's statements reaching a fake engine.
+ */
+export const SNAP_PULL: SnapPull = {
+  model: `###Relational
+Database t::DB ( Table trades ( region VARCHAR(8), desk VARCHAR(8), notional DOUBLE ) )
+
+###Connection
+RelationalDatabaseConnection t::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime t::RT { mappings: [ ]; connections: [ t::DB: [ c: t::Conn ] ]; }
+`,
+  runtime: 't::RT',
+  lambda: toJson(lambda([], accessor('t::DB', 'trades'))),
+};
+
+/** Whether `query` is a pull's count (snap.ts countQuery: its one expression's size()). */
+export const isCount = (query: Lambda | undefined): boolean => {
+  const f = Array.isArray(query?.body) ? query.body[0] : undefined;
+  return f?._type === 'func' && f.function === 'size';
+};
+
+/** A fake engine's connection held for a plan (duckdb.ts exclusive): each statement answered as its every query is. */
+export const heldBy = (engine: FakeEngine) => <T>(work: (held: HostStreams['held']) => Promise<T>): Promise<T> => work({
+  rows: async (sql) => {
+    const t = await engine.answer(sql, 0);
+    return Array.from({ length: t.rowCount }, (_, r) => t.columns.map((c) => c.values[r]));
+  },
+  insertArrow: async () => {},
+});
 
 export let dom: JSDOM;
 export let root: HTMLElement;

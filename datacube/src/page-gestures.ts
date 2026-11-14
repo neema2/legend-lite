@@ -10,10 +10,11 @@ import { ExactNumber } from '../../pure-protocol/src/index.ts';
 import type { ChartSpec } from './chart-spec.ts';
 import { asSaved, remove, tiles, type Bands, type Preset } from './layout/bands.ts';
 import { fieldNames } from './command-fields.ts';
-import { PAGE_COMMAND_FIELDS, type PageCommand } from './page-commands.ts';
+import { idsOf, nextPageId, PAGE_COMMAND_FIELDS, takenIds, type PageCommand } from './page-commands.ts';
 import { PageDocumentError, readPage, type PageDocument, type PageLayout } from './page-document.ts';
-import { FlowRefusal, arranged, containerMoves, type Frame } from './layout/flow.ts';
+import { FlowRefusal, arranged, containerMoves, type FlowBox, type Frame } from './layout/flow.ts';
 import { liveGrids } from './live-inputs.ts';
+import { pickCommands, type InputPick } from './dynamic-input.ts';
 import { givenName } from './page-names.ts';
 import { CubeRefusal, sameValue } from './snapshot.ts';
 import { inputOn, inputSides, joinInputs, moreIndex, type CubeDocument, type CubeSource, type InputSide } from './cube-document.ts';
@@ -162,9 +163,56 @@ export function takeOffCommands(grid: string, source: CubeSource, side: InputSid
  *  `document`, its cube as the page has it -- reading what it reads -- added on `sheet` after the box it reads first,
  *  titled by its number unless `title` is given: the page command every grid is added by. One rule for both (the
  *  review of 2026-10-26: Python's copy went after the box copied, as a board's does). */
-export function duplicateCommands(document: CubeDocument, tile: string, sheet: string, title: string | null = null): PageCommand[] {
+export function duplicateCommands(document: CubeDocument, tile: string, sheet: string, title: string | null = null,
+  copied?: { readonly id: string; readonly box: FlowBox }): PageCommand[] {
   const near = liveGrids(document.source)[0] ?? tile;
-  return [{ kind: 'addGrid', document, sheet, near, title, columns: null }];
+  return [
+    { kind: 'addGrid', ...(copied !== undefined ? { id: copied.id } : {}), document, sheet, near, title, columns: null },
+    ...(copied !== undefined ? settingsCommands(copied.id, copied.box) : []),
+  ];
+}
+
+/**
+ * IMPORT PURE'S BOXES DONE (FL12: pure-import.ts): box `from` taken apart into its first step and boxes after it, `made`,
+ * the last of them its rows as `from` handed them on -- so what read `from` reads the last from then on, each box of a
+ * flow reading it live (not one of `made`), and `from`'s settings (an Output, its cache, its blocking, its message) go
+ * with its rows to the last (the roadmap audit of 2026-10-26: the boxes after it read its first step's rows, its Output
+ * wrote them). A Test's stopping stays: `from` is a Pure box, no Test.
+ */
+export function importedCommands(page: PageDocument, from: string, made: readonly string[]): PageCommand[] {
+  const last = made.at(-1);
+  if (last === undefined) return [];
+  const commands: PageCommand[] = [];
+  for (const v of page.views) {
+    if (v.kind !== 'grid' || v.id === from || made.includes(v.id)) continue;
+    const source = page.cubes.find((c) => c.id === v.cube)?.cube.source;
+    if (source === undefined || (source._type !== 'rows' && source._type !== 'join')) continue;
+    for (const side of inputSides(source)) {
+      const input = inputOn(source, side);
+      if (input !== undefined && 'grid' in input && input.grid === from && input.port === undefined) {
+        commands.push({ kind: 'setInput', grid: v.id, side, input: { grid: last } });
+      }
+    }
+  }
+  const sheet = page.sheets.find((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === from));
+  const box = sheet?.layout.kind === 'flow' ? sheet.layout.boxes.find((b) => b.tile === from) : undefined;
+  if (box?.output !== undefined) commands.push({ kind: 'setOutput', grid: from, output: null }, { kind: 'setOutput', grid: last, output: box.output });
+  if (box?.cache === true) commands.push({ kind: 'setCache', grid: from, cache: false }, { kind: 'setCache', grid: last, cache: true });
+  if (box?.blocks === true) commands.push({ kind: 'setBlocks', grid: from, blocks: false }, { kind: 'setBlocks', grid: last, blocks: true });
+  if (box?.message !== undefined) commands.push({ kind: 'setMessage', grid: from, message: null }, { kind: 'setMessage', grid: last, message: box.message });
+  return commands;
+}
+
+/** A copied box's modes, set on its copy `grid` (a paste, a duplicate): its stopping, its cache, its blocking and its
+ *  message -- not its Output, which two boxes would write one file by (the roadmap audit of 2026-10-26: each was
+ *  dropped, a Message's copy a plain box). */
+export function settingsCommands(grid: string, box: FlowBox): PageCommand[] {
+  return [
+    ...(box.stops === true ? [{ kind: 'setStops' as const, grid, stops: true }] : []),
+    ...(box.cache === true ? [{ kind: 'setCache' as const, grid, cache: true }] : []),
+    ...(box.blocks === true ? [{ kind: 'setBlocks' as const, grid, blocks: true }] : []),
+    ...(box.message !== undefined ? [{ kind: 'setMessage' as const, grid, message: box.message }] : []),
+  ];
 }
 
 /** The page a gesture is asked over (`a.page`), read: one its reader refuses refused in its words; any other error is a
@@ -227,8 +275,10 @@ export const PAGE_GESTURES = {
     const sheet = page.sheets.find((s) => s.layout.kind === 'flow' && s.layout.boxes.some((b) => b.tile === a['tile']));
     const view = page.views.find((v) => v.id === a['tile']);
     const cube = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube) : undefined;
-    if (sheet === undefined || cube === undefined) throw new CubeRefusal(`'${a['tile']}' is no grid's box of a flow`);
-    return duplicateCommands(cube.cube, a['tile'], sheet.id, (a['title'] as string | null | undefined) ?? null);
+    if (sheet === undefined || cube === undefined || sheet.layout.kind !== 'flow') throw new CubeRefusal(`'${a['tile']}' is no grid's box of a flow`);
+    const box = sheet.layout.boxes.find((b) => b.tile === a['tile'])!;
+    return duplicateCommands(cube.cube, a['tile'], sheet.id, (a['title'] as string | null | undefined) ?? null,
+      { id: nextPageId(takenIds({ page, held: idsOf(page) }), 'grid'), box });
   },
   // a Union's input taken off, over the page as it is (its grid's source)
   'flow.takeOff': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
@@ -241,6 +291,24 @@ export const PAGE_GESTURES = {
     const cube = view?.kind === 'grid' ? page.cubes.find((c) => c.id === view.cube) : undefined;
     if (cube === undefined) throw new CubeRefusal(`'${a['grid']}' is no grid of the page`);
     return takeOffCommands(a['grid'], cube.cube.source, a['side'] as InputSide);
+  },
+  // Import Pure's boxes done (importedCommands): what read the box taken apart reads its last box
+  'flow.imported': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
+    if (typeof a['grid'] !== 'string') throw new CubeRefusal("'flow.imported' needs grid, the box taken apart");
+    const made = a['made'];
+    if (!Array.isArray(made) || !made.every((m): m is string => typeof m === 'string')) throw new CubeRefusal("'flow.imported' needs made, the boxes made after it");
+    return importedCommands(pageOf(a), a['grid'], made);
+  },
+  // a Union's pick -- a Dynamic Input -- over the page as it is: a parameter's name, `made` (a new parameter of its
+  // inputs' names), or null (every input's rows: dynamic-input.ts pickCommands)
+  'flow.pick': (a: Readonly<Record<string, unknown>>): PageCommand[] => {
+    if (typeof a['grid'] !== 'string') throw new CubeRefusal("'flow.pick' needs grid, the Union's id");
+    const by = a['parameter'];
+    if (by !== null && by !== true && typeof by !== 'string') {
+      throw new CubeRefusal(`'flow.pick' needs parameter: a parameter's name, true for a new one, or null, not ${JSON.stringify(by ?? null)}`);
+    }
+    const pick: InputPick = by === null ? null : by === true ? { made: true } : { parameter: by };
+    return pickCommands(pageOf(a), a['grid'], pick);
   },
 } as const;
 

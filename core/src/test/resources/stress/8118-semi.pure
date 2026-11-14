@@ -1,0 +1,371 @@
+// ============================================================
+// The semi-structured pack (the improvement plan's Phase 9): JSON documents navigated, flattened and exploded
+// ============================================================
+// One booking payload per row: in 66-store-surface.pure's SURFACE_TYPES.C_SEMI, which the H2 side reads, and in this
+// store's SEMI_DOC.DOC, which the DuckDB side reads (the seed, `_SEMI_DOCS` in scripts/corpus/seed.py, puts the same
+// five documents in both, and a NULL document in SEMI_DOC alone). legend-engine 4.145.0 runs a service's tests on H2
+// when its query answers a TDS or a graph, and on DuckDB when it answers a Relation (ServiceTestRunner's
+// isRelationReturnType hint); DuckDB cannot create SURFACE_TYPES, whose REAL and OTHER columns it has no type for, so
+// the Relation services read SEMI_DOC. The two sides map the same properties, each through its own classes (the
+// corpus's reader keys a property's column by class), and each construct on a class of its own, so that a reader
+// refusing one refuses only its services (lite compiles a class mapping whole, 2026-10-31):
+//   Sj/SdDoc     NAVIGATION: extractFromSemiStructured in property mappings, every scalar type of the whitelist the
+//                services read, along a dotted path, an index, consecutive indices and bracket-quoted keys;
+//   Sj/SdBig     the same in a store Filter, which the class mapping's ~filter names;
+//   Sj/SdBound   a Binding over the semi-structured column: its keys, a nested object, and a to-many, which the
+//                planner flattens laterally, one row per element;
+//   Sj/SdRoute   EXPLODE: a join that fans a document's legs into rows of SEMI_HOP;
+//   SdArrays     WILDCARD PATHS and the array_* functions over them, on the DuckDB side alone (the pin's H2 plans
+//                neither).
+// Each construct was probed on the pinned release before its services were written (scripts/corpus/semi.py's header).
+// C_JSON, the JSON-typed column beside C_SEMI, is mapped by nothing: neither test database loads a value into a JSON
+// column at the pin (docs/UPSTREAM_FINDINGS.md, F91), so the seed leaves it NULL.
+###Pure
+Class semi::SjDoc
+{
+   docKey: String[1];
+   docVariant: String[1];
+   ref: String[0..1];
+   refName: String[0..1];
+   qty: Integer[0..1];
+   px: Float[0..1];
+   fee: Decimal[0..1];
+   live: Boolean[0..1];
+   tradeDate: StrictDate[0..1];
+   stamp: DateTime[0..1];
+   stampAt: DateTime[0..1];
+   firstHop: String[0..1];
+   secondVenue: String[0..1];
+   cell: Integer[0..1];
+   lowerCell: Integer[0..1];
+   book: String[0..1];
+}
+
+Class semi::SjBig
+{
+   docKey: String[1];
+   ref: String[0..1];
+}
+
+Class semi::SjBound
+{
+   docKey: String[1];
+   body: semi::SjBody[0..1];
+}
+
+Class semi::SjBody
+{
+   ref: String[0..1];
+   qty: Integer[0..1];
+   px: Float[0..1];
+   live: Boolean[0..1];
+   dates: semi::SjDates[0..1];
+   legs: semi::SjLeg[*];
+}
+
+Class semi::SjDates
+{
+   trade: StrictDate[0..1];
+}
+
+Class semi::SjLeg
+{
+   hop: String[1];
+   venue: String[0..1];
+   qty: Integer[0..1];
+}
+
+Class semi::SjRoute
+{
+   docKey: String[1];
+   hops: semi::SjHop[*];
+}
+
+Class semi::SjHop
+{
+   hopId: String[1];
+   label: String[0..1];
+}
+
+Class semi::SdDoc
+{
+   docId: String[1];
+   ref: String[0..1];
+   refName: String[0..1];
+   qty: Integer[0..1];
+   px: Float[0..1];
+   fee: Decimal[0..1];
+   live: Boolean[0..1];
+   tradeDate: StrictDate[0..1];
+   stamp: DateTime[0..1];
+   stampAt: DateTime[0..1];
+   firstHop: String[0..1];
+   secondVenue: String[0..1];
+   cell: Integer[0..1];
+   lowerCell: Integer[0..1];
+   book: String[0..1];
+}
+
+Class semi::SdBig
+{
+   docId: String[1];
+   ref: String[0..1];
+}
+
+Class semi::SdBound
+{
+   docId: String[1];
+   body: semi::SdBody[0..1];
+}
+
+Class semi::SdBody
+{
+   ref: String[0..1];
+   qty: Integer[0..1];
+   px: Float[0..1];
+   live: Boolean[0..1];
+   dates: semi::SdDates[0..1];
+   legs: semi::SdLeg[*];
+}
+
+Class semi::SdDates
+{
+   trade: StrictDate[0..1];
+}
+
+Class semi::SdLeg
+{
+   hop: String[1];
+   venue: String[0..1];
+   qty: Integer[0..1];
+}
+
+Class semi::SdRoute
+{
+   docId: String[1];
+   hops: semi::SdHop[*];
+}
+
+Class semi::SdHop
+{
+   hopId: String[1];
+   label: String[0..1];
+}
+
+Class semi::SdArrays
+{
+   docId: String[1];
+   hopList: String[0..1];
+   legCount: Integer[0..1];
+   maxQty: Integer[0..1];
+   sumQty: Integer[0..1];
+   onXnas: Boolean[0..1];
+   sortedHops: String[0..1];
+}
+
+###ExternalFormat
+Binding semi::SjBinding
+{
+   contentType: 'application/json';
+   modelIncludes:
+   [
+      semi::SjBody,
+      semi::SjDates,
+      semi::SjLeg
+   ];
+}
+
+Binding semi::SdBinding
+{
+   contentType: 'application/json';
+   modelIncludes:
+   [
+      semi::SdBody,
+      semi::SdDates,
+      semi::SdLeg
+   ];
+}
+
+###Relational
+Database semi::SemiDB
+(
+   // SURFACE_TYPES through the include: its documents, for the H2 side.
+   include surface::SurfaceDB
+
+   Table SEMI_DOC
+   (
+      DOC_ID VARCHAR(16) PRIMARY KEY,
+      DOC SEMISTRUCTURED
+   )
+   Table SEMI_HOP
+   (
+      HOP_ID VARCHAR(16) PRIMARY KEY,
+      LABEL VARCHAR(64)
+   )
+
+   // EXPLODE: a document's legs fanned into rows, each leg's hop equi-joined to SEMI_HOP. A leg whose hop SEMI_HOP
+   // lacks drops out, and a document with no legs lands on nothing. The operand must be a plain column.
+   Join SjRoute_Hop(extractFromSemiStructured(explodeSemiStructured(SURFACE_TYPES.C_SEMI, 'legs', 'SEMISTRUCTURED'), 'hop', 'VARCHAR') = SEMI_HOP.HOP_ID)
+   Join SdRoute_Hop(extractFromSemiStructured(explodeSemiStructured(SEMI_DOC.DOC, 'legs', 'SEMISTRUCTURED'), 'hop', 'VARCHAR') = SEMI_HOP.HOP_ID)
+
+   // A store filter deciding row inclusion by a value read out of the document.
+   Filter SjBigQty(extractFromSemiStructured(SURFACE_TYPES.C_SEMI, 'qty', 'INTEGER') > 100)
+   Filter SdBigQty(extractFromSemiStructured(SEMI_DOC.DOC, 'qty', 'INTEGER') > 100)
+)
+
+###Mapping
+Mapping semi::SurfaceDocs
+(
+   semi::SjDoc[sjDoc]: Relational
+   {
+      ~mainTable [semi::SemiDB]SURFACE_TYPES
+      docKey: [semi::SemiDB]SURFACE_TYPES.TK,
+      docVariant: [semi::SemiDB]SURFACE_TYPES.TK2,
+      // NAVIGATION, one property per type of the extraction whitelist the services read.
+      ref: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'ref', 'VARCHAR'),
+      refName: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'ref', 'STRING'),
+      qty: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'qty', 'INTEGER'),
+      px: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'px', 'FLOAT'),
+      fee: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'fee', 'DECIMAL'),
+      live: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'live', 'BOOLEAN'),
+      tradeDate: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'dates.trade', 'DATE'),
+      stamp: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'dates.stamp', 'TIMESTAMP'),
+      stampAt: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'dates.stamp', 'DATETIME'),
+      // ARRAY INDEX: an element of an object array, one past the end for a one-leg document, and consecutive indices
+      // into an array of arrays.
+      firstHop: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'legs[0].hop', 'VARCHAR'),
+      secondVenue: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'legs[1].venue', 'VARCHAR'),
+      cell: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'grid[0][1]', 'INTEGER'),
+      lowerCell: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'grid[1][0]', 'INTEGER'),
+      // Keys holding a space and a dot, reachable only bracket-quoted.
+      book: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, '["desk info"]["book.code"]', 'VARCHAR')
+   }
+
+   semi::SjBig[sjBig]: Relational
+   {
+      ~filter [semi::SemiDB]SjBigQty
+      ~mainTable [semi::SemiDB]SURFACE_TYPES
+      docKey: [semi::SemiDB]SURFACE_TYPES.TK,
+      ref: extractFromSemiStructured([semi::SemiDB]SURFACE_TYPES.C_SEMI, 'ref', 'VARCHAR')
+   }
+
+   semi::SjBound[sjBound]: Relational
+   {
+      ~mainTable [semi::SemiDB]SURFACE_TYPES
+      docKey: [semi::SemiDB]SURFACE_TYPES.TK,
+      body: Binding semi::SjBinding : [semi::SemiDB]SURFACE_TYPES.C_SEMI
+   }
+
+   semi::SjRoute[sjRoute]: Relational
+   {
+      ~mainTable [semi::SemiDB]SURFACE_TYPES
+      docKey: [semi::SemiDB]SURFACE_TYPES.TK,
+      hops[sjHop]: [semi::SemiDB]@SjRoute_Hop
+   }
+
+   semi::SjHop[sjHop]: Relational
+   {
+      ~mainTable [semi::SemiDB]SEMI_HOP
+      hopId: [semi::SemiDB]SEMI_HOP.HOP_ID,
+      label: [semi::SemiDB]SEMI_HOP.LABEL
+   }
+)
+
+Mapping semi::DuckDocs
+(
+   semi::SdDoc[sdDoc]: Relational
+   {
+      ~mainTable [semi::SemiDB]SEMI_DOC
+      docId: [semi::SemiDB]SEMI_DOC.DOC_ID,
+      ref: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'ref', 'VARCHAR'),
+      refName: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'ref', 'STRING'),
+      qty: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'qty', 'INTEGER'),
+      px: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'px', 'FLOAT'),
+      fee: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'fee', 'DECIMAL'),
+      live: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'live', 'BOOLEAN'),
+      tradeDate: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'dates.trade', 'DATE'),
+      stamp: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'dates.stamp', 'TIMESTAMP'),
+      stampAt: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'dates.stamp', 'DATETIME'),
+      firstHop: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'legs[0].hop', 'VARCHAR'),
+      secondVenue: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'legs[1].venue', 'VARCHAR'),
+      cell: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'grid[0][1]', 'INTEGER'),
+      lowerCell: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'grid[1][0]', 'INTEGER'),
+      book: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, '["desk info"]["book.code"]', 'VARCHAR')
+   }
+
+   semi::SdBig[sdBig]: Relational
+   {
+      ~filter [semi::SemiDB]SdBigQty
+      ~mainTable [semi::SemiDB]SEMI_DOC
+      docId: [semi::SemiDB]SEMI_DOC.DOC_ID,
+      ref: extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'ref', 'VARCHAR')
+   }
+
+   semi::SdBound[sdBound]: Relational
+   {
+      ~mainTable [semi::SemiDB]SEMI_DOC
+      docId: [semi::SemiDB]SEMI_DOC.DOC_ID,
+      body: Binding semi::SdBinding : [semi::SemiDB]SEMI_DOC.DOC
+   }
+
+   semi::SdRoute[sdRoute]: Relational
+   {
+      ~mainTable [semi::SemiDB]SEMI_DOC
+      docId: [semi::SemiDB]SEMI_DOC.DOC_ID,
+      hops[sdHop]: [semi::SemiDB]@SdRoute_Hop
+   }
+
+   semi::SdHop[sdHop]: Relational
+   {
+      ~mainTable [semi::SemiDB]SEMI_HOP
+      hopId: [semi::SemiDB]SEMI_HOP.HOP_ID,
+      label: [semi::SemiDB]SEMI_HOP.LABEL
+   }
+
+   semi::SdArrays[sdArrays]: Relational
+   {
+      ~mainTable [semi::SemiDB]SEMI_DOC
+      docId: [semi::SemiDB]SEMI_DOC.DOC_ID,
+      // WILDCARD PATHS and the ARRAY FUNCTIONS over them.
+      hopList: array_to_string(extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'legs[*].hop', 'VARCHAR[]'), ','),
+      legCount: array_size(extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'legs[*]', 'SEMISTRUCTURED[]')),
+      maxQty: array_max(extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'legs[*].qty', 'INTEGER[]')),
+      sumQty: array_sum(extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'legs[*].qty', 'INTEGER[]')),
+      onXnas: array_contains(extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'legs[*].venue', 'VARCHAR[]'), 'XNAS'),
+      sortedHops: array_to_string(array_sort(extractFromSemiStructured([semi::SemiDB]SEMI_DOC.DOC, 'legs[*].hop', 'VARCHAR[]')), ',')
+   }
+)
+
+###Connection
+RelationalDatabaseConnection semi::SemiConn
+{
+   store: semi::SemiDB;
+   type: DuckDB;
+   specification: DuckDB { };
+   auth: Test;
+}
+
+###Runtime
+Runtime semi::SurfaceRT
+{
+   mappings:
+   [
+      semi::SurfaceDocs
+   ];
+   connections:
+   [
+      semi::SemiDB: [ semiEnv: semi::SemiConn ]
+   ];
+}
+
+Runtime semi::DuckRT
+{
+   mappings:
+   [
+      semi::DuckDocs
+   ];
+   connections:
+   [
+      semi::SemiDB: [ semiEnv: semi::SemiConn ]
+   ];
+}

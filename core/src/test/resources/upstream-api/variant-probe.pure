@@ -1,0 +1,76 @@
+// PARK-34's probe (2026-10-28): legend-engine 4.145.0 (tools/engine-runner's jars), its PlanGenerator and PlanExecutor
+// over this model, its answer written by the DEFAULT serializer, as pure/v1/execution/execute writes it. Recorded:
+//   e8-variant-column.json    |#>{probe::DB.P.T}#->select(~[ID, PAYLOAD, TS, D])->from(probe::DuckRT)
+//   e8-variant-computed.json  |#>{probe::DB.P.T}#->extend(~V:x|$x.ID->toVariant())->select(~[ID, V])->from(probe::DuckRT)
+//   e8-variant-null.json      |#>{probe::DB.P.T}#->filter(r|$r.ID >= 4)->select(~[ID, PAYLOAD])->from(probe::DuckRT)
+//                             (asked after row 5 was added: SQL's NULL is null, JSON's null the string "null")
+// The DuckDB file held:
+//   CREATE TABLE P.T (ID INTEGER PRIMARY KEY, PAYLOAD JSON, TS TIMESTAMP, D DATE);
+//   INSERT INTO P.T VALUES (1, '{"a":1,"b":[true,null,"x"],"c":2.50}', TIMESTAMP '2024-01-02 00:00:00', DATE '2024-01-02'),
+//     (2, '[1,2.5,"s"]', TIMESTAMP '2024-01-02 03:04:05.123', DATE '2024-01-03'), (3, '"text"', NULL, NULL),
+//     (4, NULL, NULL, NULL);
+//   INSERT INTO P.T VALUES (5, 'null', NULL, NULL);   -- after the first two answers were recorded
+// The same select on H2RT planned the same tdsColumns (PAYLOAD: Variant, SEMISTRUCTURED) and was refused executing:
+// "Unable to process variant result as JSON from column 'PAYLOAD'" (H2's driver hands the JSON as bytes).
+
+###Relational
+Database probe::DB
+(
+    Schema P
+    (
+        Table T
+        (
+            ID INTEGER PRIMARY KEY,
+            PAYLOAD SEMISTRUCTURED,
+            TS TIMESTAMP,
+            D DATE
+        )
+    )
+)
+
+###Connection
+RelationalDatabaseConnection probe::H2Conn
+{
+    store: probe::DB;
+    type: H2;
+    specification: LocalH2
+    {
+        testDataSetupSqls: [
+            'DROP SCHEMA IF EXISTS P CASCADE;',
+            'CREATE SCHEMA P;',
+            'CREATE TABLE P.T (ID INTEGER PRIMARY KEY, PAYLOAD JSON, TS TIMESTAMP, D DATE);',
+            'INSERT INTO P.T VALUES (1, JSON \'{"a":1,"b":[true,null,"x"],"c":2.50}\', TIMESTAMP \'2024-01-02 00:00:00\', DATE \'2024-01-02\'), (2, JSON \'[1,2.5,"s"]\', TIMESTAMP \'2024-01-02 03:04:05.123\', DATE \'2024-01-03\'), (3, JSON \'"text"\', NULL, NULL), (4, NULL, NULL, NULL);'
+        ];
+    };
+    auth: DefaultH2;
+}
+
+RelationalDatabaseConnection probe::DuckConn
+{
+    store: probe::DB;
+    type: DuckDB;
+    specification: DuckDB
+    {
+        path: '<a DuckDB file holding seed.sql>';
+    };
+    auth: Test;
+}
+
+###Runtime
+Runtime probe::H2RT
+{
+    mappings: [];
+    connections:
+    [
+        probe::DB: [ c1: probe::H2Conn ]
+    ];
+}
+
+Runtime probe::DuckRT
+{
+    mappings: [];
+    connections:
+    [
+        probe::DB: [ c1: probe::DuckConn ]
+    ];
+}

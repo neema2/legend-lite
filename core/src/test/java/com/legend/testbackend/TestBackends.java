@@ -22,6 +22,33 @@ public final class TestBackends {
     private TestBackends() {
     }
 
+    /** The settings a test's OWN H2 connection is opened with, on its URL ({@code ;NAME=VALUE} each): the H2 dialect's
+     *  non-keywords (its session statement, which a plan's run sends first) and the settings its database must have
+     *  ({@code SqlDialect.databaseSettings}, which a plan's target carries and exec writes where it opens an in-memory
+     *  H2; the C checkpoint's SHOULD-FIX 3, 2026-11-12: until then {@code H2Connector.SETTINGS}). */
+    public static String h2UrlSettings() {
+        StringBuilder url = new StringBuilder(";NON_KEYWORDS=" + com.legend.sql.dialect.H2.NON_KEYWORDS);
+        for (com.legend.sql.dialect.SqlDialect.Setting s : new com.legend.sql.dialect.H2().databaseSettings().required()) {
+            url.append(';').append(s.name()).append('=').append(s.value());
+        }
+        return url.toString();
+    }
+
+    /** The settings a plan's target on {@code type} declares its database must have, as the planner writes them
+     *  ({@code planner.Targets}: the dialect's; null where it declares none): what a test that builds its own target
+     *  carries (the C final audit's J4, 2026-11-12: a target on H2 that declares none is refused by name). */
+    public static com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings(
+            DatabaseType type) {
+        return com.legend.planner.Targets.of(new com.legend.executionplan.ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(type), null), Databases.dialect(type)).settings();
+    }
+
+    /** {@link #settings(DatabaseType)} by the plan's name for the type. */
+    public static com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings(
+            com.legend.executionplan.DatabaseType type) {
+        return settings(com.legend.planner.ConnectionPlans.model(type));
+    }
+
     /** {@code type}'s backend. */
     public static TestBackend of(DatabaseType type) {
         return switch (type) {
@@ -48,14 +75,11 @@ public final class TestBackends {
         return of(Databases.PLATFORM);
     }
 
-    /** The database the SQL-text replay referee runs on ({@code Databases.REPLAY_REFEREE}): a backend with the
-     *  referee's own duties. */
+    /** The database the SQL-text replay referee runs on ({@code Databases.REPLAY_REFEREE}, H2): legend-engine's own
+     *  H2, 2.1.214, loaded apart from lite's (2.5.252) -- the referee stands in for the engine's database (the user,
+     *  2026-11-05; {@link EngineH2Referee}). */
     public static RefereeBackend referee() {
-        if (of(Databases.REPLAY_REFEREE) instanceof RefereeBackend referee) {
-            return referee;
-        }
-        throw new IllegalStateException("the replay referee's database " + Databases.REPLAY_REFEREE
-                + " has no referee backend");
+        return EngineH2Referee.INSTANCE;
     }
 
     /** The backend {@code session} is on: the database whose connector names the product its driver reports
@@ -64,7 +88,7 @@ public final class TestBackends {
     public static TestBackend of(Connection session) throws SQLException {
         String product = session.getMetaData().getDatabaseProductName();
         for (DatabaseType type : Databases.implemented()) {
-            if (Sessions.jdbcProduct(type).equals(product)) {
+            if (Sessions.jdbcProduct(com.legend.planner.ConnectionPlans.type(type)).equals(product)) {
                 return of(type);
             }
         }

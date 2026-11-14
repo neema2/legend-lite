@@ -25,11 +25,16 @@
 
 import { ExactNumber, fromJson, toJson as protocolJson } from '../../pure-protocol/src/index.ts';
 import { readChart, type ChartSpec } from './chart-spec.ts';
-import { CUBE_KIND, cubeToJson, definitionText, readCube, type CubeDocument, type CubeSource } from './cube-document.ts';
+import {
+  CUBE_KIND, cubeToJson, definitionText, freshLinksOf, readCube, savedSource, sourceWithLinks, type CubeDocument, type CubeSource,
+} from './cube-document.ts';
 import { type Bands, type Node, NEW_SHEET, add as addTile, problems, tiles as tilesOf } from './layout/bands.ts';
-import { flowProblems, flowTiles, type Flow } from './layout/flow.ts';
+import { flowProblems, flowTiles, readMessage, readOutput, type Flow } from './layout/flow.ts';
 import type { PageModelRef } from './page-model.ts';
 import { readPageFilters, type PageFilter } from './page-filters.ts';
+import { readParameters, type PageParameter } from './page-parameters.ts';
+import { readMacros, type PageMacro } from './macros.ts';
+import { readLambda } from '../../pure-protocol/src/index.ts';
 import { givenName, type NamedPart } from './page-names.ts';
 import type { FilterNode } from './snapshot.ts';
 import { textProblem } from './page-text-rule.ts';
@@ -39,12 +44,14 @@ import { readTextFiles, type TextFile } from './text-files.ts';
 
 export const PAGE_KIND = 'datacube.page';
 /**
- * 6: the page's model keeps each grid's tables, a list -- a join's leaves' each (2026-10-20,
+ * 7: a timeseries tile's series each its #TS text, read by core, where 6 kept the tile's own tree (2026-11-07, A3 step 3:
+ * docs/TS_A3_ONE_READER_PLAN_2026_11_03.md, decision 1 (a): a page of 6 is refused, as every older version). 6: the
+ * page's model keeps each grid's tables, a list -- a join's leaves' each (2026-10-20,
  * docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §18.3). 5: the page's filters, by a class's property (2026-10-19, §16.2). 4:
  * the page's model, where its classes are (2026-10-10, §15.3). 3: sheets, each its own bands (2026-10-09,
- * docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands. 1: tiles on a 12-column grid. Only 6 is read.
+ * docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §7.3). 2: one layout, as bands. 1: tiles on a 12-column grid. Only 7 is read.
  */
-export const PAGE_VERSION = 6;
+export const PAGE_VERSION = 7;
 /** The sheet a page of one sheet has: a new page's, and a cube alone's. */
 export const FIRST_SHEET = 'sheet-1';
 
@@ -351,6 +358,12 @@ export interface PageDocument extends PageViews {
   readonly model?: PageModelRef;
   /** Its filters, by a class's property (page-filters.ts): none, none written. */
   readonly filters?: readonly PageFilter[];
+  /** Its parameters, the values any Pure on it reads as `$name` (page-parameters.ts, an analytic app's inputs): none,
+   *  none written. */
+  readonly parameters?: readonly PageParameter[];
+  /** Its macros, sub-flows each saved as a Pure function of its input's rows, used as a box (macros.ts): none, none
+   *  written. */
+  readonly macros?: readonly PageMacro[];
   /** The copy each snapped grid reads, by its cube's id (§18.8): none, none written. */
   readonly copies?: Readonly<Record<string, GridCopy>>;
   /**
@@ -381,11 +394,48 @@ export class PageDocumentError extends Error {
 export const NOTHING_TO_SAVE = 'There is nothing on this page to save: add a data source first.';
 
 /**
+ * A PAGE AS IT IS SAVED (2026-11-11, the user's ruling: "can we strip the presigned and save the rest of report with
+ * warning?" -- agreed): each cube's source as a saved document keeps it (cube-document.ts savedSource) -- a remote
+ * file's link with a query string saved as its address alone, marked as needing a fresh link -- and the files so saved,
+ * by name, for the warning the save shows. Every way a page leaves the screen takes it: a saved page (savedRecord: the
+ * tab's Save, Python's save), a page file (pageFile: Export, Python's save(path)) and a share link.
+ */
+export function pageAsSaved(page: PageDocument): { readonly page: PageDocument; readonly freshLinks: readonly string[] } {
+  const stripped: string[] = [];
+  const cubes = page.cubes.map((c) => ({ ...c, cube: { ...c.cube, source: savedSource(c.cube.source, stripped) } }));
+  return { page: { ...page, cubes }, freshLinks: [...new Set(stripped)] };
+}
+
+/** What a save says of the files it saved without their links' query strings (`freshLinks`, by name), or nothing. */
+export function freshLinksWarning(freshLinks: readonly string[]): string | undefined {
+  if (freshLinks.length === 0) return undefined;
+  const files = freshLinks.map((n) => `“${n}”`).join(', ');
+  return `${files} ${freshLinks.length === 1 ? 'is' : 'are'} saved without ${freshLinks.length === 1 ? 'its link\'s' : 'their links\''}`
+    + ' query string (a presigned link\'s token is never saved): opening the page asks for a fresh link.';
+}
+
+/** Each remote file of the page saved needing a fresh link: its name and its address (what a fresh link is given by). */
+export function freshLinksOfPage(page: PageDocument): { readonly name: string; readonly address: string }[] {
+  const byAddress = new Map<string, { readonly name: string; readonly address: string }>();
+  for (const link of page.cubes.flatMap((c) => freshLinksOf(c.cube.source))) {
+    if (!byAddress.has(link.address)) byAddress.set(link.address, link);
+  }
+  return [...byAddress.values()];
+}
+
+/** The page with each remote file that needs a fresh link given one by its address (`links`): Python's load(links=)
+ *  and the tab's reopening read the file from that link from now on. */
+export function pageWithLinks(page: PageDocument, links: ReadonlyMap<string, string>): PageDocument {
+  return { ...page, cubes: page.cubes.map((c) => ({ ...c, cube: { ...c.cube, source: sourceWithLinks(c.cube.source, links) } })) };
+}
+
+/**
  * A PAGE AS A PAGE FILE -- Export ▸ Page File, and Python's `save(path)` (headless pageFile): its text as DataCube
  * writes it, what a newer writer put in it kept -- or why it is none, in one wording for both (B5): nothing on it
  * (NOTHING_TO_SAVE), or classes kept in a project, which a page file cannot carry yet (§15.3).
  */
-export function pageFile(page: PageDocument): { readonly file: string; readonly name: string } | { readonly refused: string } {
+export function pageFile(page: PageDocument):
+  { readonly file: string; readonly name: string; readonly freshLinks: readonly string[] } | { readonly refused: string } {
   if (page.cubes.length === 0) return { refused: NOTHING_TO_SAVE };
   if (page.model) {
     return { refused: `This page's classes are in ${page.model.project}: a page file cannot carry them yet -- save the `
@@ -396,15 +446,17 @@ export function pageFile(page: PageDocument): { readonly file: string; readonly 
   const name = suggestedName(page) || 'page';
   const named = page.name === name ? page : writePageOf({
     name, cubes: page.cubes, views: { views: page.views, sheets: page.sheets }, ...(page.model ? { model: page.model } : {}),
-    ...(page.filters ? { filters: page.filters } : {}), ...(page.copies ? { copies: page.copies } : {}),
-    ...(page.unknown ? { unknown: page.unknown } : {}),
+    ...(page.filters ? { filters: page.filters } : {}), ...(page.parameters ? { parameters: page.parameters } : {}),
+    ...(page.macros ? { macros: page.macros } : {}),
+    ...(page.copies ? { copies: page.copies } : {}), ...(page.unknown ? { unknown: page.unknown } : {}),
   });
-  // a page file is no saved record: opened elsewhere, its first save is a new one
+  // a page file is no saved record: opened elsewhere, its first save is a new one; a link's token never in it
   const { record: _record, ...file } = named;
-  return { file: pageToJson(file), name };
+  const saved = pageAsSaved(file);
+  return { file: pageToJson(saved.page), name, freshLinks: saved.freshLinks };
 }
 
-const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'copies', 'record']);
+const KNOWN = new Set(['kind', 'version', 'name', 'cubes', 'views', 'sheets', 'model', 'filters', 'parameters', 'macros', 'copies', 'record']);
 
 /** The one cube of a step-1 page. */
 export const PAGE_CUBE = 'cube';
@@ -446,6 +498,8 @@ export function writePageOf(o: {
   readonly views: PageViews;
   readonly model?: PageModelRef;
   readonly filters?: readonly PageFilter[];
+  readonly parameters?: readonly PageParameter[];
+  readonly macros?: readonly PageMacro[];
   readonly copies?: Readonly<Record<string, GridCopy>>;
   readonly record?: string;
   readonly unknown?: Readonly<Record<string, unknown>>;
@@ -462,6 +516,8 @@ export function writePageOf(o: {
     sheets: o.views.sheets,
     ...(o.model ? { model: keptFor(o.model, o.cubes) } : {}),
     ...(filters.length > 0 ? { filters } : {}),
+    ...(o.parameters !== undefined && o.parameters.length > 0 ? { parameters: o.parameters } : {}),
+    ...(o.macros !== undefined && o.macros.length > 0 ? { macros: o.macros } : {}),
     ...(Object.keys(copies).length > 0 ? { copies } : {}),
     ...(o.record !== undefined ? { record: o.record } : {}),
     ...(o.unknown && Object.keys(o.unknown).length > 0 ? { unknown: o.unknown } : {}),
@@ -595,20 +651,22 @@ export function savedRecord(name: string, page: PageDocument, fresh: string): Sa
   const given = givenName('page', name);
   if ('refused' in given) return given;
   if (given.name === undefined) throw new Error("a page's name is never left to what it shows");
-  // over the record it was last saved as, whichever editor saved it (B13); else a new one, under `fresh`
+  // over the record it was last saved as, whichever editor saved it (B13); else a new one, under `fresh`; a link's token
+  // never in it (pageAsSaved)
   const id = page.record ?? fresh;
-  return { id, name: given.name, content: pageContent({ ...page, name: given.name, record: id }) };
+  return { id, name: given.name, content: pageContent(pageAsSaved({ ...page, name: given.name, record: id }).page) };
 }
 
 /** A page saved as the Save window saves it -- the tab's Save and Save As, Python's save() and save_as() (headless
  *  pageRecord): over the saved page it is, or, Save As (`asNew`), as a new one under `fresh`, the record it was saved as
  *  left alone (K13); its record (savedRecord) and whether it saves over one (`over`), or why not, in its words. */
 export function pageSaving(name: string, page: PageDocument, fresh: string, asNew: boolean):
-  { readonly record: SavedRecord; readonly over: boolean } | { readonly refused: string } {
+  { readonly record: SavedRecord; readonly over: boolean; readonly freshLinks: readonly string[] } | { readonly refused: string } {
   const { record: _was, ...asItself } = page;
   const saving = asNew ? asItself : page;
   const record = savedRecord(name, saving, fresh);
-  return 'refused' in record ? record : { record, over: savesOver(saving) };
+  // the files saved without their links' query strings, for the warning the save shows (the save's own: savedRecord)
+  return 'refused' in record ? record : { record, over: savesOver(saving), freshLinks: pageAsSaved(saving).freshLinks };
 }
 
 /** The page as JSON text (exact numbers kept, as the cube's own document keeps them). */
@@ -632,6 +690,10 @@ export function pageDefinitionText(page: PageDocument): string {
     ...(page.model ? { model: page.model } : {}),
     // a filter set or taken off, the page has changed
     ...(page.filters ? { filters: page.filters } : {}),
+    // a parameter set, its value changed or taken off, the page has changed
+    ...(page.parameters ? { parameters: page.parameters } : {}),
+    // a macro saved or taken off, the page has changed
+    ...(page.macros ? { macros: page.macros } : {}),
   });
 }
 
@@ -715,16 +777,8 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
   // chart goes on a board
   for (const sheet of sheets) {
     if (sheet.layout.kind !== 'flow') continue;
-    const notGrid = sheet.layout.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
-    if (notGrid !== undefined) throw new PageDocumentError(`sheet ${sheet.id} is a flow of grids and comments: ${notGrid.tile} is a chart`);
-    // a frame is a container's, a comment's: a grid is a box, never a container
-    const framedGrid = sheet.layout.boxes.find((b) => b.frame !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'text');
-    if (framedGrid !== undefined) throw new PageDocumentError(`${framedGrid.tile} has a frame: a container is a comment, not a grid`);
-    // an output is a grid's: a comment writes no rows
-    const textOut = sheet.layout.boxes.find((b) => b.output !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (textOut !== undefined) throw new PageDocumentError(`${textOut.tile} has an output: an output is a grid's rows, not a comment`);
-    const textStops = sheet.layout.boxes.find((b) => b.stops === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
-    if (textStops !== undefined) throw new PageDocumentError(`${textStops.tile} stops a run: a Test is a grid's, not a comment`);
+    const problem = flowSheetProblem(sheet.id, sheet.layout, views);
+    if (problem !== undefined) throw new PageDocumentError(problem);
   }
   const twice = placed.filter((id, i) => placed.indexOf(id) !== i);
   if (twice.length > 0) throw new PageDocumentError(`${[...new Set(twice)].join(', ')} on two sheets`);
@@ -749,6 +803,25 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     // none is written as no field: an empty list is no page's
     if (filters.length === 0) throw new PageDocumentError("'filters' is an empty list: a page with none has no field");
   }
+  let parameters: readonly PageParameter[] | undefined;
+  if (raw['parameters'] !== undefined) {
+    try {
+      parameters = readParameters(plain(raw['parameters']));
+    } catch (e) {
+      throw new PageDocumentError(e instanceof Error ? e.message : String(e));
+    }
+    if (parameters.length === 0) throw new PageDocumentError("'parameters' is an empty list: a page with none has no field");
+  }
+  let macros: readonly PageMacro[] | undefined;
+  if (raw['macros'] !== undefined) {
+    try {
+      // its functions exact, as a cube's lambdas are read
+      macros = readMacros(raw['macros'], (v) => readLambda(v));
+    } catch (e) {
+      throw new PageDocumentError(e instanceof Error ? e.message : String(e));
+    }
+    if (macros.length === 0) throw new PageDocumentError("'macros' is an empty list: a page with none has no field");
+  }
 
   const page: PageDocument = {
     kind: PAGE_KIND,
@@ -759,6 +832,8 @@ export function readPage(input: string | unknown, options: { readonly empty?: bo
     sheets,
     ...(model ? { model } : {}),
     ...(filters ? { filters } : {}),
+    ...(parameters ? { parameters } : {}),
+    ...(macros ? { macros } : {}),
     ...(copies ? { copies } : {}),
     ...(record !== undefined ? { record } : {}),
     ...(Object.keys(unknown).length > 0 ? { unknown } : {}),
@@ -971,6 +1046,28 @@ export function readLayout(l: unknown, views: ReadonlySet<string>, what: string)
   return { kind: 'bands', ...layout };
 }
 
+/** What is wrong with flow sheet `id`'s boxes on a page of `views`, in words, if anything: its boxes grids and comments,
+ *  a frame a comment's, every setting of a box (an output, its stopping, its cache, its blocking, its message) a grid's.
+ *  The page's reader's rule (readPage), and the layout command's (page-commands.ts layout: the roadmap audit of
+ *  2026-10-26, a layout gave a comment a cache the reader then refused). */
+export function flowSheetProblem(id: string, flow: FlowLayout, views: readonly PageView[]): string | undefined {
+  const notGrid = flow.boxes.find((b) => views.find((v) => v.id === b.tile)?.kind === 'chart');
+  if (notGrid !== undefined) return `sheet ${id} is a flow of grids and comments: ${notGrid.tile} is a chart`;
+  // a frame is a container's, a comment's: a grid is a box, never a container
+  const framedGrid = flow.boxes.find((b) => b.frame !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'text');
+  if (framedGrid !== undefined) return `${framedGrid.tile} has a frame: a container is a comment, not a grid`;
+  // an output is a grid's: a comment writes no rows
+  const textOut = flow.boxes.find((b) => b.output !== undefined && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textOut !== undefined) return `${textOut.tile} has an output: an output is a grid's rows, not a comment`;
+  const textStops = flow.boxes.find((b) => b.stops === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textStops !== undefined) return `${textStops.tile} stops a run: a Test is a grid's, not a comment`;
+  const textCache = flow.boxes.find((b) => b.cache === true && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textCache !== undefined) return `${textCache.tile} caches its rows: a cache is a grid's, not a comment`;
+  const textSays = flow.boxes.find((b) => (b.blocks === true || b.message !== undefined) && views.find((v) => v.id === b.tile)?.kind !== 'grid');
+  if (textSays !== undefined) return `${textSays.tile} blocks a run or says a message: each is a grid's, not a comment`;
+  return undefined;
+}
+
 /** A flow sheet's layout (layout/flow.ts): its boxes, each a tile of the page at a place, every rule of a flow held. */
 function readFlow(l: Record<string, unknown>, views: ReadonlySet<string>, what: string): FlowLayout {
   const extra = Object.keys(l).filter((k) => k !== 'kind' && k !== 'boxes');
@@ -981,15 +1078,19 @@ function readFlow(l: Record<string, unknown>, views: ReadonlySet<string>, what: 
       throw new PageDocumentError(`box ${i + 1} of ${what} is not a tile and its place (x, y)`);
     }
     if (!views.has(b['tile'])) throw new PageDocumentError(`a box shows no view of this page (${b['tile']})`);
-    const odd = Object.keys(b).filter((k) => !['tile', 'x', 'y', 'frame', 'output', 'stops'].includes(k));
-    if (odd.length > 0) throw new PageDocumentError(`box ${i + 1} of ${what} is a tile, its place, a frame, an output and its stopping, not ${odd.join(', ')}`);
+    const odd = Object.keys(b).filter((k) => !['tile', 'x', 'y', 'frame', 'output', 'stops', 'cache', 'blocks', 'message'].includes(k));
+    if (odd.length > 0) throw new PageDocumentError(`box ${i + 1} of ${what} is a tile, its place, a frame, an output, its stopping, its cache, its blocking and its message, not ${odd.join(', ')}`);
+    if (b['blocks'] !== undefined && b['blocks'] !== true) throw new PageDocumentError(`box ${i + 1} of ${what} blocks a run (true) or is without it, not ${JSON.stringify(b['blocks'])}`);
+    const said = b['message'] === undefined ? undefined : readMessage(b['message']);
+    if (typeof said === 'string') throw new PageDocumentError(`box ${i + 1} of ${what}'s message: ${said}`);
     if (b['stops'] !== undefined && b['stops'] !== true) throw new PageDocumentError(`box ${i + 1} of ${what} stops a run (true) or is without it, not ${JSON.stringify(b['stops'])}`);
+    if (b['cache'] !== undefined && b['cache'] !== true) throw new PageDocumentError(`box ${i + 1} of ${what} caches its rows (true) or is without it, not ${JSON.stringify(b['cache'])}`);
     const o = b['output'];
-    if (o !== undefined && (!isObject(o) || o['format'] !== 'csv' || typeof o['name'] !== 'string' || Object.keys(o).some((k) => k !== 'format' && k !== 'name'))) {
-      throw new PageDocumentError(`box ${i + 1} of ${what}'s output is {format: 'csv', name}, not ${JSON.stringify(o)}`);
-    }
-    const output = { ...(o === undefined ? {} : { output: { format: 'csv' as const, name: o['name'] as string } }),
-      ...(b['stops'] === true ? { stops: true as const } : {}) };
+    const read = o === undefined ? undefined : readOutput(o);
+    if (typeof read === 'string') throw new PageDocumentError(`box ${i + 1} of ${what}'s output: ${read}`);
+    const output = { ...(read === undefined ? {} : { output: read }),
+      ...(b['stops'] === true ? { stops: true as const } : {}), ...(b['cache'] === true ? { cache: true as const } : {}),
+      ...(b['blocks'] === true ? { blocks: true as const } : {}), ...(said !== undefined ? { message: said } : {}) };
     const f = b['frame'];
     if (f === undefined) return { tile: b['tile'], x: b['x'], y: b['y'], ...output };
     if (!isObject(f) || typeof f['w'] !== 'number' || typeof f['h'] !== 'number' || (f['collapsed'] !== undefined && f['collapsed'] !== true)

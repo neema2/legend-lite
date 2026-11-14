@@ -1,5 +1,6 @@
 package com.legend.sql;
 
+
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -18,7 +19,7 @@ public sealed interface SqlExpr
                 SqlExpr.Case, SqlExpr.Exists, SqlExpr.ScalarSubquery, SqlExpr.CheckedOne,
                 SqlExpr.CheckedDefects, SqlExpr.CheckedChildValue,
                 SqlExpr.InSubquery, SqlExpr.Quantified,
-                SqlExpr.CompactList, SqlExpr.Tagged,
+                SqlExpr.CompactList, SqlExpr.Tagged, SqlExpr.TaggedList,
                 SqlExpr.DeferredTdsString, SqlExpr.WindowCall,
                 SqlExpr.Lambda, SqlExpr.Cast, SqlExpr.FoldCall, SqlExpr.JsonObject,
                 SqlExpr.JsonArrayAgg, SqlExpr.PlanParam, SqlExpr.Group, SqlExpr.KeyCell,
@@ -33,6 +34,81 @@ public sealed interface SqlExpr
      * {@code PlatformTypes.TDS_NULL_CELL} is this same constant.
      */
     public static final String TDS_NULL_CELL = "TDSNull";
+
+    /** An identity layout's synthetic fields, as a class instance's JSON object carries them: its identity
+     *  ({@code __id}) and its class ({@code __type}). The compiler's {@code ClassLayouts.SYNTHETIC_ID} and
+     *  {@code SYNTHETIC_TYPE} are these same constants; here so a test's run reads an object by them without the
+     *  compiler (the plan-as-data design's slice 5, 2026-11-09). */
+    public static final String SYNTHETIC_ID = "__id";
+    public static final String SYNTHETIC_TYPE = "__type";
+
+    /**
+     * Whether {@code e}'s value is its operands' alone, evaluating it raises nothing and it keeps its select's rows, so
+     * a pass may drop it unread or move where it is evaluated (2026-11-04): no raising function ({@link SqlFn#RAISING}),
+     * no UNNEST (a row per element), no checked narrowing or JSON cast, no subquery, no plain aggregate (its select's
+     * grouping reads it), no star, deferred text or temp table. A window over such values is one.
+     */
+    static boolean raisesNothing(SqlExpr e) {
+        return switch (e) {
+            case Call c -> !SqlFn.RAISING.contains(c.fn()) && c.fn() != SqlFn.UNNEST && allRaiseNothing(e.children());
+            case Cast c -> c.target() != SqlType.Scalar.JSON && !mayFailToParse(c) && raisesNothing(c.value());
+            case WindowCall w -> allRaiseNothing(w.fn().args())
+                    && (!(w.fn() instanceof SqlAgg.Reducer r) || r.orderBy().stream().allMatch(k -> raisesNothing(k.expr())))
+                    && allRaiseNothing(w.partitionBy())
+                    && w.orderBy().stream().allMatch(k -> raisesNothing(k.expr()))
+                    // a bound the database computes is written inside its check, which raises (FrameGuard; the
+                    // final review of PR #81, 2026-11-09: such a window had been dropped unread, its check with it)
+                    && (w.frame() == null || !w.frame().computed() && allRaiseNothing(w.frame().offsets()));
+            case CheckedOne c -> false;
+            case CheckedDefects c -> false;
+            case CheckedChildValue c -> false;
+            case ScalarSubquery q -> false;
+            case Exists q -> false;
+            case InSubquery q -> false;
+            case Quantified q -> false;
+            case Star st -> false;
+            case StarExcept st -> false;
+            case DeferredTdsString d -> false;
+            case TempTableInSplice t -> false;
+            // an aggregate of any record (SqlAgg's, OrderedListAgg, JsonArrayAgg: SqlAgg.aggregatesSelect) keeps no row
+            // of its own: dropped unread, its select's rows would be its source's (the final review of PR #81)
+            default -> !(e instanceof SqlAgg) && !SqlAgg.aggregatesSelect(e) && allRaiseNothing(e.children());
+        };
+    }
+
+    /** Whether {@code c} reads text as a value that text may not spell -- a number, a decimal, a Boolean, a date, a
+     *  time -- and so raises on a text that does not ({@code parseFloat('x')}): its value is text, or of a type not
+     *  known (#81's final review, item 14k (5), 2026-11-10: such a cast was counted as raising nothing, so a merge or
+     *  a prune could drop it, an error answered as a value). A cast from a value of a known type that is no text (a
+     *  number to a number, a date to a timestamp) is not one; a cast to text never is. */
+    private static boolean mayFailToParse(Cast c) {
+        boolean parsed = switch (c.target()) {
+            case SqlType.Scalar s -> switch (s) {
+                case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, DATE, TIMESTAMP, TIMESTAMPTZ, TIME -> true;
+                default -> false;
+            };
+            case SqlType.Decimal d -> true;
+            default -> false;
+        };
+        if (!parsed) {
+            return false;
+        }
+        return switch (c.value().type()) {
+            case TypeFact.Typed t -> t.type() == SqlType.Scalar.VARCHAR || t.type() == SqlType.Scalar.JSON;
+            case TypeFact.Bottom b -> false;
+            case TypeFact.Raises r -> false;
+            case TypeFact.Unknown u -> true;
+        };
+    }
+
+    private static boolean allRaiseNothing(List<SqlExpr> es) {
+        for (SqlExpr x : es) {
+            if (!raisesNothing(x)) {
+                return false;
+            }
+        }
+        return true;
+    }
 
     /**
      * The DIRECT {@link SqlExpr} children, in rebuild order — the ONE
@@ -109,6 +185,19 @@ public sealed interface SqlExpr
                 }
                 yield out;
             }
+            case TaggedList tl -> {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>();
+                out.add(tl.positions());
+                out.add(tl.tags());
+                out.add(tl.comparable());
+                for (TaggedList.Channel ch : tl.channels()) {
+                    out.add(ch.values());
+                }
+                if (tl.rows() != null) {
+                    out.add(tl.rows());
+                }
+                yield out;
+            }
             case DeferredTdsString ignored -> List.of();
             case WindowCall w -> {
                 java.util.List<SqlExpr> out = new java.util.ArrayList<>();
@@ -118,6 +207,9 @@ public sealed interface SqlExpr
                 out.addAll(w.partitionBy());
                 for (SqlSelect.SortKey k : w.orderBy()) {
                     out.add(k.expr());
+                }
+                if (w.frame() != null) {
+                    out.addAll(w.frame().offsets());   // the offsets the database computes, last
                 }
                 yield out;
             }
@@ -198,6 +290,16 @@ public sealed interface SqlExpr
                 }
                 yield new Tagged(cs.get(0), cs.get(1), candidates);
             }
+            case TaggedList tl -> {
+                java.util.List<TaggedList.Channel> channels = new java.util.ArrayList<>();
+                for (int i = 0; i < tl.channels().size(); i++) {
+                    TaggedList.Channel ch = tl.channels().get(i);
+                    channels.add(new TaggedList.Channel(ch.kind(), ch.slot(), cs.get(3 + i)));
+                }
+                int n = 3 + tl.channels().size();
+                yield new TaggedList(cs.get(0), cs.get(1), cs.get(2), channels, tl.rows() == null ? null : cs.get(n),
+                        tl.order(), SqlTyping.UNKNOWN);
+            }
             case DeferredTdsString ignored -> this;
             case Group ignored -> new Group(cs.get(0));
             case ArrayLit a -> new ArrayLit(cs, a.type());
@@ -232,8 +334,10 @@ public sealed interface SqlExpr
                     ks.add(new SqlSelect.SortKey(cs.get(base + np + i),
                             k.ascending(), k.nullOrder(), k.outputName()));
                 }
+                int nk = w.orderBy().size();
                 yield new WindowCall(fn, cs.subList(base, base + np), ks,
-                        w.frame());
+                        w.frame() == null || !w.frame().computed() ? w.frame()
+                                : w.frame().withOffsets(cs.subList(base + np + nk, cs.size())));
             }
             // supplied-leaf knowledge (the builder's, like Column's
             // type): a body swap keeps it — recomputable by no rule
@@ -646,7 +750,7 @@ public sealed interface SqlExpr
      * Allocation-bound variable), its {@code type} unknown. */
     record PlanParam(String name, Kind kind, boolean optional,
             @com.legend.base.Nullable String enumMapFn,
-            TypeFact type, @com.legend.base.Nullable ValueTyping byValue) implements SqlExpr {
+            TypeFact type, @com.legend.base.Nullable DeclaredKind declared) implements SqlExpr {
         /** {@code RAW} splices {@code ${name}} bare — the temp-table IN
          * protocol's {@code inFilterClause_X} wrapper variable
          * (processInOperation.pure); plan-text vocabulary only. */
@@ -657,10 +761,10 @@ public sealed interface SqlExpr
         public enum Kind { STRING, DATE, STRICT_DATE, DATETIME, FLOAT, BOOLEAN, ENUM,
             OTHER, RAW }
 
-        /** {@code byValue}: set when the database types the parameter's literal by its value, how (a Float's, a
-         *  Decimal's, a Number's and a Date's fact is {@code UNKNOWN}; a DateTime's is {@code TIMESTAMP}, its precision
-         *  the value's); null when its type is the fact's alone, or when it is a legacy plan's template parameter (the
-         *  four-argument and shorter forms). */
+        /** {@code declared}: set when each database types the parameter's placeholder by its declared Pure type (a
+         *  Float's, a Decimal's, a Number's and a Date's fact is {@code UNKNOWN}; a DateTime's is {@code TIMESTAMP}:
+         *  {@link DeclaredKind}, D1); null when its type is the fact's alone, or when it is a legacy plan's template
+         *  parameter (the four-argument and shorter forms). */
         public PlanParam {
             java.util.Objects.requireNonNull(type, "type");
         }
@@ -1090,10 +1194,177 @@ public sealed interface SqlExpr
         }
     }
 
+    /**
+     * A list whose elements' Pure kinds are decided per element among statically-kinded channels -- a mixed
+     * collection ({@code [1, 'a', true]}, {@code [342, 5.0, -2.0]}) and what a rule builds from one (its sort, its
+     * dedup, its filter): docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B, the result boundary program's track
+     * L (2026-10-29). Carried as PARALLEL TYPED ARRAYS indexed by POSITION: {@code tags} ({@code ARRAY<INTEGER>}, the
+     * 1-based channel index at each position), {@code comparable} (at each position, the element on the channel the
+     * elements compare on: the rank struct of an Any list, the number or the instant of a Number or Date list), one
+     * {@link Channel} per distinct (kind, slot) holding the element of that kind in the slot's own type and NULL at
+     * every other position -- and {@code positions}, {@code ARRAY<INTEGER>}: the positions that ARE the list, in the
+     * list's order (a literal's {@code [1..n]}; a sort's, those ordered by the comparable; a dedup's or a filter's,
+     * those kept). The arrays other than {@code positions} are never rewritten: an operation reorders or filters the
+     * positions. Its type is {@code ARRAY<TAGGED<kind slot, ...>>}. The element at a position is a {@link Tagged}
+     * ({@link #element}), so a rule over an element reads the channel it needs, as a mixed selection's consumers do.
+     * No dialect renders it: a query's root unnests its positions into rows of a tagged value (the Lowerer's egress),
+     * and a rule consuming the list reads its channels; any other consumer refuses by name until designed.
+     */
+    record TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels,
+                      @com.legend.base.Nullable SqlExpr rows, Order order, TypeFact type)
+            implements SqlExpr {
+        public TaggedList {
+            channels = List.copyOf(channels);
+            if (channels.isEmpty()) {
+                throw new IllegalArgumentException("a tagged list holds its elements in channels; none were given");
+            }
+            java.util.Objects.requireNonNull(order, "a tagged list's order");
+            type = SqlTyping.taggedListType(channels);
+        }
+
+        /** A list as built: its positions in their own order (1..n, or a subset kept in order). */
+        public TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels) {
+            this(positions, tags, comparable, channels, null, Order.POSITION, SqlTyping.UNKNOWN);
+        }
+
+        /** The order the list's positions hold, which its root's rows are returned in -- an unnest promises no order
+         *  (2026-11-03, round 18: BigQuery and MySQL returned a mixed list's elements out of order): by position
+         *  (a list as built, kept by a dedup or a filter), by comparable (a sort; ties by position, a stable sort's),
+         *  each either way (a reverse). */
+        public enum Order {
+            POSITION, POSITION_DESC, COMPARABLE, COMPARABLE_DESC;
+
+            /** The order of the list reversed. */
+            public Order reversed() {
+                return switch (this) {
+                    case POSITION -> POSITION_DESC;
+                    case POSITION_DESC -> POSITION;
+                    case COMPARABLE -> COMPARABLE_DESC;
+                    case COMPARABLE_DESC -> COMPARABLE;
+                };
+            }
+        }
+
+        /** The same list in another order. */
+        public TaggedList withOrder(Order newOrder) {
+            return new TaggedList(positions, tags, comparable, channels, rows, newOrder, SqlTyping.UNKNOWN);
+        }
+
+        /** A list whose arrays are aggregated from {@code rows}: a {@link ScalarSubquery} over its CELLS, one row per
+         *  element in the list's order ({@link #ROW_POSITION} 1..n, {@link #ROW_TAG} the channel index,
+         *  {@link #ROW_CHANNEL} each channel's value), so a root reads the rows themselves and every array is an
+         *  aggregate over them (the row-major flatten of a relation, track L, 2026-10-29). A child like any other
+         *  to the rewriters (the children contract); its reader refuses what is not a subquery. */
+        public TaggedList(SqlExpr positions, SqlExpr tags, SqlExpr comparable, List<Channel> channels,
+                          SqlExpr rows) {
+            this(positions, tags, comparable, channels, rows, Order.POSITION, SqlTyping.UNKNOWN);
+        }
+
+        /** The cells relation's columns ({@link #rows}): the element's position, its tag, its comparable, its
+         *  channel {@code k}'s value. */
+        public static final String ROW_POSITION = "__pos";
+        public static final String ROW_TAG = "__tag";
+        public static final String ROW_COMPARABLE = "__cmp";
+
+        public static String ROW_CHANNEL(int k) {
+            return "__ch" + k;
+        }
+
+        /** Whether the positions are {@code 1..n} in the list's own order: a literal list as built, or a list over
+         *  its rows; false for a list whose positions were reordered or filtered (a sort, a dedup). */
+        public boolean identityPositions() {
+            if (rows != null) {
+                return true;
+            }
+            if (!(positions instanceof ArrayLit ps)) {
+                return false;
+            }
+            for (int i = 0; i < ps.elements().size(); i++) {
+                if (!(ps.elements().get(i) instanceof IntLit p) || p.value() != i + 1) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** One channel: the Pure kind it holds, the SQL slot holding it exactly, its values ({@code ARRAY<slot>},
+         *  one per position, NULL where the element is of another kind). */
+        public record Channel(String kind, SqlType slot, SqlExpr values) {
+        }
+
+        /** The channels' (kind, slot) pairs: the tagged element type's slots, in channel order. */
+        public List<SqlType.Tagged.Slot> slots() {
+            List<SqlType.Tagged.Slot> out = new java.util.ArrayList<>(channels.size());
+            for (Channel ch : channels) {
+                out.add(new SqlType.Tagged.Slot(ch.kind(), ch.slot()));
+            }
+            return out;
+        }
+
+        /** The tag at {@code position}: a position the list holds, read by {@link SqlFn#LIST_AT} (each array and the
+         *  position written once: nested positions multiplied the general read's copies, 2026-11-03). */
+        public SqlExpr tagAt(SqlExpr position) {
+            return Call.of(SqlFn.LIST_AT, tags, position);
+        }
+
+        /** The comparable at {@code position}. */
+        public SqlExpr comparableAt(SqlExpr position) {
+            return Call.of(SqlFn.LIST_AT, comparable, position);
+        }
+
+        /** Channel {@code k}'s value at {@code position}. */
+        public SqlExpr channelAt(int k, SqlExpr position) {
+            return Call.of(SqlFn.LIST_AT, channels.get(k).values(), position);
+        }
+
+        /** The element at {@code position}: a tagged value whose tag is the channel index there, whose comparable
+         *  is the comparable there, and whose candidates are each channel's value there. */
+        public Tagged element(SqlExpr position) {
+            List<Tagged.Candidate> candidates = new java.util.ArrayList<>(channels.size());
+            for (int k = 0; k < channels.size(); k++) {
+                Channel ch = channels.get(k);
+                candidates.add(new Tagged.Candidate(ch.kind(), ch.slot(), channelAt(k, position)));
+            }
+            return new Tagged(tagAt(position), comparableAt(position), candidates);
+        }
+
+        /** The same list over other positions (its rows, if any, no longer describe the order: dropped). */
+        public TaggedList withPositions(SqlExpr newPositions) {
+            return new TaggedList(newPositions, tags, comparable, channels, null, order, SqlTyping.UNKNOWN);
+        }
+
+        /** The list's elements where every array is a literal and the positions are {@code 1..n} in order (a
+         *  literal collection as built): each position's (kind, slot, value), else null. */
+        public @com.legend.base.Nullable List<Tagged.Candidate> literalElements() {
+            if (!(positions instanceof ArrayLit ps) || !(tags instanceof ArrayLit ts)) {
+                return null;
+            }
+            List<ArrayLit> values = new java.util.ArrayList<>(channels.size());
+            for (Channel ch : channels) {
+                SqlExpr v = ch.values() instanceof Cast c ? c.value() : ch.values();
+                if (!(v instanceof ArrayLit a)) {
+                    return null;
+                }
+                values.add(a);
+            }
+            List<Tagged.Candidate> out = new java.util.ArrayList<>(ps.elements().size());
+            for (int i = 0; i < ps.elements().size(); i++) {
+                if (!(ps.elements().get(i) instanceof IntLit p) || p.value() != i + 1
+                        || !(ts.elements().get(i) instanceof IntLit t)) {
+                    return null;
+                }
+                int k = (int) t.value() - 1;
+                Channel ch = channels.get(k);
+                out.add(new Tagged.Candidate(ch.kind(), ch.slot(), values.get(k).elements().get(i)));
+            }
+            return out;
+        }
+    }
+
     /** A relation-toString whose COLUMN LIST is dynamic (a pivot with
      * runtime-discovered keys): the '#TDS' text cannot compose at
-     * lowering — the EXECUTION BOUNDARY resolves it (DynamicPivot's
-     * two-phase discipline; the lowering layer records the typed
+     * lowering — it is refused by name where it reaches a statement (the body driver: the pivot's keyed plan writes no
+     * text; until 2026-10-31 a staticizer read the keys at planning; the lowering layer records the typed
      * schema by {@code id}). Types-free by design — the sql package
      * never carries compiler types. A node reaching a renderer is a
      * routing bug and walls loudly there. */
@@ -1219,21 +1490,138 @@ public sealed interface SqlExpr
             this(fn, partitionBy, orderBy, frame, SqlTyping.UNKNOWN);
         }
 
-        /** {@code ROWS|RANGE BETWEEN <from> AND <to>}. */
-        public record Frame(Kind kind, Bound from, Bound to) {
+        /**
+         * {@code ROWS|RANGE BETWEEN <from> AND <to>}. {@code checked}: the window is written inside the check of its
+         * computed bounds ({@code ComputedPreceding}, {@code ComputedFollowing}) -- set by the renderer that writes the
+         * check around it, so the check is written once (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a).
+         */
+        public record Frame(Kind kind, Bound from, Bound to, boolean checked) {
             public enum Kind { ROWS, RANGE }
+
+            public Frame(Kind kind, Bound from, Bound to) {
+                this(kind, from, to, false);
+            }
+
+            /** Whether a bound is an offset the database computes. */
+            public boolean computed() {
+                return from instanceof Bound.ComputedPreceding || from instanceof Bound.ComputedFollowing
+                        || to instanceof Bound.ComputedPreceding || to instanceof Bound.ComputedFollowing;
+            }
+
+            /** This frame, written inside the check of its computed bounds. */
+            public Frame asChecked() {
+                return new Frame(kind, from, to, true);
+            }
+
+            /** The offsets the database computes, from then to. */
+            public java.util.List<SqlExpr> offsets() {
+                java.util.List<SqlExpr> out = new java.util.ArrayList<>(2);
+                offset(from, out);
+                offset(to, out);
+                return out;
+            }
+
+            /** This frame with its computed offsets replaced, in order, by {@code values}. */
+            public Frame withOffsets(java.util.List<SqlExpr> values) {
+                int[] i = {0};
+                java.util.function.UnaryOperator<Bound> next = b -> switch (b) {
+                    case Bound.ComputedPreceding c -> new Bound.ComputedPreceding(values.get(i[0]++));
+                    case Bound.ComputedFollowing c -> new Bound.ComputedFollowing(values.get(i[0]++));
+                    case Bound.UnboundedPreceding u -> b;
+                    case Bound.Preceding p -> b;
+                    case Bound.CurrentRow c -> b;
+                    case Bound.Following f -> b;
+                    case Bound.UnboundedFollowing u -> b;
+                    case Bound.IntervalPreceding p -> b;
+                    case Bound.IntervalFollowing f -> b;
+                };
+                Bound f = next.apply(from);
+                Bound t = next.apply(to);
+                return new Frame(kind, f, t, checked);
+            }
+
+            private static void offset(Bound b, java.util.List<SqlExpr> out) {
+                if (b instanceof Bound.ComputedPreceding c) {
+                    out.add(c.offset());
+                } else if (b instanceof Bound.ComputedFollowing c) {
+                    out.add(c.offset());
+                }
+            }
 
             public sealed interface Bound {
                 record UnboundedPreceding() implements Bound {
                 }
 
-                record Preceding(Number n) implements Bound {
+                record Preceding(Offset offset) implements Bound {
+                    /** The bound of offset {@code n} (an integer, a float or a decimal, as the program wrote it). */
+                    public static Preceding of(Number n) {
+                        return new Preceding(Offset.of(n));
+                    }
+
+                    /** The offset as the number it is. */
+                    public Number n() {
+                        return offset.value();
+                    }
                 }
 
                 record CurrentRow() implements Bound {
                 }
 
-                record Following(Number n) implements Bound {
+                record Following(Offset offset) implements Bound {
+                    /** The bound of offset {@code n} (an integer, a float or a decimal, as the program wrote it). */
+                    public static Following of(Number n) {
+                        return new Following(Offset.of(n));
+                    }
+
+                    /** The offset as the number it is. */
+                    public Number n() {
+                        return offset.value();
+                    }
+                }
+
+                /** A ROWS or RANGE frame side's offset, the number the program wrote -- an integer, a float or a decimal
+                 *  (the plan-as-data design's step 9, 2026-11-08: guard 1 at zero; an abstract {@code Number} is no type
+                 *  a plan holds). */
+                sealed interface Offset permits Offset.Int, Offset.Float, Offset.Dec {
+
+                    /** The offset as the Java number it was written as. */
+                    Number value();
+
+                    /** {@code n}'s offset: refused by name for a number of another kind. */
+                    static Offset of(Number n) {
+                        return switch (n) {
+                            case Long l -> new Int(l);
+                            case Integer i -> new Int(i);
+                            case Double d -> new Float(d);
+                            case java.math.BigDecimal b -> new Dec(b);
+                            default -> throw new IllegalArgumentException("a window frame offset is an integer, a float"
+                                    + " or a decimal, not a " + n.getClass().getSimpleName());
+                        };
+                    }
+
+                    /** An integer offset. */
+                    record Int(long n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
+
+                    /** A float offset (a RANGE frame's). */
+                    record Float(double n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
+
+                    /** A decimal offset (a RANGE frame's). */
+                    record Dec(java.math.BigDecimal n) implements Offset {
+                        @Override
+                        public Number value() {
+                            return n;
+                        }
+                    }
                 }
 
                 record UnboundedFollowing() implements Bound {
@@ -1244,6 +1632,16 @@ public sealed interface SqlExpr
                 }
 
                 record IntervalFollowing(long n, String unit) implements Bound {
+                }
+
+                /** {@code (offset) PRECEDING}: an offset the database computes -- a parameter, arithmetic over
+                 *  constants -- written as a bound {@code -(offset)} (the typed frame's {@code Offset}). */
+                record ComputedPreceding(SqlExpr offset) implements Bound {
+                }
+
+                /** {@code (offset) FOLLOWING}: an offset the database computes, written as a bound of any other
+                 *  shape. */
+                record ComputedFollowing(SqlExpr offset) implements Bound {
                 }
             }
         }

@@ -102,7 +102,7 @@ describe('a join source\'s how, read strictly', () => {
     refused(() => readJoinHow({ ...join(), prefix: '' }), /prefix starts a column's name/);
     refused(() => readJoinHow({ ...join(), keep: 'a' }), /a list, or null for all/);
     refused(() => readJoinHow({ form: 'asOf', match: { left: 'at', op: '==', right: 'at' }, on: { rows: [] }, prefix: 'p_', keep: null }), /one of >= <= > </);
-    refused(() => readJoinHow({ form: 'append', on: { rows: [] } }), /an append takes form, not on/);
+    refused(() => readJoinHow({ form: 'append', on: { rows: [] } }), /an append takes form, pick, not on/);
     refused(() => readJoinHow({ ...join(), on: { rows: [{ left: '', op: '==', right: 'b' }] } }), /names a column/);
   });
 });

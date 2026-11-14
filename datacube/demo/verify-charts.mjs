@@ -241,7 +241,10 @@ try {
     if (wl < 0 || wt < 0 || wr > placed.screen[0] || wb > placed.screen[1]) throw new Error(`its options' window is off the screen: ${JSON.stringify(placed)}`);
     if (wl < cr && wr > cl && wt < cb && wb > ct) throw new Error(`its options' window covers the chart: ${JSON.stringify(placed)}`);
     // in the Properties window's design (the user, 2026-10-25): its sections titled as Properties' are, a short choice
-    // segmented with the chosen one sky-filled and sky-edged as a chosen Join kind
+    // segmented with the chosen one sky-filled and sky-edged as a chosen Join kind -- read once its form is drawn (the
+    // window comes before its sections: on a slower machine CI's run read a title not there yet, 2026-10-26)
+    await form.locator('.dc-section-title').first().waitFor();
+    await form.locator('.dc-segment.dc-chosen').first().waitFor();
     const look = await page.evaluate(() => {
       const win = document.querySelector('.dc-chart-options');
       const title = getComputedStyle(win.querySelector('.dc-section-title'));
@@ -370,13 +373,19 @@ try {
   // THE TIMESERIES EXAMPLES (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §9; the timeseries review's G5,
   // docs/TIMESERIES_REVIEW_2026_10_25.md: no harness opened them): each opened from Open…'s Examples over the markets and
   // rates samples it makes itself; on each of its sheets every timeseries tile draws -- its ECharts canvas, every line
-  // the database answered, no line refused and no problem in its banner (a tile on a sheet not shown draws when shown)
-  for (const [example, marker, least] of [['markets', 'performance', 6], ['timeseries-gallery', 'returns', 36]]) {
+  // the database answered, no line refused and no problem in its banner (a tile on a sheet not shown draws when shown).
+  // The markets example over the trading model's classes (§11, Phase 6) opens two saved queries of the site's markets
+  // project (a version the site releases, demo/releases/index.json), its rows the project's Data: how long that takes, cold, is said with it.
+  // the copies over classes (docs/TS_DECISIONS_2026_11_07.md §4, a', 2026-11-07): the same pages, each grid a saved query
+  // of the markets project
+  for (const [example, marker, least] of [['markets', 'performance', 6], ['timeseries-gallery', 'returns', 36], ['markets-classes', 'sectors', 3],
+    ['markets-on-classes', 'performance', 6], ['gallery-on-classes', 'returns', 36]]) {
     await check(`the example page ${example} opens from Open…, and every timeseries on every sheet draws`, async () => {
       await page.click('.dc-titlebar-menu');
       const open = page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("Open\u2026"))').first();
       if (!(await open.isVisible())) await page.locator('.dc-menu-item:has(> .dc-menu-label:text-is("File"))').first().hover();
       await open.click();
+      const t0 = Date.now();
       await page.locator(`#cubeswin .dc-open-example[data-example="${example}"]`).click();
       await page.waitForFunction(([mark, n]) => {
         const views = window.__dataPage?.views().views ?? [];
@@ -385,6 +394,7 @@ try {
       await settle();
       const sheets = await page.locator('.dc-sheet-tab').evaluateAll((els) => els.map((e) => e.dataset.sheet));
       let drawn = 0;
+      let first;
       for (const sheet of sheets) {
         await page.locator(`.dc-sheet-tab[data-sheet="${sheet}"]`).click();
         await settle();
@@ -408,9 +418,10 @@ try {
         }));
         if (bad.length) throw new Error(`sheet ${sheet}: ${bad.join(' | ')}`);
         drawn += await page.locator('[data-tile] .dc-ts .dc-ts-chart canvas').evaluateAll((els) => els.filter((e) => e.offsetParent !== null).length);
+        first ??= Date.now() - t0;
       }
       if (drawn < least) throw new Error(`${drawn} timeseries drawn over ${sheets.length} sheets, of ${least}`);
-      return `${sheets.length} sheets, ${drawn} timeseries drawn`;
+      return `${sheets.length} sheets, ${drawn} timeseries drawn; the first sheet drawn ${(first / 1000).toFixed(1)} s after the click`;
     });
   }
 

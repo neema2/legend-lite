@@ -3,11 +3,11 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
-import com.legend.Compiler;
-import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -66,12 +66,12 @@ class ExecuteInDbDuckDbTest {
         // "default" is a keyword column name — legal unquoted on the
         // engine's H2, a syntax error on DuckDB without the dialect's
         // raw-SQL adaptation; the blob carries two statements
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table kTest(id INT, default VARCHAR(20));"
                 + " Insert into kTest (id, default) values (7, \\'x\\');', $c, 0, 1000);}", StorelessRuntime.RUNTIME,
                 conn);
-        assertNull(((ExecutionResult.Scalar) r).value(), "opaque ResultSet handle");
+        assertNull(r.value(), "opaque ResultSet handle");
         try (Statement st = conn.createStatement();
                 ResultSet rs = st.executeQuery("select id, \"default\" from kTest")) {
             assertTrue(rs.next());
@@ -85,10 +85,10 @@ class ExecuteInDbDuckDbTest {
     void ownDatabaseTextRunsAsWritten() throws Exception {
         // H2's FLOAT is an 8-byte double, which the engine's H2 text maps to DOUBLE; on a connection declaring
         // DuckDB the text is DuckDB's, whose FLOAT (a 4-byte REAL) stays
-        Execution.execute(StorelessRuntime.with("", SESSION), OWN_CONN_LET
+        Program.last(StorelessRuntime.with("", SESSION), OWN_CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb('Create Table fOwn(f FLOAT);', $c, 0, 1000);}",
                 StorelessRuntime.RUNTIME, conn);
-        Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb('Create Table fH2(f FLOAT);', $c, 0, 1000);}",
                 StorelessRuntime.RUNTIME, conn);
         try (Statement st = conn.createStatement();
@@ -106,7 +106,7 @@ class ExecuteInDbDuckDbTest {
     @Test
     @DisplayName("executeInDb: the sql argument is a Pure EXPRESSION, evaluated through the pipeline")
     void sqlArgumentEvaluatedThroughPipeline() throws Exception {
-        Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + "let tbl = 'kExpr';\n"
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table ' + $tbl + '(id INT); Insert into ' + $tbl"
@@ -151,9 +151,9 @@ class ExecuteInDbDuckDbTest {
     void effectfulSetupFunctionSequences() throws Exception {
         // one statement-position call fans out: create + nested fill (a
         // parameterized callee — the arg travels through the frame)
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(SETUP_MODEL, SESSION),
+        Lean.Result r = Program.last(StorelessRuntime.with(SETUP_MODEL, SESSION),
                 "{| my::s::createAndFill();}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(true, ((ExecutionResult.Scalar) r).value(),
+        assertEquals(true, r.one(),
                 "the sequence's value is its LAST statement");
         try (Statement st = conn.createStatement();
                 ResultSet rs = st.executeQuery("select count(*), sum(id) from kSeq")) {
@@ -168,10 +168,10 @@ class ExecuteInDbDuckDbTest {
     void effectfulLetExecutesOnce() throws Exception {
         // corpus shape (embedded createTimeStamKeysTableAndFill): the let
         // binds an opaque ResultSet handle as a smoke check, never read
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(SETUP_MODEL, SESSION), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with(SETUP_MODEL, SESSION), CONN_LET
                 + "let rs = meta::relational::metamodel::execute::executeInDb("
                 + "'Create Table kDrop(id INT);', $c, 0, 1000);\ntrue;}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(true, ((ExecutionResult.Scalar) r).value());
+        assertEquals(true, r.one());
         try (Statement st = conn.createStatement()) {
             st.execute("insert into kDrop values (1)");   // table exists = ran
         }
@@ -184,7 +184,7 @@ class ExecuteInDbDuckDbTest {
         // an opaque execute-once handle). A query shape is a VALUE now
         // (the typed-relation channel) — pinned green below.
         IllegalStateException ex = assertThrows(IllegalStateException.class,
-                () -> Execution.execute(StorelessRuntime.with(SETUP_MODEL, SESSION), CONN_LET
+                () -> Program.last(StorelessRuntime.with(SETUP_MODEL, SESSION), CONN_LET
                         + "let rs = meta::relational::metamodel::execute::executeInDb("
                         + "'create table EFFECT_LET_T(x int);', $c, 0, 1000);\n"
                         + "let n = $rs;\ntrue;}", StorelessRuntime.RUNTIME, conn));
@@ -195,11 +195,11 @@ class ExecuteInDbDuckDbTest {
     @Test
     @DisplayName("Phase 1c FLIP: a QUERY-shaped executeInDb binding is a VALUE — it reads back")
     void queryShapedLetReadsBack() throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(SETUP_MODEL, SESSION), CONN_LET
+        Lean.Result r = Program.last(StorelessRuntime.with(SETUP_MODEL, SESSION), CONN_LET
                 + "let rs = meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as A;', $c, 0, 1000);\n"
                 + "$rs.rows->size();}", StorelessRuntime.RUNTIME, conn);
-        assertEquals(1L, ((Number) ((ExecutionResult.Scalar) r).value())
+        assertEquals(1L, ((Number) r.one())
                 .longValue());
     }
 
@@ -216,14 +216,14 @@ class ExecuteInDbDuckDbTest {
         String call = CONN_LET
                 + "meta::relational::functions::toDDL::dropAndCreateTableInDb("
                 + "my::store::DB, 'kDdlTable', $c);}";
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(model, SESSION), call, StorelessRuntime.RUNTIME, conn);
-        assertEquals(true, ((ExecutionResult.Scalar) r).value());
+        Lean.Result r = Program.last(StorelessRuntime.with(model, SESSION), call, StorelessRuntime.RUNTIME, conn);
+        assertEquals(true, r.one());
         try (Statement st = conn.createStatement()) {
             st.execute("Insert into kDdlTable (id, name) values (1, 'a')");
         }
         // drop+create again: the table comes back EMPTY (no constraints —
         // engine-harness parity: milestoned seeds repeat ids)
-        Execution.execute(StorelessRuntime.with(model, SESSION), call, StorelessRuntime.RUNTIME, conn);
+        Program.last(StorelessRuntime.with(model, SESSION), call, StorelessRuntime.RUNTIME, conn);
         try (Statement st = conn.createStatement();
                 ResultSet rs = st.executeQuery("select count(*) from kDdlTable")) {
             assertTrue(rs.next());
@@ -234,14 +234,14 @@ class ExecuteInDbDuckDbTest {
     @Test
     @DisplayName("executeInDb: a broken statement fails loudly, never silently")
     void brokenStatementFailsLoudly() {
-        assertThrows(com.legend.error.DataError.class, () -> Execution.execute(StorelessRuntime.with("", SESSION), CONN_LET
+        assertThrows(com.legend.error.DataError.class, () -> Program.last(StorelessRuntime.with("", SESSION), CONN_LET
                 + "meta::relational::metamodel::execute::executeInDb("
                 + "'Insert into noSuchTable (id) values (1);', $c, 0, 1000);}", StorelessRuntime.RUNTIME, conn));
     }
 
     @Test
-    @DisplayName("T1.9: class-query-derived effect sql — Phase H runs; the scalar-root arm is the LOUD wall")
-    void classQueryDerivedSqlResolves() throws Exception {
+    @DisplayName("an executeInDb text built from a query at run time is refused by name: lite has no text holes")
+    void aComputedEffectTextIsRefused() throws Exception {
         String model = """
                 Class t9::P { name: String[1]; }
                 ###Relational
@@ -259,24 +259,22 @@ class ExecuteInDbDuckDbTest {
             st.execute("CREATE TABLE PT (NAME VARCHAR)");
             st.execute("INSERT INTO PT VALUES ('ann'), ('bob')");
         }
-        // The effect-let path RUNS Phase H (T1.9). This pin was BISTABLE
-        // (resolved-rows OR the loud TypedGetAll wall, flipping per JVM
-        // run) until the T2.1/T3.1 arc: identity-preserving rebuilds
-        // (mapChildren) + the memoized space/anchor classifier removed
-        // every run-varying input the routing consumed — no identity-keyed
-        // structure is ITERATED anywhere in core (T3.1 B3 census), and
-        // 12 consecutive fresh-JVM runs resolve. Tightened to ROWS-ONLY:
-        // any recurrence of the wall (or a third behavior) fails loudly.
-        Execution.execute(model, CONN_LET
-            + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
-            + "let x = meta::relational::metamodel::execute::executeInDb("
-            + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"
-            + " values (\\'' + $names + '\\');', $c, 0, 1000);\n"
-            + "true;}", "t9::RT", conn);
+        // A SQL text the database would compute before the effect is written (T1.9 pinned the walk running it, the
+        // value spliced into the text): a text hole, which lite does not have -- the user's ruling, 2026-11-04, the
+        // core program; a computed value is written with a store write. Refused by name at planning: nothing runs.
+        com.legend.error.NotImplementedException e = org.junit.jupiter.api.Assertions.assertThrows(
+                com.legend.error.NotImplementedException.class, () -> Program.last(model, CONN_LET
+                        + "let names = t9::P.all()->map(p|$p.name)->makeString('_');\n"
+                        + "let x = meta::relational::metamodel::execute::executeInDb("
+                        + "'Create Table T9OUT(v VARCHAR); Insert into T9OUT (v)"
+                        + " values (\\'' + $names + '\\');', $c, 0, 1000);\n"
+                        + "true;}", "t9::RT", conn));
+        assertTrue(e.getMessage().contains("text hole"), e.getMessage());
         try (Statement st = conn.createStatement();
-                ResultSet rs = st.executeQuery("select v from T9OUT")) {
-            assertTrue(rs.next(), "resolved path must have inserted");
-            assertEquals("ann_bob", rs.getString(1));
+                ResultSet rs = st.executeQuery("select count(*) from information_schema.tables"
+                        + " where table_name = 'T9OUT'")) {
+            assertTrue(rs.next());
+            assertEquals(0, rs.getInt(1), "nothing ran: no T9OUT");
         }
     }
 }

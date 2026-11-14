@@ -13,6 +13,7 @@ import { relationColumns, type Plan } from '../../../engine-client/src/relation-
 import { DESK_MODEL, ON_DEEPHAVEN } from '../../demo/deephaven/market/model.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
 import { load } from './wasm-gc-module-runtime.js';
+import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 interface Outcome {
   readonly name: string;
@@ -71,7 +72,7 @@ try {
     const plan = exports.planHeldOrError(handle, query, ON_DEEPHAVEN.runtime);
     if (!plan.startsWith('OK\n')) throw new Error(`the planner refused ${query}: ${plan.replace(/\n/g, ' | ')}`);
     const body = JSON.parse(plan.slice(3)) as { sql: string; type: unknown };
-    return { sql: body.sql, columns: relationColumns(body.type) };
+    return { sql: unplanned(body.sql), columns: relationColumns(body.type) };
   };
   /** A query's rows as DataCube's engine reads them, its first snapshot; `each` sees every snapshot for `ms` more. */
   const rows = async (query: string, ms = 0, each?: (rows: unknown[][]) => void): Promise<unknown[][]> => {

@@ -28,10 +28,19 @@ public final class Folded {
         }
     }
 
-    /** A {@code pure/v1} answer -- its status, media type and body -- or the refusal it threw. */
+    /** The media type's suffix of a binary body folded as base64: {@code application/json;base64}. */
+    public static final String BASE64 = ";base64";
+
+    /** A {@code pure/v1} answer -- its status, media type and body -- or the refusal it threw. A BINARY body (the
+     *  ARROW_IPC execute's bytes, track A, 2026-10-29) travels as base64 under its media type with the
+     *  {@link #BASE64} suffix: both hosts speak strings. */
     public static String http(java.util.function.Supplier<com.legend.server.PureV1Api.Answer> answer) {
         try {
             com.legend.server.PureV1Api.Answer a = answer.get();
+            if (a.bytes() != null) {
+                return "OK\n" + a.status() + "\n" + a.contentType() + BASE64 + "\n"
+                        + java.util.Base64.getEncoder().encodeToString(a.bytes());
+            }
             return "OK\n" + a.status() + "\n" + a.contentType() + "\n" + a.json();
         } catch (RuntimeException | StackOverflowError e) {
             return failure(e);

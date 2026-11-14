@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlExpr;
 import com.legend.sql.TypeFact;
 
@@ -69,7 +71,33 @@ final class MongoJson {
             char c = name.charAt(i);
             sb.append(Character.isLetterOrDigit(c) && c < 128 ? c : '_');
         }
-        return sb.toString();
+        return letVariable(sb.toString());
+    }
+
+    /** A plan parameter's pipeline variable: {@code lp} and its place, {@link #parameterVariable}. */
+    private static final java.util.regex.Pattern PARAMETER_VARIABLE = java.util.regex.Pattern.compile("lp[0-9]+");
+
+    /** {@code name}, a variable this dialect binds itself (a {@code $let}'s, a lookup's {@code let}, a lambda's), refused
+     *  by name where it is a plan parameter's ({@code lp1}, {@code lp2}, ...): the command's {@code let} binds those, and
+     *  an inner binding of the name would hide the parameter's value. */
+    static String letVariable(String name) {
+        if (PARAMETER_VARIABLE.matcher(name).matches()) {
+            throw new DialectCapability("the variable '" + name + "' reached MongoDb as one the pipeline binds itself:"
+                    + " the name is a plan parameter's, which the aggregate command's let binds");
+        }
+        return name;
+    }
+
+    /** The pipeline variable of the statement's {@code place}-th plan parameter (from 1): {@code lp1}, {@code lp2},
+     *  ... -- the reserved prefix {@code lp}, a lowercase ASCII letter first (MongoDB's rule for a user variable), which
+     *  no variable the dialect binds itself takes ({@link #letVariable} refuses one by name: {@link #variable}'s are
+     *  {@code v_}, the guards' {@code g0}, {@code g1}, ..., the operators' one or two letters). The session names its
+     *  {@code let} entries the same way (the connector's {@code MongoDbStatements}, which no dialect class reaches). */
+    static String parameterVariable(int place) {
+        if (place < 1) {
+            throw new IllegalStateException("a plan parameter's place is counted from 1, not " + place);
+        }
+        return "lp" + place;
     }
 
     /** {@code {"$literal": "<text>"}}: a string value, never a path. */

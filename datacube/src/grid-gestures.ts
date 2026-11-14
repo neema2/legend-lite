@@ -72,6 +72,7 @@ export type GridGestureArgs = {
   readonly 'pivot.horizontal': Column; readonly 'pivot.addHorizontal': Column; readonly 'pivot.removeHorizontal': Column;
   readonly 'pivot.clearHorizontal': Nothing;
   readonly 'pivot.pin': { readonly values: readonly (FilterValue | null)[] | null };
+  readonly 'pivot.addValues': { readonly values: readonly (FilterValue | null)[] };
   readonly 'zones.set': { readonly rows: readonly string[]; readonly columns: readonly string[] };
   readonly 'pivot.measuresFirst': Nothing; readonly 'pivot.exclude': Column; readonly 'pivot.include': Column;
   readonly 'column.hide': Column; readonly 'column.show': { readonly column: string; readonly visible: boolean };
@@ -222,6 +223,28 @@ const addRule = (g: GestureGrid, leaf: string, given: unknown): GridCommand[] =>
   return has.some((r) => JSON.stringify(r) === JSON.stringify(rule)) ? [] : [column(name, { rules: [...has, rule] })];
 };
 
+/** The values a Cross Tab's pin holds (FL2), or null: its columns its rows' values. */
+const pinnedValues = (g: GestureGrid): readonly FilterValue[] | null =>
+  (g.snapshot.pivotValues !== undefined && g.snapshot.pivotValues.length > 0 ? g.snapshot.pivotValues : null);
+
+/** A pivot's values as given, each typed as its column is (a number answered as text, as a database's big integer is, a
+ *  number; a Decimal's, its text). An empty value is refused in words: it names no column. */
+function pivotValuesTyped(g: GestureGrid, given: unknown): FilterValue[] {
+  if (!Array.isArray(given)) throw new CubeRefusal(`a pivot's values are a list, or null, not ${JSON.stringify(given)}`);
+  const on = g.snapshot.pivotOn[0];
+  const type = rowColumns(g.snapshot).find((c) => c.name === on)?.type;
+  return (given as readonly unknown[]).map((v): FilterValue => {
+    if (v === null) throw new CubeRefusal(`its rows hold an empty '${on ?? ''}', which names no column: fill or filter its empty values first`);
+    // a number past what a double holds exactly kept as its text: its condition reads it as its column's type; a
+    // Decimal's text kept whole, every digit it has (a double rounds 12345678901234.567 and drops 12.10's zero: the
+    // review of 2026-10-26's B1)
+    const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
+    const exact = familyOf(type) === 'numeric' && !isDecimal(type);
+    if (exact && Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n))) return n;
+    return v as FilterValue;
+  });
+}
+
 const GESTURES = {
   // -- sorts (the header menu's Sort, the header's click)
   'sort.asc': { args: ['column'], make: (_g, a) => [{ kind: 'sorts', sorts: [{ column: columnOf(a), direction: 'asc' }] }] },
@@ -323,23 +346,30 @@ const GESTURES = {
   'pivot.pin': {
     args: ['values'],
     make: (g, a) => {
-      const had = g.snapshot.pivotValues !== undefined && g.snapshot.pivotValues.length > 0 ? g.snapshot.pivotValues : null;
+      const had = pinnedValues(g);
       const given = a['values'];
       if (given === null) return had === null ? [] : [{ kind: 'pinPivot', values: null }];
-      if (!Array.isArray(given)) throw new CubeRefusal(`a pivot's values are a list, or null, not ${JSON.stringify(given)}`);
-      const on = g.snapshot.pivotOn[0];
-      const type = rowColumns(g.snapshot).find((c) => c.name === on)?.type;
-      const values = (given as readonly unknown[]).map((v): FilterValue => {
-        if (v === null) throw new CubeRefusal(`its rows hold an empty '${on ?? ''}', which names no column: fill or filter its empty values first`);
-        // a number past what a double holds exactly kept as its text: its condition reads it as its column's type; a
-        // Decimal's text kept whole, every digit it has (a double rounds 12345678901234.567 and drops 12.10's zero: the
-        // review of 2026-10-26's B1)
-        const n = typeof v === 'string' && v.trim() !== '' ? Number(v) : NaN;
-        const exact = familyOf(type) === 'numeric' && !isDecimal(type);
-        if (exact && Number.isFinite(n) && (!Number.isInteger(n) || Number.isSafeInteger(n))) return n;
-        return v as FilterValue;
-      });
+      const values = pivotValuesTyped(g, given);
       return sameValue(had, values) ? [] : [{ kind: 'pinPivot', values }];
+    },
+  },
+  // A CROSS TAB'S LACKING VALUES ADDED TO ITS COLUMNS (FL8's fix, "Add to the cast"; Python's grid.add_pivot_values):
+  // each value given its pin lacks a column of its own, after the columns it has, in the order given, typed as Load
+  // values types them -- the pin made longer (pinPivot). An empty value is skipped: it names no column. Refused in words:
+  // a pin it has not (its columns are its rows' already), or a column for each of them already
+  'pivot.addValues': {
+    args: ['values'],
+    make: (g, a) => {
+      const had = pinnedValues(g);
+      if (had === null) throw new CubeRefusal('its columns are not fixed: Load values fixes them');
+      const given = a['values'];
+      if (!Array.isArray(given)) throw new CubeRefusal(`a pivot's values are a list, not ${JSON.stringify(given)}`);
+      const added: FilterValue[] = [];
+      for (const v of pivotValuesTyped(g, (given as readonly unknown[]).filter((v) => v !== null))) {
+        if (![...had, ...added].some((p) => sameValue(p, v))) added.push(v);
+      }
+      if (added.length === 0) throw new CubeRefusal('it has a column for each of them already');
+      return [{ kind: 'pinPivot', values: [...had, ...added] }];
     },
   },
   // a drag in the zones: the whole layout the drop leaves, one change (P2-103)

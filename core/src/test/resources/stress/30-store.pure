@@ -50,6 +50,11 @@ Database store::DB
     // TWO already-executable parents: it joins into core-instrument and core-geo from the
     // same class, and one of its ~groupBy views groups on the key into core-geo.
     include index_core::Store
+    // Not a linked project: the typed-values pack's own store (8112-typedvalues.pure), included the same
+    // way so this connection seeds it and the join from TRADE below sees both tables.
+    include typedvalues::TypedStore
+    // The intraday milestoning pack's store (8113-intraday.pure), included the same way.
+    include intraday::IntradayStore
 
     // ---- taxonomy edges, added by scripts/corpus/add_taxonomy_edges.py ----
     // Every taxonomy table carries BOOK_ID and joined to nothing; these are
@@ -1852,12 +1857,15 @@ Database store::DB
 
     Join Pillar_TenorBucket(RATE_CURVE_POINT.TENOR_DAYS >= CTN_BUCKET.MIN_DAYS and RATE_CURVE_POINT.TENOR_DAYS < CTN_BUCKET.MAX_DAYS)
 
+    // A trade's typed value (8112-typedvalues.pure): one or none, so the navigation is to-one.
+    Join Trade_TypedValue(TRADE.TRADE_ID = TYPED_VALUE.TRADE_ID)
+
     Filter QuotedPillarRows(RATE_CURVE_POINT.IS_INTERPOLATED = 0)
 
-    // A RANGE join: which band the notional falls in. No key, and none possible.
-    // A RANGE join FROM a milestoned table. The engine adds the milestoning
-    // predicate; the band membership is the join's own condition.
-    Join TierVersion_Trade(TRADE.NOTIONAL >= BROKERAGE_TIER_MS.MIN_NOTIONAL and TRADE.NOTIONAL < BROKERAGE_TIER_MS.MAX_NOTIONAL)
+    // TierVersion_Trade, a range join from the milestoned BROKERAGE_TIER_MS to TRADE, was here
+    // and deleted 2026-10-29 (the improvement plan's Phase 7, the user's decision): no mapping
+    // used it, and its natural use, an association with an end on trading::Trade, gives Trade a
+    // milestoned property, which stops external::EntityMapping compiling on the engine (F66).
     Filter ReportableLineRows(regrpt.EXPOSURE_LINE.PCT_OF_CAPITAL >= 5.0)
 
     // A RANGE join from a composite-key table: which band applies is a

@@ -1,0 +1,55 @@
+diff --git a/core/src/main/java/com/legend/driver/BodyDriver.java b/core/src/main/java/com/legend/driver/BodyDriver.java
+index 7b80e07b..98dd36af 100644
+--- a/core/src/main/java/com/legend/driver/BodyDriver.java
++++ b/core/src/main/java/com/legend/driver/BodyDriver.java
+@@ -44,6 +44,42 @@ public final class BodyDriver {
+      * neither); the execute OPTIONS ride the environment and the result — no static slot. {@code answer}, when
+      * given, takes the body's last statement's answer as a stream ({@link Execution.Answer}: the doors, 2026-10-29;
+      * until then the last side came back materialized); the driver returns nothing. */
++    // M5A-PROBE (never committed): the class a body falls in, and whether the test door plans it whole
++    private static void m5probe(TypedQuery typed, @com.legend.base.Nullable String runtimeFqn, ExecuteOptions options,
++            Execution.@com.legend.base.Nullable Answer answer) {
++        String test = "?";
++        for (StackTraceElement e : Thread.currentThread().getStackTrace()) {
++            if (e.getClassName().endsWith("Test")) { test = e.getClassName() + "." + e.getMethodName(); break; }
++        }
++        String outcome;
++        try {
++            com.legend.planner.QueryDoor.Scan scan = new com.legend.planner.QueryDoor.Scan(typed,
++                    java.util.Objects.requireNonNull(runtimeFqn));
++            java.util.EnumSet<com.legend.planner.QueryDoor.TestOnly> all =
++                    java.util.EnumSet.noneOf(com.legend.planner.QueryDoor.TestOnly.class);
++            for (TypedSpec st : typed.body()) {
++                all.addAll(scan.kinds(st));
++            }
++            if (all.contains(com.legend.planner.QueryDoor.TestOnly.ASSERT)
++                    || all.contains(com.legend.planner.QueryDoor.TestOnly.ASSERT_ERROR)) {
++                outcome = "asserts";
++            } else {
++                try {
++                    com.legend.testplan.TestDoor.plan(typed, runtimeFqn, options.features(), null);
++                    outcome = "planned kinds=" + all;
++                } catch (RuntimeException | StackOverflowError e) {
++                    String m = String.valueOf(e.getMessage()).split("\n")[0];
++                    outcome = "refused kinds=" + all + " " + e.getClass().getSimpleName() + ": "
++                            + m.substring(0, Math.min(160, m.length()));
++                }
++            }
++        } catch (RuntimeException e) {
++            outcome = "scanfail " + e.getClass().getSimpleName() + ": " + String.valueOf(e.getMessage()).split("\n")[0];
++        }
++        System.err.println("[m5] " + outcome + " answer=" + (answer != null) + " stmts=" + typed.body().size()
++                + " test=" + test);
++    }
++
+     public static void execute(TypedQuery typed,
+             @com.legend.base.Nullable String runtimeFqn,
+             com.legend.sql.dialect.SqlDialect dialect,
+@@ -51,6 +87,7 @@ public final class BodyDriver {
+             com.legend.judge.@com.legend.base.Nullable AssertListener assertListener,
+             com.legend.judge.@com.legend.base.Nullable SqlReplayReferee replayReferee,
+             ExecuteOptions options, Execution.@com.legend.base.Nullable Answer answer) {
++        m5probe(typed, runtimeFqn, options, answer);   // M5A-PROBE
+         ModelContext ctx = typed.context();
+         SpecCompiler specs = typed.specs();
+         java.util.List<TypedSpec> typedBody = new java.util.ArrayList<>(typed.body());

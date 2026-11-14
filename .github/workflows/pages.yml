@@ -36,7 +36,9 @@ jobs:
       github.event_name == 'workflow_dispatch' ||
       (github.event.workflow_run.conclusion == 'success' &&
        (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'schedule'))
-    runs-on: ubuntu-latest
+    # pinned (2026-11-05): the build step installs libxml2 (soname 2) for LLVM's ld.lld, which ubuntu-latest's image no
+    # longer carries; gate.yml's Linux lanes pin the same image
+    runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4

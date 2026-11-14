@@ -104,6 +104,21 @@ public final class Compiler {
         return answer(a);
     }
 
+    /** {@code Boundary.holdModelOver}: the handle that names {@code model} over {@code library}, the library compiled
+     *  once per isolate. */
+    @CEntryPoint(name = "lite_hold_model_over")
+    static CCharPointer holdModelOver(IsolateThread thread, CCharPointer model, CCharPointer library) {
+        String a;
+        try {
+            String m = text(model);
+            String l = text(library);
+            a = Folded.of(() -> Integer.toString(Boundary.holdModelOver(m, l)));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
     /** {@code Boundary.releaseModel}: the model let go of once. */
     @CEntryPoint(name = "lite_release_model")
     static CCharPointer releaseModel(IsolateThread thread, CCharPointer handle) {
@@ -128,6 +143,20 @@ public final class Compiler {
         try {
             String h = text(handle), l = text(lambdaJson), r = text(runtime);
             a = Folded.of(() -> Boundary.planJsonHeld(Integer.parseInt(h), l, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A lambda's protocol JSON planned over a model held as an execution plan ({@code Boundary.executionPlanJsonHeld}). */
+    @CEntryPoint(name = "lite_execution_plan_json_held")
+    static CCharPointer executionPlanJsonHeld(IsolateThread thread, CCharPointer handle, CCharPointer lambdaJson,
+            CCharPointer runtime) {
+        String a;
+        try {
+            String h = text(handle), l = text(lambdaJson), r = text(runtime);
+            a = Folded.of(() -> Boundary.executionPlanJsonHeld(Integer.parseInt(h), l, r));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }
@@ -175,15 +204,100 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** A model's test data as DuckDB statements, per table ({@code Boundary.testDataSql}): the tab's
-     *  {@code testDataSqlOrError}, a DataCube planner's worker's {@code testData}. */
-    @CEntryPoint(name = "lite_test_data_sql")
-    static CCharPointer testDataSql(IsolateThread thread, CCharPointer model, CCharPointer database,
-            CCharPointer tablesJson) {
+    /** A host's own file read into its database, as a plan ({@code Boundary.fileLoad}, B3): the tab's
+     *  {@code fileLoadOrError}, a DataCube planner's worker's {@code fileLoad}. */
+    @CEntryPoint(name = "lite_file_load")
+    static CCharPointer fileLoad(IsolateThread thread, CCharPointer request) {
         String a;
         try {
-            String m = text(model), d = text(database), t = text(tablesJson);
-            a = Folded.of(() -> Boundary.testDataSql(m, d, t));
+            String r = text(request);
+            a = Folded.of(() -> Boundary.fileLoad(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A remote file mounted, as a plan ({@code Boundary.remoteMount}, B3's Q3): the tab's {@code remoteMountOrError},
+     *  a DataCube planner's worker's {@code remoteMount}. */
+    @CEntryPoint(name = "lite_remote_mount")
+    static CCharPointer remoteMount(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.remoteMount(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A snapshot from a remote plane, as a plan ({@code Boundary.snapStream}, the user's ruling of 2026-11-11): the tab's
+     *  {@code snapStreamOrError}, Python's warehouse snap -- the request the pull (model, runtime, lambda), planned in
+     *  this call, never a statement (the user's ruling of 2026-11-12). */
+    @CEntryPoint(name = "lite_snap_stream")
+    static CCharPointer snapStream(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.snapStream(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A snapshot's copy into the host's own database, as one plan ({@code Boundary.snapCopy}, the final audit's 1(b),
+     *  2026-11-12): the tab's {@code snapCopyOrError}, Python's local copy -- the request the pull, planned in this call,
+     *  never a statement. */
+    @CEntryPoint(name = "lite_snap_copy")
+    static CCharPointer snapCopy(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.snapCopy(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A DataCube table Output as one plan ({@code Boundary.outputPlan}, the final audit's item 2, 2026-11-12): the tab's
+     *  {@code outputPlanOrError}, Python's headless flow -- the table made before the write, one transaction. */
+    @CEntryPoint(name = "lite_output_plan")
+    static CCharPointer outputPlan(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.outputPlan(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** Rows the database generates into a declared table, as a plan ({@code Boundary.synthesize}: SYNTHESIZE, the user's
+     *  ruling of 2026-11-12): the tab's {@code synthesizeOrError}, a headless host's. */
+    @CEntryPoint(name = "lite_synthesize")
+    static CCharPointer synthesize(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.synthesize(r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** A host's value read as a relation, as a plan ({@code Boundary.frameLoad}, the user's ruling of 2026-11-11):
+     *  Python's frames. */
+    @CEntryPoint(name = "lite_frame_load")
+    static CCharPointer frameLoad(IsolateThread thread, CCharPointer request) {
+        String a;
+        try {
+            String r = text(request);
+            a = Folded.of(() -> Boundary.frameLoad(r));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }
@@ -324,13 +438,27 @@ public final class Compiler {
         return answer(a);
     }
 
-    /** That plan's answer from the one value the host's database wrote ({@code Boundary.executeJsonAnswer}; C2). */
+    /** That plan's answer from the rows the host's database answered ({@code Boundary.executeJsonAnswer}; C2). */
     @CEntryPoint(name = "lite_execute_json_answer")
-    static CCharPointer executeJsonAnswer(IsolateThread thread, CCharPointer plan, CCharPointer wire) {
+    static CCharPointer executeJsonAnswer(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
         String a;
         try {
-            String p = text(plan), w = text(wire);
-            a = Folded.http(() -> Boundary.executeJsonAnswer(p, w));
+            String p = text(plan), r = text(rows);
+            a = Folded.http(() -> Boundary.executeJsonAnswer(p, r));
+        } catch (Throwable failure) {
+            a = Folded.failure(failure);
+        }
+        return answer(a);
+    }
+
+    /** That plan's answer in upstream's Arrow format from the rows the host's database answered
+     *  ({@code Boundary.executeArrowAnswer}; track A, 2026-10-29): the zstd frame folded as base64. */
+    @CEntryPoint(name = "lite_execute_arrow_answer")
+    static CCharPointer executeArrowAnswer(IsolateThread thread, CCharPointer plan, CCharPointer rows) {
+        String a;
+        try {
+            String p = text(plan), r = text(rows);
+            a = Folded.http(() -> Boundary.executeArrowAnswer(p, r));
         } catch (Throwable failure) {
             a = Folded.failure(failure);
         }

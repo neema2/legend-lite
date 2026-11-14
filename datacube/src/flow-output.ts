@@ -8,7 +8,7 @@
 // PURE: no DOM, no planner.
 
 import type { ResultTable } from '../../engine-client/src/result.ts';
-import type { Lambda } from '../../pure-protocol/src/index.ts';
+import { fn, lit, type Lambda } from '../../pure-protocol/src/index.ts';
 import { handedOn, handedOnRows } from './box-columns.ts';
 import { toCsv } from './export.ts';
 import { isMachinery } from './grid/columns.ts';
@@ -36,6 +36,15 @@ export async function outputQuery(snapshot: CubeSnapshot, configuration: Readonl
   const on = handedOn(names.filter((n) => !isMachinery(n)), snapshot, configuration);
   const query: Lambda = { _type: 'lambda', parameters: [], body: [handedOnRows(rows, names, on)] };
   return { query, columns: on.map((c) => ({ name: c.as, type: typed.find((t) => t.name === c.name)!.type })) };
+}
+
+/** A box's rows as it hands them on (outputQuery's), at most `limit` of them, read by the database: a Dynamic Replace's
+ *  rules, another box's (dynamic-replace.ts) -- the tab's and Python's alike. */
+export async function handedOnTable(snapshot: CubeSnapshot, configuration: Readonly<Record<string, unknown>>, queries: OutputQueries,
+  limit: number): Promise<ResultTable> {
+  const { query } = await outputQuery(snapshot, configuration, queries);
+  const limited: Lambda = { ...query, body: [fn('limit', query.body[0]!, lit.integer(limit))] };
+  return (await queries.runQuery(limited, snapshot)).rows;
 }
 
 /** A box's Output as CSV text (`bom`: a UTF-8 BOM first, as a file a spreadsheet may open has; on by default). */

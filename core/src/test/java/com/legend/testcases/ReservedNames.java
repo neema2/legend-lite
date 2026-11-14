@@ -4,8 +4,7 @@
 package com.legend.testcases;
 
 import com.legend.Compiler;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import com.legend.setup.CsvSeed;
 
 import java.sql.Connection;
@@ -67,16 +66,16 @@ public final class ReservedNames {
                 s.execute(sql);
             }
         }
-        ExecutionResult order = Execution.execute(model,
+        Lean.Result order = Lean.run(model,
                 "#>{s::DB.order}#->select(~[ID, NAME])->sort(~ID->ascending())", "s::RT", c);
         assertEquals(List.of(List.of(1, "a"), List.of(2, "b")), rows(order), dialect.getClass().getSimpleName());
-        ExecutionResult t = Execution.execute(model, "#>{s::DB.select.T}#->select(~[ID])", "s::RT", c);
+        Lean.Result t = Lean.run(model, "#>{s::DB.select.T}#->select(~[ID])", "s::RT", c);
         assertEquals(List.of(List.of(7)), rows(t), dialect.getClass().getSimpleName());
     }
 
-    private static List<List<Object>> rows(ExecutionResult r) {
-        return java.util.Objects.requireNonNull(r).rows().stream()
-                .map(row -> row.values().stream().map(v -> v instanceof Number n ? (Object) n.intValue() : v).toList())
+    private static List<List<Object>> rows(Lean.Result r) {
+        return r.rows().stream()
+                .map(row -> row.stream().map(v -> v instanceof Number n ? (Object) n.intValue() : v).toList())
                 .toList();
     }
 }

@@ -30,10 +30,9 @@ public class Test_LegendLite_ClickHouse_GrammarFunctions_PCT extends PCTReportCo
     // Pinned by a STABLE part of the message (the runner matches by containment): no per-run id.
     // First measured 2026-10-12 (ClickHouse 25.8, the pinned server).
     private static final MutableList<ExclusionSpecification> expectedFailures = Lists.mutable.with(
-            // getAll's testBasic passes through the harness's connection, not the dialect: the system store's tables
-            // are a session's own, so its test backend's openSystem opens a session (EmbeddedClickHouse.sessionJdbcUrl). The
-            // ClickHouse connector owns it (the dialect plan's P5), and with it the session's idle expiry and its
-            // one-statement-at-a-time lock (PR #34's review, 2026-10-13)
+            // getAll's testBasic reads the system store on the process's in-process catalog (B4, 2026-11-11); until then
+            // its tables were a ClickHouse session's own, opened by the test backend's openSystem
+            // (EmbeddedClickHouse.sessionJdbcUrl; PR #34's review, 2026-10-13)
             // INSTANCE IDENTITY (as on DuckDB): the asserts want the interpreter's ORIGINAL instances back, or eq/==
             // by reference; the harness inlines captured instances BY VALUE, so identity is erased before the wire
             one("meta::pure::functions::collection::tests::filter::testFilterInstance_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::model::CO_Person"),

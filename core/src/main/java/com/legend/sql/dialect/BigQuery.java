@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.DateFmt;
 import com.legend.sql.DatePart;
 import com.legend.sql.SqlAgg;
@@ -72,6 +74,12 @@ import java.util.Set;
  */
 public final class BigQuery extends AnsiSqlRenderer {
 
+    /** {@inheritDoc} -- BigQuery: half its 1,024K-character query limit. */
+    @Override
+    public int fusedStatementBudget() {
+        return 500_000;
+    }
+
     /** BigQuery (GoogleSQL; 2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): backticks; GoogleSQL's reserved
      *  keywords. The {@code BigQuery} dialect quotes every identifier, so the list decides no spelling there. */
     public static final Lexicon LEXICON = new Lexicon('`', Set.of(
@@ -104,6 +112,38 @@ public final class BigQuery extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached BigQuery, which has no translation of it");
     }
 
+    /** {@inheritDoc} 6: its {@code DATETIME} keeps microseconds (a literal of nine digits is refused, measured) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its date-time column is a {@code DATETIME}, of microseconds (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
+    /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
+     *  2026-11-11, on round 2's measurement, probes/BigQueryDelivery2.java.txt): it reads 100,000 records (7.6 s) where
+     *  the statement's own rows are refused, past BigQuery's 1 MB of query text; a {@code TEMP} table needs a session,
+     *  which doubles each query's latency, and took 105 s; the quote, the line break, the order and the empty array
+     *  kept. */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -113,7 +153,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case INTEGER, BIGINT -> "INT64";
             case HUGEINT -> "BIGNUMERIC";
             case DOUBLE -> "FLOAT64";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "STRING";
+            case VARCHAR, TEMPORAL_TEXT -> "STRING";
             case DATE -> "DATE";
             case TIMESTAMP -> "DATETIME";
             case TIMESTAMPTZ -> "TIMESTAMP";
@@ -148,6 +188,19 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     public boolean needsStaticPivot() {
         return true;
+    }
+
+    /** {@inheritDoc} Yes: BigQuery computes a WITH's query at each reference (a non-recursive one is not materialized,
+     *  #81's final review, item 14k (9), 2026-11-10). */
+    @Override
+    public boolean writesEachReadOfAWithAgain() {
+        return true;
+    }
+
+    /** {@inheritDoc} No: no temporary table of a query is written here (its tempTableAs is refused, unmeasured). */
+    @Override
+    public boolean stagesSharedRelations() {
+        return false;
     }
 
     /** The portable carrier strategies, a fold that reads nothing of its row as a top-level recursive expression (WITH
@@ -371,7 +424,9 @@ public final class BigQuery extends AnsiSqlRenderer {
         }
         SqlSelect counted = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null,
                 List.of());
-        return s.withFrom(new SqlSource.Subselect(counted, alias, null));
+        // a star of the select reads the source as it was, its own columns, never the counts beside them
+        return s.withProjections(starsAsSourceColumns(s, from, alias, "BigQuery"))
+                .withFrom(new SqlSource.Subselect(counted, alias, null));
     }
 
     /** Each MODE under {@code e}: a grouped reducer with the select's keys, a window call with its partition. */
@@ -611,6 +666,23 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** No VALUES clause: the rows as a typed array of structs, unnested ({@code STRUCT(...)} rows coerce to the
      *  array's declared field types, so a NULL cell is typed; a single-column row needs STRUCT, a bare tuple of one is
      *  a parenthesized value -- measured). */
+    /** A {@code data:} payload bound as one parameter, split here (round 2, 2026-11-11, measured): each element a JSON
+     *  value, a frame's record its place as the array's offset (from 0, the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload AS ").append(ident(payloadColumn(u).name()));
+        boolean frame = u.placed();
+        if (frame) {
+            writer.append(", legend_place AS ").append(ident(placeColumn(u).name()));
+        }
+        writer.append(" FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(");
+        bindPayload(writer, u).append("))) AS legend_payload");
+        return frame ? writer.append(" WITH OFFSET AS legend_place") : writer;
+    }
+
     @Override
     protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
         if (v.outputs().size() != v.columns().size()) {
@@ -679,22 +751,11 @@ public final class BigQuery extends AnsiSqlRenderer {
         return sb.append('\'').toString();
     }
 
-    /** A naive date-time is a DATETIME; it holds microseconds (a literal with nine digits is refused, measured), so
-     *  finer digits are TRUNCATED as DuckDB's TIMESTAMP does. */
+    /** A naive date-time is a DATETIME; it holds microseconds (a literal with nine digits is refused, measured), and
+     *  a literal of a finer digit is refused at planning ({@link #literalFractionDigits}; S181, A7). */
     @Override
     protected String timestampLit(String iso) {
-        String t = iso.replace('T', ' ');
-        int dot = t.lastIndexOf('.');
-        if (dot >= 0) {
-            int end = dot + 1;
-            while (end < t.length() && Character.isDigit(t.charAt(end))) {
-                end++;
-            }
-            if (end - dot - 1 > 6) {
-                t = t.substring(0, dot + 7) + t.substring(end);
-            }
-        }
-        return "DATETIME '" + t + "'";
+        return "DATETIME '" + iso.replace('T', ' ') + "'";
     }
 
     /** NUMERIC CHARTER Rule 1: a Float literal is typed exact-decimal by the database -- {@code 1.5} alone is a
@@ -897,7 +958,7 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     private static boolean textual(SqlExpr e) {
         SqlType t = typeOf(e);
-        return e instanceof SqlExpr.StringLit || t == SqlType.Scalar.VARCHAR || t == SqlType.Scalar.LITERAL
+        return e instanceof SqlExpr.StringLit || t == SqlType.Scalar.VARCHAR
                 || t == SqlType.Scalar.TEMPORAL_TEXT || t == SqlType.Scalar.DECIMAL_TEXT;
     }
 
@@ -971,11 +1032,31 @@ public final class BigQuery extends AnsiSqlRenderer {
                 .append(param(o));
     }
 
-    /** {@code body}, or NULL for a NULL list (DuckDB's list functions answer NULL there; an ARRAY subquery over it
-     *  would be empty). */
-    private static SqlWriter.Piece unlessNull(SqlExpr xs, SqlWriter.Piece body) {
-        return w -> w.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ").piece(body).append(" END)");
+    /** {@code body} over the list, or NULL for a NULL list (DuckDB's list functions answer NULL there; an ARRAY
+     *  subquery over it would be empty). The list is written ONCE, bound as the one field of a one-row UNNEST the body
+     *  reads by name (its type the list's own): tested and then read, it was written twice, and a list built from
+     *  another's elements doubled the statement at every level (PCT round 21, 2026-11-05: exists::testExistsInSelect's
+     *  verdict statement, the database judge's canon over a firm's employees, 1,244,880 characters, past BigQuery's
+     *  1,024K limit; SQLite's same writer measured 264K -> 23K once bound). A NULL literal is not bound: a bare NULL
+     *  types INT64 here, and the guard alone answers it. A nested binding shadows this one only inside its own
+     *  subquery, which reads its own list. */
+    private SqlWriter.Piece unlessNull(SqlExpr xs, java.util.function.Function<SqlExpr, SqlWriter.Piece> body) {
+        if (nullList(xs)) {
+            return w -> w.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ").piece(body.apply(xs))
+                    .append(" END)");
+        }
+        SqlExpr bound = xs.type() instanceof com.legend.sql.TypeFact.Typed t
+                ? SqlExpr.Column.of(BOUND_LIST, BOUND_VALUE, t.type(), t.nullable(),
+                        com.legend.sql.OutputCol.Origin.DERIVED)
+                : SqlExpr.Column.derived(BOUND_LIST, BOUND_VALUE);
+        return w -> w.append("(SELECT CASE WHEN ").expr(bound, 4).append(" IS NULL THEN NULL ELSE ")
+                .piece(body.apply(bound)).append(" END FROM UNNEST([STRUCT(").expr(xs, 0).append(" AS ")
+                .append(param(BOUND_VALUE)).append(")]) AS ").append(aliasIdent(BOUND_LIST)).append(")");
     }
+
+    /** The one-row UNNEST a list is bound in ({@link #unlessNull}), and its one field. */
+    private static final String BOUND_LIST = "__l";
+    private static final String BOUND_VALUE = "__xs";
 
     /** An empty list of {@code e}'s element type, typed when the type is known. */
     private String emptyList(SqlExpr e) {
@@ -1045,8 +1126,8 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  list: the elements kept in list order. */
     private SqlWriter.Piece overElements(SqlExpr xs, String e, String o, SqlWriter.Piece select,
             SqlWriter.@com.legend.base.Nullable Piece where) {
-        return unlessNull(xs, w -> {
-            w.append("ARRAY(SELECT ").piece(select).append(" FROM ").piece(elements(xs, e, o));
+        return unlessNull(xs, b -> w -> {
+            w.append("ARRAY(SELECT ").piece(select).append(" FROM ").piece(elements(b, e, o));
             if (where != null) {
                 w.append(" WHERE ").piece(where);
             }
@@ -1176,9 +1257,10 @@ public final class BigQuery extends AnsiSqlRenderer {
     @Override
     protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
         String e = param("__e");
-        return writer.append("(CASE WHEN ").expr(m.collection(), 4).append(" IS NULL OR ").expr(m.needle(), 4)
-                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(").expr(m.collection(), 0)
-                .append(") AS " + e + " WHERE " + e + " = ").expr(m.needle(), 5).append(") END)");
+        // the collection bound once (unlessNull), NULL for a NULL collection or needle
+        return writer.piece(unlessNull(m.collection(), b -> w -> w.append("(CASE WHEN ").expr(m.needle(), 4)
+                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(").expr(b, 0)
+                .append(") AS " + e + " WHERE " + e + " = ").expr(m.needle(), 5).append(") END)")));
     }
 
     @Override
@@ -1283,7 +1365,7 @@ public final class BigQuery extends AnsiSqlRenderer {
         }
         if (isJson(v)) {
             boolean member = v instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET;
-            if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+            if (target == SqlType.Scalar.VARCHAR) {
                 return writer.piece(jsonAsText(v, member));
             }
             if (target instanceof SqlType.Array arr) {
@@ -1315,19 +1397,16 @@ public final class BigQuery extends AnsiSqlRenderer {
         }
         if (target instanceof SqlType.Array arr) {
             SqlType from = listElement(v);
-            // a text element as LITERAL is the text itself (LITERAL is STRING physically): the mixed sort's ordered ids
-            // (2026-10-13, PR #34's review: element-wise, it wrote the aggregate twice)
-            if (v instanceof SqlExpr.NullLit || from == null
-                    || from == SqlType.Scalar.VARCHAR && arr.element() == SqlType.Scalar.LITERAL) {
+            if (v instanceof SqlExpr.NullLit || from == null) {
                 return writer.append("CAST(").expr(v, 0).append(" AS ").append(bqType(target)).append(")");
             }
             // element-wise: BigQuery casts between arrays of compatible element types only (measured)
             String e = param("__c");
-            return writer.piece(unlessNull(v, w -> w.append("ARRAY(SELECT ")
-                    .piece(castTo(x -> x.append(e), from, arr.element())).append(" FROM UNNEST(").expr(v, 0)
+            return writer.piece(unlessNull(v, b -> w -> w.append("ARRAY(SELECT ")
+                    .piece(castTo(x -> x.append(e), from, arr.element())).append(" FROM UNNEST(").expr(b, 0)
                     .append(") AS " + e + " WITH OFFSET AS " + param("__co") + " ORDER BY " + param("__co") + ")")));
         }
-        if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+        if (target == SqlType.Scalar.VARCHAR) {
             return writer.piece(asText(v));
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
@@ -1346,7 +1425,7 @@ public final class BigQuery extends AnsiSqlRenderer {
         if (to instanceof SqlType.Decimal d) {
             return w -> w.append("ROUND(CAST(").piece(value).append(" AS BIGNUMERIC), " + d.scale() + ")");
         }
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return textOf(value, from);
         }
         return w -> w.append("CAST(").piece(value).append(" AS ").append(bqType(to)).append(")");
@@ -1354,7 +1433,7 @@ public final class BigQuery extends AnsiSqlRenderer {
 
     /** A Variant scalar's text cast to {@code to}. */
     private SqlWriter.Piece castFromText(SqlWriter.Piece text, SqlType to) {
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return text;
         }
         return castTo(text, SqlType.Scalar.VARCHAR, to);
@@ -1456,10 +1535,13 @@ public final class BigQuery extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on BigQuery, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached BigQuery, whose binary collation is not measured");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1541,6 +1623,7 @@ public final class BigQuery extends AnsiSqlRenderer {
             case RADIANS -> writer.append("(CAST(").expr(a.get(0), 0).append(" AS FLOAT64) * (ACOS(-1) / 180))");
             case BIT_NOT -> writer.append("(~ CAST(").expr(a.get(0), 0).append(" AS INT64))");
             case PARSE_INT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS INT64)");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("CAST(").expr(a.get(0), 0).append(" AS STRING)");
             // NULL-skipping, as DuckDB's (BigQuery's are NULL for any NULL argument, measured): each argument stands
             // in for itself, or for another when NULL, so only all-NULL is NULL
@@ -1626,14 +1709,15 @@ public final class BigQuery extends AnsiSqlRenderer {
             case LIST_CONCAT -> writer.append("ARRAY_CONCAT(").join(a, ", ", (w, x) -> w.append("IFNULL(").expr(x, 0)
                     .append(", ").append(emptyList(listElement(x) != null ? x : c)).append(")")).append(")");
             case LIST_GET -> listGet(writer, c);
+            case LIST_AT -> listAt(writer, c);
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS NOT DISTINCT FROM
             // (measured)
             case LIST_POSITION -> writer.append("(SELECT MIN(" + param("__o") + ") + 1 FROM ")
                     .piece(elements(a.get(0), "__e", "__o")).append(" WHERE " + param("__e") + " IS NOT DISTINCT FROM ")
                     .expr(a.get(1), 4).append(")");
             // DuckDB's list_distinct drops NULLs; the first occurrence's order (DuckDB's own is its hash's)
-            case LIST_DISTINCT -> writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + param("__e")
-                    + " FROM ").piece(elements(a.get(0), "__e", "__o")).append(" WHERE " + param("__e")
+            case LIST_DISTINCT -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("ARRAY(SELECT " + param("__e")
+                    + " FROM ").piece(elements(b, "__e", "__o")).append(" WHERE " + param("__e")
                     + " IS NOT NULL GROUP BY " + param("__e") + " ORDER BY MIN(" + param("__o") + "))")));
             // list_append(NULL, v) is [v] (measured)
             case LIST_APPEND -> listAppend(writer, c);
@@ -1708,6 +1792,17 @@ public final class BigQuery extends AnsiSqlRenderer {
         return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(1), 4)
                 .append(" < 0 THEN ARRAY_LENGTH(").expr(a.get(0), 0).append(") + CAST(").expr(a.get(1), 0)
                 .append(" AS INT64) ELSE CAST(").expr(a.get(1), 0).append(" AS INT64) - 1 END)]");
+    }
+
+    /** LIST_AT: a position the list holds (1-based, positive): its element by offset, the list and the position
+     *  written once; a NULL list's element its type's NULL, as {@link #listGet}. */
+    private SqlWriter listAt(SqlWriter writer, SqlExpr.Call c) {
+        List<SqlExpr> a = c.args();
+        if (nullList(a.get(0))) {
+            return writer.append(nullOf(typeOf(c)));
+        }
+        return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CAST(").expr(a.get(1), 0)
+                .append(" AS INT64) - 1)]");
     }
 
     /** JSON_TYPE, in DuckDB's json_type vocabulary, which the lowering compares against: a whole number is a BIGINT,
@@ -1801,8 +1896,8 @@ public final class BigQuery extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         String dir = c.fn() == SqlFn.LIST_SORT ? " ASC NULLS LAST" : " DESC NULLS LAST";
         SqlType el = listElement(a.get(0));
-        return writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + param("__e") + " FROM UNNEST(")
-                .expr(a.get(0), 0).append(") AS " + param("__e") + " ORDER BY ")
+        return writer.piece(unlessNull(a.get(0), b -> w -> w.append("ARRAY(SELECT " + param("__e") + " FROM UNNEST(")
+                .expr(b, 0).append(") AS " + param("__e") + " ORDER BY ")
                 .append(elementSort(param("__e"), el, dir)).append(")")));
     }
 
@@ -2187,8 +2282,8 @@ public final class BigQuery extends AnsiSqlRenderer {
                 }
                 String k = e + "." + ident(entry.fields().get(0).name());
                 String v = e + "." + ident(entry.fields().get(1).name());
-                yield writer.piece(unlessNull(xs, keysChecked(xs, e, k, w -> w.append("ARRAY(SELECT AS STRUCT " + k
-                        + " AS " + key + ", " + v + " AS " + value + " FROM UNNEST(").expr(xs, 0).append(") AS " + e
+                yield writer.piece(unlessNull(xs, b -> keysChecked(b, e, k, w -> w.append("ARRAY(SELECT AS STRUCT " + k
+                        + " AS " + key + ", " + v + " AS " + value + " FROM UNNEST(").expr(b, 0).append(") AS " + e
                         + " WITH OFFSET AS " + o + " ORDER BY " + o + ")"))));
             }
             // DuckDB's map(ks, vs): the keys zipped with the values by position
@@ -2221,11 +2316,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                                 + "), ARRAY_AGG(" + u + "." + o + " ORDER BY " + u + "." + src
                                 + " LIMIT 1)[OFFSET(0)])");
             }
-            case MAP_KEYS, MAP_VALUES -> writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + e + "."
-                    + (c.fn() == SqlFn.MAP_KEYS ? key : value) + " FROM UNNEST(").expr(a.get(0), 0).append(") AS " + e
+            case MAP_KEYS, MAP_VALUES -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("ARRAY(SELECT " + e + "."
+                    + (c.fn() == SqlFn.MAP_KEYS ? key : value) + " FROM UNNEST(").expr(b, 0).append(") AS " + e
                     + " WITH OFFSET AS " + o + " ORDER BY " + o + ")")));
-            case MAP_EXTRACT -> writer.piece(unlessNull(a.get(0), w -> w.append("ARRAY(SELECT " + e + "." + value
-                    + " FROM UNNEST(").expr(a.get(0), 0).append(") AS " + e + " WITH OFFSET AS " + o + " WHERE " + e
+            case MAP_EXTRACT -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("ARRAY(SELECT " + e + "." + value
+                    + " FROM UNNEST(").expr(b, 0).append(") AS " + e + " WITH OFFSET AS " + o + " WHERE " + e
                     + "." + key + " = ").expr(a.get(1), 5).append(" ORDER BY " + o + ")")));
             default -> throw new IllegalStateException("not a map call: " + c.fn());
         };
@@ -2258,10 +2353,10 @@ public final class BigQuery extends AnsiSqlRenderer {
         String o = param("__mo");
         String key = ident("key");
         String value = ident("value");
-        return unlessNull(m, w -> w.append("ARRAY(SELECT AS STRUCT ")
+        return unlessNull(m, b -> w -> w.append("ARRAY(SELECT AS STRUCT ")
                 .piece(castTo(x -> x.append(e + "." + key), from.key(), to.key())).append(" AS " + key + ", ")
                 .piece(castTo(x -> x.append(e + "." + value), from.value(), to.value())).append(" AS " + value
-                        + " FROM UNNEST(").expr(m, 0).append(") AS " + e + " WITH OFFSET AS " + o + " ORDER BY " + o
+                        + " FROM UNNEST(").expr(b, 0).append(") AS " + e + " WITH OFFSET AS " + o + " ORDER BY " + o
                         + ")"));
     }
 
@@ -2887,6 +2982,11 @@ public final class BigQuery extends AnsiSqlRenderer {
                     + " PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> intervalOffset(fo.n(), fo.unit(), scale)
                     + " FOLLOWING";
+            // not measured on BigQuery (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a): refused until it is
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached BigQuery, where it is not yet measured");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached BigQuery, where it is not yet measured");
         };
     }
 
@@ -2933,38 +3033,38 @@ public final class BigQuery extends AnsiSqlRenderer {
     // Plan parameters
     // ==================================================================
 
-    /** A date-time parameter is cast to DATETIME (the naive type); finer than a microsecond, its first six digits. */
+    /** A Date parameter is a {@code DATE}, as upstream's BigQuery extension writes it ({@code PARSE_DATE}); a
+     *  DateTime a {@code DATETIME} (the naive type) of six digits of a second, a value of finer ones refused by the
+     *  statement's own raise (S181, A7; D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME -> new RenderedStatement.TypeSpelling("DATETIME", RenderedStatement.Digits.NONE);
-            case DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("DATETIME", RenderedStatement.Digits.NONE, 6);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            // (a Date's placeholder is upstream's own PARSE_DATE, placeholder() below; its text bound as a date's)
+            case DATE -> new ParameterType("DATE", new RenderedStatement.AsText(null));
+            case DATE_TIME -> new ParameterType("DATETIME", new RenderedStatement.AsText(6));
         };
+    }
+
+    /**
+     * A Date parameter's placeholder as upstream's BigQuery extension writes a Date's and a StrictDate's literal:
+     * {@code PARSE_DATE('%Y-%m-%d', '%s')} ({@code bigQueryExtension.pure} lines 45-47), the value bound as its date text
+     * -- so a date-time given for it fails as upstream's does, in BigQuery's words for that function (A6, 2026-11-10:
+     * S182 withdrawn, a {@code CAST(? AS DATE)} until then). Read from the pinned sources, unverified on BigQuery (none
+     * here). Every other parameter as the base writes it.
+     */
+    @Override
+    protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
+        if (p.declared() == com.legend.sql.DeclaredKind.DATE) {
+            return writer.append("PARSE_DATE('%Y-%m-%d', ").bind(textBind(p, new RenderedStatement.AsText(null)))
+                    .append(")");
+        }
+        return super.placeholder(writer, p);
     }
 
     // ==================================================================
     // Values: what the driver hands back
     // ==================================================================
-
-    /** The driver hands an ARRAY as a java.sql.Array and a STRUCT as a java.sql.Struct (measured: BigQueryJsonArray,
-     *  BigQueryJsonStruct), which the executor unpacks; a JSON cell is its text; DATETIME and TIMESTAMP are
-     *  java.sql.Timestamp, NUMERIC and BIGNUMERIC BigDecimal (scale as written: trailing zeros are not kept). A struct
-     *  arriving as JSON text is decoded to the platform's map of its fields. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue instanceof String s && type instanceof SqlType.Struct && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        // a BIGNUMERIC drops a trailing zero's scale (BIGNUMERIC '3.0' reads 3, measured): the declared scale is the
-        // value's own, so the digits are padded back -- never rounded
-        if (jdbcValue instanceof java.math.BigDecimal b && type instanceof SqlType.Decimal d && b.scale() < d.scale()) {
-            return b.setScale(d.scale());
-        }
-        return jdbcValue;
-    }
 
     // ==================================================================
     // DDL and DML (test fixtures)
@@ -2974,6 +3074,7 @@ public final class BigQuery extends AnsiSqlRenderer {
      *  one BigQuery refuses it, measured), unqualified; a key is declared NOT ENFORCED. */
     @Override
     public String render(com.legend.sql.SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "CREATE TEMP TABLE " : "CREATE TABLE ")
@@ -3004,6 +3105,7 @@ public final class BigQuery extends AnsiSqlRenderer {
     /** A DELETE needs a WHERE clause in GoogleSQL. */
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         if (dml instanceof com.legend.sql.SqlDml.DeleteAll da) {
             return "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + " WHERE TRUE;";
         }

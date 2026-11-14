@@ -3,8 +3,9 @@
 
 package com.legend.resolver;
 
+import com.legend.testing.Program;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
 import com.legend.parser.SpecParser;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -108,7 +109,7 @@ class ResolveDeepEmptinessProbeTest {
                 + " $result.values.legalName->removeDuplicates()->sort();}";
         Object r;
         try {
-            r = Execution.execute(MODEL, query, "e::RT", conn);
+            r = Program.last(MODEL, query, "e::RT", conn);
         } catch (com.legend.error.DataError e) {
             // the seam: database failures arrive as DataError now
             System.out.println("[class-frame-read-FULL-ERR] " + e.getMessage());

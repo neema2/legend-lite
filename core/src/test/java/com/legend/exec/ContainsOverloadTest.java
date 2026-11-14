@@ -3,9 +3,9 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.compiler.element.type.Multiplicity;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -62,9 +62,9 @@ class ContainsOverloadTest {
     }
 
     private List<Object> column(String query) throws SQLException {
-        ExecutionResult.Tabular t = (ExecutionResult.Tabular) Execution.execute(MODEL, query, RUNTIME, conn);
+        Lean.Result t = Lean.run(MODEL, query, RUNTIME, conn);
         List<Object> out = new ArrayList<>();
-        for (Row row : t.rows()) {
+        for (List<Object> row : t.rows()) {
             out.add(row.get(0));
         }
         return out;

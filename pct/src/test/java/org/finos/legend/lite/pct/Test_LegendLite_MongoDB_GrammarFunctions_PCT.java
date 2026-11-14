@@ -62,8 +62,8 @@ public class Test_LegendLite_MongoDB_GrammarFunctions_PCT extends PCTReportConfi
             // (MixedEncoding.dayNumberOrNull), so the test reaches its sub-millisecond date-times, which a BSON date
             // has no form for: MongoDB's own limit
             one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "\"a date-time finer than a millisecond (2014-02-13T13:15:19.14231) has no BSON date: refused, never cut\"")
-            // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- on a database with no temporary
-            // table the system metamodel store's tables are the query's own rows, inline (PlanMaker.inlineRows)
+            // NOTE 2026-10-20 (the parity phase, second batch): testBasic unpinned -- the system metamodel store's tables
+            // were the query's own rows, inline; since B4 (2026-11-11) it reads the process's in-process catalog
             // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.

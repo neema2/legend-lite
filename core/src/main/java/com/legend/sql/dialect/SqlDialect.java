@@ -1,13 +1,15 @@
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlQuery;
 
 /**
- * The dialect seam: rendering (Phase J) AND value normalization (Phase K).
- * A backend's JDBC driver may hand back dialect-flavored Java objects
- * (SQLite: dates as Strings, booleans as ints); {@link #normalize} converts
- * to the canonical representation for a PURE type so the typed-result
- * contract holds on every backend.
+ * The dialect seam: rendering (Phase J). The facts of a database's driver that reading a result back needs are its
+ * CONNECTOR's since D72 (2026-10-30; {@code exec.DatabaseConnector.decoding} -- until then four hooks here, which the
+ * runtime read through the plan side): a driver's own carriers (SQLite's dates as text, booleans as 1 or 0) are read
+ * by the plan column's slot in the typed reader ({@code exec/JdbcDecode}), and what a slot cannot say the connector
+ * says.
  */
 public interface SqlDialect {
 
@@ -26,26 +28,166 @@ public interface SqlDialect {
     /** B6 (truthfulness burn) — SESSION SETUP IS DIALECT-OWNED as a
      * FACT: the statements a backend's session needs for the
      * platform's value contracts. The dialect DECIDES; the exec layer
-     * EXECUTES (F1.3: java.sql never enters this package) — applied at
-     * {@code Compiler.dialectOf}'s connection seam, idempotent by
-     * contract. Default: none. */
+     * EXECUTES (F1.3: java.sql never enters this package) — the plan
+     * runner runs them on a connection before its first statement for
+     * the target, once per connection and again after a rollback
+     * (D66, 2026-10-30), idempotent by contract. Default: none. */
     default java.util.List<String> sessionSetup() {
         return java.util.List.of();
     }
 
-    /** Whether this database has a table only one session sees (a TEMPORARY table, {@link #sessionTable}): where it
-     *  has none, the system metamodel store's tables a plan reads are the query's own rows, inline
-     *  ({@code PlanMaker.metamodel}). Default: it has. */
-    default boolean temporaryTables() {
-        return true;
+    /** The digits of a second a {@code TIMESTAMP} column keeps, as this dialect's DDL declares one: a known value of
+     *  more is refused at planning, never cut (S181, the user's ruling of 2026-11-10; a load's cell,
+     *  {@code setup.RowLoad}). A {@code TIMESTAMP_NS} column keeps nine wherever a dialect declares one. Each dialect
+     *  states its own, measured. */
+    int timestampColumnDigits();
+
+    /**
+     * How a raise this dialect keeps in the SESSION is read back after a statement fails (C2, 2026-11-12, D4: the charter's
+     * A3(c), "declared error read-back"): where this database's errors cannot carry a raise's text (MariaDB's and MySQL's:
+     * SIGNAL runs only in a stored program), the dialect keeps the text in a session variable and these two statements
+     * read it and clear it; the plan's target carries them as data ({@code ExecutionPlan.Target#raiseReadBack}) and exec
+     * sends exactly them after a failure, nothing else. Null where the database's errors carry the raise. Each dialect
+     * answers: a default would lose a new database's raised message without a word. Until C2 the connector declared them
+     * (the exec connector's {@code raiseRecovery}), outside every plan.
+     */
+    @com.legend.base.Nullable RaiseReadBack raiseReadBack();
+
+    /**
+     * The settings a database this dialect writes for MUST HAVE, as values (the C checkpoint's SHOULD-FIX 3, the
+     * orchestrator's ruling of 2026-11-12): settings that are the DATABASE's, not a session's, whose {@code SET} commits
+     * an open transaction (H2's {@code MODE} and {@code DEFAULT_NULL_ORDERING}, measured on 2.5.252), so they cannot be
+     * session statements ({@link #sessionSetup}), which run inside a caller's transaction. The plan's target carries
+     * them as data ({@code ExecutionPlan.Target#settings}): exec writes them where it opens the database (H2's in-memory
+     * URL), and on a session it did not open sends {@code readBack} -- this dialect's statement answering each
+     * setting the database has otherwise -- and refuses a session it answers any for, by name, never running the plan with
+     * other semantics. Null where the database needs none. Each dialect answers, as {@link #raiseReadBack}: a default
+     * would let a new database's settings go undeclared without a word. Until 2026-11-12 the H2 connector put them on
+     * every in-memory URL, outside every plan.
+     */
+    @com.legend.base.Nullable DatabaseSettings databaseSettings();
+
+    /** The settings a database must have ({@code required}, each a name and its value, as the database reports it) and
+     *  the statement that reads them back ({@code readBack}: one text per required setting the database has OTHERWISE,
+     *  its name and its value; no row where it has them all -- the database compares, exec carries the texts). */
+    record DatabaseSettings(java.util.List<Setting> required, String readBack) {
+        public DatabaseSettings {
+            required = java.util.List.copyOf(required);
+            java.util.Objects.requireNonNull(readBack, "readBack");
+            if (required.isEmpty()) {
+                throw new IllegalArgumentException("a database's settings name at least one setting");
+            }
+        }
     }
 
-    /** The statements that make {@code table} (TEMPORARY) a table only this session sees, holding {@code rows} (null:
-     *  none) and only read after (a server engine's system database, exec.SystemDatabase). Default: the table, then
-     *  one INSERT of its rows -- this interface's own DDL and DML renders. */
-    default java.util.List<String> sessionTable(com.legend.sql.SqlDdl.CreateTable table,
-            com.legend.sql.SqlDml.@com.legend.base.Nullable InsertValues rows) {
-        return rows == null ? java.util.List.of(render(table)) : java.util.List.of(render(table), render(rows));
+    /** One setting a database must have: its name and its value, each as the database reports them. */
+    record Setting(String name, String value) {
+        public Setting {
+            java.util.Objects.requireNonNull(name, "name");
+            java.util.Objects.requireNonNull(value, "value");
+        }
+    }
+
+    /** The two statements that read back and clear a raise a session holds: {@code read} selects the one text (one row,
+     *  one column; null where none is held), {@code reset} clears it, so a later failure reads no stale one. */
+    record RaiseReadBack(String read, String reset) {
+        public RaiseReadBack {
+            java.util.Objects.requireNonNull(read, "read");
+            java.util.Objects.requireNonNull(reset, "reset");
+        }
+    }
+
+    /**
+     * A {@code data:} payload as the planner hands it to the dialect (the user, 2026-11-11: "how to represent the data in
+     * the plan vs the database mechanism ... Shouldn't that all be delegated to dialect to decide?"): ONE representation
+     * whatever the database -- the source it was read from and its elements cut once (an array's elements, or a frame's
+     * records in their order). How it reaches the database is {@link #deliver}'s, the dialect's alone.
+     */
+    record DataPayload(com.legend.sql.SqlSource.SourceUrl source, java.util.List<String> elements, long boundBefore,
+            boolean runValues) {
+        /** The element's column: each element's JSON. */
+        public static final String ELEMENT = "data";
+
+        /**
+         * {@code boundBefore}: the characters of the payloads its statement binds before this one, each slot counted
+         * (a payload bound twice twice), as a driver counts its parameters; {@code runValues}: whether the statement
+         * binds a value only its run knows (a declared parameter, a keyed region's key, a live source's admitted path),
+         * whose size no plan can count. A database whose driver bounds a statement's parameters together decides
+         * against them (Databricks: the B checkpoint's correctness audit, C3, 2026-11-11 -- until then each payload was
+         * measured alone, so two that fit refused at run together).
+         */
+        public DataPayload {
+            java.util.Objects.requireNonNull(source, "source");
+            elements = java.util.List.copyOf(elements);
+            if (boundBefore < 0) {
+                throw new IllegalArgumentException("a payload's characters bound before it: " + boundBefore);
+            }
+        }
+
+        /** {@code source}'s payload, cut into {@code elements}, the one value its statement binds. */
+        public static DataPayload alone(com.legend.sql.SqlSource.SourceUrl source, java.util.List<String> elements) {
+            return new DataPayload(source, elements, 0, false);
+        }
+
+        /** The relation's columns: the element, and its place where the source reads it
+         *  ({@link com.legend.sql.SqlSource.SourceUrl#placed}). */
+        public java.util.List<String> columnNames() {
+            return source.placed() ? java.util.List.of(ELEMENT, com.legend.sql.SqlSource.SourceUrl.PLACE)
+                    : java.util.List.of(ELEMENT);
+        }
+
+        /** The elements as one JSON array, in their order: the text a database splits itself. */
+        public String array() {
+            return "[" + String.join(",", elements) + "]";
+        }
+
+        /** The source, its payload the elements' one array: what a statement that splits the payload itself reads
+         *  ({@link #deliver}), its dialect binding {@link #array} to its placeholder when it renders it. */
+        public com.legend.sql.SqlSource.SourceUrl bound() {
+            return new com.legend.sql.SqlSource.SourceUrl("data:application/json," + array(), source.alias(),
+                    source.outputs(), source.form());
+        }
+    }
+
+    /**
+     * The source a statement reads {@code payload} from on this database, measured per database (the JSON pass,
+     * 2026-11-11, the user's rulings: "move everything off temp table", and for H2 "inline so we can get rid of all the
+     * temp table code completely"): the payload as ONE bound parameter the database splits ({@link DataPayload#bound},
+     * which this dialect renders), or the statement's own rows ({@link #inlineRows}) where a database takes no such
+     * parameter. No session table, no load, no release: the statement alone. Each dialect answers its own, no
+     * default; the planner places the answer and decides nothing (2026-11-11: until then it switched on a declared kind
+     * and built the rows itself).
+     */
+    com.legend.sql.SqlSource deliver(DataPayload payload);
+
+    /** {@code payload}'s elements as the statement's own rows (a relation of literals; census M18, BOUNDED to the
+     *  databases whose dialect answers so): each element, and its place where the source reads it, a row -- the element's
+     *  JSON text the database parses ({@code CAST(... AS JSON)}, as its dialect spells it). A payload of no element is
+     *  the relation's columns and no row (JSON everywhere, the empty payload too): one row of typed NULLs, which VALUES
+     *  needs, removed by {@code WHERE FALSE} -- the shape the lowering's empty TDS literal takes. */
+    default com.legend.sql.SqlSource inlineRows(DataPayload payload) {
+        com.legend.sql.SqlSource.SourceUrl u = payload.source();
+        java.util.List<String> columns = payload.columnNames();
+        if (payload.elements().isEmpty()) {
+            java.util.List<com.legend.sql.SqlExpr> none = new java.util.ArrayList<>(java.util.List.of(
+                    new com.legend.sql.SqlExpr.Cast(new com.legend.sql.SqlExpr.NullLit(),
+                            com.legend.sql.SqlType.Scalar.JSON)));
+            if (u.placed()) {
+                none.add(new com.legend.sql.SqlExpr.IntLit(0));
+            }
+            return new com.legend.sql.SqlSource.Subselect(com.legend.sql.SqlSelect.starOf(
+                    new com.legend.sql.SqlSource.Values(java.util.List.of(none), columns, u.alias() + "_none",
+                            u.outputs())).withWhere(new com.legend.sql.SqlExpr.BoolLit(false)), u.alias(), null);
+        }
+        java.util.List<java.util.List<com.legend.sql.SqlExpr>> rows = new java.util.ArrayList<>(
+                payload.elements().size());
+        for (int i = 0; i < payload.elements().size(); i++) {
+            com.legend.sql.SqlExpr element = new com.legend.sql.SqlExpr.Cast(
+                    new com.legend.sql.SqlExpr.StringLit(payload.elements().get(i)), com.legend.sql.SqlType.Scalar.JSON);
+            rows.add(u.placed() ? java.util.List.of(element, new com.legend.sql.SqlExpr.IntLit(i))
+                    : java.util.List.of(element));
+        }
+        return new com.legend.sql.SqlSource.Values(rows, columns, u.alias(), u.outputs());
     }
 
     /** A STORED name — a table, schema or column as its database holds it, or a quote-bearing declaration
@@ -59,26 +201,28 @@ public interface SqlDialect {
      *  column's {@code declaredQuoted}), never quote characters inside the name. */
     String storedName(String name, boolean declaredQuoted);
 
-    /** This dialect for the server version a session reports ({@code DatabaseMetaData}'s product version):
-     *  a dialect whose SQL differs by version says how. Default: every version is spelled alike. */
-    default SqlDialect forServer(String version) {
-        return this;
-    }
+    /**
+     * How this dialect's database READS a CSV file into a table ({@link com.legend.sql.SqlDml.LoadCsv};
+     * docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.2-§1.3, A3, option 1: "a file is a pointer, like a table"): its own
+     * reader over the runner's verified copy, the statements' one {@code ?} the copy's path -- DuckDB's
+     * {@code read_csv}, H2's {@code CSVREAD}. A database that reads no file refuses the load by name
+     * ({@code DialectCapability}), at planning: no Java splits, binds or casts a file's cells (until A3 the runner
+     * streamed them into one row's insert).
+     */
+    CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load);
 
-    /** The server versions this dialect's text is written for ({@link #forServer} keeps it for these and takes another
-     *  dialect for any other), which a plan names so its runner refuses another; null when its text depends on no
-     *  server's version (the dialect program's Phase 5, 2026-10-16: until then {@code Databases.servers} listed each
-     *  database). */
-    default @com.legend.base.Nullable java.util.List<String> serverVersions() {
-        return null;
-    }
-
-    /** Whether a target on this database loads its declared rows through the database's own bulk loader (a plan's
-     *  {@code SetupStep.Rows}, the statements that stage them this dialect's) rather than one INSERT
-     *  (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, "setup at plan time, one form per database"; the dialect
-     *  program's Phase 5, 2026-10-16: until then {@code Databases.loadsRowsInBulk} listed each database). */
-    default boolean loadsRowsInBulk() {
-        return false;
+    /** A CSV file's load as this dialect spells it: the database's reader, its statements in order, each {@code ?}
+     *  the runner's copy's path; {@code after}, the statements that undo what they set on the session (H2's path
+     *  variable), run on every exit, a failed load's too (the A checkpoint's tenets audit, 14, 2026-11-10: until then
+     *  the last of {@code statements}, which a failed insert never reached). */
+    record CsvLoad(java.util.List<String> statements, java.util.List<String> after) {
+        public CsvLoad {
+            statements = java.util.List.copyOf(statements);
+            after = java.util.List.copyOf(after);
+            if (statements.isEmpty()) {
+                throw new IllegalArgumentException("a CSV load of no statement");
+            }
+        }
     }
 
     /** Whether a {@code RelationalDatabaseConnection} declares this database: its text is SQL over relational tables.
@@ -108,19 +252,23 @@ public interface SqlDialect {
         return false;
     }
 
-    /** Whether this dialect's driver re-fetches a timestamp cell as {@code java.time.LocalDateTime} and a date cell
-     *  as {@code java.time.LocalDate} (the BC-faithful carriers the executor reads every timestamp and date as; dates
-     *  since 2026-10-17, measured then on pgjdbc, DuckDB's and H2's drivers: the other drivers' JDBC 4.2 support
-     *  of LocalDate is what their LocalDateTime re-fetch already relies on, and is first measured in their cloud
-     *  lanes). Default: it does, and a refusal fails loudly. */
-    default boolean refetchesTimestampAsJavaTime() {
-        return true;
+    /** Whether the database writes each read of a common table expression again, never once for every read (a
+     *  database with no materialized CTE that inlines one: ClickHouse, measured 2026-11-07 on 25.8). Where it does, a
+     *  relation the statement reads more than once (the lowering's shared {@code __let<n>}) is planned as a temporary
+     *  table of the session, computed once ahead of the statement (PlanMaker.stagedShared; docs/TS_DECISIONS_2026_11_07.md
+     *  item 9b). */
+    default boolean writesEachReadOfAWithAgain() {
+        return false;
     }
 
-    /** JDBC cell value → canonical Java value for {@code type}. Default: identity. */
-    default @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.base.Nullable SqlType type) {
-        return jdbcValue;
+    /** Whether, where the database writes each read of a WITH again ({@link #writesEachReadOfAWithAgain}), a relation
+     *  the statement reads more than once is staged as a temporary table (ClickHouse). Where it cannot be (Trino and
+     *  BigQuery: no temporary table of a query here; MongoDB, whose pipeline writes each read in place), the WITH stays
+     *  -- each read computes the same rows, where the relation is the same rows each time -- and one that picks its rows
+     *  by no order (a limit or an offset with no sort) is refused by name (PlanMaker.stagedShared; #81's final review,
+     *  item 14k (9), 2026-11-10; MongoDB 2026-11-13; S360). */
+    default boolean stagesSharedRelations() {
+        return writesEachReadOfAWithAgain();
     }
 
     /** A result column's type as this database's driver names it ({@code getColumnTypeName}), in the platform's wire
@@ -144,12 +292,6 @@ public interface SqlDialect {
      *  {@link #wireTypeName}'s vocabulary) by a carrier convention of its own: the census counts it delivered, not a
      *  divergence. Default: it has none. */
     default boolean deliversOwn(com.legend.sql.SqlType label, String wire) {
-        return false;
-    }
-
-    /** Whether this database's driver opens the result of a statement that fails before its columns are known with
-     *  none, its error surfacing on the first read: a result with no columns is then no claim to check. */
-    default boolean opensFailedResultsWithoutColumns() {
         return false;
     }
 
@@ -181,9 +323,9 @@ public interface SqlDialect {
                 + ", which says no column limit for it");
     }
 
-    /** Whether dynamic PIVOT needs the two-phase staticization
-     * pre-pass ({@link com.legend.exec.DynamicPivot} — no native
-     * dynamic pivot on this backend). */
+    /** Whether this database has no native PIVOT: a pivot whose keys are named is written as the grouped CASE
+     *  emulation, and a dynamic one is keyed, as on every database (its keys read by its plan's first step; the
+     *  staticizer that read them at planning deleted 2026-10-31, the planner-driver seam program's S3a). */
     default boolean needsStaticPivot() {
         return false;
     }
@@ -231,11 +373,29 @@ public interface SqlDialect {
         return null;
     }
 
-    /** Which statement of a failed script the engine's message names (0-based), or
-     *  empty when the engine does not say — H2 quotes the failing statement
-     *  ({@code SQL statement: …}); DuckDB names values and columns only. */
-    default java.util.OptionalInt failingStatement(String message, java.util.List<String> statements) {
-        return java.util.OptionalInt.empty();
+    /** The texts that guard a fused verdict statement sent inside a transaction (F11, the test-is-the-product plan's
+     *  B12): where this database ABORTS a transaction on a failing statement, a savepoint set before the statement and
+     *  rolled back to when the database rejects it, so the verdicts' own wrappers can still run; released otherwise.
+     *  Null where none is written: measured for DuckDB (it aborts and has no savepoint, M3a, which says so itself) and
+     *  H2 (it survives a failing statement, M3a); for every other database NOT measured -- today's behaviour kept, no
+     *  savepoint sent, its F11 rung unproven until a lane measures it (the M3 audit: a null here is not a fact about
+     *  those databases). */
+    default @com.legend.base.Nullable VerdictSavepoint verdictSavepoint() {
+        return null;
+    }
+
+    /** The most characters a FUSED verdict statement may have on this database (the verdict batch's statement over
+     *  several asserts, {@code VerdictBatch}): a group whose fused text is longer is planned as several fused
+     *  statements, halved until each fits -- the same verdicts, more statements. Unbounded where the database has no
+     *  limit a body meets; a database with a hard limit on a statement's text or its parse says so (PCT rounds 21-22,
+     *  2026-11-05: ClickHouse refused a 1.3M-character statement at its AST limit, and with the limit raised its
+     *  analyzer took 10-12 GB; SQLite and BigQuery cap a statement near 1M characters). */
+    default int fusedStatementBudget() {
+        return Integer.MAX_VALUE;
+    }
+
+    /** {@link #verdictSavepoint}'s three texts. */
+    record VerdictSavepoint(String set, String rollbackTo, String release) {
     }
 
     /** DDL rendered like a query (2026-09-16): the dialect spells the

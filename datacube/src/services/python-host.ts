@@ -190,11 +190,18 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
   plan: "a page plans a query's protocol tree (planJson), not its text",
   relationType: "a page types a query on legend-engine's route (lambdaRelationType), not its text",
   planModel: "an unheld plan is Query's, in its tab",
+  executionPlan: "a write is planned and run where its rows are: Python's own headless writer, on its database",
   tableModel: "a table's model is the tab's own database's",
   catalogColumnsSql: "a catalog's reading is the tab's own database's",
   executePlan: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
   executeAnswer: "execute's halves are the tab's: a Python host plans and runs in one call (plan-and-run)",
-  testData: "a model's test data is the tab's own database's",
+  fileLoad: "a host's own file is read into the tab's own database",
+  remoteMount: "a remote file is mounted on the tab's own database (Python mounts its own: remote.json)",
+  snapStream: "a snap of a remote plane streams into the tab's own database (Python snaps its own: snap.json)",
+  snapCopy: "a snap's copy is the tab's own database's (Python snaps its own: snap.json)",
+  outputPlan: "a table Output is written into the tab's own database (Python's flow.run writes its own)",
+  synthesize: "rows made for a declared table are the tab's own database's (SYNTHESIZE, DuckDB alone)",
+  authored: "a person's own statement is Studio's SQL playground's, on the tab's own database",
   sessionSetup: "a session's setup is the tab's own database's",
   projectData: "a project's Data rows are held by Python itself (C5)",
   hostOperations: "a host's operations are the tab's own database's",
@@ -212,7 +219,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
  * holds of that text.
  */
 function pythonWorker(link: PythonLink, project = false): PlannerWorker {
-  const held = new Map<number, string>();
+  const held = new Map<number, { readonly model: string; readonly library?: string }>();
   let next = 1;
   let alive = true;
   const worker: PlannerWorker = {
@@ -245,7 +252,7 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
       switch (body.kind) {
         case 'hold': {
           const handle = next++;
-          held.set(handle, body.model);
+          held.set(handle, body.library === undefined ? { model: body.model } : { model: body.model, library: body.library });
           reply({ id, ok: true, answer: `OK\n${handle}` });
           return;
         }
@@ -260,14 +267,15 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
             ({ id, ok: true, answer: `OK\n${answer.status}\n${answer.headers.get('content-type') ?? ''}\n${text}` }));
           return;
         case 'planJson': {
-          const model = held.get(body.handle);
-          if (model === undefined) {
+          const kept = held.get(body.handle);
+          if (kept === undefined) {
             reply({ id, ok: true, answer: `ERR\nMODEL\nno model held as ${body.handle} on this page` });
             return;
           }
           // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run -- a project's
           // own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
-          call('/plan.json', JSON.stringify({ lambda: body.lambda, model, runtime: body.runtime, ...(project ? { project } : {}) }), (answer, text) =>
+          call('/plan.json', JSON.stringify({ lambda: body.lambda, model: kept.model, runtime: body.runtime,
+            ...(kept.library === undefined ? {} : { library: kept.library }), ...(project ? { project } : {}) }), (answer, text) =>
             (answer.ok
               ? { id, ok: true, answer: (JSON.parse(text) as { plan: string }).plan }
               : { id, ok: false, error: `the engine answered ${answer.status}: ${text}` }));
@@ -307,7 +315,7 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
     const answer = await link.fetch(`${link.baseUrl}/plan-and-run.json`, {
       method: 'POST',
       headers: { ...headers(link), 'Content-Type': 'application/json' },
-      body: JSON.stringify(request(query)),
+      body: JSON.stringify(await request(query)),
       ...(signal ? { signal } : {}),
     }).catch((e: unknown) => {
       if (signal?.aborted) throw e;
@@ -366,9 +374,9 @@ export function pythonRunner(link: PythonLink, model: string, runtime: string, h
  */
 function planning(model: string, runtime: string, how: ModelOptions, worker: () => PlannerWorker): {
   readonly planner: LitePlanner;
-  readonly request: (query: Lambda) => {
-    readonly lambda: string; readonly model: string; readonly runtime: string; readonly project?: true;
-  };
+  readonly request: (query: Lambda) => Promise<{
+    readonly lambda: string; readonly model: string; readonly runtime: string; readonly library?: string; readonly project?: true;
+  }>;
   readonly read: (answer: string, query: Lambda) => Plan;
 } {
   const planner = new LitePlanner({
@@ -380,7 +388,7 @@ function planning(model: string, runtime: string, how: ModelOptions, worker: () 
     planner,
     // a project's own rows (a saved query's: C5) said so, where the host reads them; any other model's, only the tables
     // the host serves (F28)
-    request: (query) => ({ ...planner.planRequest(query), ...(how.project ? { project: true as const } : {}) }),
+    request: async (query) => ({ ...(await planner.planRequest(query)), ...(how.project ? { project: true as const } : {}) }),
     read: (answer, query) => planner.readPlan(answer, query),
   };
 }
@@ -571,7 +579,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
       release: async (table: string) => { await posted(link, 'snap.json', { op: 'release', table }, true); },
       // a copy Python made for its page (grid.snap(), §18.8): what the page follows the snap command with
       held: async (table: string) =>
-        JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as InferredModel & { readonly table: string },
+        JSON.parse(await posted(link, 'snap.json', { op: 'held', table })) as PythonModel & { readonly table: string },
     } : {}),
     ...(offers.files ? {
       ingestFile: async (file: File, options: { readonly table: string }) => {
@@ -597,7 +605,7 @@ export function pythonDatabase(link: PythonLink, offers: PythonOffers): Database
     // remote URL, never from its own machine's files
     ...(offers.remote ? {
       mountRemote: async (url: string, s3: S3Credentials | undefined, name: string) =>
-        JSON.parse(await posted(link, 'remote.json', { url, name, ...(s3 ? { s3 } : {}) })) as InferredModel,
+        JSON.parse(await posted(link, 'remote.json', { url, name, ...(s3 ? { s3 } : {}) })) as PythonModel,
     } : {}),
   };
 }
@@ -618,9 +626,13 @@ function pythonWarehouse(link: PythonLink): WarehouseService {
     signInWithKey: () => Promise.reject(new Error('a page on Python signs in to a warehouse by its user and password')),
     table: async (session, object) => JSON.parse(await posted(link, 'warehouse.json', {
       op: 'table', url: session.baseUrl, catalog: object.catalog, schema: object.schema, name: object.name,
-    })) as InferredModel,
+    })) as PythonModel,
   };
 }
+
+/** A table's model as Python's page answers it: the model Python wrote and holds. It holds no plan's statement (the
+ *  final audit's item 1(d), 2026-11-12: a model carries no copy select list; a copy's conversions are the platform's). */
+type PythonModel = InferredModel;
 
 /** A fetch of Python's that carries the engine's token, for the clients of what it serves. */
 function tokened(link: PythonLink): typeof fetch {
@@ -757,7 +769,8 @@ export function pythonServices(o: PythonServicesOptions): Services {
         // with Data rows in that project's own database (C5), and refuses any other.
         // PlanAndRun on Python (§15): planned against the model Python holds, by Python's own planner, and run on its
         // DuckDB, in one call
-        return { runner: pythonRunner(link, model, runtime, how ?? {}) };
+        // Python holds its own models, the library with them (A5): over the model alone (item 8b's overLibrary is the tab's)
+        return { runner: pythonRunner(link, how?.overLibrary?.model ?? model, runtime, how ?? {}) };
       },
       database: pythonDatabase(link, o.offers),
       // the model actions: Python's native library writes, a project's facts planned and run in Python (PlanAndRun)
@@ -767,7 +780,7 @@ export function pythonServices(o: PythonServicesOptions): Services {
         rows: (model, runtime) => pythonRunner(link, model, runtime),
       },
       // Python's native library reads a saved query and its project's model (C5)
-      reading: { parse: (text) => compiler.parse(text), elements: (text) => compiler.modelElements(text) },
+      reading: { parse: (text) => compiler.parse(text), elements: (text) => compiler.modelElements(text), tsItem: (text) => compiler.tsItem(text) },
     },
     pages: Promise.resolve(pythonPages(link, o.offers)),
     queries: pythonQueries(link, o.offers),

@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.spec.typed.TypedAggColSpec;
 import com.legend.compiler.spec.typed.TypedAggColSpecArray;
 import com.legend.compiler.spec.typed.TypedExtend;

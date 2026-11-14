@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;

@@ -1,0 +1,197 @@
+// The data: delivery probe, round 2, for BigQuery (the user, 2026-11-11: "we need to look at [inline JSON] again
+// especially for databases that actually have temp tables like snowflake and bigquery and clickhouse ... how to
+// represent the data in the plan vs the database mechanism"). To be run by the BigQuery lane's session.
+// Usage: javac BigQueryDelivery2Probe.java && java -cp <the BigQuery JDBC driver's jars>:. BigQueryDelivery2Probe '<jdbc url>' <dataset>
+//   <jdbc url>: the ORDINARY connection's, as lite's lanes open it (no session); the probe opens the SESSION connection as
+//   the same URL plus ";EnableSession=1" -- if the lanes' system connection opens its session another way, open it that
+//   way instead and say so. <dataset>: the URL's DefaultDataset (the user's table goes there: round 1 measured that an
+//   unqualified temporary name falls through to it). Never print a credential or a URL that holds one.
+//
+// Round 1 (BigQueryDataTable.java.txt) measured: CREATE TEMP TABLE is refused without a session ("requires a script or
+// session"), an unqualified temp name falls through to the DefaultDataset once the temp table is gone, and (TestBackend,
+// 2026-10-22) a session doubles each query's latency (216 ms against 421 ms for SELECT 1). So BigQuery is INLINE today.
+// This round asks:
+//   A. a session table spelled _SESSION.<name> throughout: made, filled, read, private to its session, dropped with
+//      DROP TABLE IF EXISTS _SESSION.<name> -- the user's table of the name in the DefaultDataset untouched, the drop
+//      again raising nothing; and which table an UNQUALIFIED name reads while the temp table lives;
+//   B. a third form: the whole payload as ONE bound parameter, split into rows by the database itself
+//      (UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) WITH OFFSET): the quote, the line break, the order, the empty array,
+//      nested and typed values;
+//   C. the cost and the size limit of each form, for 2, 1,000, 10,000 and 100,000 records: inline (lite's form today:
+//      UNNEST of JSON literals, on the ordinary connection), a session table (make, fill in INSERTs of 5,000 rows, read,
+//      drop, on the session connection), the bound parameter (ordinary connection). Each prints its milliseconds, its
+//      statement's characters, and a refusal's first line.
+// Change nothing in the repository; report the whole output.
+import java.sql.*;
+import java.util.*;
+
+public class BigQueryDelivery2Probe {
+    static final String T = "legend_data_probe2";
+
+    public static void main(String[] a) throws Exception {
+        String url = a[0];
+        String ds = a[1];
+        String sessionUrl = url + (url.endsWith(";") ? "" : ";") + "EnableSession=1";
+        try (Connection c = DriverManager.getConnection(url); Statement s = c.createStatement();
+                Connection sc = DriverManager.getConnection(sessionUrl); Statement ss = sc.createStatement()) {
+            for (int i = 0; i < 3; i++) {
+                query("0 SELECT 1, ordinary", s, "SELECT 1");
+                query("0 SELECT 1, session", ss, "SELECT 1");
+            }
+
+            // A
+            String user = ds + "." + T;
+            String temp = "_SESSION." + T;
+            step("A0 clean", s, "DROP TABLE IF EXISTS " + user);
+            step("A1 the user's table", s, "CREATE TABLE " + user + " (data STRING)");
+            step("A1 the user's row", s, "INSERT INTO " + user + " VALUES ('the user\\'s row')");
+            boolean qualified = step("A2 make, qualified", ss, "CREATE TEMP TABLE " + temp + " (data JSON, u_frame_ord__ INT64)");
+            if (!qualified) {
+                step("A2 make, unqualified", ss, "CREATE TEMP TABLE " + T + " (data JSON, u_frame_ord__ INT64)");
+            }
+            step("A3 fill", ss, "INSERT INTO " + temp + " VALUES (JSON '{\"t\":\"it\\'s\"}', 0), (JSON '{\"t\":\"a\\\\nb\"}', 1)");
+            query("A4 read", ss, "SELECT TO_JSON_STRING(data), u_frame_ord__, JSON_VALUE(data, '$.t') FROM " + temp + " ORDER BY u_frame_ord__");
+            query("A5 an UNQUALIFIED read while it lives (which table?)", ss, "SELECT * FROM " + T);
+            try (Connection o = DriverManager.getConnection(sessionUrl); Statement os = o.createStatement()) {
+                query("A6 another session reads it (must be refused)", os, "SELECT * FROM " + temp);
+            }
+            step("A7 drop", ss, "DROP TABLE IF EXISTS " + temp);
+            query("A7 the user's table", s, "SELECT data FROM " + user);
+            step("A8 drop again (the session holds none)", ss, "DROP TABLE IF EXISTS " + temp);
+            query("A8 the user's table again", s, "SELECT data FROM " + user);
+            step("A9 clean: the probe's own user table", s, "DROP TABLE IF EXISTS " + user);
+
+            // B
+            param("B1 the parameter form", c, "SELECT TO_JSON_STRING(data), ord, JSON_VALUE(data, '$.t')"
+                    + " FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS data WITH OFFSET AS ord ORDER BY ord",
+                    "[{\"t\":\"it's\"},{\"t\":\"a\\nb\"}]");
+            param("B2 the parameter form, empty", c, "SELECT TO_JSON_STRING(data), ord FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS data"
+                    + " WITH OFFSET AS ord ORDER BY ord", "[]");
+            param("B3 the parameter form, nested and typed", c, "SELECT TO_JSON_STRING(data.n), JSON_TYPE(data.n), JSON_VALUE(data, '$.o.k'), ord"
+                    + " FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS data WITH OFFSET AS ord ORDER BY ord",
+                    "[{\"n\":1.50,\"o\":{\"k\":\"v\"}},{\"n\":null,\"o\":{}}]");
+
+            // C
+            for (int n : new int[] {2, 1000, 10000, 100000}) {
+                List<String> el = elements(n);
+                String array = "[" + String.join(",", el) + "]";
+                StringBuilder v = new StringBuilder();
+                for (int i = 0; i < n; i++) {
+                    v.append(i > 0 ? ", " : "").append("JSON '").append(lit(el.get(i))).append('\'');
+                }
+                String inline = "SELECT COUNT(*), SUM(INT64(data.id)), MAX(ord) FROM UNNEST([" + v + "]) AS data WITH OFFSET AS ord";
+                query("C n=" + n + " inline (" + inline.length() + " chars)", s, inline);
+
+                long t0 = System.nanoTime();
+                boolean ok = step("C n=" + n + " table make", ss, "CREATE TEMP TABLE " + (qualified ? temp : T) + " (data JSON, ord INT64)");
+                for (int from = 0; ok && from < n; from += 5000) {
+                    StringBuilder ins = new StringBuilder("INSERT INTO " + temp + " VALUES ");
+                    for (int i = from; i < Math.min(n, from + 5000); i++) {
+                        ins.append(i > from ? ", " : "").append("(JSON '").append(lit(el.get(i))).append("', ").append(i).append(')');
+                    }
+                    ok = quiet("C n=" + n + " table fill at " + from, ss, ins.toString());
+                }
+                query("C n=" + n + " table read", ss, "SELECT COUNT(*), SUM(INT64(data.id)), MAX(ord) FROM " + temp);
+                step("C n=" + n + " table drop", ss, "DROP TABLE IF EXISTS " + temp);
+                System.out.println("C n=" + n + " table total :: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+
+                param("C n=" + n + " parameter (" + array.length() + " chars bound)", c, "SELECT COUNT(*), SUM(INT64(data.id)), MAX(ord)"
+                        + " FROM UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) AS data WITH OFFSET AS ord", array);
+            }
+        }
+    }
+
+    /** n records: a quote, an escaped line break, a number and a decimal in each. */
+    static List<String> elements(int n) {
+        List<String> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add("{\"id\":" + i + ",\"name\":\"n'" + i + "\",\"note\":\"a\\nb\",\"x\":" + i + ".5}");
+        }
+        return out;
+    }
+
+    /** A BigQuery string literal's body: a backslash is an escape there, a quote is \' ('' is a syntax error). */
+    static String lit(String s) {
+        return s.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    static boolean step(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try {
+            s.execute(sql);
+            System.out.println(what + " :: ok :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + shortSql(sql));
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms " + first(e) + " :: " + shortSql(sql));
+            return false;
+        }
+    }
+
+    static boolean quiet(String what, Statement s, String sql) {
+        try {
+            s.execute(sql);
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + first(e) + " :: " + sql.length() + " chars");
+            return false;
+        }
+    }
+
+    static void query(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try (ResultSet r = s.executeQuery(sql)) {
+            System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static void param(String what, Connection c, String sql, String payload) {
+        long t0 = System.nanoTime();
+        try (PreparedStatement p = c.prepareStatement(sql)) {
+            p.setString(1, payload);
+            try (ResultSet r = p.executeQuery()) {
+                System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+            }
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static List<List<String>> rows(ResultSet r) throws SQLException {
+        List<List<String>> out = new ArrayList<>();
+        int n = r.getMetaData().getColumnCount();
+        while (r.next() && out.size() < 20) {
+            List<String> row = new ArrayList<>();
+            for (int i = 1; i <= n; i++) {
+                row.add(r.getString(i));
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    static String first(SQLException e) {
+        return String.valueOf(e.getMessage()).split("\n")[0];
+    }
+
+    static String shortSql(String sql) {
+        return sql.length() > 300 ? sql.substring(0, 300).replace('\n', ' ') + "... (" + sql.length() + " chars)" : sql.replace('\n', ' ');
+    }
+}
+
+// MEASURED 2026-11-11 by the BigQuery lane at c72fc8765 (google-cloud-bigquery-jdbc 1.6.0). The session connection
+// opened as the lane's system connection is (EnableSession=1 as a driver Properties entry, not a URL suffix); no
+// statement needed a fix. The answers:
+//   SELECT 1: ordinary about 230 ms, session about 400-540 ms (a session doubles each query's latency, as 2026-10-22).
+//   A. NOT measured: the user's-table half (every statement on legend_lite_pct.legend_data_probe2 was refused by
+//      BigQuery, the dataset absent or not writable by the lane's account). Measured: CREATE TEMP TABLE _SESSION.<name>
+//      works on the session connection, fills and reads back, is private (another session's read refused), and DROP
+//      TABLE IF EXISTS _SESSION.<name> succeeds, again when the session holds none.
+//   B. One bound parameter, UNNEST(JSON_QUERY_ARRAY(PARSE_JSON(?))) WITH OFFSET: the quote, the line break, the order,
+//      the empty array, nested and typed values kept.
+//   C.   records    inline (ordinary)               session table (5,000-row inserts)   bound parameter (ordinary)
+//        2          390 ms                          4,191 ms                            716 ms
+//        1,000      528 ms                          6,914 ms                            798 ms
+//        10,000     1,273 ms                        10,516 ms                           1,543 ms
+//        100,000    REFUSED (6.57M chars)           105,195 ms                          7,643 ms

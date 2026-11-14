@@ -6,7 +6,6 @@
 What each dialect does with each aggregate of the SQL IR. The legend, the method and the summary are in [README.md](README.md).
 
 - [H2](#h2)
-- [H2Modern](#h2modern)
 - [Postgres](#postgres)
 - [Snowflake](#snowflake)
 - [Trino](#trino)
@@ -70,54 +69,6 @@ Database types planned with it: H2.
 | `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `LAST_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `NTH_VALUE` | not_here | `is a window function: windowCall writes it` |  | 0 |
-
-## H2Modern
-
-Database types planned with it: no database type's own (it extends `H2`). No PCT lane runs it, so its arms have no measured reach.
-
-| aggregate | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `SUM` | emulated | `h2Aggregate: SUM` | `as H2` | — |
-| `COUNT` | emulated | `h2Aggregate: COUNT` | `as H2` | — |
-| `AVG` | emulated | `h2Aggregate: AVG` | `as H2` | — |
-| `MIN` | emulated | `h2Aggregate: MIN` | `as H2` | — |
-| `MAX` | emulated | `h2Aggregate: MAX` | `as H2` | — |
-| `ANY_VALUE` | emulated | `by its operands: composed / …ANY_VALUE` | `as H2` | — |
-| `STDDEV_SAMP` | emulated | `h2Aggregate: STDDEV_SAMP` | `as H2` | — |
-| `STDDEV_POP` | emulated | `h2Aggregate: STDDEV_POP` | `as H2` | — |
-| `VAR_SAMP` | emulated | `h2Aggregate: VAR_SAMP` | `as H2` | — |
-| `VAR_POP` | emulated | `h2Aggregate: VAR_POP` | `as H2` | — |
-| `MEDIAN` | emulated | `h2Aggregate: MEDIAN` | `as H2` | — |
-| `MODE` | emulated | `h2Aggregate: MODE` | `as H2` | — |
-| `STRING_AGG` | emulated | `h2Aggregate: STRING_AGG` | `as H2` | — |
-| `LIST` | emulated | `by its operands: composed / …LIST` | `as H2` | — |
-| `QUANTILE_CONT` | emulated | `by its operands: …PERCENTILE_CONT / …QUANTILE_CONT` | `as H2` | — |
-| `QUANTILE_DISC` | emulated | `by its operands: …PERCENTILE_DISC / …QUANTILE_DISC` | `as H2` | — |
-| `CORR` | emulated | `h2Aggregate: CORR` | `as H2` | — |
-| `COVAR_SAMP` | emulated | `h2Aggregate: COVAR_SAMP` | `as H2` | — |
-| `COVAR_POP` | emulated | `h2Aggregate: COVAR_POP` | `as H2` | — |
-| `ARG_MAX` | emulated | `argExtreme:  DESC` | `as H2` | — |
-| `ARG_MIN` | emulated | `argExtreme:  ASC` | `as H2` | — |
-| `WAVG` | not_here | `lowering marker reached the renderer` | `as H2` | — |
-| `HASH_LIST` | not_here | `lowering marker reached the renderer` | `as H2` | — |
-| `BOOL_AND` | emulated | `h2Aggregate: BOOL_AND` | `as H2` | — |
-| `BOOL_OR` | emulated | `h2Aggregate: BOOL_OR` | `as H2` | — |
-| `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` | `as H2` | — |
-| `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` | `as H2` | — |
-| `VARIANCE` | emulated | `h2Aggregate: VARIANCE` | `as H2` | — |
-| `STDDEV` | emulated | `h2Aggregate: STDDEV` | `as H2` | — |
-| `EMA` | refused | `aggregate reached : no spelling yet` | `as H2` | — |
-| `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `RANK` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `DENSE_RANK` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `PERCENT_RANK` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `CUME_DIST` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `NTILE` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `LAG` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `LEAD` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `FIRST_VALUE` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `LAST_VALUE` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
-| `NTH_VALUE` | not_here | `is a window function: windowCall writes it` | `as H2` | — |
 
 ## Postgres
 
@@ -467,9 +418,9 @@ Database types planned with it: SQLite.
 | `MIN` | spelled | `MIN` |  | 11 |
 | `MAX` | spelled | `MAX` |  | 11 |
 | `ANY_VALUE` | emulated | `aggregateArgs: min(…)` |  | 0 |
-| `STDDEV_SAMP` | emulated | `aggregateArgs: stdev(…)` |  | 2 |
+| `STDDEV_SAMP` | emulated | `aggregateArgs: (CASE WHEN count(…) > 1 THEN stdev(…) END)` |  | 2 |
 | `STDDEV_POP` | emulated | `populationVariance: sqrt(…)` |  | 5 |
-| `VAR_SAMP` | emulated | `aggregateArgs: variance(…)` |  | 2 |
+| `VAR_SAMP` | emulated | `aggregateArgs: (CASE WHEN count(…) > 1 THEN variance(…) END)` |  | 2 |
 | `VAR_POP` | emulated | `populationVariance` |  | 2 |
 | `MEDIAN` | emulated | `median` |  | 6 |
 | `MODE` | emulated | `json: (SELECT __m.value FROM json_each(json_group_array(…)) AS __m WHERE __m.value ...` |  | 6 |
@@ -488,8 +439,8 @@ Database types planned with it: SQLite.
 | `BOOL_OR` | emulated | `aggregateArgs: max(…)` |  | 0 |
 | `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `VARIANCE` | emulated | `aggregateArgs: variance(…)` |  | 0 |
-| `STDDEV` | emulated | `aggregateArgs: stdev(…)` |  | 0 |
+| `VARIANCE` | emulated | `aggregateArgs: (CASE WHEN count(…) > 1 THEN variance(…) END)` |  | 0 |
+| `STDDEV` | emulated | `aggregateArgs: (CASE WHEN count(…) > 1 THEN stdev(…) END)` |  | 0 |
 | `EMA` | refused | `aggregate reached : no spelling yet` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |

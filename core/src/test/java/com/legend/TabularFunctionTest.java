@@ -3,6 +3,7 @@
 
 package com.legend;
 
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -50,7 +51,7 @@ class TabularFunctionTest {
                 st.execute("CREATE TABLE PLAIN (a VARCHAR, n DOUBLE)");
                 st.execute("INSERT INTO PLAIN VALUES ('X', 9.0)");
             }
-            var r = Execution.execute(MODEL, query, "tf::RT", c);
+            var r = Lean.run(MODEL, query, "tf::RT", c);
             return r.rows().stream().map(row -> row.get(0) + "|" + row.get(1)).toList();
         }
     }

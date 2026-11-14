@@ -30,6 +30,7 @@ resolved that reference, so it survived. It becomes `stress::AllMapping`.
 """
 from __future__ import annotations
 
+import decimal
 import re
 
 import json
@@ -113,6 +114,8 @@ def _csv_cell(v) -> str:
         return "true" if v else "false"
     if isinstance(v, float):
         return repr(v)
+    if isinstance(v, decimal.Decimal):
+        return format(v, "f")         # never exponent notation: 1E-18 is not a CSV decimal
     s = str(v)
     # RFC4180 quoting. Verified against the engine before relying on it: a field wrapped in
     # double quotes carries an embedded comma correctly. Without this a JSON payload -- which
@@ -146,25 +149,47 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     return "\n".join(out)
 
 
-def _tests(spec: Spec, payload: str) -> str:
-    """One test per execution key, or a single unkeyed test."""
+def _tests(spec: Spec, payload) -> str:
+    """One test per execution key, one per parameter case, or a single unkeyed test.
+
+    `payload` is the expected JSON as Pure string text, or for a spec with parameter cases a
+    list of (test id, {parameter: value}, payload). A parameter a case leaves out is absent:
+    the test binds nothing for it, which is how an optional parameter is given no value.
+    """
     fmt = "" if spec.graph else "          serializationFormat: PURE_TDSOBJECT;\n"
+    if spec.cases:
+        tests = []
+        for test_id, params, case_payload in payload:
+            given = [f"            {n} = {_literal(params[n])}" for n, _t, _m in spec.params
+                     if n in params]
+            # NO trailing semicolon after the parameters' bracket, unlike serializationFormat:
+            # `serviceTestParameters: PARAMETERS COLON BRACKET_OPEN ... BRACKET_CLOSE`
+            # (73-service-surface.pure, where it was established).
+            plines = ("          parameters:\n          [\n" + ",\n".join(given)
+                      + "\n          ]\n") if given else ""
+            tests.append(_one_test(test_id, plines + fmt, case_payload))
+        return ",\n".join(tests)
     keys = [k for k, _, _ in spec.multi] or [None]
     out = []
     for k in keys:
         keyline = f"          keys:\n          [\n            '{k}'\n          ];\n" if k else ""
-        out.append(f"        {('expected_rows_' + k) if k else 'expected_rows'}:\n"
-                   f"        {{\n{fmt}{keyline}          asserts:\n          [\n"
-                   f"            matchesOracle:\n              EqualToJson\n"
-                   f"              #{{\n                expected:\n"
-                   f"                  ExternalFormat\n                  #{{\n"
-                   f"                    contentType: 'application/json';\n"
-                   f"                    data: '{payload}';\n                  }}#;\n"
-                   f"              }}#\n          ]\n        }}")
+        out.append(_one_test(('expected_rows_' + k) if k else 'expected_rows', fmt + keyline,
+                             payload))
     # Test elements are COMMA-separated. Without the comma the parser reports the
     # failure at `asserts` inside the FIRST test -- "Valid alternatives: [',', ']']" --
     # which points nowhere near the missing separator.
     return ",\n".join(out)
+
+
+def _one_test(test_id: str, head: str, payload: str) -> str:
+    return (f"        {test_id}:\n"
+            f"        {{\n{head}          asserts:\n          [\n"
+            f"            matchesOracle:\n              EqualToJson\n"
+            f"              #{{\n                expected:\n"
+            f"                  ExternalFormat\n                  #{{\n"
+            f"                    contentType: 'application/json';\n"
+            f"                    data: '{payload}';\n                  }}#;\n"
+            f"              }}#\n          ]\n        }}")
 
 
 def store_data_element(c: Corpus, tables: dict[str, list[dict]],
@@ -234,7 +259,97 @@ def _shorten(v):
     return v
 
 
-def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
+# A Decimal in the payload travels as this marker and is written back as its digits: json writes
+# a float through float.__repr__, which cannot carry 1.0000000000000001, and the engine's
+# assertion compares numbers by value (1.0 is not 1.0000000000000001; 0.1 is 0.100000).
+_DECIMAL = "\u0000decimal:"
+
+
+def _decimal_text(d: decimal.Decimal) -> str:
+    s = format(d, "f")
+    # A fraction always, so the JSON number is a decimal like the engine's and never an integer.
+    return s if "." in s else s + ".0"
+
+
+def _payload(spec: Spec, rows: list[dict]) -> str:
+    return json_text(rows if spec.graph is None else {"builder": {"_type": "json"}, "values": rows})
+
+
+def json_text(payload) -> str:
+    """An expected answer as Pure string text: compact JSON, a Decimal digit for digit, a 4-byte column shortest."""
+    text = json.dumps(_shorten(payload), separators=(",", ":"),
+                      default=lambda o: _DECIMAL + _decimal_text(o)
+                      if isinstance(o, decimal.Decimal) else _unserializable(o))
+    text = re.sub(r'"\\u0000decimal:(-?[0-9.]+)"', r"\1", text)
+    return _pure_str(text)
+
+
+def _unserializable(o):
+    raise TypeError(f"{type(o).__name__} {o!r} has no JSON form in an expected result")
+
+
+def _java_double(x: float) -> str:
+    """A double as Java's Double.toString writes it (Jackson's writeNumber, the PURE_TDSOBJECT serializer): the
+    shortest digits that read back as the double, as Python's repr finds them, written plainly between 10^-3 and
+    10^7 with at least one fraction digit. Outside that range Java writes `1.0E7`, which is not asserted."""
+    if x == 0:
+        return "-0.0" if str(x).startswith("-") else "0.0"
+    if not 1e-3 <= abs(x) < 1e7:
+        raise ValueError(f"{x!r}: Java writes it in scientific notation, which no exact text here asserts")
+    r = repr(float(x))
+    return r if "." in r else r + ".0"
+
+
+def exact_text(rows: list[dict]) -> str:
+    """Rows as the pinned engine's PURE_TDSOBJECT serializer writes them, character for character (the improvement
+    plan's Phase 8: an EqualTo assertion compares the answer's text exactly, ORDER included): compact JSON, each row's
+    columns in their order, a double in Java's spelling, a Decimal digit for digit, as Pure string text."""
+    import flat
+
+    def value(v):
+        if v is None:
+            return "null"
+        if isinstance(v, bool):
+            return "true" if v else "false"
+        if isinstance(v, int):
+            return str(v)
+        if isinstance(v, decimal.Decimal):
+            return _decimal_text(v)
+        if isinstance(v, flat.F32):
+            return _java_double(float(repr(v)))
+        if isinstance(v, float):
+            return _java_double(v)
+        if isinstance(v, str):
+            return json.dumps(v, ensure_ascii=False)
+        raise TypeError(f"{type(v).__name__} {v!r} has no exact text")
+
+    text = "[" + ",".join("{" + ",".join(f"{json.dumps(k)}:{value(v)}" for k, v in r.items()) + "}"
+                          for r in rows) + "]"
+    return _pure_str(text)
+
+
+def _shaped_test(test_id: str, payload: str, text: str, asserts) -> str:
+    """A further test of a service's suite (shapes.py): PURE_TDSOBJECT, and an assertion per (id, kind), 'json' the
+    rows (EqualToJson) and 'text' the exact answer (EqualTo)."""
+    blocks = []
+    for aid, kind in asserts:
+        if kind == "json":
+            blocks.append(f"            {aid}:\n              EqualToJson\n"
+                          f"              #{{\n                expected:\n"
+                          f"                  ExternalFormat\n                  #{{\n"
+                          f"                    contentType: 'application/json';\n"
+                          f"                    data: '{payload}';\n                  }}#;\n"
+                          f"              }}#")
+        elif kind == "text":
+            blocks.append(f"            {aid}:\n              EqualTo\n"
+                          f"              #{{\n                expected: '{text}';\n              }}#")
+        else:
+            raise ValueError(f"assertion kind {kind!r}")
+    return (f"        {test_id}:\n        {{\n          serializationFormat: PURE_TDSOBJECT;\n"
+            f"          asserts:\n          [\n" + ",\n".join(blocks) + "\n          ]\n        }")
+
+
+def test_suite(spec: Spec, expected, note: str) -> str:
     """The testSuites block.
 
     A graph-fetch result is not a bare array: `serialize()` wraps it as
@@ -242,9 +357,14 @@ def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
     the actual, not assumed — an expectation written as a bare array fails with the two
     sides looking identical for the first 300 characters.
     """
-    payload = expected if spec.graph is None else {
-        "builder": {"_type": "json"}, "values": expected}
-    payload = _pure_str(json.dumps(_shorten(payload), separators=(",", ":")))
+    if spec.cases:
+        payload = [(test_id, params, _payload(spec, rows)) for test_id, params, rows in expected]
+    else:
+        payload = _payload(spec, expected)
+    tests = _tests(spec, payload)
+    # further tests of the suite (shapes.py, the improvement plan's Phase 8), each judging the same rows
+    for test_id, asserts in getattr(spec, "more_tests", ()):
+        tests += ",\n" + _shaped_test(test_id, payload, exact_text(expected), asserts)
     return f"""  testSuites:
   [
     {spec.short}_suite:
@@ -263,7 +383,7 @@ def test_suite(spec: Spec, expected: list[dict], note: str) -> str:
       tests:
       [
         // {note}
-{_tests(spec, payload)}
+{tests}
       ]
     }}
   ]"""
@@ -286,31 +406,183 @@ def _literal(v) -> str:
     if isinstance(v, bool):
         return "true" if v else "false"
     # Before the plain-string branch: DateArg IS a str, and quoting it would produce
-    # `'2024-02-01'` where Pure wants `%2024-02-01`.
-    if isinstance(v, query.DateTimeArg):
-        return "%" + v.replace(" ", "T")
+    # `'2024-02-01'` where Pure wants `%2024-02-01`. The same for the other typed literals.
     if isinstance(v, query.DateArg):
         return f"%{v}"
+    if isinstance(v, query.DateTimeArg):
+        return f"%{v.replace(' ', 'T')}"
+    if isinstance(v, query.StrictTimeArg):
+        return f"%{v}"
+    if isinstance(v, query.EnumArg):
+        return f"{v.enum}.{v}"
+    if isinstance(v, query.Nullary):
+        return f"{v}()"
     if isinstance(v, str):
         return f"'{_pure_str(v)}'"
+    if isinstance(v, decimal.Decimal):
+        return format(v, "f") + "D"
+    if isinstance(v, query.Param):
+        return f"${v.name}->toOne()" if v.to_one else f"${v.name}"
+    if isinstance(v, query.PathArg):
+        return f"${VAR}.{_path(v.path)}"
+    if isinstance(v, list):
+        return "[" + ", ".join(_literal(x) for x in v) + "]"
     return repr(v)
 
 
+_INFIX = ("+", "-", "*", "/")
+# Functions of a collection, written over a list of the value and the step's arguments: `[$x.p, 7]->greatest()`
+_LISTED = ("greatest", "least")
+
+
+def _applied(subject: str, apply) -> str:
+    """`subject` with an Apply's functions applied (Phase 4): `$x.p->f(a)->g()`, an operator infix and
+    parenthesised, a function of a collection over a list (`[$x.p, 7]->greatest()`), and the whole chain inside
+    `map` for an optional value, or after `let` for a bound one; or a query.If over it."""
+    import query
+
+    if isinstance(apply, query.If):
+        def branch(b):
+            if b == query.SELF:
+                return f"{subject}->toOne()" if apply.op == "isEmpty" else subject
+            return _literal(b)
+        test = (subject if apply.op == "is" else f"{subject}->isEmpty()" if apply.op == "isEmpty"
+                else f"({subject} {apply.op} {_literal(apply.value)})")
+        return f"if({test}, |{branch(apply.then)}, |{branch(apply.otherwise)})"
+    def chain(t: str) -> str:
+        for fn, args in apply.steps:
+            if fn in _INFIX:
+                t = f"({t} {fn} {_literal(args[0])})"
+            elif fn in _LISTED:
+                t = f"[{', '.join([t] + [_literal(a) for a in args])}]->{fn}()"
+            else:
+                t = f"{t}->{fn}({', '.join(_literal(a) for a in args)})"
+        return t
+    if apply.let:
+        # a column lambda of two statements, `x|let v = $x.p; $v->f();`: the projection's last column
+        return f"let v = {subject}; {chain('$v')};"
+    return f"{subject}->map(v|{chain('$v')})" if apply.through_map else chain(subject)
+
+
+_MATH_UTILITY = "meta::pure::functions::math::mathUtility"
+
+
+def _agg_column(a) -> str:
+    """One aggregate of a relation groupBy, `name: x|<map> : agg|<reduce>`. A plain triple maps the source
+    alias and reduces with the function; a query.Agg (Phase 4) also gives the function its arguments, maps a
+    pair through rowMapper or wavgRowMapper, and applies steps to the result."""
+    name, src, fn = a
+    mapped = f"${VAR}.{src}"
+    if isinstance(src, tuple):
+        # the trader features' pair (features.py): (value, key or weight) through rowMapper, for wavg, corr, covar,
+        # maxBy and minBy
+        mapped = f"{_MATH_UTILITY}::rowMapper(${VAR}.{src[0]}, ${VAR}.{src[1]})"
+    if getattr(a, "pair", None) is not None:
+        mapped = f"{_MATH_UTILITY}::{a.mapper}(${VAR}.{src}, ${VAR}.{a.pair})"
+    # a trader feature's reduce written whole, a call with its arguments or a chain (`percentile(0.9)`,
+    # `distinct()->count()`)
+    reduce = (f"$agg->{fn}" if "(" in fn
+              else f"$agg->{fn}({', '.join(_literal(x) for x in getattr(a, 'args', ()))})")
+    for step, args in getattr(a, "then", ()):
+        reduce = f"{reduce}->{step}({', '.join(_literal(x) for x in args)})"
+    return f"{name}: {VAR}|{mapped} : agg|{reduce}"
+
+
+def _condition(f) -> str:
+    """One filter conjunct as Pure text: a comparison, a bare boolean, a membership or absence
+    test, or a tree of them (query.And, Or, Not, ParamEmpty)."""
+    import query
+
+    if isinstance(f, query.And):
+        return "(" + " && ".join(_condition(x) for x in f.items) + ")"
+    if isinstance(f, query.Or):
+        return "(" + " || ".join(_condition(x) for x in f.items) + ")"
+    if isinstance(f, query.Not):
+        inner = _condition(f.item)
+        return "!" + (inner if inner.startswith("(") else f"({inner})")
+    if isinstance(f, query.ParamEmpty):
+        return f"${f.name}->isEmpty()"
+    path = f"${VAR}.{_path(f.path)}"
+    if getattr(f, "apply", None) is not None:
+        path = _applied(path, f.apply)
+    # `is`/`not` are the BARE boolean forms -- `$x.flag` and `!$x.flag` -- with no
+    # comparison. They exist because comparing a boolean to a boolean literal with `==`
+    # is the one filter shape the engine cannot lower: `$x.isFinal == false` over a
+    # derived Boolean reaches the database as SQL it rejects with "Parser Error: syntax
+    # error at or near =", while the identical `!$x.isFinal` runs. See F50 and
+    # scripts/corpus/probe_derived_filter.py.
+    if f.op == "is":
+        return path
+    if f.op == "not":
+        return f"!{path}"
+    if f.op in ("isEmpty", "isNotEmpty"):
+        return f"{path}->{f.op}()"
+    if f.op == "in":
+        return f"{path}->in({_literal(f.value)})"
+    if f.op == "exists":
+        # a to-many end and a comparison over each of its members, under the member's own variable
+        inner = f.value
+        return f"{path}->exists(c|($c.{_path(inner.path)} {inner.op} {_literal(inner.value)}))"
+    return f"({path} {f.op} {_literal(f.value)})"
+
+
+def _date(d) -> str:
+    """A milestoning date: `%latest`, a typed literal, a parameter, a path, or a plain ISO date."""
+    import query
+
+    if d == "latest":
+        return "%latest"
+    if isinstance(d, (query.DateArg, query.DateTimeArg, query.Param, query.PathArg)):
+        return _literal(d)
+    return "%" + d
+
+
 def _as_of(spec: Spec) -> str:
-    """A temporal root takes one date, or TWO for a bitemporal class: all(%B, %P)."""
+    """A temporal root takes one date, or TWO for a bitemporal class: all(%P, %B)."""
     if spec.as_of is None:
         return ""
     dates = spec.as_of if isinstance(spec.as_of, list) else [spec.as_of]
-    return ", ".join("%latest" if d == "latest" else "%" + d for d in dates)
+    return ", ".join(_date(d) for d in dates)
+
+
+def _root(spec: Spec) -> str:
+    """The query's source: `Class.all(...)`, or every version, or the versions in a range."""
+    v = spec.versions
+    if v is None:
+        return f"{spec.root}.all({_as_of(spec)})"
+    if v.start is None:
+        return f"{spec.root}.allVersions()"
+    return f"{spec.root}->getAllVersionsInRange({_date(v.start)}, {_date(v.end)})"
+
+
+def _step(step) -> str:
+    """One step of a path: a property, or a milestoned one with its date(s) (query.Hop)."""
+    import query
+
+    if not isinstance(step, query.Hop):
+        return step
+    # Pure's grammar takes %latest in a property's arguments only when every one is %latest
+    # (M3ParserGrammar's functionExpressionLatestMilestoningDateParameter), and one unparseable service
+    # stops the whole corpus loading on the engine, so a mixed form is refused here.
+    if step.dates and "latest" in step.dates and set(step.dates) != {"latest"}:
+        raise ValueError(f"{step}: %latest beside another date is not Pure: {step.dates!r}")
+    if step.versions == "all":
+        return f"{step}AllVersions"
+    name = f"{step}AllVersionsInRange" if step.versions == "range" else str(step)
+    return name if step.dates is None else f"{name}({', '.join(_date(d) for d in step.dates)})"
+
+
+def _path(path) -> str:
+    return ".".join(_step(s) for s in path)
 
 
 def _tree(node: dict, indent: str) -> str:
     parts = []
     for name, sub in node.items():
         if sub is None:
-            parts.append(f"{indent}{name}")
+            parts.append(f"{indent}{_step(name)}")
         else:
-            parts.append(f"{indent}{name}\n{indent}{{\n"
+            parts.append(f"{indent}{_step(name)}\n{indent}{{\n"
                          + _tree(sub, indent + "  ") + f"\n{indent}}}")
     return ",\n".join(parts)
 
@@ -320,9 +592,90 @@ def graph_text(spec: Spec) -> str:
     two must agree or the serializer emits a shape the fetch never populated."""
     tree = ("#{\n  " + spec.root + "\n  {\n" + _tree(spec.graph, "    ")
             + "\n  }\n}#")
-    return (f"    query: |{spec.root}.all({_as_of(spec)})\n"
-            f"        ->graphFetch({tree})\n"
-            f"        ->serialize({tree});")
+    params = ", ".join(f"{n}: {t}[{m}]" for n, t, m in spec.params)
+    # a query filter before the fetch, and a CHECKED fetch (the improvement plan's Phase 8): written only where a
+    # spec asks, so every graph service before it is unchanged
+    filtered = (f"        ->filter({{{VAR}|{' && '.join(_condition(f) for f in spec.filters)}}})\n"
+                if spec.filters else "")
+    fetch = "graphFetchChecked" if getattr(spec, "checked", False) else "graphFetch"
+    return (f"    query: {{{params}|{_root(spec)}\n" if spec.params
+            else f"    query: |{_root(spec)}\n") + filtered + (
+            f"        ->{fetch}({tree})\n"
+            f"        ->serialize({tree})" + ("};" if spec.params else ";"))
+
+
+_TDS_GETTER = {"String": "getString", "Integer": "getInteger", "Float": "getFloat", "Decimal": "getDecimal",
+               "Number": "getNumber", "Boolean": "getBoolean", "Date": "getDate", "StrictDate": "getStrictDate",
+               "DateTime": "getDateTime"}
+
+
+def _order(keys, tds: bool) -> str:
+    """Sort keys: `[~a->ascending(), ~b->descending()]`, or a TDS's `[asc('a'), desc('b')]`."""
+    if tds:
+        return "[" + ", ".join(f"{'desc' if d else 'asc'}('{k}')" for k, d in keys) + "]"
+    return "[" + ", ".join(f"~{k}->{'descending' if d else 'ascending'}()" for k, d in keys) + "]"
+
+
+def _inline(spec: Spec) -> str:
+    """Another relation, written in place: a Concatenate's or a Join's other side."""
+    text = query_text(spec)
+    text = text[text.index("|") + 1:].rstrip(";")
+    return " ".join(line.strip() for line in text.splitlines())
+
+
+def _relation_op(op, tds: bool) -> str:
+    """One relation operation after the projection (query.Extend, Window, ...), in the Spec's paradigm."""
+    import query
+
+    if isinstance(op, query.Extend):
+        if tds:
+            return (f"->extend([col(r|{_applied(f'$r.{_TDS_GETTER[op.of]}({_literal(op.col)})', op.apply)}, "
+                    f"'{op.name}')])")
+        return f"->extend(~[{op.name}:r|{_applied(f'$r.{op.col}', op.apply)}])"
+    if isinstance(op, query.Window):
+        if tds:
+            # olapGroupBy(partition, [sort,] func(...), name): a ranking function takes the order, an aggregate the
+            # column it reduces
+            part = "[" + ", ".join(f"'{p}'" for p in op.partition) + "]"
+            if op.col is not None:
+                return f"->olapGroupBy({part}, func('{op.col}', y|$y->{op.fn}()), '{op.name}')"
+            if len(op.order) != 1 or op.read is not None:
+                raise ValueError(f"olapGroupBy takes one sort key (SortInformation[0..1]) and ranks: {op!r}")
+            (key, desc), = op.order
+            return f"->olapGroupBy({part}, {'desc' if desc else 'asc'}('{key}'), func(y|$y->{op.fn}()), '{op.name}')"
+        part = "~[" + ", ".join(op.partition) + "]"
+        over = f"over({part}, {_order(op.order, False)})" if op.order else f"over({part})"
+        if op.col is not None:
+            return f"->extend({over}, ~[{op.name}:{{p,w,r|$r.{op.col}}}:y|$y->{op.fn}()])"
+        args = "".join(f", {_literal(a)}" for a in op.args)
+        if op.read is not None:
+            # another row of the partition, and its column: `$p->lag($r).n`, `$p->nth($w, $r, 2).n`
+            call = f"$p->{op.fn}($w, $r{args})" if op.fn == "nth" else f"$p->{op.fn}($r{args})"
+            return f"->extend({over}, ~[{op.name}:{{p,w,r|{call}.{op.read}}}])"
+        call = f"$p->{op.fn}($r{args})" if op.fn in ("rowNumber", "ntile") else f"$p->{op.fn}($w, $r{args})"
+        return f"->extend({over}, ~[{op.name}:{{p,w,r|{call}}}])"
+    if isinstance(op, query.Rename):
+        return f"->renameColumns([pair('{op.old}', '{op.new}')])" if tds else f"->rename(~{op.old}, ~{op.new})"
+    if isinstance(op, query.Select):
+        if tds:
+            return "->restrict([" + ", ".join(f"'{c}'" for c in op.cols) + "])"
+        return "->select(~[" + ", ".join(op.cols) + "])"
+    if isinstance(op, query.Distinct):
+        return "->distinct()"
+    if isinstance(op, query.Sort):
+        return f"->sort({_order(op.keys, tds)})"
+    if isinstance(op, query.Cut):
+        return f"->{op.fn}({', '.join(_literal(a) for a in op.args)})"
+    if isinstance(op, query.Concatenate):
+        return f"->concatenate({_inline(op.other)})"
+    if isinstance(op, query.Join):
+        if tds:
+            cond = " && ".join(f"$a.{_TDS_GETTER[t]}('{l}') == $b.{_TDS_GETTER[t]}('{r}')" for l, r, t in op.on)
+            return (f"->join({_inline(op.other)}, meta::relational::metamodel::join::JoinType.{op.kind}, "
+                    f"{{a, b|{cond}}})")
+        cond = " && ".join(f"$a.{l} == $b.{r}" for l, r, *_t in op.on)
+        return f"->join({_inline(op.other)}, JoinKind.{op.kind}, {{a, b|{cond}}})"
+    raise ValueError(f"unhandled relation operation {op!r}")
 
 
 def query_text(spec: Spec) -> str:
@@ -340,19 +693,15 @@ def query_text(spec: Spec) -> str:
     bare names always meant here. Column aliases are unchanged, so the expectation JSON
     keys are identical.
     """
-    lines = [f"    query: |{spec.root}.all({_as_of(spec)})"]
+    params = ", ".join(f"{n}: {t}[{m}]" for n, t, m in spec.params)
+    if spec.lets:
+        lets = " ".join(f"let {n} = {_literal(v)};" for n, v in spec.lets)
+        lines = [f"    query: {{|{lets} {_root(spec)}"]
+    else:
+        lines = [f"    query: {{{params}|{_root(spec)}" if spec.params
+             else f"    query: |{_root(spec)}"]
     if spec.filters:
-        # `is`/`not` are the BARE boolean forms -- `$x.flag` and `!$x.flag` -- with no
-        # comparison. They exist because comparing a boolean to a boolean literal with `==`
-        # is the one filter shape the engine cannot lower: `$x.isFinal == false` over a
-        # derived Boolean reaches the database as SQL it rejects with "Parser Error: syntax
-        # error at or near =", while the identical `!$x.isFinal` runs. See F50 and
-        # scripts/corpus/probe_derived_filter.py.
-        conds = " && ".join(
-            (f"${VAR}.{'.'.join(f.path)}" if f.op == "is"
-             else f"!${VAR}.{'.'.join(f.path)}" if f.op == "not"
-             else f"(${VAR}.{'.'.join(f.path)} {f.op} {_literal(f.value)})")
-            for f in spec.filters)
+        conds = " && ".join(_condition(f) for f in spec.filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
     def expr(p):
         if p.expr:
@@ -360,7 +709,15 @@ def query_text(spec: Spec) -> str:
         if p.func:
             inner = ", ".join(_literal(a) for a in p.args)
             return f"${VAR}->{p.func}({inner})"
-        return (f"${VAR}.{'.'.join(p.path)}"
+        if getattr(p, "apply", None) is not None:
+            return _applied(f"${VAR}.{_path(p.path)}", p.apply)
+        if getattr(p, "over", None) is not None:
+            return f"${VAR}.{_path(p.path)}->map(t|$t.{p.over})->{p.agg}()"
+        if getattr(p, "subtype", None) is not None:
+            if p.agg or p.args or p.func:
+                raise ValueError(f"{p.alias}: a downcast column is a plain path")
+            return f"${VAR}->subType(@{p.subtype}).{_path(p.path)}"
+        return (f"${VAR}.{_path(p.path)}"
                 + (f"({', '.join(_literal(a) for a in p.args)})" if p.args else "")
                 + (f"->{p.agg}()" if p.agg else ""))
 
@@ -404,40 +761,30 @@ def query_text(spec: Spec) -> str:
         # The aggregate list is BRACKETED. The bare `~name: ... : ...` form parses only
         # with a SINGLE aggregate; with two it builds a colSpec whose function is null and
         # fails with "colSpec.function1 is null".
-        parts = ",\n            ".join(
-            f"{name}: {VAR}|{_agg_source(src)} : agg|$agg->{_agg_call(fn)}"
-            for name, src, fn in spec.aggs)
+        parts = ",\n            ".join(_agg_column(a) for a in spec.aggs)
         lines.append(f"        ->groupBy(~[{keys}], ~[\n            {parts}\n        ])")
     if getattr(spec, "post_filters", None):
         # On the RELATION, so the operands are projected aliases and not model paths.
         conds = " && ".join(
             f"(${VAR}.{f.path[0]} {f.op} {_literal(f.value)})" for f in spec.post_filters)
         lines.append(f"        ->filter({{{VAR}|{conds}}})")
+    for op in getattr(spec, "relation", ()):
+        lines.append("        " + _relation_op(op, spec.paradigm == "tds"))
     if spec.sort:
         keys = spec.sort if isinstance(spec.sort, list) else [spec.sort]
         rendered = ", ".join(
             f"~{alias}->{'descending' if desc else 'ascending'}()" for alias, desc in keys)
-        lines.append(f"        ->sort({rendered})" if len(keys) == 1
-                     else f"        ->sort([{rendered}])")
+        if spec.paradigm == "tds":
+            # A TDS sorts by its own SortInformation, `[desc('a'), asc('b')]`: the Relation's `~a->descending()` is no
+            # match for a TabularDataSet (2026-10-30, the improvement plan's Phase 5, the first TDS spec to sort)
+            lines.append(f"        ->sort({_order(keys, True)})")
+        else:
+            lines.append(f"        ->sort({rendered})" if len(keys) == 1
+                         else f"        ->sort([{rendered}])")
     if spec.limit is not None:
-        lines.append(f"        ->limit({spec.limit})")
-    return "\n".join(lines) + ";"
-
-
-ROW_MAPPER = "meta::pure::functions::math::mathUtility::rowMapper"
-
-
-def _agg_source(src) -> str:
-    """A group aggregate's source: one column, or a (value, key-or-weight) pair as Pure's rowMapper -- what wavg, corr,
-    covar, maxBy and minBy take."""
-    if isinstance(src, tuple):
-        return f"{ROW_MAPPER}(${VAR}.{src[0]}, ${VAR}.{src[1]})"
-    return f"${VAR}.{src}"
-
-
-def _agg_call(fn: str) -> str:
-    """`sum` -> `sum()`; a call with arguments or a chain (`percentile(0.9)`, `distinct()->count()`) as written."""
-    return fn if "(" in fn else f"{fn}()"
+        lines.append(f"        ->take({spec.limit})" if spec.paradigm == "tds" else f"        ->limit({spec.limit})")
+    # a lambda of several lines ends each after the first with `;`: `{|let t = 42; <query>;}`
+    return "\n".join(lines) + (";};" if spec.lets else "};" if spec.params else ";")
 
 
 def _asof_text(a) -> list[str]:
@@ -551,7 +898,9 @@ def _multi_execution(spec: Spec) -> str:
     return "\n".join(body)
 
 
-def service(spec: Spec, expected: list[dict], note: str) -> str:
+def service(spec: Spec, expected, note: str) -> str:
+    """`expected` is the rows, or for a spec with parameter cases (test id, params, rows) per
+    case."""
     if spec.multi:
         exec_block = f"    execution: Multi\n    {{\n{_multi_execution(spec)}\n    }}"
     else:

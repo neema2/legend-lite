@@ -29,11 +29,13 @@ Integer or a Boolean with nulls stays an integer or a boolean (pandas' nullable 
 from __future__ import annotations
 
 import contextlib
+import copy
 import re
 import sys
 import threading
 from dataclasses import dataclass
-from typing import Any, Callable, Iterator, Mapping
+from typing import Any, Callable, Iterable, Iterator, Mapping
+from urllib.parse import unquote_plus
 
 from ._extra import require_datacube
 
@@ -44,6 +46,8 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, compiler
+from ._planned import Database, PlannedSql, Result, connect, send
+from .projects import LoadRefused, run_host_load
 from ._types import UnknownType, is_integer
 
 # a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
@@ -155,35 +159,63 @@ class Table:
         self.columns: tuple[compiler.Column, ...] = ()
         # its model, compiled once and held while the table is registered (each plan then pays for its query alone)
         self.held: compiler.HeldModel | None = None
-        # read at each query: the Arrow table its view reads now, which a read (Frames.reading) registers on its own
-        # cursor, so it reads the frame as it was when it began, whatever the frame is made since
+        # read at each query: the Arrow table its view reads now, held under the frame's name -- what its plan names it by,
+        # attached by that name on every read's own cursor (Frames.reading), so a read reads the frame as it was when it
+        # began, whatever the frame is made since
         self._arrow: pa.Table | None = None
+        # what its load attached for the connection, ``(held, as)``: attached again with the frame as it is now on the
+        # frames' connection (``_refresh``) and on every read's cursor (``_attach``)
+        self._attached: tuple[tuple[str, str], ...] = ()
+
+    def _value(self, held: str) -> pa.Table | None:
+        """The value this table holds under ``held`` -- the frame as it was last read, under its name -- or None."""
+        return self._arrow if held == self.name else None
+
+    def _attach(self, target: Any) -> None:
+        """Each value its load attached for the connection, attached on ``target`` -- the frames' connection again, the
+        frame as it is now, or a read's own cursor (``Frames.reading``) -- by the name the plan holds it under; one this
+        table no longer holds refused by name."""
+        for held, as_ in self._attached:
+            value = self._value(held)
+            if value is None:
+                raise LoadRefused(f"'{held}' is not a value this host holds: nothing is attached as {as_}")
+            target.register(as_, value)
 
     def _load(self, arrow: pa.Table) -> None:
-        """Puts the frame in DuckDB as the table it is named, reads its catalog, and writes its model."""
+        """Puts the frame in DuckDB as the table it is named, reads its catalog, and writes its model. A PLANNED LOAD
+        (the user's ruling of 2026-11-11, "This is the right plan": ``compiler.frame_load``, run by
+        ``projects.run_host_load``): the plan names the frame -- held here under its name, never its bytes in the plan --
+        attached by that name, kept for the connection while it is read at each query (a view over it) or for the load
+        alone while it is read once (a table copied from it); the relation there before dropped first (a view whose
+        columns changed is dropped, not replaced: the copy below may change its kind of select). Until then the frame's
+        Arrow was registered on the connection outside any plan (census M14-frames)."""
         con = self._frames.connection
-        con.register(self._registered, arrow)
-        self._arrow = arrow if self.live else None
         kind = 'view' if self.live else 'table'
-        # a view whose columns changed is dropped, not replaced: the copy below may change its kind of select
-        _host.run(con, {'op': 'drop', 'kind': kind, 'target': self._target},
-                  {'op': 'relation', 'kind': kind, 'target': self._target,
-                   'from': {'relation': _host.name(self._registered)}})
-        if not self.live:
-            con.unregister(self._registered)
-        rows = con.execute(compiler.catalog_columns_sql('main', self.name)).fetchall()
+        self._arrow = arrow
+        plan = compiler.frame_load({'databaseType': 'DuckDB', 'held': self.name, 'as': self._registered,
+                                    'live': self.live, 'schema': 'main', 'relation': self.name})
+        try:
+            self._attached = run_host_load(plan, con, values=self._value).attached
+        finally:
+            # a frame read once is the database's from now on: its rows are let go
+            if not self.live:
+                self._arrow = None
+        rows = send(con, compiler.catalog_columns_sql('main', self.name)).fetchall()
+        columns = [dict(zip(_CATALOG_FIELDS, row)) for row in rows]
         written = compiler.table_model({
             'table': self.name,
             'pkg': self.name,
             # a frame is ours to convert: the view applies the conversions as it reads, the copy as it is made
             'convertible': True,
             'databaseType': 'DuckDB',
-            'columns': [dict(zip(_CATALOG_FIELDS, row)) for row in rows],
+            'columns': columns,
         })
         if written['conversions']:
             source = _host.name(self._registered) if self.live else self._target
+            # its columns as the catalog holds them: the platform writes each conversion (the final audit's item 1(d),
+            # 2026-11-12: never the planner's select list handed back)
             _host.run(con, {'op': 'relation', 'kind': kind, 'target': self._target, 'replace': True,
-                            'selectList': written['copySelectList'], 'from': {'relation': source}})
+                            'convert': columns, 'from': {'relation': source}})
         self.model = written['model']
         self.runtime = written['runtime']
         self.source = written['source']
@@ -201,8 +233,10 @@ class Table:
         """Takes the frame out of DuckDB, and makes this handle unusable."""
         con = self._frames.connection
         _host.run(con, {'op': 'drop', 'kind': 'view' if self.live else 'table', 'target': self._target})
-        if self.live:
-            con.unregister(self._registered)
+        # what its load attached for the connection, let go
+        for _held, as_ in self._attached:
+            con.unregister(as_)
+        self._attached = ()
         if self.held is not None:
             self.held.close()
         self._closed = True
@@ -211,8 +245,9 @@ class Table:
         """The frame as it is now. Its rows are read again; if its columns changed, so is its model."""
         arrow = _arrow(self._read())
         if arrow.schema == self._schema:
-            self._frames.connection.register(self._registered, arrow)
+            # held under its name as it is now, and attached again by that name, as its load attached it
             self._arrow = arrow
+            self._attach(self._frames.connection)
         else:
             self._load(arrow)
 
@@ -252,6 +287,68 @@ class Table:
             return self._frames.run(self._model().plan(self._tree(query), self.runtime))
 
 
+# the shortest query-string parameter value redacted on its own (engine-client connection-settings.ts, the same rule): a
+# shorter one (``X-Amz-Expires=3600``'s) is no token, and taking it out would take out the message's own words
+_SHORTEST_HELD_PARAMETER = 8
+
+
+def held_texts(value: str) -> list[str]:
+    """THE TEXTS A HELD VALUE MAY COME BACK AS (the B checkpoint's tenets audit, M2, 2026-11-11; engine-client
+    connection-settings.ts ``heldTexts``): a database repeats a value it was bound in its own error -- an expired
+    presigned link's read names the whole URL -- and may quote its query string, or one parameter, alone, encoded or
+    not. So a held URL is taken out as itself, its query string and each parameter's value (raw and decoded), the
+    longest first."""
+    out = {value}
+    query = value.find('?')
+    if query >= 0:
+        fragment = value.find('#', query)
+        string = value[query + 1:] if fragment < 0 else value[query + 1:fragment]
+        out.add(string)
+        for part in string.split('&'):
+            raw = part.partition('=')[2] if '=' in part else part
+            for v in (raw, unquote_plus(raw)):
+                if len(v) >= _SHORTEST_HELD_PARAMETER:
+                    out.add(v)
+    return sorted((t for t in out if t), key=len, reverse=True)
+
+
+def redact_held(text: str, values: Iterable[str]) -> str:
+    """``text`` with every held value in ``values`` (each as ``held_texts`` takes it apart) written ``***``."""
+    for value in values:
+        for t in held_texts(value):
+            text = text.replace(t, '***')
+    return text
+
+
+def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | None:
+    """``failure`` again, of its type, its words with every held value taken out -- or None where none was in them. The
+    caller raises it outside its ``except``, so the database's own error, which still holds the value, is not chained
+    to it."""
+    said = str(failure)
+    out = redact_held(said, held)
+    if out == said:
+        return None
+    # of its type, as raised, by a copy: no traceback, cause or context of the original's, its attributes cleared, its
+    # words the redacted ones (2026-11-12, the re-audit's S4: no value's own type is called outside _planned.py)
+    redacted = copy.copy(failure)
+    redacted.__dict__.clear()
+    redacted.args = (out,)
+    return redacted
+
+
+def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
+    """``sql`` run on ``connection``, its ``?``s bound to ``params`` (a plan's payloads: M3), a failure's words with every
+    held value taken out (``redacted``)."""
+    failure: BaseException | None = None
+    try:
+        return send(connection, sql, params)
+    except duckdb.Error as e:
+        failure = redacted(e, held)
+        if failure is None:
+            raise
+    raise failure
+
+
 @dataclass
 class _File:
     """A table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy, as
@@ -267,6 +364,11 @@ class _File:
     runtime: str
     source: Any
     leaf: dict[str, Any] | None
+    # a remote file's settings of the connection (a bearer URL's session variable: B3's Q3), each a statement and the
+    # values it binds, which every read's cursor runs (a cursor is a connection of its own, a variable one connection's)
+    settings: tuple[tuple[str, tuple[Any, ...]], ...] = ()
+    # the values those settings bind that the engine holds (a bearer URL: B3's Q3), taken out of a read's failure (M2)
+    held_values: tuple[str, ...] = ()
 
     def hosted(self) -> dict[str, Any]:
         """As DataCube's headless code takes it (headless host-tables.ts HostFile)."""
@@ -282,18 +384,24 @@ class Reading:
     and asks what it asks of Python's engine over it, on its own thread, waiting on no thread. One thread uses it at a
     time (its read's: the caller, then DataCube's thread while the call runs)."""
 
-    def __init__(self, cursor: duckdb.DuckDBPyConnection, hosted: dict[str, Any], models: dict[str, str]) -> None:
+    def __init__(self, cursor: Database, hosted: dict[str, Any], models: dict[str, str],
+                 held: tuple[str, ...] = ()) -> None:
         self.cursor = cursor
         self.hosted = hosted
         self.models = models
+        # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
+        self.held_values = held
 
-    def execute(self, sql: str) -> duckdb.DuckDBPyConnection:
+    def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
         overflow) aborts DuckDB's transaction: begun again then, and pinned, so the read's next query runs -- seeing the
-        database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was."""
+        database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was.
+        A failure's words name no value the engine holds (an expired presigned link's read repeats its URL: M2)."""
+        failure: BaseException | None = None
         try:
-            return self.cursor.execute(sql)
-        except duckdb.Error:
+            # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
+            return send(self.cursor, sql, params)
+        except duckdb.Error as e:
             try:
                 _pin(self.cursor)
             except duckdb.TransactionException:
@@ -301,14 +409,17 @@ class Reading:
                     self.cursor.rollback()
                 self.cursor.begin()
                 _pin(self.cursor)
-            raise
+            failure = redacted(e, self.held_values)
+            if failure is None:
+                raise
+        raise failure
 
     def run(self, plan: compiler.Plan) -> pa.Table:
         """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
-        return typed_by_plan(self.execute(plan.sql).to_arrow_table(), plan)
+        return typed_by_plan(self.execute(plan.sql, plan.params).to_arrow_table(), plan)
 
 
-def _pin(cursor: duckdb.DuckDBPyConnection) -> None:
+def _pin(cursor: Database) -> None:
     """The transaction just begun on ``cursor`` pinned: DuckDB begins one on a database when it is first read, so this
     database's catalog is read now (one of Frames' own names asked for: never a table)."""
     _host.count(cursor, {'op': 'relationExists', 'name': _host.name(f'{_OWN}pinned', schema='main')})
@@ -324,7 +435,9 @@ class Frames:
     they hold one lock."""
 
     def __init__(self, connection: duckdb.DuckDBPyConnection | None = None) -> None:
-        self.connection = connection if connection is not None else duckdb.connect()
+        # the host's view of the database: the one send and the acts that are no statement (_planned.Database); a
+        # connection a person handed in stays theirs, to use as they will
+        self.connection = connect() if connection is None else Database(connection)
         # a database Frames made itself, which legend-lite may set up for its own reading (an engine's remote files),
         # where the person's own is left as they keep it
         self.owns_connection = connection is None
@@ -332,7 +445,7 @@ class Frames:
         # a cursor is a session of its own, which a connection's settings do not reach
         self._setup = compiler.session_setup('DuckDB')
         for statement in self._setup:
-            self.connection.execute(statement)
+            send(self.connection, statement)
         self._lock = threading.RLock()
         # each thread's read in progress (``reading``): what DataCube's code, asked a call by it, reads through
         self._local = threading.local()
@@ -344,6 +457,9 @@ class Frames:
         # the views a page's remote files are read through (remote.json; docs/DATACUBE_ONE_APP_DESIGN_2026_10_11.md
         # §4.3) and the snaps' copies, each by its name (_File)
         self._files: dict[str, _File] = {}
+        # the names a copy is being filled under with the frames let go (``streaming_file``): no frame, file or other
+        # copy takes one until it is kept or dropped
+        self._reserved: set[str] = set()
         # the models a page sent that read only what Python serves (model_for), each held with the tables it declares
         # (checked again at each use: a table no longer served is no longer read), while recent: a page's project, most
         # recent last
@@ -371,6 +487,8 @@ class Frames:
             if key in self._files:
                 raise ValueError(f'a page\'s file was read into a table named {self._files[key].name!r}: '
                                  'a frame takes another name')
+            if key in self._reserved:
+                raise ValueError(f'a snap is being copied into a table named {name!r}: a frame takes another name')
             if old is not None:
                 old._drop()
             elif self._exists(name):
@@ -392,7 +510,14 @@ class Frames:
         a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).
         Only SQL a planner wrote for this database comes here."""
         with self._lock:
-            return typed_by_plan(self.connection.execute(plan.sql).to_arrow_table(), plan)
+            return typed_by_plan(execute_redacted(self.connection, plan.sql, self.held_values(), plan.params).to_arrow_table(),
+                                 plan)
+
+    def held_values(self) -> tuple[str, ...]:
+        """Every value the kept remote files' settings bind that the engine holds (a bearer URL): what a failure's words
+        are cleared of before they are raised (M2)."""
+        with self._lock:
+            return tuple(v for f in self._files.values() for v in f.held_values)
 
     @contextlib.contextmanager
     def serving(self) -> Iterator[dict[str, str]]:
@@ -526,13 +651,55 @@ class Frames:
                                             'target': _host.name(name, schema='main')})
                 raise
 
-    def keep_file(self, name: str, made: Mapping[str, Any], view: bool = False) -> None:
+    @contextlib.contextmanager
+    def streaming_file(self, asked: str) -> Iterator[tuple[str, Database]]:
+        """A NAME RESERVED, AND A SESSION OF ITS OWN, FOR A TABLE FILLED WITH THE FRAMES LET GO (the final audit's item 3,
+        2026-11-12: a warehouse snap streamed its rows holding the frames' lock and the headless turn, so a slow
+        warehouse held every other read and every other call into DataCube's code). The name is taken as
+        ``reading_file`` takes it, under the lock, and held reserved -- no frame, file or other copy takes it -- while the
+        caller fills the table on the session yielded (a cursor of the connection, set up as a read's is) with the lock
+        free; then it keeps it with ``keep_file`` (taking the lock). A fill that fails leaves nothing under the name: what
+        it made is dropped, under the lock, and the name freed."""
+        if not _NAME.match(asked) or asked in _LITERALS:
+            raise ValueError(f"a file's table is named by a plain identifier (letters, digits, '_'), not {asked!r}")
+        if asked.lower().startswith(_OWN):
+            raise ValueError(f'a name beginning {_OWN} is legend-lite\'s own, not a file\'s: {asked!r}')
+        self._writing()
+        with self._lock:
+            name, n = asked, 2
+            while self._taken(name):
+                name, n = f'{asked}_{n}', n + 1
+            self._reserved.add(name.lower())
+        cursor: Database | None = None
+        try:
+            cursor = self.connection.cursor()
+            for statement in self._setup:
+                send(cursor, statement)
+            yield name, cursor
+        except BaseException:
+            with self._lock:
+                dropped = self._files.pop(name.lower(), None)
+                if dropped is not None:
+                    dropped.held.close()
+                _host.run(self.connection, {'op': 'drop', 'kind': 'table', 'target': _host.name(name, schema='main')})
+            raise
+        finally:
+            if cursor is not None:
+                cursor.close()
+            with self._lock:
+                self._reserved.discard(name.lower())
+
+    def keep_file(self, name: str, made: Mapping[str, Any], view: bool = False,
+                  settings: tuple[tuple[str, tuple[Any, ...]], ...] = (), held: tuple[str, ...] = ()) -> None:
         """The table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy
         (``reading_file``'s name), as DataCube's code read it (``made``: its model, runtime and the relation that reads
         it -- ``source`` -- and, a page's file or remote file, the file it is: headless ingest's and mount's ``leaf``):
-        served beside the frames' from now on, a file by what a page names it by (``hosted``)."""
-        held = compiler.HeldModel(made['model'])
-        kept = _File(name, made['model'], view, held, made.get('runtime', ''), made.get('source'), made.get('leaf'))
+        served beside the frames' from now on, a file by what a page names it by (``hosted``). ``settings``: a remote
+        file's settings of the connection, run on every read's cursor while it is kept (B3's Q3); ``held``, the values
+        they bind that the engine holds, taken out of a failure's words (M2)."""
+        model = compiler.HeldModel(made['model'])
+        kept = _File(name, made['model'], view, model, made.get('runtime', ''), made.get('source'), made.get('leaf'),
+                     tuple(settings), tuple(held))
         with self._lock:
             before = self._files.get(name.lower())
             self._files[name.lower()] = kept
@@ -580,7 +747,7 @@ class Frames:
     def _taken(self, name: str) -> bool:
         """Whether a file's table may not take ``name``: a frame's, a file's, or any table or view in the database."""
         key = name.lower()
-        if key in self._tables or key in self._files:
+        if key in self._tables or key in self._files or key in self._reserved:
             return True
         # this database's own and its temporary ones, which a bare name reads: a project's database attached beside it
         # (C5) holds none of the names a file may take
@@ -589,7 +756,7 @@ class Frames:
     def taken(self, name: str) -> bool:
         """Whether ``name`` is a frame's or a page's file's table: a frame of that name cannot be registered."""
         with self._lock:
-            return name.lower() in self._tables or name.lower() in self._files
+            return name.lower() in self._tables or name.lower() in self._files or name.lower() in self._reserved
 
     def _exists(self, name: str) -> bool:
         return _host.count(self.connection, {'op': 'relationExists', 'name': _host.name(name, schema='main')}) > 0
@@ -640,10 +807,16 @@ class Frames:
             cursor = self.connection.cursor()
             try:
                 for statement in self._setup:
-                    cursor.execute(statement)
+                    send(cursor, statement)
+                # each remote file's settings of the connection, its bound values with it (B3's Q3: a bearer URL's
+                # session variable, which a view of it reads, is one connection's)
+                for kept in self._files.values():
+                    for statement, params in kept.settings:
+                        send(cursor, statement, params)
+                # each frame's attachment of the connection, by the name its plan holds it under (a cursor is a
+                # connection of its own): every query reads the frame as it was when this read began
                 for table in self._tables.values():
-                    if table.live:
-                        cursor.register(table._registered, table._arrow)
+                    table._attach(cursor)
                 cursor.begin()
                 # pinned while the lock is held: this read sees the database as it is now
                 _pin(cursor)
@@ -651,7 +824,8 @@ class Frames:
                 cursor.close()
                 raise
             read = Reading(cursor, self._hosted(), {**{t.name: t.model for t in self._tables.values()},
-                                                    **{f.name: f.model for f in self._files.values()}})
+                                                    **{f.name: f.model for f in self._files.values()}},
+                           tuple(v for f in self._files.values() for v in f.held_values))
         self._local.reading = read
         try:
             yield read
@@ -687,6 +861,14 @@ class Frames:
             read = [f for f in self._files.values() if f.leaf is not None]
         return {'frames': frames, 'files': {f.leaf['sha256']: f.hosted() for f in read if 'sha256' in f.leaf},
                 'remotes': {f.leaf['url']: f.hosted() for f in read if 'url' in f.leaf}}
+
+    def owned(self) -> list[str]:
+        """The tables and views of this database a page's grids read -- each frame's, each page's file's -- and each name a
+        snap's copy is being filled under (``streaming_file``'s reservation), none of which a flow's table Output may
+        write (DataCube's table writer refuses them by name). A reserved name left out let an Output make the table the
+        snap's copy then dropped and replaced (the closing audit's item 1, 2026-11-13)."""
+        with self._lock:
+            return [t.name for t in self._tables.values()] + list(self._files) + sorted(self._reserved)
 
     def read_files(self) -> dict[str, str]:
         """Each page's file this database read in, by its bytes' hash (its ``leaf``'s): the table it was read into."""

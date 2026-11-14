@@ -16,6 +16,13 @@ we execute a DuckDB translation. Identical text proves the emitter's
 spelling, not the answer. Text match/diff is a CENSUS number
 (shrink-only ratchet for emission work), never a verdict.
 
+> **Corrected 2026-11-02 (the test-is-the-product plan's M10b, recording the user's ruling of 2026-09-21, option
+> 1, which the code has carried since):** a text byte-equal to the golden IS the assert's verdict -- the engine's
+> own -- and the rows leg is the APPEAL on a failed text alone (MATCH holds whatever the text said, DIVERGED and
+> FAULT fail, a decline keeps the text as the contract, counted). The sentence above describes the design before
+> that ruling; §3-§7 (the derivations, the referee, the normalization inventory, the order rule) stand as the
+> appeal's.
+
 ## 1. The lane (measured 2026-09-01)
 
 1,545 tests fall back on text-policy; plus ~15 plan/SQL-text

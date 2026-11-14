@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+"""Track T, T-b: the integration package's remaining files on the LEAN reader (the parity-lane files -- CypherParity*,
+SqlParityTest -- are T-c's, with the testcases helpers). Mechanical; the compiler and the tests name what is left."""
+import glob
+import os
+import re
+
+ROOT = "/home/user/legend-lite/"
+D = ROOT + "core/src/test/java/com/legend/integration/"
+SKIP = {"CypherParityNativeTest.java", "CypherParityTest.java", "SqlParityTest.java", "StreamingIntegrationTest.java",
+        "CypherWritePlansTest.java"}
+PAT = re.compile(r"Execution\.execute\(|Execution\.executeResolved\(|ExecutionResult")
+
+
+def split_args(s, start):
+    """The top-level arguments of the call whose '(' is at s[start]; returns (args, end_index_after_paren)."""
+    depth = 0
+    i = start
+    args = []
+    cur = []
+    in_str = None
+    while i < len(s):
+        ch = s[i]
+        if in_str:
+            cur.append(ch)
+            if ch == "\\":
+                cur.append(s[i + 1])
+                i += 2
+                continue
+            if ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch in "\"'":
+            in_str = ch
+            cur.append(ch)
+        elif ch == "(":
+            depth += 1
+            if depth > 1:
+                cur.append(ch)
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                args.append("".join(cur))
+                return args, i + 1
+            cur.append(ch)
+        elif ch == "," and depth == 1:
+            args.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+        i += 1
+    raise SystemExit("unbalanced call")
+
+
+def rewrite_calls(s, name):
+    """Every `name(` call: 4 args (model, query, runtime, connection) -> Lean.run(...) ; 3 args (model, query,
+    connection) -> Lean.run(model, query, null, connection); 5+ args left for the compiler to name."""
+    out = []
+    i = 0
+    while True:
+        j = s.find(name + "(", i)
+        if j < 0:
+            out.append(s[i:])
+            break
+        # a qualified name (com.legend.Execution.execute) is swallowed with its prefix
+        k = j
+        while k > 0 and (s[k - 1].isalnum() or s[k - 1] in "._"):
+            k -= 1
+        args, end = split_args(s, j + len(name))
+        out.append(s[i:k])
+        if len(args) == 4:
+            out.append("Lean.run(" + ",".join(args) + ")")
+        elif len(args) == 3:
+            out.append("Lean.run(" + ",".join(args[:2]) + ", null," + args[2] + ")")
+        else:
+            out.append(s[k:end])
+        i = end
+    return "".join(out)
+
+
+for f in sorted(glob.glob(D + "*.java")):
+    base = os.path.basename(f)
+    if base in SKIP:
+        continue
+    s = open(f).read()
+    if not PAT.search(s):
+        continue
+    o = s
+    for name in ("Execution.execute", "queryService.execute", "qs.execute", "new QueryService().execute"):
+        s = rewrite_calls(s, name)
+    # the Scalar casts: the one cell
+    s = re.sub(r"\(\((?:com\.legend\.exec\.)?ExecutionResult\.Scalar\)\s*java\.util\.Objects\.requireNonNull\(([^;]*?)\)\)\s*\.value\(\)",
+               lambda m: "java.util.Objects.requireNonNull(" + m.group(1) + ").one()", s, flags=re.S)
+    s = re.sub(r"\(\((?:com\.legend\.exec\.)?ExecutionResult\.Scalar\)\s*(\w+)\)\s*\.value\(\)", r"\1.one()", s)
+    # the forms
+    s = s.replace(".asCollection().values()", ".values()").replace(".asGraph().json()", ".json()")
+    s = s.replace(".returnType().typeName()", ".columns().get(0).type()")
+    s = s.replace(".pureType().typeName()", ".type()")
+    s = re.sub(r"\.rows\(\)\.get\(([^()]*)\)\.values\(\)", r".rows().get(\1)", s)
+    s = re.sub(r"\.rows\(\)\.(getFirst|getLast)\(\)\.values\(\)", r".rows().\1()", s)
+    s = re.sub(r"\b(r|row|rw|secondRow|firstRow|lastRow|first|second|third)\.values\(\)", r"\1", s)
+    s = re.sub(r"\bcom\.legend\.exec\.ExecutionResult\b", "Lean.Result", s)
+    s = re.sub(r"\bExecutionResult\b", "Lean.Result", s)
+    s = re.sub(r"\bRow\b(?=\s+\w+\s*[,):])", "List<Object>", s)
+    s = s.replace("import com.legend.exec.Row;\n", "")
+    s = s.replace("import com.legend.exec.Lean.Result;\n", "").replace("import Lean.Result;\n", "")
+    if s != o:
+        if "import com.legend.testing.Lean;" not in s:
+            s = s.replace("package com.legend.integration;\n", "package com.legend.integration;\n\nimport com.legend.testing.Lean;", 1)
+        if "List<Object>" in s and "import java.util.List;" not in s and "import java.util.*;" not in s:
+            s = s.replace("import com.legend.testing.Lean;", "import com.legend.testing.Lean;\nimport java.util.List;", 1)
+        # an unused service field or import
+        if "queryService." not in s and "qs." not in s and "new QueryService()" not in s:
+            s = s.replace("import com.legend.server.QueryService;\n", "")
+            s = re.sub(r"\n\s*private (final )?QueryService \w+ = new QueryService\(\);\n", "\n", s)
+            s = re.sub(r"\n\s*protected QueryService \w+ = new QueryService\(\);\n", "\n", s)
+        open(f, "w").write(s)
+        print("T-b", base)
+print("T-b applied")

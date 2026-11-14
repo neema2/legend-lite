@@ -1,7 +1,8 @@
 # The Tenet Charter — "Java orchestrates, the DATABASE executes"
 
 > **F0.2 of `docs/FOUNDATIONS_PLAN.md`** (2026-08-16). This document is the adjudication
-> authority for every tenet question: the `java.sql` funnel's exemption list (F1.3), the
+> authority for every tenet question: the `java.sql` funnel's exemption list (F1.3; since 2026-10-30 the JDBC
+> census register's classes, each pinned to its acts: `JdbcSurfaceCensusTest.REGISTER`, D69), the
 > host-channel invariant (F1.5), the tenet ratchet's licensed seam (F1.10), and Phase 4's
 > Java residue each cite a clause here. It restores the two charter clauses audit round 1
 > demanded (V0.2 model-space vs data-space, V0.6 the host channel) and round 2 re-demanded
@@ -25,7 +26,7 @@ Java is the driver, the transport, and the boundary. It MAY:
   headers, and schemas from the COMPILED PLAN's facts — column names, Pure types,
   multiplicities — never from inspecting values. The CSV header row, the JSON envelope,
   the TDS schema line are model-space artifacts.
-- **C1.4 — Control flow.** Statement ordering, phase sequencing, per-statement error
+- **C1.4 — Control flow** (named cases added by Clause 7, A3, 2026-11-07). Statement ordering, phase sequencing, per-statement error
   routing, retry/refusal policy — over OPAQUE results, without reading into them.
 - **C1.5 — Byte transport.** Carrying DB-rendered artifacts (a rendered CSV line, a
   DB-built JSON document) to sockets, files, and asserts untouched.
@@ -53,7 +54,7 @@ and belongs in the database:
   computed: no manufactured UUIDs, no empty collections standing in for unrecorded data,
   no `get(0)` fallbacks, no defaults that lose a type (`default -> "String"`). Absence is
   a loud `NotImplementedException`, never a plausible value.
-- **C2.5 — Rendering ruled representations.** No Java rendering of a value whose print
+- **C2.5 — Rendering ruled representations** (split into product and edge by Clause 7, A1, 2026-11-07). No Java rendering of a value whose print
   form has a REPRESENTATION RULE (float repr, date/subsecond forms, decimal scale). Those
   rules live in the SQL emission path (`Scalars.floatRepr`, `DateFmt`) and render in the
   database (Phase 4). The only exception is Clause 4.
@@ -123,7 +124,7 @@ values), and everything else walls loudly. Enforcement: the interpreter's nonexi
 Known enforcement limits are recorded in the audit's §3 — the guards catch drift, not
 adversaries; residue DELETION (the relation-typed `fetchDb` leg) is the durable fix.
 
-## Clause 4 — The literal exception, once (the LiteralFold rule)
+## Clause 4 — The literal exception, once (the LiteralFold rule; widened at compile time by Clause 7, A2, 2026-11-07)
 
 Java may answer without the database ONLY for a value that satisfies both conditions:
 
@@ -193,6 +194,22 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
      literal (`'a' + 'b'` inside a filter stays SQL). A test pins that a data-position expression is never folded.
   4. **Anything else is a clear error**, naming the expression and the fence; never a guess and never a partial fold.
   5. Every row value such a function produces is computed by the database, as today.
+- **C6.2b — A window frame's bound is structure, folded when spelled** (ruled 2026-11-04, the user: asked "Can the
+  offset arithmetic fit in our tenets? Constant fold known at compile time?", then "Agree on everything else" to this
+  wording). A frame bound decides the window's shape,
+  as a column name decides a schema (C6.2a): legend-engine evaluates the window while it plans and reads each bound as
+  the number it computed (docs/SEMANTICS_REGISTER.md S170). A library writes its window's span once over its arguments
+  (`-(timeseries::periodSpan($n, $unit) - 1)`), and once a call's literals are substituted the span is arithmetic over
+  spelled integers alone; written to the database as an expression, it costs a runtime check around every window and is
+  refused outright by MySQL and MariaDB.
+  1. **Where:** a `rows`/`_range` bound alone (`WindowFrame.Bound.of`, the checker's and the inliner's one
+     classification), never a row's value.
+  2. **What:** integer `+`, `-`, `*` and unary minus over integer literals, worked exactly (`WindowFrame.spelled`); an
+     overflow, a division, a float, a parameter, a column or any other function folds nothing and leaves the bound the
+     database's (S170).
+  3. **Then:** the frame is the literal one -- its direction the number's sign, its order checked as a literal frame's,
+     in upstream's words -- so `rows(1 - $w, 0)` with `w = 2` is `1 PRECEDING`, as upstream reads it.
+  4. **Never a row value:** the same arithmetic in any other position stays SQL.
 - **C6.3 — The prelude ships declarations only** (class/enum shapes with keys and defaults,
   native signatures), verified against the real `.pure`; the ONE body exception is a Pure
   QUERY over the platform's own system tables (no control flow on computed values, no
@@ -200,11 +217,94 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
 - **C6.4 — Residue is named, never ported**: recursion over row-backed trees (tier 2),
   effects, IO, reflection over the live graph.
 
+## Clause 7 — Amendments of 2026-11-07 (the user)
+
+Ruled by the user on 2026-11-07, with the goals of record (`docs/GOALS_OF_RECORD_2026_11_07.md`): the PRODUCT is lean and
+typed, and compatibility lives at the EDGE (that file's section 2). Where an older clause says otherwise, this clause
+wins.
+
+- **A1 — C2.5, split into product and edge.**
+  - **Product:** the product answers TYPED values and applies no Pure print rule anywhere, in Java or in SQL. A value goes
+    out in its wire format's own standard encoding: a JSON number, an ISO-8601 timestamp, an Arrow typed column.
+  - **Edge:** Pure's and legend-engine's print rules (Float layout, date precision and offset forms, decimal scale) are
+    compatibility. They are rendered at the edge, in Java where that keeps product SQL clean, in one contained place.
+    Each rule is a register row the user ruled.
+- **A2 — Clause 4 and C6.2, constant folding widened at compile time.** Besides a bare String or Boolean literal, the
+  compiler may fold `+`, `joinStrings` and `replace` over CONSTANT String tokens: a literal, a list of them, or a let
+  bound to one. This is the user's ruling of 2026-10-30, "it's okay to join CONSTANT strings only". It is pinned by
+  `JavaEvalLedgerTest.theCompilersLiteralFoldJoinsConstantsAlone`, and `LiteralsParityTest` proves it equal to the
+  database's answer. It has no run-time effect.
+- **A3 — C1.4, what exec may do beyond sending statements and streaming rows, named.** Three cases are allowed, each
+  because the alternative would make exec plan, or would put the database's work in Java (ratified as one list by the
+  user, 2026-11-12: "agree with the wording of the 3 exceptions"; the same list, in the same words, in AGENTS.md
+  invariant 3 and the total wall's start-here §5.5).
+  - **(a) Keyed regions: a statement whose shape depends on the data.**
+    - What: the dynamic pivot's columns are the distinct values of a column, unknown until the data is read. The plan
+      holds two statements: one reads the keys; the other holds a REGION, a fragment the dialect wrote at planning
+      (one pivot column's expression).
+    - At run, the runner writes that fragment once per key, in the keys' order, and binds each copy's key as a
+      parameter. A key's text is never pasted into SQL. The runner may write the key's position number where the plan
+      marks it, and nothing else.
+    - Why: SQL fixes a statement's columns in its text. The alternatives are worse. Sending the keys back to the
+      planner for a second statement would make the run plan. A database's native dynamic pivot is not portable, and
+      leaves the result's columns unknown to the plan.
+    - The user ruled it acceptable on 2026-11-07. Code: `PlanRunner.expand`; the hosts' `expandKeyed`.
+  - **(b) Planned branches: an `if` in a test body whose sides hold asserts.**
+    - What: the plan holds the condition and both sides, each fully written. The database computes the condition, one
+      Boolean. Exec runs the named side's planned statements as written, and never sends the other side.
+    - Why: Pure evaluates only the side taken, so an assert that would fail or raise in the other side must not run.
+      Folding both sides into one statement under `CASE` or `WHERE` guards would evaluate both. SQL has no portable
+      procedural `IF`.
+    - It is a test plan's step only: a product query's `if` stays the database's `CASE`.
+    - Designed 2026-11-04 (`TestPlan.Branch`, `TestRun.branch`).
+  - **(c) Declared read-backs: statements the plan's target declares, sent as written when the run needs them.**
+    - **MariaDB's and MySQL's raised error.**
+      - Why: a Pure error raised inside a query (a guard's message, `error(...)`) must reach the caller with its text.
+      - MariaDB and MySQL cannot raise an error of our text from a SELECT. `SIGNAL` runs only inside a stored program
+        (a procedure, function or trigger), and a conversion failure inside a SELECT is a warning, not an error.
+      - A stored function that SIGNALs would mean creating an object in the user's database, a DDL privilege a
+        read-only user lacks, on every database lite queries. So that is not done.
+      - Instead, the raising expression stores its message in the session variable `@legend_raise`, then fails with a
+        fixed run-time error (a scalar subquery of two rows), only when evaluated: a `CASE` branch not taken raises
+        nothing (measured).
+      - After a failure, exec sends the target's two declared statements: `SELECT @legend_raise`, then
+        `SET @legend_raise = NULL`. The reset is always sent.
+      - Plan text, counted as the session's (D4, C2, 2026-11-12; until then the connector's). Code:
+        `SqlDialect.raiseReadBack`, `JdbcStatements.held`.
+    - **H2's settings, on a session lite did not open.**
+      - Why: H2 answers some queries differently by its settings (the `MODE`, and the default null ordering). The plan's
+        target declares the settings its SQL assumes. Where lite CREATES the database (in memory, private), they
+        are written on its URL. A database the user declares (a file, a server) is never modified: its target declares
+        no settings, H2's own defaults (C's final audit, 2026-11-12: a URL setting there would persist in the user's
+        database).
+      - On a session lite did not open (a caller's, a borrowed one), the target's declared read-back statement asks the
+        DATABASE to compare them. One row comes back for each setting it has otherwise, or does not report. Any row
+        refuses the session by name. Exec carries the texts and decides nothing from them.
+      - Plan text, counted as the session's (C4, 2026-11-12). Code: `SqlDialect.databaseSettings`,
+        `JdbcStatements.verifySettings`.
+      - Whether the product needs these settings at all is being measured in D (the edge may own them).
+
+  Nothing else is allowed. A bound parameter is not an exception: it is a value the plan names, bound at its
+  placeholder. Exec writes no other SQL text:
+  - the type hole is deleted (D1, P4, 2026-11-09);
+  - the per-execution trace comment is no longer written at run (`JdbcStatements.stamped` deleted, D3, C1, 2026-11-12:
+    the execution id is a bound value, register S304);
+  - MariaDB's read-back is the plan's declared statements, not the connector's (D4, C2, 2026-11-12);
+  - MongoDB's version check, a command exec wrote itself, is deleted (C, 2026-11-12: a server before 5.0 refuses the
+    `let` field itself).
+
+  (Until C the line read PENDING for both D3 and D4, corrected 2026-11-09 by the tenets re-audit's B-3.) Exec sends no
+  statement the plan does not contain.
+- **A4 — The guards' text matches the code.** `JavaEvalLedgerTest`'s javadoc names classes that are gone, and says the
+  decode cluster computes nothing, which was false for five sites on 2026-11-07. AGENTS.md invariant 3 described the
+  type hole until 2026-11-09, when the hole was deleted (P4) and the text corrected. Both are corrected as the code
+  changes.
+
 ## Enforcement map
 
 | Clause | Mechanical enforcement |
 |---|---|
-| C1/C2 boundary | F1.3 `java.sql` funnel (+ F1.3b root class-list pin); F1.10 tenet ratchet over ResultSet-consumption sites outside the C1.2/C1.5/Clause-4 seam |
+| C1/C2 boundary | F1.3 `java.sql` funnel, its exemption the JDBC census register's classes with their acts (`JdbcSurfaceCensusTest`, one list for both guards; F1.3b, the root class-list pin, deleted 2026-10-30 as subsumed, D69), and `noJdbcTypeInAPublicSignatureOutsideTheSeam`; F1.10 tenet ratchet over ResultSet-consumption sites outside the C1.2/C1.5/Clause-4 seam |
 | C2.3 | F1.4 positive harness rule (`sortedChain()`-gated, enumerated allowlist) |
 | Clause 2c Z2 | `VerdictChannelRegisterTest` (caller file-set pin over `PureAsserts.equal*`) |
 | Clause 3 | F1.5 `HostChannelPredicateTest` |
@@ -213,6 +313,7 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
 | C6.1 | `ObservabilityGuardrailTest` string-dispatch pin; `ArchitectureTest` metamodel-channel class-list (shrinks with the toPostgresModel leg) |
 | C6.2 | `LiteralUnrollLedgerTest` — the exact fold set of `LiteralUnroll`, compare-only (lands with the residual leg) |
 | C6.2a | The schema evaluator's pinned operation list and its never-a-row-value test (lands with execution plan W4.2) |
+| C6.2b | `FrameFromParameterTest` (a spelled bound is the literal frame; a query parameter's stays the database's, checked) and `WindowFrame.spelled`, called by `Bound.of` alone |
 
 Until a clause's enforcement lands, the clause still governs adjudication — "the guard is
 not built yet" is a schedule fact, not a license.

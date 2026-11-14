@@ -7,6 +7,8 @@
 // Types only: a host's services are built by the host (src/services/browser.ts for the tab, src/services/python-host.ts
 // for Python's tab and notebook widget).
 
+import type { TsItemAnswer } from '../lite-planner.ts';
+import type { HeldConnection } from '../../../engine-client/src/duckdb.ts';
 import type { ModelHome } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
 import type { ProjectDatabases } from '../../../engine-client/src/project-data.ts';
@@ -33,6 +35,7 @@ import type { ModelWriter } from '../model-writer.ts';
 import type { PlanAndRun } from '../runner.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import type { UploadResult } from '../upload.ts';
+import type { PlannedSql } from '../../../engine-client/src/planned-sql.ts';
 
 /** Everything a host gives the app. */
 export interface Services {
@@ -146,6 +149,8 @@ export interface ModelWriting {
 export interface QueryReading {
   parse(text: string): Promise<Lambda>;
   elements(text: string): Promise<unknown[]>;
+  /** A timeseries series' #TS text, read by core (A3 step 3: the one reader): its canonical text and tree, or why not. */
+  tsItem(text: string): Promise<TsItemAnswer>;
 }
 
 /** Where queries are planned and run, and where data comes in. */
@@ -182,7 +187,9 @@ export interface LocalEngine {
   /** A project's own databases in the host's (C5, engine-client's project-data.ts): a saved query's rows by name. */
   projects(): Promise<ProjectDatabases>;
   /** Where a grid over one of the database's tables runs, its database type the model's connection names. */
-  readonly engine: QueryEngine & { readonly databaseType: string; run(sql: string, epoch: number): Promise<unknown> };
+  readonly engine: QueryEngine & { readonly databaseType: string; run(sql: PlannedSql, epoch: number): Promise<unknown>;
+    /** The database held for a write alone, one transaction (engine-client duckdb.ts exclusive: a table Output's). */
+    exclusive?<T>(work: (held: HeldConnection) => Promise<T>): Promise<T> };
   /**
    * The runtimes a source has made live in the database (live-in-tab.ts; docs/ONE_CONNECTION_DESK_2026_10_28.md step 5):
    * a runtime served here has its grids follow the live engine, each its own reader.

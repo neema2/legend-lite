@@ -1,8 +1,10 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+
 import com.legend.compiler.element.ModelContext;
-import com.legend.server.QueryService;
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -17,19 +19,18 @@ import static org.junit.jupiter.api.Assertions.*;
  * Tests the complete flow:
  * 1. Define enum in Pure source
  * 2. Store in registry via PureModelBuilder
- * 3. Execute queries through QueryService
+ * 3. Execute queries through the execution front door
  * 4. Filter and project using enum values
  */
 @DisplayName("User-Defined Enum Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class EnumIntegrationTest {
 
     private Connection connection;
-    private QueryService queryService;
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
-        queryService = new QueryService();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -307,11 +308,11 @@ class EnumIntegrationTest {
 
     // ==================== EnumDefinition Unit Tests ====================
 
-    // ==================== QueryService Integration Tests ====================
+    // ==================== Execution Integration Tests ====================
 
     @Nested
-    @DisplayName("QueryService: Full Pipeline Execution")
-    class QueryServiceTests {
+    @DisplayName("Execution.run: Full Pipeline Execution")
+    class ExecutionTests {
 
         @Test
         @DisplayName("Query with enum filter executes through full pipeline")
@@ -401,14 +402,14 @@ class EnumIntegrationTest {
                     Runtime app::TaskRuntime { mappings: [ model::TaskMapping ]; connections: [ store::TaskDB: [ environment: store::TaskConnection ] ]; }
                     """;
 
-            // WHEN: We query for PENDING tasks through QueryService
+            // WHEN: We query for PENDING tasks through Execution.run
             String pureQuery = """
                     model::Task.all()
                         ->filter({t | $t.status == 'PENDING'})
                         ->project(~[name:t|$t.name])
                     """;
 
-            var result = queryService.execute(
+            var result = Lean.run(
                     pureSource, pureQuery, "app::TaskRuntime", connection);
 
             // THEN: Both PENDING tasks are returned
@@ -503,7 +504,7 @@ class EnumIntegrationTest {
                         ->project(~[title:i|$i.title, priority:i|$i.priority])
                     """;
 
-            var result = queryService.execute(
+            var result = Lean.run(
                     pureSource, pureQuery, "app::IssueRuntime", connection);
 
             // THEN: Both HIGH and CRITICAL issues are returned
@@ -596,7 +597,7 @@ class EnumIntegrationTest {
                         ->project(~[customer:o|$o.customer, status:o|$o.status])
                     """;
 
-            var result = queryService.execute(
+            var result = Lean.run(
                     pureSource, pureQuery, "app::OrderRuntime", connection);
 
             // THEN: All orders are returned with their status values
@@ -604,9 +605,9 @@ class EnumIntegrationTest {
 
             // Verify enum values are returned as strings
             var rows = result.rows();
-            assertTrue(rows.stream().anyMatch(r -> "SHIPPED".equals(r.values().get(1))));
-            assertTrue(rows.stream().anyMatch(r -> "PENDING".equals(r.values().get(1))));
-            assertTrue(rows.stream().anyMatch(r -> "DELIVERED".equals(r.values().get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "SHIPPED".equals(r.get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "PENDING".equals(r.get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "DELIVERED".equals(r.get(1))));
         }
     }
 
@@ -708,16 +709,16 @@ class EnumIntegrationTest {
                         ->project(~[customer:o|$o.customer, status:o|$o.status])
                     """;
 
-            var result = queryService.execute(
+            var result = Lean.run(
                     pureSource, pureQuery, "app::OrderRuntime", connection);
 
             // THEN: DB codes are translated to enum values
             assertEquals(4, result.rows().size());
             var rows = result.rows();
-            assertTrue(rows.stream().anyMatch(r -> "PENDING".equals(r.values().get(1))));
-            assertTrue(rows.stream().anyMatch(r -> "SHIPPED".equals(r.values().get(1))));
-            assertTrue(rows.stream().anyMatch(r -> "DELIVERED".equals(r.values().get(1))));
-            assertTrue(rows.stream().anyMatch(r -> "CANCELLED".equals(r.values().get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "PENDING".equals(r.get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "SHIPPED".equals(r.get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "DELIVERED".equals(r.get(1))));
+            assertTrue(rows.stream().anyMatch(r -> "CANCELLED".equals(r.get(1))));
         }
 
         @Test
@@ -803,16 +804,16 @@ class EnumIntegrationTest {
                         ->project(~[name:t|$t.name, status:t|$t.status])
                     """;
 
-            var result = queryService.execute(
+            var result = Lean.run(
                     pureSource, pureQuery, "app::TaskRuntime", connection);
 
             // THEN: Both P and PEND map to PENDING, both D and COMPLETE map to DONE
             assertEquals(4, result.rows().size());
             long pendingCount = result.rows().stream()
-                    .filter(r -> "PENDING".equals(r.values().get(1)))
+                    .filter(r -> "PENDING".equals(r.get(1)))
                     .count();
             long doneCount = result.rows().stream()
-                    .filter(r -> "DONE".equals(r.values().get(1)))
+                    .filter(r -> "DONE".equals(r.get(1)))
                     .count();
             assertEquals(2, pendingCount, "P and PEND should both map to PENDING");
             assertEquals(2, doneCount, "D and COMPLETE should both map to DONE");

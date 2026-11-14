@@ -130,7 +130,7 @@ public final class StoreResolver {
         this.specs = Objects.requireNonNull(specs, "specs");
         this.sources = new ClassSources(ctx, specs);
         this.constructed = new ConstructedInstances(ctx, sources);
-        sources.setConstructedRows(constructed::rowsFor);
+        sources.setConstructedRows(constructed::rowsFor, constructed::parametersFor);
         this.synthetics = new SyntheticHeads(ctx);
         // an EMPTY frame until the op-chain phase constructs the real one —
         // pre-resolution consumers (lift walkers, resolveNode shape checks)
@@ -168,6 +168,7 @@ public final class StoreResolver {
     public List<TypedSpec> resolve(List<TypedSpec> body,
             @com.legend.base.Nullable String driverRuntimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn) {
+        com.legend.base.RunScope.planning("resolve a body");
         return resolve(body, driverRuntimeFqn, explicitMappingFqn,
                 List.of());
     }
@@ -178,6 +179,7 @@ public final class StoreResolver {
             @com.legend.base.Nullable String driverRuntimeFqn,
             @com.legend.base.Nullable String explicitMappingFqn,
             List<String> chainMappings) {
+        com.legend.base.RunScope.planning("resolve a body");
         // LAZY: runtime consulted only when a class fetch needs a
         // mapping; the runtime rides ALONGSIDE an explicit mapping
         // (self-sourced M2M upstream needs the candidate set)
@@ -314,6 +316,26 @@ public final class StoreResolver {
     // =====================================================================
     // The context walk
     // =====================================================================
+
+    /** An ANCHORED if(): a RUNTIME condition choosing between two VALUES (a primitive or an enum of at most one --
+     *  never a class, a relation or a collection, which no CASE can choose between) resolves part by part and the
+     *  database decides it, CASE WHEN
+     *  (2026-11-07, the DuckDB judges' parity: upstream's getQualifiedTableName, {@code if($t.schema.name ==
+     *  'default', ...)} over a metamodel table, in a test helper's assert message the host judge plans); any other
+     *  needs a condition decidable at planning ({@link #resolveStaticIf}). */
+    private TypedSpec anchoredIf(TypedIf i, Context context) {
+        if (LiteralFolds.staticBool(i.condition()) == null && !i.info().multiplicity().isMany()
+                && (i.info().type() instanceof Type.Primitive || i.info().type() instanceof Type.EnumType)) {
+            return structural(i, context);
+        }
+        TypedSpec st = resolveStaticIf(i, context);
+        if (st == null) {   // pre-gate: silent null for non-static if
+            throw new com.legend.error.NotImplementedException(
+                    "class-typed if with a non-static condition"
+                    + " is not supported yet");
+        }
+        return st;
+    }
 
     /** if() over class queries: the condition must be STATICALLY
      * decidable — the chosen branch's thunk body resolves. */
@@ -454,15 +476,7 @@ public final class StoreResolver {
                                 p.info()), context),
                         p.info());
             }
-            case TypedIf i -> {
-                TypedSpec st = resolveStaticIf(i, context);
-                if (st == null) {   // pre-gate: silent null for non-static if
-                    throw new com.legend.error.NotImplementedException(
-                            "class-typed if with a non-static condition"
-                            + " is not supported yet");
-                }
-                yield st;
-            }
+            case TypedIf i -> anchoredIf(i, context);
             // size()/count() over a class extent = row count (engine
             // emits select count(*)); classExtentCount projects ONE const
             case TypedNativeCall nc
@@ -671,6 +685,9 @@ public final class StoreResolver {
                             new java.util.LinkedHashSet<>(l.parameters()),
                             r -> resolveNode(r, context)), r -> resolveNode(r, context)));
             case com.legend.compiler.spec.typed.TypedFrameRef fr -> fr;   // leg 3.4 step 2: a planned frame's reference is resolved already
+            // a relation read over a reloaded slice's rows (B2d.2): its source resolved, the swap kept for the lowering
+            case com.legend.compiler.spec.typed.TypedTableSwap ts ->
+                    ts.withChildren(List.of(resolveNode(ts.source(), context)));
             // The NAMED wall: an ANCHORED variant with no arm — loud, never
             // a silent pass-through; a USER CALL wrapper names its CALLEE
             // (§8 leg 4: the census buckets by function).
@@ -1653,10 +1670,31 @@ public final class StoreResolver {
         // restores the caller's temporal frame on exit (T1.3 class kill)
         TemporalFrame caller = temporal;
         try {
-            return resolveObject(top, context);
+            return engineExecuteCardinality(top, resolveObject(top, context));
         } finally {
             temporal = caller;
         }
+    }
+
+    /** A serialize the result-envelope splice marked as an engine
+     * {@code execute(...)}'s values ({@code TypedSerialize
+     * .engineExecuteCardinality}) resolves to a graph carrying the same mark:
+     * the engine JsonBuilder's cardinality rule (exactly one object
+     * serializes bare), COMPATIBILITY ONLY — lite's own serialize results
+     * stay arrays (the user's ruling, 2026-11-03: "the right clean thing in
+     * lite, the backward-compatible thing in compatibility mode"). A serialize
+     * terminal always resolves to its graph; anything else is a resolver bug,
+     * loud (Invariant 4: the mark is never dropped silently). */
+    private static TypedSpec engineExecuteCardinality(TypedSpec top, TypedSpec resolved) {
+        if (!(top instanceof TypedSerialize sz) || !sz.engineExecuteCardinality()) {
+            return resolved;
+        }
+        if (!(resolved instanceof TypedSerializeGraph g)) {
+            throw new IllegalStateException("resolver bug: a serialize marked with the engine"
+                    + " execute() cardinality resolved to " + resolved.getClass().getSimpleName()
+                    + ", not its graph");
+        }
+        return g.withEngineExecuteCardinality();
     }
 
     /**

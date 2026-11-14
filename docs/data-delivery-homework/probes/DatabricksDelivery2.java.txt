@@ -1,0 +1,170 @@
+// The data: delivery probe, round 2, for Databricks (the user, 2026-11-11: "Check if we want to do same for Databricks
+// bounded param for json now too so at least the cloud ones are consistent"). Snowflake and BigQuery take a data:
+// payload as ONE bound parameter the database splits (round 2's probes: SnowflakeDelivery2, BigQueryDelivery2). This
+// asks the same of Databricks, which today takes a session table (DatabricksDataTable.java.txt).
+// Usage: javac DatabricksDelivery2Probe.java && java -cp <the Databricks JDBC driver's jars>:. DatabricksDelivery2Probe '<jdbc url>' [user] [password]
+// (connect exactly as the lane's tests do; where that needs a credential the lane may not read, run it through the
+// lane's own harness -- TestBackends.named("databricks").openSystem() -- as the Snowflake lane did; never print a
+// credential or a URL that holds one).
+// It asks:
+//   A. the payload as ONE bound parameter split by the database: (1) variant_explode(parse_json(?)) and (2)
+//      posexplode(from_json(?, 'array<string>')) with each element parsed: the quote, the line break, the order, the
+//      empty array, nested and typed values; and whether the driver binds the parameter beside the statement or
+//      writes it into the text (a large payload's refusal names a text limit if so);
+//   B. the cost and the size limit of each form, for 2, 1,000, 10,000 and 100,000 records: inline VALUES, a session
+//      table (lite's form today: CREATE TEMPORARY TABLE, 1,000-row INSERTs of parse_json, read, DROP TEMPORARY TABLE IF
+//      EXISTS), and the parameter forms. Each prints its milliseconds, its statement's characters, a refusal's first line.
+// Change nothing in the repository; report the whole output.
+import java.sql.*;
+import java.util.*;
+
+public class DatabricksDelivery2Probe {
+    static final String T = "legend_data_probe2";
+    static final String EXPLODE = "SELECT pos, value FROM variant_explode(parse_json(?))";
+    static final String POSEXPLODE = "SELECT pos, parse_json(e) AS value FROM (SELECT posexplode(from_json(?, 'array<string>')) AS (pos, e))";
+
+    public static void main(String[] a) throws Exception {
+        try (Connection c = open(a); Statement s = c.createStatement()) {
+            for (int i = 0; i < 3; i++) {
+                query("0 SELECT 1", s, "SELECT 1");
+            }
+            query("0 the runtime", s, "SELECT current_version()");
+
+            // A
+            String two = "[{\"t\":\"it's\"},{\"t\":\"a\\nb\"}]";
+            String typed = "[{\"n\":1.50,\"o\":{\"k\":\"v\"}},{\"n\":null,\"o\":{}}]";
+            for (String[] form : new String[][] {{"variant_explode", EXPLODE}, {"posexplode", POSEXPLODE}}) {
+                param("A1 " + form[0], c, "SELECT to_json(value), pos, value:t::string FROM (" + form[1] + ") ORDER BY pos", two);
+                param("A2 " + form[0] + ", empty", c, "SELECT to_json(value), pos FROM (" + form[1] + ") ORDER BY pos", "[]");
+                param("A3 " + form[0] + ", nested and typed", c, "SELECT value:n, schema_of_variant(value:n), value:o.k::string, pos FROM ("
+                        + form[1] + ") ORDER BY pos", typed);
+            }
+
+            // B
+            for (int n : new int[] {2, 1000, 10000, 100000}) {
+                List<String> el = elements(n);
+                String array = "[" + String.join(",", el) + "]";
+                StringBuilder v = new StringBuilder();
+                for (int i = 0; i < n; i++) {
+                    v.append(i > 0 ? ", " : "").append("('").append(lit(el.get(i))).append("', ").append(i).append(')');
+                }
+                String inline = "SELECT count(*), sum(data:id::int), max(ord) FROM (SELECT parse_json(col1) AS data, col2 AS ord FROM VALUES "
+                        + v + " AS t(col1, col2))";
+                query("B n=" + n + " inline (" + inline.length() + " chars)", s, inline);
+
+                long t0 = System.nanoTime();
+                boolean ok = step("B n=" + n + " table make", s, "CREATE TEMPORARY TABLE " + T + " (data VARIANT, ord INT)");
+                for (int from = 0; ok && from < n; from += 1000) {
+                    StringBuilder ins = new StringBuilder("INSERT INTO " + T + " VALUES ");
+                    for (int i = from; i < Math.min(n, from + 1000); i++) {
+                        ins.append(i > from ? ", " : "").append("(parse_json('").append(lit(el.get(i))).append("'), ").append(i).append(')');
+                    }
+                    ok = quiet("B n=" + n + " table fill at " + from, s, ins.toString());
+                }
+                query("B n=" + n + " table read", s, "SELECT count(*), sum(data:id::int), max(ord) FROM " + T);
+                step("B n=" + n + " table drop", s, "DROP TEMPORARY TABLE IF EXISTS " + T);
+                System.out.println("B n=" + n + " table total :: " + (System.nanoTime() - t0) / 1_000_000 + " ms");
+
+                param("B n=" + n + " variant_explode (" + array.length() + " chars bound)", c,
+                        "SELECT count(*), sum(value:id::int), max(pos) FROM (" + EXPLODE + ")", array);
+                param("B n=" + n + " posexplode (" + array.length() + " chars bound)", c,
+                        "SELECT count(*), sum(value:id::int), max(pos) FROM (" + POSEXPLODE + ")", array);
+            }
+        }
+    }
+
+    /** n records: a quote, an escaped line break, a number and a decimal in each. */
+    static List<String> elements(int n) {
+        List<String> out = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            out.add("{\"id\":" + i + ",\"name\":\"n'" + i + "\",\"note\":\"a\\nb\",\"x\":" + i + ".5}");
+        }
+        return out;
+    }
+
+    /** A Databricks string literal's body: a backslash and a quote each escaped with a backslash ('' is two literals). */
+    static String lit(String s) {
+        return s.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    static Connection open(String[] a) throws SQLException {
+        return a.length > 1 ? DriverManager.getConnection(a[0], a[1], a.length > 2 ? a[2] : null) : DriverManager.getConnection(a[0]);
+    }
+
+    static boolean step(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try {
+            s.execute(sql);
+            System.out.println(what + " :: ok :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + shortSql(sql));
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms " + first(e) + " :: " + shortSql(sql));
+            return false;
+        }
+    }
+
+    static boolean quiet(String what, Statement s, String sql) {
+        try {
+            s.execute(sql);
+            return true;
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + first(e) + " :: " + sql.length() + " chars");
+            return false;
+        }
+    }
+
+    static void query(String what, Statement s, String sql) {
+        long t0 = System.nanoTime();
+        try (ResultSet r = s.executeQuery(sql)) {
+            System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static void param(String what, Connection c, String sql, String payload) {
+        long t0 = System.nanoTime();
+        try (PreparedStatement p = c.prepareStatement(sql)) {
+            p.setString(1, payload);
+            try (ResultSet r = p.executeQuery()) {
+                System.out.println(what + " :: " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + rows(r));
+            }
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED after " + (System.nanoTime() - t0) / 1_000_000 + " ms :: " + first(e));
+        }
+    }
+
+    static List<List<String>> rows(ResultSet r) throws SQLException {
+        List<List<String>> out = new ArrayList<>();
+        int n = r.getMetaData().getColumnCount();
+        while (r.next() && out.size() < 20) {
+            List<String> row = new ArrayList<>();
+            for (int i = 1; i <= n; i++) {
+                row.add(r.getString(i));
+            }
+            out.add(row);
+        }
+        return out;
+    }
+
+    static String first(SQLException e) {
+        return String.valueOf(e.getMessage()).split("\n")[0];
+    }
+
+    static String shortSql(String sql) {
+        return sql.length() > 300 ? sql.substring(0, 300).replace('\n', ' ') + "... (" + sql.length() + " chars)" : sql.replace('\n', ' ');
+    }
+}
+
+// MEASURED 2026-11-11 by the Databricks lane from 8a959be45 (databricks-jdbc 3.4.3, dbsql_version 2026.44), connected
+// as the lane's harness does (CloudLane.openSystem); no SQL line changed. The answers:
+//   A. Both forms -- variant_explode(parse_json(?)) and posexplode(from_json(?, 'array<string>')) -- keep the quote, the
+//      line break, the order (pos 0, 1), the empty array (no row), nested values and types (1.50 a DECIMAL(2,1) 1.5,
+//      null a VOID). The driver binds the parameter BESIDE the statement (the refusal below is a parameter limit and
+//      the statement shows its ?): "Parameterized query's parameters are too large: the combined size of parameters is
+//      5566677, exceeding the limit of 1048576 characters" -- 1 MiB of parameter characters.
+//   B.   records    inline VALUES          session table (today's form)   variant_explode(?)   posexplode(?)
+//        2          537 ms                 9,666 ms                       344 ms               511 ms
+//        1,000      472 ms                 4,147 ms                       365 ms               374 ms
+//        10,000     1,173 ms               14,066 ms                      557 ms               626 ms
+//        100,000    4,205 ms (6.96M chars) 133,808 ms                     REFUSED (over 1 MiB) REFUSED (over 1 MiB)

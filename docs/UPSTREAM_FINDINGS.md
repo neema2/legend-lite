@@ -5,14 +5,15 @@ Defects and limitations found by building the L0 asserted corpus
 the smallest source that reproduces it, and each says plainly whether the fault is in
 legend-engine, in legend-lite, or in the corpus itself.
 
-Reproduce any of them with:
+Reproduce any of them with (since 2026-10-21; the Maven-era runner is gone):
 
 ```
-cd tools/engine-runner && mvn -o compile -q
-java -cp target/classes:$(cat cp.txt) perf.TestableMain <files...> [--testable=<fqn>] [--dump=<dir>]
+bazel run //tools/engine-runner:testable -- <files...> [--testable=<fqn>] [--dump=<dir>]   # a repro's own files
+bazel run //scripts/corpus:run -- --only <file of service names> [-v]                     # corpus services, judged
 ```
 
-Engine version: `4.138.2`.
+Engine version when this file was written: `4.138.2`. The corpus now runs at the release `release.MODULE.bazel` pins
+(`4.145.0` on 2026-10-21), the one version every test uses.
 
 **legend-lite's own gaps are executable, not prose.**
 `core/src/test/java/com/legend/integration/LegendLiteGapTest.java` asserts the CURRENT
@@ -510,6 +511,12 @@ between them is two lines.
 Quarantined as `stress::M2_CanonicalWithEnum`. `stress::M1_TradeCanonical` deliberately
 omits the enum so the M2M invariance itself stays verified rather than being masked.
 
+**Not every path through a chain** (added 2026-10-30, the improvement plan's Phase 5). A source object PASSED THROUGH
+an M2M mapping and fetched as a graph keeps the translation: `stress::MX_TradeLinkTier` reads a relationally mapped
+counterparty's enumeration-mapped `tier` through the chain and gets the enum value, as its relational twin does. M2 is
+a projection of a transform that copies the enum-typed property; whether a graph fetch of that transform translates
+is not yet measured.
+
 **Worth noting alongside F10.** That was an unmapped code behaving differently across
 execution paths; this is a *mapped* code not being applied on one of them. Enumeration
 mappings appear to be handled per-path rather than once, and each path has its own answer.
@@ -700,6 +707,28 @@ constraint on the class makes it unusable for object-shaped reads.
 **Fifth in the execution-path family** (F10, F12, F13, F15, F16). The others were about
 the ANSWER differing; this one is about whether the mapping is legal at all.
 
+## F24 — A DateTime keeps its UTC offset through a TDS projection and loses it through a graph fetch
+
+Found 2026-08-14 by the generated graph-fetch trees (`scripts/corpus/graphs.py`, 788837524). One column of one row,
+through one mapping, serializes two ways: a projection answers `"2024-06-03T09:07:00.000000000+0000"`, a graph fetch
+`"2024-06-03T09:07:00.000000000"`. Of the sixty trees generated then, the ten that held a DateTime anywhere failed, and
+only those. Pinned by the `GG_` trees `scripts/corpus/quarantine.py` lists under F24; `quarantine.check_f24` holds that
+list to exactly the trees that project a DateTime, in both directions. Repro: `scripts/corpus/repro/timestamp-graphfetch/`
+(`repro::ts::Projected`, the control, passes; `repro::ts::Fetched` fails; confirmed at 4.145.0 on 2026-11-02, when the
+repro gained the two services its header had only described). Another of the execution-path family (F10, F12, F13,
+F15, F16). Its entry here was missing until 2026-11-02 (the PR #87 review, finding 4).
+
+## F29 — A graph fetch of exactly one row serializes `values` as an object, not a one-element array
+
+Found 2026-08-15 by the corpus without aiming at it (5dbb0f85d): a seed change left one generated graph-fetch service,
+`GG_PortfolioTree`, with a single row, and it began failing while its siblings passed. The query shape, the mapping
+and the serialization are the same: two rows give `values` an array, one row a bare object, so a consumer that reads
+`values` as a list breaks the day a filter narrows it to one. Repro: `scripts/corpus/repro/graphfetch-single-row/`
+(`demo::SingleRowTree` beside `demo::TwoRowTree`, which passes; confirmed at 4.145.0 on 2026-11-02). No service of
+the corpus pins it now:
+`GG_PortfolioTree` left on 2026-08-15 (7cb3a0cb9), and its quarantine entry stayed until 2026-11-02, when the PR #87
+review found it and this missing entry (finding 4).
+
 ---
 
 ## Non-findings, recorded so they are not re-investigated
@@ -710,9 +739,26 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   comparison of the dumped payloads. A corpus using this harness therefore **cannot**
   assert ordering, only which rows survive `->sort()->limit()`. `oracle.evaluate` refuses
   any case where a tie straddles the limit boundary, for exactly this reason.
+- **A graph fetch checks the constraints of every object it reaches, and an unchecked one raises on any
+  defect, a `Warn`'s too** (4.145.0, probed 2026-10-31, the stress corpus plan's Phase 8). The fetch reads every
+  property a constraint reads, at the root and at each subtree whose class is not already on the path from the root
+  (`ensureConstraintsRequirements`), and checks each object of that tree against each constraint whose properties its
+  subtree holds (the Java binding's `createConstraintCheckingForTree`): a basket's fetch carries its line's defect
+  with the path `[{lines, 0}]`, a line's its basket's (`[{basket, null}]`) and its basket's desk's. Under
+  `graphFetchChecked` each object is `{defects, value}`, a relational fetch with no `source`; under `graphFetch` the
+  generated `withConstraintsApplied` throws an `IllegalStateException` of the defects' messages when there is any,
+  whatever its enforcement level. Recorded as the engine's behaviour, not a defect: nothing in the pinned sources
+  says a `Warn` should not stop an unchecked fetch. `oracle._defects` evaluates the same rule, and the corpus fetches
+  unchecked only objects with no defect (`scripts/corpus/checks.py`).
 - **Timestamps render as `2024-06-03T19:00:00.000000000+0000`**, dates as `2024-06-03`.
   Not a defect — but undocumented anywhere we could find, and the difference between the
   two is the whole reason 8 of 12 services failed on the first calibrated run.
+- **A DECIMAL column's value is written at the column's scale** (4.145.0, probed 2026-10-31, the stress corpus plan's
+  Phase 8): under `PURE_TDSOBJECT` a Float property read from `DECIMAL(18,4)` comes back as `8.0000`, one from
+  `DECIMAL(18,2)` as `666400.00`, and a value computed from one at the database's scale for the arithmetic
+  (`-666400.000`), where a `DOUBLE` column's is Java's `Double.toString` (`8.0`). `EqualToJson` compares numbers by
+  value, so no expectation before noticed; an `EqualTo` of the text does. The corpus's EqualTo services read their
+  doubles from `DOUBLE` columns alone (`scripts/corpus/shapes.py`).
 - **A graph-fetch result is not a bare array.** `serialize()` wraps it as
   `{"builder":{"_type":"json"},"values":[...]}`. Not a defect, but an expectation written
   as a bare array fails with both sides looking identical for the first 300 characters.
@@ -971,7 +1017,18 @@ the ANSWER differing; this one is about whether the mapping is legal at all.
   pinned defect. Both are kept apart from `stress::H_Issuer` so the embedded-property
   coverage on the same class stays green.
 
-- **`!=` is the only comparison that keeps a row whose operand is NULL.** Filtering
+- **WITHDRAWN 2026-10-23 (F28): not a defect.** legend-pure defines a comparison over an absent value as false --
+  `greaterThan(left:Number[0..1], right:Number[1])` is `$left->isNotEmpty() && ...`, documented "a missing value
+  never satisfies the comparison" -- and `==` as collection equality, so `[] == 'x'` is false and `[] != 'x'`, its
+  negation, is true. Keeping the NULL row for `!=` and dropping it for `==` and `>` is therefore exactly Pure's rule,
+  and the "but then `>` should not be excluding it either" below is where the reasoning went wrong. The improvement
+  plan's Phase 1 probed `!`, `||`, `in` and `!=` over NULLs on 4.145.0 before writing predicate trees, and every
+  answer followed Pure's definition; legend-lite lowers it the same way (`NullSemantics`, after the engine's
+  `processNotEqual`). The oracle followed SQL's three-valued logic and was the side that was wrong: it now compares as
+  Pure does (`oracle._cmp`; a store's join conditions and Filters, which are SQL, keep SQL's rule), `CB_NotEqualsNull`
+  is out of quarantine, and `repro/not-equals-null/` shows the rule rather than a defect. The original entry follows.
+
+  **`!=` is the only comparison that keeps a row whose operand is NULL.** Filtering
   `demo::Thing.all()->filter(t | $t.name != 'none')` over a table where one row has a NULL
   `NAME` returns that row. The same query with `==` excludes it, and so does an ordered
   comparison (`>`). Those three cannot all be right:
@@ -1148,6 +1205,9 @@ date independently of the engine, which is what this corpus does.
 
 `repro/dayofyear-is-dayofmonth/` asserts 155 and currently fails.
 
+**Still so at 4.145.0, in a query too (2026-10-28, the improvement plan's Phase 4 adjudication).**
+`$x.d->map(v|$v->dayOfYear())` answers 3 for 2024-06-03 and 9 for 2024-06-09, where Pure answers 155 and 161.
+
 ## F36 — Five functions are in `getSupportedFunctions()` and cannot be executed
 
 Probing each registered function in a real property mapping turns up five that are listed and
@@ -1191,6 +1251,16 @@ and drops whatever the engine names, so a refusal identifies itself instead of f
 
 ## F37 — `substring` computes a different answer in SQL than in Pure
 
+**The property-mapping half WITHDRAWN 2026-10-29: not a defect.** A relational mapping's `substring(T.S, 2, 4)` is
+the relational dynafunction, which every dialect extension writes as SQL's `SUBSTRING` (one-based, the third argument
+a length); legend-pure's `substring` is a different function of the same name, zero-based with an exclusive end. The
+engine itself treats them so: `pureToSQLQuery`'s `processSubstr` converts a query's Pure `substring` into the
+dynafunction's arguments, as `processSplitPart` does for `splitPart`. The user took that reading for `splitPart`
+(the improvement plan's D9) and then for `substring`, so `stress::F37_SubstringSql` now asserts `lpha` and passes,
+the oracle reads a mapping's `substring` as SQL's (`oracle._sql_substring`) and a query's as Pure's
+(`oracle.QUERY_IMPL`), and the combination matrix writes `substring` cells again. **What stands** is a query's
+`substring` answering SQL's: a TDS `extend` does (below, `stress::VT_ExtendString`). The original entry follows.
+
 `substring('alpha', 2, 4)` returns **`ph`** evaluated in memory and **`lpha`** pushed into
 SQL. Both run in this engine, on the same string, with the same arguments.
 
@@ -1226,6 +1296,21 @@ defect becomes a specification. It is worth separating the two questions: whethe
 the behaviour is a compatibility decision, but the current state is that one function name
 means two different things depending on where the planner decides to evaluate it, and
 nothing in the model says which one a given query will get.
+
+**At 4.145.0 a query's `substring` is Pure's; a property mapping's is still SQL's (2026-10-28, the improvement plan's
+Phase 4 adjudication).** `pureToSQLQuery.pure` now carries `processSubstr` ("Pure indexes are 0-based with an
+exclusive end; SQL's are 1-based with a length"), so `$x.s->map(v|$v->substring(1, 3))` answers `'lp'` for 'alpha',
+as Pure does. A relational property mapping's `substring(T.S, 2, 4)` is still passed through and answers `'lpha'`, so
+`F37_SubstringSql` stays quarantined. The corpus's oracle had its own error here, found by the same adjudication: it
+read substring as one-based with an exclusive end (`'lp'` for `(2, 4)`), agreeing with neither; it now reads
+legend-pure's definition.
+
+
+**In a TDS `extend` it is still SQL's (2026-10-28, the improvement plan's Phase 4, stage 4).** The same query
+written both ways answers differently: a Relation `extend(~[digits:r|$r.id->substring(4)])` answers `'0001'` for
+'TRD-0001', as Pure does, and a TDS `extend([col(r|$r.getString('id')->substring(4), 'digits')])` answers
+`'-0001'`, SQL's one-based reading. Pinned by `stress::VT_ExtendString` (quarantined); `VR_ExtendString` passes. Repro:
+`scripts/corpus/repro/substring-tds-extend/` (`RelationExtend` passes; `TdsExtend` fails).
 
 ## F38 — `firstDayOfWeek` returns a DateTime through a StrictDate property
 
@@ -1263,6 +1348,12 @@ has run.
 
 Related to F24, where the same DateTime differs between TDS projection and graph fetch. Both
 say the same thing: serialization follows the execution path, not the declared type.
+
+**Still so at 4.145.0, in a query too (2026-10-28, the improvement plan's Phase 4 adjudication).** Projected in a
+query, `$x.d->map(v|$v->adjust(5, DurationUnit.DAYS))` and `$x.d->map(v|$v->firstDayOfWeek())` over a DATE column
+render `2024-06-08T00:00:00.000000000+0000` and `2024-06-03T00:00:00.000000000+0000`; the values are right (a Sunday's
+week starts on the Monday before). `today()` renders the same way. `adjust` over a TIMESTAMP is a DateTime and
+renders as one, so it agrees with Pure.
 
 ## F39 — `startsWith`/`endsWith`/`contains` are false for every row when the pattern is a column
 
@@ -1417,6 +1508,12 @@ probe works rather than a new defect.
 The seed's third parent owns no children for exactly that reason. Every aggregate-shaped
 collection function differs between an empty and a populated collection, and F6 lives only
 there — a probe with three well-populated parents would have found none of it.
+
+**At 4.145.0, four more are not applied (2026-10-28, the improvement plan's Phase 4 adjudication).** The probe had
+recorded `greatest`, `least`, `and` and `or` as disagreeing. Each returns one row per CHILD, as `first` and `sortBy`
+do, so the parents with children are not reduced at all, and the parent with none gets NULL where Pure's
+`greatest([])` is empty, `and([])` true (a fold from `true`) and `or([])` false. `count`, `map(...)->sum()` and
+`joinStrings` still answer 1, NULL and NULL over the empty parent (F6).
 
 `repro/collection-over-tomany/`.
 
@@ -1573,6 +1670,11 @@ result against an independently computed one. These three cannot agree with the 
 construction — they read the clock — but the probe still runs them, and the SHAPE of the
 disagreement is what surfaced this.
 
+**Still so at 4.145.0, in a query too (2026-10-28, the improvement plan's Phase 4 adjudication).** Projected in a
+query, each of the three is the same reflected object, its offset the zone of the machine running the engine
+(`-04:00` for October's first day and `-05:00` for January's, in New York). `today()` is a string, but a DateTime
+one (`2026-10-28T00:00:00.000000000+0000`), where its declared type is StrictDate (F38's shape).
+
 ## F49 — An inherited association cannot be navigated from a subtype set
 
     meta::pure::router::store::routing::Void not supported!
@@ -1679,7 +1781,22 @@ inequality is the discriminator.
 `->count()` over the identical end returns six rows, so it is `isEmpty` specifically rather
 than aggregates in general.
 
-Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`.
+**Reached through milestoning (2026-10-28, the improvement plan's Phase 3).** A milestoned
+to-many navigated over a range of versions, `$x.limitAllVersionsInRange(a, b)->isEmpty()`,
+duplicates the same way: the range adds `IN_Z <= b and OUT_Z > a` to the association's
+equality, so the join is no longer a single key equality. `$x.limitAllVersions->isEmpty()`, the
+same join without the range, is right, and so is `count()` over the range:
+
+| join | `isEmpty()` |
+| --- | --- |
+| `DESK.LIMIT_ID = LIMIT_PT.LIMIT_ID` (every version) | correct |
+| the same `and LIMIT_PT.IN_Z <= b and LIMIT_PT.OUT_Z > a` (versions in a range) | duplicates |
+
+Pinned by `stress::ITN_NoLimitInRange` (quarantined); `ITN_LimitVersionsInRange` counts the
+same range and passes.
+
+Repro: `repro/self-join-aggregate/`, `scripts/corpus/probe_ineq_aggregate.py`,
+`scripts/corpus/repro/milestoned-range-isempty/`.
 
 ## F52 — Both ends of a `{target}` self-join return the same set
 
@@ -1729,6 +1846,12 @@ obvious declaration for a percentage -- it had never been written.
 Workaround: `FLOAT` or `DOUBLE`.
 
 Repro: `repro/real-column-type/`, `scripts/corpus/probe_column_types.py`.
+
+2026-10-31, the improvement plan's Phase 9: `OTHER` fails the same way ("Match failure: OtherObject instanceOf
+Other"), so DuckDB cannot create 66-store-surface.pure's `SURFACE_TYPES`, which declares both. Its semi-structured
+column is read by TDS services, which run their tests on H2; the Relation services, which run theirs on DuckDB, read a
+table of their own (`scripts/corpus/semi.py`). With `REAL`, `OTHER`, `ARRAY`, `BINARY` and `VARBINARY` all removed the
+table loads; the last three were not tried one at a time.
 
 ## F54 — A qualified property that concatenates fabricates a value on a broken chain
 
@@ -1911,7 +2034,526 @@ legend-pure's m4 `DateFunctions` defines the time units as elapsed time with the
 counting boundaries", and `DateDiff` computes `ChronoUnit.between`. legend-engine's relational SQL counts boundaries
 (SQL `DATEDIFF`: 164), as did this repository's corpus oracle until 2026-10-05; legend-lite answers 163. legend-pure's
 PCT cases all start on a unit boundary, where the two rules agree, so no PCT test catches the engine. Five stress
-services show it (their expectations now follow Pure; legend-engine's are in `ENGINE_QUARANTINE`, to be confirmed by
-`run.py`). First noted as a seed disagreement (`docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`);
+services show it (their expectations now follow Pure; legend-engine's are in `ENGINE_QUARANTINE`, and `run.py`
+confirmed all five failing on 4.145.0 on 2026-10-21). Three since 2026-10-27: the stress corpus plan's Phase 2 gave
+the two `DSLocal_` services a real comparand and a limit that cuts, and neither keeps a row the rules disagree on now,
+so both pass on the engine. First noted as a seed disagreement (`docs/plan-audit-2026-09-26/wrongrows/seed-disagreements-2026-09-30.md`);
 found decisive 2026-10-05 when the cross-engine differential first ran (Bazel workplan P3-18). Repro:
 `repro/datediff-hours-off-boundary/`. Upstream: a PCT case starting off the boundary would pin it for every engine.
+
+## F59 — The service test runner keeps every test's pooled connection, and each later test's data setup slows
+
+Not a wrong answer: a cost, found 2026-10-21 when the corpus first ran through the Bazel launcher (`run.py`, the
+improvement plan's Phase 0). legend-engine 4.145.0's `TestableRunner`, run over many services in one JVM, keeps one
+pooled DuckDB connection per test. After 2 and then 9 services sharing `stress::RT`, a heap histogram held one Hikari
+pool with 3 and then 10 `PoolEntry`s, and 108 and then 237 `DuckDBPreparedStatement`s. The test-data setup, which runs
+when a test takes its connection (`DuckDBDataSourceSpecification.getConnection`), took longer each time: twelve DSDeep
+services took 5.1, 2.4, 3.5, 4.6, 6.9, 8.6, 14.1, 20.4, 25.1, 29.4, 34.1 and 38.4 s, one after another, and a batch of
+40 ran for over 40 minutes. DuckDB alone does not slow: 1,200 setup statements take 0.25 s on a fresh database, on the
+same database twelve times over, and with thirty databases open. legend-engine's own test helpers close the pools
+between tests (`ConnectionStateManager.getInstance().clearAllConnections()`, in `PureTestHelper` and
+`Test_RelationalMFTH2`), and `TestableMain` now does the same after every testable: the same twelve took 1.7 to 4.5 s
+each. The pool is also what `run.py`'s batches of 40 worked around (`Connection is not available, request timed out
+after 30001ms (total=100)`). Repro: delete the `clearAllConnections()` call in
+`tools/engine-runner/src/main/java/perf/TestableMain.java` and run those twelve services
+(`DSDeep_RequestForInformation` to `DSDeep_RiskAppetiteMetric` in `94-fanout-services.pure`).
+
+## F60 — On Windows, legend-engine's DuckDB `cbrt` is not correctly rounded
+
+Found 2026-10-21 by the corpus's first full engine run on Windows (the improvement plan's Phase 0); corrected and
+settled 2026-10-23. Three combination cells (`stress::CB_C0`, `CB_C2`, `CB_C4`, in `98-combination-execution.pure`)
+projected `cbrt` of the seeded Float `325.0` (`COMBO_ROOT.R_F_NN1` and `R_F_NL1`, row `CR-0004`). The true cube root,
+6.8753443353707050538, lies 0.44 ulp above the double `6.875344335370705` (`0x1.b805a43f49fc7p+2`) and 0.56 ulp below
+the next one, `6.8753443353707056` (`…fc8`). The first is the correctly rounded result, and it is what the oracle
+(`exactmath.cbrt`) and Java's `Math.cbrt` return. legend-engine 4.145.0 on DuckDB returned the second, so its exact
+`EqualToJson` failed; every other cell of those rows matched. DuckDB 1.4.4 (lite's) called directly on this Windows
+x64 desk returns `…fc8` too, as do Python's `math.cbrt` and Java's `StrictMath.cbrt`: the platform's `cbrt` is within
+an ulp but not correctly rounded, as `exactmath`'s header already says of glibc's. lite returns the same `…fc8` and
+passed only under its one declared Float leniency (two doubles within 2 ulp, `Equality.withinTwoUlp`). The earlier
+engine runs were on macOS arm64, where the three passed. (This entry first named the input `324.99999999999994` and
+the error 1.01 ulp. Both came from a probe on the wrong input, for which the oracle and the platform return the same
+two doubles.)
+
+**Settled 2026-10-23 by the plan's D6, option (a):** the corpus's twelve `cbrt` cells read perfect cubes
+(`combos.seed_cubes`, the `*_CU_NN1` and `*_CU_NL1` columns), so the true root is a double, which a `cbrt` within an
+ulp must return. The roots are now whole numbers, and the three pass on Windows. They still test `cbrt`, though not
+its last bit. The upstream fact stands: a platform's `cbrt` may miss the last bit. Repro: `SELECT cbrt(CAST(325.0 AS
+DOUBLE))` in DuckDB on Windows x64 gives `6.8753443353707056`.
+
+**Reopened 2026-11-01 by the corpus's first engine run on Linux, and settled again:** a whole-number root is not
+enough, so D6 (a)'s premise was wrong. glibc's `cbrt` is not exact on perfect cubes. Measured in WSL (glibc 2.35, x86-64)
+it misses 83 of the integer roots 2 to 200: `cbrt(216.0)` is `6.000000000000001` and `cbrt(27.0)` is
+`3.0000000000000004`. On ubuntu-latest (`.github/workflows/engine-verdict.yml`, run 41322461475) seven cells failed:
+`stress::CB_C0`, `CB_C1`, `CB_C2`, `CB_C4`, `CB_C12`, `CB_C14` and `CB_C15`. Those are exactly the cells whose expected
+rows held one of the missed roots 6, 9, 12, 15, 17 or 18. The Windows CRT returns all 199 roots exactly, and glibc and
+the CRT both return every power of two exactly (2^1 to 2^29 measured), so `combos.seed_cubes` now writes the cubes of
+2^1 to 2^15 and its check requires them. Repro: `python3 -c "import ctypes; m = ctypes.CDLL('libm.so.6'); m.cbrt.restype =
+ctypes.c_double; m.cbrt.argtypes = [ctypes.c_double]; print(m.cbrt(216.0))"` on Linux x86-64 prints
+`6.000000000000001`; the root DuckDB's `cbrt` gives there is the C library's.
+
+## F61 — A Decimal literal is rounded to 16 fractional digits in the SQL
+
+**A wrong answer, silently.** Found 2026-10-23 by the improvement plan's Phase 1 (typed constants), which seeds
+Decimals a double cannot tell apart. legend-engine 4.145.0 writes a Decimal literal into SQL as `cast(<literal> as
+<type>)` with the type `genericTypeToDataType` gives Decimal (`core_relational`'s `pureToSQLQuery.pure`), which is
+`DECIMAL(32,16)`. A literal with more fractional digits is rounded to 16 before it is compared:
+`$x.amount == 1.000000000000000001D` over a `DECIMAL(38,18)` column matches the row holding `1.000000000000000000`
+and not the one holding `1.000000000000000001`, and `$x.amount > 1.000000000000000001D` keeps the row equal to the
+literal. The same comparison with the value as a `Decimal` parameter is bound exactly and is right, and a literal
+within scale 16 (`1.0000000000000001D`) is kept exactly. A literal with more than 16 integer digits would not fit
+the cast either. Pinned by `stress::TL_AmountScale18_Eq_Root` (quarantined) beside its parameter twin
+`TP_AmountScale18_Eq_Root` (passes). The matrix's Decimal services compare against `1.0000000000000001D`, within
+scale 16, so they test the comparison and not this. Repro: `scripts/corpus/repro/decimal-literal-scale/`.
+
+## F62 — A `Number` service parameter fails with a NullPointerException
+
+Found 2026-10-23 by the improvement plan's Phase 1. A service whose parameter is typed `Number` errors in every
+test on legend-engine 4.145.0: `NullPointerException: Cannot invoke "java.util.List.stream()" because
+"parameterValidationContext" is null`, at `FunctionParametersParametersValidation.validate`. Number is not one of
+the engine's external parameter types (`FunctionParameterTypeValidator`: String, Boolean, Integer, Float, Decimal,
+Date, StrictDate, DateTime, Byte, and enumerations through a validation context), so the type validator is null
+and the code falls through to a context list the service test runner never supplies; given one, it would answer
+"Unknown external parameter type: Number". So it is a refusal reached by a crash rather than by its message.
+legend-pure has no Number literal, but a Number parameter is how a query takes "an Integer or a Float". Pinned by
+the matrix's twelve Number parameter twins, `stress::TP_Metric_{Eq,Ne,Lt,Le,Gt,Ge}_{Root,Hop}` (quarantined); their
+literal twins `TL_Metric_*` pass. Repro: `scripts/corpus/repro/number-parameter/` (a Float parameter beside it
+passes).
+
+## F63 — A StrictTime literal or parameter in a relational query fails plan generation
+
+Found 2026-10-23 by the improvement plan's Phase 1. The relational grammar has no TIME column type, so a StrictTime
+property reads a VARCHAR, and projecting it works. Comparing it does not, on legend-engine 4.145.0: a literal
+(`$x.cutoff == %17:30:00`) fails with `Match failure: ClassInstanceHolderObject instanceOf ClassInstanceHolder` at
+`pureToSQLQuery.pure` line 8856, and a parameter (`{p: StrictTime[1]|...}`) with `Cannot cast a collection of size
+0 to multiplicity [1]` at `duckdbExtension.pure` line 24. The engine's sources say as much: `core_relational`'s and
+`core_relational_duckdb`'s Pure-type-to-SQL-type maps carry `// pair(|$path == 'StrictTime', |fail('not supported
+yet!'))` commented out, and StrictTime is not an external parameter type. legend-pure gives StrictTime only `==` and
+`!=` (no `greaterThan` or `lessThan` takes one), so that is the whole comparison surface. Pinned by
+`stress::TL_Cutoff_{Eq,Ne}_{Root,Hop}` and `TP_Cutoff_{Eq,Ne}_{Root,Hop}` (quarantined); the controls
+`TV_TimeAndOctet_Root` and `TV_TimeAndOctet_Hop` project the StrictTime properties and pass. Repro:
+`scripts/corpus/repro/stricttime-relational/`.
+
+## F64 — Inside a negated `||` or `&&`, an equality over an absent value is read as SQL's UNKNOWN
+
+**A wrong answer, silently.** Found 2026-10-23 by the improvement plan's Phase 1 (predicate trees). legend-pure
+compares an absent value as false -- `[] == 0` and `[]->in([0, 7])` are false -- so for a row whose `n` and `f` are
+NULL, `!(($x.n == 0) || ($x.f > 100.0))` is `!(false || false)`, true, and the row is kept. legend-engine 4.145.0
+drops it. It guards an ordered comparison over a nullable column (`N is not null and N > 100`), and it rewrites a
+`!` applied directly to an equality into `<> ... or ... is null`, so `!($x.n == 0)` keeps the row; but an equality
+or an `in` inside a negated `||` or `&&` reaches SQL bare, `NOT (N = 0 OR ...)`, which is UNKNOWN for the row and
+filters it out. One absent equality is enough: `stress::TQ_AndNotOr_Root`, `$x.rateOpt > 0.0 && !(($x.nameOpt ==
+'alpha') || ($x.gradeOpt == WATCH))`, loses TV-07, whose name is present and grade absent. The same query asked
+one way keeps the row and asked another way drops it, so the engine is inconsistent with itself as well as with
+Pure. Pinned by `stress::TQ_NotOr_Root`, `TQ_NotOr_Hop` and `TQ_AndNotOr_Root` (quarantined); the trees that negate
+an equality directly, or negate only `!=` and ordered comparisons, pass (`TQ_NotEq_*`, `TQ_NotOrNe_*`,
+`TQ_NotAnd_*`). Repro: `scripts/corpus/repro/negated-composite-equality/` (its `NotEq`, the direct form, passes).
+
+## F65 — An enumeration parameter under `!=` or `!in` drops the rows whose value is absent
+
+**A wrong answer, silently.** Found 2026-10-23 by the improvement plan's Phase 1 (parameter twins). `$x.gradeOpt !=
+typedvalues::Grade.STANDARD` keeps the rows whose grade is absent, as legend-pure defines `!=` (`TL_Grade_Ne_Root`
+passes). The same query with the value as a parameter, `{p: typedvalues::Grade[1]|... $x.gradeOpt != $p ...}`, drops
+them on legend-engine 4.145.0, and so does `!$x.grade->in($p)` with an enumeration list parameter and `!($x.grade
+== $p)`. A String or an Integer parameter under `!=` keeps the absent rows, so the loss is the enumeration
+parameter's: whatever maps it to its codes loses the `or ... is null` arm the literal gets. A row whose code has no
+mapping entry is kept either way. Pinned by `stress::TP_Grade_Ne_Root`, `TP_Grade_Ne_Hop` and `TM_Grade_NotIn_Hop`
+(quarantined) beside their literal twins, which pass. Repro: `scripts/corpus/repro/enum-parameter-negation/`.
+
+## F66 — An XStore association mapping does not compile once its class has a milestoned property
+
+Found 2026-10-28 by the improvement plan's Phase 3. Its first version gave `trading::Trade` a milestoned
+association (to a processing-temporal book limit), and legend-engine 4.145.0 stopped compiling the corpus:
+`Error in 'external::EntityMapping': Size must be 1 but was 0`, an `IllegalStateException` from `getOnly()` at
+`PropertyMappingBuilder.visit(XStorePropertyMapping)`. `external::EntityMapping` maps the XStore association between
+Trade and `external::LegalEntity`; the new association was not in it, and mapped nowhere at all it does the same.
+To find the class mappings an XStore property joins, the compiler takes as candidates the class's
+`_originalMilestonedProperties()` when it has any, and its `_propertiesFromAssociations()` only otherwise
+(`PropertyMappingBuilder.java`, line 180). Once Trade has one milestoned property, the XStore end `legalEntity` is
+not a candidate, no class mapping is found, and the mapping fails; since one mapping's failure stops the model
+compiling, every service fails with it. Either of two milestoned associations on Trade was enough, and with both
+removed the corpus compiled. The corpus now navigates milestoned classes from classes of their own
+(`intraday::LimitCheck`, `intraday::ValuationRun`), so no service pins it. Repro:
+`scripts/corpus/repro/xstore-milestoned-property/` (`base.pure` alone compiles and its XStore graph fetch passes;
+with `milestoned.pure`, an unmapped processing-temporal class and an association to it, it does not compile).
+
+## F67 — A connection's `timezone` never reaches a service test
+
+Not a wrong answer: a limit on what a service test can show, found 2026-10-28 by the improvement plan's Phase 3,
+which probed a connection with `timezone` before writing any service that depends on one (the plan asked for a
+probe because legend-engine #5341 reverted its time-zone fixes). Read through a connection declaring `timezone:
+'America/New_York';`, a TIMESTAMP the database holds as `2024-06-03 08:00:00` comes back as
+`2024-06-03T08:00:00.000000000+0000` on legend-engine 4.145.0, as it does with no time zone, and a DateTime literal
+is compared unconverted: `$x.updatedAt < %2024-06-04T00:00:00` keeps a row at 23:30 New York time, 03:30 UTC on the
+4th. The engine's DuckDB SQL generator converts a literal into the zone it is given
+(`duckdbExtension.pure`, `convertDateToSqlStringDuckDB`), but the service test runner replaces the connection with
+one built from the store and its test data alone, and `RelationalConnectionFactory.buildH2TestConnection` and
+`buildDuckDBTestConnection` copy no `timeZone`. So whatever the setting does on a real connection, a service test
+cannot observe it, and the corpus writes no service that depends on a connection's time zone. A zoned TIMESTAMP
+column, the plan's other time-zone probe, has no type in the pinned grammar (`RelationalDataType` has `TIMESTAMP`
+and `DATE` only) and waits for the bump (the plan's D3). Repro: `scripts/corpus/repro/connection-timezone-test/`
+(`Utc` passes; `NewYorkRead` and `NewYorkLiteral` return the unconverted answers).
+
+## F68 — A function reached through `map` over an absent value is applied to SQL's NULL
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4, adjudicating the functions the
+probes recorded as disagreeing. legend-pure's `map` over an empty collection is empty, so `$x.s->map(v|f($v))` is
+absent for a row whose `s` is absent, whatever `f` is. legend-engine 4.145.0 lowers the `map` over a to-one property
+to `f` applied to the column, so wherever `f`'s SQL answers a NULL argument with a value, the absent row gets that
+value: `$x.s->map(v|$v + 'z')` gives `'z'` (DuckDB's `concat` reads NULL as ''), and a filter
+`$x.s->map(v|$v + 'z') == 'z'` keeps the row, where Pure's `[] == 'z'` is false; `map(v|$v->regexpIndexOf('p'))`
+gives `-1` (the lowering's `CASE WHEN regexp_matches(...) ... ELSE -1`); and `map(v|$v->hashCode())->isEmpty()` is
+false, the hash of a NULL being a number. A function whose SQL propagates the NULL (`length`, `toUpper`) gives the
+right answer. `->toOne()->f()` lowers identically, where Pure would raise. Pinned since Phase 4's stage 2 by
+`stress::VN_PlusString` and `VN_RegexpIndexOf` (quarantined), beside their `VP_` twins over the required
+property, which pass. Repro:
+`scripts/corpus/repro/map-over-absent/` (`Length` passes; `Append`, `AppendFilter`, `IndexOf` and `HashIsEmpty` fail).
+
+**Five more functions meet it (2026-10-29, the improvement plan's Phase 4, stage 6).** Through `map` over an absent
+value, `toUpperFirstCharacter` and `toLowerFirstCharacter` answer `''` (legend-engine's Pure bodies, inlined in the
+query, concatenate `left(1)` with `substr(1)`), `[$v, 7]->greatest()` and `least()` answer 7 (SQL's `GREATEST` and
+`LEAST` skip a NULL, where Pure's absent value never reaches them), and `between(0, 42)` answers false (its body's
+`>=` and `<=`, each false over an absent operand). Pinned by `stress::VN_ToUpperFirstCharacter`,
+`VN_ToLowerFirstCharacter`, `VN_Greatest`, `VN_Least` and `VN_Between` (quarantined); each function's `VP_` and `VF_`
+over the required property pass.
+
+## F69 — On DuckDB, `regexpIndexOf` reports where the matched text first occurs, not where the match is
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 adjudication. legend-engine defines
+`regexpIndexOf(string, regexp)` as the zero-based position at which the pattern first matches, so `'abab'` with
+`'b$'` is 3. legend-engine 4.145.0's DuckDB SQL has no `regexp_instr` to call: it extracts the matched text (`'b'`)
+and finds it with `strpos`, which answers the first `'b'`, at 1. Whenever the text a pattern matches also occurs
+before the match, the position is too early. The lowering's own comment names the gap (`duckdbExtension.pure`,
+`transformRegexpIndexOf`: "that differs from the true match position when the same text occurs earlier in the
+string"), so this records it with a repro rather than discovers it. Repro:
+`scripts/corpus/repro/regexpindexof-text-position/` (`FirstMatch` passes; `AnchoredMatch` answers 1).
+
+## F70 — `regexpExtract` that matches nothing returns the empty string, not nothing
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 adjudication. legend-engine's
+`regexpExtract(string, regexp, extractAll):String[*]` returns nothing when the pattern does not match, so
+`'alpha'->regexpExtract('b.', false)->isEmpty()` is true. legend-engine 4.145.0's DuckDB SQL is `regexp_extract`,
+which answers `''` for no match, so `isEmpty()` is false, a filter on it drops the row, and a projected
+`->first()` is `''` where Pure has nothing. A match is right (`'abab'` gives `'ba'`). Repro:
+`scripts/corpus/repro/regexpextract-no-match/` (`Matches` passes; `NoMatchIsEmpty` and `NoMatchFilter` fail).
+
+## F71 — Integer arithmetic over an INTEGER column is 32-bit in the SQL
+
+**A failure where Pure has an answer.** Found 2026-10-28 by the improvement plan's Phase 4 (the function vocabulary,
+over `typedvalues::TypedValue`, whose `QUANTITY` is an `INTEGER` holding -2147483648 and 2147483647). legend-pure's
+`Integer` is a 64-bit value, so `abs(-2147483648)` is 2147483648, `2147483647 + 1` is 2147483648, and `floor(1e10)`
+is 10000000000. legend-engine 4.145.0 computes each in a 32-bit type and DuckDB raises: `Overflow on
+abs(-2147483648)`, `Overflow in addition of INT32 (2147483647 + 1)!`, and for `floor` over a `DOUBLE` a cast of
+10000000000.0 "out of range for the destination type INT32" -- the lowering casts `floor`'s result to `INTEGER`.
+`ceiling(1e10)` is not cast and is right. Pinned by `stress::VP_AbsInteger`, `VN_AbsInteger`, `VF_AbsInteger`,
+`VP_PlusInteger`, `VN_PlusInteger`, `VP_Floor`, `VN_Floor` and `VF_Floor` (quarantined); `VF_PlusInteger` passes.
+Repro: `scripts/corpus/repro/integer-arithmetic-32-bit/` (`Small` passes; `Abs`, `Plus` and `Floor` raise).
+
+## F72 — `indexOf` in a query is SQL's `strpos`: one-based, and 0 for a miss
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4. legend-pure defines `indexOf` as
+"the zero-based position of the first occurrence of `toFind` in `str`, or `-1` if it does not occur", so
+`'alpha'->indexOf('p')` is 2 and `'beta'->indexOf('z')` is -1. legend-engine 4.145.0 answers 3 and 0. The same
+query's `substring` is Pure's at the pin (F37's addendum), so two position functions of one query count from
+different bases. The oracle had read `indexOf` as `strpos` too, one-based with 0 for a miss, and the probes, which
+ran it in a property mapping, recorded agreement; it now reads legend-pure's definition. Pinned by `stress::VP_IndexOf`,
+`VN_IndexOf` and `VF_IndexOf` (quarantined). Repro: `scripts/corpus/repro/indexof-strpos/` (both services fail).
+
+## F73 — `round` takes a tie away from zero, where legend-pure rounds it to the even neighbour
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4. legend-pure's
+`round(Number[1]):Integer[1]`: "Rounding is half-even ... `17.5` rounds to `18` but `16.5` rounds to `16`".
+legend-engine 4.145.0's DuckDB SQL is `round()`, which takes a tie away from zero: 0.5 gives 1, 2.5 gives 3 and 10.5
+gives 11, where Pure gives 0, 2 and 10 (-1.5 gives -2 either way). The oracle had refused every half-way value, as
+"dialects differ" there; a query asks legend-pure's question, so it now answers it. Pinned by `stress::VP_Round` and
+`VN_Round` (quarantined); `VF_Round`, whose comparand no tie reaches, passes. Repro:
+`scripts/corpus/repro/round-half-even/` (`NotATie` passes; `Ties` fails).
+
+## F74 — `dayOfWeekNumber` counts from Sunday in the SQL, where legend-pure counts from Monday
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4. legend-pure's one-argument
+`dayOfWeekNumber(Date[1]):Integer[1]` is ISO: its own tests have `DayOfWeek.Monday->dayOfWeekNumber()` 1 and Sunday
+7, and its Sunday-first overload is `dayOfWeekNumber($day)->mod(7) + 1`. legend-engine 4.145.0's DuckDB SQL is
+`dayofweek(d) + 1`, written for "Sunday = 0, Saturday = 6 >> we need from 1 to 7", so a Monday is 2 and a Sunday 1.
+The oracle had followed the engine's lowering, by its own comment, which made the agreement circular; it now reads
+legend-pure's definition. Pinned by `stress::VP_DayOfWeekNumber`, `VN_DayOfWeekNumber` and `VF_DayOfWeekNumber`
+(quarantined). Repro: `scripts/corpus/repro/dayofweeknumber-sunday-first/`.
+
+## F75 — In a groupBy, `sum` and `joinStrings` over a group whose values are all absent answer NULL, not 0 and ''
+
+**WITHDRAWN 2026-10-29: not a defect.** legend-engine's `groupBy` is a native, and both of its Pure runtimes drop
+the absent values and answer nothing for a group with none left, without handing the reducer an empty collection:
+the compiled `RelationNativeImplementation.performMapReduce` (`subList.removeIf(Objects::isNull); ... subList.isEmpty()
+? null : reduce...`) and the interpreted `AggregationShared`. PCT `test_Extend_Filter_Select_Pivot_GroupBy_Extend_Sort`
+asserts it for `plus()` (`UK,3000,null`), and neither the core manifests nor DuckDB's exclude it; the legacy TDS
+groupBy's body does the same (`tds.pure`: `if ($vals->isEmpty(), | ^TDSNull(), ...)`). So the engine's NULL is
+legend-engine's definition, and the reasoning below, that the group "reduces an empty collection", is where it went
+wrong. The improvement plan's D8, which had made the oracle's group-by `sum` 0 over nothing, was reversed by the user
+on that evidence: such a group's aggregate is absent, its `count` 0. The 28 services left quarantine and pass on the
+engine, and `repro/aggregate-over-nothing/` shows the rule. The original entry follows.
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 (stage 3, the aggregates). A
+relation groupBy's map is `{T[1]->K[0..1]}`, so an absent value maps to nothing and a group whose values are all
+absent reduces an empty collection. legend-engine's Pure defines `sum` as `$numbers->plus()`, 0 over nothing, and
+legend-pure's `joinStrings` is `''` over nothing; `count` is 0. legend-engine 4.145.0's DuckDB SQL is `SUM` and
+`STRING_AGG`, which are NULL over no values (`COUNT` is 0, and agrees). The oracle's group-by `sum` had followed SQL
+(its `IMPL["sum"]`, used by the probes, was already 0); it now reads the Pure definition, so 24 grouped totals
+written before Phase 4 change their expectation from null to 0 and are quarantined with this finding
+(`stress::DSAgg_*`, `DSGroup_CashFlow`, each over a navigation that lands on nothing for one group). Pinned by
+`stress::VGN_SumQuantity`, `VGN_SumRate`, `VGN_SumAmount` and `VGN_JoinStringsName` (quarantined); their groups with
+values agree, and `VGN_CountName` passes. Repro: `scripts/corpus/repro/aggregate-over-nothing/` (`Count` passes;
+`Sum` and `JoinStrings` fail on the all-absent group alone).
+
+## F76 — In a groupBy, the sample variance and standard deviation of one value answer NULL, not 0
+
+**A wrong answer, silently.** Found 2026-10-28 by the improvement plan's Phase 4 (stage 3). legend-engine's Pure
+`variance(numbers, isBiasCorrected)` is `if ($numbers->size() == 1, | 0, ...)`, and `varianceSample`,
+`stdDevSample` (its square root) and the population forms all go through it, so each is 0 over one value.
+legend-engine 4.145.0's DuckDB SQL is `VAR_SAMP` and `STDDEV_SAMP`, which are NULL over one value (`VAR_POP` and
+`STDDEV_POP` are 0 there, and agree). Pinned by `stress::VGS_VarianceSampleQuantity` and `VGS_StdDevSampleQuantity`
+(quarantined), whose segment A holds one row; `VG_` and `VGN_` of both, over groups of six and nine, pass. Repro:
+`scripts/corpus/repro/sample-variance-of-one/` (`Population` passes; `Sample` fails on the group of one).
+
+## F77 — A window `count` over a partition is written as a grouped COUNT, and the database refuses it
+
+**An execution error.** Found 2026-10-28 by the improvement plan's Phase 4 (stage 4, the relation shapes).
+`extend(over(~[d]), ~[w:{p,w,r|$r.n}:y|$y->count()])` puts the number of each partition's values on every row, as
+the same window's `sum` and `max` put their total and greatest. legend-engine 4.145.0 writes the sum as `SUM(...)
+OVER (PARTITION BY ...)` and the count as a bare `count(...)` with no `OVER`, so DuckDB rejects the statement:
+"column ... must appear in the GROUP BY clause or must be part of an aggregate function". The TDS form,
+`olapGroupBy(['d'], func('n', y|$y->count()), 'w')`, is written as a window and passes. Pinned by
+`stress::VR_WindowCount` (quarantined); `VR_WindowSum`, `VR_WindowMax` and `VT_WindowCount` pass. Repro:
+`scripts/corpus/repro/window-count/` (`WindowSum` passes; `WindowCount` errors).
+
+## F78 — `bitShiftLeft` of a negative Integer errors on DuckDB
+
+**An execution error.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 5, the scalars stage 2 left out).
+legend-pure's `bitShiftLeft(arg:Integer[1], n:Integer[1]):Integer[1]` is Java's `<<` on a long, so
+`-1->bitShiftLeft(1)` is -2. legend-engine 4.145.0's DuckDB SQL is `(cast(%s as BIGINT) << cast(%s as BIGINT))`,
+and DuckDB refuses a negative left operand: "Out of Range Error: Cannot left-shift negative number -1". Every
+service whose rows hold a negative Integer errors, whatever its other rows: `stress::VP_BitShiftLeft`,
+`VN_BitShiftLeft` and `VF_BitShiftLeft` (quarantined). `bitShiftRight` over the same rows passes. Repro:
+`scripts/corpus/repro/bitshiftleft-negative/` (`Positive` passes; `Negative` errors).
+
+## F79 — `parseDecimal` in a query keeps three fractional digits
+
+**A wrong answer, silently.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 5). legend-pure's
+`parseDecimal(string:String[1]):Decimal[1]` reads every digit of the string. legend-engine 4.145.0's SQL is
+`cast(%s as decimal)` (`transformParseDecimal`, used by DuckDB), and DuckDB reads a DECIMAL with no precision as
+DECIMAL(18,3): `'12345678.123456789012345678'` parses as 12345678.123, `'1.0000000000000002'` as 1.000 and
+`'-0.000000000000000001'` as 0.000. The two-argument form, `parseDecimal(s, precision, scale)`, writes the precision
+and is not affected. Pinned by `stress::VP_ParseDecimal` and `VN_ParseDecimal` (quarantined); `VF_ParseDecimal`,
+whose comparand survives the rounding, passes. Repro: `scripts/corpus/repro/parsedecimal-scale/` (`ThreeDigits`
+passes; `MoreDigits` fails).
+
+## F80 — A window's `lag` or `lead` with an offset other than 1 answers the row 1 away
+
+**A wrong answer, silently.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 6, the last PCT names).
+legend-engine's Pure defines `lag($w, $r, $offset)` as `offset($w, $r, -$offset)` and `lead` as `offset($w, $r,
+$offset)`: the row that many places before or after in the window's order. legend-engine 4.145.0's
+`processOffset` (`pureToSQLQuery.pure`) reads only the offset's sign and writes `lag(col)` or `lead(col)` with no
+second argument, so SQL takes its default of 1: `lag($r, 2)` answers the previous row. Pinned by `stress::VR_Lag2`
+(quarantined), over the trades of each trade date ordered by notional; `VR_Lag`, `VR_Lead` and `VR_Nth` pass. Repro:
+`scripts/corpus/repro/lag-offset/` (`Lag` passes; `Lag2` and `Lead2` fail).
+
+## F81 — A `let` inside a column lambda fails in the router
+
+**An execution error.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 6). A column lambda of two
+statements, `r:x|let q = $x.g; $q + '!';`, binds the row's value and extends it; legend-pure evaluates it as
+`$x.g + '!'`. legend-engine 4.145.0 fails before any SQL is written: "Execution error at
+(resource:/core/pure/router/routing/router_routing.pure line:609 column:101), Cannot cast a collection of size 2 to
+multiplicity [1]", the lambda's two statements taken for one value. The braced form, `r:{x|let q = $x.g; $q +
+'!';}`, fails the same way, and a `let` at the top of the query passes (`stress::VC_LetInteger`, `VC_LetDate`). Pinned
+by `stress::VC_LetColumn` (quarantined). Repro: `scripts/corpus/repro/let-in-column/` (`TopLet` passes; `LetColumn`
+and `LetColumnBraces` error).
+
+## F82 — `sum` over a to-many navigation that lands on nothing answers NULL, not 0
+
+**A wrong answer, silently.** Found 2026-10-29 by the improvement plan's Phase 4 (stage 6). `$x.trades->map(t|
+$t.notional)->sum()` is legend-pure's collection `sum`, `plus()` of the values, 0 over an empty collection. legend-engine
+4.145.0 writes the navigation as an outer join with `SUM` over it, and SQL's SUM of no rows is NULL, so a book with no
+trades totals null. The path form without `map` (`$x.children.v->sum()` in the repro) answers the same. Not F75's case (withdrawn): a groupBy's
+native never reduces an empty group, where this is a plain Pure function over an empty collection, as `count()` is in
+F6. Pinned by `stress::VC_MapSumTrades` (quarantined), whose six books with no trades total null; the three with
+trades agree. Repro: `scripts/corpus/repro/sum-over-empty-to-many/` (`IsEmpty` passes; `MapSum` and `PathSum` fail on
+the parent with no children).
+
+## F83 — A literal list in a relational property mapping or join fails at test setup
+
+**Not a wrong answer: a construct that cannot execute.** Found 2026-10-29 by the improvement plan's Phase 7, which
+gave the corpus's two literal lists services. The relational grammar writes a list as `[a, b]`, as a dynafunction's
+argument: `coalesce([[db]T.V, [db]T.K])`, `in([db]T.K, ['K1', 'K3'])`. legend-engine 4.145.0's parser wraps each
+element in a protocol `Literal` whose value is the parsed element itself, a `TableAliasColumn` or another `Literal`
+(`RelationalParseTreeWalker`, its `LiteralList` branch), and the compiler copies those values unconverted into the
+metamodel (`HelperRelationalBuilder`, its `LiteralList` branch: `convertLiteral(l.value)`, which converts only an
+Integer). The model compiles; SQL generation then meets a Java object and the test session fails to start: `ERROR
+unhandled type for value: ...TableAliasColumn` for the coalesce, `...Literal` for the `in`. The same `coalesce`
+written with two arguments and no list passes. Pinned by `stress::UO_LiteralListCoalesce` and `UO_LiteralListIn`
+(quarantined), which assert the answers SQL's `coalesce(V, K)` and `K IN ('OB-0001', 'OB-0004')` give. Repro:
+`scripts/corpus/repro/literal-list-mapping/` (`Plain` passes; `Coalesce` and `In` fail at "Error initializing test
+suite session").
+
+**A join's condition too** (added 2026-10-29, Phase 7's stage 3, which gave the corpus's unused joins services). The
+compiler builds a join's operation through the same branch, so `Join j_ArrayArg(in(J1.N, [1, 2, 3]) and J2.K = J1.K)`
+(`70-surface-store2.pure`) fails the same way, and an Integer list as much as a String one: the parser's element for
+`1` is itself a `Literal`, which the list wraps in a second, and `convertLiteral` receives the inner `Literal`, not an
+Integer. Pinned by `stress::UJ_JoinArrayArg` (quarantined), which asserts the answer `J1.N IN (1, 2, 3)` gives; the
+repro's `JoinPlain`, the same join with no list, passes, and `JoinIn`, under `in(D.N, [1, 3])`, fails with
+`...Literal`.
+
+## F84 — Fetched as a graph over a ModelChainConnection, a source class's derived property reads as absent
+
+**A wrong answer, silently, or an execution error.** Found 2026-10-30 by the improvement plan's Phase 5, whose M2M
+pack chains Pure mappings over relational ones through a `ModelChainConnection`. An M2M transform that reads a DERIVED
+property of its source class, `ref: $src.ref` where the source declares `ref() { $this.dealId + ':' + $this.currency }`,
+answers it correctly when the target is projected (a TDS: the chain inlines the transform into the source's SQL), and
+not when it is fetched as a graph (the source graph is fetched, then transformed in memory). legend-engine 4.145.0
+answers a String-typed derived property null for every row, and fails on a primitive one: "Error instantiating property
+'age' ... Cannot invoke java.lang.Long.longValue() because the return value of java.util.Map.get(Object) is null". The
+same expression written in the transform itself, `$src.first->toUpper()`, is fetched correctly, and so is a stored
+property. A relational graph fetch of a derived property serializes it under the key `shout()`, with its parentheses,
+which may be where the transform's read misses; that is observed, not traced in the source. Pinned by
+`stress::MX_TradeRefTree` (quarantined); `MX_TradeRef`, the same transforms projected, passes. Repro:
+`scripts/corpus/repro/m2m-derived-source-graphfetch/` (`DerivedTds` and `InlineGraph` pass; `DerivedGraph` answers
+null; `DerivedGraphInteger` fails).
+
+## F85 — In an M2M transform, `^Class(prop = a + b).prop` answers `a`
+
+**A wrong answer, silently.** Found 2026-10-30 by the improvement plan's Phase 5. A transform may instantiate a class
+with `^` and read a value back from it, as EMIT's target-instantiation model does (`instantiate($src.i).j`). legend-engine
+4.145.0 keeps only the first operand of a concatenation given as the new object's property: `^Box(label = $src.name +
+'!').label` answers 'n1' for the name 'n1', and `^m2m::Stamp(text = $src.dealId + ':' + $src.currency).text` the deal
+id alone, where `$src.name + '!'` written without the `^` answers 'n1!', and a function's result given to `^`
+(`$src.name->toUpper()`) is kept. Not the chain's: the repro's source is JSON, through a `JsonModelConnection`. Pinned
+by `stress::MX_TradeStampJoined` (quarantined); `MX_TradeStampTree`, whose `^` arguments are a function's result, a
+property and a literal, passes. Repro: `scripts/corpus/repro/m2m-new-concatenation/` (`S_Plain` and `S_NewFunction`
+pass; `S_NewConcatenation` answers the name alone).
+
+## F86 — An M2M merge over a ModelChainConnection fails before it runs
+
+**Not a wrong answer: a construct that cannot execute.** Found 2026-10-30 by the improvement plan's Phase 5. Phase 7
+found that legend-engine merges instances only in an M2M graph fetch; its own merge tests run over
+`JsonModelConnection`s (`core/store/m2m/tests/legend/merge.pure`). Over a `ModelChainConnection`, with the merged
+sets' source classes mapped relationally, legend-engine 4.145.0 fails at test setup: "Execution error at
+(resource:/core/store/m2m/chain.pure line:245 column:103), Cast exception: MergeOperationSetImplementation cannot be
+cast to PureInstanceSetImplementation". `chain.pure`'s `reprocess` casts every set it routes through to a Pure instance
+set, so an Operation set over a chain fails there: projected, a merge and a union both fail so; fetched as a graph a
+union runs (`stress::MX_TicketTree` passes) and a merge does not. Two `ModelChainConnection`s in one runtime, which
+would put the merge inside the chain as `mergeObjectsModelChainMapping` does, are refused outright ("Multiple
+ModelChainConnection's not supported yet!"), so a merge over relational data has no form that runs. Pinned by
+`stress::MX_PartyProfileTree` (quarantined), a merge of two Pure sets over two source classes of COUNTERPARTY joined
+on their key. Repro: `scripts/corpus/repro/m2m-merge-chain/` (`OneSet`, one of the sets alone, passes; `Merged` fails).
+
+## F87 — Projected over a ModelChainConnection, an M2M enumeration transform of an absent code answers ''
+
+**A wrong answer, silently.** Found 2026-10-30 by the improvement plan's Phase 5. An M2M enumeration transform,
+`side: EnumerationMapping M2MCodes: $src.code`, applied to a code the source does not have: legend-pure's transform of
+nothing is nothing, and legend-engine 4.145.0 answers so when the target is fetched as a graph, and when the source's
+own relational enumeration mapping of the column is projected. Projecting the M2M target (a TDS: the chain inlines the
+transform into the source's SQL) answers the empty string. An unmapped code answers '' the same way there, where the
+graph fetch raises ("Unmapped value: X"). Pinned by `stress::MX_PartyGrade` (quarantined), whose counterparty CP-0004
+has no rating; `MX_PartyGradeTree`, the same transform fetched, passes. Repro: `scripts/corpus/repro/m2m-absent-enum-tds/`
+(`RelationalTds` and `M2mGraph` pass; `M2mTds` answers '' for T3).
+
+## F88 — A relation-API projection over a class mapped from a grouped relation fails
+
+**Not a wrong answer: a construct that cannot execute.** Found 2026-10-30 by the improvement plan's Phase 6. A relation
+class mapping whose source relation groups (`~func f():Relation<Any>[1]`, `f` ending in
+`->groupBy(~[G], ~[S: x | $x.V : y | $y->sum()])`, EMIT's relation-group-by) runs when its class is projected as a TDS,
+`C.all()->project([x|$x.g, x|$x.s], ['g', 's'])`, and when the grouped relation is queried directly. Projected through
+the relation API, `C.all()->project(~[g:x|$x.g, s:x|$x.s])`, legend-engine 4.145.0 sends SQL DuckDB refuses: "Binder
+Error: GROUP BY term out of range - should be between 1 and 2", the bound being the grouped relation's column count
+(three with two aggregates). A class mapped from a filtered relation projects through the relation API, so it is the
+group-by under that projection. With the runtime's connection declared H2 the same DuckDB binder error comes back and
+the TDS projection passes. Pinned by `stress::RM_BookTotalsRelation` (quarantined), relmap::RmBookTotal's books
+projected through the relation API; `RM_BookTotals`, the same as a TDS, passes. Repro:
+`scripts/corpus/repro/relation-groupby-project/` (`Tds`, `Direct` and `Filtered` pass; `Relation` errors).
+
+## F89 — A lambda written with braces cannot appear in a mapping test's function
+
+**Not a wrong answer: valid Pure that does not parse in one place.** Found 2026-10-31 by the improvement plan's Phase
+8. A mapping test suite's `function:` is parsed by the mapping section's own grammar, and its lexer reads `{` as a
+brace only after `:` or `[` (`MappingLexerGrammar.g4`'s `BRACE_OPEN`); anywhere else `{` opens a class mapping's
+island (`MAPPING_ISLAND_MODE`). So `|demo::Acct.all()->filter({x|$x.id == 'A1'})->project(...)` in a suite fails to
+parse with "no viable alternative at input '->filter({x|$x.id == 'A1''", and, being a parse error, stops the whole
+model loading; the same query in a service, or written `filter(x|$x.id == 'A1')` in the suite, runs. The corpus
+writes a mapping test's lambdas without braces (`scripts/corpus/mapping_tests.py`), so nothing is quarantined. Repro:
+`scripts/corpus/repro/mapping-test-brace-lambda/` (`model.pure`: the suite without braces and the service with them
+pass; `braced.pure`, the same suite with braces, does not parse).
+
+## F90 — `extractFromSemiStructured` to `'DECIMAL'` answers the document's number on neither test database
+
+**Severity: silent wrong answer on H2, a wrong type on DuckDB.** Found 2026-10-31 by the improvement plan's Phase 9. A
+property mapped `extractFromSemiStructured([db]T.DOC, 'fee', 'DECIMAL')`, over a document holding `"fee":12.5`:
+
+- On H2 (a service answering a TDS or a graph runs its tests there) the property is 13, and `0.25` is 0. H2's rendering
+  (`h2Extension2_1_214.pure`'s `processExtractFromSemiStructuredParamsForH2`) passes the type name through, `cast(... as
+  DECIMAL)`, and H2's DECIMAL with no precision has scale 0.
+- On DuckDB (a service answering a Relation runs its tests there) it is `"12.5"`, a string: the rendering
+  (`duckdbExtension.pure`'s `processExtractFromSemiStructuredParamsFoDuckDb`) casts the extracted JSON for DATE, DATETIME,
+  TIMESTAMP, BOOLEAN, FLOAT and INTEGER, not for DECIMAL, so the value is the JSON text.
+
+Every other type the whitelist names answers the document's value on both. Pinned by `stress::SJ_Fee` and
+`stress::SD_Fee` (quarantined); `SJ_Numbers` and `SD_Numbers`, the same documents read as INTEGER, FLOAT and BOOLEAN,
+pass. Repro: `scripts/corpus/repro/semi-structured-decimal/` (`FeeTds` answers 13, `FeeRelation` "12.5"; `QtyTds` and
+`QtyRelation` pass).
+
+## F91 — A JSON-typed column takes no document in a service's test data
+
+**Not a wrong answer: a declared column type that test data cannot fill.** Found 2026-10-31 by the improvement plan's
+Phase 9, which was to seed 66-store-surface.pure's `C_JSON JSON` with documents. Both test-data loaders write a JSON
+column's cell unquoted, as SQL: the H2 loader's `convertValuesToCsvH2` and the generic `convertValuesToCsv` the DuckDB
+one uses quote VARCHAR, CHAR, SEMISTRUCTURED, DATE and TIMESTAMP values and write any other type as it is. So on H2
+`insert into T (ID,J) values ('A',{"name":"Alpha","qty":4})` is a syntax error, and on DuckDB the document reads as a
+STRUCT literal whose string value is a column name ("Binder Error: Referenced column "Alpha" not found"; a document of
+numbers alone happens to load as a STRUCT). The same column declared SEMISTRUCTURED loads. A NULL loads either way, so
+the corpus seeds `C_JSON` NULL and maps nothing over it; the semi-structured services read `C_SEMI`. Repro:
+`scripts/corpus/repro/json-column-test-data/` (`model.pure`, the column JSON: both services error; `control.pure`, the
+same column SEMISTRUCTURED: both pass).
+
+## F92 — The two test-data loaders read a quoted CSV field's quotes differently
+
+**Not a wrong answer: one `###Data` element cannot carry a JSON document to both test databases.** Found 2026-10-31 by
+the improvement plan's Phase 9. A document travels in a `Relational` test-data CSV field, quoted because it holds
+commas. DuckDB's loader reads the field as RFC 4180 does: a doubled quote is one quote, and an inner quote that is not
+doubled is an error ("invalid char between encapsulated token and delimiter"). H2's keeps every character between the
+field's outer quotes (`meta::alloy::service::execution::splitCsvRow` toggles its quote state on each `"` and keeps it),
+so an RFC-encoded document reaches H2 with its quotes doubled, which is not JSON, and every navigation over it raises in
+`legend_h2_extension_json_navigate`; and it unwraps a quoted field only when the field holds a comma (`"{}"` arrives
+with its quotes). A service's tests run on H2 or on DuckDB by what its query answers (a TDS or a graph, a Relation), so
+the corpus writes each database's documents in their own `###Data`: `semi::SurfaceData` the H2 way (inner quotes as
+they are; no JSON string holding a comma or a quote, which the splitter would misread), `semi::DuckData` as RFC 4180
+does (`scripts/corpus/semi.py`). Nothing is quarantined. Repro: `scripts/corpus/repro/semi-structured-csv-quotes/`
+(`RawTds` and `RfcRelation` pass; `RfcTds` raises in the navigation, `RawRelation` before it runs).
+
+## F93 — On H2, flattening a semi-structured array fails if any row of the table holds a NULL document
+
+**Not a wrong answer: an error that depends on rows the query does not select.** Found 2026-10-31 by the improvement
+plan's Phase 9. On H2, a Binding's to-many projected one row per element, and a join that explodes a document's array,
+both call `legend_h2_extension_flatten_array(connection, table, column, paths)`, which reads the whole column of the
+named table itself rather than the rows the query selects, and fails on a NULL document ("argument content is null").
+So one NULL document anywhere in the table fails every flatten and explode over it, including through a view whose
+filter excludes NULL documents, since the function reads the base table. DuckDB flattens a NULL document to nothing.
+The corpus keeps NULL documents out of the table its H2 services read (SURFACE_TYPES) and puts one in the table its
+DuckDB services read (SEMI_DOC, `SD-06`). Nothing is quarantined. Repro:
+`scripts/corpus/repro/semi-structured-flatten-null-h2/` (`model.pure`, one row NULL: `HopsTds` raises, `HopsRelation`
+passes; `control.pure`, no row NULL: both pass).
+
+## F94 — legend-engine compiles a plan's Java against a class path that loses its relative `../` entries
+
+**Not a wrong answer: an error from every plan compiled to Java, under a launcher that names jars by `../`.** Found
+2026-11-01 by the corpus's first engine run on Linux (the plan's Phase 0, `.github/workflows/engine-verdict.yml`, run
+41322461475). legend-engine 4.145.0 uses javac to compile the Java a plan carries, as it does for a graph fetch, and
+passes it the `-classpath` that ClassGraph reads (`EngineJavaCompiler.getClassPath`: `new ClassGraph().getClasspath()`).
+ClassGraph 4.8.25, the version legend-engine's dependencies resolve to, drops a relative entry that starts with `../`,
+though the JVM loads classes from it. A relative entry without `../` is kept, and so is an absolute one, even with
+`/../` inside it. When the class path is under 120,000 characters, Bazel's java stub on Linux and macOS passes it as it
+is, and names each external jar as `../<repository>/...` relative to the runfiles' `_main`. So javac saw none of the
+Maven jars, and all 497 testables whose plan compiles to Java failed with "package org.eclipse.collections.api.tuple
+does not exist". The desk's runs never met it, because Bazel's Windows launcher always writes a manifest jar. Measured in
+WSL with the pinned Linux JDK (Zulu 25.0.4): ClassGraph lists 43 of the runner's 661 entries, none of them external.
+With the entries absolute, all 497 pass, and so do three of them under the stub's manifest jar. The fault is
+ClassGraph's, at the version legend-engine pins. The corpus starts the runner with `--classpath_limit=0` everywhere
+but Windows (`run.py`'s `_LAUNCHER_FLAGS`), so the stub always writes its manifest jar, whose entries are absolute
+`file:` URLs. Nothing is quarantined. Repro, on any platform: a class that prints `new ClassGraph().getClasspath()`,
+run from a directory `d` with `-cp <classgraph-4.8.25.jar>`, `.` and `../e/eclipse-collections-api-10.2.0.jar`, lists
+no eclipse-collections jar. Make that entry absolute and it lists it.

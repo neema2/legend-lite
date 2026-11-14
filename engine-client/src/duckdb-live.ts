@@ -25,6 +25,7 @@ import { arrowIpcStream, type MadeColumn } from './arrow-ipc.ts';
 import type { DuckDbEngine } from './duckdb.ts';
 import type { RawTable } from './engine.ts';
 import type { HostName, HostOperation, HostOperationsSource } from './host-operations.ts';
+import type { PlannedSql } from './planned-sql.ts';
 import type { LiveEvent, LiveReader } from './live.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable } from './result.ts';
@@ -63,7 +64,7 @@ export interface LiveDuckDbOptions {
   /** The planner, which writes each statement the live engine runs (D5): a write's, a bound's, a transaction's. */
   readonly host: HostOperationsSource;
   /** The session every connection is set up with first (the planner's: engine.ts setUpSession). */
-  readonly setup?: readonly string[];
+  readonly setup?: readonly PlannedSql[];
   /** How often followed results are run again when what they read changed (Proton's EMIT PERIODIC): 250 ms. */
   readonly emitEveryMs?: number;
   /** False: no timer, the caller emits (`emit()`) -- a test, a page that paces its own emits. */
@@ -97,8 +98,8 @@ const CLOCK = /\b(now|current_timestamp|current_date|current_time|today|get_curr
 
 /** A transaction's statements, the planner's: what a reader's runs at an emit read one snapshot in. */
 interface Snapshot {
-  readonly begin: readonly string[];
-  readonly commit: readonly string[];
+  readonly begin: readonly PlannedSql[];
+  readonly commit: readonly PlannedSql[];
 }
 
 /** What a reader keeps of a result: its plan, its rows, the tables it read and their versions when it ran. */
@@ -134,7 +135,7 @@ export class LiveDuckDb {
   readonly #tables = new Map<string, TableState>();
   readonly #readers = new Set<DuckDbLiveReader>();
   /** The planner's statements, by the operations' shape: asked once each. */
-  readonly #written = new Map<string, Promise<string[][]>>();
+  readonly #written = new Map<string, Promise<PlannedSql[][]>>();
   #timer: ReturnType<typeof setInterval> | undefined;
   /** Writes one at a time: each through a staging table of its table's. */
   #writing: Promise<unknown> = Promise.resolve();
@@ -187,7 +188,7 @@ export class LiveDuckDb {
   }
 
   /** A statement the planner wrote, on the writer's connection -- a table made, its first rows: no write a reader is told of. */
-  run(sql: string): Promise<RawTable> {
+  run(sql: PlannedSql): Promise<RawTable> {
     return this.#write(() => this.#writer.run(sql, 0));
   }
 
@@ -286,7 +287,7 @@ export class LiveDuckDb {
   }
 
   /** The planner's statements for `operations`, asked once for each `shape` (a write's table and columns, a bound's). */
-  #statements(shape: string, operations: readonly HostOperation[]): Promise<string[][]> {
+  #statements(shape: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]> {
     let asked = this.#written.get(shape);
     if (asked === undefined) {
       asked = this.#options.host.hostOperations(DATABASE, operations);
@@ -398,7 +399,7 @@ export class DuckDbLiveReader implements LiveReader {
     return this.#conn.stream(plan, epoch, onChunk, signal);
   }
 
-  run(sql: string, epoch: number, signal?: AbortSignal): Promise<RawTable> {
+  run(sql: PlannedSql, epoch: number, signal?: AbortSignal): Promise<RawTable> {
     return this.#conn.run(sql, epoch, signal);
   }
 

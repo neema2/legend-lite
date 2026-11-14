@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
 
 import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;
@@ -146,7 +147,11 @@ final class TableReferenceChecker {
                         java.util.List.of(schema)), sig.output().multiplicity()),
                 n == 2, null, quoted, call, stored,
                 // the table's and its schema's names declared quoted: carried to the scan as data (NameQuoting)
-                def.map(d -> d.quoted()).orElse(false), def.map(d -> d.schemaQuoted()).orElse(false));
+                def.map(d -> d.quoted()).orElse(false), def.map(d -> d.schemaQuoted()).orElse(false),
+                // its declared primary key, in declaration order (KeyedCounts)
+                def.<List<String>>map(d -> d.columns().stream()
+                        .filter(com.legend.model.DatabaseDefinition.ColumnDefinition::primaryKey)
+                        .map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toList()).orElse(List.of()));
     }
 
     /**

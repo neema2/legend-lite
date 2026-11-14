@@ -39,7 +39,8 @@ import { askedOffers, askedSettings, pythonDatabase, pythonRunner, pythonService
 import { browserBasics } from '../../src/services/browser-basics.ts';
 import type { Services } from '../../src/app/services.ts';
 import { dropFileTable, ingestFile, modelLanded, mountRemoteView } from '../../src/upload.ts';
-import { SnapManager } from '../../../engine-client/src/snap.ts';
+import { countQuery, SnapManager } from '../../../engine-client/src/snap.ts';
+import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 /** What the harness hands the page: the engine, and the frame it serves. */
 interface Served {
@@ -171,9 +172,9 @@ async function run(): Promise<void> {
   // written to it (this browser is in New York: python-engine.mjs); the database kept too, which a person's file is
   // read into (upload.ts)
   const { db, engine: local } = await startDuckDbInTab('./vendor/', planner);
-  await local.run(`CREATE TABLE trades (region VARCHAR, desk VARCHAR, book VARCHAR, year INTEGER, qtr VARCHAR,
-    notional DOUBLE, pnl DOUBLE, qty INTEGER)`, 0);
-  await local.run(`INSERT INTO trades VALUES ${served.rows.map((r) => `(${r.map(sqlValue).join(', ')})`).join(', ')}`, 0);
+  await local.run(unplanned(`CREATE TABLE trades (region VARCHAR, desk VARCHAR, book VARCHAR, year INTEGER, qtr VARCHAR,
+    notional DOUBLE, pnl DOUBLE, qty INTEGER)`), 0);
+  await local.run(unplanned(`INSERT INTO trades VALUES ${served.rows.map((r) => `(${r.map(sqlValue).join(', ')})`).join(', ')}`), 0);
   const tab = new PlanThenRun(planner, local);
 
   await check('every cube case answers the same on Python\'s engine and in the tab', async () => {
@@ -302,7 +303,7 @@ async function run(): Promise<void> {
     // the tab's: the live plan run into a table of its own, modelled once the rows land
     let landed: Awaited<ReturnType<typeof modelLanded>> | undefined;
     const snaps = new SnapManager(local, null, planner);
-    await snaps.snap((await planner.plan(pull)).sql, 0, { target: { table: 'snap_parity', landed: async () => {
+    await snaps.snap(0, { count: await planner.plan(countQuery(pull)), pull: await planner.pullRequest(pull), target: { table: 'snap_parity', landed: async () => {
       landed = await modelLanded(local, planner, 'snap_parity');
       return landed.source;
     } } });
@@ -318,7 +319,7 @@ async function run(): Promise<void> {
   // query of the time now answers the same instant on both (planned `CAST(now() AS TIMESTAMP)`: the session's wall time)
   await check('the time now answers alike on Python and in a tab in New York: both sessions in UTC', async () => {
     equal(Intl.DateTimeFormat().resolvedOptions().timeZone, 'America/New_York', 'the browser\'s zone:');
-    const zone = await local.run("SELECT current_setting('TimeZone') AS zone", 0);
+    const zone = await local.run(unplanned("SELECT current_setting('TimeZone') AS zone"), 0);
     equal(zone.columns[0]!.values[0], 'UTC', 'the tab\'s session zone:');
     const python = pythonRunner({ baseUrl: location.origin, fetch: (i, init) => fetch(i, init), authorization: served.authorization },
       served.model, served.runtime);

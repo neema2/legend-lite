@@ -3,8 +3,8 @@
 
 package com.legend.integration;
 
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
+import com.legend.testing.LaneFloor;
+
 import com.legend.Compiler;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ServiceDefinition;
@@ -22,6 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * the first's rows; the runtime's NAME was a hash of the same key, so under the SHARED policy they also shared a
  * session. Provisions are keyed by value now and runtimes are named by ordinal.
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class ServiceTestProvisionKeyTest {
 
     private static final String CSV_A = "ID,NAME\n1,Aa\n";
@@ -105,8 +106,8 @@ class ServiceTestProvisionKeyTest {
 
     private static ServiceTestRunner runner(com.legend.compiler.element.ModelContext ctx,
             ServiceTestRunner.Sessions policy) {
-        return new ServiceTestRunner(ctx, () -> TestBackends.platform().open(),
-                policy, Databases.PLATFORM);
+        return new ServiceTestRunner(ctx, () -> LaneFloor.backend().openSession(),
+                policy, LaneFloor.backend().type());
     }
 
     private static ServiceDefinition service(String fqn) {
@@ -180,6 +181,73 @@ class ServiceTestProvisionKeyTest {
             assertEquals(ServiceTestRunner.Status.PASS, only(shared.run(a)).status());
             assertEquals(ServiceTestRunner.Status.PASS, only(shared.run(b)).status());
             assertEquals(1, shared.sessions().size());
+        }
+    }
+
+    /**
+     * THE M4 GUARD (docs/DATA_IN_THE_PLAN_2026_11_09.md, census row M4, the orchestrator's decision of 2026-11-09: option 1,
+     * the upstream-faithful overlay kept -- upstream's own shape, so no divergence; option 2, a door-level fixture, was
+     * declined as surface with no gain to the seal): a suite's data, which the harness overlays as a synthetic connection's declared
+     * test data exactly as legend-engine's service test runner does, reaches the test plan ONLY inside a load's steps --
+     * never in a target's connection description, never in a statement's text.
+     */
+    @org.junit.jupiter.api.Test
+    void aSuitesDataReachesThePlanOnlyAsALoad() {
+        String json;
+        try (ServiceTestRunner r = runner(Compiler.compileModel(MODEL))) {
+            json = r.planJson(service("local::ServiceA"), "suiteA", "readsA");
+        }
+        com.legend.json.Json.Obj plan = (com.legend.json.Json.Obj) com.legend.json.Json.parse(json,
+                new com.legend.json.Json.Config(com.legend.executionplan.PlanJson.MAX_DEPTH));
+        java.util.List<String> where = new java.util.ArrayList<>();
+        find(plan, "", false, where);
+        org.junit.jupiter.api.Assertions.assertFalse(where.isEmpty(), "the suite's row is loaded: " + json);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), where.stream()
+                .filter(w -> !inLoadSteps(w)).toList(), "the suite's row outside a load's steps: " + json);
+    }
+
+    /** The same guard under the compatibility edge (the M1 correctness audit's C2, 2026-11-09): the suite's data reaches
+     *  the plan as a load and, by digest, in the edge's own record of a seed -- {@code RefereeLoad}, the referee's copy
+     *  of the load, its rows a content blob (B2b, 2026-11-11: until then {@code SeedTexts}, texts) -- and nowhere
+     *  else. */
+    @org.junit.jupiter.api.Test
+    void underTheEdgeTheSuitesDataIsALoadAndTheRefereesCopyAlone() {
+        String json;
+        try (ServiceTestRunner r = runner(Compiler.compileModel(MODEL))) {
+            json = r.planJson(service("local::ServiceA"), "suiteA", "readsA", com.legend.ExecuteOptions.recording(
+                    new com.legend.edge.CompatEdge(new com.legend.sql.dialect.RawSqlBoundary.Recorder(),
+                            com.legend.executionplan.DataStores.none()), com.legend.executionplan.DataStores.none()));
+        }
+        com.legend.json.Json.Obj plan = (com.legend.json.Json.Obj) com.legend.json.Json.parse(json,
+                new com.legend.json.Json.Config(com.legend.executionplan.PlanJson.MAX_DEPTH));
+        java.util.List<String> where = new java.util.ArrayList<>();
+        find(plan, "", false, where);
+        org.junit.jupiter.api.Assertions.assertTrue(where.stream().anyMatch(ServiceTestProvisionKeyTest::inLoadSteps),
+                json);
+        // the edge's record alone beside the loads: its copy's bundle, pinned to that field (the re-audit's small item,
+        // 2026-11-09: until then any string under the extensions passed)
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), where.stream()
+                .filter(w -> !inLoadSteps(w) && !(w.startsWith("outside:/extensions/byStep/") && w.contains("/content/")))
+                .toList(), "the suite's row outside a load's steps and the edge's copy's bundle: " + json);
+        org.junit.jupiter.api.Assertions.assertTrue(json.contains("\"refereeLoad\""), "the edge's copy: " + json);
+    }
+
+    /** Whether {@code where} (a {@link #find} path) is inside a load node's steps. */
+    private static boolean inLoadSteps(String where) {
+        return where.startsWith("load:") && where.contains("/steps/");
+    }
+
+    /** Every string holding the suite's value ('Aa'), each named by whether it sits inside a load node's steps. */
+    private static void find(com.legend.json.Json.Node n, String path, boolean inLoad, java.util.List<String> where) {
+        if (n instanceof com.legend.json.Json.Obj o) {
+            boolean load = inLoad || "load".equals(o.getStringOr("_type", null));
+            o.fields().forEach((k, v) -> find(v, path + "/" + k, load && !k.equals("target"), where));
+        } else if (n instanceof com.legend.json.Json.Arr a) {
+            for (int i = 0; i < a.items().size(); i++) {
+                find(a.items().get(i), path + "/" + i, inLoad, where);
+            }
+        } else if (n instanceof com.legend.json.Json.Str s && s.value().contains("Aa")) {
+            where.add((inLoad ? "load:" : "outside:") + path);
         }
     }
 }

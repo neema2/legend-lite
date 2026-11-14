@@ -32,6 +32,7 @@ import type { CubeSnapshot } from '../src/snapshot.ts';
 import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint } from './fake-planner.ts';
 import { accessor } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const SNAPSHOT: CubeSnapshot = {
   source: { query: accessor('db', 'T') },
@@ -63,7 +64,7 @@ class StubEngine extends FakeEngine {
 
 class StubPlanner implements Planner {
   async plan(): Promise<Plan> {
-    return { sql: 'SELECT 1', columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];

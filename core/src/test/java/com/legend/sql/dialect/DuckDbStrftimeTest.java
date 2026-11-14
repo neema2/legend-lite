@@ -41,7 +41,13 @@ class DuckDbStrftimeTest {
     @Test
     @DisplayName("a format that goes on after %n is split there: strftime(x, '...%n') || the rest")
     void theFormatEndsAtNineDigitsAndTheRestFollows() {
-        String sql = render(SqlExpr.Call.of(SqlFn.STRFTIME, X, new SqlExpr.FormatLit(DateFmt.JSON_DATETIME)));
+        // a format with text after its nine fraction digits (legend-engine's DateTime text was one until 2026-10-27; a
+        // user's format can be)
+        List<DateFmt> nineThenZone = List.of(DateFmt.Part.YEAR4, new DateFmt.Text("-"), DateFmt.Part.MONTH2,
+                new DateFmt.Text("-"), DateFmt.Part.DAY2, new DateFmt.Text("T"), DateFmt.Part.HOUR2,
+                new DateFmt.Text(":"), DateFmt.Part.MIN2, new DateFmt.Text(":"), DateFmt.Part.SEC2,
+                new DateFmt.Text("."), DateFmt.Part.SUBSEC_NANO, new DateFmt.Text("+0000"));
+        String sql = render(SqlExpr.Call.of(SqlFn.STRFTIME, X, new SqlExpr.FormatLit(nineThenZone)));
         assertTrue(Pattern.compile("\\(strftime\\([^()]*x[^()]*, '%Y-%m-%dT%H:%M:%S\\.%n'\\) \\|\\| '\\+0000'\\)")
                 .matcher(sql).find(), sql);
     }

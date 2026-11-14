@@ -21,7 +21,11 @@
 // ×) takes it off -- the box reading it then reads a copy of what it read (frozen); a tool dropped on a line goes between
 // the two boxes.
 
-import { BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, containerMoves, framedBy, type Flow, type FlowBox, type Frame } from './flow.ts';
+import {
+  BOX_HEIGHT, BOX_WIDTH, CONTAINER_FRAME, FRAME_HEAD, FRAME_MIN, MARGIN, MESSAGE_LEVELS, MESSAGE_WHEN, TABLE_MODES,
+  TABLE_MODE_WORDS, containerMoves, framedBy, outputProblem, outputWords,
+  type Flow, type FlowBox, type FlowMessage, type Frame, type MessageLevel, type MessageWhen, type Output, type TableMode,
+} from './flow.ts';
 import type { FlowBoardState, FlowChart } from './flow-board.ts';
 import type { FlowPoint, LineEnd, RunLog } from './flow-board.ts';
 import { moreIndex, type InputPort, type InputSide } from '../cube-document.ts';
@@ -32,7 +36,8 @@ import { rowSampleOf } from '../row-sample.ts';
 import { checksOf, failingChecks, failingWords } from '../checks.ts';
 import { lackingWords } from '../cross-tab.ts';
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
-import type { Profile } from '../profile.ts';
+import type { Profile, TopValue } from '../profile.ts';
+import { familyOf } from '../../../engine-client/src/types.ts';
 import { handedOn } from '../box-columns.ts';
 import type { MenuItem } from '../ui/menu.ts';
 import { MenuView } from '../ui/menu-view.ts';
@@ -119,6 +124,10 @@ interface Command { readonly label: string; readonly words: string; readonly kin
 /** A box's Code as asked (its key: the box, and how many views its grid had landed), answered or refused. */
 type Coded = { readonly key: string; readonly answer?: { readonly pure: string; readonly sql: string }; readonly refused?: string };
 
+/** A Message's when and how in words, as its settings offer them (layout/flow.ts FlowMessage). */
+const MESSAGE_WHEN_WORDS: Readonly<Record<MessageWhen, string>> = { always: 'Each run', rows: 'When it has rows', noRows: 'When it has no rows' };
+const MESSAGE_LEVEL_WORDS: Readonly<Record<MessageLevel, string>> = { info: 'Information', warning: 'A warning', error: 'An error: stop the run' };
+
 /** A line's key: the box it goes into, and its side. */
 const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 
@@ -126,9 +135,21 @@ const lineKey = (end: LineEnd): string => `${end.tile}:${end.side}`;
 const ICONS: Readonly<Record<FlowTool, string>> = {
   input: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v8c0 1.1-2.2 2-5 2s-5-.9-5-2zM3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 8c0 1.1 2.2 2 5 2s5-.9 5-2',
   textInput: 'M2 2.5h12v11H2zM2 6h12M6.5 2.5v11M8.5 9.5h4M8.5 11.5h2.5',
+  // an input, and the switch that picks which
+  dynamicInput: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v3M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M9.5 10h5l-1.5-1.5M14.5 13h-5l1.5 1.5',
   output: 'M3 4c0-1.1 2.2-2 5-2s5 .9 5 2v5M3 4c0 1.1 2.2 2 5 2s5-.9 5-2M3 4v8c0 1.1 2.2 2 5 2M10 11.5h5M13 9.5l2 2-2 2',
   cleanse: 'M10 2l4 4-6.5 6.5H3.5V8.5zM8 4l4 4M2 14.5h12',
   impute: 'M2 3h12v10H2zM2 6.5h12M2 10h12M6 3v10M10 6.5v3.5M10.5 8.2h3',
+  // boxes folded into one: a box holding three steps
+  macro: 'M2 3h12v10H2zM4.5 6h2v4h-2zM7 6h2v4H7zM9.5 6h2v4h-2zM6.5 8h.5M9 8h.5',
+  // a hand held up before what comes after
+  blockUntilDone: 'M2 3h5v10H2zM9.5 8h5M12 5.5L14.5 8 12 10.5M7 8h2.5',
+  // a speech bubble with a line of words
+  message: 'M2.5 3h11v7.5h-6l-3 3v-3h-2zM5 6.75h6',
+  // a slider's knob on its track: a value the person sets
+  parameter: 'M2 8h12M5.5 5.5v5M2.5 4.5h6v7h-6z',
+  // a list of rules beside, a value swapped for another
+  dynamicReplace: 'M2 2.5h5v11H2zM2 6h5M2 9.5h5M9 5h5l-2-2M14 11H9l2 2',
   test: 'M8 1.8l5.5 2v4c0 3.3-2.4 5.6-5.5 6.4C4.9 13.4 2.5 11.1 2.5 7.8v-4zM5.3 8l1.9 1.9 3.6-3.8',
   jsonParse: 'M5 2.5c-1.5 0-2 .7-2 2v1.8c0 .8-.4 1.2-1.2 1.2.8 0 1.2.4 1.2 1.2V10.5c0 1.3.5 2 2 2M11 2.5c1.5 0 2 .7 2 2v1.8c0 .8.4 1.2 1.2 1.2-.8 0-1.2.4-1.2 1.2V10.5c0 1.3-.5 2-2 2M6.5 7.5h3',
   dateFilter: 'M2 3.5h9v8H2zM2 6h9M4.5 2v3M8.5 2v3M10 9.5h5l-2 2.5v2.5l-1-1v-1.5z',
@@ -226,7 +247,10 @@ export class FlowCanvas {
   #charted: { readonly key: string; readonly chart: FlowChart } | undefined;
   readonly #chartView: HTMLElement;
   /** The profile asked for, by the box and what its rows are made of (its chain): its answer, or why there is none. */
-  #profiled: { readonly key: string; readonly answer?: Profile; readonly refused?: string } | undefined;
+  #profiled: { readonly key: string; readonly id: string; readonly answer?: Profile; readonly refused?: string } | undefined;
+  /** The profile's columns opened, each its most frequent values once asked (or why not), for the profile drawn (its
+   *  key): asked again only when what the box's rows are made of changes. */
+  #tops = new Map<string, { readonly answer?: readonly TopValue[]; readonly refused?: string }>();
   readonly #profileView: HTMLElement;
   readonly #body: HTMLElement;
   readonly #empty: HTMLElement;
@@ -265,6 +289,20 @@ export class FlowCanvas {
   /** A Test's mode, in the settings (#paintStops), and what it was drawn for. */
   readonly #stopsStrip: HTMLElement;
   #stopsKey = '';
+  /** A box's cache, in the settings (#paintCache: FL10), and what it was drawn for. */
+  readonly #cacheStrip: HTMLElement;
+  #cacheKey = '';
+  /** A box's blocking (#paintBlock: Block Until Done) and its message (#paintMessage), in the settings, and what each
+   *  was drawn for. */
+  readonly #blockStrip: HTMLElement;
+  #blockKey = '';
+  readonly #messageStrip: HTMLElement;
+  #messageKey = '';
+  /** A Union's pick, in the settings (#paintPick: a Dynamic Input), what it was drawn for, and what its last pick said,
+   *  by box. */
+  readonly #pickStrip: HTMLElement;
+  #pickKey = '';
+  readonly #pickSaid = new Map<string, string>();
   /** A Cross Tab's columns, in the settings (#paintPin): found as it runs, or fixed by Load values; what it was drawn for,
    *  and what its last Load values or Unfix said, by box. */
   readonly #pinStrip: HTMLElement;
@@ -275,6 +313,8 @@ export class FlowCanvas {
   /** A box's menu (a right-click), made the first time, and what its entry picked does. */
   #menu: MenuView | undefined;
   #menuAct: ((item: MenuItem) => void) | undefined;
+  /** Save as Macro's form, while it is open. */
+  #macroPop: HTMLFormElement | undefined;
   /** The canvas's own tools, at its corner: Run, Tidy Up. */
   readonly #toolbar: HTMLElement;
   readonly #run: HTMLButtonElement;
@@ -308,6 +348,9 @@ export class FlowCanvas {
   readonly #logPanel: HTMLElement;
   #logDrawn: RunLog | undefined;
   #logClosed: RunLog | undefined;
+  /** An earlier run picked in the log's history (F3's run history, this session's), until the next run lands. */
+  #logPicked: RunLog | undefined;
+  #logLast: RunLog | undefined;
   /** The palette's find field, and its tools by name. */
   readonly #find: HTMLInputElement;
   readonly #tools = new Map<FlowTool, HTMLButtonElement>();
@@ -398,8 +441,13 @@ export class FlowCanvas {
     this.#inputs = el('div', 'dc-flow-inputs');
     this.#outputStrip = el('div', 'dc-flow-output');
     this.#stopsStrip = el('div', 'dc-flow-output dc-flow-stops');
+    this.#cacheStrip = el('div', 'dc-flow-output dc-flow-cache');
     this.#pinStrip = el('div', 'dc-flow-output dc-flow-pin');
-    this.#settings.append(settingsHead, this.#inputs, this.#outputStrip, this.#stopsStrip, this.#pinStrip, board.dock, this.#settingsEmpty);
+    this.#pickStrip = el('div', 'dc-flow-output dc-flow-pick');
+    this.#blockStrip = el('div', 'dc-flow-output dc-flow-block');
+    this.#messageStrip = el('div', 'dc-flow-output dc-flow-message');
+    this.#settings.append(settingsHead, this.#inputs, this.#pickStrip, this.#outputStrip, this.#messageStrip, this.#stopsStrip, this.#cacheStrip,
+      this.#blockStrip, this.#pinStrip, board.dock, this.#settingsEmpty);
     // the canvas on its stage, its own tools at its corner, over it as it scrolls
     const stage = el('div', 'dc-flow-stage');
     this.#toolbar = el('div', 'dc-flow-toolbar');
@@ -928,6 +976,11 @@ export class FlowCanvas {
     button.addEventListener('keydown', (e) => {
       if (e.key !== 'Enter' && e.key !== ' ') return;
       e.preventDefault();
+      if (tool === 'macro') {
+        const r = button.getBoundingClientRect();
+        this.#macroMenu(this.#board.shown, r.right, r.top);
+        return;
+      }
       this.#board.options.onTool?.(tool, this.#board.shown, TOOL_EDITORS[tool]);
     });
     return button;
@@ -957,6 +1010,13 @@ export class FlowCanvas {
       this.#mark(undefined);
       this.#markLine(undefined);
       if (!apply) return;
+      // a macro is used after a box -- the one let go on, or (clicked) the box shown -- picked from the page's
+      if (tool === 'macro') {
+        const r = button.getBoundingClientRect();
+        if (ghost === undefined) this.#macroMenu(this.#board.shown, r.right, r.top);
+        else if (over !== undefined && ev) this.#macroMenu(over, ev.clientX, ev.clientY);
+        return;
+      }
       const editor = TOOL_EDITORS[tool];
       if (ghost === undefined) {
         button.focus({ preventScroll: true });
@@ -994,10 +1054,16 @@ export class FlowCanvas {
    * rows, its time, or why it was refused, red -- each a button that shows it. Closed by its ×, until the next run.
    */
   #paintLog(): void {
-    const log = this.#board.log;
-    const shown = log !== undefined && log !== this.#logClosed && this.#board.running === undefined;
+    const last = this.#board.log;
+    if (last !== this.#logLast) {
+      this.#logLast = last;
+      this.#logPicked = undefined;
+    }
+    const shown = last !== undefined && last !== this.#logClosed && this.#board.running === undefined;
     this.#logPanel.hidden = !shown;
-    if (!shown || log === this.#logDrawn) return;
+    // an earlier run picked shown until the next one lands
+    const log = this.#logPicked !== undefined && this.#board.logs.includes(this.#logPicked) ? this.#logPicked : last;
+    if (!shown || log === undefined || log === this.#logDrawn) return;
     this.#logDrawn = log;
     const d = this.#doc;
     const el = (tag: string, cls: string, text?: string): HTMLElement => {
@@ -1008,8 +1074,9 @@ export class FlowCanvas {
     };
     const head = el('div', 'dc-flow-log-head');
     const refused = log.boxes.filter((b) => b.refused !== undefined).length;
-    // a Test's result, as its rows landed in the run
-    const tests = new Map(log.boxes.flatMap((b) => {
+    // a Test's result, as its rows landed in the run -- the last run's alone: an earlier one picked says what it logged,
+    // never a Test's result now (the roadmap audit of 2026-10-26)
+    const tests = new Map(log !== last ? [] : log.boxes.flatMap((b) => {
       const t = this.#board.layout.boxes.some((x) => x.tile === b.id) ? this.#testOf(b.id) ?? this.#lackingOf(b.id) : undefined;
       return t === undefined ? [] : [[b.id, t] as const];
     }));
@@ -1017,14 +1084,38 @@ export class FlowCanvas {
     const failing = [...tests.values()].filter((t) => t.failing.length > 0 && !('says' in t)).length;
     const lacking = [...tests.values()].filter((t) => t.failing.length > 0 && 'says' in t).length;
     const seconds = (ms: number): string => (ms < 1000 ? `${ms} ms` : `${(ms / 1000).toLocaleString(UI_LOCALE, { maximumFractionDigits: 1 })} s`);
-    const stoppers = (log.stopped ?? []).map((id) => (this.#board.layout.boxes.some((x) => x.tile === id) ? this.#nameOf(id, 'test') : id));
-    // a Dry Run says so, and that it wrote nothing (M6)
-    const ran = `${log.dry === true ? 'Dry run: ran' : 'Ran'} ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'} in ${seconds(log.ms)}`;
+    const stoppers = (log.stopped ?? []).map((id) => (this.#board.layout.boxes.some((x) => x.tile === id) ? this.#nameOf(id, this.#said(id)?.tool ?? 'test') : id));
+    // a Dry Run says so, and that it wrote nothing (M6); a run in stages (Block Until Done) that wrote before it stopped,
+    // that nothing after was written
+    const wroteSome = log.boxes.some((b) => b.wrote !== undefined || b.wouldWrite !== undefined);
+    const ran = `${log.dry === true ? 'Dry run: ran' : 'Ran'} ${log.boxes.length} ${log.boxes.length === 1 ? 'box' : 'boxes'}`
+      + `${log.stages !== undefined ? ` in ${log.stages} stages` : ''} in ${seconds(log.ms)}`;
+    const said = log.boxes.filter((b) => b.said !== undefined);
+    const warned = said.filter((b) => b.level === 'warning').length;
     head.append(el('span', 'dc-flow-log-title', ran
       + (refused > 0 ? `, ${refused} refused` : '') + (failing > 0 ? `, ${failing} ${failing === 1 ? 'test' : 'tests'} failing` : '')
       + (lacking > 0 ? `, ${lacking} ${lacking === 1 ? 'Cross Tab' : 'Cross Tabs'} missing values` : '')
-      + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing ${log.dry === true ? 'would be ' : ''}written`
+      + (warned > 0 ? `, ${warned} ${warned === 1 ? 'warning' : 'warnings'}` : '')
+      + (stoppers.length > 0 ? `; stopped by ${stoppers.join(', ')}: nothing ${wroteSome ? 'after it ' : ''}${log.dry === true ? 'would be ' : ''}written`
         : log.dry === true ? '; nothing written' : '')));
+    // THE RUN HISTORY (F3's, this session's): each run kept, picked to read its log again -- a row of its own below the
+    // head
+    const logs = this.#board.logs;
+    const history = el('div', 'dc-flow-log-history');
+    if (logs.length > 1) {
+      const pick = d.createElement('select');
+      pick.className = 'dc-flow-log-runs';
+      pick.setAttribute('aria-label', 'Earlier runs');
+      const time = (at: Date): string => at.toLocaleTimeString(UI_LOCALE, { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      logs.forEach((l, i) => pick.append(new Option(`${i === logs.length - 1 ? 'Last run' : `Run ${i + 1}`}, ${time(l.at)}${l.dry === true ? ' (dry)' : ''}${(l.stopped ?? []).length > 0 ? ', stopped' : ''}`,
+        String(i), false, l === log)));
+      pick.addEventListener('change', () => {
+        const picked = logs[Number(pick.value)];
+        this.#logPicked = picked === logs.at(-1) ? undefined : picked;
+        this.#paintLog();
+      });
+      history.append(el('span', 'dc-flow-log-history-label', 'Runs'), pick);
+    }
     const close = closeMark(el('button', 'dc-flow-log-close') as HTMLButtonElement);
     close.type = 'button';
     close.setAttribute('aria-label', 'Close the run log');
@@ -1044,14 +1135,19 @@ export class FlowCanvas {
         el('span', 'dc-flow-log-rows', b.refused ?? (tested !== undefined ? FlowCanvas.#testWords(tested)
           : `${b.rows === undefined ? '' : `${b.rows.toLocaleString(UI_LOCALE)} ${b.rows === 1 ? 'row' : 'rows'}`}${b.wrote !== undefined ? `, wrote ${b.wrote}` : ''}${b.wouldWrite !== undefined ? `, would write ${b.wouldWrite}` : ''}`)),
         el('span', 'dc-flow-log-ms', seconds(b.ms)));
-      go.title = b.refused ?? (tested !== undefined && tested.failing.length > 0 ? tested.failing.join('\n') : `Show ${name}`);
+      // a Message's words (M8), as it said them
+      if (b.said !== undefined) {
+        item.classList.add(`dc-flow-log-said-${b.level ?? 'info'}`);
+        item.append(el('span', 'dc-flow-log-said', b.said));
+      }
+      go.title = b.refused ?? (tested !== undefined && tested.failing.length > 0 ? tested.failing.join('\n') : b.said ?? `Show ${name}`);
       go.addEventListener('click', () => {
         if (this.#board.layout.boxes.some((x) => x.tile === b.id)) this.#select(b.id);
       });
       item.append(go);
       list.append(item);
     }
-    this.#logPanel.replaceChildren(head, list);
+    this.#logPanel.replaceChildren(head, ...(logs.length > 1 ? [history] : []), list);
   }
 
   /** A box's place to be made at a point of the window: its middle there, in the canvas's own units. */
@@ -1365,6 +1461,9 @@ export class FlowCanvas {
         { id: 'tile.box.settings', label: 'Open its settings', ...(editor === undefined ? { disabled: true } : {}) } as const,
         { id: 'tile.box.rename', label: 'Rename (F2)' } as const,
         { id: 'tile.box.duplicate', label: 'Duplicate (Ctrl+D)' } as const,
+        // a standard macro (M8): its steps, and those of the boxes before it, saved as one box
+        { id: 'tile.box.macro', label: 'Save as Macro…', ...(this.#chainOf(id).length === 0 || o.onSaveMacro === undefined
+          ? { disabled: true, hint: 'it reads no other box\'s rows: a macro is made of boxes over one input each' } : {}) } as const,
         ...live.map((i) => ({ id: `tile.box.freeze.${i.side}` as const, label: `Freeze its ${sideWords(i.side, union)}: a copy of its rows now` })),
         ...off.map((i) => ({ id: `tile.box.takeOff.${i.side}` as const, label: `Take off its ${sideWords(i.side, union)}` })),
         { id: 'tile.box.remove', label: 'Remove (Delete)' } as const,
@@ -1377,11 +1476,108 @@ export class FlowCanvas {
       else if (act === 'tile.box.settings' && editor !== undefined) o.onSelect?.(id, editor);
       else if (act === 'tile.box.rename') this.#rename(id, drawn);
       else if (act === 'tile.box.duplicate') o.onDuplicate?.(id);
+      else if (act === 'tile.box.macro') this.#macroForm(id, x, y);
       else if (act === 'tile.box.remove') o.onRemove?.(id);
       else if (act.startsWith('tile.box.freeze.')) o.onFreeze?.(id, act.slice('tile.box.freeze.'.length) as InputSide);
       else if (act.startsWith('tile.box.takeOff.')) o.onTakeOff?.(id, act.slice('tile.box.takeOff.'.length) as InputSide);
     };
     this.#menu.show([{ label: '', items }], x, y);
+  }
+
+  /** The boxes before box `id`, each its rows' one input in turn -- its own input first: where a macro of it may start
+   *  (its steps those of the boxes after it). */
+  #chainOf(id: string): string[] {
+    const up: string[] = [];
+    for (let at = id; up.length < 50;) {
+      const inputs = this.#inputsOf(at);
+      const only = inputs.length === 1 && inputs[0]!.side === 'input' && 'grid' in inputs[0]! ? inputs[0]!.grid : undefined;
+      if (only === undefined || only === id || up.includes(only)) break;
+      up.push(only);
+      at = only;
+    }
+    return up;
+  }
+
+  /** SAVE AS MACRO (M8, macros.ts): its name, and where its steps start -- after its own input (this box alone), or
+   *  after a box before it -- then the page saves it; its refusal said in it. */
+  #macroForm(id: string, x: number, y: number): void {
+    this.#macroPop?.remove();
+    const d = this.#doc;
+    const up = this.#chainOf(id);
+    if (up.length === 0) return;
+    const form = d.createElement('form');
+    form.className = 'dc-flow-macro-form';
+    form.setAttribute('aria-label', 'Save as a macro');
+    form.style.left = `${Math.round(x)}px`;
+    form.style.top = `${Math.round(y)}px`;
+    const head = d.createElement('p');
+    head.className = 'dc-flow-macro-head';
+    head.textContent = 'Save as a macro: its steps one box, used after any box (the palette\'s Macro)';
+    const name = d.createElement('input');
+    name.className = 'dc-picker-input dc-flow-macro-name';
+    name.placeholder = 'its name';
+    name.setAttribute('aria-label', "The macro's name");
+    const from = d.createElement('select');
+    from.className = 'dc-select dc-flow-macro-from';
+    from.setAttribute('aria-label', 'Its steps from');
+    up.forEach((b, k) => {
+      const said = this.#said(b);
+      from.append(new Option(`${k + 1} box${k === 0 ? '' : 'es'}: its steps after ${this.#nameOf(b, said?.tool ?? 'browse')}`, b));
+    });
+    const said = d.createElement('p');
+    said.className = 'dc-flow-macro-said';
+    said.setAttribute('role', 'status');
+    const save = d.createElement('button');
+    save.type = 'submit';
+    save.className = 'dc-picker-button dc-primary';
+    save.textContent = 'Save Macro';
+    const cancel = d.createElement('button');
+    cancel.type = 'button';
+    cancel.className = 'dc-picker-button dc-quiet';
+    cancel.textContent = 'Cancel';
+    const close = (): void => {
+      form.remove();
+      if (this.#macroPop === form) this.#macroPop = undefined;
+    };
+    cancel.addEventListener('click', close);
+    form.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Escape') close();
+    });
+    form.addEventListener('pointerdown', (e) => e.stopPropagation());
+    form.onsubmit = (e) => {
+      e.preventDefault();
+      said.textContent = 'Reading its boxes…';
+      void (async () => {
+        const refused = await this.#board.options.onSaveMacro?.(id, from.value, name.value.trim());
+        if (refused === null) close();
+        else said.textContent = refused ?? 'this page saves no macro';
+      })();
+    };
+    const foot = d.createElement('div');
+    foot.className = 'dc-flow-macro-foot';
+    foot.append(cancel, save);
+    form.append(head, name, from, said, foot);
+    this.#doc.body.append(form);
+    this.#macroPop = form;
+    name.focus();
+  }
+
+  /** THE PALETTE'S MACRO: the page's macros, each by its name and its steps in words, one picked used after box `after`. */
+  #macroMenu(after: string | undefined, x: number, y: number): void {
+    const o = this.#board.options;
+    const macros = o.macros?.() ?? [];
+    const items: MenuItem[] = after === undefined
+      ? [{ id: 'tile.macro.none', label: 'Show a box first: a macro is used after it', disabled: true }]
+      : macros.length === 0
+        ? [{ id: 'tile.macro.none', label: 'No macro yet: a box\'s menu, Save as Macro…', disabled: true }]
+        : macros.map((m): MenuItem => ({ id: `tile.macro.use.${m.name}`, label: m.name, hint: m.words }));
+    this.#menu ??= new MenuView(this.#doc, { onSelect: (item) => this.#menuAct?.(item) });
+    this.#menuAct = (item) => {
+      const act = item.id ?? '';
+      if (after !== undefined && act.startsWith('tile.macro.use.')) o.onMacro?.(act.slice('tile.macro.use.'.length), after);
+    };
+    this.#menu.show([{ label: 'Macros', items }], x, y);
   }
 
   /** The columns a box hands on, as its document says them (box-columns.ts handedOn: its query's columns and calculated
@@ -1405,12 +1601,16 @@ export class FlowCanvas {
   /** What a box does, as it is drawn: its document's (boxSays) -- or, added as a tool and doing nothing yet, that tool,
    *  not set yet. */
   #said(id: string): BoxSays | undefined {
-    const out = this.#board.layout.boxes.find((b) => b.tile === id)?.output;
+    const box = this.#board.layout.boxes.find((b) => b.tile === id);
     const own = this.#ownSaid(id);
+    if (box === undefined || own === undefined) return own;
+    // a box's own tool, when it has one of its own: drawn as what it is set to besides (an Output, a Message, a block)
+    const also = (tool: FlowTool): readonly FlowTool[] => (own.tool === 'browse' || own.tool === tool ? own.also : [own.tool, ...own.also]);
     // an Output: the file it writes, what its grid does besides after it
-    if (out !== undefined && own !== undefined) {
-      return { tool: 'output', also: own.tool === 'browse' || own.tool === 'output' ? own.also : [own.tool, ...own.also], says: `→ ${out.name}` };
-    }
+    if (box.output !== undefined) return { tool: 'output', also: also('output'), says: `→ ${box.output.name}` };
+    // a Message (M8): its words; a Block Until Done: that the boxes after it wait
+    if (box.message !== undefined) return { tool: 'message', also: also('message'), says: `“${box.message.text}”` };
+    if (box.blocks === true) return { tool: 'blockUntilDone', also: also('blockUntilDone'), says: 'the boxes after it wait for every Output before it' };
     return own;
   }
 
@@ -1493,12 +1693,15 @@ export class FlowCanvas {
     // a Test's result, or a Cross Tab's values its columns lack (FL3): said and marked alike
     const tested = tool === 'test' ? this.#testOf(id) : this.#lackingOf(id);
     const stops = this.#board.layout.boxes.find((b) => b.tile === id)?.stops === true;
-    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs, tested, stops]);
+    // a cached box (FL10): marked, and whether its rows are copied said on hover
+    const cached = this.#board.layout.boxes.find((b) => b.tile === id)?.cache === true;
+    const copied = cached ? this.#board.options.cachedCopy?.(id) : undefined;
+    const key = JSON.stringify([tool, name, says, shown, this.#board.editing, refused, columns, frozen, counted, inputs.length, outs, tested, stops, cached, copied]);
     if (key === drawn.key) return;
     drawn.key = key;
     drawn.root.dataset['tool'] = tool;
     drawn.root.dataset['group'] = FLOW_TOOLS[tool].group;
-    this.#paintIns(drawn.root, tool === 'union' && inputs.length >= 2 ? inputs.map((i) => i.side) : undefined);
+    this.#paintIns(drawn.root, (tool === 'union' || tool === 'dynamicInput') && inputs.length >= 2 ? inputs.map((i) => i.side) : undefined);
     // its outputs, where it has several: a Filter's T and F, a Unique's U and D, a Sample's S and R, a Join's J between
     // its L and R
     drawn.root.classList.toggle('dc-flow-two', outs === 'two');
@@ -1523,11 +1726,16 @@ export class FlowCanvas {
     drawn.root.classList.toggle('dc-flow-passing', tested !== undefined && tested.failing.length === 0);
     // a Test that stops a run: red when it fails (FL8's refuse), amber when it only warns
     drawn.root.classList.toggle('dc-flow-stops', stops);
+    drawn.root.classList.toggle('dc-flow-cached', cached);
+    drawn.root.dataset['cached'] = !cached ? '' : copied === 'here' ? 'here' : copied !== undefined ? 'copied' : 'not-yet';
     drawn.root.setAttribute('aria-pressed', String(shown));
     const frozenWords = frozen.length > 0 ? `Frozen: reads a copy of what ${frozen.join(' and ')} was` : undefined;
     drawn.root.setAttribute('aria-label', `${name}: ${refused ?? says}${frozenWords !== undefined ? `. ${frozenWords}` : ''}`);
     // what it hands on: its columns, as its document says them (no query run for it)
-    drawn.root.title = refused ?? [frozenWords, tested !== undefined ? [FlowCanvas.#testWords(tested), ...tested.failing].join('\n') : undefined,
+    const cacheWords = !cached ? undefined : copied === 'here' ? 'Cached: its rows are in this page\'s database already'
+      : copied !== undefined ? `Cached: ${copied.rowCount.toLocaleString(UI_LOCALE)} rows (${copied.label}); the boxes after it read the copy`
+        : 'Cached when it is shown or the flow runs';
+    drawn.root.title = refused ?? [frozenWords, cacheWords, tested !== undefined ? [FlowCanvas.#testWords(tested), ...tested.failing].join('\n') : undefined,
       columns.length > 0 ? `${columns.length} columns out: ${columns.join(', ')}` : undefined]
       .filter((t) => t !== undefined).join('\n');
     drawn.icon.replaceChildren(icon(this.#doc, tool));
@@ -1880,9 +2088,10 @@ export class FlowCanvas {
     return i !== undefined && 'grid' in i ? { grid: i.grid, ...(i.port !== undefined ? { port: i.port } : {}) } : undefined;
   }
 
-  /** Whether a box is a Union (`inputs`, its own): an append, of two inputs or more. */
+  /** Whether a box is a Union (`inputs`, its own): an append, of two inputs or more -- a Dynamic Input's too. */
   #isUnion(id: string, inputs: readonly BoxInput[] = this.#inputsOf(id)): boolean {
-    return inputs.length >= 2 && this.#said(id)?.tool === 'union';
+    const tool = this.#said(id)?.tool;
+    return inputs.length >= 2 && (tool === 'union' || tool === 'dynamicInput');
   }
 
   /** Whether a line into box `id` taken off takes its input off too: a Union's of more than two (any other's freezes). */
@@ -2316,11 +2525,12 @@ export class FlowCanvas {
     const view = this.#profileView;
     const doc = this.#doc;
     if (this.#profiled?.key !== key) {
-      this.#profiled = { key };
+      this.#profiled = { key, id };
+      this.#tops = new Map();
       view.replaceChildren(Object.assign(doc.createElement('div'), { className: 'dc-flow-profile-wait', textContent: 'Profiling its columns…' }));
       void this.#board.options.profileOf?.(id).then(
-        (answer) => { if (this.#profiled?.key === key) this.#profiled = { key, answer }; },
-        (e: unknown) => { if (this.#profiled?.key === key) this.#profiled = { key, refused: e instanceof Error ? e.message : String(e) }; },
+        (answer) => { if (this.#profiled?.key === key) this.#profiled = { key, id, answer }; },
+        (e: unknown) => { if (this.#profiled?.key === key) this.#profiled = { key, id, refused: e instanceof Error ? e.message : String(e) }; },
       ).then(() => {
         if (this.#profiled?.key === key && this.#mode === 'profile' && this.#board.shown === id) this.#drawProfile(view, this.#profiled);
       });
@@ -2331,7 +2541,7 @@ export class FlowCanvas {
     if (view.dataset['drawn'] !== key && (p.answer !== undefined || p.refused !== undefined)) this.#drawProfile(view, p);
   }
 
-  #drawProfile(view: HTMLElement, p: { readonly key: string; readonly answer?: Profile; readonly refused?: string }): void {
+  #drawProfile(view: HTMLElement, p: { readonly key: string; readonly id: string; readonly answer?: Profile; readonly refused?: string }): void {
     const doc = this.#doc;
     const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent: Element, text?: string): HTMLElementTagNameMap[K] => {
       const e = doc.createElement(tag);
@@ -2354,10 +2564,65 @@ export class FlowCanvas {
     const head = el('tr', '', el('thead', '', table));
     for (const h of ['Column', 'Type', 'Filled', 'Distinct', 'Smallest', 'Largest']) el('th', '', head, h);
     const body = el('tbody', '', table);
+    const topsOf = this.#board.options.topValuesOf;
     for (const c of columns) {
       const tr = el('tr', '', body);
       tr.dataset['column'] = c.name;
-      el('td', 'dc-flow-profile-name', tr, c.name);
+      const name = el('td', 'dc-flow-profile-name', tr);
+      // its most frequent values, asked when it is opened (profile.ts topValuesLambda): a value that groups and sorts --
+      // not JSON's (a variant), nor bytes
+      const family = familyOf(c.type);
+      if (topsOf !== undefined && (family === 'numeric' || family === 'text' || family === 'temporal' || family === 'boolean')) {
+        const open = el('button', 'dc-flow-profile-open', name, c.name);
+        open.type = 'button';
+        open.title = `Its most frequent values: how many rows have each`;
+        const top = doc.createElement('tr');
+        top.className = 'dc-flow-profile-top';
+        const cell = el('td', '', top);
+        cell.colSpan = 6;
+        const shown = (): void => {
+          const state = this.#tops.get(c.name);
+          open.setAttribute('aria-expanded', String(state !== undefined));
+          if (state === undefined) { top.remove(); return; }
+          tr.after(top);
+          cell.replaceChildren();
+          if (state.refused !== undefined) { el('div', 'dc-flow-profile-refused', cell, `No values: ${state.refused}`); return; }
+          if (state.answer === undefined) { el('div', 'dc-flow-profile-wait', cell, 'Counting its values…'); return; }
+          const list = el('div', 'dc-flow-top-list', cell);
+          list.setAttribute('aria-label', `${c.name}'s most frequent values`);
+          for (const t of state.answer) {
+            const line = el('div', 'dc-flow-top-line', list);
+            el('span', 'dc-flow-top-value', line, t.value === null ? '(empty)' : said(t.value));
+            const bar = el('span', 'dc-flow-profile-bar', line);
+            el('span', 'dc-flow-profile-fill', bar).style.width = `${rows === 0 ? 0 : Math.round((100 * t.count) / rows)}%`;
+            el('span', 'dc-flow-top-count', line, n(t.count));
+          }
+          const besides = c.distinct - state.answer.filter((t) => t.value !== null).length;
+          if (besides > 0) el('div', 'dc-flow-top-more', cell, `and ${n(besides)} other ${besides === 1 ? 'value' : 'values'}`);
+        };
+        open.addEventListener('click', () => {
+          if (this.#tops.has(c.name)) {
+            this.#tops.delete(c.name);
+            shown();
+            return;
+          }
+          const key = p.key;
+          this.#tops.set(c.name, {});
+          shown();
+          void topsOf(p.id, c.column ?? c.name).then(
+            (answer) => ({ answer }), (e: unknown) => ({ refused: e instanceof Error ? e.message : String(e) }),
+          ).then((state) => {
+            // still the profile drawn, the column still open
+            if (this.#profiled?.key !== key || !this.#tops.has(c.name)) return;
+            this.#tops.set(c.name, state);
+            shown();
+          });
+        });
+        // drawn again (the pane shown again): what was opened stays open, as it was answered
+        shown();
+      } else {
+        name.textContent = c.name;
+      }
       el('td', 'dc-flow-profile-type', tr, c.type);
       // its share filled and its empties the database's (profile.ts), a percent as its reader writes one
       const filled = el('td', 'dc-flow-profile-filled', tr);
@@ -2493,8 +2758,12 @@ export class FlowCanvas {
     const clicked = this.#clicked !== undefined && this.#board.layout.boxes.some((b) => b.tile === this.#clicked) ? this.#clicked : undefined;
     const id = this.#board.shown ?? clicked;
     this.#paintInputs(id);
+    this.#paintPick(id);
     this.#paintOutput(id);
     this.#paintStops(id);
+    this.#paintCache(id);
+    this.#paintBlock(id);
+    this.#paintMessage(id);
     this.#paintPin(id);
     const said = id === undefined ? undefined : this.#said(id);
     const name = id === undefined ? undefined : this.#nameOf(id, said?.tool ?? 'browse');
@@ -2573,6 +2842,172 @@ export class FlowCanvas {
     this.#stopsStrip.replaceChildren(label);
   }
 
+  /** THE SETTINGS' CACHE (FL10, Alteryx's Cache): any box's rows copied into this page's database when it is shown or
+   *  run, the boxes after it -- and a join of it with what is read elsewhere -- reading the copy this session (FL11). */
+  #paintCache(id: string | undefined): void {
+    const box = id === undefined || this.#board.noteOf(id) !== undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id);
+    const cached = box?.cache === true;
+    const copy = cached && id !== undefined ? this.#board.options.cachedCopy?.(id) : undefined;
+    const key = JSON.stringify([id, box !== undefined, cached, copy, this.#board.editing]);
+    if (key === this.#cacheKey) return;
+    this.#cacheKey = key;
+    this.#cacheStrip.hidden = box === undefined || this.#board.options.onCache === undefined;
+    if (box === undefined) {
+      this.#cacheStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const label = d.createElement('label');
+    label.className = 'dc-text-tool-check dc-flow-cache-check';
+    const check = d.createElement('input');
+    check.type = 'checkbox';
+    check.checked = cached;
+    check.disabled = !this.#board.editing;
+    check.addEventListener('change', () => this.#board.options.onCache?.(id!, check.checked));
+    label.append(check, Object.assign(d.createElement('span'), {
+      textContent: 'Cache its rows: copied into this page\'s database when it is shown or run, the boxes after it reading the copy',
+    }));
+    const said = d.createElement('span');
+    said.className = 'dc-flow-cache-said';
+    said.setAttribute('role', 'status');
+    said.textContent = !cached ? '' : copy === 'here'
+      ? 'Nothing to copy: its rows are in this page\'s database already (read into this tab)'
+      : copy !== undefined
+        ? `Cached: ${copy.rowCount.toLocaleString(UI_LOCALE)} ${copy.rowCount === 1 ? 'row' : 'rows'} (${copy.label}), for this session`
+        : 'Not copied yet: its rows are copied when it is shown or the flow runs';
+    this.#cacheStrip.replaceChildren(label, said);
+  }
+
+  /** THE SETTINGS' BLOCK UNTIL DONE (M8, layout/flow.ts runStages): any box -- the boxes after it shown, and their
+   *  Outputs written, in a run once every Output before it is written. */
+  #paintBlock(id: string | undefined): void {
+    const box = id === undefined || this.#board.noteOf(id) !== undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id);
+    const blocks = box?.blocks === true;
+    const key = JSON.stringify([id, box !== undefined, blocks, this.#board.editing]);
+    if (key === this.#blockKey) return;
+    this.#blockKey = key;
+    this.#blockStrip.hidden = box === undefined || this.#board.options.onBlocks === undefined;
+    if (box === undefined) {
+      this.#blockStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const label = d.createElement('label');
+    label.className = 'dc-text-tool-check dc-flow-block-check';
+    const check = d.createElement('input');
+    check.type = 'checkbox';
+    check.checked = blocks;
+    check.disabled = !this.#board.editing;
+    check.addEventListener('change', () => this.#board.options.onBlocks?.(id!, check.checked));
+    label.append(check, Object.assign(d.createElement('span'), {
+      textContent: 'Block until done: in a run, the boxes after it run, and write, once every Output before it is written',
+    }));
+    this.#blockStrip.replaceChildren(label);
+  }
+
+  /** THE SETTINGS' MESSAGE (M8, Alteryx's Message): what a run's log says of the box -- its words, `{rows}` its rows --
+   *  when (each run, when it has rows, when it has none), and how (a note, a warning, an error that stops the run); each
+   *  change set by the page, its refusal said; Say Nothing takes it off. */
+  #paintMessage(id: string | undefined): void {
+    const message = id === undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id)?.message;
+    const key = JSON.stringify([id, message, this.#board.editing]);
+    if (key === this.#messageKey) return;
+    this.#messageKey = key;
+    this.#messageStrip.hidden = message === undefined || this.#board.options.onMessage === undefined;
+    if (message === undefined || id === undefined) {
+      this.#messageStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const text = d.createElement('input');
+    text.className = 'dc-flow-message-text';
+    text.value = message.text;
+    text.placeholder = 'Its words: {rows} its rows';
+    text.setAttribute('aria-label', 'What the run\'s log says: {rows} its rows counted');
+    const when = d.createElement('select');
+    when.className = 'dc-flow-message-when';
+    when.setAttribute('aria-label', 'When it says it');
+    for (const w of MESSAGE_WHEN) when.append(new Option(MESSAGE_WHEN_WORDS[w], w, false, w === message.when));
+    const level = d.createElement('select');
+    level.className = 'dc-flow-message-level';
+    level.setAttribute('aria-label', 'How it says it');
+    for (const l of MESSAGE_LEVELS) level.append(new Option(MESSAGE_LEVEL_WORDS[l], l, false, l === message.level));
+    const off = d.createElement('button');
+    off.type = 'button';
+    off.className = 'dc-picker-button dc-flow-message-off';
+    off.textContent = 'Say Nothing';
+    const said = d.createElement('span');
+    said.className = 'dc-flow-message-said';
+    said.setAttribute('role', 'status');
+    for (const e of [text, when, level, off]) (e as HTMLInputElement).disabled = !this.#board.editing;
+    const set = (m: FlowMessage | null): void => {
+      said.textContent = this.#board.options.onMessage?.(id, m) ?? '';
+    };
+    const now = (): FlowMessage => ({ text: text.value, when: when.value as MessageWhen, level: level.value as MessageLevel });
+    text.addEventListener('change', () => set(now()));
+    when.addEventListener('change', () => set(now()));
+    level.addEventListener('change', () => set(now()));
+    off.addEventListener('click', () => set(null));
+    const row = d.createElement('div');
+    row.className = 'dc-flow-message-row';
+    row.append(when, level, off);
+    this.#messageStrip.replaceChildren(Object.assign(d.createElement('span'), { className: 'dc-flow-pick-label', textContent: 'Message' }), text, row, said);
+  }
+
+  /**
+   * A UNION'S PICK (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8, a Dynamic Input; dynamic-input.ts): the rows of every
+   * input, or of the one a String parameter of the page names as it runs -- one of the page's, or a new one whose choices
+   * are its inputs' names. The page sets it (onPick); what it refused said beside it.
+   */
+  #paintPick(id: string | undefined): void {
+    const how = id === undefined ? undefined : this.#board.options.documentOf?.(id)?.source;
+    const append = how?._type === 'join' && how.how.form === 'append' ? how.how : undefined;
+    const pick = append?.pick?.body[0];
+    const by = pick === undefined ? '' : pick._type === 'var' ? `p:${pick.name}` : 'expression';
+    const strings = (this.#board.options.parameters?.() ?? []).filter((p) => familyOf(p.type) === 'text').map((p) => p.name);
+    const shown = append !== undefined && this.#board.options.onPick !== undefined;
+    const said = id === undefined ? undefined : this.#pickSaid.get(id);
+    const key = JSON.stringify([id, shown, by, strings, said, this.#board.editing]);
+    if (key === this.#pickKey) return;
+    this.#pickKey = key;
+    this.#pickStrip.hidden = !shown;
+    if (!shown || id === undefined) {
+      this.#pickStrip.replaceChildren();
+      return;
+    }
+    const d = this.#doc;
+    const label = d.createElement('label');
+    label.className = 'dc-flow-pick-label';
+    label.textContent = 'Keep the rows of ';
+    const select = d.createElement('select');
+    select.className = 'dc-flow-pick-select';
+    select.disabled = !this.#board.editing;
+    select.append(new Option('every input (a Union)', '', false, by === ''));
+    for (const name of strings) select.append(new Option(`the one $${name} names`, `p:${name}`, false, by === `p:${name}`));
+    // its pick another expression of the page's (Python's): kept as it is until another is picked
+    if (by === 'expression') select.append(new Option('the one its expression names', 'expression', false, true));
+    if (by.startsWith('p:') && !strings.includes(by.slice(2))) select.append(new Option(`the one $${by.slice(2)} names (no parameter now)`, by, false, true));
+    select.append(new Option('the one a new parameter names…', 'new'));
+    select.addEventListener('change', () => {
+      const v = select.value;
+      if (v === 'expression' || v === by) return;
+      const refused = this.#board.options.onPick?.(id, v === '' ? null : v === 'new' ? { made: true } : { parameter: v.slice(2) },
+        (g) => this.#nameOf(g, this.#said(g)?.tool ?? 'browse')) ?? null;
+      if (refused === null) this.#pickSaid.delete(id);
+      else this.#pickSaid.set(id, refused);
+      this.#pickKey = '';
+      this.#paintPick(id);
+    });
+    label.append(select);
+    const status = d.createElement('span');
+    status.className = 'dc-flow-pick-said';
+    status.setAttribute('role', 'status');
+    status.textContent = said !== undefined ? said
+      : by === '' ? 'A Dynamic Input keeps one input\'s rows, picked as it runs by a parameter of the page'
+        : 'Set the parameter on the page\'s Parameters bar: the box runs again with the rows of the one it names';
+    this.#pickStrip.replaceChildren(label, status);
+  }
+
   /**
    * A CROSS TAB'S COLUMNS (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL2): a pivoted box's columns are its values -- found
    * as it runs, so a box after it cannot read them -- or fixed by **Load values** (its values as its rows hold them now,
@@ -2622,12 +3057,30 @@ export class FlowCanvas {
     status.className = 'dc-flow-pin-said';
     status.setAttribute('role', 'status');
     status.textContent = said ?? '';
+    // the fix offered (FL8): each value it lacks a column of its own, after the columns it has -- an empty one none's
+    const addable = (lacking ?? []).filter((v) => v !== null);
+    const add = d.createElement('button');
+    add.type = 'button';
+    add.className = 'dc-picker-button dc-flow-pin-add';
+    add.textContent = `Add ${addable.length === 1 ? 'it' : `the ${addable.length}`} to its columns`;
+    add.title = 'Each value its rows hold that it has no column for given one, after the columns it has';
+    add.disabled = !this.#board.editing || this.#board.options.onAddPinned === undefined;
+    add.addEventListener('click', () => void (async () => {
+      add.disabled = true;
+      const refused = await this.#board.options.onAddPinned?.(id, addable);
+      this.#pinSaid.set(id, refused ?? `Its columns: ${addable.map(String).join(', ')} added`);
+      this.#paintPin(id);
+    })());
     this.#pinStrip.replaceChildren(words, button(pinned === undefined ? 'Load values' : 'Load values again', 'dc-flow-pin-load', true),
-      ...(pinned !== undefined ? [button('Unfix', 'dc-flow-pin-unfix', false)] : []), missing, status);
+      ...(pinned !== undefined ? [button('Unfix', 'dc-flow-pin-unfix', false)] : []), missing, ...(addable.length > 0 ? [add] : []), status);
   }
 
-  /** THE SETTINGS' OUTPUT (M6): the CSV file an Output box writes, named here (Enter, or leaving the field); Write now
-   *  writes it (its rows streamed from the database); Write no file makes it a box that writes none. */
+  /**
+   * THE SETTINGS' OUTPUT (M6): what an Output box writes -- a CSV file, named here (Enter, or leaving the field), or a
+   * table of this page's database (FL13), named here, written one of TABLE_MODES' ways (a merge by the key columns named
+   * beside it); Write now writes it (its rows streamed from the database, or its write run in one transaction); Write
+   * nothing makes it a box that writes none. Each change is the box's command (setOutput), judged by its rule.
+   */
   #paintOutput(id: string | undefined): void {
     const out = id === undefined ? undefined : this.#board.layout.boxes.find((b) => b.tile === id)?.output;
     const key = JSON.stringify([id, out, this.#board.editing]);
@@ -2639,53 +3092,127 @@ export class FlowCanvas {
       return;
     }
     const d = this.#doc;
-    const label = d.createElement('label');
-    label.className = 'dc-flow-input';
-    const words = d.createElement('span');
-    words.className = 'dc-flow-input-side';
-    words.textContent = 'Writes';
+    const said = d.createElement('span');
+    said.className = 'dc-flow-output-said';
+    said.setAttribute('role', 'status');
+    /** The output told as set now, unless its rule refuses it: then why, said. */
+    const tell = (next: Output): void => {
+      if (JSON.stringify(next) === JSON.stringify(out)) return;
+      const problem = outputProblem(next);
+      if (problem !== undefined) {
+        said.textContent = problem;
+        return;
+      }
+      this.#board.options.onOutput?.(id, next);
+    };
+    const line = (words: string, ...parts: HTMLElement[]): HTMLElement => {
+      const label = d.createElement('label');
+      label.className = 'dc-flow-input';
+      const side = d.createElement('span');
+      side.className = 'dc-flow-input-side';
+      side.textContent = words;
+      label.append(side, ...parts);
+      return label;
+    };
+    // a file or a table: switched, its name carried over as the other kind takes one
+    const kind = d.createElement('select');
+    kind.className = 'dc-select dc-flow-output-kind';
+    kind.setAttribute('aria-label', 'What it writes');
+    for (const [value, text] of [['csv', 'a CSV file'], ['table', "a table of this page's database"]] as const) {
+      const o = d.createElement('option');
+      o.value = value;
+      o.textContent = text;
+      kind.append(o);
+    }
+    kind.value = out.format;
+    kind.disabled = !this.#board.editing;
+    kind.addEventListener('change', () => {
+      const base = out.name.replace(/\.csv$/i, '');
+      tell(kind.value === 'table'
+        ? { format: 'table', name: base.replace(/[^A-Za-z0-9_]+/g, '_').replace(/^(?=\d)/, '_') || 'output', mode: 'create' }
+        : { format: 'csv', name: `${base}.csv` });
+    });
     const name = d.createElement('input');
     name.className = 'dc-picker-input dc-flow-output-name';
     name.value = out.name;
     name.disabled = !this.#board.editing;
-    name.setAttribute('aria-label', 'The CSV file it writes');
-    const said = d.createElement('span');
-    said.className = 'dc-flow-output-said';
-    said.setAttribute('role', 'status');
-    const tell = (): void => {
+    name.setAttribute('aria-label', out.format === 'csv' ? 'The CSV file it writes' : 'The table it writes');
+    const lines: HTMLElement[] = [line('Writes', kind), line(out.format === 'csv' ? 'File' : 'Table', name)];
+    let mode: HTMLSelectElement | undefined;
+    let keys: HTMLInputElement | undefined;
+    const asTable = (): Output | undefined => {
+      if (out.format !== 'table' || mode === undefined || keys === undefined) return undefined;
+      const m = mode.value as TableMode;
+      const k = keys.value.split(',').map((x) => x.trim()).filter((x) => x !== '');
+      return { format: 'table', name: name.value.trim(), mode: m, ...(m === 'merge' ? { keys: k } : {}) };
+    };
+    if (out.format === 'table') {
+      mode = d.createElement('select');
+      mode.className = 'dc-select dc-flow-output-mode';
+      mode.setAttribute('aria-label', 'How it writes the table');
+      for (const m of TABLE_MODES) {
+        const o = d.createElement('option');
+        o.value = m;
+        o.textContent = TABLE_MODE_WORDS[m];
+        mode.append(o);
+      }
+      mode.value = out.mode;
+      mode.disabled = !this.#board.editing;
+      keys = d.createElement('input');
+      keys.className = 'dc-picker-input dc-flow-output-keys';
+      keys.value = (out.keys ?? []).join(', ');
+      keys.placeholder = 'id, region';
+      keys.disabled = !this.#board.editing;
+      keys.setAttribute('aria-label', 'The key columns it merges by');
+      const keyLine = line('By key', keys);
+      keyLine.hidden = out.mode !== 'merge';
+      mode.addEventListener('change', () => {
+        keyLine.hidden = mode!.value !== 'merge';
+        // a merge waits for its keys: told once they are named
+        if (mode!.value === 'merge' && keys!.value.trim() === '') {
+          said.textContent = 'Name the key columns it merges by';
+          keys!.focus();
+          return;
+        }
+        tell(asTable()!);
+      });
+      keys.addEventListener('change', () => tell(asTable()!));
+      lines.push(line('Way', mode), keyLine);
+    }
+    const commitName = (): void => {
       const now = name.value.trim();
       if (now === out.name) return;
-      if (!now.toLowerCase().endsWith('.csv')) {
-        said.textContent = 'A CSV file\'s name ends .csv';
+      if (out.format === 'csv') {
+        tell({ format: 'csv', name: now });
         return;
       }
-      this.#board.options.onOutput?.(id, { format: 'csv', name: now });
+      tell(asTable()!);
     };
     name.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') tell();
+      if (e.key === 'Enter') commitName();
       if (e.key === 'Escape') name.value = out.name;
     });
-    name.addEventListener('change', tell);
-    label.append(words, name);
+    name.addEventListener('change', commitName);
     const write = d.createElement('button');
     write.type = 'button';
     write.className = 'dc-picker-button dc-primary dc-flow-output-write';
     write.textContent = 'Write now';
-    write.title = 'Its rows written to the file now -- every row, from the database; Run writes it too';
+    write.title = out.format === 'csv' ? 'Its rows written to the file now -- every row, from the database; Run writes it too'
+      : 'Its rows written into the table now, in one transaction -- every row, by the database; Run writes it too';
     write.addEventListener('click', () => void (async () => {
       write.disabled = true;
       said.textContent = 'Writing…';
-      const refused = await (this.#board.options.onWrite?.(id) ?? Promise.resolve('this page writes no file'));
-      said.textContent = refused ?? `Wrote ${out.name}`;
+      const refused = await (this.#board.options.onWrite?.(id) ?? Promise.resolve('this page writes nothing'));
+      said.textContent = refused ?? `Wrote ${outputWords(out)}`;
       write.disabled = false;
     })());
     const stop = d.createElement('button');
     stop.type = 'button';
     stop.className = 'dc-picker-button dc-quiet';
-    stop.textContent = 'Write no file';
+    stop.textContent = 'Write nothing';
     stop.hidden = !this.#board.editing;
     stop.addEventListener('click', () => this.#board.options.onOutput?.(id, null));
-    this.#outputStrip.replaceChildren(label, write, stop, said);
+    this.#outputStrip.replaceChildren(...lines, write, stop, said);
   }
 
   #startSide(e: PointerEvent): void {

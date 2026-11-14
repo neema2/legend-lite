@@ -14,6 +14,9 @@ export interface PureFormOptions {
   apply(pure: string): Promise<string | null>;
   /** Its Pure taken off, its rows its input's as they are: null when it is, else why not. Absent, it has none. */
   remove?(): Promise<string | null>;
+  /** Its Pure taken apart into boxes, a step each (Import Pure, FL12: pure-import.ts) -- this box its first, a box after it
+   *  each other: null when they are, else why not. Absent where boxes cannot be made after it. */
+  importBoxes?(pure: string): Promise<string | null>;
   close(): void;
 }
 
@@ -106,11 +109,27 @@ export function pureForm(host: HTMLElement, o: PureFormOptions): void {
   const cancel = el('button', 'dc-picker-button dc-quiet', foot, 'Cancel');
   cancel.type = 'button';
   cancel.addEventListener('click', () => o.close());
+  // Import as Boxes: each step a box of its own, the flow then shows what it does
+  const importBoxes = o.importBoxes;
+  const split = importBoxes === undefined ? undefined : el('button', 'dc-picker-button dc-pure-import', foot, 'Import as Boxes');
+  if (split !== undefined) {
+    split.type = 'button';
+    split.title = 'Each step of its Pure a box of its own -- this one its first, each after it over the one before';
+    split.addEventListener('click', () => void (async () => {
+      status.textContent = '';
+      split.disabled = true;
+      const refused = await importBoxes!(pure.value);
+      split.disabled = false;
+      if (refused === null) o.close();
+      else status.textContent = refused;
+    })());
+  }
   const ok = el('button', 'dc-picker-button dc-primary', foot, 'OK');
   ok.type = 'button';
   const check = (): void => {
     const bad = pure.value.trim() === '' ? 'write its Pure' : undefined;
     ok.disabled = bad !== undefined;
+    if (split !== undefined) split.disabled = bad !== undefined;
     ok.title = bad === undefined ? '' : `Not yet: ${bad}`;
   };
   pure.addEventListener('input', check);

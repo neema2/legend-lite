@@ -69,8 +69,6 @@ public sealed interface DateFmt {
      * cell read into the pure value domain carries NINE subsecond
      * digits — the engine's own decode ({@code %09d}). */
     static final List<DateFmt> ISO_NANO = concat(ISO_LOCAL, new Text("."), Part.SUBSEC_NANO);
-    /** ISO_NANO + the engine's GMT {@code +0000} suffix — its JSON spelling of a DateTime. */
-    public static final List<DateFmt> JSON_DATETIME = concat(ISO_NANO, new Text("+0000"));
 
     private static List<DateFmt> concat(List<DateFmt> head, DateFmt... tail) {
         java.util.List<DateFmt> out = new java.util.ArrayList<>(head);

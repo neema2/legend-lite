@@ -1,0 +1,205 @@
+fqn	status	tags	sql	system	user	origins	metamodel_tables
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseMapper	PASS	assert,host-unplanned-assert,system-read	112	68	44	body=7,referee_ours=1,session=1,system=103	activities=2,class_mappings=2,classes=2,column_contexts=2,data_types=2,databases=2,enum_value_mappings=2,enum_value_sources=2,enumeration_mappings=2,functions=2,group_by_mappings=2,mapping_includes=2,mapping_includes_closure=2,mapping_store_resolutions=2,mappings=2,plan_connection_sqls=2,plan_connections=2,plan_function_parameters=2,plan_node_closure=2,plan_nodes=2,plan_template_functions=2,plans=2,properties=2,property_mappings=2,relation_tree_node_columns=2,relation_tree_nodes=2,relation_trees=2,relational_elements=2,results=2,schemas=2,set_ancestry=2,value_specifications=2,view_column_mappings=2,vs_primary_key_columns=2
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaMapper	PASS	assert,host-unplanned-assert,system-read	1	0	1	referee_ours=1	
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseSchemaTableMapper	PASS	assert,host-unplanned-assert,system-read	1	0	1	referee_ours=1	
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDatabaseTableMapper	PASS	assert,host-unplanned-assert,system-read	1	0	1	referee_ours=1	
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalDefaultSchemaMapper	PASS	assert,host-unplanned-assert,system-read	1	0	1	referee_ours=1	
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalMapperTwoDBs	FAIL	assert,host-unplanned-assert,system-read	2	0	2	referee_ours=2	
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalMapperWithJoin	FAIL	assert,host-unplanned-assert,system-read	2	0	2	referee_ours=2	
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaMapper	PASS	assert,host-unplanned-assert,system-read	1	0	1	referee_ours=1	
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalSchemaTableMapper	PASS	assert,host-unplanned-assert,system-read	1	0	1	referee_ours=1	
+meta::pure::alloy::connections::tests::relationalMapper::testRelationalTableMapper	PASS	assert,host-unplanned-assert,system-read	1	0	1	referee_ours=1	
+meta::pure::executionPlan::m2m2r::tests::executeProjectWithNestedDerivedProperty	PASS	assert,check,effect	14	0	14	body=8,referee_ours=1,session=4,statement=1	
+meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty	PASS	assert,host-unplanned-assert,system-read	0	0	0		
+meta::pure::executionPlan::m2m2r::tests::planProjectWithDerivedProperty1	PASS	assert,host-unplanned-assert,system-read	0	0	0		
+meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedDerivedProperty	PASS	assert,host-unplanned-assert,system-read	0	0	0		
+meta::pure::executionPlan::m2m2r::tests::planProjectWithNestedProperty	PASS	assert,host-unplanned-assert,system-read	0	0	0		
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterESTTimeZone	PASS	assert,host-unplanned-assert,system-read	13	0	13	body=7,other=3,referee_ours=2,session=1	
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterGMTTimeZone	PASS	assert,host-unplanned-assert,system-read	5	0	5	other=3,referee_ours=2	
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeConstantParameterNoTimeZone	PASS	assert,host-unplanned-assert,system-read	5	0	5	other=3,referee_ours=2	
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableESTTimeZone	PASS	assert,host-unplanned-assert,system-read	5	0	5	other=3,referee_ours=2	
+meta::pure::executionPlan::tests::datetime::testPlanForDateTimeVariableNoTimeZone	PASS	assert,host-unplanned-assert,system-read	5	0	5	other=3,referee_ours=2	
+meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForCreateAndPopulateTempTableExecutionNode	FAIL	assert,check,effect,system-read	8	0	8	body=7,session=1	
+meta::pure::executionPlan::tests::execution::testPureExecutionStrategyForRelationalInstantiationExecutionNode	FAIL	assert,check,effect,system-read	0	0	0		
+meta::pure::executionPlan::tests::execution::testSQLCommentsInPlan	PASS	assert,host-unplanned-assert,system-read	3	0	3	other=2,referee_ours=1	
+meta::pure::executionPlan::tests::testSupportStreamFlagFromSimple	PASS	assert,host-unplanned-assert,system-read	14	0	14	body=7,other=4,referee_ours=2,session=1	
+meta::pure::executionPlan::tests::testSupportStreamFlagGraphFetchSimple	PASS	assert,host-unplanned-assert,system-read	3	0	3	other=2,referee_ours=1	
+meta::pure::executionPlan::tests::testSupportStreamFlagSimple	PASS	assert,host-unplanned-assert,system-read	6	0	6	other=4,referee_ours=2	
+meta::pure::executionPlan::tests::testSupportStreamFlagWithSupportedAndUnSupportedUsages	PASS	assert,host-unplanned-assert,system-read	3	0	3	other=2,referee_ours=1	
+meta::pure::executionPlan::tests::testSupportStreamFlagWithTdsJoinForOneDB	PASS	assert,host-unplanned-assert,system-read	3	0	3	other=2,referee_ours=1	
+meta::pure::executionPlan::tests::testSupportStreamFlagithTdsJoinForTwoDB	PASS	assert,host-unplanned-assert,system-read	3	0	3	other=2,referee_ours=1	
+meta::pure::executionPlan::tests::testViewToTDS	FAIL	assert,system-read	0	0	0		
+meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJsonToDB	PASS	assert	10	0	10	body=8,other=1,session=1	
+meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJsonToDBWithExplosion	FAIL	assert	0	0	0		
+meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossMappingJsonToDBWithNoLocalProperties	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStore::inMemoryAndRelational::testCrossStoreWithCSVDataSource	FAIL	assert,let-execute,system-read	9	0	9	body=8,session=1	
+meta::pure::graphFetch::tests::XStore::ordered::testOrderedCrossStoreGraphFetchWithComplexQualifierExpression	PASS	assert	10	0	10	body=8,other=1,session=1	
+meta::pure::graphFetch::tests::XStore::ordered::testOrderedCrossStoreGraphFetchWithComplexQualifierExpressionReuse	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchMissingProperty	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchMultiLevelXStoreRequirements	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchPropertyLevel	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchReverseOrder	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchRightOrder	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStore::ordered::testSimpleOrderedCrossStoreGraphFetchStringKey	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::testNestedUnionCrossStore	PASS	assert	10	0	10	body=8,other=1,session=1	
+meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::testNestedUnionOnMultipleSetsCrossStore	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::testSimpleUnionCrossStore	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::XStoreUnion::inMemoryAndRelational::testSimpleUnionOnMultipleSetsCrossStore	PASS	assert	1	0	1	other=1	
+meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToMilestonedTargetProperty::testWithHardcodedDate	PASS	assert,inline-seeds,let-execute,system-read	26	0	26	body=7,let=1,other=1,seed=16,session=1	
+meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testFlatten_ViaAllVersionsMapping	PASS	assert,inline-seeds,let-execute,system-read	26	0	26	body=7,let=1,other=1,seed=16,session=1	
+meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::testFlatten_ViaHardcodedDateMapping	PASS	assert,inline-seeds,let-execute,system-read	2	0	2	let=1,other=1	
+meta::pure::graphFetch::tests::m2m2r::milestoning::milestonedSourceToNonMilestonedTargetProperty::test_ViaAllVersionsMapping	PASS	assert,inline-seeds,let-execute,system-read	2	0	2	let=1,other=1	
+meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilestonedSourceToMilestonedTargetProperty::testWithHardcodedDate	PASS	assert,inline-seeds,let-execute,system-read	26	0	26	body=7,let=1,other=1,seed=16,session=1	
+meta::relational::functions::toPostgresModel::tests::testConvertAlias	PASS	assert,system-read	15	1	14	body=7,other=6,session=2	databases=1,relational_elements=1,schemas=1
+meta::relational::graphFetch::tests::chain::testRelationalChainExecutionFlat	PASS	assert	16	0	16	body=14,other=1,session=1	
+meta::relational::graphFetch::tests::chain::testRelationalChainExecutionNested	PASS	assert	1	0	1	other=1	
+meta::relational::graphFetch::tests::chain::testRelationalChainExecutionWithFilter	PASS	assert	1	0	1	other=1	
+meta::relational::graphFetch::tests::chain::testRelationalChainExecutionWithInScopeVariableFilter	PASS	assert	1	0	1	other=1	
+meta::relational::graphFetch::tests::isolation::testIsolationOfPropertyTargetFilter	PASS	assert,effect	12	0	12	body=8,other=1,session=3	
+meta::relational::graphFetch::tests::simple::testGraphFetchDataTypes	PASS	assert,effect	20	0	20	body=16,other=1,session=3	
+meta::relational::graphFetch::tests::union::rootLevel::testSpecialUnion_m2m2r	PASS	assert,inline-seeds,let-execute,let-frame,system-read	23	0	23	body=9,let=2,other=2,seed=9,session=1	
+meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenForNestedViews	PASS	assert,effect,system-read	20	10	10	body=8,other=10,session=2	relational_elements=10
+meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumns	SKIPPED	effect,system-read	14	0	14	body=7,session=7	
+meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithViewAsDriver	SKIPPED	effect,system-read	14	0	14	body=7,session=7	
+meta::relational::testDataGeneration::tests::alloy::testConstant_Alloy	PASS	assert,effect,system-read	6	1	5	body=1,other=3,session=2	relational_elements=1
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates_Alloy	PASS	assert,effect,system-read	6	1	5	body=1,other=3,session=2	relational_elements=1
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates_Alloy	PASS	assert,effect,system-read	7	2	5	body=1,other=4,session=2	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates_Alloy	PASS	assert,effect,system-read	7	2	5	body=1,other=4,session=2	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testErrorDueToNoSeedForRoot	PASS	assert,effect,system-read	5	0	5	body=1,other=2,session=2	
+meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleLevel_Alloy	PASS	assert,effect,system-read	4	2	2	body=1,other=2,session=1	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testInheritanceMultipleTableJoin_Alloy	PASS	assert,effect,system-read	4	2	2	body=1,other=2,session=1	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testQualifier_Alloy	PASS	assert,effect,system-read	16	2	14	body=7,other=2,session=7	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testSelfJoin_Alloy	PASS	assert,effect,system-read	16	2	14	body=7,other=2,session=7	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTableWithNoDataToInsert_Alloy	PASS	assert,effect,system-read	3	1	2	body=1,other=1,session=1	relational_elements=1
+meta::relational::testDataGeneration::tests::alloy::testSimpleSingleTable_Alloy	PASS	assert,effect,system-read	3	1	2	body=1,other=1,session=1	relational_elements=1
+meta::relational::testDataGeneration::tests::alloy::testSimpleTableToViewJoin_Alloy	PASS	assert,effect,system-read	16	2	14	body=7,other=2,session=7	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTableMultipleStartRows_Alloy	PASS	assert,effect,system-read	4	2	2	body=1,other=2,session=1	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testSimpleTwoTable_Alloy	PASS	assert,effect,system-read	3	1	2	body=1,other=1,session=1	relational_elements=1
+meta::relational::testDataGeneration::tests::alloy::testSimpleViewRootToJoin_Alloy	PASS	assert,effect,system-read	16	2	14	body=7,other=2,session=7	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testTableToTDSMultipleJoins	PASS	assert,effect,system-read	16	2	14	body=7,other=2,session=7	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testTableToTDSSimple	SKIPPED	effect,system-read	14	0	14	body=7,session=7	
+meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithAppliedFunctions	SKIPPED	effect,system-read	14	0	14	body=7,session=7	
+meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithConcatenate	PASS	assert,effect,system-read	22	8	14	body=7,other=8,session=7	relational_elements=8
+meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithJoinAndUnion	PASS	assert,effect,system-read	22	8	14	body=7,other=8,session=7	relational_elements=8
+meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevelsWithStringHashing_Alloy	PASS	assert,effect,system-read	4	2	2	body=1,other=2,session=1	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testUnionToUnionMultipleLevels_Alloy	PASS	assert,effect,system-read	4	2	2	body=1,other=2,session=1	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testViewChild_Alloy	PASS	assert,effect,system-read	16	2	14	body=7,other=2,session=7	relational_elements=2
+meta::relational::testDataGeneration::tests::alloy::testViewEmbeddedInChainedJoin_Alloy	PASS	assert,effect,system-read	20	6	14	body=7,other=6,session=7	relational_elements=6
+meta::relational::testDataGeneration::tests::alloy::testViewRootWithDefaultSeed_Alloy	SKIPPED	effect,system-read	14	0	14	body=7,session=7	
+meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByChild_Alloy	SKIPPED	effect,system-read	14	0	14	body=7,session=7	
+meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByRoot_Alloy	SKIPPED	effect,system-read	14	0	14	body=7,session=7	
+meta::relational::testDataGeneration::tests::TestDatGenForNestedViews	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	87	10	77	body=10,let=2,other=10,session=42,statement=2,tdg=21	relational_elements=10
+meta::relational::testDataGeneration::tests::testConstant	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	19	1	18	body=2,let=1,other=1,session=10,statement=1,tdg=4	relational_elements=1
+meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	29	1	28	body=2,let=1,other=1,session=16,statement=1,tdg=8	relational_elements=1
+meta::relational::testDataGeneration::tests::testDataGenerationWithBiTemporalMilestoning_WithMilestoningDates	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	29	1	28	body=2,let=1,other=1,session=16,statement=1,tdg=8	relational_elements=1
+meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning	PASS	assert,effect,system-read,tdg-generator	23	1	22	body=1,other=1,session=13,tdg=8	relational_elements=1
+meta::relational::testDataGeneration::tests::testDataGenerationWithBusinessDateMilestoning_WithMilestoningDates	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	58	2	56	body=4,let=2,other=2,session=32,statement=2,tdg=16	relational_elements=2
+meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning	PASS	assert,effect,system-read,tdg-generator	24	2	22	body=1,other=2,session=13,tdg=8	relational_elements=2
+meta::relational::testDataGeneration::tests::testDataGenerationWithSnapshotMilestoning_WithMilestoningDates	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	30	2	28	body=2,let=1,other=2,session=16,statement=1,tdg=8	relational_elements=2
+meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMilestoningTable	PASS	assert,csv-census	4	0	4	other=4	
+meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForMultiTables	PASS	assert,csv-census	4	0	4	other=4	
+meta::relational::testDataGeneration::tests::testGenerateNecessaryTableColumnsForSingleTable	PASS	assert,csv-census	4	0	4	other=4	
+meta::relational::testDataGeneration::tests::testGenerateSeedDataWithQuotedColumns	PASS	assert,effect,system-read,tdg-generator	20	0	20	body=7,other=2,session=10,tdg=1	
+meta::relational::testDataGeneration::tests::testInheritanceMultipleLevel	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	158	2	156	body=2,let=1,other=2,session=92,statement=1,tdg=60	relational_elements=2
+meta::relational::testDataGeneration::tests::testInheritanceMultipleTableJoin	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	100	2	98	body=2,let=1,other=2,session=58,statement=1,tdg=36	relational_elements=2
+meta::relational::testDataGeneration::tests::testQualifier	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	112	2	110	body=8,let=1,other=2,session=64,statement=1,tdg=36	relational_elements=2
+meta::relational::testDataGeneration::tests::testSelfJoin	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	94	2	92	body=8,let=1,other=2,session=52,statement=1,tdg=30	relational_elements=2
+meta::relational::testDataGeneration::tests::testSimpleSingleTable	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	19	1	18	body=2,let=1,other=1,session=10,statement=1,tdg=4	relational_elements=1
+meta::relational::testDataGeneration::tests::testSimpleSingleTableWithNoDataToInsert	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	19	1	18	body=2,let=1,other=1,session=10,statement=1,tdg=4	relational_elements=1
+meta::relational::testDataGeneration::tests::testSimpleTableToViewJoin	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	74	4	70	body=8,let=1,other=4,session=40,statement=1,tdg=20	relational_elements=4
+meta::relational::testDataGeneration::tests::testSimpleTwoTable	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	49	1	48	body=2,let=1,other=1,session=28,statement=1,tdg=16	relational_elements=1
+meta::relational::testDataGeneration::tests::testSimpleTwoTableMultipleStartRows	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	50	2	48	body=2,let=1,other=2,session=28,statement=1,tdg=16	relational_elements=2
+meta::relational::testDataGeneration::tests::testSimpleViewRoot	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	65	2	63	body=8,let=1,other=2,session=36,statement=1,tdg=17	relational_elements=2
+meta::relational::testDataGeneration::tests::testSimpleViewRootToJoin	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	72	2	70	body=8,let=1,other=2,session=40,statement=1,tdg=20	relational_elements=2
+meta::relational::testDataGeneration::tests::testTableToTDSMultipleJoins	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	182	2	180	body=8,let=1,other=2,session=106,statement=1,tdg=64	relational_elements=2
+meta::relational::testDataGeneration::tests::testTableToTDSSimple	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	34	4	30	body=8,let=1,other=4,session=16,statement=1,tdg=4	relational_elements=4
+meta::relational::testDataGeneration::tests::testTableToTdsWithAppliedFunctions	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	34	4	30	body=8,let=1,other=4,session=16,statement=1,tdg=4	relational_elements=4
+meta::relational::testDataGeneration::tests::testTableToTdsWithConcatenate	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	48	8	40	body=8,let=1,other=8,session=22,statement=1,tdg=8	relational_elements=8
+meta::relational::testDataGeneration::tests::testTableToTdsWithGroupBy	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	34	4	30	body=8,let=1,other=4,session=16,statement=1,tdg=4	relational_elements=4
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndOLAPGroupBy	PASS	assert,effect,system-read,tdg-generator	58	4	54	body=7,other=4,session=31,tdg=16	relational_elements=4
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinAndUnion	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	139	8	131	body=8,let=1,other=8,session=76,statement=1,tdg=45	relational_elements=8
+meta::relational::testDataGeneration::tests::testTableToTdsWithJoinToSameTable	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	58	4	54	body=8,let=1,other=4,session=30,statement=1,tdg=14	relational_elements=4
+meta::relational::testDataGeneration::tests::testUnion	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	265	2	263	body=2,let=1,other=2,session=154,statement=1,tdg=105	relational_elements=2
+meta::relational::testDataGeneration::tests::testUnionToUnion	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	280	2	278	body=2,let=1,other=2,session=164,statement=1,tdg=110	relational_elements=2
+meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevels	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	154	2	152	body=2,let=1,other=2,session=88,statement=1,tdg=60	relational_elements=2
+meta::relational::testDataGeneration::tests::testUnionToUnionMultipleLevelsWithStringHashing	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	154	2	152	body=2,let=1,other=2,session=88,statement=1,tdg=60	relational_elements=2
+meta::relational::testDataGeneration::tests::testUnionViewOnView	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	116	2	114	body=8,let=1,other=2,session=66,statement=1,tdg=38	relational_elements=2
+meta::relational::testDataGeneration::tests::testViewEmbeddedInChainedJoin	PASS	assert,check,effect,last-query,let-execute,system-read,tdg-generator	69	6	63	body=8,let=1,other=6,session=36,statement=1,tdg=17	relational_elements=6
+meta::relational::tests::aggregationAware::testRewrite::objectGroupBy::testRewriteCanAggregateGroupByOnLiteralWithMultipleAgg	PASS	check,effect,last-effect,system-read	12	0	12	body=9,let=1,referee_ours=1,session=1	
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonAggregationAware::testRewriteFilter	PASS	check,effect,last-effect,system-read	13	0	13	body=9,let=1,other=1,referee_ours=1,session=1	
+meta::relational::tests::aggregationAware::testRewriteAsNOP::nonGroupBy::testRewriteFilter	PASS	check,effect,last-effect,system-read	14	0	14	body=9,let=1,other=2,referee_ours=1,session=1	
+meta::relational::tests::ddl::testCreateTempTableStatement	FAIL	assert,system-read	8	0	8	body=7,session=1	
+meta::relational::tests::ddl::testSetupDataSqlGeneration	PASS	assert,system-read	1	0	1	other=1	
+meta::relational::tests::ddl::testSetupDataSqlGenerationWithColumnValueHasDelimiterAndQuotes	PASS	assert,system-read	1	0	1	other=1	
+meta::relational::tests::ddl::testSetupDataSqlGenerationWithDataAsString	PASS	assert,system-read	1	0	1	other=1	
+meta::relational::tests::fromMapping::testClassMappingsAreCorrectlyIsolated	PASS	activities,assert,frame-system-read,let-execute	20	0	20	body=15,let=1,other=2,referee_ours=1,session=1	
+meta::relational::tests::fromMapping::testClassMappingsWithUnions	PASS	activities,assert,frame-system-read,let-execute	4	0	4	let=1,other=2,referee_ours=1	
+meta::relational::tests::fromMapping::testEnumProjection	PASS	assert,frame-system-read,let-execute	3	0	3	let=1,other=2	
+meta::relational::tests::fromMapping::testFromWithMapping	PASS	activities,assert,frame-system-read,let-execute	3	0	3	let=1,other=2	
+meta::relational::tests::fromMapping::testFromWithMappingAndIntermediateFuncCall	PASS	activities,assert,frame-system-read,let-execute	3	0	3	let=1,other=2	
+meta::relational::tests::fromMapping::testMappingFromQueriesViaMappingWithAssociationsOnly	PASS	activities,assert,frame-system-read,let-execute	4	0	4	let=1,other=2,referee_ours=1	
+meta::relational::tests::functions::pureToSqlQuery::testReAliasMergedJoinOperations	FAIL	assert,system-read	8	0	8	body=7,session=1	
+meta::relational::tests::functions::sqlstring::testToSQLStringWithAbs	FAIL	assert,host-unplanned-assert,system-read	8	0	8	body=7,session=1	
+meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_DB2	PASS	assert,system-read	2	0	2	other=2	
+meta::relational::tests::functions::sqlstring::testToSqlGenerationFirstDayOfQuarter_H2	PASS	assert,system-read	2	0	2	other=2	
+meta::relational::tests::mapping::embedded::testExistsWithEmbeddedWithPostProcessor	PASS	activities,assert,let-execute,system-read	17	0	17	body=14,let=1,referee_ours=1,session=1	
+meta::relational::tests::mapping::modelJoin::advanced::testChainedTwoHops	PASS	activities,assert,check,effect,let-execute,system-read	17	0	17	body=8,let=1,other=2,referee_ours=1,session=5	
+meta::relational::tests::mapping::modelJoin::advanced::testColumnCollisionInSubselect	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testComplexRelationFunction	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testDirectPropertyAccess	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testDistinctOnTarget	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testDoubleNestedBothSides	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testFilterOnTarget	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testFilterOnTargetNestedCondition	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testFilterOnTargetReverse	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testFilterWithInnerJoinOnTarget	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testInCondition	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testMixedMappingEmployeeToFirm	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testMixedMappingFirmToEmployee	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testNestedInFilter	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testNestedModelJoinCompoundInnerCondition	FAIL	assert,check,effect,let-execute,system-read	2	0	2	body=1,session=1	
+meta::relational::tests::mapping::modelJoin::advanced::testNestedPropertyChain	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testQualifiedPropertyInQuery	PASS	assert,check,effect,let-execute,system-read	7	0	7	body=1,let=1,other=2,session=3	
+meta::relational::tests::mapping::modelJoin::advanced::testRelationalDoubleNestedBothSides	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testRelationalNestedInFilter	PASS	activities,assert,check,effect,let-execute,system-read	7	0	7	body=1,let=1,other=2,session=3	
+meta::relational::tests::mapping::modelJoin::advanced::testRelationalNestedPropertyChain	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testSubAggregation	PASS	assert,check,effect,let-execute,system-read	7	0	7	body=1,let=1,other=2,session=3	
+meta::relational::tests::mapping::modelJoin::advanced::testSubAggregationRelational	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testSubFilter	PASS	assert,check,effect,let-execute,system-read	7	0	7	body=1,let=1,other=2,session=3	
+meta::relational::tests::mapping::modelJoin::advanced::testUnionWithExistsFilter	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::advanced::testUnionWithSubtypeQuery	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::milestoning::testMilestonedContract	PASS	activities,assert,check,effect,let-execute,system-read	17	0	17	body=8,let=1,other=2,referee_ours=1,session=5	
+meta::relational::tests::mapping::modelJoin::milestoning::testMilestoningDiffScheme	PASS	activities,assert,check,effect,frame-temporal,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::milestoning::testMilestoningSameScheme	PASS	activities,assert,check,effect,frame-temporal,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::milestoning::testMilestoningSourceOnly	PASS	activities,assert,check,effect,frame-temporal,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::milestoning::testMilestoningTargetOnly	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::milestoning::testRelationalMilestoningDiffScheme	PASS	activities,assert,check,effect,frame-temporal,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::milestoning::testRelationalMilestoningSameScheme	PASS	activities,assert,check,effect,frame-temporal,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::milestoning::testRelationalMilestoningSourceOnly	PASS	activities,assert,check,effect,frame-temporal,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::milestoning::testRelationalMilestoningTargetOnly	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::simple::testArithmeticCondition	PASS	activities,assert,check,effect,let-execute,system-read	17	0	17	body=8,let=1,other=2,referee_ours=1,session=5	
+meta::relational::tests::mapping::modelJoin::simple::testConcatCondition	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::simple::testDerivedPropertyInCondition	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::simple::testFunctionInCondition	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::simple::testInCondition	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::simple::testMultipleAndConditions	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::simple::testNullableSalaryMapping	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::simple::testOrConditions	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::simple::testRelationalSimpleEquality	PASS	activities,assert,check,effect,let-execute,system-read	7	0	7	body=1,let=1,other=2,session=3	
+meta::relational::tests::mapping::modelJoin::simple::testSimpleEquality	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::union::testRelationalUnionBothSides	PASS	activities,assert,check,effect,let-execute,system-read	17	0	17	body=8,let=1,other=2,referee_ours=1,session=5	
+meta::relational::tests::mapping::modelJoin::union::testRelationalUnionSource	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::union::testRelationalUnionSubAggregation	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::modelJoin::union::testUnionWithExistsFilter	PASS	activities,assert,check,effect,let-execute,system-read	9	0	9	body=1,let=1,other=2,referee_ours=1,session=4	
+meta::relational::tests::mapping::relation::testRfpmLiftMixedConcat	PASS	assert,let-execute,system-read	12	0	12	body=8,let=1,other=2,session=1	
+meta::relational::tests::mapping::subType::testSubTypeMappingValidWhenMappedExplicitly	PASS	activities,assert,let-execute,system-read	19	1	18	body=15,let=1,other=1,referee_ours=1,session=1	class_mappings=1,mapping_includes_closure=1,mappings=1
+meta::relational::tests::milestoning::applyMilestoningFilters::testMilestoningFilterApplicationOnSemiStructuredRelationalOperationElements	FAIL	assert,last-query,system-read	8	0	8	body=7,session=1	
+meta::relational::tests::postProcessor::testReplaceTableMultiplePostProcessor	PASS	activities,assert,let-execute,system-read	16	0	16	body=14,let=1,session=1	
+meta::relational::tests::postProcessor::testReplaceTablePostProcessor	PASS	activities,assert,let-execute,system-read	2	0	2	let=1,referee_ours=1	
+meta::relational::tests::postProcessor::testReplaceTablePostProcessorWithExists	PASS	activities,assert,let-execute,system-read	2	0	2	let=1,referee_ours=1	
+meta::relational::tests::postProcessor::testReplaceTablePostProcessorWithView	PASS	activities,assert,let-execute,system-read	2	0	2	let=1,referee_ours=1	
+meta::relational::tests::postProcessor::testReplaceTablesPostProcessor	PASS	activities,assert,let-execute,system-read	2	0	2	let=1,referee_ours=1	
+meta::relational::tests::postProcessor::testToSqlStringReplaceTablesPostProcessor	PASS	assert,host-unplanned-assert,system-read	2	0	2	referee_ours=2	
+meta::relational::tests::query::qualifier::testWithParameterToClassNestedSelect	PASS	activities,assert,eager-inline-execute,let-execute,system-read	22	0	22	body=15,let=2,other=3,referee_ours=1,session=1	
+meta::relational::tests::tds::tdsRestrict::testRestrictWithPostProcessor	PASS	activities,assert,let-execute,system-read	17	0	17	body=14,let=1,referee_ours=1,session=1	
+meta::relational::tests::typeInference::testTranslateDbType	FAIL	assert,system-read	8	0	8	body=7,session=1	

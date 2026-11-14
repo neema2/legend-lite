@@ -228,6 +228,20 @@ public final class JUnitMain {
                 if (id.isTest() && bazel.excluded.contains(id.getUniqueIdObject())) {
                     overrun.incrementAndGet();
                 }
+                // the running test, as its class and method: what a diagnostic names it by (the walk's door listed
+                // tests by it until the walk was deleted, 2026-11-06); a sequential run's one current test
+                if (id.isTest() && id.getSource().orElse(null)
+                        instanceof MethodSource ms) {
+                    System.setProperty("legend.test.current", ms.getClassName() + "#" + ms.getMethodName());
+                }
+            }
+
+            @Override
+            public void executionFinished(TestIdentifier id,
+                    org.junit.platform.engine.TestExecutionResult result) {
+                if (id.isTest()) {
+                    System.clearProperty("legend.test.current");
+                }
             }
         };
         launcher.execute(request, summary, legacy, guard);
@@ -417,13 +431,44 @@ public final class JUnitMain {
         System.setProperty("java.io.tmpdir", tmp);
     }
 
-    /** The heap's live peak: the most still in use right after a collection, across every collection of
-     *  the run. With the most in use right before one, it is the measurement a target's
-     *  {@code junit_test(memory_mb = …)} is set from (Bazel workplan P1-21). Each pool's own peak is no
-     *  measure: the pools peak at different moments, so their sum exceeds the heap (it read 11 GB for an
-     *  8 GB JVM). A collection's before/after usage is one simultaneous snapshot of every pool. */
+    /**
+     * THE HEAP'S LIVE PEAK: the most still in use right after a FULL collection, across the run, with the most in use
+     * right before any collection beside it. They are the measurement a target's {@code junit_test(memory_mb = ...)} is
+     * set from (Bazel workplan P1-21). A collection's before/after usage is one simultaneous snapshot of every pool;
+     * each pool's own peak is no measure (they peak at different moments: their sum read 11 GB for an 8 GB JVM).
+     *
+     * <p>Only a full collection reclaims the old generation, so only its "after" is a live set. Until 2026-11-10 the peak
+     * was taken after ANY collection, and under G1 a young pause leaves the old generation's garbage in place: the PCT
+     * ClickHouse relation lane read 4093 of 4096 MB (rounds 30-31) while its true live set, measured with forced full
+     * collections, was 1.7-1.9 GB at the reference model's load and about 0.77 GB after (the orchestrator's ruling: "make
+     * watchHeap measure what it claims"). A run's young collections rarely include a full one, so where the heap after a
+     * young pause has grown by a quarter past both the live peak and the heap in use when the last measure was asked for
+     * (and past {@link #MEASURE_FLOOR}), a full collection is asked for, to measure it -- geometric, a few per run, and
+     * {@link #MAX_MEASURES} at most; and one more at the end.
+     */
     private static final AtomicLong LIVE_PEAK = new AtomicLong();
     private static final AtomicLong USED_PEAK = new AtomicLong();
+    private static final java.util.concurrent.atomic.AtomicInteger MEASURES = new java.util.concurrent.atomic.AtomicInteger();
+    /** The heap in use after the young pause that last asked for a measure. */
+    private static final AtomicLong LAST_ASKED = new AtomicLong();
+
+    /** The most full collections a run asks for, to measure its live set. */
+    static final int MAX_MEASURES = 16;
+
+    /** The heap in use after a young pause below which none is asked for: a small heap's measure is the end's. */
+    static final long MEASURE_FLOOR = 256L << 20;
+
+    /** Whether a collection of {@code gcAction} reclaimed the old generation: a full ("major") collection's. */
+    static boolean reclaimsOldGeneration(String gcAction) {
+        return "end of major GC".equals(gcAction);
+    }
+
+    /** Whether a young pause leaving {@code inUse} bytes asks for a full collection to measure the live set: past the
+     *  floor, and by a quarter past {@code since} (the larger of the live peak so far and the heap in use when the last
+     *  measure was asked for), with fewer than {@link #MAX_MEASURES} measures {@code taken}. */
+    static boolean measureNow(long inUse, long since, int taken) {
+        return taken < MAX_MEASURES && inUse > MEASURE_FLOOR && inUse > since + since / 4;
+    }
 
     static void watchHeap() {
         List<String> heapPools = new ArrayList<>();
@@ -432,6 +477,19 @@ public final class JUnitMain {
                 heapPools.add(pool.getName());
             }
         }
+        java.util.concurrent.Semaphore asked = new java.util.concurrent.Semaphore(0);
+        Thread measurer = new Thread(() -> {
+            while (true) {
+                try {
+                    asked.acquire();
+                } catch (InterruptedException e) {
+                    return;
+                }
+                System.gc();
+            }
+        }, "heap-measure");
+        measurer.setDaemon(true);
+        measurer.start();
         for (GarbageCollectorMXBean gc : ManagementFactory.getGarbageCollectorMXBeans()) {
             if (!(gc instanceof NotificationEmitter emitter)) {
                 continue;
@@ -440,9 +498,17 @@ public final class JUnitMain {
                 if (!notification.getType().equals(GarbageCollectionNotificationInfo.GARBAGE_COLLECTION_NOTIFICATION)) {
                     return;
                 }
-                var info = GarbageCollectionNotificationInfo.from((CompositeData) notification.getUserData()).getGcInfo();
-                LIVE_PEAK.accumulateAndGet(sum(info.getMemoryUsageAfterGc(), heapPools), Math::max);
+                var gcNotification = GarbageCollectionNotificationInfo.from((CompositeData) notification.getUserData());
+                var info = gcNotification.getGcInfo();
+                long after = sum(info.getMemoryUsageAfterGc(), heapPools);
                 USED_PEAK.accumulateAndGet(sum(info.getMemoryUsageBeforeGc(), heapPools), Math::max);
+                if (reclaimsOldGeneration(gcNotification.getGcAction())) {
+                    LIVE_PEAK.accumulateAndGet(after, Math::max);
+                } else if (measureNow(after, Math.max(LIVE_PEAK.get(), LAST_ASKED.get()), MEASURES.get())) {
+                    MEASURES.incrementAndGet();
+                    LAST_ASKED.set(after);
+                    asked.release();
+                }
             }, null, null);
         }
     }
@@ -458,14 +524,16 @@ public final class JUnitMain {
         return total;
     }
 
-    /** A run that never collected has no snapshot: its whole heap in use now stands for both. */
+    /** The run's heap line: its end measured by one more full collection (the heap in use right after it). */
     private static String peakHeap() {
-        long now = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
-        long live = Math.max(LIVE_PEAK.get(), USED_PEAK.get() == 0 ? now : 0);
-        long used = Math.max(USED_PEAK.get(), now);
+        System.gc();
+        long end = ManagementFactory.getMemoryMXBean().getHeapMemoryUsage().getUsed();
+        long live = Math.max(LIVE_PEAK.get(), end);
+        long used = Math.max(USED_PEAK.get(), live);
         long max = Runtime.getRuntime().maxMemory();
-        return "[bazel] heap: live peak " + (live >> 20) + " MB (in use after a collection), peak "
-                + (used >> 20) + " MB before one, of " + (max >> 20) + " MB";
+        return "[bazel] heap: live peak " + (live >> 20) + " MB (in use after a full collection, " + MEASURES.get()
+                + " asked for to measure it), peak " + (used >> 20) + " MB before a collection, of " + (max >> 20)
+                + " MB";
     }
 
     private static boolean onClasspath(String className) {

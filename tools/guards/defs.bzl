@@ -109,8 +109,10 @@ def guards_package():
     native.filegroup(
         name = "all_files",
         # the root package's glob would follow Bazel's convenience links (bazel-bin, bazel-out, ...) into the output
-        # tree; their names vary by checkout, so .bazelignore cannot list them. .git is ignored there, but in a
+        # tree, and an `exclude` only filters the walk's result, never stops it: REPO.bazel's ignore_directories keeps
+        # them out of the walk (2026-11-02, a Windows CI analysis failure; REPO.bazel says what it was). Without it their
+        # files would land here, and //tools/guards:inventory_test would fail. .git is ignored there, but in a
         # worktree it is a FILE, which an ignored directory name does not cover.
-        srcs = native.glob(["**"], exclude = [".git", "bazel-*/**"] if not native.package_name() else [], allow_empty = True),
+        srcs = native.glob(["**"], exclude = [".git"] if not native.package_name() else [], allow_empty = True),
         visibility = ["//tools/guards:__pkg__"],
     )

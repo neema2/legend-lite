@@ -99,9 +99,15 @@ public final class ClassSources {
     private java.util.function.Function<String, Map<String, List<List<String>>>>
             constructedRows = id -> Map.of();
 
+    /** tree id -> the cells of its rows that are plan parameters, bound when the plan runs. */
+    private java.util.function.Function<String, List<com.legend.plan.LazyRows.Parameter>>
+            constructedParameters = id -> List.of();
+
     void setConstructedRows(
-            java.util.function.Function<String, Map<String, List<List<String>>>> rows) {
+            java.util.function.Function<String, Map<String, List<List<String>>>> rows,
+            java.util.function.Function<String, List<com.legend.plan.LazyRows.Parameter>> parameters) {
         this.constructedRows = rows;
+        this.constructedParameters = parameters;
     }
 
     /**
@@ -118,13 +124,13 @@ public final class ClassSources {
             return built.withScope(scope);
         }
         return new ClassSource(built.mappingFqn(), built.classFqn(), built.setId(),
-                inlineStoreLeaves(built.pipeline(), rows), built.rowVar(),
+                inlineStoreLeaves(built.pipeline(), rows, constructedParameters.apply(scope)), built.rowVar(),
                 built.bindings(), built.rowType(), built.sourceClass(),
                 built.deferredWalls(), built.composedPrefix(), built.castGate(), scope);
     }
 
     private static TypedSpec inlineStoreLeaves(TypedSpec n,
-            Map<String, List<List<String>>> rows) {
+            Map<String, List<List<String>>> rows, List<com.legend.plan.LazyRows.Parameter> parameters) {
         if (n instanceof com.legend.compiler.spec.typed.TypedTableReference tr
                 && com.legend.builtin.SystemMetamodel.STORE_FQN.equals(tr.store())) {
             String table = tr.table().substring(tr.table().lastIndexOf('.') + 1);
@@ -141,7 +147,14 @@ public final class ClassSources {
                     }
                     cells.add(r);
                 }
-                return new com.legend.compiler.spec.typed.TypedTds(cells, tr.info());
+                List<com.legend.compiler.spec.typed.TypedTds.Parameter> mineParameters = new ArrayList<>();
+                for (com.legend.plan.LazyRows.Parameter p : parameters) {
+                    if (p.table().equals(table)) {
+                        mineParameters.add(new com.legend.compiler.spec.typed.TypedTds.Parameter(p.row(), p.column(),
+                                p.name()));
+                    }
+                }
+                return new com.legend.compiler.spec.typed.TypedTds(cells, tr.info(), mineParameters);
             }
             return n;
         }
@@ -152,7 +165,7 @@ public final class ClassSources {
         List<TypedSpec> out = new ArrayList<>(kids.size());
         boolean changed = false;
         for (TypedSpec k : kids) {
-            TypedSpec nk = inlineStoreLeaves(k, rows);
+            TypedSpec nk = inlineStoreLeaves(k, rows, parameters);
             changed |= nk != k;
             out.add(nk);
         }
@@ -684,11 +697,12 @@ public final class ClassSources {
                         upstreamMapping, contextKey);
             }
             // JSON SOURCE FRAME (XStore §1): an unmapped class carried by a
-            // JsonModelConnection in the execution context realizes as a
-            // typed VALUES relation — the class declaration is the schema.
+            // JsonModelConnection in the execution context realizes as its
+            // payload's data: source relation — the class declaration is the
+            // schema.
             String jsonUrl = jsonSources.get(classFqn);
             if (jsonUrl != null) {
-                return JsonSourceFrame.sourceUrlFrame(ctx, mappingFqn, classFqn,
+                return JsonSourceFrame.frame(ctx, mappingFqn, classFqn,
                         jsonUrl);
             }
             // the recorded reason: the demanded SET's own (the per-set
@@ -946,7 +960,7 @@ public final class ClassSources {
             // SELF-SOURCED M2M whose upstream is the execution context's
             // JsonModelConnection (TradeLinkage cross-store golden): the
             // JSON frame IS the source layer — never this mapping again
-            inner = JsonSourceFrame.sourceUrlFrame(ctx, mappingFqn,
+            inner = JsonSourceFrame.frame(ctx, mappingFqn,
                     srcType.fqn(), jsonUrl);
         } else {
             String srcMapping = !selfSourced

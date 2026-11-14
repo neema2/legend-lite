@@ -2,22 +2,24 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.exec;
 
+import com.legend.diagnostics.Census;
+
 /**
  * CENSUS: where every statement the platform or the test harness sends to a
  * database comes from — measurement only, printed by the corpus lanes, read by
  * no verdict. The north star (lean ladder, 2026-09-20) is ONE statement per test
  * body: every origin but {@link #BODY} is a statement outside it, and the census
  * names them by kind and by test so the next leg is chosen by count, not by
- * intuition. The origin is a thread-scoped mark ({@link #enter}) set by the site
- * that decides WHY a statement runs; the executor counts every statement under
- * the mark in force ({@link #count()}); harness senders that bypass the executor
- * count themselves.
+ * intuition. The origin is a mark the site that decides WHY a statement runs hands
+ * down explicitly -- on the statements and the session source it passes
+ * ({@code Statements.mark}, {@code PlanSessions.Source.mark}; a thread-scoped mark
+ * until slice 5, 2026-11-09); the runner counts every statement under its mark
+ * ({@link #sent}); harness senders that bypass the runner count themselves under
+ * the origin they name ({@link #count}).
  */
 public enum StatementOrigin {
     /** The body's fused verdict statement (one per test body). */
     BODY,
-    /** A body that fell back to per-assert statements. */
-    FALLBACK,
     /** A let's frame RUN at the let (the host judge's path). */
     LET,
     /** A value-position execute: its result IS the value asked for. */
@@ -45,66 +47,52 @@ public enum StatementOrigin {
     MIRROR_SEED,
     /** A metadata probe: reported columns, pivot keys. */
     PROBE,
-    /** Test-data generation. */
-    TDG,
+    // (TDG, the test-data generator's interleaved run, went 2026-11-11 with B2d.2: the generator is one planned
+    // statement, sent as any statement of its body)
     /** No site claimed the statement — the census's own residual. */
     OTHER;
 
-    private static final ThreadLocal<StatementOrigin> CURRENT =
-            ThreadLocal.withInitial(() -> OTHER);
-    /** The mark in force on this thread. */
-    public static StatementOrigin current() {
-        return CURRENT.get();
+    /** The origin a site names for what it runs, under {@code inForce}, the mark the caller handed down: the site's
+     *  own where no site has marked it yet; {@link #STATEMENT} is the weak outer mark of a body statement, a raw native
+     *  or a side evaluated inside one naming itself over it (the rule a thread-scoped mark followed until slice 5,
+     *  2026-11-09: the mark is passed explicitly now). */
+    public static StatementOrigin under(StatementOrigin inForce, StatementOrigin origin) {
+        return inForce == OTHER || inForce == STATEMENT && origin != STATEMENT ? origin : inForce;
     }
 
-    /** {@link #enter} only when no site has marked the thread yet — a site that
-     * serves marked callers (a fixture's seeding, the referee) and unmarked ones.
-     * {@link #STATEMENT} is the weak outer mark of a body statement: a raw native
-     * or a side evaluated inside one names itself over it. */
-    public static Scope enterIfUnmarked(StatementOrigin origin) {
-        StatementOrigin now = CURRENT.get();
-        return enter(now == OTHER || now == STATEMENT && origin != STATEMENT ? origin : now);
-    }
+    // (the statement observer, OBSERVED and observing(), deleted 2026-11-09: process-wide mutable state a parity test
+    // set; a test that compares the statements two roads send records them on the connection it hands in --
+    // testbackend.RecordingConnection)
 
-    /** A GENERATED seeding site: under a fixture it refines {@link #SEED} to
-     * {@link #SEED_GENERATED}; elsewhere it is {@code otherwise}. */
-    public static Scope enterGenerated(StatementOrigin otherwise) {
-        StatementOrigin now = CURRENT.get();
-        return enter(now == SEED ? SEED_GENERATED : now == OTHER || now == STATEMENT ? otherwise : now);
-    }
-
-    /** Sets the mark until the scope closes (restoring the previous one). */
-    public static Scope enter(StatementOrigin origin) {
-        StatementOrigin previous = CURRENT.get();
-        CURRENT.set(origin);
-        return new Scope(previous);
-    }
-
-    /** A scoped mark; closing restores what was in force before. */
-    public record Scope(StatementOrigin previous) implements AutoCloseable {
-        @Override
-        public void close() {
-            CURRENT.set(previous);
-        }
-    }
+    // (planning(what) and isPlanning(), RunScope's planning scope under another name, deleted 2026-11-09: no caller --
+    // planning holds its own scope, RunScope.plans)
 
     /** {@code sql} sent to a database under the mark in force: one round trip, its characters and its origin counted
-     *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. */
-    public static void sent(String sql) {
+     *  (the Census), and with -Dlegend.diagnostics's SQL dump, printed with the origin it was sent under. Refused while
+     *  this thread plans ({@code RunScope.plans}). */
+    public static void sent(StatementOrigin origin, String sql) {
+        String planning = com.legend.base.RunScope.planningWhat();
+        if (planning != null) {
+            throw new IllegalStateException("a statement sent while planning " + planning + " (planning sends"
+                    + " nothing): [" + origin.name().toLowerCase(java.util.Locale.ROOT) + "] "
+                    + (sql.length() > 300 ? sql.substring(0, 300) + "..." : sql));
+        }
         Census.inc(Census.Key.SQL_ROUND_TRIPS);
-        count();
+        count(origin);
         Census.add(Census.Key.SQL_CHARS, sql.length());
         if (com.legend.diagnostics.Diagnostics.dumpSql()) {
-            System.err.println("[sql:" + current().name().toLowerCase(java.util.Locale.ROOT) + "] " + sql);
+            // the trace: each statement under its execution's id (RunScope.execution), as upstream's span is tagged with it
+            java.util.UUID execution = com.legend.base.RunScope.currentExecution();
+            System.err.println("[sql:" + origin.name().toLowerCase(java.util.Locale.ROOT)
+                    + (execution == null ? "" : " execution=" + execution) + "] " + sql);
+        }
+        if (com.legend.diagnostics.Diagnostics.on("sql-sizes")) {
+            System.err.println("[sql-size] " + sql.length() + " " + System.getProperty("legend.test.current", "?") + " "
+                    + origin.name().toLowerCase(java.util.Locale.ROOT));
         }
     }
 
-    /** One statement sent under the mark in force — counted in the Census's
-     * {@code statements} family by origin name. */
-    public static void count() {
-        count(CURRENT.get());
-    }
-
+    /** One statement sent under {@code origin} -- counted in the Census's {@code statements} family by origin name. */
     public static void count(StatementOrigin origin) {
         Census.incKeyed("statements", origin.name());
     }

@@ -28,13 +28,13 @@ public final class ClassLayouts {
     /** F13 — the ONE owner of the synthetic identity field's spelling:
      * the {@code __id} column an identity layout appends to a keyless
      * class (every producer and consumer compares against this). */
-    public static final String SYNTHETIC_ID = "__id";
+    public static final String SYNTHETIC_ID = com.legend.sql.SqlExpr.SYNTHETIC_ID;
     /** WORLD_MAP §4 — the synthetic CLASS field beside the identity: a
      * value in a polymorphic slot (a {@code RelationalOperationElement[*]}
      * key carrying DynaFunctions and Literals) is judged by ITS OWN
      * class's keys, and the wire can only carry that class as data.
      * Rides the identity layouts only, like {@link #SYNTHETIC_ID}. */
-    public static final String SYNTHETIC_TYPE = "__type";
+    public static final String SYNTHETIC_TYPE = com.legend.sql.SqlExpr.SYNTHETIC_TYPE;
     /** The synthetic CANON field (F10 proper — the kind-tagged carrier):
      * a constructed instance's canonical key text, computed at its
      * CONSTRUCTION site from its own fields (children are built before

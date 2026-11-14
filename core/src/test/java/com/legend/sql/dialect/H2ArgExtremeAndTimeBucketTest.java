@@ -3,7 +3,7 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.Execution;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -42,8 +42,8 @@ class H2ArgExtremeAndTimeBucketTest {
                         + " ('A', NULL, 99.0, TIMESTAMP '1969-12-31 23:58:30'), ('B', 7, 20.0, TIMESTAMP '2024-06-04 00:00:00'),"
                         + " ('B', 6, NULL, TIMESTAMP '2024-06-04 00:00:00')");
             }
-            var r = Execution.execute(MODEL, query, "local::RT", c);
-            return r.rows().stream().map(row -> String.join("|", row.values().stream().map(String::valueOf).toList())).toList();
+            var r = Lean.run(MODEL, query, "local::RT", c);
+            return r.rows().stream().map(row -> String.join("|", row.stream().map(String::valueOf).toList())).toList();
         }
     }
 

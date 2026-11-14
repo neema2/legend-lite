@@ -17,16 +17,10 @@ public sealed interface SqlType {
          *  StrictTime ({@code pureToSQLQuery.pure}, "not supported yet"), docs/SEMANTICS_REGISTER.md S63
          *  (the Cypher island's time-of-day leg, 2026-10-16). */
         TIME, JSON,
-        /** The KIND-FAITHFUL CARRIER (F10 proper, docs/F10_CARRIER_
-         * DESIGN.md): the cell holds a value's PURE-LITERAL SPELLING as
-         * text — the six mutually disjoint source forms (bare int,
-         * pointed float, D-suffix decimal, quoted string, bare bool,
-         * %-temporal), so the value carries its own kind. Physical form
-         * is VARCHAR on every backend; the LABEL records the contract
-         * (the spelling grammar), which plain VARCHAR cannot promise.
-         * Encoder: {@code lowering/LiteralSpelling}. Decoder:
-         * {@code values/LiteralText}. Canon: the cell IS canonical. */
-        LITERAL,
+        // (LITERAL, the kind-faithful SPELLING carrier -- a value's Pure-literal text as the cell, F10 -- was
+        // deleted 2026-10-29 by the result boundary program's track L, L2: a mixed value is a tagged value
+        // (Tagged), a mixed list a tagged list (SqlExpr.TaggedList), each element in its own slot; nothing is
+        // spelled and parsed back.)
         /** The PRECISION-FAITHFUL TEMPORAL-TEXT CARRIER (§4bZ-V B3,
          * the LITERAL pattern): a temporal value whose pure precision
          * a SQL temporal cannot hold — partials (%2015, %2015-04),

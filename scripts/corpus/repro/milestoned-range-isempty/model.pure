@@ -1,0 +1,123 @@
+// F51, reached through milestoning: `isEmpty()` over a milestoned to-many navigated over a RANGE of versions
+// returns the source row once per version in the range.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/milestoned-range-isempty/model.pure \
+//       --testable=demo::AllVersionsIsEmpty --testable=demo::InRangeCount --testable=demo::InRangeIsEmpty
+//
+// On legend-engine 4.145.0 the first two pass and InRangeIsEmpty fails: D1, whose limit has two versions in the
+// range, comes back twice. Every boolean is right. `limitAllVersions` joins on DESK.LIMIT_ID = LIMIT_PT.LIMIT_ID
+// alone and is not duplicated; `limitAllVersionsInRange(a, b)` adds `IN_Z <= b and OUT_Z > a` to that join, so
+// it is no longer a single key equality, which is F51's line (docs/UPSTREAM_FINDINGS.md). count() over the same
+// range is right. The corpus pins it with stress::ITN_NoLimitInRange (the improvement plan's Phase 3).
+Class <<temporal.processingtemporal>> demo::Limit
+{
+  limitId: String[1];
+  amount: Float[1];
+}
+
+Class demo::Desk
+{
+  deskId: String[1];
+}
+
+Association demo::DeskLimit
+{
+  desks: demo::Desk[*];
+  limit: demo::Limit[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table LIMIT_PT
+  (
+    milestoning
+    (
+      processing(PROCESSING_IN = IN_Z, PROCESSING_OUT = OUT_Z, INFINITY_DATE = %9999-12-31T00:00:00.0000)
+    )
+    LIMIT_ID VARCHAR(8) PRIMARY KEY,
+    IN_Z TIMESTAMP PRIMARY KEY,
+    OUT_Z TIMESTAMP,
+    AMOUNT DOUBLE
+  )
+  Table DESK (DESK_ID VARCHAR(8) PRIMARY KEY, LIMIT_ID VARCHAR(8))
+
+  Join Desk_Limit(DESK.LIMIT_ID = LIMIT_PT.LIMIT_ID)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Limit: Relational
+  {
+    ~primaryKey ( [demo::DB]LIMIT_PT.LIMIT_ID, [demo::DB]LIMIT_PT.IN_Z )
+    ~mainTable [demo::DB]LIMIT_PT
+    limitId: [demo::DB]LIMIT_PT.LIMIT_ID,
+    amount: [demo::DB]LIMIT_PT.AMOUNT
+  }
+  demo::Desk: Relational
+  {
+    ~primaryKey ( [demo::DB]DESK.DESK_ID )
+    ~mainTable [demo::DB]DESK
+    deskId: [demo::DB]DESK.DESK_ID
+  }
+  demo::DeskLimit: Relational
+  {
+    AssociationMapping
+    (
+      limit: [demo::DB]@Desk_Limit,
+      desks: [demo::DB]@Desk_Limit
+    )
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn { type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.LIMIT_PT:
+      'LIMIT_ID,IN_Z,OUT_Z,AMOUNT\n' +
+      'L1,2024-06-03 08:00:00,2024-06-03 09:30:00,100.0\n' +
+      'L1,2024-06-03 09:30:00,9999-12-31 00:00:00,150.0\n' +
+      'L2,2024-06-04 08:00:00,9999-12-31 00:00:00,50.0\n';
+    default.DESK:
+      'DESK_ID,LIMIT_ID\n' +
+      'D1,L1\n' +
+      'D2,L2\n';
+  }#
+}
+
+###Service
+Service demo::AllVersionsIsEmpty
+{
+  pattern: '/demo/allversions';
+  documentation: '';
+  execution: Single { query: |demo::Desk.all()->project(~[desk:x|$x.deskId, none:x|$x.limitAllVersions->isEmpty()]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ AllVersionsIsEmpty_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"desk":"D1","none":false},{"desk":"D2","none":false}]'; }#; }# ] } ] } ]
+}
+
+Service demo::InRangeCount
+{
+  pattern: '/demo/inrangecount';
+  documentation: '';
+  execution: Single { query: |demo::Desk.all()->project(~[desk:x|$x.deskId, n:x|$x.limitAllVersionsInRange(%2024-06-03T09:00:00, %2024-06-04T09:00:00)->count()]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ InRangeCount_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"desk":"D1","n":2},{"desk":"D2","n":1}]'; }#; }# ] } ] } ]
+}
+
+Service demo::InRangeIsEmpty
+{
+  pattern: '/demo/inrangeisempty';
+  documentation: '';
+  execution: Single { query: |demo::Desk.all()->project(~[desk:x|$x.deskId, none:x|$x.limitAllVersionsInRange(%2024-06-03T09:00:00, %2024-06-04T09:00:00)->isEmpty()]); mapping: demo::M; runtime: demo::RT; }
+  testSuites: [ InRangeIsEmpty_suite: { data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+    tests: [ t: { serializationFormat: PURE_TDSOBJECT; asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"desk":"D1","none":false},{"desk":"D2","none":false}]'; }#; }# ] } ] } ]
+}

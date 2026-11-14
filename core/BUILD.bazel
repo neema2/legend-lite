@@ -8,11 +8,15 @@ load("@rules_java//java:defs.bzl", "java_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/clickhouse:defs.bzl", "EMBEDDED_CLICKHOUSE_COMPATIBLE")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/mongodb:defs.bzl", "EMBEDDED_MONGODB_COMPATIBLE")
 load("//tools/java_run:defs.bzl", "java_run")
 load("//tools/jars:defs.bzl", "file_list", "java_jars")
 load("//tools/guards:defs.bzl", "guards_package")
+load("@rules_python//python:py_binary.bzl", "py_binary")
+load("//tools/runfiles:defs.bzl", "executable_of")
+load("//tools/platforms:defs.bzl", "compatible_with")
 load(":layers.bzl", "core_layer_queries")
 load(":stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED", "stress_index", "stress_layout")
 
@@ -39,7 +43,8 @@ filegroup(
 filegroup(
     name = "main_srcs",
     srcs = glob(["src/main/**"], exclude = ["**/*.md"]),
-    visibility = ["//spec:__pkg__"],
+    # the planned-SQL guard reads who reaches the authored door (the C final audit's H1, 2026-11-12)
+    visibility = ["//spec:__pkg__", "//tools/guards:__pkg__"],
 )
 
 # the test sources as files: parser-equivalence's own corpus is the Pure snippets they embed (InlineSnippets reads
@@ -72,7 +77,16 @@ legend_java_library(name = "cache", srcs = glob(["src/main/java/com/legend/cache
 legend_java_library(name = "values", srcs = glob(["src/main/java/com/legend/values/*.java"]), deps = ["//base"])
 # THE EXECUTION PLAN's records and the lite plan format (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md): what the planner
 # produces and exec runs -- read by both sides, depending on neither
-legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":model", ":sql"])
+legend_java_library(name = "execution_plan", srcs = glob(["src/main/java/com/legend/executionplan/*.java"]), deps = ["//base", "//json", ":cache", ":sql"])
+# THE TEST PLAN'S RECORDS (docs/PLAN_AS_DATA_2026_11_07.md 2.1, 2.4, 2.9; the design's steps 2 and 3, 2026-11-08): a test
+# body's plan as data, around the product's (:execution_plan) -- its steps, its verdict groups and branches, an error known
+# at planning (Failure) -- and its JSON. Data alone: it depends on no planning or runtime library.
+legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/testexecutionplan/*.java"]), deps = ["//base", "//json", ":error", ":execution_plan", ":sql", ":values"])
+# a plan's TYPED RESULT as a stream of batches, and the writers at the edge (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md
+# R3, R8; 2026-10-27): the plan side, so the browser's and Python's planners write the answers the server writes
+# result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
+# pure_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
+legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"])
 legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
 # parser-equivalence's corpus machinery reads one switch of it (Corpus.load)
@@ -193,12 +207,40 @@ legend_java_library(
 legend_java_library(
     name = "setup",
     srcs = glob(["src/main/java/com/legend/setup/*.java"]),
-    deps = ["//base", ":cache", ":compiler", ":execution_plan", ":model", ":protocol", ":sql", ":sql_dialect"],
+    deps = ["//base", ":cache", ":compiler", ":error", ":execution_plan", ":model", ":protocol", ":sql", ":sql_dialect"],
 )
 legend_java_library(
     name = "exec",
-    srcs = glob(["src/main/java/com/legend/exec/*.java"]),
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":execution_plan", ":lowering", ":model", ":plan", ":platform", ":setup", ":sql", ":sql_dialect", ":values"],
+    # the program runner is its own target, the package's (below)
+    srcs = glob(["src/main/java/com/legend/exec/*.java"], exclude = ["src/main/java/com/legend/exec/ProgramRunner.java"]),
+    # THE WALL (D72, 2026-10-30, the seam-and-wall program's B2; D71 the day before took the judges and the probes out):
+    # the runtime depends on no planning library -- not the compiler, not lowering, not a dialect, not the plan side's
+    # setup or database facts. A plan and a session in, typed rows out: the plan records (:execution_plan) carry every
+    # type and spelling fact the runtime reads, the connector every driver fact. ArchitectureTest.execReachesNoPlanning
+    # says it at the class level; tools/deps/core-layers.txt pins this list.
+    deps = ["//base", "//json", ":cache", ":diagnostics", ":error", ":execution_plan", ":result", ":sql", ":values"],
+)
+# THE PROGRAM RUNNER (docs/PLAN_AS_DATA_2026_11_07.md 2.8 and 2.9, the user's ruling of 2026-11-08: its own target, the
+# exec package's): a program's steps in order on one session, a step exec does not know a callback at its place (a test
+# body's verdict group or branch), reading only what it declared. A product caller that runs plans (the server, the query
+# door) reaches none of it: they depend on :exec alone.
+legend_java_library(
+    name = "exec_program",
+    srcs = ["src/main/java/com/legend/exec/ProgramRunner.java"],
+    deps = ["//base", ":error", ":exec", ":execution_plan", ":result"],
+)
+# THE TEST'S RUN (docs/PLAN_AS_DATA_2026_11_07.md 2.9 and section 11's slice 5, 2026-11-09): a test plan run on its
+# sessions and judged -- the run sink, the root loop, the agreement rule, the held appeals, the host judge's
+# comparisons (equality, the asserts, the TDS compare, the canonical form), the verdict row's reading. It replaced
+# `judge` (D71's verdict layer) and the run half of the driver. It depends on no planning library -- not the compiler,
+# lowering, the resolver, the planner, testplan, a dialect, the database facts -- pinned here, in
+# tools/deps/core-layers.txt, and by ArchitectureTest's split rules: the plan's data and the database's rows are all it
+# reads.
+legend_java_library(
+    name = "testexec",
+    srcs = glob(["src/main/java/com/legend/testexec/*.java"]),
+    deps = ["//base", "//json", ":diagnostics", ":error", ":exec", ":exec_program", ":execution_plan", ":result", ":sql",
+            ":test_plan", ":values"],
 )
 legend_java_library(
     name = "probe",
@@ -208,26 +250,24 @@ legend_java_library(
 legend_java_library(
     name = "testdatagen",
     srcs = glob(["src/main/java/com/legend/testdatagen/*.java"]),
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":exec", ":lineage", ":model", ":plan", ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":values"],
+    # planning alone since slice 5 (2026-11-09); since B2d.2 (2026-11-11) the generator is one planned read-only
+    # statement (TestDataPlanner) on the test road, and its interleaved run (the tests' TestDataGeneratorRun) is deleted
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lineage", ":model", ":plan", ":protocol", ":test_plan", ":sql", ":sql_dialect", ":values"],
 )
 
 # THE PLANNER (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the root package's plan side --
 # model text to a compiled model, a query to its SQL. No :exec, no :testdatagen: planning never touches a database
 # (the build enforces it; a plan-only consumer carries no driver).
-_PLANNER_SRCS = [
+# step C (D73, 2026-10-30): the root package holds the five public doors alone -- the planner's three here, the driver's two
+# (Execution, ExecuteOptions) in :driver -- and the machinery is its own package on each side (com.legend.planner,
+# com.legend.driver), so the planner-driver wall is the language's as well as the build's.
+_PLANNER_DOORS = [
     "src/main/java/com/legend/Compiler.java",
-    "src/main/java/com/legend/CrossStoreGuard.java",
     # the models a host holds, compiled once and planned against many times (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9)
     "src/main/java/com/legend/HeldModels.java",
-    # the system metamodel store's rows, written into a plan's setup by the plan maker (the plan path program's
-    # step 9, 2026-10-18); until then the legacy executor's seed of the graph's system database
-    "src/main/java/com/legend/MetamodelSeeds.java",
-    "src/main/java/com/legend/OpSeeds.java",
-    "src/main/java/com/legend/PlanMaker.java",
-    "src/main/java/com/legend/ProgramFacts.java",
-    "src/main/java/com/legend/QueryParameters.java",
     "src/main/java/com/legend/TypedQuery.java",
 ]
+_PLANNER_SRCS = _PLANNER_DOORS + glob(["src/main/java/com/legend/planner/*.java"])
 
 legend_java_library(
     name = "planner",
@@ -240,26 +280,66 @@ legend_java_library(
     ],
 )
 
-# the root package's execution side: Execution (the front door), StatementExecutor, the judges
+# THE TWO DOORS (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5, 2026-11-09), each its own library and each thin:
+# a method is one planning call and one run call (ArchitectureTest.theDoorsOnlyCompose). Until slice 5 one library
+# held both, and before it `driver`, holding the body driver, the judges' arms and the router between the doors,
+# planning and running in one package; that package is deleted.
+# THE PRODUCT'S DOOR: a query planned by its one planning entry (TypedQuery.executionPlan) and run by exec's product
+# run (ProductRun). It carries none of the test's machinery: the server depends on it alone.
 legend_java_library(
-    name = "driver",
-    srcs = glob(["src/main/java/com/legend/*.java"], exclude = _PLANNER_SRCS),
+    name = "execution",
+    srcs = [
+        "src/main/java/com/legend/Execution.java",
+        "src/main/java/com/legend/package-info.java",
+    ],
+    deps = ["//base", ":compiler", ":exec", ":execution_plan", ":planner", ":platform", ":result"],
+)
+# THE TEST BODY'S DOOR and its options: a body planned by testplan's entry (TestPlanner), run by testexec's
+# (TestRunner) -- the one library that sees both halves of a test.
+legend_java_library(
+    name = "test_execution",
+    srcs = [
+        "src/main/java/com/legend/ExecuteOptions.java",
+        "src/main/java/com/legend/TestExecution.java",
+    ],
     deps = [
-        "//base", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics", ":error", ":exec",
-        ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan", ":planner",
-        ":platform",
-        ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":testdatagen", ":validation", ":values",
+        "//base", ":exec", ":execution_plan", ":planner", ":platform", ":result", ":test_plan", ":testexec",
+        ":testplan",
+    ],
+)
+# THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7; brief B12 items 1
+# and 3): the test door (TestDoor) and the kinds only a test's program holds -- effects, seeds, the eager run, asserts
+# -- planned on the product's program road through the planner's extension point (planner.ProgramKinds). Not on the
+# plan side: the WebAssembly and native planners, and the product's query door, carry none of it
+# (ArchitectureTest.theTestPlanningLibraryIsTheDriversAlone).
+legend_java_library(
+    name = "testplan",
+    srcs = glob(["src/main/java/com/legend/testplan/*.java"]),
+    # the effects' statements (EffectPlanner, M3d): the store model, the DDL and the dialects that write them; the
+    # seeds' content key (Seeds, M3e): :cache's Hash
+    # since slice 5 (2026-11-09) every planning class of a test body (the asserts' planners, the arms, the router's
+    # classify-and-plan, the verdict batch): it reaches no runtime library -- not exec, not testexec, not the door
+    deps = [
+        "//base", "//json", ":builtin", ":cache", ":compiler", ":compiler_element_type", ":database", ":diagnostics",
+        ":door", ":error", ":execution_plan", ":lineage", ":lowering", ":model", ":normalizer", ":parser", ":plan",
+        ":planner", ":platform", ":protocol", ":resolver", ":setup", ":sql", ":sql_dialect", ":test_plan",
+        ":testdatagen", ":validation", ":values",
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
-    deps = ["//base", ":compiler", ":driver", ":error", ":exec", ":model", ":planner", ":protocol", ":sql", ":values"],
+    # track Z, 2026-10-29: the service test runner spells a cell through the boundary's writer (result's CellText),
+    # never by rules of its own
+    # 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md §11, slice 3, hole 4): the test runner reads the stores a body's planned
+    # appeals name from the plan's data (PlannedAppeals.stores) and seeds them between the body's plan and its run
+    deps = ["//base", "//json", ":compiler", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test_plan", ":values"],
 )
 # legend-engine's pure/v1 API as legend-lite answers it (server/PureV1Api.java): THE PLAN SIDE -- no database and
 # no driver, so the compiler's boundary (//wasm:boundary, and Python's engine through //native:compiler) answers
-# with the same code as the server. execute's run is its host's: the server hands in its driver (QueryService).
+# with the same code as the server. execute's run is its host's: the server hands in its product door under its file
+# fence (ConnectionResolver.runner(sources); ConnectionResolver.RUNNER is the library's, any file).
 legend_java_library(
     name = "pure_v1",
     srcs = [
@@ -269,8 +349,10 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
+        "src/main/java/com/legend/server/TestDataRoutes.java",
+        "src/main/java/com/legend/server/TsTree.java",
     ],
-    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":parser", ":plan", ":planner", ":protocol", ":sql_dialect"],
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
 )
 legend_java_library(
     name = "server_lib",
@@ -283,16 +365,22 @@ legend_java_library(
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/PureV1Api.java",
+            "src/main/java/com/legend/server/TestDataRoutes.java",
+            "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
-    deps = ["//base", "//json", ":cache", ":compiler", ":compiler_element_type", ":database", ":driver", ":error", ":exec", ":lowering", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":saved_queries", ":setup", ":sql_dialect"],
+    # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
+    # class; :cache, :lowering and :setup were unused
+    deps = ["//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":saved_queries", ":sql_dialect"],
 )
 
 _CORE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":probe", ":testdatagen",
-    ":execution_plan", ":planner", ":pure_v1", ":saved_queries", ":deephaven_wire", ":driver", ":ide", ":test", ":server_lib",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":exec", ":testexec", ":probe", ":testdatagen",
+    ":execution_plan", ":result", ":planner", ":pure_v1", ":saved_queries", ":testplan", ":execution",
+    ":test_execution", ":ide", ":test",
+    ":server_lib", ":test_plan", ":exec_program", ":deephaven_wire",
 ]
 
 # THE PLAN SIDE (C2a, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): the planner and every library it
@@ -301,7 +389,7 @@ _CORE_TARGETS = [
 _PLAN_SIDE_TARGETS = [
     "//base", "//json", ":spi", ":cache", ":values", ":error", ":diagnostics", ":lexer", ":sql", ":protocol", ":model", ":parser", ":door",
     ":builtin", ":platform", ":compiler_element_type", ":sql_dialect", ":database", ":compiler", ":normalizer",
-    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":planner", ":pure_v1",
+    ":lineage", ":validation", ":lowering", ":plan", ":resolver", ":setup", ":execution_plan", ":result", ":planner", ":pure_v1",
     ":deephaven_wire",
 ]
 
@@ -325,7 +413,7 @@ legend_java_library(
 )
 
 # THE JDBC DRIVERS, as their own target. core never compiles against a driver: it
-# speaks java.sql, and names driver classes only as strings (Executor's
+# speaks java.sql, and names driver classes only as strings (a DriverCells provider names its own
 # "org.duckdb.JsonNode"). So a driver is a RUNTIME choice made by whatever runs
 # core — a test, a server, a CLI — not a dependency of the product. A target that
 # executes queries depends on this; one that only plans (a WASM or native planner)
@@ -333,7 +421,7 @@ legend_java_library(
 legend_java_library(
     name = "drivers",
     runtime_deps = [
-        ":duckdb_load",
+        ":duckdb_cells",
         # MongoDB's connector rides with the drivers (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): a running core
         # is given its connectors as it is given its drivers, by ServiceLoader
         ":mongodb_connector",
@@ -360,6 +448,20 @@ legend_java_library(
     ],
 )
 
+# THE COMPATIBILITY EDGE (docs/PLAN_AS_DATA_2026_11_07.md 2.7, the plan-as-data design's step 8, 2026-11-08): the
+# records a run under the compatibility rules plans into a test plan (the referee's ledger texts) and the edge a harness
+# hands the run; its codec registered for the test plan's format through META-INF/services. The product depends on no
+# edge (G5): only the harnesses that run under the compatibility rules do.
+legend_java_library(
+    name = "edge",
+    srcs = glob(["src/main/java/com/legend/edge/*.java"]),
+    visibility = ["//spec:__pkg__", "//pct:__pkg__"],
+    resources = glob(["src/main/edge/META-INF/**"]),
+    resource_strip_prefix = "core/src/main/edge",
+    # the plan's records (B2b, 2026-11-11): a seed's referee's copy is a load, its steps written by the plan's codec
+    deps = ["//base", "//json", ":execution_plan", ":sql_dialect", ":test_plan"],
+)
+
 # MONGODB'S CONNECTOR (docs/MONGODB_PLAN_2026_10_16.md §5.2, D12; 2026-10-17): a session on a MongoDBConnection, and
 # the statements that run the pipelines the MongoDb dialect writes, behind core's DatabaseConnector seam, found by
 # ServiceLoader as the bulk loader is. The one source set that compiles against the MongoDB driver: core compiles
@@ -375,7 +477,7 @@ legend_java_library(
         ":error",
         ":exec",
         ":execution_plan",
-        ":model",
+        ":result",
         ":values",
         "@bson//jar",
         "@mongodb_driver_core//jar",
@@ -384,10 +486,12 @@ legend_java_library(
     runtime_deps = ["@bson_record_codec//jar"],
 )
 
-# DuckDB's bulk load (its Appender) behind core's BulkLoad seam, found by
-# ServiceLoader: it rides with the drivers, so core still compiles against none.
+# DuckDB's own cell types behind core's DriverCells seam, found by ServiceLoader: it rides with the drivers, so core
+# still compiles against none. Until A2 (2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md) it was :duckdb_load and
+# held DuckDB's bulk load too (its Appender behind a BulkLoad seam), deleted with the plan's rows step: the model's
+# data is statements in the plan.
 legend_java_library(
-    name = "duckdb_load",
+    name = "duckdb_cells",
     srcs = glob(["src/main/duckdb/**/*.java"]),
     resources = glob(["src/main/duckdb/META-INF/**"]),
     resource_strip_prefix = "core/src/main/duckdb",
@@ -424,6 +528,13 @@ legend_java_binary(
 _CORE_READS = glob(["src/**"], exclude = ["**/*.md"])
 
 _CENSUS_READS = _CORE_READS + [
+    # the host's plan runner, whose plan version the census holds equal to the planner's (P7, 2026-11-09)
+    "//engine-client:plan_runner_src",
+    # the hosts' sources, where a deleted mechanism's host spellings must read zero too (the B checkpoint's tenets
+    # audit, M4, 2026-11-11)
+    "//datacube:census_src",
+    "//engine-client:census_src",
+    "//python:census_src",
     "//parser-equivalence:srcs",
     "//pct:srcs",
     "//spec:srcs",
@@ -440,15 +551,15 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     testonly = True,
-    # PostgresArmTest, SqlIslandPostgresTest, SqlParityPostgresTest and HostOperationsPostgresTest are their own
-    # targets' alone: they need the embedded Postgres in their runfiles
+    # PostgresArmTest, SqlIslandPostgresTest and SqlParityPostgresTest are their own targets' alone: they need the
+    # embedded Postgres in their runfiles (HostOperationsPostgresTest went with Postgres's one host operation, the
+    # final audit, 2026-11-12)
     srcs = glob(
         ["src/test/java/**/*.java"],
         exclude = [
             "src/test/java/com/legend/server/PostgresArmTest.java",
             "src/test/java/com/legend/server/SqlIslandPostgresTest.java",
             "src/test/java/com/legend/server/SqlParityPostgresTest.java",
-            "src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java",
             # MongoDbPlanTest and MongoDbDifferentialTest are :mongodb_plan_test's alone: the embedded MongoDB and
             # its driver (2026-10-17)
             "src/test/java/com/legend/exec/MongoDbPlanTest.java",
@@ -456,8 +567,43 @@ legend_java_library(
             # the wire table's definitions check is :deephaven_messages_test's alone: Deephaven's protocol jar is its
             # data (2026-10-23)
             "src/test/java/com/legend/deephaven/DeephavenMessagesTest.java",
-            "src/test/java/com/legend/FixtureAsidePostgresTest.java",
+            # a data: source on every server database is :data_source_servers_test's alone (2026-11-11)
+            "src/test/java/com/legend/exec/DataSourceServersTest.java",
+            # the keyed expansion's one fixture is :keyed_expansion_conformance_test's alone: it reads the fixture
+            # (the C final audit's H8, 2026-11-12)
+            "src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java",
+            "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
+            # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
+            "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
+            # DataCube's timeseries library on every in-process database is :timeseries_library_test's alone: it reads
+            # DataCube's Pure file (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B)
+            "src/test/java/com/legend/integration/TimeseriesLibraryTest.java",
+            # the #TS{...}# island over the timeseries library is :ts_island_test's alone: it reads the timeseries
+            # project's file too (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2)
+            "src/test/java/com/legend/integration/TsIslandTest.java",
+            # the adversarial markets fixture on DuckDB is :ts_adversarial_test's alone: it reads the fixture's files,
+            # the timeseries project's file and its ledger (2026-11-07)
+            "src/test/java/com/legend/integration/TsAdversarialTest.java",
+            # the documents' examples are :ts_documents_test's alone: they read the timeseries project's file and the
+            # examples (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A9)
+            "src/test/java/com/legend/integration/TsDocumentsTest.java",
+            # the line-level spike is :ts_line_spike_test's alone (manual): it reads the timeseries project's file
+            # (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md)
+            "src/test/java/com/legend/integration/TsLineSpikeTest.java",
+            # the scale measurement is :ts_scale_measure's and :ts_scale_measure_postgres's alone (manual): it reads the
+            # timeseries project's file and makes ten million rows (2026-11-07, docs/TS_SCALE_2026_11_07.md)
+            "src/test/java/com/legend/integration/TsScaleMeasureTest.java",
+            # the gallery's replay is the ts_replay targets' alone: it reads the gallery's statements and samples
+            # (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 9)
+            "src/test/java/com/legend/integration/TsReplayTest.java",
+            # their shared comparison with DuckDB's answer, the replay's and the documents' lanes' (item 9b)
+            "src/test/java/com/legend/integration/TsAnswers.java",
+            # the gs-quant parity is :ts_gsquant_parity_test's alone: it reads the oracle's answers and the samples
+            # (2026-11-07, tools/gs-quant-oracle/README.md)
+            "src/test/java/com/legend/integration/TsGsquantParityTest.java",
+            # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
+            "src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
@@ -477,9 +623,15 @@ legend_java_library(
             "src/test/java/com/legend/integration/SqlWritesPostgresTest.java",
             # and the write plans on Postgres (leg 7)
             "src/test/java/com/legend/integration/WritePlansPostgresTest.java",
+            # a relation's toOne() guard on Postgres is :relation_to_one_postgres_test's (D2, 2026-11-07)
+            "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
             "src/test/java/com/legend/protocol/sql/iq/IqSyntaxCasesTest.java",
-            # the shared test cases are :test_cases's
+            # the shared test cases are :test_cases's, and so is the LEAN twin's reader (track T, 2026-10-29): every
+            # per-lane target reads its lane's answers through it
             "src/test/java/com/legend/testcases/*.java",
+            "src/test/java/com/legend/testing/Lean.java",
+            "src/test/java/com/legend/testing/Program.java",
+            "src/test/java/com/legend/testing/LaneFloor.java",
             # the tests' databases are :test_backends's
             "src/test/java/com/legend/testbackend/*.java",
             # the toy section grammar and its test are :toy_grammar's and :section_grammar_registry_test's (P3-04)
@@ -500,6 +652,8 @@ legend_java_library(
             # the #IQ{...}# island's cases, schema, snapped answers and ledger: :iq_parity_test's and
             # :iq_parity_postgres_test's data, read as files
             "src/test/resources/iq-parity/**",
+            # the adversarial markets fixture's ledger: :ts_adversarial_test's, read as a file
+            "src/test/resources/ts-adversarial/**",
             # the #Cypher{...}# island's cases, the TCK, the snapped answers and the ledger: :cypher_parity_test's and
             # :cypher_parity_postgres_test's data, read as files
             "src/test/resources/cypher-parity/**",
@@ -508,18 +662,25 @@ legend_java_library(
             "src/test/resources/META-INF/services/com.legend.spi.SectionGrammar",
         ],
     ),
-    # :duckdb_load: the bulk-load path RowLoadDuckDbTest judges, declared, not borrowed from :drivers (P3-02)
+    # :duckdb_cells: DuckDB's cell types, declared, not borrowed from :drivers (P3-02)
     runtime_deps = [
-        ":duckdb_load",
+        ":duckdb_cells",
         ":shadow_binding",
     ],
     deps = [
+        ":edge",
         ":core",
         ":test_backends",
         ":test_cases",
+        # the Arrow writer's gate frames the stream it checks (ZstdFrame; track A, 2026-10-29)
+        "//arrow_ipc",
         "//testing",
+        # the hosts' boundary, its plans and refusals held by the tests that call it as a host does (the final audit,
+        # 2026-11-12: a host operation takes no SQL; a snapshot's copy and a table output as one plan each)
+        "//wasm:boundary",
         "@maven_test//:com_tngtech_archunit_archunit",
-        # H2VersionPinTest reads org.h2.engine.Constants.VERSION
+        # the H2 test backend's own classes (testbackend/H2Backend); H2VersionPinTest, which read the jar's version,
+        # moved to spec as EngineH2VersionPinTest (2026-11-05: the pin is legend-engine's H2, not lite's jar)
         "@h2//jar",
         "@maven_test//:com_tngtech_archunit_archunit_junit5",
         "@maven_test//:org_junit_jupiter_junit_jupiter",
@@ -588,6 +749,7 @@ _CORE_TEST_PACKAGES = [
     "model",
     "normalizer",
     "parser",
+    "planner",
     "platform",
     "protocol",
     "resolver",
@@ -597,7 +759,11 @@ _CORE_TEST_PACKAGES = [
     "test",
     "testdatagen",
     "testing",
-    "values",
+    # the test-planning library's door (the test-is-the-product plan's M3c, 2026-10-31)
+    "testplan",
+    # the test's run (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5, 2026-11-09): judge's tests and the run's
+    "testexec",
+    # ("values" left 2026-10-29 with its one test, LiteralTextTest, track L's L2: the package has no test)
 ]
 
 # Measured 2026-10-05: every package's live heap peak is under 342 MB (the largest, root, 264 MB), so P1-21's rule
@@ -617,6 +783,7 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "differential",
     "guardrail",
     "stress",
+    "arrow",       # the Arrow writer's round-trip gate (track A, 2026-10-29): :arrow_writer_test, with its pyarrow judge
 ]
 
 [junit_test(
@@ -634,6 +801,38 @@ _CORE_TEST_EXCLUDED_TAGS = [
     ],
 ) for p in _CORE_TEST_PACKAGES]
 
+# THE ARROW WRITER'S ROUND-TRIP GATE (the result boundary program's track A, 2026-10-29): a batch of every kind
+# written as lite's Arrow stream and as its JSON rows, pyarrow (a standard Arrow reader, test-only: a py_binary on the
+# hermetic interpreter and the locked pip hub, as the warehouse's judge) reading the stream and comparing every value;
+# the platforms with a cp312 pyarrow wheel, skipped elsewhere (never a source build).
+py_binary(
+    name = "arrow_matches_rows",
+    testonly = True,
+    srcs = ["src/test/python/arrow_matches_rows.py"],
+    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64", "windows_x86_64"]),
+    deps = ["@pypi//pyarrow"],
+)
+
+executable_of(
+    name = "arrow_matches_rows_executable",
+    testonly = True,
+    binary = ":arrow_matches_rows",
+)
+
+junit_test(
+    name = "arrow_writer_test",
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    size = "medium",
+    data = [
+        ":arrow_matches_rows",
+        ":arrow_matches_rows_executable",
+    ],
+    jvm_flags = ["-Dcore.arrow.comparator=$(rlocationpath :arrow_matches_rows_executable)"],
+    select = ["--select-class=com.legend.result.ArrowWriterTest"],
+    target_compatible_with = compatible_with(["linux_aarch64", "linux_x86_64", "macos_arm64", "macos_x86_64", "windows_x86_64"]),
+    runtime_deps = [":core_tests_lib"],
+)
+
 # the root package's own classes: com.legend, less every package above
 junit_test(
     name = "core_tests_root",
@@ -650,6 +849,88 @@ junit_test(
 test_suite(
     name = "core_tests",
     tests = [":core_tests_" + p for p in _CORE_TEST_PACKAGES + ["root"]] + [":deephaven_messages_test"],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TWIN'S LANES (the result boundary program's track T, T-d, 2026-10-29): core's integration tests -- the LEAN
+# twin of PCT and the corpus (docs/RESULT_BOUNDARY_START_HERE.md, track T) -- on each in-process database beside
+# PCT's lanes, each run held to the lane's recorded floor (testing/LaneFloor; src/test/resources/lanes/<lane>.txt:
+# the tests that fail on that lane today, each with its reason; the floor only shrinks). The platform's own lane is
+# :core_tests_integration. No MongoDB lane yet: the integration tests open a JDBC session, and the MongoDB backend has
+# none (measured 2026-10-29: every test on the lane refused by that name); its lane waits on the tests moving to the
+# session seam (the ledger, batch T-d).
+_CORE_LANES = {
+    # lane -> (data, jvm_flags, tags, target_compatible_with)
+    "sqlite": ([], [], [], []),
+    "h2": ([], [], [], []),
+}
+
+[junit_test(
+    name = "core_tests_integration_" + lane,
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    size = "large",
+    select = ["--select-package=com.legend.integration", "--exclude-classname=.*CorpusDifferentialTest"],
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    data = data,
+    jvm_flags = ["-Dlegend.test.lane=" + lane] + flags,
+    tags = tags,
+    target_compatible_with = compatible,
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+    visibility = ["//gates:__pkg__"],
+) for lane, (data, flags, tags, compatible) in _CORE_LANES.items()]
+
+test_suite(
+    name = "core_tests_lanes",
+    tests = [":core_tests_integration_" + lane for lane in ["sqlite", "h2"]],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE JUDGE MATRIX (the asserts-as-plan-nodes program, step 7, 2026-11-04; docs/ASSERT_NODES_PLAN_2026_11_04.md): the
+# packages whose tests run a body through a judge (testing.Program, the lanes' floors) again under the database judge
+# alone and under BOTH (testing.Program reads -Dlegend.test.judge), so every assert core holds is held by both judges
+# and their agreement, as the host's run holds it. Measured that day: the packages importing testing.Program or
+# LaneFloor, and the root package (its testcases); core under each judge ran 28 of 28 at 6038d060. Linux only in CI
+# for cost (the host's run is every platform's).
+_JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer", "planner",
+                    "resolver", "server", "sql", "testexec", "testing", "testplan"]
+
+[junit_test(
+    name = "core_tests_" + p + "_judge_" + judge.lower(),
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    jvm_flags = ["-Dlegend.test.judge=" + judge],
+    size = "large" if p in _CORE_TEST_LARGE else "medium",
+    select = ["--select-package=com.legend." + p] + (
+        ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
+    ),
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    tags = ["ci-linux-only"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+) for p in _JUDGED_PACKAGES for judge in ["DATABASE", "BOTH"]]
+
+[junit_test(
+    name = "core_tests_root_judge_" + judge.lower(),
+    memory_mb = _CORE_TEST_MEMORY_MB,
+    jvm_flags = ["-Dlegend.test.judge=" + judge],
+    size = "medium",
+    select = ["--select-package=com.legend"] + ["--exclude-package=com.legend." + p for p in _CORE_TEST_PACKAGES],
+    exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
+    tags = ["ci-linux-only"],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+    ],
+) for judge in ["DATABASE", "BOTH"]]
+
+test_suite(
+    name = "core_tests_judges",
+    tests = [":core_tests_" + p + "_judge_" + judge.lower() for p in _JUDGED_PACKAGES + ["root"]
+             for judge in ["DATABASE", "BOTH"]],
     visibility = ["//gates:__pkg__"],
 )
 
@@ -685,19 +966,6 @@ java_test(
     runtime_deps = [":core_tests_lib"],
 )
 
-# THE BULK-LOAD PATH, on its own (Bazel workplan P3-02): DuckDB's Appender is found through ServiceLoader
-# (:duckdb_load) and lands exactly the rows the insert text lands; RowLoadDuckDbTest asserts the Appender ran.
-junit_test(
-    name = "duckdb_load_test",
-    memory_mb = 768,
-    size = "small",
-    select = ["--select-class=com.legend.exec.RowLoadDuckDbTest"],
-    runtime_deps = [
-        ":core_tests_lib",
-        ":drivers",
-    ],
-)
-
 # THE SERVER'S POSTGRES ARM (Bazel workplan P0-08): a type: Postgres connection resolves through
 # ConnectionResolver and the product's own driver set (:drivers), against the Postgres 16 that
 # gate 7P starts (@embedded_postgres, //testing EmbeddedPostgres). Light: one class, and the cases it shares with
@@ -719,6 +987,8 @@ junit_test(
         ":core",
         ":test_backends",
         ":test_cases",
+        # the embedded server's port, the arm proof's (D70, 2026-10-30: read through the seam, no raw connection)
+        "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
     visibility = ["//gates:__pkg__"],
@@ -828,52 +1098,134 @@ junit_test(
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
         "@mongodb_driver_core//jar",
         "@mongodb_driver_sync//jar",
+        # the connector's statements, compiled against: the sent command checked against the plan's (C4, 2026-11-12)
+        ":mongodb_connector",
     ],
     visibility = ["//gates:__pkg__"],
 )
 
-# Snap's preflight count as Postgres's host operations write it (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5), run on the
-# embedded Postgres 16: the count a warehouse whose catalog is Postgres answers before a copy
+# THE KEYED EXPANSION'S ONE FIXTURE (the total wall's C final audit, H8, 2026-11-12): Java's PlanRunner.expand writes
+# each case of engine-client/test/fixtures/keyed-expansion.json as the tab's expandKeyed and Python's _keyed_text do
 junit_test(
-    name = "host_operations_postgres_test",
-    memory_mb = 768,
-    size = "medium",
-    srcs = ["src/test/java/com/legend/sql/dialect/HostOperationsPostgresTest.java"],
-    data = [
-        "@embedded_postgres//:pg/PG_ROOT",
-        "@embedded_postgres//:postgres",
-    ],
-    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
-    select = ["--select-class=com.legend.sql.dialect.HostOperationsPostgresTest"],
-    runtime_deps = [":drivers"],
-    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    name = "keyed_expansion_conformance_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/keyed-expansion.json"],
+    jvm_flags = ["-Dkeyed.fixture=$(rlocationpath //engine-client:test/fixtures/keyed-expansion.json)"],
+    select = ["--select-class=com.legend.exec.KeyedExpansionConformanceTest"],
+    visibility = ["//gates:__pkg__"],
     deps = [
         ":core",
+        "//json",
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+)
+
+# A data: source on every server database this session runs (the user, 2026-11-11: JSON on every database;
+# docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): the payload read by the delivery each dialect declares -- MariaDB's and
+# MySQL's session table, Trino's, ClickHouse's and MongoDB's own rows -- on their embedded servers (Linux x86_64: every
+# server's builds), its own target as MongoDB's plan test is
+junit_test(
+    name = "data_source_servers_test",
+    memory_mb = 1536,
+    size = "large",
+    srcs = [
+        "src/test/java/com/legend/exec/DataSourceServersTest.java",
+        # each payload form read back on every SQL server (the JSON pass, 2026-11-11)
+        "src/test/java/com/legend/integration/JsonPayloadFormsTest.java",
+    ],
+    data = [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+        "@embedded_mariadb//:mariadb",
+        "@embedded_mariadb//:mariadb/MARIADB_ROOT",
+        "@embedded_mongodb//:mongodb",
+        "@embedded_mongodb//:mongodb/MONGODB_ROOT",
+        "@embedded_mysql//:mysql",
+        "@embedded_mysql//:mysql/MYSQL_ROOT",
+        "@embedded_trino//:trino",
+        "@embedded_trino//:trino/TRINO_ROOT",
+    ],
+    jvm_flags = [
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        "-Dembedded.mariadb.root=$(rlocationpath @embedded_mariadb//:mariadb/MARIADB_ROOT)",
+        "-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)",
+        "-Dembedded.mysql.root=$(rlocationpath @embedded_mysql//:mysql/MYSQL_ROOT)",
+        "-Dembedded.trino.root=$(rlocationpath @embedded_trino//:trino/TRINO_ROOT)",
+    ],
+    select = ["--select-class=com.legend.exec.DataSourceServersTest"],
+    tags = ["manual"],
+    # the product's driver set (MongoDB's connector among them) and the servers' test-only JDBC drivers
+    runtime_deps = [":drivers", "@clickhouse_jdbc//jar", "@mariadb_jdbc//jar", "@trino_jdbc//jar"],
+    target_compatible_with = EMBEDDED_MONGODB_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
+        ":test_backends",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
+    ],
     visibility = ["//gates:__pkg__"],
 )
 
-# a clashing fixture set aside in a Postgres corpus workspace survives the rollback of the test body's attempt it was
-# set in (the dialect program's defect 5), on the embedded Postgres 16
+# a CSV file's load on Postgres: refused by name (A3, 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md option 1;
+# until then the runner's cells streamed into its insert, at every edge of DataLoadsTest's pins)
 junit_test(
-    name = "fixture_aside_postgres_test",
+    name = "data_loads_postgres_test",
     memory_mb = 768,
     size = "medium",
-    srcs = ["src/test/java/com/legend/FixtureAsidePostgresTest.java"],
+    srcs = [
+        "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
+        "src/test/java/com/legend/exec/DataLoadsTest.java",
+    ],
     data = [
         "@embedded_postgres//:pg/PG_ROOT",
         "@embedded_postgres//:postgres",
     ],
     jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
-    select = ["--select-class=com.legend.FixtureAsidePostgresTest"],
+    select = ["--select-class=com.legend.exec.DataLoadsPostgresTest"],
     runtime_deps = [":drivers"],
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# the data delivery matrix (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §5, A1) on the embedded Postgres 16, run as an
+# unprivileged user: every door, data kind and failure case, with Postgres's own red list
+junit_test(
+    name = "data_delivery_matrix_postgres_test",
+    memory_mb = 1536,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/CsvJsonColumnTest.java",
+        "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
+        "src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
+        # each payload form read back on Postgres (the JSON pass, 2026-11-11)
+        "src/test/java/com/legend/integration/JsonPayloadFormsTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.DataDeliveryMatrixPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        "//json",
+        ":core",
+        ":core_tests_lib",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_params",
     ],
     visibility = ["//gates:__pkg__"],
 )
@@ -942,6 +1294,516 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# DATACUBE'S TIMESERIES LIBRARY ON THE PLATFORM (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B):
+# timeseries::, the timeseries project's Pure file as it is -- a program, input to the compiler (docs/WORLD_MAP.md), read here as a
+# test's input as the linked projects' files are -- compiles (a body generic over relations typed where a call reaches
+# it: register S112), and a person's Pure calling it answers as
+# arithmetic on every in-process database (a calendar period's as-of join where the dialect writes one)
+junit_test(
+    name = "timeseries_library_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TimeseriesLibraryTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TimeseriesLibraryTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE, v0 (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): a #TS{...}# query over a class, a WITH source,
+# a table and a variable answers as the timeseries library's calls written in Pure, on every in-process database, and
+# every refusal says its fix
+junit_test(
+    name = "ts_island_test",
+    memory_mb = 512,
+    # large (900 s): 79 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE ADVERSARIAL MARKETS FIXTURE (projects/timeseries/fixtures/adversarial, 2026-11-07): per trap, a #TS query on
+# DuckDB judged against the fixture's correct answer, each case's status held by ts-adversarial/ledger.tsv, and the
+# manifest's naive SQL run as written, which must give its naive answer and not the correct one (the trap bites)
+junit_test(
+    name = "ts_adversarial_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsAdversarialTest.java"],
+    data = [
+        "src/test/resources/ts-adversarial/ledger.tsv",
+        "//projects:timeseries/fixtures/adversarial/calendar.csv",
+        "//projects:timeseries/fixtures/adversarial/manifest.yaml",
+        "//projects:timeseries/fixtures/adversarial/prices.csv",
+        "//projects:timeseries/fixtures/adversarial/prices_adjusted.csv",
+        "//projects:timeseries/model.pure",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.adversarial.calendar=$(rlocationpath //projects:timeseries/fixtures/adversarial/calendar.csv)",
+        "-Dts.adversarial.manifest=$(rlocationpath //projects:timeseries/fixtures/adversarial/manifest.yaml)",
+        "-Dts.adversarial.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices.csv)",
+        "-Dts.adversarial.prices_adjusted=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices_adjusted.csv)",
+        "-Dts.adversarial.ledger=$(rlocationpath src/test/resources/ts-adversarial/ledger.tsv)",
+        # the database the manifest's naive SQL is written for
+        "-Dts.backend=duckdb",
+    ],
+    select = ["--select-class=com.legend.integration.TsAdversarialTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE GS-QUANT PARITY OF #TS (tools/gs-quant-oracle/README.md, 2026-11-07): every case of the oracle's mapping -- a
+# word of the library as a #TS item -- run on DuckDB and judged against gs-quant's own function at the oracle's pin
+# (tools/gs-quant-oracle/pins.env), snapped by tools/gs-quant-oracle/snap.py (1e-9 absolute, 1e-8 relative for a
+# volatility, a correlation, a beta), over three datasets: the gallery's samples and the adversarial fixture's two price
+# files, raw and adjusted, each its own answers and ledger. Each case's verdict is held by its ledger, a DIFF written
+# with lite's SQL to the undeclared outputs (gsquant-findings.md); JDK_JAVA_OPTIONS=-Dts.gsquant.update=<the oracle's
+# directory in the workspace> rewrites the ledgers' verdicts (the JUnit launcher takes no -D).
+junit_test(
+    name = "ts_gsquant_parity_test",
+    memory_mb = 1024,
+    # large (900 s): 82 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
+    srcs = [
+        "src/test/java/com/legend/integration/TsAnswers.java",
+        "src/test/java/com/legend/integration/TsGsquantParityTest.java",
+    ],
+    data = [
+        "//datacube:test/fixtures/timeseries/show-ts.txt",
+        "//datacube:ts_replay_samples",
+        "//projects:timeseries/fixtures/adversarial/prices.csv",
+        "//projects:timeseries/fixtures/adversarial/prices_adjusted.csv",
+        "//projects:timeseries/model.pure",
+        "//tools/gs-quant-oracle:answers-adversarial-adjusted.jsonl.gz",
+        "//tools/gs-quant-oracle:answers-adversarial-raw.jsonl.gz",
+        "//tools/gs-quant-oracle:answers-gallery.jsonl.gz",
+        "//tools/gs-quant-oracle:answers.jsonl.gz",
+        "//tools/gs-quant-oracle:gallery.jsonl",
+        "//tools/gs-quant-oracle:ledger-adversarial-adjusted.tsv",
+        "//tools/gs-quant-oracle:ledger-adversarial-raw.tsv",
+        "//tools/gs-quant-oracle:ledger-gallery.tsv",
+        "//tools/gs-quant-oracle:ledger.tsv",
+        "//tools/gs-quant-oracle:calls.tsv",
+        "//tools/gs-quant-oracle:mapping.yaml",
+        "//tools/gs-quant-oracle:pins.env",
+        "//tools/gs-quant-oracle:references.py",
+        "//tools/gs-quant-oracle:snap.py",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.gsquant.pins=$(rlocationpath //tools/gs-quant-oracle:pins.env)",
+        # the oracle's own code: each answer file records its sha256, and an edit of either makes the answers STALE
+        "-Dts.gsquant.snap=$(rlocationpath //tools/gs-quant-oracle:snap.py)",
+        "-Dts.gsquant.references=$(rlocationpath //tools/gs-quant-oracle:references.py)",
+        "-Dts.gsquant.mapping=$(rlocationpath //tools/gs-quant-oracle:mapping.yaml)",
+        # each case's #TS item as Show Python prints it: the gs-quant call of a case the mapping writes `printed` (14f)
+        "-Dts.gsquant.calls=$(rlocationpath //tools/gs-quant-oracle:calls.tsv)",
+        "-Dts.gsquant.samples=$(rlocationpath //datacube:ts_replay_samples)",
+        "-Dts.gsquant.answers=$(rlocationpath //tools/gs-quant-oracle:answers.jsonl.gz)",
+        "-Dts.gsquant.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger.tsv)",
+        "-Dts.gsquant.adversarial-raw.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices.csv)",
+        "-Dts.gsquant.adversarial-raw.answers=$(rlocationpath //tools/gs-quant-oracle:answers-adversarial-raw.jsonl.gz)",
+        "-Dts.gsquant.adversarial-raw.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger-adversarial-raw.tsv)",
+        "-Dts.gsquant.adversarial-adjusted.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices_adjusted.csv)",
+        "-Dts.gsquant.adversarial-adjusted.answers=$(rlocationpath //tools/gs-quant-oracle:answers-adversarial-adjusted.jsonl.gz)",
+        "-Dts.gsquant.adversarial-adjusted.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger-adversarial-adjusted.tsv)",
+        # the gallery's and the markets example's series (item 14f, step 4b): each its gs-quant call (gallery.jsonl,
+        # Show Python's), its answer, its verdict, and its Show #TS statement, run over the pages' samples
+        "-Dts.gsquant.gallery=$(rlocationpath //tools/gs-quant-oracle:gallery.jsonl)",
+        "-Dts.gsquant.gallery.statements=$(rlocationpath //datacube:test/fixtures/timeseries/show-ts.txt)",
+        "-Dts.gsquant.gallery.answers=$(rlocationpath //tools/gs-quant-oracle:answers-gallery.jsonl.gz)",
+        "-Dts.gsquant.gallery.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger-gallery.tsv)",
+    ],
+    select = ["--select-class=com.legend.integration.TsGsquantParityTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE ON POSTGRES (docs/TS_V1_PROGRAM_2026_11_01.md B1): the island's cases on the embedded
+# Postgres server, not in-process, each query in a workspace of its own. In the core lane where the embedded server
+# runs, as the other Postgres targets; as root, run it through tools/postgres/as_unprivileged.sh (docs/CLOUD_SESSIONS.md).
+junit_test(
+    name = "ts_island_postgres_test",
+    memory_mb = 768,
+    # large (900 s): 66 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = [
+        "//projects:timeseries/model.pure",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE ON SNOWFLAKE (docs/TS_DECISIONS_2026_11_07.md item 10, 2026-11-07): the island's cases on a
+# real Snowflake account, each query in a workspace of its own (a schema made for it, dropped with everything in it as it
+# closes: SnowflakeBackend.openWorkspace). The account's coordinates and credentials come as //pct:pct_snowflake's do,
+# from the properties file LEGENDLITE_PCT_CLOUD_PROPERTIES names (docs/CLOUD_BACKENDS_PCT_2026_10_11.md). Manual, in
+# //gates:heavy: a run needs the account and costs money.
+junit_test(
+    name = "ts_island_snowflake_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=snowflake",
+        # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    ],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE GALLERY ON ANOTHER DATABASE (docs/TS_DECISIONS_2026_11_07.md item 9, 2026-11-07): every series of the timeseries
+# gallery and the markets example as Show #TS prints it (the parity test's statements, held to the datacube fixture),
+# over the pages' samples (//datacube:ts_replay_samples) loaded into each database, each answer held to DuckDB's run
+# beside it -- the same dates and lines, each figure within 1e-9 of its series' scale (as ruled that day). One target per
+# v1 database besides DuckDB (P4 as widened 2026-11-07: DuckDB, Postgres, ClickHouse and Snowflake): the embedded
+# Postgres (as root, through tools/postgres/as_unprivileged.sh, docs/CLOUD_SESSIONS.md), the embedded ClickHouse, and a
+# Snowflake account (manual: it needs the account).
+_TS_REPLAY_SRCS = [
+    "src/test/java/com/legend/integration/TsAnswers.java",
+    "src/test/java/com/legend/integration/TsReplayTest.java",
+]
+
+_TS_REPLAY_DATA = [
+    "//projects:timeseries/model.pure",
+    "//datacube:test/fixtures/timeseries/show-ts.txt",
+    "//datacube:ts_replay_samples",
+]
+
+_TS_REPLAY_FLAGS = [
+    "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+    "-Dts.replay.statements=$(rlocationpath //datacube:test/fixtures/timeseries/show-ts.txt)",
+    "-Dts.replay.samples=$(rlocationpath //datacube:ts_replay_samples)",
+]
+
+_TS_REPLAY_DEPS = [
+    ":core",
+    ":test_backends",
+    ":test_cases",
+    "//json",
+    "//testing",
+    "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+]
+
+junit_test(
+    name = "ts_replay_postgres_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_REPLAY_SRCS,
+    data = _TS_REPLAY_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _TS_REPLAY_FLAGS + [
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        # a statement bounded at two minutes: one past it is named, not waited on
+        "'-Dts.replay.session=SET statement_timeout = 120000'",
+    ],
+    select = ["--select-class=com.legend.integration.TsReplayTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = _TS_REPLAY_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_replay_clickhouse_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_REPLAY_SRCS,
+    data = _TS_REPLAY_DATA + [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+    ],
+    jvm_flags = _TS_REPLAY_FLAGS + [
+        "-Dts.backend=clickhouse",
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        # a statement bounded at two minutes (seconds there): one past it is named, not waited on
+        "'-Dts.replay.session=SET max_execution_time = 120'",
+    ],
+    select = ["--select-class=com.legend.integration.TsReplayTest"],
+    runtime_deps = [
+        ":drivers",
+        "@clickhouse_jdbc//jar",
+    ],
+    target_compatible_with = EMBEDDED_CLICKHOUSE_COMPATIBLE,
+    deps = _TS_REPLAY_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_replay_snowflake_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_REPLAY_SRCS,
+    data = _TS_REPLAY_DATA,
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = _TS_REPLAY_FLAGS + [
+        "-Dts.backend=snowflake",
+        # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    ],
+    select = ["--select-class=com.legend.integration.TsReplayTest"],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    deps = _TS_REPLAY_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+# #TS AT SCALE, MEASURED (docs/TS_V1_PROGRAM_2026_11_01.md B2; docs/TS_DECISIONS_2026_11_07.md item 7, 2026-11-07):
+# about ten million daily rows and as many minute bars, made by the database; each query's plan time, SQL size and run.
+# Manual, a measurement (in //gates:heavy): the budgets are proposed from it and ruled by the user (P5). On Postgres the
+# as-of forms besides (lite's correlated MAX, the experts' LATERAL), without and with an index; the bars there are 20
+# instruments' (the session's disk), the wide table not run and the basket 100 members (the session's memory). As root, the Postgres one through tools/postgres/as_unprivileged.sh.
+junit_test(
+    name = "ts_scale_measure",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/TsScaleMeasureTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsScaleMeasureTest"],
+    runtime_deps = [":drivers"],
+    tags = ["manual"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_scale_measure_postgres",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/TsScaleMeasureTest.java"],
+    data = [
+        "//projects:timeseries/model.pure",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=postgres",
+        "-Dts.scale.barInstruments=20",
+        # the 100 lines' query grows one backend past the session's memory, at 1M rows as at 10M (F3: the statement's,
+        # not the data's; 2026-11-07, again after F6)
+        "-Dts.scale.wideLines=0",
+        "-Dts.scale.basket=100",
+        "-Dts.scale.handForms=true",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.TsScaleMeasureTest"],
+    runtime_deps = [":drivers"],
+    tags = ["manual"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): every query of the #TS spec and of the guide for quants
+# (docs/timeseries/examples.sql, their one source) runs on the platform's own database over tables shaped as the
+# documents name them, or is listed with why (only allowed to shrink)
+_TS_DOCUMENTS_SRCS = [
+    "src/test/java/com/legend/integration/TsAnswers.java",
+    "src/test/java/com/legend/integration/TsDocumentsTest.java",
+]
+
+_TS_DOCUMENTS_DATA = [
+    "//docs:timeseries/examples.sql",
+    "//projects:timeseries/model.pure",
+]
+
+_TS_DOCUMENTS_FLAGS = [
+    "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+    "-Dts.examples=$(rlocationpath //docs:timeseries/examples.sql)",
+]
+
+_TS_DOCUMENTS_DEPS = [
+    ":core",
+    ":test_backends",
+    ":test_cases",
+    "//testing",
+    "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+]
+
+junit_test(
+    name = "ts_documents_test",
+    memory_mb = 1024,
+    size = "medium",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA,
+    jvm_flags = _TS_DOCUMENTS_FLAGS,
+    # the platform's own check; each lane target below selects the lane's
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleOfTheSpecAndTheGuideRuns"],
+    runtime_deps = [":drivers"],
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE DOCUMENTS' EXAMPLES ON EVERY V1 DATABASE (docs/TS_DECISIONS_2026_11_07.md item 9b, 2026-11-07: "All four"): each
+# example on DuckDB and on the lane's database, each answer held to DuckDB's (TsAnswers), a statement bounded at two
+# minutes where the database takes a bound. Postgres as root through tools/postgres/as_unprivileged.sh; Snowflake manual.
+junit_test(
+    name = "ts_documents_clickhouse_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA + [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+    ],
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=clickhouse",
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        "'-Dts.documents.session=SET max_execution_time = 120'",
+    ],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
+    runtime_deps = [
+        ":drivers",
+        "@clickhouse_jdbc//jar",
+    ],
+    target_compatible_with = EMBEDDED_CLICKHOUSE_COMPATIBLE,
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_documents_postgres_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        "'-Dts.documents.session=SET statement_timeout = 120000'",
+    ],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_documents_snowflake_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA,
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=snowflake",
+        # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    ],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    deps = _TS_DOCUMENTS_DEPS,
     visibility = ["//gates:__pkg__"],
 )
 
@@ -1258,6 +2120,36 @@ junit_test(
     target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
     deps = [
         ":core",
+        # the LEAN twin's reader (track T, 2026-10-29): the writes' answers are read through it
+        ":test_cases",
+        ":test_backends",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# A RELATION'S toOne() CHECKED BY THE DATABASE (D2 of docs/GOALS_OF_RECORD_2026_11_07.md, 2026-11-07): the lowering's
+# guard on the embedded Postgres 16 -- two rows and none raise Pure's size error, one row is answered; the same checks
+# run on DuckDB, H2 and SQLite in the integration lanes (RelationToOneGuardTest)
+junit_test(
+    name = "relation_to_one_postgres_test",
+    memory_mb = 768,
+    size = "medium",
+    srcs = [
+        "src/test/java/com/legend/integration/RelationToOneGuardPostgresTest.java",
+        "src/test/java/com/legend/integration/RelationToOneGuardTest.java",
+    ],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = ["-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)"],
+    select = ["--select-class=com.legend.integration.RelationToOneGuardPostgresTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_cases",
         ":test_backends",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
@@ -1291,13 +2183,19 @@ junit_test(
 
 # the test cases core's tests, :postgres_arm_test and :sql_island_postgres_test share: the execution plan's cases and
 # its run on a connection (PlanCases), the reserved-name tables and their seed (ReservedNames; PARK-16), the #SQL{}#
-# island's cases (SqlIslandCases)
+# island's cases (SqlIslandCases); and the LEAN twin's reader (testing/Lean, testing/Program: the result boundary
+# program's track T, 2026-10-29), which the cases and every per-lane target read a lane's answers through (the
+# store writes on Postgres failed to build at 9ca7482f with the reader in core_tests_lib alone: GATES, T-b's gate)
 legend_java_library(
     name = "test_cases",
     # not yet written to the null discipline (Bazel workplan P1-20), as core_tests_lib
     nullaway = False,
     testonly = True,
-    srcs = glob(["src/test/java/com/legend/testcases/*.java"]),
+    srcs = glob(["src/test/java/com/legend/testcases/*.java"]) + [
+        "src/test/java/com/legend/testing/Lean.java",
+        "src/test/java/com/legend/testing/Program.java",
+        "src/test/java/com/legend/testing/LaneFloor.java",   # the lanes (T-d2): every integration test is on one
+    ],
     deps = [
         ":core",
         # the cases' tables are created on a test backend's database, by its dialect
@@ -1315,7 +2213,7 @@ legend_java_library(
     nullaway = False,
     testonly = True,
     srcs = glob(["src/test/java/com/legend/testbackend/*.java"]),
-    visibility = ["//pct:__pkg__", "//spec:__pkg__"],
+    visibility = ["//pct:__pkg__", "//spec:__pkg__", "//tools/census:__pkg__"],
     deps = [
         ":core",
         "//testing",
@@ -1340,6 +2238,7 @@ junit_test(
     data = [
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
         "src/main/java/com/legend/sql/dialect/DuckDb.java",
+        ":authored_door_jars",
         ":core_test_jar",
         ":guardrails_sources",
         ":product_jars",
@@ -1352,18 +2251,37 @@ junit_test(
         "-Dlegend.sources=$(rlocationpath :guardrails_sources)",
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",
+        "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
     ],
     select = [
         "--select-package=com.legend",
         "--include-tag=guardrail",
     ],
-    # :duckdb_load too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary)
+    # :duckdb_cells too: ArchitectureTest judges every product library (theImportIsEveryProductLibrary);
+    # :postgres_cells since 2026-10-30 (D69: a registered JDBC class the guards had never judged)
     runtime_deps = [
         ":core_tests_lib",
-        ":duckdb_load",
+        ":duckdb_cells",
         ":mongodb_connector",
+        # the MongoDB choke rule's planted violator, compiled against the driver (the C final audit's J3, 2026-11-12)
+        ":mongodb_planted",
+        ":postgres_cells",
     ],
     visibility = ["//gates:__pkg__"],
+)
+
+# A class planted to send a MongoDB command outside the one method that sends (the C final audit's J3, the user's
+# ruling of 2026-11-12): ArchitectureTest.theMongoDbRuleBitesAPlantedCommand reads it from :guardrails's classpath.
+# Its own library because it is compiled against the driver, which :core_tests_lib is not.
+legend_java_library(
+    name = "mongodb_planted",
+    testonly = True,
+    srcs = ["src/test/mongodb/com/legend/exec/PlantedMongoCommand.java"],
+    deps = [
+        "@bson//jar",
+        "@mongodb_driver_core//jar",
+        "@mongodb_driver_sync//jar",
+    ],
 )
 
 # THE PRODUCT'S JARS, declared: what ArchitectureTest imports and NoEagerTypeReferencesTest loads (Bazel workplan
@@ -1373,7 +2291,25 @@ java_jars(
     testonly = True,
     rlocation_paths = True,
     transitive = False,
-    deps = _CORE_TARGETS + [":duckdb_load", ":mongodb_connector"],
+    # //arrow_ipc (2026-11-09, the follow-up audit): the result library's framer is the product's too, so the static
+    # state guard holds its constants
+    deps = _CORE_TARGETS + ["//arrow_ipc", ":duckdb_cells", ":mongodb_connector", ":postgres_cells"],
+)
+
+# the hosts' doors to the authored statement, by class: the boundary, the tab's adapter and the native entry, whose
+# reach of the planner's Authored.plan ArchitectureTest.theAuthoredDoorIsReachedFromTheBoundaryAlone pins (the third
+# re-audit's SHOULD-FIX 5, 2026-11-12: until then a source regex alone, PlannedSqlTest.AUTHORED_JAVA_REFERENCE, which a
+# method reference or a static import passed)
+java_jars(
+    name = "authored_door_jars",
+    testonly = True,
+    rlocation_paths = True,
+    transitive = False,
+    deps = [
+        "//native:entry",
+        "//wasm:boundary",
+        "//wasm:tab",
+    ],
 )
 
 # core's test classes, for the one rule that checks them too (ArchitectureTest.upstreamJavaNeverEntersCore)
@@ -1555,9 +2491,9 @@ filegroup(
     visibility = ["//spec:__pkg__"],
 )
 
-# THE STRESS CORPUS'S GENERATED FILES (Bazel workplan P2-01, from spike S5): twelve files in the stress directory
+# THE STRESS CORPUS'S GENERATED FILES (Bazel workplan P2-01, from spike S5): twenty-three files in the stress directory
 # are outputs of //scripts/corpus's Bazel actions, diff-tested in //:generated. They are never generator INPUTS: the generators read
-# :stress_sources, which leaves all twelve out.
+# :stress_sources, which leaves all twenty-three out.
 stress_layout(
     name = "stress_layout",
     visibility = ["//scripts/corpus:__pkg__"],
@@ -1588,7 +2524,7 @@ stress_index(
     out = "src/test/resources/com/legend/integration/stress-index.txt",
 )
 
-# every stress file, the generated twelve included: what the corpus ratchets measure (//scripts/corpus, P2-04)
+# every stress file, the generated twenty-three included: what the corpus ratchets measure (//scripts/corpus, P2-04)
 filegroup(
     name = "stress_files",
     srcs = glob(["src/test/resources/stress/*.pure"]),
@@ -1743,8 +2679,10 @@ legend_java_library(
         "//spec:gen_imports",
         "//spec:gen_natives",
     ],
-    # core's sources import the two modules below core (null annotations, the JSON codec)
+    # core's sources import the three modules below core (null annotations, the JSON codec, the Arrow IPC
+    # framer -- track A, 2026-10-29: the result package's ArrowWriter)
     deps = [
+        "//arrow_ipc",
         "//base",
         "//json",
     ],
@@ -1769,8 +2707,9 @@ core_layer_queries(not_layers = {
     "core_next": "core as the generators rewrite it, for the claims generator (spec)",
     "core_next_prelude": "core_next's regenerated prelude resource",
     "core_tests_lib": "the tests' library, not product code",
+    "mongodb_planted": "a test class planted for ArchitectureTest's MongoDB choke rule, not product code",
     "drivers": "the JDBC drivers a running core is given (//tools/deps:drivers_closure holds them)",
-    "duckdb_load": "the drivers' bulk loader, beside the layers",
+    "duckdb_cells": "the drivers' DuckDB cell types, beside the layers",
     "mongodb_connector": "MongoDB's connector, beside the drivers (docs/MONGODB_PLAN_2026_10_16.md D12)",
     "plan_side": "the plan-only umbrella: it exports the planner's layers, none of execution (C2a)",
     "postgres_cells": "Postgres's JSON cells behind the DriverCells seam, beside the drivers (the plan path program's step 9, 2026-10-19)",
@@ -1782,3 +2721,54 @@ core_layer_queries(not_layers = {
 })
 
 guards_package()
+
+# SPIKE (2026-10-31, evidence for docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md): the language's functions as
+# line-level Pure against today's #TS. Manual: no gate runs it; `bazel test //core:ts_line_spike_test --test_output=all`.
+junit_test(
+    name = "ts_line_spike_test",
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsLineSpikeTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsLineSpikeTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# PROBE (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, C1): each database's window frame offsets -- a
+# constant expression, a bound parameter, a negative offset, a reversed window: the in-process three and the embedded
+# Postgres (MariaDB's, MySQL's and ClickHouse's drivers are //pct's alone, tools/deps/jars_table.bzl). Manual: no gate runs it;
+# `bazel test //core:frame_offset_probe_test --test_output=all`, as root under a copy of
+# tools/postgres/as_unprivileged.sh outside the workspace (docs/CLOUD_SESSIONS.md).
+junit_test(
+    name = "frame_offset_probe_test",
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        "-Dprobe.servers=Postgres",
+    ],
+    select = ["--select-class=com.legend.sql.dialect.FrameOffsetProbeTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)

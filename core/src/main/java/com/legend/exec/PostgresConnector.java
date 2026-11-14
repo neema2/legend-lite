@@ -3,11 +3,9 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.DatabaseType;
+import com.legend.executionplan.ConnectionSpecification;
 
-import java.sql.Connection;
 
 /** Postgres's sessions: a server, reached by its coordinates. */
 final class PostgresConnector implements DatabaseConnector {
@@ -28,7 +26,7 @@ final class PostgresConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         if (def.specification() instanceof ConnectionSpecification.StaticDatasource(String host, int port,
                 String database)) {
             return new Sessions.Opening.Url("jdbc:postgresql://" + host + ":" + port + "/" + database);
@@ -48,9 +46,15 @@ final class PostgresConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code Postgres}'s errors carry their raise. */
+    /** {@inheritDoc} Yes: Postgres aborts the transaction on a failed statement ("current transaction is aborted, commands ignored until end of transaction block"). */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return true;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
     }
 }

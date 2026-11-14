@@ -24,6 +24,27 @@ class SqlTypingTest {
     }
 
     @Test
+    void aCastOfTextToANumberMayRaise() {
+        // #81's final review, item 14k (5), 2026-11-10: text read as a number, a decimal, a Boolean or a date raises on
+        // a text that spells none (parseFloat('x')), so no merge or prune may drop it as raising nothing
+        org.junit.jupiter.api.Assertions.assertFalse(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), SqlType.Scalar.DOUBLE)));
+        org.junit.jupiter.api.Assertions.assertFalse(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), new SqlType.Decimal(10, 2))));
+        org.junit.jupiter.api.Assertions.assertFalse(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), SqlType.Scalar.BOOLEAN)));
+        org.junit.jupiter.api.Assertions.assertFalse(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), SqlType.Scalar.DATE)));
+        // a number to a number, and anything to text, still raise nothing
+        org.junit.jupiter.api.Assertions.assertTrue(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.IntLit(1), SqlType.Scalar.DOUBLE)));
+        org.junit.jupiter.api.Assertions.assertTrue(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.IntLit(1), SqlType.Scalar.VARCHAR)));
+        org.junit.jupiter.api.Assertions.assertTrue(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), SqlType.Scalar.VARCHAR)));
+    }
+
+    @Test
     void literalsAndCastsCarryTheirTypes() {
         assertEquals(SqlTyping.typed(SqlType.Scalar.VARCHAR),
                 t(new SqlExpr.StringLit("a")));
@@ -99,11 +120,11 @@ class SqlTypingTest {
     @Test
     void errorBranchesAreBottomLikeInBranchFamilies() {
         // the checked-extract shape: an error() guard branch plus a
-        // LIST_GET over Array(LITERAL) — error() raises, it never
+        // LIST_GET over a typed array — error() raises, it never
         // yields a value, so the family types from the value branch
         SqlExpr carried = new SqlExpr.Cast(
                 new SqlExpr.ArrayLit(List.of(new SqlExpr.StringLit("1"))),
-                new SqlType.Array(SqlType.Scalar.LITERAL));
+                new SqlType.Array(SqlType.Scalar.VARCHAR));
         SqlExpr checked = new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(true),
                         SqlExpr.Call.of(SqlFn.ERROR,
@@ -114,7 +135,7 @@ class SqlTypingTest {
         // out-of-range list_extract -> NULL) and the branch family
         // carries it
         assertEquals(SqlTyping.nullable(
-                SqlTyping.typed(SqlType.Scalar.LITERAL)), t(checked));
+                SqlTyping.typed(SqlType.Scalar.VARCHAR)), t(checked));
         // an ALL-error family is bottom-like as a whole (raise dominates)
         assertEquals(SqlTyping.BOTTOM, t(new SqlExpr.Case(List.of(
                 new SqlExpr.Case.When(new SqlExpr.BoolLit(false),

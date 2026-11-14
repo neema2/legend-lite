@@ -3,11 +3,12 @@
 
 package com.legend.exec;
 
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
-import com.legend.Execution;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -21,18 +22,13 @@ import java.util.List;
 import java.util.Locale;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * THE SINGLE-QUERY PIN (P3-2): the LIMIT-0 schema probe runs ONLY when
- * the tree statically DEMANDS a late-bound grid's schema (a
- * {@code columnNames}/{@code values} read — {@code RawGridSchema}'s
- * demand gate). An undemanded grid executes as ONE query: the lowering
- * emits the zero-output star-select and the egress adopts the result-set
- * headers ({@code Executor.resolveColumns}' late-bound arm, gated on
- * {@code schema.isLateBound()} — the TYPE, never an outputs-emptiness
- * proxy). This test counts actual JDBC traffic through a proxy — the
- * probe count is PINNED, not narrated.
+ * A raw grid read at planning: NEVER (the planner-driver seam program's S3c, 2026-10-30; until then the LIMIT-0 schema
+ * probe ran when the tree demanded a late-bound grid's schema, P3-2's single-query pin). An undemanded grid executes
+ * as ONE query whose columns are the ones its result reports; a by-name read names its column; {@code columnNames}
+ * and {@code values} are a keyed plan whose keys step (one {@code LIMIT 0}) runs with the plan, never at planning.
+ * This test counts actual JDBC traffic through a proxy and the statement-origin census.
  */
 class ExecuteInDbProbeCountTest {
 
@@ -85,60 +81,86 @@ class ExecuteInDbProbeCountTest {
                 .count();
     }
 
-    private static ExecutionResult run(String tail) throws Exception {
+    private static Lean.Result run(String tail) throws Exception {
         executed = new ArrayList<>();
-        return Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET + tail, StorelessRuntime.RUNTIME, counting(real));
+        return Program.last(StorelessRuntime.with("", Databases.PLATFORM), CONN_LET + tail, StorelessRuntime.RUNTIME, counting(real));
     }
 
     @Test
     @DisplayName("undemanded grid as relation root: ZERO probes, headers adopted at egress")
     void undemandedGridSingleQuery() throws Exception {
-        ExecutionResult r = run(
+        Lean.Result r = run(
                 "let r = meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as X, 2 as Y', $c, 0, 1000); $r.rows;}");
         assertEquals(0, probes(),
                 "no columnNames/values demand — the one executed query is"
                 + " its own schema authority; probe traffic: " + executed);
-        ExecutionResult.Tabular t = (ExecutionResult.Tabular) r;
+        Lean.Result t = r;
         assertEquals(List.of("X", "Y"),
-                t.columns().stream().map(Column::name).toList(),
+                t.columns().stream().map(Lean.Column::name).toList(),
                 "late-bound egress arm adopts the result-set headers");
         assertEquals(1, t.rows().size());
-        assertEquals(1L, ((Number) t.rows().get(0).values().get(0)).longValue());
-        assertEquals(2L, ((Number) t.rows().get(0).values().get(1)).longValue());
+        assertEquals(1L, ((Number) t.rows().get(0).get(0)).longValue());
+        assertEquals(2L, ((Number) t.rows().get(0).get(1)).longValue());
     }
 
     @Test
-    @DisplayName("named cell read DEMANDS the schema: exactly ONE probe, typed cells")
-    void namedReadProbesOnce() throws Exception {
-        // §4bZ-U RULING (2026-08-25, wire-ledger burn): a by-name FIELD
-        // read over a late-bound grid IS a static schema demand — the
-        // old trust-name path typed such cells Any (JSON labels, the
-        // last 2 corpus wire-diverge rows); the probe's typed columns
-        // give the cell the database's own type. Cost: one LIMIT-0
-        // metadata read per demanded grid. The bare .rows egress stays
-        // probe-free (the test above pins that surviving P3-2 case).
-        ExecutionResult r = run(
+    @DisplayName("named cell read: ZERO probes, the cell typed by the wire at the row")
+    void namedReadProbesNothing() throws Exception {
+        // the planner-driver seam program's S3c (2026-10-30; the user's D76: "no step where nothing needs the names
+        // before the grid runs"): a by-name field read over a late-bound grid names its column, the database resolves
+        // it, and the cell is decoded by the wire -- its column carries no slot (ColumnFacts.rawGridCell), so the
+        // runner reads the driver's own kind. Until then (the §4bZ-U ruling of 2026-08-25) the read demanded one
+        // LIMIT-0 probe at planning to type the cell; the cell is typed the same, from the real run.
+        Lean.Result r = run(
                 "meta::relational::metamodel::execute::executeInDb("
                 + "'select 3 as V', $c, 0, 1000).rows->map(x|$x.V);}");
-        assertEquals(1, probes(), "a by-name field read demands the"
-                + " typed schema (one LIMIT-0); probe traffic: " + executed);
-        Object v = r instanceof ExecutionResult.Scalar s ? s.value()
-                : ((ExecutionResult.Collection) r).values().get(0);
+        assertEquals(0, probes(), "a by-name field read demands no schema at planning; probe traffic: "
+                + executed);
+        Object v = r.values().get(0);
         assertEquals(3L, ((Number) v).longValue());
     }
 
     @Test
-    @DisplayName("columnNames demand: EXACTLY ONE probe (the second query is genuinely needed)")
-    void columnNamesDemandsProbe() throws Exception {
-        ExecutionResult r = run(
+    @DisplayName("named cell read: a text that looks like JSON is the text its column reports")
+    void namedReadOfTextIsTheText() throws Exception {
+        // the seam program's S3c audit (2026-10-31): a cell read by name is decoded by the type its result reports
+        // for its column (VARCHAR here), never guessed from its value -- a text starting with '[' or '{' was parsed as
+        // JSON (a JSON error for '[draft]', a list for '[1]')
+        assertEquals(List.of("[draft]", "[1]", "{x}"), run(
+                "meta::relational::metamodel::execute::executeInDb("
+                + "'select \\'[draft]\\' as N union all select \\'[1]\\' union all select \\'{x}\\'', $c, 0,"
+                + " 1000).rows->map(x|$x.N);}").values());
+    }
+
+    @Test
+    @DisplayName("columnNames: nothing read at planning; the names the grid's result reports, its keys step")
+    void columnNamesProbesNothing() throws Exception {
+        // the planner-driver seam program's S3c (2026-10-30; D76): the names are a keyed plan's keys, the grid's
+        // reported columns read when it runs, and the body a region per name; until then a LIMIT-0 probe at planning
+        // stamped them into the program
+        long before = StatementOrigin.snapshot()[StatementOrigin.PROBE.ordinal()];
+        Lean.Result r = run(
                 "meta::relational::metamodel::execute::executeInDb("
                 + "'select 1 as X, 2 as Y', $c, 0, 1000).columnNames;}");
-        assertEquals(1, probes(),
-                "columnNames resolves statically — needs the LIMIT-0"
-                + " probe; probe traffic: " + executed);
-        List<Object> names =
-                ((ExecutionResult.Collection) r).values();
-        assertTrue(names.contains("X") && names.contains("Y"), names.toString());
+        assertEquals(1, probes(), "one LIMIT 0: the keyed plan's keys step, sent as the plan runs; traffic: "
+                + executed);
+        assertEquals(before, StatementOrigin.snapshot()[StatementOrigin.PROBE.ordinal()], "nothing read at planning");
+        List<Object> names = r.values();
+        assertEquals(List.of("X", "Y"), names.stream().map(n -> String.valueOf(n).toUpperCase(Locale.ROOT)).toList(),
+                names.toString());
+    }
+
+    @Test
+    @DisplayName("values: nothing read at planning; the grid's cells row-major, each of its own kind")
+    void valuesProbesNothing() throws Exception {
+        long before = StatementOrigin.snapshot()[StatementOrigin.PROBE.ordinal()];
+        Lean.Result r = run(
+                "meta::relational::metamodel::execute::executeInDb("
+                + "'select 1 as X, \\'a\\' as Y', $c, 0, 1000).rows.values;}");
+        assertEquals(1, probes(), "one LIMIT 0: the keyed plan's keys step, sent as the plan runs; traffic: "
+                + executed);
+        assertEquals(before, StatementOrigin.snapshot()[StatementOrigin.PROBE.ordinal()], "nothing read at planning");
+        assertEquals(List.of(1L, "a"), r.values());
     }
 }

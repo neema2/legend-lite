@@ -1,7 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -23,14 +24,14 @@ import static org.junit.jupiter.api.Assertions.*;
  * Test structure:
  * - ONE-TIME SETUP: All Pure model definitions (Classes, Mappings, Runtime) are
  * defined once
- * - TESTS: Each test only defines a Pure query and executes via QueryService
- * - NO MANUAL SQL: All execution goes through QueryService.executeGraphFetch()
+ * - TESTS: Each test only defines a Pure query and executes via Execution.run
+ * - NO MANUAL SQL: All execution goes through Execution.run
  */
 @DisplayName("M2M Integration Tests - Legend graphFetch Syntax")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class M2MIntegrationTest {
 
     private Connection connection;
-    private final QueryService queryService = new QueryService();
 
     // ==================== Complete Pure Model Definition ====================
 
@@ -317,7 +318,7 @@ class M2MIntegrationTest {
     @BeforeEach
     void setUp() throws SQLException {
         // Create in-memory DuckDB with test data
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
         setupTestData();
     }
 
@@ -371,7 +372,7 @@ class M2MIntegrationTest {
     // ==================== Helper Methods ====================
 
     /**
-     * Executes via QueryService.execute() → GraphResult → JSON string.
+     * Executes via Execution.run → GraphResult → JSON string.
      * (Previously used old pipeline's executeGraphFetch; now uses new pipeline)
      */
     private String executeGraphFetch(String pureQuery) throws SQLException {
@@ -379,15 +380,15 @@ class M2MIntegrationTest {
     }
 
     /**
-     * NEW PIPELINE: Executes via QueryService.execute() → GraphResult.
+     * NEW PIPELINE: Executes via Execution.run → GraphResult.
      * parse → TypeChecker → PlanGenerator (JSON SQL) → PlanExecutor → GraphResult
      */
     private String executeNew(String pureQuery) throws SQLException {
-        com.legend.exec.ExecutionResult result =
-                queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
-        assertInstanceOf(com.legend.exec.ExecutionResult.Graph.class, result,
+        Lean.Result result =
+                Lean.run(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape(),
                 "graphFetch/serialize should return GraphResult, got: " + result.getClass().getSimpleName());
-        return result.asGraph().json();
+        return result.json();
     }
 
     // ==================== NEW PIPELINE: graphFetch via execute() ====================
@@ -560,7 +561,7 @@ class M2MIntegrationTest {
                     ->serialize(#{ Person { fullName, upperLastName } }#)
                 """;
 
-        // WHEN: Execute via QueryService
+        // WHEN: Execute via Execution.run
         String json = executeGraphFetch(pureQuery);
         System.out.println("Person JSON: " + json);
 
@@ -724,7 +725,7 @@ class M2MIntegrationTest {
                     ->serialize(#{ PersonWithAddress { fullName, address { city, street } } }#)
                 """;
 
-        // WHEN: Execute via QueryService
+        // WHEN: Execute via Execution.run
         String json = executeGraphFetch(pureQuery);
         System.out.println("Deep Fetch 1-to-1 JSON: " + json);
 
@@ -749,7 +750,7 @@ class M2MIntegrationTest {
                     ->serialize(#{ PersonWithAddresses { fullName, addresses { city, street } } }#)
                 """;
 
-        // WHEN: Execute via QueryService
+        // WHEN: Execute via Execution.run
         String json = executeGraphFetch(pureQuery);
 
         // THEN: JSON contains nested address arrays
@@ -773,7 +774,7 @@ class M2MIntegrationTest {
                     ->serialize(#{ PersonWithAddress { fullName, address { city } } }#)
                 """;
 
-        // WHEN: Execute via QueryService
+        // WHEN: Execute via Execution.run
         String json = executeGraphFetch(pureQuery);
 
         // THEN: Alice should have null address

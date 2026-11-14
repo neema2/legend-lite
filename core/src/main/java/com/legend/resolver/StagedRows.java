@@ -33,6 +33,22 @@ public final class StagedRows {
                 false, false), letInfo);
     }
 
+    /** A staged RAW GRID's let (the planner-driver seam program's S3c, 2026-10-30): bound to {@code read}, the raw read
+     *  of its temporary table the session's dialect wrote (a plain {@code SELECT *} of it), carried as the grid's own
+     *  text is and store-free as the grid was, so it runs on the session the rows were staged on. */
+    public static TypedLet gridBoundTo(String name, String read,
+            com.legend.compiler.spec.typed.TypedRawSqlRelation grid, ExprType letInfo) {
+        return new TypedLet(name, new com.legend.compiler.spec.typed.TypedRawSqlRelation(read, grid.database(),
+                grid.info()), letInfo);
+    }
+
+    /** The temporary table a RAW GRID let read after a later effect is staged into on the program road (the walk
+     *  deletion, 2026-11-06): the let's name and its place in the body, so the test door that stages it and the
+     *  asserts' planners that read it name one table, planned apart. */
+    public static String gridTable(String let, int place) {
+        return table(let) + "_grid" + place;
+    }
+
     /** The temporary table of the session a staged let's rows are held in: the let's name under a prefix of the
      *  platform's own, so no table of a store is named. */
     public static String table(String let) {
@@ -51,6 +67,25 @@ public final class StagedRows {
         }
         return rhs instanceof com.legend.compiler.spec.typed.TypedNativeCall sc
                 && com.legend.builtin.Pure.Lite.STAGE.equals(sc.callee().qualifiedName()) ? sc.args().get(0) : null;
+    }
+
+    /** {@code let}, a staged let ({@link #rowsOf}), binding its rows themselves, its {@code stage()} dropped under its
+     *  {@code from()}s: the let a reader splices where nothing can change its rows between the let and the read (rows
+     *  of the process's catalog alone, which a run never writes: the B checkpoint's correctness audit, C9,
+     *  2026-11-11). A let that stages nothing refused by name. */
+    public static TypedLet unstaged(TypedLet let) {
+        return new TypedLet(let.name(), unstaged(let.value()), let.info());
+    }
+
+    private static com.legend.compiler.spec.typed.TypedSpec unstaged(com.legend.compiler.spec.typed.TypedSpec value) {
+        if (value instanceof com.legend.compiler.spec.typed.TypedFrom f) {
+            return f.withSource(unstaged(f.source()), f.info());
+        }
+        if (value instanceof com.legend.compiler.spec.typed.TypedNativeCall call
+                && com.legend.builtin.Pure.Lite.STAGE.equals(call.callee().qualifiedName())) {
+            return call.args().get(0);
+        }
+        throw new IllegalStateException("a staged let whose value is no stage() call: " + value);
     }
 
     /** The store a staged let's table is read under: the one store its rows read ({@code resolved}, the rows' body),
@@ -191,7 +226,7 @@ public final class StagedRows {
                             inner.addAll(t.tables());
                             innerAny |= t.any();
                         }
-                    } catch (com.legend.compiler.spec.TypeInferenceException e) {
+                    } catch (com.legend.error.TypeInferenceException e) {
                         innerAny = true;   // an un-typeable callee cannot run; taken to touch any table
                     }
                     callee = new Touched(inner, innerAny);

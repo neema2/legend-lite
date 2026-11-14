@@ -1,0 +1,77 @@
+// The declared CSV format's default (base.CsvCells) measured against upstream's reader, Commons CSV 1.5 CSVFormat.EXCEL
+// (legend-pure 5.99.0 CsvReader/LoadToDbTableHelper: an empty cell NULL), 2026-11-09, L2. Run: javac -cp commons-csv-1.5.jar
+// with base/src/main/java/com/legend/base/{CsvCells,Nullable}.java. Result: 2000000 cases, 0 differ.
+// Then DuckFuzz (DuckDB 1.5.6 read_csv, strictest options) over 40000 texts: on the 6537 well-formed ones 6 read
+// differently (a cell whose quote follows a space read quoted) and 415 refused (mixed line breaks); 1911 ill-formed admitted.
+
+import org.apache.commons.csv.*; import java.util.*;
+public class Fuzz {
+  static List<List<String>> upstream(String t) throws Exception {
+    List<List<String>> out = new ArrayList<>();
+    for (CSVRecord r : CSVParser.parse(t, CSVFormat.EXCEL)) { List<String> row = new ArrayList<>(); for (String s : r) row.add(s == null || s.isEmpty() ? null : s); out.add(row); }
+    return out;
+  }
+  public static void main(String[] a) throws Exception {
+    Random rnd = new Random(42); char[] alpha = {'a','b',' ','\t',',','"','\n','\r','x'};
+    int n = 0, bad = 0;
+    for (int i = 0; i < 2000000; i++) {
+      int len = rnd.nextInt(12); StringBuilder sb = new StringBuilder();
+      for (int j = 0; j < len; j++) sb.append(alpha[rnd.nextInt(alpha.length)]);
+      String t = sb.toString();
+      String u, l;
+      try { u = upstream(t).toString(); } catch (Exception e) { u = "ERR"; }
+      try { l = com.legend.base.CsvCells.rows(t).toString(); } catch (com.legend.base.CsvCells.Malformed e) { l = "ERR"; }
+      n++;
+      if (!u.equals(l)) { if (bad++ < 15) System.out.println("DIFF " + t.replace("\n","\\n").replace("\r","\\r").replace("\t","\\t") + " up=" + u + " lite=" + l); }
+    }
+    System.out.println(n + " cases, " + bad + " differ");
+  }
+}
+
+import java.nio.file.*; import java.sql.*; import java.util.*;
+public class DuckFuzz {
+  public static void main(String[] a) throws Exception {
+    Random rnd = new Random(7); char[] alpha = {'a','b',' ','\t',',','"','\n','\r','x','\u00e9'};
+    String opts = "header = true, auto_detect = false, delim = ',', quote = '\"', escape = '\"', columns = {'c1': 'VARCHAR', 'c2': 'VARCHAR'}, strict_mode = true, null_padding = false";
+    int tried = 0, valid = 0, bad = 0, refusedValid = 0, admittedInvalid = 0;
+    try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+      Path p = Files.createTempFile("csv", ".csv");
+      for (int i = 0; i < 40000; i++) {
+        StringBuilder sb = new StringBuilder("A,B\n"); int len = rnd.nextInt(14);
+        for (int j = 0; j < len; j++) sb.append(alpha[rnd.nextInt(alpha.length)]);
+        String t = sb.toString(); tried++;
+        String lite; boolean ok;
+        try { lite = com.legend.base.CsvCells.body(com.legend.base.CsvCells.rows(t), 2).toString(); ok = true; } catch (IllegalArgumentException e) { lite = "ERR"; ok = false; }
+        Files.writeString(p, t);
+        String duck;
+        try (PreparedStatement st = c.prepareStatement("SELECT * FROM read_csv(?, " + opts + ")")) { st.setString(1, p.toString()); List<List<String>> rows = new ArrayList<>();
+          try (ResultSet rs = st.executeQuery()) { while (rs.next()) rows.add(Arrays.asList(rs.getString(1), rs.getString(2))); } duck = rows.toString(); }
+        catch (Exception e) { duck = "ERR"; }
+        if (ok) valid++;
+        if (!lite.equals(duck)) {
+          if (ok && duck.equals("ERR")) refusedValid++; else if (!ok) admittedInvalid++; else bad++;
+          if (ok && !duck.equals("ERR")) System.out.println((duck.equals("ERR")?"DUCKREFUSES ":"DIFF ") + t.replace("\n","\\n").replace("\r","\\r").replace("\t","\\t") + " lite=" + lite + " duck=" + duck);
+        }
+      }
+    }
+    System.out.println(tried + " tried, " + valid + " well-formed; on well-formed: " + bad + " differ, " + refusedValid + " duck refuses; ill-formed duck admits: " + admittedInvalid);
+  }
+}
+
+// IntCells (D-a, S147): a text cell bound into an INT column, DuckDB 1.5.6 and H2 2.5.252, against upstream's Long.valueOf.
+import java.sql.*;
+public class IntCells { public static void main(String[] a) throws Exception {
+  for (String url : new String[]{"jdbc:duckdb:", "jdbc:h2:mem:x"}) {
+    try (Connection c = DriverManager.getConnection(url); Statement s = c.createStatement()) {
+      s.execute("CREATE TABLE t (A INT)");
+      for (String cell : new String[]{" 5", "5.0", "1e3", "+5", "5 "}) {
+        String up; try { up = String.valueOf(Long.valueOf(cell)); } catch (NumberFormatException e) { up = "refused"; }
+        String got;
+        try (PreparedStatement p = c.prepareStatement("INSERT INTO t (A) VALUES (?)")) { p.setString(1, cell); p.execute();
+          try (ResultSet r = s.executeQuery("SELECT A FROM t")) { r.next(); got = r.getString(1); } s.execute("DELETE FROM t"); }
+        catch (SQLException e) { got = "refused: " + e.getMessage().split("\n")[0]; }
+        System.out.println(url + " [" + cell + "] upstream=" + up + " lite=" + got);
+      }
+    }
+  }
+}}

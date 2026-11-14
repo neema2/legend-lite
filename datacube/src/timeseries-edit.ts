@@ -6,12 +6,11 @@
 // one reader (timeseries-spec.ts readTimeseries) before it is told as setTimeseries; what it refuses, it says.
 
 import {
-  aliasFor, firstPlot, inlined, nextSeriesId, NO_SERIES, refsOf, sourceOf, sourcesOf, timeseriesProblems, TsInlineError, type TsColumn,
+  aliasFor, firstPlot, nextSeriesId, NO_SERIES, refsOf, sourceOf, sourcesOf, timeseriesProblems, TsInlineError, wholeOf, type TsColumn,
 } from './timeseries-expr.ts';
-import {
-  ALIAS, MAX_PANES, readTimeseries, tsStateOf, type TimeseriesSpec, type TsAnnotation, type TsExpr, type TsGrain, type TsPane, type TsRange, type TsSeries,
-  type TsSource, type TsState, type TsView,
-} from './timeseries-spec.ts';
+import { treeOf, writtenText } from './timeseries-text.ts';
+import { ALIAS, MAX_PANES, readTimeseries, tsStateOf, type TimeseriesSpec, type TsAlign, type TsAnnotation, type TsExpr, type TsMatch, type TsPane, type TsRange,
+  type TsSeries, type TsSource, type TsState, type TsView, type TsGrain } from './timeseries-spec.ts';
 import type { FilterNode } from './snapshot.ts';
 
 /** A change the tile refuses, in words. */
@@ -31,11 +30,12 @@ export interface TsGridColumns {
 export type TsSeriesTold = Omit<TsSeries, 'id'> & { readonly id?: string };
 
 /** The slots a tile's options tell (TsSlots), in order. */
-const SLOTS = ['grain', 'range', 'view', 'panes', 'annotations'] as const;
+const SLOTS = ['grain', 'align', 'range', 'view', 'panes', 'annotations'] as const;
 
 /** The slots told whole, each replacing what the tile had, null taking it off (Python's Timeseries.options). */
 export interface TsSlots {
   readonly grain?: TsGrain | null;
+  readonly align?: TsAlign | null;
   readonly range?: TsRange | null;
   readonly view?: TsView | null;
   readonly panes?: readonly TsPane[] | null;
@@ -52,12 +52,24 @@ export type TsChange =
   /** A line hidden or shown (its legend chip; Python's hide and show): its legend entry stays. */
   | { readonly kind: 'hide'; readonly id: string; readonly hidden: boolean }
   | { readonly kind: 'grain'; readonly grain: TsGrain | null }
+  /** How two series' dates are combined (Settings' Dates): null, the dates both have. */
+  | { readonly kind: 'align'; readonly align: TsAlign | null }
   | { readonly kind: 'range'; readonly range: TsRange | null }
   /** The view's settings told, each replacing its own, null taking it off (the toolbar's compare and stats, Settings). */
   | { readonly kind: 'view'; readonly view: { readonly [K in keyof TsView]?: TsView[K] | null } }
-  /** A pane's height or scale (the toolbar's Log: the main pane's; Settings' panes). */
-  | { readonly kind: 'pane'; readonly index: number; readonly height?: number; readonly log?: boolean }
+  /** A pane's height, scale or axis (the toolbar's Log: the main pane's; Settings' panes): `min`, `max` null take the
+   *  hand-set end off. */
+  | {
+    readonly kind: 'pane'; readonly index: number; readonly height?: number; readonly log?: boolean; readonly invert?: boolean;
+    readonly min?: number | null; readonly max?: number | null;
+  }
+  /** One instrument for another in every series that reads it (Bloomberg's change of security), in the source `alias`
+   *  alone when told; a name saying it says the other. */
+  | { readonly kind: 'swap'; readonly from: string; readonly to: string; readonly alias?: string }
   | { readonly kind: 'annotate'; readonly annotation: TsAnnotation }
+  /** A 0/1 column shaded where it is not 0, in one step (Phase 5; FRED's recession bars): a condition series of it
+   *  (`rec[US] != 0`) of source `source` (absent, the first), named after it unless told. */
+  | { readonly kind: 'shade'; readonly column: string; readonly source?: string; readonly where?: readonly TsMatch[]; readonly name?: string }
   /** An annotation taken off, by its place. */
   | { readonly kind: 'unannotate'; readonly index: number }
   /** A source's alias renamed (every expression naming it following), its date or its instrument column told. */
@@ -97,11 +109,11 @@ const noPlot = (grid: TsGridColumns): string =>
  *  columns' -- its problem is said where it is drawn; what it reads directly still keeps its sources. */
 function readBy(spec: TimeseriesSpec, s: TsSeries): string[] {
   try {
-    return sourcesOf(spec, inlined(s.expr, spec.series));
+    return sourcesOf(spec, wholeOf(s, spec.series));
   } catch (e) {
     // one that cannot be inlined alone (the second audit's G notes: any error was taken for one)
     if (!(e instanceof TsInlineError)) throw e;
-    return sourcesOf(spec, s.expr);
+    return sourcesOf(spec, treeOf(s, spec.series));
   }
 }
 
@@ -123,6 +135,12 @@ function laid<T extends object>(was: T | undefined, change: { readonly [k: strin
     else next[k] = v;
   }
   return next;
+}
+
+/** An align as the tile keeps it: intersect, its default, as none -- one spelling whoever tells it (the Phase 1
+ *  review's 9: the viewer's none and Python's 'intersect' were two, and a query asked again for nothing). */
+function alignTold(align: TsAlign | null | undefined): TsAlign | null {
+  return align === 'intersect' || align === undefined ? null : align;
 }
 
 /** The spec with `key` set, or taken off (null). */
@@ -161,6 +179,114 @@ export function judgedEdit(before: TimeseriesSpec | null, made: unknown,
   return spec;
 }
 
+/** The instruments a tile's series read (`close[SPX]`: a match on its source's instrument column), each with its
+ *  source's alias, in the order the series read them -- what a swap may take (its window's list). */
+export function instrumentsOf(spec: TimeseriesSpec): { readonly alias: string; readonly value: string }[] {
+  const first = spec.sources[0]?.alias;
+  const out: { alias: string; value: string }[] = [];
+  const walk = (e: TsExpr): void => {
+    if (e.kind === 'column') {
+      const alias = e.source ?? first;
+      const key = spec.sources.find((x) => x.alias === alias)?.key;
+      for (const m of e.where ?? []) {
+        if (alias !== undefined && (m.column === undefined || m.column === key) && !out.some((o) => o.alias === alias && o.value === String(m.value))) {
+          out.push({ alias, value: String(m.value) });
+        }
+      }
+    } else if (e.kind === 'binary') {
+      walk(e.left);
+      walk(e.right);
+    } else if (e.kind === 'call') {
+      e.args.forEach(walk);
+    }
+  };
+  for (const s of spec.series) walk(treeOf(s, spec.series));
+  return out;
+}
+
+/**
+ * ONE INSTRUMENT FOR ANOTHER across a tile (the next phases' 2, 2026-10-26: Bloomberg's change of security, TradingView's
+ * symbol change): every match of `from` on its source's instrument column (`close[SPX]`) -- in source `alias` alone,
+ * when told -- matched to `to` instead, each series' name saying it (a word) saying the other; refused where no series
+ * reads it.
+ */
+function swapped(spec: TimeseriesSpec, fromTold: string, toTold: string, alias: string | undefined): TimeseriesSpec {
+  // names in words, a host's JSON too (the Phase 2 review's 5: a number from Python failed as no refusal); the spaces
+  // round a name not of it
+  if (typeof fromTold !== 'string' || typeof toTold !== 'string') throw new TsEditRefusal('an instrument is swapped by its name, in words');
+  const from = fromTold.trim();
+  const to = toTold.trim();
+  if (to === '') throw new TsEditRefusal('an instrument is swapped for another: name it');
+  if (alias !== undefined && !spec.sources.some((x) => x.alias === alias)) throw new TsEditRefusal(`the tile reads no source ${alias}`);
+  const first = spec.sources[0]?.alias;
+  let swaps = 0;
+  const swap = (e: TsExpr): TsExpr => {
+    switch (e.kind) {
+      case 'column': {
+        const src = e.source ?? first;
+        if (alias !== undefined && src !== alias) return e;
+        const key = spec.sources.find((x) => x.alias === src)?.key;
+        if (!e.where) return e;
+        const where = e.where.map((m) => {
+          const onKey = m.column === undefined || m.column === key;
+          if (!onKey || String(m.value) !== from) return m;
+          // an instrument column of numbers matched to a number, never to words
+          if (typeof m.value === 'number' && !Number.isFinite(Number(to))) {
+            throw new TsEditRefusal(`${src}'s instruments are numbers: ${JSON.stringify(to)} is none`);
+          }
+          swaps += 1;
+          return { ...m, value: typeof m.value === 'number' ? Number(to) : to };
+        });
+        return { ...e, where };
+      }
+      case 'binary':
+        return { ...e, left: swap(e.left), right: swap(e.right) };
+      case 'call':
+        return { ...e, args: e.args.map(swap) };
+      case 'ref':
+      case 'number':
+        return e;
+    }
+  };
+  // the word itself in a name, never a part of another: SPX in SPXW, S in S&P or in BRK.S (a & or an inner . or - joins)
+  const word = from.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const said = new RegExp(`(?<![\\p{L}\\p{N}_&]|[\\p{L}\\p{N}][.\\-])${word}(?![\\p{L}\\p{N}_&]|[.\\-][\\p{L}\\p{N}])`, 'gu');
+  const exprs = new Map(spec.series.map((s) => {
+    const before = swaps;
+    const expr = swap(treeOf(s, spec.series));
+    return [s.id, swaps === before ? undefined : expr] as const;
+  }));
+  // a series that read it -- itself, or through the series it reads ($A) -- plots the other: its name says so
+  const reads = (id: string, seen: Set<string>): boolean => {
+    if (exprs.get(id) !== undefined) return true;
+    if (seen.has(id)) return false;
+    seen.add(id);
+    const s = spec.series.find((x) => x.id === id);
+    return s !== undefined && refsOf(treeOf(s, spec.series)).some((r) => reads(r, seen));
+  };
+  const series = spec.series.map((s) => {
+    const expr = exprs.get(s.id);
+    if (expr === undefined && !reads(s.id, new Set())) return s;
+    // the new name as written: never read as a replacement's pattern ($&, $')
+    return { ...s, ...(expr !== undefined ? { text: writtenText(expr, spec.series) } : {}), ...(s.name !== undefined ? { name: s.name.replace(said, () => to) } : {}) };
+  });
+  if (swaps === 0) throw new TsEditRefusal(`no series reads ${from}${alias !== undefined ? ` of ${alias}` : ''}`);
+  // and the marks of its rows, as a column's matches on the instrument column (the Phase 6 review: the other's close,
+  // the first's trades on it), their label saying it as a name does
+  const annotations = spec.annotations?.map((a) => {
+    if (a.kind !== 'marks' || (alias !== undefined && a.source !== alias) || a.where === undefined) return a;
+    const key = spec.sources.find((x) => x.alias === a.source)?.key;
+    let moved = false;
+    const where = a.where.map((m) => {
+      if (!(m.column === undefined || m.column === key) || String(m.value) !== from) return m;
+      moved = true;
+      return { ...m, value: typeof m.value === 'number' ? Number(to) : to };
+    });
+    return moved ? { ...a, where, ...(a.label !== undefined ? { label: a.label.replace(said, () => to) } : {}) } : a;
+  });
+  return { ...spec, series, ...(annotations !== undefined ? { annotations } : {}) };
+}
+
 /**
  * THE TILE'S SPEC, CHANGED: `change` laid over `spec` by the tile's rules -- the one function its editors and Python ask.
  * Refused (TsEditRefusal) where a rule says no; what it returns is read by the tile's reader before it is told.
@@ -178,13 +304,36 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       const id = told.id ?? nextSeriesId(spec.series);
       return { ...spec, series: [...spec.series, { ...told, id } as TsSeries] };
     }
+    case 'shade': {
+      if (typeof change.column !== 'string' || change.column === '') throw new TsEditRefusal('a column is shaded by its name');
+      if (change.source !== undefined && !spec.sources.some((x) => x.alias === change.source)) throw new TsEditRefusal(`the tile reads no source ${change.source}`);
+      // where it is not 0, read as a condition is -- shaded across every pane, its runs the database's
+      const column: TsExpr = {
+        kind: 'column', ...(change.source !== undefined && change.source !== spec.sources[0]?.alias ? { source: change.source } : {}), column: change.column,
+        ...(change.where !== undefined && change.where.length > 0 ? { where: change.where } : {}),
+      };
+      const expr: TsExpr = { kind: 'binary', op: '!=', left: column, right: { kind: 'number', value: 0 } };
+      // its name as told, its ends' spaces taken off by the rule, the screen's and Python's alike (the Phase 5 review's
+      // notes: the screen alone trimmed it); none, the column's
+      const name = change.name?.trim();
+      if (name === '') throw new TsEditRefusal('a shade\'s name is no words: name it, or leave it to the column\'s');
+      return { ...spec, series: [...spec.series, { id: nextSeriesId(spec.series), text: writtenText(expr, spec.series), name: name ?? change.column }] };
+    }
     case 'unplot': {
       seriesNamed(spec, change.id);
-      const readers = spec.series.filter((s) => s.id !== change.id && refsOf(s.expr).includes(change.id)).map((s) => s.id);
+      const readers = spec.series.filter((s) => s.id !== change.id && refsOf(treeOf(s, spec.series)).includes(change.id)).map((s) => s.id);
       if (readers.length > 0) {
-        throw new TsEditRefusal(`series ${readers.join(', ')} ${readers.length === 1 ? 'reads' : 'read'} $${change.id}: take ${readers.length === 1 ? 'it' : 'them'} off first, or write ${readers.length === 1 ? 'it' : 'them'} without $${change.id}`);
+        throw new TsEditRefusal(`series ${readers.join(', ')} ${readers.length === 1 ? 'reads' : 'read'} series ${change.id}: take ${readers.length === 1 ? 'it' : 'them'} off first, or write ${readers.length === 1 ? 'it' : 'them'} without ${change.id}`);
       }
-      return { ...spec, series: spec.series.filter((s) => s.id !== change.id) };
+      const plotted = { ...spec, series: spec.series.filter((s) => s.id !== change.id) };
+      // its projections taken off with it (Phase 5): a projection is of its one series
+      const kept = spec.annotations?.filter((a) => !(a.kind === 'projection' && a.series === change.id));
+      const left = kept === undefined || kept.length === spec.annotations!.length ? plotted : slot(plotted, 'annotations', kept.length > 0 ? kept : null);
+      // a view that read it reads the tile's first it can draw instead (the next phases' 3): its `of` without it
+      const of = spec.view?.of?.filter((id) => id !== change.id);
+      if (of === undefined || of.length === spec.view?.of?.length) return left;
+      const view = laid(spec.view, { of: of.length > 0 ? of : null });
+      return slot(left, 'view', Object.keys(view).length === 0 ? null : view as TsView);
     }
     case 'hide': {
       seriesNamed(spec, change.id);
@@ -192,6 +341,8 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
     }
     case 'grain':
       return slot(spec, 'grain', change.grain);
+    case 'align':
+      return slot(spec, 'align', alignTold(change.align));
     case 'range':
       return slot(spec, 'range', change.range);
     case 'view': {
@@ -206,10 +357,15 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       const pane = laid(panes[change.index], {
         ...(change.height !== undefined ? { height: change.height } : {}),
         ...(change.log !== undefined ? { log: change.log ? true : null } : {}),
+        ...(change.invert !== undefined ? { invert: change.invert ? true : null } : {}),
+        ...(change.min !== undefined ? { min: change.min } : {}),
+        ...(change.max !== undefined ? { max: change.max } : {}),
       });
       panes[change.index] = pane;
       return { ...spec, panes };
     }
+    case 'swap':
+      return swapped(spec, change.from, change.to, change.alias);
     case 'annotate':
       return { ...spec, annotations: [...(spec.annotations ?? []), change.annotation] };
     case 'unannotate': {
@@ -232,10 +388,11 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
         ...(change.key !== undefined ? { key: change.key } : {}),
       }) as unknown as TsSource;
       const sources = spec.sources.map((s) => (s.alias === change.alias ? made : s));
-      // an alias renamed: every expression that names it follows
-      const series = to !== undefined && to !== change.alias
-        ? spec.series.map((s) => ({ ...s, expr: renameSource(s.expr, change.alias, to) })) : spec.series;
-      return { ...spec, sources, series };
+      // an alias renamed: every expression that names it follows, and every marks of its rows (the Phase 6 review's 4)
+      if (to === undefined || to === change.alias) return { ...spec, sources };
+      const series = spec.series.map((s) => ({ ...s, text: writtenText(renameSource(treeOf(s, spec.series), change.alias, to), spec.series) }));
+      const annotations = spec.annotations?.map((a) => (a.kind === 'marks' && a.source === change.alias ? { ...a, source: to } : a));
+      return { ...spec, sources, series, ...(annotations !== undefined ? { annotations } : {}) };
     }
     case 'read': {
       const g = change.grid;
@@ -273,7 +430,10 @@ export function editTimeseries(spec: TimeseriesSpec, change: TsChange): Timeseri
       if (unknown !== undefined) throw new TsEditRefusal(`there is no ${JSON.stringify(unknown)} among a tile's slots (${SLOTS.join(', ')})`);
       let next = spec;
       for (const key of SLOTS) {
-        if (Object.hasOwn(change.slots, key)) next = slot(next, key, change.slots[key] as TimeseriesSpec[typeof key] | null);
+        if (!Object.hasOwn(change.slots, key)) continue;
+        const told = change.slots[key];
+        next = key === 'align' ? slot(next, 'align', alignTold(told as TsAlign | null))
+          : slot(next, key, told as TimeseriesSpec[typeof key] | null);
       }
       return next;
     }

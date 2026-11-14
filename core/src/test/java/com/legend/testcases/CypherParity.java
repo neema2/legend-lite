@@ -3,7 +3,9 @@
 
 package com.legend.testcases;
 
-import com.legend.exec.ExecutionResult;
+
+
+import com.legend.testing.Lean;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -284,7 +286,7 @@ public final class CypherParity {
         void seed(List<SqlParity.Table> tables) throws Exception;
 
         /** Runs {@code island} over {@code model} on this lane's database. */
-        ExecutionResult run(String model, String island) throws Exception;
+        Lean.Result run(String model, String island) throws Exception;
 
         /** Opens a transaction the harness owns around one write case (its statement, the graph read back after it,
          *  its control query); {@link #rollback} ends it, so that no case's writes reach the next case over the same
@@ -577,7 +579,7 @@ public final class CypherParity {
     /** A case's rows judged against Neo4j's answer, or against the rows its decision names. */
     private static SqlParity.Outcome rowsOutcome(Case c, CypherAnswers.Answer a,
             @com.legend.base.Nullable Decision decided, String model, Lane lane) {
-        ExecutionResult result;
+        Lean.Result result;
         try {
             result = lane.run(model, c.island());
         } catch (Exception | StackOverflowError e) {
@@ -622,11 +624,7 @@ public final class CypherParity {
         // the cells as the database returned them (a list or map is its JSON, read as a value by the judge; the
         // grid's canonical JSON text would lose a float's spelling: 3.0 is a float in Cypher, 3 an integer)
         for (var row : result.rows()) {
-            List<CypherValues.Value> cells = new ArrayList<>();
-            for (Object cell : row.values()) {
-                cells.add(CypherValues.ofCell(cell));
-            }
-            got.add(cells);
+            got.add(CypherValues.ofRow(row, result.columns()));
         }
         boolean ordered;
         boolean bagLists = false;
@@ -653,13 +651,13 @@ public final class CypherParity {
         if (expect == null) {
             return new SqlParity.Outcome(SqlParity.Status.ERROR, "a procedure case with no expectation to judge by");
         }
-        ExecutionResult result;
+        Lean.Result result;
         try {
             result = lane.run(model, c.island());
         } catch (Exception | StackOverflowError e) {
             boolean refusal = e instanceof com.legend.error.NotImplementedException;
             for (Throwable t = e; t != null; t = t.getCause()) {
-                refusal |= t instanceof com.legend.sql.dialect.DialectCapability;
+                refusal |= t instanceof com.legend.sql.DialectCapability;
             }
             if (refusal) {
                 return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
@@ -673,11 +671,7 @@ public final class CypherParity {
         SqlParity.Grid actual = SqlParity.grid(result);
         List<List<CypherValues.Value>> got = new ArrayList<>();
         for (var row : result.rows()) {
-            List<CypherValues.Value> cells = new ArrayList<>();
-            for (Object cell : row.values()) {
-                cells.add(CypherValues.ofCell(cell));
-            }
-            got.add(cells);
+            got.add(CypherValues.ofRow(row, result.columns()));
         }
         return switch (expect) {
             case CypherTck.ErrorExpected err -> new SqlParity.Outcome(SqlParity.Status.FAIL, "the TCK expects "
@@ -719,14 +713,14 @@ public final class CypherParity {
         // TCK's lane judges it: lite does not read the statement, so it does not catch Neo4j's error (PR #67's
         // review, 2026-10-22: eight cases had passed for BOTH_ERROR on a refusal)
         for (Throwable t = e; t != null; t = t.getCause()) {
-            if (t instanceof com.legend.sql.dialect.DialectCapability || refusedAsItRan(t)) {
+            if (t instanceof com.legend.sql.DialectCapability || refusedAsItRan(t)) {
                 return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
             }
         }
         if (e instanceof com.legend.error.NotImplementedException) {
             return new SqlParity.Outcome(SqlParity.Status.REFUSED, oneLine(e));
         }
-        if (e instanceof com.legend.compiler.spec.TypeInferenceException) {
+        if (e instanceof com.legend.error.TypeInferenceException) {
             // C4 (docs/SEMANTICS_REGISTER.md S58): over a CLOSED graph a label, property or relationship type the
             // model does not declare is lite's compile error where Neo4j answers no rows or null -- a decided
             // refusal, by name. The harness's graphs are OPEN (the island's USE names its DataSpace, marked
@@ -1040,11 +1034,12 @@ public final class CypherParity {
     public static Read readBack(String model, Lane lane, boolean storeIds) throws Exception {
         String use = "USE " + CypherGraph.DATASPACE + " ";
         Map<String, CypherValues.Node> nodes = new LinkedHashMap<>();
-        for (var row : lane.run(model, "#Cypher{" + use + READ_NODES + "}#").rows()) {
-            List<Object> v = row.values();
-            String id = storeId(String.valueOf(v.get(0)), storeIds);
+        Lean.Result nodeRows = lane.run(model, "#Cypher{" + use + READ_NODES + "}#");
+        for (var row : nodeRows.rows()) {
+            List<CypherValues.Value> v = CypherValues.ofRow(row, nodeRows.columns());
+            String id = storeId(String.valueOf(row.get(0)), storeIds);
             java.util.TreeSet<String> labels = new java.util.TreeSet<>();
-            for (CypherValues.Value l : ((CypherValues.Lst) CypherValues.ofCell(v.get(1))).items()) {
+            for (CypherValues.Value l : ((CypherValues.Lst) v.get(1)).items()) {
                 labels.add(((CypherValues.Str) l).value());
             }
             if (nodes.put(id, new CypherValues.Node(labels, props(v.get(2)))) != null) {
@@ -1052,11 +1047,13 @@ public final class CypherParity {
             }
         }
         Map<String, Edge> rels = new LinkedHashMap<>();
-        for (var row : lane.run(model, "#Cypher{" + use + READ_RELS + "}#").rows()) {
-            List<Object> v = row.values();
+        Lean.Result relRows = lane.run(model, "#Cypher{" + use + READ_RELS + "}#");
+        for (var row : relRows.rows()) {
+            List<Object> v = row;
             String id = storeId(String.valueOf(v.get(0)), storeIds);
             Edge e = new Edge(storeId(String.valueOf(v.get(1)), storeIds), storeId(String.valueOf(v.get(2)), storeIds),
-                    new CypherValues.Rel(String.valueOf(v.get(3)), props(v.get(4))));
+                    new CypherValues.Rel(String.valueOf(v.get(3)), props(CypherValues.ofCell(v.get(4),
+                            relRows.columns().get(4)))));
             Edge first = rels.get(id);
             if (first != null && (!first.start().equals(e.start()) || !first.end().equals(e.end())
                     || !CypherValues.equal(first.rel(), e.rel(), false))) {
@@ -1078,9 +1075,9 @@ public final class CypherParity {
     }
 
     /** A {@code properties(x)} cell as its entries, a null among them dropped (a stored null is no property). */
-    private static Map<String, CypherValues.Value> props(@com.legend.base.Nullable Object cell) {
+    private static Map<String, CypherValues.Value> props(CypherValues.Value cell) {
         Map<String, CypherValues.Value> out = new java.util.TreeMap<>();
-        ((CypherValues.Mp) CypherValues.ofCell(cell)).entries().forEach((k, v) -> {
+        ((CypherValues.Mp) cell).entries().forEach((k, v) -> {
             if (!(v instanceof CypherValues.Null)) {
                 out.put(k, v);
             }
@@ -1209,7 +1206,7 @@ public final class CypherParity {
      *  the case's refusal. Null when they agree. */
     private static SqlParity.@com.legend.base.Nullable Outcome controlOutcome(Case c, CypherAnswers.Control control,
             String model, Lane lane) {
-        ExecutionResult result;
+        Lean.Result result;
         try {
             result = lane.run(model, c.controlIsland());
         } catch (Exception | StackOverflowError e) {
@@ -1218,7 +1215,7 @@ public final class CypherParity {
             }
             boolean refusal = e instanceof com.legend.error.NotImplementedException;
             for (Throwable t = e; t != null; t = t.getCause()) {
-                refusal |= t instanceof com.legend.sql.dialect.DialectCapability;
+                refusal |= t instanceof com.legend.sql.DialectCapability;
             }
             return new SqlParity.Outcome(refusal ? SqlParity.Status.REFUSED : SqlParity.Status.ERROR,
                     "the control query: " + oneLine(e));
@@ -1238,11 +1235,7 @@ public final class CypherParity {
         }
         List<List<CypherValues.Value>> got = new ArrayList<>();
         for (var row : result.rows()) {
-            List<CypherValues.Value> cells = new ArrayList<>();
-            for (Object cell : row.values()) {
-                cells.add(CypherValues.ofCell(cell));
-            }
-            got.add(cells);
+            got.add(CypherValues.ofRow(row, result.columns()));
         }
         boolean ordered = java.util.Objects.requireNonNull(c.control()).toUpperCase(java.util.Locale.ROOT)
                 .contains("ORDER BY");

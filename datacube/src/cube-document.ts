@@ -130,6 +130,10 @@ export interface RemoteSource {
   /** The file's name, the URL's last part: what a person calls this source. */
   readonly name: string;
   readonly url: string;
+  /** SAVED WITHOUT ITS LINK'S QUERY STRING (2026-11-11, the user's ruling: "can we strip the presigned and save the rest
+   *  of report with warning?" -- agreed): `url` is the file's address alone, its link's query string -- a presigned
+   *  link's token -- never saved (savedSource); reopened, it asks for a fresh link. */
+  readonly freshLink?: true;
   readonly columns: readonly { readonly name: string; readonly type: string }[];
 }
 
@@ -206,6 +210,19 @@ export interface JoinInput {
    *  anti-join the database runs (join-open.ts), on a condition naming each side's columns by the names it hands them on
    *  by. Absent, every row. */
   readonly unmatched?: readonly Unmatched[];
+  /** The copy of its source's rows it reads in their place: its grid snapped (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md
+   *  §18.8; a flow's cached box, docs/DATACUBE_FLOW_MODE_2026_10_24.md FL10), a table of its host's database. Set only
+   *  where a link is resolved to be opened (live-inputs.ts resolvedSource's `copies`), never written in a page: a copy
+   *  lasts as long as its session (FL11). */
+  readonly copy?: InputCopy;
+}
+
+/** A snapped grid's copy as what reads it reads it (JoinInput.copy): its table, and what its plane says of it. */
+export interface InputCopy {
+  readonly table: string;
+  readonly label: string;
+  /** When it was taken: an ISO instant. */
+  readonly takenAt: string;
 }
 
 /** Rows of an input matched against another's (JoinInput.unmatched): those `by`'s rows pair with none on `on`. */
@@ -572,6 +589,9 @@ function readRemoteSource(s: Record<string, unknown>): RemoteSource {
   }
   if (!hasColumns(s)) throw new CubeDocumentError('the remote file source has no columns');
   if ('secretAccessKey' in s || 'secret' in s) throw new CubeDocumentError('the remote file source carries a credential: it is refused');
+  if ('freshLink' in s && (s['freshLink'] !== true || carriesQuery(s['url'] as string))) {
+    throw new CubeDocumentError('the remote file source that needs a fresh link is its address alone, marked freshLink: true');
+  }
   return s as unknown as RemoteSource;
 }
 
@@ -626,6 +646,8 @@ function readJoinSource(s: Record<string, unknown>): JoinSource {
 /** A frozen input (`what`, as said: "the join source's left input"): what a grid was -- its name, source and query. */
 function readFrozenInput(i: Record<string, unknown>, what: string): JoinInput {
   if (typeof i['name'] !== 'string' || i['name'] === '') throw new CubeDocumentError(`${what} has no name`);
+  // a copy is its session's (JoinInput.copy): a page that keeps one was written wrong
+  if (i['copy'] !== undefined) throw new CubeDocumentError(`${what} keeps a copy: a copy lasts its session, a page keeps none`);
   const omit = i['omit'];
   if (omit !== undefined && !(Array.isArray(omit) && omit.length > 0 && omit.every((c) => typeof c === 'string'))) {
     throw new CubeDocumentError(`${what}'s columns left out are a list of names, not ${JSON.stringify(plain(omit) ?? null)}`);
@@ -1117,6 +1139,73 @@ export function fileSourceOf(
 
 /** What a person calls a remote file: its URL's last part (its query and fragment aside). */
 export const lastSegment = (url: string): string => url.replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop() || url;
+
+/** Whether a link carries a query string (a presigned link's signature and expiry, among whatever else). */
+export const carriesQuery = (url: string): boolean => url.includes('?');
+
+/** A link's address: its query string left out -- all of it, since which of its parameters are secret no one can tell
+ *  -- its fragment kept (an Iceberg table's mark). */
+export function linkAddress(url: string): string {
+  const query = url.indexOf('?');
+  if (query < 0) return url;
+  const fragment = url.indexOf('#', query);
+  return url.slice(0, query) + (fragment < 0 ? '' : url.slice(fragment));
+}
+
+/** `source` with each remote file's source -- its own, a join's inputs' and their unmatched sides', another grid's
+ *  rows' input's -- as `f` makes it; any other source as it is. */
+function eachRemote(source: CubeSource, f: (remote: RemoteSource) => RemoteSource): CubeSource {
+  const input = (i: CubeInput): CubeInput => (isLive(i) ? i : joinInput(i));
+  const joinInput = (i: JoinInput): JoinInput => ({
+    ...i, source: eachRemote(i.source, f),
+    ...(i.unmatched ? { unmatched: i.unmatched.map((u) => ({ ...u, by: joinInput(u.by) })) } : {}),
+  });
+  switch (source._type) {
+    case 'remoteFile': return f(source);
+    case 'join': return {
+      ...source, left: input(source.left), right: input(source.right),
+      ...(source.more ? { more: source.more.map(input) } : {}),
+    };
+    case 'rows': return { ...source, input: input(source.input) };
+    default: return source;
+  }
+}
+
+/**
+ * A SOURCE AS A SAVED DOCUMENT KEEPS IT (2026-11-11, the user's ruling: "can we strip the presigned and save the rest of
+ * report with warning?" -- agreed): a remote file's link with a query string -- a presigned link, its token in it --
+ * saved as its address alone and marked as needing a fresh link (`freshLink`), so no saved page, page file or share
+ * link holds a token; every other source, and a link with no query string, as it is. `stripped` collects each such
+ * file's name, for the warning a save shows.
+ */
+export function savedSource(source: CubeSource, stripped: string[]): CubeSource {
+  return eachRemote(source, (remote) => {
+    if (!carriesQuery(remote.url)) return remote;
+    stripped.push(remote.name);
+    return { ...remote, url: linkAddress(remote.url), freshLink: true };
+  });
+}
+
+/** Each remote file of `source` saved needing a fresh link: its name and its address. */
+export function freshLinksOf(source: CubeSource): { readonly name: string; readonly address: string }[] {
+  const out: { name: string; address: string }[] = [];
+  eachRemote(source, (remote) => {
+    if (remote.freshLink) out.push({ name: remote.name, address: remote.url });
+    return remote;
+  });
+  return out;
+}
+
+/** `source` with each remote file that needs a fresh link given one, by its address (`links`): read from that link
+ *  from now on; one given none left as it is. */
+export function sourceWithLinks(source: CubeSource, links: ReadonlyMap<string, string>): CubeSource {
+  return eachRemote(source, (remote) => {
+    const link = remote.freshLink ? links.get(remote.url) : undefined;
+    if (link === undefined) return remote;
+    const { freshLink: _fresh, ...rest } = remote;
+    return { ...rest, url: link };
+  });
+}
 
 /** A REMOTE FILE AS A CUBE RECORDS IT, the one writer (the tab's and a host's): its name, its URL, its columns. */
 export function remoteSourceOf(url: string, columns: readonly ColumnSpec[]): RemoteSource {

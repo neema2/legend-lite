@@ -1,7 +1,9 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+
 import org.junit.jupiter.api.*;
 
 import java.sql.Connection;
@@ -21,10 +23,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@code extractFromSemiStructured(col, 'path', 'SQLTYPE')}.
  */
 @DisplayName("JSON Mapping Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class JsonMappingIntegrationTest {
 
     private Connection connection;
-    private final QueryService queryService = new QueryService();
 
     // =========================================================================
     // DATABASE DEFINITIONS
@@ -125,7 +127,7 @@ class JsonMappingIntegrationTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -197,7 +199,7 @@ class JsonMappingIntegrationTest {
                     """ + CONNECTION + RUNTIME;
 
             String query = "model::Order.all()->project([o | $o.id, o | $o.customerName], ['id', 'name'])";
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
 
             assertEquals(2, result.rows().size());
             var row1 = result.rows().stream()
@@ -237,7 +239,7 @@ class JsonMappingIntegrationTest {
                     """ + CONNECTION + RUNTIME;
 
             String query = "model::OrderItem.all()->project([i | $i.productName, i | $i.quantity], ['product', 'qty'])";
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
 
             assertEquals(3, result.rows().size());
         }
@@ -312,7 +314,7 @@ class JsonMappingIntegrationTest {
             assertTrue(sql.contains("customerName") || sql.contains("'customerName'"),
                     "SQL should extract customerName from JSON");
 
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
             assertEquals(2, result.rows().size());
 
             var aliceRow = result.rows().stream()
@@ -346,7 +348,7 @@ class JsonMappingIntegrationTest {
                     """ + CONNECTION + RUNTIME;
 
             String query = "model::Order.all()->filter(o | $o.id == 2)->project([o | $o.customerName], ['name'])";
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
 
             assertEquals(1, result.rows().size());
             assertEquals("Bob", result.rows().get(0).get(0));
@@ -422,7 +424,7 @@ class JsonMappingIntegrationTest {
             String sql = plan.sql();
             System.out.println("OrderItem JSON SQL: " + sql);
 
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
             assertEquals(2, result.rows().size());
 
             var widgetRow = result.rows().stream()
@@ -461,7 +463,7 @@ class JsonMappingIntegrationTest {
 
             // Filter on scalar orderId, project JSON quantity
             String query = "model::OrderItem.all()->filter(i | $i.orderId == 1)->project([i | $i.id, i | $i.quantity], ['id', 'qty'])";
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
 
             assertEquals(2, result.rows().size());
         }
@@ -541,14 +543,14 @@ class JsonMappingIntegrationTest {
 
             // Query orders
             String orderQuery = "model::Order.all()->project([o | $o.customerName, o | $o.status], ['name', 'status'])";
-            var orderResult = queryService.execute(pureModel, orderQuery, "test::TestRuntime", connection);
+            var orderResult = Lean.run(pureModel, orderQuery, "test::TestRuntime", connection);
             assertEquals(1, orderResult.rows().size());
             assertEquals("Alice", orderResult.rows().get(0).get(0));
             assertEquals("shipped", orderResult.rows().get(0).get(1));
 
             // Query items
             String itemQuery = "model::OrderItem.all()->project([i | $i.productName, i | $i.quantity], ['product', 'qty'])";
-            var itemResult = queryService.execute(pureModel, itemQuery, "test::TestRuntime", connection);
+            var itemResult = Lean.run(pureModel, itemQuery, "test::TestRuntime", connection);
             assertEquals(2, itemResult.rows().size());
         }
     }
@@ -656,7 +658,7 @@ class JsonMappingIntegrationTest {
             assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN for association navigation");
             assertTrue(sql.contains("CAST"), "Should have CAST for JSON extraction");
 
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
 
             // Alice has 2 items, Bob has 1 = 3 rows total
             assertEquals(3, result.rows().size(), "Should have 3 rows (Alice x2, Bob x1)");
@@ -745,7 +747,7 @@ class JsonMappingIntegrationTest {
             assertFalse(sql.contains("EXISTS"), "Implicit crossing should not use EXISTS");
             assertTrue(sql.contains("LEFT OUTER JOIN"), "Should use LEFT OUTER JOIN shared by filter and projection");
 
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
 
             // Order 1 (Alice) has items with orderId=1, she has 2 items
             assertEquals(2, result.rows().size(), "Should find Alice's 2 items");
@@ -822,7 +824,7 @@ class JsonMappingIntegrationTest {
             // Should have CAST for JSON extractions
             assertTrue(sql.contains("CAST"), "Should have CAST for JSON extraction");
 
-            var result = queryService.execute(pureModel, query, "test::TestRuntime", connection);
+            var result = Lean.run(pureModel, query, "test::TestRuntime", connection);
 
             // Order 1 is Alice's, she has 2 items
             assertEquals(2, result.rows().size(), "Should have 2 rows (Alice's 2 items)");

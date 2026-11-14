@@ -82,19 +82,11 @@ final class ChannelBDiff {
         // R1 canonical-byte-channel divergence table (CANONICAL_FORM_SPEC
         // §0) — cumulative across this JVM's platform-executed asserts
         System.out.println("[" + tag + "] canon: "
-                + com.legend.exec.CanonicalDivergence.summary());
-        com.legend.exec.CanonicalDivergence.samples().forEach(r ->
+                + com.legend.testexec.CanonicalDivergence.summary());
+        com.legend.testexec.CanonicalDivergence.samples().forEach(r ->
                 System.out.println("[" + tag + "] canon-sample: "
                         + r.family() + " " + r.detail()));
-        // TYPED-IR Slice 1: the label-lie census (instrument -> census
-        // -> flip) — printed per suite, cumulative per JVM
-        System.out.println("[" + tag + "] sqltypes: "
-                + com.legend.exec.SqlTypeCensus.summary());
-        com.legend.exec.SqlTypeCensus.classes(40).forEach(c ->
-                System.out.println("[" + tag + "] sqltypes-class: " + c));
-        com.legend.exec.SqlTypeCensus.allSamples().forEach((cls, ws) ->
-                ws.forEach(w -> System.out.println("[" + tag
-                        + "] sqltypes-witness: " + cls + " :: " + w)));
+        // (the label-lie census's prints, deleted 2026-11-09 with the census: it had no feeder)
         return new Counts(pass, agreePass, agreeFail, wireBug, bFixesA,
                 declined, frontier, trueWireBug);
     }

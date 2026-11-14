@@ -1,0 +1,419 @@
+# CHANNEL B'S EXPECTED FAILURES, every lane (the walker-deletion program, 2026-11-03; ChannelBLedger): lane, suite,
+# the test's full name and a text its failure's detail CONTAINS -- legend-pure's own rule for an expected failure
+# (PureTestBuilderInterpreted). A run must match its lane's rows exactly: every failure a row with its text, every
+# row's test failing. A row joins only with a dated reason, as every guard's entry; a test that starts passing
+# leaves. Measured with the walk closed (-Dlegend.walk.allowed=none): a body the walk would have run is an ERROR
+# row, so none hides. A run's own identifiers (a Trino query's id, an execution's trace id) never enter a row.
+# Tab-separated; a line starting with # is a comment.
+
+# duckdb, the reference lane: measured here at the walk's closing (2026-11-03)
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+duckdb	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	expected: 0 ⏎ actual:   1
+duckdb	Essential	meta::pure::functions::string::tests::indexOf::testSimple	expected: 4 ⏎ actual:   5
+duckdb	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	expected: 1 ⏎ actual:   2
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast). The text
+# both judges' failures contain (2026-11-03, the database judge on par with the host): the host reads the expected
+# literal first ('date field value out of range'); the database judge's one statement holds both sides, and DuckDB
+# reports whichever it reaches first, run to run (measured twice: months and hours, then weeks and days, failed the
+# amount's cast first -- 'Type INT64 ... out of range for the destination type INT32', 'Interval value ... out of range')
+duckdb	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	out of range
+duckdb	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	out of range
+duckdb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	out of range
+duckdb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	out of range
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+duckdb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	No error was thrown
+duckdb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	No error was thrown
+
+# postgres: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+postgres	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# a fold whose accumulator is a struct list: Postgres's list accumulator is the jsonb carrier of scalars (channel A fails it too)
+postgres	Essential	meta::pure::functions::collection::tests::fold::testFold	DialectCapability: a fold into a Typed[type=Struct[fields=[Field[name=firstName, type=VARCHAR], Field[name=lastName, type=VARCHAR], Field[name=otherNames, type=
+postgres	Essential	meta::pure::functions::collection::tests::fold::testFoldToMany	DialectCapability: a fold into a Typed[type=Struct[fields=[Field[name=firstName, type=VARCHAR], Field[name=lastName, type=VARCHAR], Field[name=otherNames, type=
+postgres	Essential	meta::pure::functions::collection::tests::fold::testFoldFiltering	DialectCapability: a fold into a Typed[type=Struct[fields=[Field[name=firstName, type=VARCHAR], Field[name=lastName, type=VARCHAR], Field[name=otherNames, type=
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: ERROR: date out of range: "800002016-02-29"
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: ERROR: date out of range: "236611261-10-03"
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: ERROR: date out of range: "33803336-12-17"
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: ERROR: timestamp out of range: "1410404-07-12T00:00:00"
+postgres	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: ERROR: time zone displacement out of range: "-21457-01-08T20:48:00"
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+postgres	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
+postgres	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+postgres	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+postgres	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+# a variable-identity or non-primitive eq or equal: a list transform of no result type on Postgres -- channel A passes, the engine's Postgres manifest fails it too (a WIRE-BUG pinned since 2026-10-20)
+postgres	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqVarIdentity	DialectCapability: a list transform of unknown result type reached Postgres
+postgres	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive	DialectCapability: a list transform of unknown result type reached Postgres
+postgres	Grammar	meta::pure::functions::boolean::tests::equality::equal::testEqualVarIdentity	DialectCapability: a list transform of unknown result type reached Postgres
+postgres	Grammar	meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive	DialectCapability: a list transform of unknown result type reached Postgres
+# a fold whose accumulator is a struct list: Postgres's list accumulator is the jsonb carrier of scalars -- channel A passes, the engine's Postgres manifest fails it too
+postgres	Grammar	meta::pure::functions::string::tests::plus::testPlusInIterate	DialectCapability: a fold into a Typed[type=Struct[fields=[Field[name=firstName, type=VARCHAR], Field[name=lastName, type=VARCHAR], Field[name=__id, type=VARCHA
+# Postgres's jsonb rewrites a variant's key order (channel A fails it too)
+postgres	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue	AssertFailed: ⏎ expected: '#TDS\n   id,payload\n   1,\'{"boolean":true,"integer":1,"string":"hello"}\'\n#' ⏎ actual:   '#TDS\n   id,payload\n   1,\'{"string":"h
+postgres	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_keyExtraction	AssertFailed: ⏎ expected: '#TDS\n   id,payload,booleanKey,integerKey,stringKey\n   1,\'{"boolean":true,"integer":1,"string":"hello"}\',\'true\',\'1\',\'"hello"
+# a string holding NUL: Postgres's text cannot hold it
+postgres	Unclassified	meta::pure::functions::string::tests::char::testEmptyChar	DialectCapability: a string holding NUL reached Postgres, whose text type cannot hold it
+
+# sqlite: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+sqlite	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
+sqlite	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the years 0000-9999 has no SQLite value
+# SQLite has no time zones but UTC
+sqlite	Essential	meta::pure::functions::date::tests::testDateDiffWithDifferentTimeZones	AssertFailed: ⏎ expected: [0] ⏎ actual:   []
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+sqlite	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+sqlite	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+sqlite	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+# SQLite has no time zones but UTC
+sqlite	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached SQLite: SQLite has no time zones but UTC
+# an integer past 64 bits: SQLite has none
+sqlite	Grammar	meta::pure::functions::math::tests::minus::testLargeMinus	DataError: an integer past 64 bits has no SQLite value
+sqlite	Grammar	meta::pure::functions::math::tests::plus::testLargePlus	DataError: an integer past 64 bits has no SQLite value
+sqlite	Grammar	meta::pure::functions::math::tests::times::testLargeTimes	DataError: an integer past 64 bits has no SQLite value
+# a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+sqlite	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+sqlite	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached SQLite
+# SQLite has no users
+sqlite	Relation	meta::pure::functions::relation::tests::composition::TestJoin_CurrentUserId	DialectCapability: CURRENT_USER_FN reached SQLite: SQLite has no users
+sqlite	Unclassified	meta::pure::functions::runtime::currentUserId::testCurrentUserId	DialectCapability: CURRENT_USER_FN reached SQLite: SQLite has no users
+
+# trino: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+trino	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
+trino	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	'800002016-02-29' is not a valid DATE literal
+trino	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	'236611261-10-03' is not a valid DATE literal
+trino	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	'33803336-12-17' is not a valid DATE literal
+trino	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	'1410404-07-12 00:00:00' is not a valid TIMESTAMP literal
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
+trino	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+trino	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+trino	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+# (getAll::testBasic left 2026-11-11, B4: the system metamodel store is the process's in-process catalog on every
+# database, so Trino no longer makes its tables a session's own -- the lane round at 0b9bae2 measured it passing)
+
+# h2: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# H2 has no list encoding (a list operation on a cell, a list-valued aggregate), no LATERAL and no UNNEST placement: 21 fail on channel A too (its ledger), 16 pass there where the interpreter computes the list in Java (true wire bugs pinned since 2026-10-20)
+h2	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::project::testSimpleProject	DialectCapability: LIST_GET reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::project::testSimpleProjectList	DialectCapability: LIST_GET reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::project::testSimpleProjectWithEmpty	DialectCapability: LIST_GET reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOutputFromLambda	DialectCapability: LIST_FILTER reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_filter	DialectCapability: LIST_FILTER reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_map	DialectCapability: LIST_TRANSFORM reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_fold	DialectCapability: fold reached a dialect without a fold encoding
+h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin	DataError: Function "LATERAL" not found; SQL statement:
+h2	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	DataError: Function "LATERAL" not found; SQL statement:
+h2	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoinAreInnerJoins	DataError: Function "LATERAL" not found; SQL statement:
+h2	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin_CorrelatedColumnNameAlsoOnInner	DataError: Function "LATERAL" not found; SQL statement:
+h2	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin	DialectCapability: UNNEST reached a dialect without an unnest placement
+h2	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested	DialectCapability: UNNEST reached a dialect without an unnest placement
+h2	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Extend	DialectCapability: LIST_FILTER reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testFilterPostProject	DialectCapability: LIST_GET reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantArrayColumn_sort	DialectCapability: LIST_SORT reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantArrayColumn_reverse	DialectCapability: LIST_REVERSE reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_functionComposition	DialectCapability: LIST_FILTER reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testExtendJoinStringOnNull	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_indexOf	DialectCapability: LIST_POSITION reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_slice	DialectCapability: LIST_SLICE reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_contains	DialectCapability: collection membership reached a dialect without a list encoding [collection: Cast]
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_distinct_removeDuplicates	DialectCapability: LIST_SORT reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testCoalesceInPreFilter	DialectCapability: LIST_GET reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantArrayColumn_joinStrings	DialectCapability: collection reduction 'STRING_AGG' reached a dialect without a list encoding
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantMapColumn_keys_LateralFlatten	DialectCapability: UNNEST reached a dialect without an unnest placement
+h2	Relation	meta::pure::functions::relation::tests::composition::testVariantMapColumn_values_LateralFlatten	DialectCapability: UNNEST reached a dialect without an unnest placement
+
+# mariadb: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+mariadb	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
+mariadb	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	Incorrect DATE value: '800002016-02-29'
+mariadb	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	Incorrect DATE value: '236611261-10-03'
+mariadb	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	Incorrect DATE value: '33803336-12-17'
+mariadb	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MariaDB value
+mariadb	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MariaDB value
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+mariadb	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+mariadb	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+mariadb	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+# MariaDB knows no named time zone but UTC without its zone tables
+mariadb	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached MariaDB: MariaDB knows no named time zone but UTC without its zone tables
+# a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+mariadb	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+mariadb	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+# a fold that reads a row: MariaDB's recursive CTE cannot read an outer column
+mariadb	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_fold	DialectCapability: a fold that reads a row reached MariaDB, whose recursive CTE cannot read an outer column (measured: Unknown column)
+# a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+mariadb	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+mariadb	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+mariadb	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+mariadb	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+mariadb	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+mariadb	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+mariadb	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+mariadb	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: REGEXP_EXTRACT_ALL reached MariaDB: a pattern that is not a literal, or options beside it
+# a nested lateral flatten of a variant answers other rows than the engine's (pinned since 2026-10-12 among the lane's wire bugs; the cause not yet read)
+mariadb	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested	AssertFailed: ⏎ expected: '#TDS\n   id,payload,firstFlattened,secondFlattened,value\n   1,\'[{"key":[{"innerKey":[-2,-1,0]},{"innerKey":[1,2,3]}]},{"key":[{"inn
+mariadb	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Extend	AssertFailed: ⏎ expected: '#TDS\n   id,payload,firstFlattened,secondFlattened,value\n   1,\'[{"key":[{"innerKey":[-2,-1,0]},{"innerKey":[1,2,3]}]},{"key":[{"inn
+
+# mysql: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+mysql	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# a mixed list's dedup and sort: main's one MySQL true wire bug (pinned since 2026-10-11, the server dropped the
+# connection: 'Socket error'). Since Track L's size fix (9259f2ba) the statement is small and runs; MySQL returns its
+# rows in the dedup's order, not the sort's, under both judges alike (2026-11-03, round 19). Channel A passes.
+mysql	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	AssertFailed: ⏎ expected: [1, 2, 3, '1', '3'] ⏎ actual:   [1, 2, '1', '3', 3]
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
+mysql	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	Incorrect DATE value: '800002016-02-29'
+mysql	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	Incorrect DATE value: '236611261-10-03'
+mysql	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	Incorrect DATE value: '33803336-12-17'
+mysql	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: a date past the year 9999 has no MySQL value
+mysql	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: a date past the year 9999 has no MySQL value
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "acos of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+mysql	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "asin of a value outside [-1, 1] is NaN, which this database cannot hold" ⏎ where the expected message was:"Unable to compute
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+mysql	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+mysql	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+# MySQL knows no named time zone but UTC without its zone tables
+mysql	Essential	meta::pure::functions::string::tests::format::testFormatDate	DialectCapability: TIMEZONE reached MySQL: MySQL knows no named time zone but UTC without its zone tables
+# a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+mysql	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+# MySQL's JSON rewrites a variant's key order
+mysql	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue	AssertFailed: ⏎ expected: '#TDS\n   id,payload\n   1,\'{"boolean":true,"integer":1,"string":"hello"}\'\n#' ⏎ actual:   '#TDS\n   id,payload\n   1,\'{"string":"h
+# a window's rows in another order: the query sorts nothing, SQL promises no order, the expected text is the engine's (true wire bugs pinned since 2026-10-11)
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_CurrentRow	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,10\n   0,2,20,30\n   0,3,30,60\n   100,1,10,10\n   100,2,5,15\n   100,2,30,45\n   100,3,11,56\n
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_CurrentRow_UnboundedFollowing	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,60\n   0,2,20,50\n   0,3,30,30\n   100,1,10,176\n   100,2,5,166\n   100,2,30,161\n   100,3,11,13
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,60\n   0,2,20,60\n   0,3,30,60\n   100,1,10,176\n   100,2,5,176\n   100,2,30,176\n   100,3,11,17
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_NPreceding_NPreceding	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,null\n   0,2,20,10\n   0,3,30,30\n   100,1,10,null\n   100,2,5,10\n   100,2,30,15\n   100,3,11,3
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_NPreceding_NFollowing	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,30\n   0,2,20,60\n   0,3,30,50\n   100,1,10,15\n   100,2,5,45\n   100,2,30,46\n   100,3,11,161\n
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_NFollowing_NFollowing	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,50\n   0,2,20,30\n   0,3,30,null\n   100,1,10,35\n   100,2,5,41\n   100,2,30,131\n   100,3,11,12
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_NPreceding	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,null\n   0,2,20,10\n   0,3,30,30\n   100,1,10,null\n   100,2,5,10\n   100,2,30,15\n   100,3,11,4
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_NFollowing	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,30\n   0,2,20,60\n   0,3,30,60\n   100,1,10,15\n   100,2,5,45\n   100,2,30,56\n   100,3,11,176\n
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_NPreceding_UnboundedFollowing	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,60\n   0,2,20,60\n   0,3,30,50\n   100,1,10,176\n   100,2,5,176\n   100,2,30,166\n   100,3,11,16
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_NFollowing_UnboundedFollowing	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,50\n   0,2,20,30\n   0,3,30,null\n   100,1,10,166\n   100,2,5,161\n   100,2,30,131\n   100,3,11,
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_CurrentRow_CurrentRow	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,10\n   0,2,20,20\n   0,3,30,30\n   100,1,10,10\n   100,2,5,5\n   100,2,30,30\n   100,3,11,11\n
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_NPreceding_CurrentRow	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,10\n   0,2,20,30\n   0,3,30,50\n   100,1,10,10\n   100,2,5,15\n   100,2,30,35\n   100,3,11,41\n
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_CurrentRow_NFollowing	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,30\n   0,2,20,50\n   0,3,30,30\n   100,1,10,15\n   100,2,5,35\n   100,2,30,41\n   100,3,11,131\n
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing_WithSinglePartition_WithoutOrderBy	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,60\n   0,2,20,60\n   0,3,30,60\n   100,1,10,176\n   100,2,5,176\n   100,2,30,176\n   100,3,11,17
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_UnboundedFollowing_WithMultiplePartitions_WithoutOrderBy	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,10\n   0,2,20,20\n   0,3,30,30\n   100,1,10,10\n   100,2,5,35\n   100,2,30,35\n   100,3,11,131
+mysql	Relation	meta::pure::functions::relation::tests::over::testRows_UnboundedPreceding_CurrentRow_WithMultiplePartitions_WithSingleOrderBy	AssertFailed: ⏎ expected: '#TDS\n   p,o,i,sum_i_Rows\n   0,1,10,10\n   0,2,20,20\n   0,3,30,30\n   100,1,10,10\n   100,2,5,5\n   100,2,30,35\n   100,3,11,11
+mysql	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndMultipleOrderWindowMultipleColumns	AssertFailed: ⏎ expected: '#TDS\n   id,grp,name,height,newCol,other\n   7,3,A,13,4,A\n   4,3,B,11,3,A\n   3,3,C,12,null,A\n   1,2,A,11,5,A
+mysql	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithPartitionAndMultipleOrderWindowMultipleColumnsWithFilter	AssertFailed: ⏎ expected: '#TDS\n   id,grp,name,height,newCol,other\n   7,3,A,13,4,A\n   4,3,B,11,3,A\n   3,3,C,12,null,A\n   1,2,A,11,5,A
+mysql	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns	AssertFailed: ⏎ expected: '#TDS\n   id,grp,grp2,name,newCol,other\n   10,0,0,J,null,J\n   8,1,1,H,2,H\n   2,1,1,B,null,H
+mysql	Relation	meta::pure::functions::relation::tests::extend::testOLAPWithMultiplePartitionsAndOrderWindowMultipleColumns_MultipleExpressions	AssertFailed: ⏎ expected: '#TDS\n   id,grp,grp2,name,newCol,other\n   10,0,0,J,null,J\n   8,1,1,H,2,H\n   2,1,1,B,null,H
+# a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+mysql	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+# MySQL's JSON rewrites a variant's key order
+mysql	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_keyExtraction	AssertFailed: ⏎ expected: '#TDS\n   id,payload,booleanKey,integerKey,stringKey\n   1,\'{"boolean":true,"integer":1,"string":"hello"}\',\'true\',\'1\',\'"hello"
+# a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+mysql	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+mysql	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+mysql	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+mysql	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+mysql	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+mysql	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+mysql	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+mysql	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: REGEXP_EXTRACT_ALL reached MySQL: a pattern that is not a literal, or options beside it
+# a chained lateral join's rows in another order: the query sorts nothing, SQL promises no order (a true wire bug pinned since 2026-10-11)
+mysql	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin_Chained	AssertFailed: ⏎ expected: '#TDS\n   departmentId,departmentName,did,Budget,Program,employeeId,employeeName,department\n   1,Engineering,1,0.5,1,101,Rafael,1
+
+# clickhouse: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+clickhouse	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# (testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes left 2026-11-09: ClickHouse 26.3 holds the mixed list's sort's tagged tuple in a Nullable, which 25.8 refused; measured by the lane round on PR #81 at 0a1d84b2c)
+# a date outside ClickHouse's dates (1900 to 2299): the dialect refuses it, as ClickHouse would clamp it
+clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DialectCapability: the date 800002016-02-29 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DialectCapability: the date 236611261-10-03 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DialectCapability: the date 33803336-12-17 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DialectCapability: the date 1410404-07-12 00:00:00 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DialectCapability: the date 25489-04-20 03:12:00 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+clickhouse	Essential	meta::pure::functions::date::tests::testAdjustBySecondsBigNumber	DialectCapability: the date 2407-05-19 19:15:12 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+clickhouse	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
+clickhouse	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+clickhouse	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+clickhouse	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+# ClickHouse keeps a JSON value's text as written, its spaces among it (the engine's frontier too)
+clickhouse	Relation	meta::pure::functions::relation::tests::filter::testVariantColumn_filterOnKeyExtractionValue	AssertFailed: ⏎ expected: '#TDS\n   id,payload\n   1,\'{"boolean":true,"integer":1,"string":"hello"}\'\n#' ⏎ actual:   '#TDS\n   id,payload\n   1,\'{"boolean":t
+clickhouse	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_keyExtraction	AssertFailed: ⏎ expected: '#TDS\n   id,payload,booleanKey,integerKey,stringKey\n   1,\'{"boolean":true,"integer":1,"string":"hello"}\',\'true\',\'1\',\'"hello"
+# a nested lateral flatten of a variant answers other rows than the engine's (pinned since 2026-10-12 among the lane's wire bugs; the cause not yet read)
+clickhouse	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested	AssertFailed: ⏎ expected: '#TDS\n   id,payload,firstFlattened,secondFlattened,value\n   1,\'[{"key":[{"innerKey":[-2,-1,0]},{"innerKey":[1,2,3]}]},{"key":[{"inn
+clickhouse	Relation	meta::pure::functions::relation::variant::tests::flatten::testFlatten_LateralJoin_Nested_Extend	AssertFailed: ⏎ expected: '#TDS\n   id,payload,firstFlattened,secondFlattened,value\n   1,\'[{"key":[{"innerKey":[-2,-1,0]},{"innerKey":[1,2,3]}]},{"key":[{"inn
+# ClickHouse keeps a JSON value's text as written, its spaces among it (the engine's frontier too)
+clickhouse	Relation	meta::pure::functions::relation::tests::composition::testVariantColumn_filterOnIsNotEmptyOfModelConversion	AssertFailed: ⏎ expected: '#TDS\n   id,payload\n   1,\'{"person":{"name":"Jose"}}\'\n   3,\'{"person":{"name":"Pedro"}}\'\n#' ⏎ actual:   '#TDS\n   id,payload\n
+# a date outside ClickHouse's dates (1900 to 2299): the dialect refuses it, as ClickHouse would clamp it
+clickhouse	Standard	meta::pure::functions::boolean::tests::inequalities::between::testBetween_Date	DialectCapability: the date 1032-01-01 00:32:34.000000 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+clickhouse	Standard	meta::pure::functions::boolean::tests::inequalities::between::testBetween_StrictDate	DialectCapability: the date 1032-01-01 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+clickhouse	Standard	meta::pure::functions::boolean::tests::inequalities::between::testBetween_DateTime	DialectCapability: the date 1032-01-01 00:32:34.000000 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
+
+# snowflake: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# 2026-11-03, round 18: weeks and days carry the text both judges' failures contain -- the host reads the expected date ('Date value ... is out of range.'), the database judge's one statement reaches the amount first ('Numeric value ... is out of range')
+# a variable-identity or non-primitive eq or equal: a canon field of no type on Snowflake -- channel A passes, the engine's Snowflake manifest fails it too (a WIRE-BUG pinned since 2026-10-22)
+snowflake	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqVarIdentity	DialectCapability: a field '__canon' of unknown type reached Snowflake
+snowflake	Grammar	meta::pure::functions::boolean::tests::equality::eq::testEqNonPrimitive	DialectCapability: a field '__canon' of unknown type reached Snowflake
+snowflake	Grammar	meta::pure::functions::boolean::tests::equality::equal::testEqualVarIdentity	DialectCapability: a field '__canon' of unknown type reached Snowflake
+snowflake	Grammar	meta::pure::functions::boolean::tests::equality::equal::testEqualNonPrimitive	DialectCapability: a field '__canon' of unknown type reached Snowflake
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+snowflake	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
+snowflake	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: Numeric value '9600000000' is out of range
+snowflake	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	is out of range
+snowflake	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	is out of range
+snowflake	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: Numeric value '12345678912' is out of range
+snowflake	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: Timestamp '-21457-01-08T20:48:00' is not recognized
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+snowflake	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
+snowflake	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+snowflake	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+snowflake	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+
+# bigquery: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+bigquery	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# a list of lists: BigQuery's arrays hold no array (measured: "nested arrays are not supported")
+bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
+bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
+bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
+bigquery	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyListExplicit	DialectCapability: a list of lists reached BigQuery, whose arrays hold no array (measured: "nested arrays are not supported")
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATE literal
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal
+bigquery	Essential	meta::pure::functions::date::tests::testAdjustByMinutesBigNumber	DataError: BigQueryException during runQuery ⏎ Invalid DATETIME literal
+# a decimal literal past BigQuery's BIGNUMERIC (38 digits each side of the point)
+bigquery	Essential	meta::pure::functions::math::tests::pow::testComplexPow	DialectCapability: a decimal literal 182.88729271224377725957310758531093597412109375 reached BigQuery, whose BIGNUMERIC holds 38 digits each side of the point
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "BigQueryException during runQuery ⏎ Floating point error in function: ACOS(2)" ⏎ where
+bigquery	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: Execution error message mismatch. ⏎ The actual message was "BigQueryException during runQuery ⏎ Floating point error in function: ASIN(2)" ⏎ where
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+bigquery	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+bigquery	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+# a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+bigquery	Relation	meta::pure::functions::relation::tests::joinStrings::testJoinStrings_GroupBy_Unordered	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+bigquery	Relation	meta::pure::functions::relation::tests::extend::testOLAPAggStringWithPartitionAndUnboundedWindow	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+# a fold that reads its row: BigQuery has no lambdas and no correlated recursion
+bigquery	Relation	meta::pure::functions::relation::tests::extend::testVariantColumn_fold	DialectCapability: a fold that reads its row reached BigQuery, which has no lambdas and no correlated recursion (WITH RECURSIVE is top-level only, measured; a c
+# a regular expression with a non-literal pattern: the database has none -- channel A passes, no engine manifest for it (a true wire bug pinned since 2026-10-11)
+bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleSingle_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleSingle_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_SingleMultiple_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+bigquery	Relation	meta::pure::functions::relation::tests::groupBy::testSimpleGroupBy_MultipleMultiple_MultipleExpressions	DialectCapability: a regexp_extract_all pattern that is not a literal reached BigQuery
+# an ORDER BY past a DISTINCT: BigQuery refuses a sort key the DISTINCT does not select (pinned since 2026-10-21)
+bigquery	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	DataError: BigQueryException during runQuery ⏎ ORDER BY clause expression references _tds3.name which is not visible after SELECT DISTINCT
+# BigQuery has no Jaro-Winkler similarity
+bigquery	Unclassified	meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityEqual	DialectCapability: JARO_WINKLER reached BigQuery: BigQuery has no Jaro-Winkler similarity
+bigquery	Unclassified	meta::pure::functions::string::tests::jaroWinklerSimilarity::testJaroWinklerSimilarityNotEqual	DialectCapability: JARO_WINKLER reached BigQuery: BigQuery has no Jaro-Winkler similarity
+
+# databricks: measured by its lane session at fb8ee3da (2026-11-03, round 14)
+# 2026-11-03, round 18: each statement failure's row is Spark's own words (the text after "Error Message:"), which both judges' failures contain -- the statement each judge writes differs; the detail now keeps its tail, where they are
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+databricks	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
+# a date past the database's range: the expected literal itself (the engine fails the actual side's cast)
+databricks	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '800002016-02-29'. SQLSTATE: 42604
+databricks	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '236611261-10-03'. SQLSTATE: 42604
+databricks	Essential	meta::pure::functions::date::tests::testAdjustByDaysBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "DATE" is invalid: '33803336-12-17'. SQLSTATE: 42604
+databricks	Essential	meta::pure::functions::date::tests::testAdjustByHoursBigNumber	[INVALID_TYPED_LITERAL] The value of the typed literal "TIMESTAMP" is invalid: '1410404-07-12T00:00:00'. SQLSTATE: 42604
+# a decimal literal past Databricks' DECIMAL (38 digits of precision)
+databricks	Essential	meta::pure::functions::math::tests::pow::testComplexPow	[DECIMAL_PRECISION_EXCEEDS_MAX_PRECISION] Decimal precision 47 exceeds max precision 38. SQLSTATE: 22003
+# acos/asin out of domain: the database answers NaN (lite's IEEE Float, S119) or its own error text, where legend-pure raises 'Unable to compute acos of 2.0'
+databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcCosineError	AssertFailed: No error was thrown
+databricks	Essential	meta::pure::functions::math::tests::trigonometry::testArcSineError	AssertFailed: No error was thrown
+# Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
+databricks	Essential	meta::pure::functions::string::tests::indexOf::testSimple	AssertFailed: ⏎ expected: 4 ⏎ actual:   5
+databricks	Essential	meta::pure::functions::string::tests::indexOf::testFromIndex	AssertFailed: ⏎ expected: 1 ⏎ actual:   2
+# a DISTINCT relation's sort key Spark cannot resolve after the DISTINCT (an unresolved column, sqlState 42703) -- channel A and the engine's Databricks manifest both pass it (true wire bugs pinned since 2026-10-12)
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctSingle_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctMultiple_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::distinct::testDistinctAll_MultipleExpressions	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`val` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::composition::test_GroupBy_Distinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds2`.`str` cannot be resolved.
+databricks	Relation	meta::pure::functions::relation::tests::composition::testProjectDistinct	[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name `_tds3`.`id` cannot be resolved.
+
+# 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after total
+# separation complete"): refused, never cut (S181): the lane's database keeps 6 digits of a second; pending the
+# nanosecond type (design §9). Each test's date-time literal has 7 to 9 digits
+postgres	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; Postgres keeps 6: refused, never cut (S181)
+postgres	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; Postgres keeps 6: refused, never cut (S181)
+mysql	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; MySql keeps 6: refused, never cut (S181)
+mysql	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; MySql keeps 6: refused, never cut (S181)
+mariadb	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+mariadb	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; MariaDb keeps 6: refused, never cut (S181)
+bigquery	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+bigquery	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; BigQuery keeps 6: refused, never cut (S181)
+databricks	Essential	meta::pure::functions::date::tests::testDatePart	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Grammar	meta::pure::functions::lang::tests::compare::testDateCompare	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketSeconds	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMinutes	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketHours	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketDays	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketWeeks	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketMonths	fraction digits; Databricks keeps 6: refused, never cut (S181)
+databricks	Standard	meta::pure::functions::date::tests::timeBucket::dateTime::testTimeBucketYears	fraction digits; Databricks keeps 6: refused, never cut (S181)

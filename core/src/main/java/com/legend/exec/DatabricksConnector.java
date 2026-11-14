@@ -3,10 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
-import java.sql.Connection;
 
 /** Databricks's sessions: the platform opens no declared connection to it yet (its sessions are the test harnesses');
  *  a session handed to execution is checked against its driver's product name. */
@@ -29,7 +27,7 @@ final class DatabricksConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         return DatabaseConnector.notOpened(def);
     }
 
@@ -39,9 +37,23 @@ final class DatabricksConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code Databricks}'s errors carry their raise. */
+    /** {@inheritDoc} No: Databricks holds no transaction the platform opens across statements (none is kept in a turn). */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
+
+    /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver answers getObject(int, LocalDateTime.class)
+     *  with the timestamp as text. A timestamp cell keeps the driver's Timestamp;
+     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
+    @Override
+    public DatabaseConnector.Decoding decoding() {
+        return new DatabaseConnector.Decoding(false, false, false, false, true);
     }
 }

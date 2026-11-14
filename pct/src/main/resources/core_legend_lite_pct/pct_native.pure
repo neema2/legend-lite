@@ -1,13 +1,13 @@
 // Copyright 2026 Legend Lite Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-// Native function implemented in Java - bridges to legend-lite's QueryService.
-// The Java implementation is in ExecuteLegendLiteQuery.java and is registered
+// Native function implemented in Java - plans and runs the expression on legend-lite.
+// The Java implementation is PctExecuteNative.java and is registered
 // via LegendLitePCTExtensionInterpreted with the interpreted runtime.
 //
 // Input: Pure expression as grammar text (e.g., "|1+1" or "|Person.all()->project(~name)")
 //        plus the SEMANTIC dependency roots (R1: element paths collected
 //        off the M3 tree by collectRoots — classes, enumerations and
 //        test-support functions the expression references)
-// Output: Either a scalar value (Integer, Float, Boolean, String) or TDSResult wrapper
+// Output: a value's typed elements, or a relation as the engine's JSON answer in an EngineTDSResult
 native function meta::legend::lite::pct::executeLegendLiteQuery(pureGrammar: String[1], dependents: String[*]): Any[*];

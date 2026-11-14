@@ -35,7 +35,7 @@ import java.util.function.BiFunction;
  *
  * <p><strong>Ownership (Invariant 7):</strong> these rules mint and
  * rewrite typed-HIR nodes — COMPILER work. They lived in
- * {@code StatementExecutor} ("moved VERBATIM from the harness", audit
+ * {@code BodyDriver} ("moved VERBATIM from the harness", audit
  * 19d B2) until the splice-ownership leg moved them here. The executor
  * keeps what is genuinely execution-bound — building and eagerly
  * running frames over JDBC — and supplies it through {@link Frames}:
@@ -134,13 +134,6 @@ public final class ResultEnvelopeSplice {
         /** The same render for an INLINE execute call (a user-call
          * frame's query). */
         @com.legend.base.Nullable String relationalActivitySql(TypedNativeCall ec);
-
-        /** A {@code toSQLString(...)} / {@code toSQLStringPretty(...)}
-         * call's rendered text — the K-native evaluated WHEREVER the
-         * call appears (the old statement-root-only dispatch was
-         * position-dependent: nested under sqlRemoveFormatting the
-         * lambda leaked to the resolver). Null when the call cannot
-         * render (non-literal lambda etc.) — the caller's walls stand. */
     }
 
     /**
@@ -154,7 +147,10 @@ public final class ResultEnvelopeSplice {
      */
     public static BiFunction<TypedSpec, Set<String>, TypedSpec> hook(
             Frames frames) {
-        return (n, boundVars) -> rewrite(n, shadowed(frames, boundVars));
+        return (n, boundVars) -> {
+            com.legend.base.RunScope.planning("splice a result envelope");
+            return rewrite(n, shadowed(frames, boundVars));
+        };
     }
 
     private static Frames shadowed(Frames frames, Set<String> boundVars) {
@@ -640,7 +636,7 @@ public final class ResultEnvelopeSplice {
                 && pa.property().equals("values")) {
             if (pa.source() instanceof TypedVariable v
                     && frames.frame(v.name()) instanceof View f) {
-                return executedExtent(f);
+                return engineExecuteCardinality(executedExtent(f));
             }
             TypedSpec src = pa.source();
             while (src instanceof TypedFrom sf) {
@@ -650,10 +646,30 @@ public final class ResultEnvelopeSplice {
                     && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())) {
                 // inline read: the value is observed where it stands —
                 // no separate eager run (it would execute twice)
-                return executedExtent(frames.inlineExecute(ec, false));
+                return engineExecuteCardinality(executedExtent(frames.inlineExecute(ec, false)));
             }
         }
         return null;
+    }
+
+    /** The values of an engine {@code execute(...)} whose query is a
+     * {@code serialize} (the chain's root under its from() envelopes): the
+     * serialize MARKED with the engine JsonBuilder's cardinality rule — a
+     * result of exactly one object serializes as the bare object, zero or
+     * several as the array ({@code TypedSerialize.engineExecuteCardinality},
+     * carried by the resolver to the graph the lowerer folds). This splice is
+     * the ONE place the mark is set: COMPATIBILITY ONLY, the engine's
+     * {@code execute()} contract; lite's own serialize results stay arrays
+     * (the user's ruling, 2026-11-03: "the right clean thing in lite, the
+     * backward-compatible thing in compatibility mode"). Any other chain
+     * stands as it is (the same instance). */
+    private static TypedSpec engineExecuteCardinality(TypedSpec chain) {
+        if (chain instanceof TypedFrom fr) {
+            TypedSpec src = engineExecuteCardinality(fr.source());
+            return src == fr.source() ? chain : fr.withSource(src, fr.info());
+        }
+        return chain instanceof com.legend.compiler.spec.typed.TypedSerialize sz
+                ? sz.withEngineExecuteCardinality() : chain;
     }
 
     /** The frame's chain as an EXECUTED EXTENT (TypedFrom.executedExtent,

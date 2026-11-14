@@ -1,0 +1,1040 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.protocol.ts;
+
+import com.legend.protocol.sql.SqlAst;
+import com.legend.protocol.sql.SqlLexer;
+import com.legend.protocol.sql.SqlLexer.Kind;
+import com.legend.protocol.sql.SqlLexer.Token;
+import com.legend.protocol.sql.SqlParser;
+import com.legend.protocol.sql.SqlSyntaxException;
+import com.legend.protocol.sql.SqlTranslationException;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * THE {@code #TS{...}#} ISLAND'S TEXT to {@link TsAst} (docs/TIMESERIES_LANGUAGE_2026_10_29.md §3, R1; v0 of
+ * docs/TS_LANGUAGE_BUILD_2026_10_30.md): {@code [WITH name AS (source), ...] SELECT item, ... FROM source [alias]
+ * ON date [BY instrument] [FILTER condition]}. The text is read by Postgres's lexer ({@link SqlLexer}); the clauses
+ * are found among its tokens outside parentheses, and every expression in them is read by Postgres's grammar
+ * ({@link SqlParser#expression}) where the island's text has it, so a refusal names its place. Two marks are made
+ * first, in place: a variable of the enclosing Pure ({@code $quotes}, which Postgres reads as the start of a quoted
+ * string) is read as a name, and {@code all} as a window ({@code sum(x, all)}, a word Postgres reserves) as a column
+ * of the name {@link #ALL}; each is known by its position. What v1 adds (subscripts, spans, {@code SAMPLE BY},
+ * {@code FILL}, several sources) is refused by name; what is not the language is refused with its fix.
+ */
+public final class TsParser {
+
+    /** The name {@code all} as a window is read as, at the positions {@link TsAst.Query#alls} holds. */
+    public static final String ALL = "__ts_all";
+
+    /** The name {@code whole} as a window is read as (the whole line, D3: {@code last(x, whole)}), at the same
+     *  positions as {@link #ALL}'s ({@link TsAst.Query#alls}): a column of that name in a window's place is written
+     *  quoted, {@code "whole"}. */
+    public static final String WHOLE = "__ts_whole";
+
+    /** The name {@code across} as a window is read as (each date's instruments, item 13c: {@code zscores(x, across)}),
+     *  at the same positions as {@link #ALL}'s. */
+    public static final String ACROSS = "__ts_across";
+
+    /** The function a subscript is read as (R2): {@code close['SPX', venue = 'NYSE']} is
+     *  {@code __ts_pick(close, 'SPX', venue = 'NYSE')}, its line first, then its matches. */
+    public static final String PICK = "__ts_pick";
+
+    /** The function an option by name is read as (R10): {@code type => 'log'} is {@code __ts_option('type', 'log')}. */
+    public static final String OPTION = "__ts_option";
+
+    /** The option a call's last argument's order is (spec §6: {@code rank(x DESC)}, {@code order => 'descending'}). */
+    static final String ORDER = "order";
+
+    /** The keywords a parenthesis follows that make it no call: a window's, a list's, a subquery's, a type's. */
+    private static final Set<String> NOT_A_CALL = Set.of("over", "in", "exists", "any", "all", "some", "values", "from",
+            "join", "as", "on", "using", "filter", "within", "lateral", "select", "where", "and", "or", "not", "when",
+            "then", "else", "by", "with", "union", "except", "intersect");
+
+    /**
+     * The calls refused in a #TS statement, each with both fixes (the one-tree plan's D2, as narrowed by R7, ruled
+     * 2026-10-31): a function whose gs-quant meaning and SQL meaning differ. A statement holds SQL -- its WITH bodies,
+     * its WHERE, its FILTER keep Postgres's meaning, the #SQL island's -- so log cannot be natural in an item and base 10
+     * in a WHERE: the name is refused wherever it is called, and the message says what to write for either meaning.
+     */
+    private static final Map<String, String> REFUSED_CALLS = Map.of(
+            "log", "log(x) is refused: SQL's log is base 10, gs-quant's is natural -- write ln(x) (natural, gs-quant's"
+                    + " log) or log10(x) (D2)",
+            "floor", "floor(x) is refused: SQL's floor rounds, gs-quant's is a bound -- write floor(x, 0) for"
+                    + " gs-quant's floor (its bound told), or round_down(x) to round (D2, S161)",
+            "ceil", "ceil(x) is refused: SQL's ceil rounds, gs-quant's is a bound -- write ceil(x, 0) for gs-quant's"
+                    + " ceil (its bound told), or round_up(x) to round (D2, S161)");
+
+    /** The refused calls a second argument makes gs-quant's, a word of no SQL meaning (register S161: floor(x, value),
+     *  ceil(x, value), the library's bound). */
+    private static final Set<String> BOUNDS = Set.of("floor", "ceil");
+
+    /** Whether the call whose open parenthesis is {@code lexed[open]} has a second argument: a comma of its own before
+     *  its close. */
+    private static boolean secondArgument(List<Token> lexed, int open) {
+        int depth = 0;
+        for (int j = open; j < lexed.size(); j++) {
+            Token t = lexed.get(j);
+            if (t.kind() == Kind.LPAREN) {
+                depth++;
+            } else if (t.kind() == Kind.RPAREN && --depth == 0) {
+                return false;
+            } else if (t.kind() == Kind.COMMA && depth == 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The clauses that end the FROM clause: the language's own, and SQL's that it refuses with their fix. */
+    private static final Set<String> AFTER_FROM = Set.of("where", "filter", "sample", "fill", "group", "order",
+            "limit", "offset", "having", "window", "union", "except", "intersect", "fetch");
+
+    /** SQL's clauses the language does not have, each refused with what the language says instead. */
+    private static final Map<String, String> NOT_CLAUSES = Map.of(
+            "group", "#TS has no GROUP BY: a source's instruments are its BY column (FROM prices ON date BY symbol),"
+                    + " and a period's figures are SAMPLE BY's (v1)",
+            "order", "#TS has no ORDER BY: its answer is in date order, then the instrument's",
+            "limit", "#TS has no LIMIT: FILTER the answer's dates (FILTER date >= '2024-01-01')",
+            "offset", "#TS has no OFFSET: FILTER the answer's dates (FILTER date >= '2024-01-01')",
+            "having", "#TS has no HAVING: FILTER filters the answer (FILTER ma20 > 100)",
+            "window", "#TS has no WINDOW clause: a function along time takes its window as an argument, avg(x, 20)",
+            "fetch", "#TS has no FETCH: FILTER the answer's dates (FILTER date >= '2024-01-01')");
+
+    /** The spans of §5: {@code 30d}, {@code 3mo}, {@code 1y}; {@code m} too, which it refuses. */
+    private static final Set<String> SPANS = Set.of("d", "w", "mo", "q", "y", "h", "min", "s", "m");
+
+    /** The dates SAMPLE BY's periods are answered at (R5). */
+    private static final Set<String> DATED = Set.of("LAST", "START", "END");
+
+    /** The calendar periods SAMPLE BY takes (R5). */
+    private static final Set<String> PERIODS = Set.of("d", "w", "mo", "q", "y");
+
+    /** FILL's ways (R6). */
+    private static final Set<String> FILLS = Set.of("PREV", "STEP", "LINEAR", "NULL", "ZERO");
+
+    private final List<Token> tokens;
+    private final Set<SqlAst.Pos> variables;
+    private final Set<SqlAst.Pos> alls;
+    private final Map<SqlAst.Pos, TsAst.Span> spans;
+    private final Set<SqlAst.Pos> read = new java.util.LinkedHashSet<>();
+    private int at;
+
+    private TsParser(List<Token> tokens, Set<SqlAst.Pos> variables, Set<SqlAst.Pos> alls,
+            Map<SqlAst.Pos, TsAst.Span> spans) {
+        this.tokens = tokens;
+        this.variables = variables;
+        this.alls = alls;
+        this.spans = spans;
+    }
+
+    /** The query {@code text} holds; a {@link SqlTranslationException} for text that is not one, placed in it. */
+    public static TsAst.Query parse(String text) {
+        TsParser p = prepared(text);
+        TsAst.Query q = p.query();
+        return p.scalars(q);
+    }
+
+    /**
+     * ONE ITEM of a SELECT list, {@code expression [AS name]}, as a formula box holds a series (A3 step 2,
+     * docs/TS_A3_ONE_READER_PLAN_2026_11_03.md): the item, with the windows of everything ({@code all},
+     * {@code whole}) and the spans ({@code 3mo}) it marks, as a query's are. A {@link SqlTranslationException} for text
+     * that is not one item, placed in it. The reader is the query's own: an item reads as it does in a SELECT list.
+     */
+    public static TsAst.Line item(String text) {
+        TsParser p = prepared(text);
+        List<TsAst.Item> items = p.items(0, p.tokens.size() - 1, false);
+        if (items.size() != 1) {
+            throw invalid("a series is one item: avg(close, 20) AS ma20, not " + items.size(), items.get(1).pos());
+        }
+        TsAst.Item one = items.get(0);
+        java.util.function.UnaryOperator<SqlAst.Expr> values = p.values();
+        return new TsAst.Line(new TsAst.Item(one.expr() == null ? null : values.apply(one.expr()), one.alias(),
+                one.pos()), p.alls, p.spans);
+    }
+
+    /** A parser over {@code text}'s tokens, its marks made: a variable's, a span's, a window of everything's, and
+     *  gs-quant's {@code union(} read as a call. */
+    private static TsParser prepared(String text) {
+        Set<SqlAst.Pos> variables = new java.util.LinkedHashSet<>();
+        Map<SqlAst.Pos, TsAst.Span> spans = new java.util.LinkedHashMap<>();
+        String marked = marked(text, variables, spans);
+        List<Token> lexed;
+        try {
+            lexed = SqlLexer.tokenize(marked);
+        } catch (SqlSyntaxException e) {
+            throw syntax(e);
+        }
+        Set<SqlAst.Pos> alls = new java.util.LinkedHashSet<>();
+        List<Token> tokens = new ArrayList<>(lexed.size());
+        // each open parenthesis: whether it is a word's call (a name before it, not a keyword: OVER, IN, ...), and
+        // whether an ORDER BY of its own is in it (array_agg(x ORDER BY y DESC), a subquery's, a window's)
+        java.util.Deque<boolean[]> parens = new java.util.ArrayDeque<>();
+        for (int i = 0; i < lexed.size(); i++) {
+            Token t = lexed.get(i);
+            if (t.kind() == Kind.LPAREN) {
+                Token before = i > 0 ? lexed.get(i - 1) : null;
+                boolean call = before != null && (before.kind() == Kind.QUOTED_IDENT
+                        || before.kind() == Kind.IDENT && !NOT_A_CALL.contains(before.text().toLowerCase(java.util.Locale.ROOT)));
+                // a quoted name too ("log"(x)): the reader calls the same function (the second review's finding 3) --
+                // only that exact name, as Postgres reads a quoted one ("LOG"(x) names no function: the third review)
+                String name = before == null || !call ? null : before.kind() == Kind.QUOTED_IDENT ? before.text()
+                        : before.text().toLowerCase(java.util.Locale.ROOT);
+                String refused = name == null ? null : REFUSED_CALLS.get(name);
+                if (before != null && refused != null && !(BOUNDS.contains(name) && secondArgument(lexed, i))) {
+                    throw invalid(refused, before.pos());
+                }
+                parens.push(new boolean[] {call, false});
+            } else if (t.kind() == Kind.RPAREN && !parens.isEmpty()) {
+                parens.pop();
+            } else if (t.is("order") && i + 1 < lexed.size() && lexed.get(i + 1).is("by") && !parens.isEmpty()) {
+                parens.peek()[1] = true;
+            }
+            if ((t.is("all") || t.is("whole") || t.is("across")) && i > 0
+                    && (lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).isOp("=>"))
+                    && i + 1 < lexed.size()
+                    && (lexed.get(i + 1).kind() == Kind.RPAREN || lexed.get(i + 1).kind() == Kind.COMMA)) {
+                // a window of everything to date (R4), of the whole line (D3), or of each date's instruments (13c):
+                // read as a column the builder knows by its place
+                tokens.add(new Token(Kind.IDENT, t.is("all") ? ALL : t.is("whole") ? WHOLE : ACROSS, t.pos()));
+                alls.add(t.pos());
+            } else if ((t.is("desc") || t.is("asc")) && i > 0 && i + 1 < lexed.size()
+                    && lexed.get(i + 1).kind() == Kind.RPAREN && lexed.get(i - 1).kind() != Kind.LPAREN
+                    && lexed.get(i - 1).kind() != Kind.COMMA && !parens.isEmpty() && parens.peek()[0]
+                    && !parens.peek()[1]) {
+                // a call's last argument in an order (spec §6: rank(x DESC)): the option order => 'descending' (or
+                // 'ascending') of the word, which declares it (the library's timeseries::Order)
+                tokens.add(new Token(Kind.COMMA, ",", t.pos()));
+                tokens.add(new Token(Kind.IDENT, ORDER, t.pos()));
+                tokens.add(new Token(Kind.OP, "=>", t.pos()));
+                tokens.add(new Token(Kind.STRING, t.is("desc") ? "descending" : "ascending", t.pos()));
+            } else if (t.is("union") && i + 1 < lexed.size() && lexed.get(i + 1).kind() == Kind.LPAREN
+                    && (i == 0 || lexed.get(i - 1).kind() == Kind.COMMA || lexed.get(i - 1).kind() == Kind.LPAREN
+                            || lexed.get(i - 1).kind() == Kind.OP || lexed.get(i - 1).is("select"))) {
+                // gs-quant's union(x, y) (R3: the language takes gs-quant's names, D2), a word SQL reserves: read as a
+                // call where an expression starts -- an item's first word too (A3 step 2: a query's is SELECT or WITH)
+                // -- never a set operation's UNION (which follows a query)
+                tokens.add(new Token(Kind.QUOTED_IDENT, "union", t.pos()));
+            } else {
+                tokens.add(t);
+            }
+        }
+        return new TsParser(tokens, variables, alls, spans);
+    }
+
+    /**
+     * {@code q} with each variable of the enclosing Pure that no FROM reads as a source (R1.4) read as a VALUE: a named
+     * parameter, {@code FILTER date >= $from}, which the statement's dialect reads as the Pure variable in scope, typed
+     * by it ({@code TsSql.parameter}; decision 7 of docs/TS_DECISIONS_2026_11_07.md, 2026-11-07). Plain SQL over series
+     * queries reads none yet: there it is refused by name.
+     */
+    private TsAst.Query scalars(TsAst.Query q) {
+        Set<SqlAst.Pos> values = new java.util.LinkedHashSet<>(variables);
+        values.removeAll(read);
+        if (values.isEmpty()) {
+            return q;
+        }
+        if (q.plain() != null) {
+            throw unsupported("a variable of the enclosing Pure is read in a series query, not yet in plain SQL over"
+                    + " one: read it in the series query the WITH names", values.iterator().next());
+        }
+        return valued(q, values());
+    }
+
+    /** Each variable no FROM reads, a named parameter ({@code $from} marked {@code _from}: its name after the mark). */
+    private java.util.function.UnaryOperator<SqlAst.Expr> values() {
+        Set<SqlAst.Pos> values = new java.util.LinkedHashSet<>(variables);
+        values.removeAll(read);
+        return e -> values.isEmpty() ? e : TsToPure.map(e, x -> x instanceof SqlAst.ColumnRef c && c.parts().size() == 1
+                && values.contains(c.pos()) ? new SqlAst.Param(0, c.parts().get(0).text().substring(1), c.pos()) : x);
+    }
+
+    private static TsAst.Query valued(TsAst.Query q, java.util.function.UnaryOperator<SqlAst.Expr> f) {
+        return new TsAst.Query(q.withs().stream().map(w -> new TsAst.With(w.name(), valued(w.body(), f))).toList(),
+                valued(q.items(), f), q.sources().stream().map(s -> new TsAst.From(valued(s.source(), f), s.alias(),
+                        s.on(), s.by(), s.latest(), s.pos())).toList(), q.sample(), q.dated(), q.fill(),
+                q.filter() == null ? null : f.apply(q.filter()), q.alls(), q.spans(), q.plain());
+    }
+
+    private static List<TsAst.Item> valued(List<TsAst.Item> items, java.util.function.UnaryOperator<SqlAst.Expr> f) {
+        return items.stream().map(i -> new TsAst.Item(i.expr() == null ? null : f.apply(i.expr()), i.alias(), i.pos()))
+                .toList();
+    }
+
+    private static TsAst.Source valued(TsAst.Source s, java.util.function.UnaryOperator<SqlAst.Expr> f) {
+        return switch (s) {
+            case TsAst.Named n -> n;
+            case TsAst.Variable v -> v;
+            case TsAst.Filtered x -> new TsAst.Filtered(valued(x.of(), f), f.apply(x.where()), x.pos());
+            case TsAst.Flat x -> new TsAst.Flat(valued(x.items(), f), valued(x.from(), f),
+                    x.where() == null ? null : f.apply(x.where()), x.pos());
+            case TsAst.Nested x -> new TsAst.Nested(valued(x.query(), f), x.pos());
+        };
+    }
+
+    // ------------------------------------------------------------------ the marks, in place
+
+    /** {@code text} with each {@code $name} made {@code _name} (its position in {@code variables}) and each span's
+     *  digits made {@code _} ({@code 3mo} a name {@code _mo}, the span in {@code spans} by its position); every other
+     *  character where it was, so a token's position is the text's. */
+    private static String marked(String text, Set<SqlAst.Pos> variables, Map<SqlAst.Pos, TsAst.Span> spans) {
+        StringBuilder out = new StringBuilder(text);
+        int line = 1;
+        int column = 1;
+        int i = 0;
+        while (i < text.length()) {
+            char c = text.charAt(i);
+            int skip = skipped(text, i);
+            if (skip > i) {
+                for (int k = i; k < skip; k++) {
+                    if (text.charAt(k) == '\n') {
+                        line++;
+                        column = 1;
+                    } else {
+                        column++;
+                    }
+                }
+                i = skip;
+                continue;
+            }
+            if (c == '$' && i + 1 < text.length() && identStart(text.charAt(i + 1))) {
+                out.setCharAt(i, '_');
+                variables.add(new SqlAst.Pos(line, column));
+            } else if (isDigit(c) && (i == 0 || !identPart(text.charAt(i - 1)) && text.charAt(i - 1) != '.')) {
+                int j = i;
+                while (j < text.length() && (isDigit(text.charAt(j)) || text.charAt(j) == '_')) {
+                    j++;
+                }
+                int k = j;
+                while (k < text.length() && Character.isLetter(text.charAt(k))) {
+                    k++;
+                }
+                String unit = text.substring(j, k).toLowerCase(Locale.ROOT);
+                if (k > j && SPANS.contains(unit) && (k >= text.length() || !identPart(text.charAt(k)))) {
+                    SqlAst.Pos at = new SqlAst.Pos(line, column);
+                    // m is months (R14, ruled 2026-10-31: gs-quant's tenors and RDates, 3m), mo its alias; minutes
+                    // are min
+                    if ("m".equals(unit)) {
+                        unit = "mo";
+                    }
+                    String digits = text.substring(i, j).replace("_", "");
+                    if (digits.length() > 6) {
+                        throw invalid("a span of " + digits + " " + unit + " is too long", at);
+                    }
+                    spans.put(at, new TsAst.Span(Integer.parseInt(digits), unit, at));
+                    for (int d = i; d < j; d++) {
+                        out.setCharAt(d, '_');
+                    }
+                }
+            }
+            if (c == '\n') {
+                line++;
+                column = 1;
+            } else {
+                column++;
+            }
+            i++;
+        }
+        return out.toString();
+    }
+
+    /** Where a string, a quoted name or a comment starting at {@code i} ends (past its close), or {@code i}: every
+     *  string the lexer reads ({@link com.legend.protocol.sql.SqlLexer}), so no mark is made inside one -- an escape
+     *  string's {@code \'} is not its close, and a dollar-quoted string ({@code $$...$$}, {@code $tag$...$tag$}) is
+     *  not a variable (#81's final review, item 14k (2), 2026-11-10: a {@code $x} or a {@code 3mo} inside either was
+     *  rewritten, the string's text silently changed). */
+    private static int skipped(String text, int i) {
+        char c = text.charAt(i);
+        boolean wordStart = i == 0 || !identPart(text.charAt(i - 1));
+        if ((c == 'E' || c == 'e') && wordStart && i + 1 < text.length() && text.charAt(i + 1) == '\'') {
+            // an escape string, E'...': a backslash escapes the character after it, a doubled quote is one
+            int j = i + 2;
+            while (j < text.length()) {
+                char d = text.charAt(j);
+                if (d == '\\') {
+                    j += 2;
+                    continue;
+                }
+                if (d == '\'') {
+                    if (j + 1 < text.length() && text.charAt(j + 1) == '\'') {
+                        j += 2;
+                        continue;
+                    }
+                    return j + 1;
+                }
+                j++;
+            }
+            return text.length();
+        }
+        if (c == '$' && wordStart && i + 1 < text.length()) {
+            // a dollar-quoted string, its tag empty or a name: $$...$$, $tag$...$tag$ (a Pure variable, $x, is
+            // never followed by a $)
+            int tagEnd = i + 1;
+            if (identStart(text.charAt(tagEnd))) {
+                while (tagEnd < text.length() && identPart(text.charAt(tagEnd)) && text.charAt(tagEnd) != '$') {
+                    tagEnd++;
+                }
+            }
+            if (tagEnd < text.length() && text.charAt(tagEnd) == '$') {
+                String tag = text.substring(i, tagEnd + 1);
+                int close = text.indexOf(tag, tagEnd + 1);
+                return close < 0 ? text.length() : close + tag.length();
+            }
+        }
+        if (c == '\'' || c == '"') {
+            int j = i + 1;
+            while (j < text.length()) {
+                if (text.charAt(j) == c) {
+                    if (j + 1 < text.length() && text.charAt(j + 1) == c) {
+                        j += 2;
+                        continue;
+                    }
+                    return j + 1;
+                }
+                j++;
+            }
+            return text.length();
+        }
+        if (c == '-' && i + 1 < text.length() && text.charAt(i + 1) == '-') {
+            int end = text.indexOf('\n', i);
+            return end < 0 ? text.length() : end;
+        }
+        if (c == '/' && i + 1 < text.length() && text.charAt(i + 1) == '*') {
+            int depth = 0;
+            int j = i;
+            while (j < text.length()) {
+                if (text.startsWith("/*", j)) {
+                    depth++;
+                    j += 2;
+                } else if (text.startsWith("*/", j)) {
+                    depth--;
+                    j += 2;
+                    if (depth == 0) {
+                        return j;
+                    }
+                } else {
+                    j++;
+                }
+            }
+            return text.length();
+        }
+        return i;
+    }
+
+    private static boolean isDigit(char c) {
+        return c >= '0' && c <= '9';
+    }
+
+    private static boolean identStart(char c) {
+        return Character.isLetter(c) || c == '_';
+    }
+
+    private static boolean identPart(char c) {
+        return Character.isLetterOrDigit(c) || c == '_' || c == '$';
+    }
+
+    // ------------------------------------------------------------------ the query
+
+    private TsAst.Query query() {
+        List<TsAst.With> withs = new ArrayList<>();
+        if (peek().is("with")) {
+            withs = withs();
+        }
+        if (!peek().is("select")) {
+            throw invalid(peek().kind() == Kind.EOF ? "a #TS query is SELECT item, ... FROM source ON date"
+                    : "a #TS query begins with SELECT (or WITH), not \"" + peek().text() + "\"", peek().pos());
+        }
+        TsAst.Query plain = plain(withs);
+        if (plain != null) {
+            return plain;
+        }
+        at++;
+        int itemsEnd = depthZero(at, tokens.size() - 1, t -> t.is("from"));
+        if (itemsEnd < 0) {
+            throw invalid("a #TS query reads FROM a source: SELECT ... FROM prices ON date BY symbol", peek().pos());
+        }
+        List<TsAst.Item> items = items(at, itemsEnd, false);
+        at = itemsEnd + 1;
+        int fromEnd = depthZero(at, tokens.size() - 1, t -> AFTER_FROM.stream().anyMatch(t::is));
+        int sourcesEnd = fromEnd < 0 ? tokens.size() - 1 : fromEnd;
+        List<TsAst.From> sources = new ArrayList<>();
+        for (int[] slice : split(at, sourcesEnd)) {
+            sources.add(from(slice[0], slice[1]));
+        }
+        at = sourcesEnd;
+        SqlAst.Expr filter = null;
+        TsAst.Span sample = null;
+        String dated = "LAST";
+        TsAst.Fill fill = null;
+        while (peek().kind() != Kind.EOF) {
+            Token t = peek();
+            String word = t.text().toLowerCase(Locale.ROOT);
+            if (t.is("where")) {
+                throw invalid("to filter the data, put the WHERE with its source: FROM (prices WHERE ...) ON date;"
+                        + " to filter the answer, use FILTER", t.pos());
+            }
+            if (t.is("sample") && sample == null && fill == null && filter == null) {
+                Token by = tokens.get(at + 1);
+                Token span = tokens.get(at + 2);
+                TsAst.Span s = by.is("by") ? spans.get(span.pos()) : null;
+                if (s == null || span.kind() != Kind.IDENT) {
+                    throw invalid("SAMPLE BY takes a calendar period: SAMPLE BY 1w (R5)", t.pos());
+                }
+                if (s.n() != 1 || !PERIODS.contains(s.unit())) {
+                    throw invalid("SAMPLE BY takes one calendar period: 1d, 1w, 1mo, 1q or 1y (R5)", span.pos());
+                }
+                sample = s;
+                at += 3;
+                // the date each period is answered at (R5): its last observation's day, its first day, its last day
+                if (peek().is("at")) {
+                    Token label = tokens.get(at + 1);
+                    String date = label.kind() == Kind.IDENT ? label.text().toUpperCase(Locale.ROOT) : "";
+                    if (!DATED.contains(date)) {
+                        throw invalid("SAMPLE BY's periods are dated AT LAST (the last observation's day), AT START or"
+                                + " AT END (R5)", label.pos());
+                    }
+                    dated = date;
+                    at += 2;
+                }
+                continue;
+            }
+            if (t.is("fill") && fill == null && filter == null) {
+                Token open = tokens.get(at + 1);
+                Token how = tokens.get(at + 2);
+                Token close = tokens.get(at + 3);
+                String mode = how.kind() == Kind.INTEGER && "0".equals(how.text()) ? "ZERO"
+                        : how.kind() == Kind.IDENT ? how.text().toUpperCase(Locale.ROOT) : "";
+                if (open.kind() != Kind.LPAREN || close.kind() != Kind.RPAREN || !FILLS.contains(mode)) {
+                    throw invalid("FILL is FILL(PREV), FILL(STEP), FILL(LINEAR), FILL(NULL) or FILL(0) (R6)", t.pos());
+                }
+                fill = new TsAst.Fill(mode, t.pos());
+                at += 4;
+                continue;
+            }
+            if (t.is("sample") || t.is("fill")) {
+                throw invalid("after the sources come SAMPLE BY, then FILL, then FILTER, each once", t.pos());
+            }
+            if (t.kind() == Kind.IDENT && NOT_CLAUSES.containsKey(word)) {
+                throw invalid(NOT_CLAUSES.get(word), t.pos());
+            }
+            if (t.is("filter") && filter == null) {
+                // its condition up to a clause after it (refused below: FILTER is the last)
+                int stop = depthZero(at + 1, tokens.size() - 1, x -> x.kind() == Kind.IDENT
+                        && (x.is("sample") || x.is("fill") || NOT_CLAUSES.containsKey(x.text().toLowerCase(Locale.ROOT))));
+                int end = stop < 0 ? tokens.size() - 1 : stop;
+                if (at + 1 >= end) {
+                    throw invalid("FILTER takes a condition over the answer's columns: FILTER date >= '2024-01-01'",
+                            t.pos());
+                }
+                filter = expression(at + 1, end, "FILTER");
+                at = end;
+                continue;
+            }
+            throw invalid("syntax error at or near \"" + t.text() + "\"", t.pos());
+        }
+        return new TsAst.Query(withs, items, sources, sample, dated, fill, filter, alls, spans, null);
+    }
+
+    /**
+     * PLAIN SQL OVER A SERIES QUERY (the spec's §8, "the tile's other views", example spec-05): after its WITHs, a
+     * statement whose SELECT reads FROM names of {@code WITH name AS TS (...)} alone, none of them dated by ON, is SQL's
+     * own -- {@code SELECT regr_slope(qqq, spx) FROM s}, its aggregates, GROUP BY and the rest Postgres's -- read whole
+     * by the #SQL reader's parser; null where the SELECT is the language's own.
+     */
+    private TsAst.@com.legend.base.Nullable Query plain(List<TsAst.With> withs) {
+        Set<String> series = new java.util.HashSet<>();
+        for (TsAst.With w : withs) {
+            if (w.body() instanceof TsAst.Nested) {
+                series.add(w.name().text());
+            }
+        }
+        int fromAt = depthZero(at + 1, tokens.size() - 1, t -> t.is("from"));
+        if (series.isEmpty() || fromAt < 0) {
+            return null;
+        }
+        // a JOIN is SQL's alone (#TS has none): its ON a join's condition, never a source's dating
+        boolean joins = depthZero(fromAt + 1, tokens.size() - 1, t -> t.is("join")) >= 0;
+        int end = depthZero(fromAt + 1, tokens.size() - 1, t -> t.is("where") || t.is("group") || t.is("order")
+                || t.is("limit") || t.is("offset") || t.is("fetch") || t.is("having") || t.is("window")
+                || t.is("union") || t.is("except") || t.is("intersect") || !joins && t.is("on")
+                || t.is("sample") || t.is("fill") || t.is("filter"));
+        int stop = end < 0 ? tokens.size() - 1 : end;
+        if (stop < tokens.size() - 1 && (tokens.get(stop).is("on") || tokens.get(stop).is("sample")
+                || tokens.get(stop).is("fill") || tokens.get(stop).is("filter"))) {
+            return null;
+        }
+        if (joins) {
+            // each relation of the join tree a series query's name: the one after FROM, a comma or a JOIN
+            for (int i = fromAt; i < stop; i = depthZero(i + 1, stop, t -> t.is("join") || t.kind() == Kind.COMMA)) {
+                if (i < 0) {
+                    break;
+                }
+                Token name = tokens.get(i + 1);
+                if (name.kind() != Kind.IDENT || !series.contains(name.text())) {
+                    return null;
+                }
+            }
+        } else {
+            for (int[] slice : split(fromAt + 1, stop)) {
+                Token name = tokens.get(slice[0]);
+                boolean alone = slice[1] - slice[0] == 1 || slice[1] - slice[0] == 2
+                        || slice[1] - slice[0] == 3 && tokens.get(slice[0] + 1).is("as");
+                if (name.kind() != Kind.IDENT || !series.contains(name.text()) || !alone) {
+                    return null;
+                }
+            }
+        }
+        List<Token> statement = new ArrayList<>(tokens.subList(at, tokens.size() - 1));
+        statement.add(new Token(Kind.EOF, "", tokens.get(tokens.size() - 1).pos()));
+        SqlAst.Statement sql;
+        try {
+            sql = com.legend.protocol.sql.SqlParser.statement(statement);
+        } catch (SqlSyntaxException e) {
+            throw syntax(e);
+        }
+        at = tokens.size() - 1;
+        return new TsAst.Query(withs, List.of(), List.of(), null, "LAST", null, null, alls, spans, sql);
+    }
+
+    /** {@code WITH name AS (source), ...}, up to its SELECT: {@code AS TS (...)} a query of the language's own, plain
+     *  {@code AS (...)} SQL's (a flat subquery, a filtered source) -- the word in Postgres's own place between AS and
+     *  the parenthesis ({@code AS MATERIALIZED (...)}). */
+    private List<TsAst.With> withs() {
+        List<TsAst.With> out = new ArrayList<>();
+        Token with = tokens.get(at++);
+        if (peek().is("recursive")) {
+            throw invalid("#TS has no WITH RECURSIVE: a WITH names a source, WITH quotes AS (SELECT ... FROM ...)",
+                    peek().pos());
+        }
+        while (true) {
+            Token name = tokens.get(at);
+            boolean ts = tokens.get(at + 2).is("ts") && tokens.get(at + 3).kind() == Kind.LPAREN;
+            int open = ts ? at + 3 : at + 2;
+            if (name.kind() != Kind.IDENT && name.kind() != Kind.QUOTED_IDENT || !tokens.get(at + 1).is("as")
+                    || tokens.get(open).kind() != Kind.LPAREN) {
+                throw invalid("a WITH names a source: WITH quotes AS (SELECT ... FROM MarketQuote), or a query of"
+                        + " the language's own: WITH daily AS TS (SELECT ... FROM prices ON date)", name.pos());
+            }
+            int close = closing(open);
+            out.add(new TsAst.With(ident(name), parenthesized(open + 1, close, tokens.get(open).pos(), ts)));
+            at = close + 1;
+            if (peek().kind() != Kind.COMMA) {
+                break;
+            }
+            at++;
+        }
+        if (out.isEmpty()) {
+            throw invalid("a WITH names a source: WITH quotes AS (SELECT ... FROM MarketQuote)", with.pos());
+        }
+        return out;
+    }
+
+    /** The items of a select list in tokens {@code [from, to)}; {@code star}: whether {@code *} may be one (a
+     *  subquery's). */
+    private List<TsAst.Item> items(int from, int to, boolean star) {
+        if (from >= to) {
+            throw invalid("SELECT names its items: SELECT avg(close, 20) AS ma20", tokens.get(from).pos());
+        }
+        List<TsAst.Item> out = new ArrayList<>();
+        for (int[] slice : split(from, to)) {
+            int a = slice[0];
+            int b = slice[1];
+            if (a >= b) {
+                throw invalid("an item is missing: SELECT avg(close, 20) AS ma20, ...", tokens.get(a).pos());
+            }
+            Token first = tokens.get(a);
+            if (b - a == 1 && first.isOp("*")) {
+                if (!star) {
+                    throw invalid("an item of #TS is a line, expression AS name (R7): SELECT * is a source's,"
+                            + " FROM (SELECT *, price * qty AS value FROM trades) ON date", first.pos());
+                }
+                out.add(new TsAst.Item(null, null, first.pos()));
+                continue;
+            }
+            SqlAst.Ident alias = null;
+            int end = b;
+            if (b - a >= 3 && tokens.get(b - 2).is("as") && name(tokens.get(b - 1))) {
+                alias = ident(tokens.get(b - 1));
+                end = b - 2;
+            }
+            SqlAst.Expr e;
+            try {
+                e = expression(a, end, "SELECT");
+            } catch (SqlTranslationException failed) {
+                // an item named without AS (Postgres's bare alias): said with its fix
+                if (alias == null && b - a >= 2 && name(tokens.get(b - 1)) && parses(a, b - 1)) {
+                    throw invalid("name an item with AS: ... AS " + tokens.get(b - 1).text(), tokens.get(b - 1).pos());
+                }
+                throw failed;
+            }
+            out.add(new TsAst.Item(e, alias, first.pos()));
+        }
+        return out;
+    }
+
+    /** A FROM source in tokens {@code [from, to)}: {@code source [[AS] alias] ON date [BY instrument]}. */
+    private TsAst.From from(int from, int to) {
+        if (from >= to) {
+            throw invalid("FROM names a source: FROM prices ON date BY symbol", tokens.get(from).pos());
+        }
+        Token first = tokens.get(from);
+        int i;
+        TsAst.Source source;
+        boolean ts = first.is("ts") && from + 1 < to && tokens.get(from + 1).kind() == Kind.LPAREN;
+        if (first.kind() == Kind.LPAREN || ts) {
+            int open = ts ? from + 1 : from;
+            int close = closing(open);
+            if (close >= to) {
+                throw invalid("syntax error at end of input", tokens.get(to).pos());
+            }
+            source = parenthesized(open + 1, close, first.pos(), ts);
+            i = close + 1;
+        } else {
+            int[] end = new int[1];
+            source = named(from, to, end);
+            i = end[0];
+        }
+        SqlAst.Ident alias = null;
+        if (i < to && tokens.get(i).is("as")) {
+            i++;
+        }
+        if (i < to && name(tokens.get(i)) && !tokens.get(i).is("on") && !tokens.get(i).is("by")) {
+            alias = ident(tokens.get(i));
+            i++;
+        }
+        if (i >= to || !tokens.get(i).is("on")) {
+            throw invalid("a source names its date column: FROM prices ON date [BY symbol]",
+                    i < tokens.size() ? tokens.get(i).pos() : first.pos());
+        }
+        int[] next = new int[1];
+        SqlAst.ColumnRef on = path(i + 1, to, next, "ON");
+        i = next[0];
+        SqlAst.ColumnRef by = null;
+        if (i < to && tokens.get(i).is("by")) {
+            by = path(i + 1, to, next, "BY");
+            i = next[0];
+        }
+        // LATEST BY seq: of each instrument's rows on one date, the one of the greatest sequence (the user's ruling of
+        // 2026-11-08 on duplicate prints, "Last print wins", spelled "A clause: LATEST BY seq")
+        SqlAst.ColumnRef latest = null;
+        if (i + 1 < to && tokens.get(i).is("latest") && tokens.get(i + 1).is("by")) {
+            latest = path(i + 2, to, next, "LATEST BY");
+            i = next[0];
+        }
+        if (i < to) {
+            throw invalid("syntax error at or near \"" + tokens.get(i).text() + "\": a source is FROM prices"
+                    + " [alias] ON date [BY symbol] [LATEST BY seq]", tokens.get(i).pos());
+        }
+        return new TsAst.From(source, alias, on, by, latest, first.pos());
+    }
+
+    /** Whether the select in tokens {@code [from, to)} is the language's own: a source read ON its date (an ON after a
+     *  FROM item, never a JOIN's), or SAMPLE BY, FILL or FILTER of its own. */
+    private boolean reads(int from, int to) {
+        if (depthZero(from, to, t -> t.is("sample") || t.is("fill")) >= 0) {
+            return true;
+        }
+        // FILTER the clause, never an aggregate's FILTER (WHERE ...)
+        for (int i = depthZero(from, to, t -> t.is("filter")); i >= 0; i = depthZero(i + 1, to, t -> t.is("filter"))) {
+            if (i + 1 >= to || tokens.get(i + 1).kind() != Kind.LPAREN) {
+                return true;
+            }
+        }
+        int on = depthZero(from, to, t -> t.is("on"));
+        int join = depthZero(from, to, t -> t.is("join"));
+        return on >= 0 && (join < 0 || join > on);
+    }
+
+    /** The source in parentheses in tokens {@code [from, to)}: {@code (SELECT items FROM source [WHERE condition])} or
+     *  {@code (source WHERE condition)}. */
+    private TsAst.Source parenthesized(int from, int to, SqlAst.Pos pos, boolean ts) {
+        if (from >= to) {
+            throw invalid("a source in parentheses is (prices WHERE ...) or (SELECT ... FROM prices)", pos);
+        }
+        if (!ts && tokens.get(from).is("select") && reads(from + 1, to)) {
+            throw invalid("this subquery is a query of the language's own (it reads a source ON its date): write"
+                    + " WITH daily AS TS (SELECT ...), or FROM TS (SELECT ...)", pos);
+        }
+        if (ts) {
+            if (!tokens.get(from).is("select")) {
+                throw invalid("a query of the language's own is SELECT ... FROM source ON date: TS (SELECT ...)",
+                        tokens.get(from).pos());
+            }
+            // a query of the language's own, AS TS (...): parsed as one, its marks the whole text's
+            List<Token> own = new ArrayList<>(tokens.subList(from, to));
+            own.add(new Token(Kind.EOF, "", tokens.get(to).pos()));
+            TsParser inner = new TsParser(own, variables, alls, spans);
+            TsAst.Query q = inner.query();
+            read.addAll(inner.read);
+            return new TsAst.Nested(q, pos);
+        }
+        if (tokens.get(from).is("select")) {
+            if (from + 1 < to && tokens.get(from + 1).is("distinct")) {
+                // the language's refusal, naming the fix, where the parser's was a bare syntax error (PR #90's finding
+                // 4, 2026-11-08): DISTINCT keeps no one row of a date's corrected prints either
+                throw unsupported("a source's subquery in #TS takes no DISTINCT: to keep one row of a date's several"
+                        + " (a corrected print), keep each date's last print before #TS -- in Pure, rowNumber over the"
+                        + " date's rows by its sequence, descending, the first kept -- or name each line with BY (D8)",
+                        tokens.get(from + 1).pos());
+            }
+            int fromAt = depthZero(from + 1, to, t -> t.is("from"));
+            if (fromAt < 0) {
+                throw invalid("a subquery reads FROM a source: (SELECT ... FROM MarketQuote)", tokens.get(from).pos());
+            }
+            List<TsAst.Item> items = items(from + 1, fromAt, true);
+            int[] end = new int[1];
+            if (fromAt + 1 >= to) {
+                throw invalid("FROM names a source: (SELECT ... FROM MarketQuote)", tokens.get(fromAt).pos());
+            }
+            TsAst.Source of = named(fromAt + 1, to, end);
+            SqlAst.Expr where = null;
+            int i = end[0];
+            if (i < to && tokens.get(i).is("where")) {
+                if (i + 1 >= to) {
+                    throw invalid("WHERE takes a condition: WHERE volume > 0", tokens.get(i).pos());
+                }
+                where = expression(i + 1, to, "WHERE");
+            } else if (i < to) {
+                Token t = tokens.get(i);
+                throw unsupported("a source's subquery in #TS is SELECT ... FROM source [WHERE ...]: \"" + t.text()
+                        + "\" is not one of its clauses yet", t.pos());
+            }
+            return new TsAst.Flat(items, of, where, pos);
+        }
+        int[] end = new int[1];
+        TsAst.Source of = named(from, to, end);
+        int i = end[0];
+        if (i >= to || !tokens.get(i).is("where")) {
+            throw invalid("a source in parentheses is (prices WHERE condition) or (SELECT ... FROM prices)",
+                    i < to ? tokens.get(i).pos() : pos);
+        }
+        if (i + 1 >= to) {
+            throw invalid("WHERE takes a condition: (prices WHERE volume > 0)", tokens.get(i).pos());
+        }
+        return new TsAst.Filtered(of, expression(i + 1, to, "WHERE"), pos);
+    }
+
+    /** A source by its name, or a variable of the enclosing Pure, from token {@code from}; {@code end[0]} set past it.
+     *  A name is words joined by {@code ::} (a package) and {@code .} (a table's schema). */
+    private TsAst.Source named(int from, int to, int[] end) {
+        Token first = tokens.get(from);
+        if (first.kind() == Kind.IDENT && variables.contains(first.pos())) {
+            read.add(first.pos());
+            end[0] = from + 1;
+            return new TsAst.Variable(first.text().substring(1), first.pos());
+        }
+        if (!name(first)) {
+            throw invalid("FROM names a source, a class, a table or $variable, not \"" + first.text() + "\"",
+                    first.pos());
+        }
+        StringBuilder name = new StringBuilder(first.text());
+        int i = from + 1;
+        while (i + 1 < to && (tokens.get(i).isOp("::") || tokens.get(i).kind() == Kind.DOT)
+                && name(tokens.get(i + 1))) {
+            name.append(tokens.get(i).isOp("::") ? "::" : ".").append(tokens.get(i + 1).text());
+            i += 2;
+        }
+        end[0] = i;
+        return new TsAst.Named(name.toString(), first.pos());
+    }
+
+    /** A column or a dotted path from token {@code from}: {@code date}, {@code instrument.ticker}; {@code end[0]} set
+     *  past it. */
+    private SqlAst.ColumnRef path(int from, int to, int[] end, String clause) {
+        if (from >= to || !name(tokens.get(from))) {
+            throw invalid(clause + " names a column: ON date BY symbol", tokens.get(Math.min(from, to)).pos());
+        }
+        List<SqlAst.Ident> parts = new ArrayList<>(List.of(ident(tokens.get(from))));
+        int i = from + 1;
+        while (i + 1 < to && tokens.get(i).kind() == Kind.DOT && name(tokens.get(i + 1))) {
+            parts.add(ident(tokens.get(i + 1)));
+            i += 2;
+        }
+        end[0] = i;
+        return new SqlAst.ColumnRef(parts, tokens.get(from).pos());
+    }
+
+    // ------------------------------------------------------------------ tokens
+
+    /** The expression in tokens {@code [from, to)}, read by Postgres's grammar, each subscript as a pick
+     *  ({@link #PICK}). */
+    private SqlAst.Expr expression(int from, int to, String clause) {
+        for (int i = from; i < to; i++) {
+            Token t = tokens.get(i);
+            if (t.is("filter") && i + 2 < to && tokens.get(i + 1).kind() == Kind.LPAREN
+                    && tokens.get(i + 2).is("where")) {
+                throw invalid("#TS picks a line's rows by its subscript (R8): write sum(qty['AAPL', side = 'buy'])",
+                        t.pos());
+            }
+        }
+        List<Token> slice = named(picked(new ArrayList<>(tokens.subList(from, to))));
+        slice.add(new Token(Kind.EOF, "", tokens.get(to).pos()));
+        try {
+            return SqlParser.expression(slice);
+        } catch (SqlSyntaxException e) {
+            throw syntax(e);
+        }
+    }
+
+    /** {@code slice} with each subscript, innermost first, read as a pick: {@code line[a, b]} as
+     *  {@code __ts_pick(line, a, b)}, its line a column or a dotted path ({@code px.close}); each token where it was. */
+    private static List<Token> picked(List<Token> slice) {
+        while (true) {
+            int open = -1;
+            int close = -1;
+            for (int i = 0; i < slice.size(); i++) {
+                if (slice.get(i).kind() == Kind.LBRACKET) {
+                    open = i;
+                } else if (slice.get(i).kind() == Kind.RBRACKET && open >= 0) {
+                    close = i;
+                    break;
+                }
+            }
+            if (open < 0) {
+                return slice;
+            }
+            if (close < 0) {
+                throw syntaxAt("syntax error: a subscript is not closed, close['SPX']", slice.get(open).pos());
+            }
+            int start = open - 1;
+            if (start < 0 || !name(slice.get(start))) {
+                throw invalid("a subscript picks a column's line: close['SPX'] (R2)", slice.get(open).pos());
+            }
+            while (start >= 2 && slice.get(start - 1).kind() == Kind.DOT && name(slice.get(start - 2))) {
+                start -= 2;
+            }
+            if (close == open + 1) {
+                throw invalid("a subscript names an instrument or a match: close['SPX'] (R2)", slice.get(open).pos());
+            }
+            SqlAst.Pos at = slice.get(start).pos();
+            slice.set(close, new Token(Kind.RPAREN, ")", slice.get(close).pos()));
+            slice.set(open, new Token(Kind.COMMA, ",", slice.get(open).pos()));
+            slice.add(start, new Token(Kind.LPAREN, "(", at));
+            slice.add(start, new Token(Kind.QUOTED_IDENT, PICK, at));
+        }
+    }
+
+    /** {@code slice} with each option by name, {@code name => value} (R10), read as {@link #OPTION}'s call:
+     *  {@code __ts_option('name', value)}, its value up to the argument's end; each token where it was. */
+    private static List<Token> named(List<Token> slice) {
+        for (int i = 1; i < slice.size(); i++) {
+            if (!slice.get(i).isOp("=>")) {
+                continue;
+            }
+            if (!name(slice.get(i - 1))) {
+                throw invalid("an option by name is name => value: returns(x, type => 'log') (R10)",
+                        slice.get(i).pos());
+            }
+            int depth = 0;
+            int end = i + 1;
+            for (; end < slice.size(); end++) {
+                Kind k = slice.get(end).kind();
+                if (k == Kind.LPAREN || k == Kind.LBRACKET) {
+                    depth++;
+                } else if ((k == Kind.RPAREN || k == Kind.RBRACKET) && depth-- == 0 || k == Kind.COMMA && depth == 0) {
+                    break;
+                }
+            }
+            if (end == i + 1) {
+                throw invalid("an option by name takes a value: type => 'log' (R10)", slice.get(i).pos());
+            }
+            Token name = slice.get(i - 1);
+            slice.add(end, new Token(Kind.RPAREN, ")", slice.get(end - 1).pos()));
+            slice.set(i, new Token(Kind.COMMA, ",", slice.get(i).pos()));
+            slice.set(i - 1, new Token(Kind.STRING, name.text(), name.pos()));
+            slice.add(i - 1, new Token(Kind.LPAREN, "(", name.pos()));
+            slice.add(i - 1, new Token(Kind.QUOTED_IDENT, OPTION, name.pos()));
+        }
+        return slice;
+    }
+
+    /** Whether tokens {@code [from, to)} read as an expression. */
+    private boolean parses(int from, int to) {
+        try {
+            expression(from, to, "SELECT");
+            return true;
+        } catch (SqlTranslationException e) {
+            return false;
+        }
+    }
+
+    /** The first token in {@code [from, to)} outside parentheses and brackets that {@code stop} matches, or -1. */
+    private int depthZero(int from, int to, java.util.function.Predicate<Token> stop) {
+        int depth = 0;
+        for (int i = from; i < to; i++) {
+            Token t = tokens.get(i);
+            if (t.kind() == Kind.LPAREN || t.kind() == Kind.LBRACKET) {
+                depth++;
+            } else if (t.kind() == Kind.RPAREN || t.kind() == Kind.RBRACKET) {
+                depth--;
+            } else if (depth == 0 && stop.test(t)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** The slices of {@code [from, to)} between its commas outside parentheses and brackets, each {@code [a, b)}. */
+    private List<int[]> split(int from, int to) {
+        List<int[]> out = new ArrayList<>();
+        int start = from;
+        while (true) {
+            int comma = depthZero(start, to, t -> t.kind() == Kind.COMMA);
+            if (comma < 0) {
+                out.add(new int[] {start, to});
+                return out;
+            }
+            out.add(new int[] {start, comma});
+            start = comma + 1;
+        }
+    }
+
+    /** The parenthesis closing the one at {@code open}. */
+    private int closing(int open) {
+        int depth = 0;
+        for (int i = open; i < tokens.size(); i++) {
+            Kind k = tokens.get(i).kind();
+            if (k == Kind.LPAREN) {
+                depth++;
+            } else if (k == Kind.RPAREN && --depth == 0) {
+                return i;
+            }
+        }
+        throw syntaxAt("syntax error at end of input: a parenthesis is not closed", tokens.get(open).pos());
+    }
+
+    private Token peek() {
+        return tokens.get(at);
+    }
+
+    private static boolean name(Token t) {
+        return t.kind() == Kind.IDENT || t.kind() == Kind.QUOTED_IDENT;
+    }
+
+    private static SqlAst.Ident ident(Token t) {
+        return new SqlAst.Ident(t.text(), t.kind() == Kind.QUOTED_IDENT, t.pos());
+    }
+
+    private static SqlTranslationException syntax(SqlSyntaxException e) {
+        return new SqlTranslationException(e.unsupported() ? SqlTranslationException.Kind.UNSUPPORTED
+                : SqlTranslationException.Kind.SYNTAX, e.reason(), e.line(), e.column());
+    }
+
+    private static SqlTranslationException syntaxAt(String message, SqlAst.Pos pos) {
+        return new SqlTranslationException(SqlTranslationException.Kind.SYNTAX, message, pos.line(), pos.column());
+    }
+
+    static SqlTranslationException invalid(String message, SqlAst.Pos pos) {
+        return SqlTranslationException.invalid(message, pos);
+    }
+
+    static SqlTranslationException unsupported(String message, SqlAst.Pos pos) {
+        return SqlTranslationException.unsupported(message, pos);
+    }
+}

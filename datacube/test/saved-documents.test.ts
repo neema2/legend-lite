@@ -56,6 +56,10 @@ import { TreeState } from '../src/tree.ts';
 import { pivotTotalColumn } from '../src/snapshot.ts';
 import { accessor, col, lambda, lit, times } from '../../pure-protocol/src/index.ts';
 
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
+
 const RELATION = { query: accessor('local::DB', 'trades') };
 
 const COLUMNS: readonly ColumnSpec[] = [
@@ -258,7 +262,7 @@ describe('what a cube writes besides its settings', () => {
     });
     const doc = write({ futureSetting: { a: 1 } });
     assert.deepEqual(doc.unknown, { futureSetting: { a: 1 } });
-    assert.deepEqual(JSON.parse(cubeToJson(doc)).futureSetting, { a: 1 }, 'written back at the top, verbatim');
+    assert.deepEqual(looseJson(cubeToJson(doc)).futureSetting, { a: 1 }, 'written back at the top, verbatim');
     assert.equal('unknown' in write({}), false);
   });
 
@@ -307,7 +311,7 @@ describe('what a cube writes besides its settings', () => {
 // ------------------------------------------------------------------------------------------------ refusals
 
 /** The saved cube as plain JSON, to break. */
-const rawCube = (): Record<string, any> => JSON.parse(cubeToJson(saved()));
+const rawCube = (): Record<string, any> => looseJson(cubeToJson(saved()));
 
 /** `breakIt` applied to a good cube is refused, saying exactly `detail`. */
 function cubeRefused(breakIt: (raw: Record<string, any>) => unknown, detail: string): void {
@@ -539,7 +543,7 @@ const MODEL = { project: 'datacube:trades', workspace: 'datacube', package: 'tra
 const page = () => writePage({ name: 'Q3 page', cube: saved(), views: VIEWS, model: MODEL });
 
 /** The saved page as plain JSON, to break. */
-const rawPage = (): Record<string, any> => JSON.parse(pageToJson(page()));
+const rawPage = (): Record<string, any> => looseJson(pageToJson(page()));
 
 /** `breakIt` applied to a good page is refused, saying exactly `detail`. */
 function pageRefused(breakIt: (raw: Record<string, any>) => unknown, detail: string): void {
@@ -636,8 +640,8 @@ describe('a page read back', () => {
   });
 
   it('is read by its kind from an object as from text', () => {
-    assert.equal(readSaved(JSON.parse(pageToJson(page()))).kind, 'page');
-    const cube = readSaved(JSON.parse(cubeToJson(saved())));
+    assert.equal(readSaved(looseJson(pageToJson(page()))).kind, 'page');
+    const cube = readSaved(looseJson(cubeToJson(saved())));
     assert.equal(cube.kind === 'cube' && cube.cube.kind, CUBE_KIND);
   });
 

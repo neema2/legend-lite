@@ -18,6 +18,11 @@ import { classBasis, classLambda, duplicateLambda, sampleLambda, storeTableOf, t
 import { createClassOf } from '../src/create-class.ts';
 import { SampleRefusal } from '../src/sample-rows.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
+
+/** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
+ *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
+const looseJson = (text: string): any => JSON.parse(text);
 
 describe('the names DataCube offers', () => {
   it('a class from its source: singular, upper camel case', () => {
@@ -88,7 +93,7 @@ describe("the grid's rows, as a class's", () => {
     assert.doesNotMatch(json, /"sort"|"limit"|"slice"/, json);
     assert.match(json, /"rename"/);
     // its keys, then its cells by their values' names: its last step selects them so
-    const last = JSON.parse(json).body[0] as { function: string; parameters: { value?: { names?: string[] }; _type?: string }[] };
+    const last = looseJson(json).body[0] as { function: string; parameters: { value?: { names?: string[] }; _type?: string }[] };
     assert.equal(last.function, 'select');
     assert.match(JSON.stringify(last.parameters[1]), /"desk".*"EMEA".*"APAC"/);
     assert.throws(() => classLambda(snapshot({ columns, rows: ['desk'], pivotOn: ['region'], pivotValues: ['desk'] } as never)),
@@ -141,7 +146,7 @@ describe("the grid's rows, as a class's", () => {
       planner: { source: () => ({ model: 'M', runtime: 'local::R' }) } as never,
       planAndRun: async (query: unknown) => {
         asked.push(toJson(query as never));
-        return { plan: { sql: 'SELECT 1', columns: [] }, rows: { columns: [], rowCount: 0, epoch: 0, elapsedMs: 0 } };
+        return { plan: { sql: unplanned('SELECT 1'), columns: [] }, rows: { columns: [], rowCount: 0, epoch: 0, elapsedMs: 0 } };
       },
       stream: async () => undefined,
     };

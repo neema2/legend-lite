@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
@@ -40,24 +42,9 @@ class SqlWriterTest {
     void parametersAreListedInTheOrderTheirPlaceholdersAreWritten() {
         SqlWriter w = textOnly();
         RenderedStatement.Bind x = new RenderedStatement.Bind("x", new RenderedStatement.Binding.One("BIGINT", null));
-        RenderedStatement.Bind ids = new RenderedStatement.Bind("ids", new RenderedStatement.Binding.Array("INTEGER"));
+        RenderedStatement.Bind ids = new RenderedStatement.Bind("ids", new RenderedStatement.Binding.Array("INTEGER", null));
         w.append("a = ").bind(x).append(" AND b = ANY(").bind(ids).append(") AND c = ").bind(x);
         assertEquals(new RenderedStatement("a = ? AND b = ANY(?) AND c = ?", List.of(x, ids, x)), w.statement());
-    }
-
-    /** A placeholder typed by its value: the type hole is recorded at its place in the text, on that placeholder. */
-    @Test
-    void aTypeHoleIsRecordedWhereItIsWritten_onThePlaceholderBoundLast() {
-        var types = java.util.Map.of(com.legend.sql.ValueKind.DECIMAL,
-                new RenderedStatement.TypeSpelling("NUMERIC", RenderedStatement.Digits.PRECISION_AND_SCALE));
-        SqlWriter w = textOnly().append("a = CAST(")
-                .bind(new RenderedStatement.Bind("f", new RenderedStatement.Binding.One("DECIMAL", null)))
-                .append(" AS ").typeHole(types, com.legend.sql.ValueKind.DECIMAL).append(")");
-        assertEquals(new RenderedStatement("a = CAST(? AS )", List.of(new RenderedStatement.Bind("f",
-                new RenderedStatement.Binding.One("DECIMAL", new RenderedStatement.TypeHole(14, types,
-                        com.legend.sql.ValueKind.DECIMAL))))), w.statement());
-        assertThrows(IllegalStateException.class, () -> textOnly().append("a = ").typeHole(types,
-                com.legend.sql.ValueKind.DECIMAL), "a type hole follows a placeholder of one value");
     }
 
     @Test

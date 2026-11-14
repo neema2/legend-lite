@@ -6,7 +6,6 @@
 What each dialect does with each function of the SQL IR. The legend, the method and the summary are in [README.md](README.md).
 
 - [H2](#h2)
-- [H2Modern](#h2modern)
 - [Postgres](#postgres)
 - [Snowflake](#snowflake)
 - [Trino](#trino)
@@ -63,6 +62,7 @@ Database types planned with it: H2.
 | `LIST_CONCAT` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 2 |
 | `LIST_GET` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 69 |
 | `LIST_POSITION` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 39 |
+| `LIST_AT` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listExists` | 8 |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listForAll` | 3 |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `via AnsiSqlRenderer.structInsert` | 0 |
@@ -79,8 +79,8 @@ Database types planned with it: H2.
 | `SIN` | spelled | `sin` |  | 3 |
 | `COS` | spelled | `cos` |  | 3 |
 | `TAN` | spelled | `tan` |  | 2 |
-| `ASIN` | spelled | `asin` |  | 4 |
-| `ACOS` | spelled | `acos` |  | 4 |
+| `ASIN` | emulated | `domainGuarded: asin` |  | 4 |
+| `ACOS` | emulated | `domainGuarded: acos` |  | 4 |
 | `ATAN` | spelled | `atan` |  | 3 |
 | `ATAN2` | spelled | `atan2` |  | 3 |
 | `SINH` | spelled | `sinh` |  | 22 |
@@ -130,6 +130,7 @@ Database types planned with it: H2.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `composed` |  | 0 |
 | `ENCODE_BASE64` | refused | `encodeBase64 reached H2, which has no to_base64()` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -149,7 +150,7 @@ Database types planned with it: H2.
 | `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiffArm` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
-| `TIMEZONE` | spelled | `timezone` |  | 6 |
+| `TIMEZONE` | emulated | `by its operands: CAST(FORMATDATETIME((…) AT TIME ZONE …, 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS') AS T... / CAST(CONCAT(CAST(CAST(… AS TIMESTAMP(9)) AS VARCHAR), ' ', …) AS TIMESTAMP(9)...` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -168,7 +169,7 @@ Database types planned with it: H2.
 | `JARO_WINKLER` | spelled | `jaro_winkler_similarity` |  | 2 |
 | `DECODE_BASE64` | refused | `decodeBase64 reached H2, which has no from_base64()` |  | 4 |
 | `CURRENT_USER_FN` | spelled | `current_user` |  | 2 |
-| `LIST_LENGTH` | spelled | `len` |  | 27 |
+| `LIST_LENGTH` | emulated | `listLength` |  | 27 |
 | `LIST_ZIP` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `LIST_DISTINCT` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 0 |
 | `LIST_APPEND` | refused | `reached a dialect without a list encoding` | `via AnsiSqlRenderer.listCall` | 8 |
@@ -203,203 +204,14 @@ Database types planned with it: H2.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `REGEXP_REPLACE(TO_CHAR(…), '^(-?)\.', '$10.')` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | 2 |
-| `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | 14 |
-| `JSON_TYPE` | spelled | `json_type` |  | 1 |
+| `VARIANT_GET` | emulated | `variantGet` |  | 14 |
+| `JSON_TYPE` | emulated | `jsonType` |  | 1 |
 | `JSON_ARRAY_LENGTH` | spelled | `json_array_length` |  | 0 |
 | `JSON_PRETTY` | spelled | `json_pretty` |  | 0 |
-
-## H2Modern
-
-Database types planned with it: no database type's own (it extends `H2`). No PCT lane runs it, so its arms have no measured reach.
-
-| function | decision | writes, or why not | read through | PCT cases |
-|---|---|---|---|---:|
-| `AND` | spelled | `an operator (infix)` | `as H2` | — |
-| `OR` | spelled | `an operator (infix)` | `as H2` | — |
-| `NOT` | spelled | `an operator (notPrefix)` | `as H2` | — |
-| `EQUAL` | emulated | `equalArm` | `as H2` | — |
-| `NOT_EQUAL` | spelled | `an operator (infix)` | `as H2` | — |
-| `LESS` | spelled | `an operator (infix)` | `as H2` | — |
-| `LESS_EQUAL` | spelled | `an operator (infix)` | `as H2` | — |
-| `GREATER` | spelled | `an operator (infix)` | `as H2` | — |
-| `GREATER_EQUAL` | spelled | `an operator (infix)` | `as H2` | — |
-| `PLUS` | spelled | `an operator (infix)` | `as H2` | — |
-| `MINUS` | spelled | `an operator (infix)` | `as H2` | — |
-| `TIMES` | spelled | `an operator (infix)` | `as H2` | — |
-| `DIVIDE` | emulated | `divideAsDoubles` | `as H2` | — |
-| `MOD` | emulated | `modFloored` | `as H2` | — |
-| `REM` | emulated | `modTruncated` | `as H2` | — |
-| `NEGATE` | spelled | `an operator (negation)` | `as H2` | — |
-| `ABS` | spelled | `abs` | `as H2` | — |
-| `IS_NULL` | spelled | `an operator (isNullTest)` | `as H2` | — |
-| `IS_NOT_NULL` | spelled | `an operator (isNotNullTest)` | `as H2` | — |
-| `IN` | emulated | `inList` | `as H2` | — |
-| `COALESCE` | spelled | `coalesce` | `as H2` | — |
-| `PARSE_INT` | emulated | `castAs: BIGINT` | `as H2` | — |
-| `CONCAT` | emulated | `concatFlat` | `as H2` | — |
-| `LENGTH` | spelled | `length` | `as H2` | — |
-| `UPPER` | spelled | `upper` | `as H2` | — |
-| `LOWER` | spelled | `lower` | `as H2` | — |
-| `GREATEST` | spelled | `greatest` | `as H2` | — |
-| `LEAST` | spelled | `least` | `as H2` | — |
-| `CONCAT_JOIN` | spelled | `concat` | `as H2` | — |
-| `LIST_FILTER` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_TRANSFORM` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_CONCAT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_GET` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_POSITION` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as H2, via AnsiSqlRenderer.listExists` | — |
-| `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as H2, via AnsiSqlRenderer.listForAll` | — |
-| `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as H2, via AnsiSqlRenderer.structInsert` | — |
-| `UNNEST` | refused | `UNNEST reached a dialect without an unnest placement` | `as H2, via AnsiSqlRenderer.unnestProjection` | — |
-| `LIST_FLATTEN` | spelled | `flatten` | `as H2` | — |
-| `JSON_MERGE_PATCH` | refused | `a JSON merge reached H2, which has no json_merge_patch()` | `as H2` | — |
-| `SQRT` | spelled | `sqrt` | `as H2` | — |
-| `CBRT` | spelled | `cbrt` | `as H2` | — |
-| `EXP` | spelled | `exp` | `as H2` | — |
-| `LN` | spelled | `ln` | `as H2` | — |
-| `LOG10` | spelled | `log10` | `as H2` | — |
-| `POW` | spelled | `power` | `as H2` | — |
-| `PI` | spelled | `pi` | `as H2` | — |
-| `SIN` | spelled | `sin` | `as H2` | — |
-| `COS` | spelled | `cos` | `as H2` | — |
-| `TAN` | spelled | `tan` | `as H2` | — |
-| `ASIN` | spelled | `asin` | `as H2` | — |
-| `ACOS` | spelled | `acos` | `as H2` | — |
-| `ATAN` | spelled | `atan` | `as H2` | — |
-| `ATAN2` | spelled | `atan2` | `as H2` | — |
-| `SINH` | spelled | `sinh` | `as H2` | — |
-| `COSH` | spelled | `cosh` | `as H2` | — |
-| `TANH` | spelled | `tanh` | `as H2` | — |
-| `CEILING` | emulated | `bigintOf: ceil` | `as H2` | — |
-| `FLOOR` | emulated | `bigintOf: floor` | `as H2` | — |
-| `ROUND` | emulated | `roundHalfEven` | `as H2` | — |
-| `SIGN` | emulated | `bigintOf: sign` | `as H2` | — |
-| `XOR` | emulated | `xorAsAndOr` | `as H2` | — |
-| `BIT_AND` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_OR` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_XOR` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_LEFT` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_SHIFT_RIGHT` | refused | `reached a dialect without bit-op support` | `as H2, via AnsiSqlRenderer.bitOp` | — |
-| `BIT_NOT` | refused | `bitNot reached H2, which has no xor()` | `as H2` | — |
-| `REGEXP_EXTRACT` | emulated | `regexpExtractArm` | `as H2` | — |
-| `REGEXP_EXTRACT_ALL` | spelled | `regexp_extract_all` | `as H2` | — |
-| `REGEXP_REPLACE` | spelled | `regexp_replace` | `as H2` | — |
-| `REGEXP_FULL_MATCH` | emulated | `regexpFullMatch` | `as H2` | — |
-| `MAP_FROM_LISTS` | spelled | `map` | `as H2` | — |
-| `MAP_FROM_ENTRIES` | spelled | `map_from_entries` | `as H2` | — |
-| `MAP_EMPTY` | refused | `an empty map reached H2, which has no map type` | `as H2` | — |
-| `MAP_EXTRACT` | spelled | `map_extract` | `as H2` | — |
-| `MAP_KEYS` | spelled | `map_keys` | `as H2` | — |
-| `MAP_VALUES` | spelled | `map_values` | `as H2` | — |
-| `MAP_CONCAT` | spelled | `map_concat` | `as H2` | — |
-| `SUBSTRING` | spelled | `substr` | `as H2` | — |
-| `STRPOS` | spelled | `LOCATE` | `as H2` | — |
-| `STARTS_WITH` | emulated | `(LEFT(…, CHAR_LENGTH(…)) = …)` | `as H2` | — |
-| `ENDS_WITH` | emulated | `(RIGHT(…, CHAR_LENGTH(…)) = …)` | `as H2` | — |
-| `MATCHES` | spelled | `regexp_like` | `as H2` | — |
-| `LEFT` | spelled | `left` | `as H2` | — |
-| `RIGHT` | spelled | `right` | `as H2` | — |
-| `LPAD` | emulated | `padWithSpace: lpad` | `as H2` | — |
-| `RPAD` | emulated | `padWithSpace: rpad` | `as H2` | — |
-| `TRIM` | spelled | `trim` | `as H2` | — |
-| `LTRIM` | spelled | `ltrim` | `as H2` | — |
-| `RTRIM` | spelled | `rtrim` | `as H2` | — |
-| `REPLACE` | spelled | `replace` | `as H2` | — |
-| `SPLIT` | spelled | `string_split` | `as H2` | — |
-| `SPLIT_PART` | emulated | `splitPartArm` | `as H2` | — |
-| `TRANSLATE` | emulated | `translate` | `as H2` | — |
-| `PURE_SPLIT_PART` | emulated | `splitPartCall` | `as H2` | — |
-| `REVERSE_STRING` | spelled | `reverse` | `as H2` | — |
-| `ASCII_CODE` | spelled | `ascii` | `as H2` | — |
-| `CHR` | spelled | `chr` | `as H2` | — |
-| `UC_FIRST` | emulated | `firstCharCased: upper` | `as H2` | — |
-| `LC_FIRST` | emulated | `firstCharCased: lower` | `as H2` | — |
-| `ENCODE_BASE64` | refused | `encodeBase64 reached H2, which has no to_base64()` | `as H2` | — |
-| `LEVENSHTEIN` | spelled | `levenshtein` | `as H2` | — |
-| `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as H2` | — |
-| `FORMAT` | emulated | `formatArm` | `as H2` | — |
-| `HASH` | refused | `signed 64-bit hashCode reached a dialect without a spelling` | `as H2, via AnsiSqlRenderer.hashSigned` | — |
-| `MD5` | emulated | `digest: MD5` | `as H2` | — |
-| `SHA1` | emulated | `digest: SHA-1` | `as H2` | — |
-| `SHA256` | emulated | `digest: SHA-256` | `as H2` | — |
-| `RANDOM` | spelled | `RAND` | `as H2` | — |
-| `EXTRACT` | emulated | `datePart, part: extract(… FROM …)` | `as H2` | — |
-| `TODAY` | spelled | `current_date` | `as H2` | — |
-| `NOW` | spelled | `now` | `as H2` | — |
-| `DATE_TRUNC_DAY` | emulated | `castAs: DATE` | `as H2` | — |
-| `MAKE_DATE` | spelled | `make_date` | `as H2` | — |
-| `MAKE_TIMESTAMP` | refused | `a date-time constructor reached H2, which has no make_timestamp()` | `as H2` | — |
-| `DATE_TRUNC` | emulated | `dateTruncDateGrained` | `as H2` | — |
-| `ADD_INTERVAL` | emulated | `dateUnit, part: dateadd(…, …, …)` | `as H2` | — |
-| `DATE_DIFF` | emulated | `dateDiffArm` | `as H2` | — |
-| `TIME_BUCKET` | emulated | `timeBucket` | `as H2` | — |
-| `TIMEZONE` | spelled | `timezone` | `as H2` | — |
-| `DATE_AT_TIME` | spelled | `an operator (+)` | `as H2` | — |
-| `EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as H2` | — |
-| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: H2 keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `as H2` | — |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `dateUnit, part: dateadd(…, …, …)` | `as H2` | — |
-| `EPOCH_SECONDS` | emulated | `EXTRACT(EPOCH FROM …)` | `as H2` | — |
-| `EPOCH_MS` | emulated | `CAST(EXTRACT(EPOCH FROM …) * 1000 AS BIGINT)` | `as H2` | — |
-| `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` | `as H2` | — |
-| `FROM_EPOCH_MS` | refused | `a date from epoch milliseconds reached H2, which has no epoch_ms()` | `as H2` | — |
-| `DAYNAME` | spelled | `dayname` | `as H2` | — |
-| `MONTHNAME` | spelled | `monthname` | `as H2` | — |
-| `COT` | spelled | `cot` | `as H2` | — |
-| `RADIANS` | spelled | `radians` | `as H2` | — |
-| `DEGREES` | spelled | `degrees` | `as H2` | — |
-| `INT_DIVIDE` | emulated | `CAST(… / … AS BIGINT)` | `as H2` | — |
-| `REPEAT_STR` | spelled | `repeat` | `as H2` | — |
-| `JARO_WINKLER` | spelled | `jaro_winkler_similarity` | `as H2` | — |
-| `DECODE_BASE64` | refused | `decodeBase64 reached H2, which has no from_base64()` | `as H2` | — |
-| `CURRENT_USER_FN` | spelled | `current_user` | `as H2` | — |
-| `LIST_LENGTH` | emulated | `listLength` |  | — |
-| `LIST_ZIP` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_DISTINCT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_APPEND` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_SUM` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_MIN` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_MAX` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_AVG` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_MEDIAN` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_MODE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_SORT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_SORT_DESC` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_TAIL` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_INIT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `RANGE_FN` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_PRODUCT` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_REDUCE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_SLICE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `REPEAT_VALUE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_BOOL_AND` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `LIST_BOOL_OR` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `IS_DISTINCT_FROM` | emulated | `distinctFrom` | `as H2` | — |
-| `ALL_DISTINCT` | refused | `collection isDistinct reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.allDistinct` | — |
-| `NULL_SAFE_EQUAL` | emulated | `notDistinctFrom` | `as H2` | — |
-| `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` | `as H2` | — |
-| `STRFTIME` | spelled | `formatdatetime` | `as H2` | — |
-| `STRPTIME` | spelled | `parsedatetime` | `as H2` | — |
-| `PARSE_DATE` | emulated | `castAs: TIMESTAMP` | `as H2` | — |
-| `LIST_REVERSE` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `TYPEOF` | refused | `reached a dialect without a list encoding` | `as H2, via AnsiSqlRenderer.listCall` | — |
-| `ROUND_HALF_UP` | spelled | `ROUND` | `as H2` | — |
-| `ERROR` | emulated | `errorArm` | `as H2` | — |
-| `FLOOR_RAW` | spelled | `floor` | `as H2` | — |
-| `TO_VARIANT` | emulated | `variantConstruct` | `as H2` | — |
-| `BOOL_TO_TEXT` | emulated | `CASE WHEN … THEN 'true' WHEN NOT … THEN 'false' END` | `as H2` | — |
-| `FLOAT_CANON` | emulated | `floatCanonByText` | `as H2` | — |
-| `FLOAT_PRINT` | emulated | `floatPrintByText` | `as H2` | — |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as H2` | — |
-| `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as H2, via AnsiSqlRenderer.variantElements` | — |
-| `VARIANT_GET` | emulated | `variantGet` | `as H2` | — |
-| `JSON_TYPE` | spelled | `json_type` | `as H2` | — |
-| `JSON_ARRAY_LENGTH` | spelled | `json_array_length` | `as H2` | — |
-| `JSON_PRETTY` | spelled | `json_pretty` | `as H2` | — |
 
 ## Postgres
 
@@ -441,6 +253,7 @@ Database types planned with it: Postgres.
 | `LIST_CONCAT` | emulated | `listConcat` |  | 2 |
 | `LIST_GET` | emulated | `composed in a block` | `via Postgres.listCall` | 69 |
 | `LIST_POSITION` | spelled | `array_position` | `via Postgres.listCall` | 39 |
+| `LIST_AT` | emulated | `composed in a block` | `via Postgres.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -508,6 +321,7 @@ Database types planned with it: Postgres.
 | `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `(… COLLATE "C")` |  | 0 |
 | `ENCODE_BASE64` | emulated | `replace(encode(convert_to(…, 'UTF8'), 'base64'), chr(10), '')` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(gen_random_uuid() AS VARCHAR)` |  | 2 |
@@ -581,9 +395,9 @@ Database types planned with it: Postgres.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `by its operands: composed / composed` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -630,6 +444,7 @@ Database types planned with it: Snowflake.
 | `LIST_CONCAT` | emulated | `composed in a block` | `via Snowflake.list` | 5 |
 | `LIST_GET` | emulated | `typed, listGet` | `via Snowflake.list` | 72 |
 | `LIST_POSITION` | emulated | `(ARRAY_POSITION(TO_VARIANT(…), …) + 1)` | `via Snowflake.list` | 53 |
+| `LIST_AT` | emulated | `typed: …GET(…, … - 1)` | `via Snowflake.list` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -697,6 +512,7 @@ Database types planned with it: Snowflake.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Snowflake, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | spelled | `base64_encode` |  | 3 |
 | `LEVENSHTEIN` | spelled | `editdistance` |  | 2 |
 | `GUID` | spelled | `UUID_STRING` |  | 2 |
@@ -770,9 +586,9 @@ Database types planned with it: Snowflake.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanon` |  | 0 |
 | `FLOAT_PRINT` | emulated | `by its operands: composed / composed` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `by its operands: composed / composed` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `(CASE WHEN … IS NULL THEN NULL ELSE DECODE(TYPEOF(TO_VARIANT(…)), 'NULL_VALUE...` |  | 1 |
@@ -819,6 +635,7 @@ Database types planned with it: Trino.
 | `LIST_CONCAT` | emulated | `composed in a block` | `via Trino.listCall` | 5 |
 | `LIST_GET` | emulated | `list: (CASE WHEN … = 0 THEN NULL ELSE element_at(…, …) END)` | `via Trino.listCall` | 72 |
 | `LIST_POSITION` | emulated | `list: (CASE WHEN array_position(…, …) = 0 THEN NULL ELSE array_position(…, …) END)` | `via Trino.listCall` | 53 |
+| `LIST_AT` | emulated | `list: element_at(…, …)` | `via Trino.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -886,6 +703,7 @@ Database types planned with it: Trino.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Trino, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `to_base64(to_utf8(…))` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein_distance` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -906,9 +724,9 @@ Database types planned with it: Trino.
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | emulated | `timezone` |  | 6 |
-| `DATE_AT_TIME` | emulated | `CAST(CAST(… AS VARCHAR) \|\| ' ' \|\| CAST(… AS VARCHAR) AS TIMESTAMP(6))` |  | 0 |
-| `EPOCH_NS` | refused | `a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
-| `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Trino keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `DATE_AT_TIME` | emulated | `CAST(CAST(… AS VARCHAR) \|\| ' ' \|\| CAST(… AS VARCHAR) AS TIMESTAMP(9))` |  | 0 |
+| `EPOCH_NS` | refused | `a nanosecond epoch has no Trino spelling here (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
+| `FROM_EPOCH_NS` | refused | `a nanosecond epoch has no Trino spelling here (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `ADD_INTERVAL_TEMPORAL` | emulated | `addInterval` |  | 0 |
 | `EPOCH_SECONDS` | emulated | `to_unixtime(with_timezone(…, 'UTC'))` |  | 0 |
 | `EPOCH_MS` | emulated | `CAST(truncate(to_unixtime(with_timezone(…, 'UTC')) * 1000) AS BIGINT)` |  | 24 |
@@ -951,7 +769,7 @@ Database types planned with it: Trino.
 | `NULL_SAFE_NOT_EQUAL` | emulated | `distinctFrom` |  | 10 |
 | `STRFTIME` | emulated | `strftime` |  | 193 |
 | `STRPTIME` | emulated | `strptime` |  | 0 |
-| `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(6))` |  | 4 |
+| `PARSE_DATE` | emulated | `CAST(… AS TIMESTAMP(9))` |  | 4 |
 | `LIST_REVERSE` | spelled | `reverse` |  | 4 |
 | `TYPEOF` | spelled | `typeof` | `via Trino.listCall` | 0 |
 | `ROUND_HALF_UP` | emulated | `roundHalfUp` |  | 1 |
@@ -959,9 +777,9 @@ Database types planned with it: Trino.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS VARCHAR)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1008,6 +826,7 @@ Database types planned with it: BigQuery.
 | `LIST_CONCAT` | emulated | `emptyList, listElement: ARRAY_CONCAT(, IFNULL(…, ))` |  | 2 |
 | `LIST_GET` | emulated | `listGet` |  | 79 |
 | `LIST_POSITION` | emulated | `param, elements: (SELECT MIN(__o) + 1 FROM …__e__o WHERE __e IS NOT DISTINCT FROM …)` |  | 39 |
+| `LIST_AT` | emulated | `listAt` |  | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1075,6 +894,7 @@ Database types planned with it: BigQuery.
 | `CHR` | spelled | `CHR` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached BigQuery, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `asText: TO_BASE64(CAST(… AS BYTES))` |  | 3 |
 | `LEVENSHTEIN` | spelled | `EDIT_DISTANCE` |  | 2 |
 | `GUID` | spelled | `GENERATE_UUID` |  | 2 |
@@ -1148,9 +968,9 @@ Database types planned with it: BigQuery.
 | `FLOOR_RAW` | spelled | `FLOOR` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1197,6 +1017,7 @@ Database types planned with it: Databricks.
 | `LIST_CONCAT` | emulated | `list: concat(, coalesce(…, array()))` | `via Databricks.listCall` | 5 |
 | `LIST_GET` | emulated | `list: (CASE WHEN … = 0 THEN NULL ELSE try_element_at(…, CAST(… AS INT)) END)` | `via Databricks.listCall` | 72 |
 | `LIST_POSITION` | emulated | `list: nullif(array_position(…, …), 0)` | `via Databricks.listCall` | 53 |
+| `LIST_AT` | emulated | `list: try_element_at(…, CAST(… AS INT))` | `via Databricks.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1264,6 +1085,7 @@ Database types planned with it: Databricks.
 | `CHR` | spelled | `chr` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached Databricks, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `replace(replace(base64(CAST(… AS BINARY)), chr(13), ''), chr(10), '')` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | spelled | `uuid` |  | 2 |
@@ -1283,7 +1105,7 @@ Database types planned with it: Databricks.
 | `ADD_INTERVAL` | emulated | `intervalUnit, part: timestampadd(…, …, …)` |  | 93 |
 | `DATE_DIFF` | emulated | `dateDiff` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
-| `TIMEZONE` | spelled | `from_utc_timestamp` |  | 6 |
+| `TIMEZONE` | emulated | `timezone` |  | 6 |
 | `DATE_AT_TIME` | refused | `a time of day: Databricks has no TIME type` |  | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: Databricks keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` |  | 0 |
@@ -1337,9 +1159,9 @@ Database types planned with it: Databricks.
 | `FLOOR_RAW` | emulated | `(CASE WHEN abs(…) >= 4503599627370496 THEN … ELSE CAST(floor(…) AS DOUBLE) END)` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `CAST(… AS STRING)` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 1 |
@@ -1386,6 +1208,7 @@ Database types planned with it: DuckDB.
 | `LIST_CONCAT` | spelled | `list_concat` | `via DuckDb.listCall` | 5 |
 | `LIST_GET` | spelled | `list_extract` | `via DuckDb.listCall` | 75 |
 | `LIST_POSITION` | spelled | `list_position` | `via DuckDb.listCall` | 53 |
+| `LIST_AT` | spelled | `list_extract` | `via DuckDb.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1453,6 +1276,7 @@ Database types planned with it: DuckDB.
 | `CHR` | emulated | `chr(CAST(… AS INTEGER))` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `composed` |  | 0 |
 | `ENCODE_BASE64` | emulated | `encodeBase64` |  | 3 |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | 2 |
@@ -1469,14 +1293,14 @@ Database types planned with it: DuckDB.
 | `MAKE_DATE` | spelled | `make_date` |  | 2 |
 | `MAKE_TIMESTAMP` | emulated | `makeTimestamp` |  | 10 |
 | `DATE_TRUNC` | emulated | `dateTruncArm` |  | 0 |
-| `ADD_INTERVAL` | emulated | `intervalFunction, part: … + …(…)` |  | 93 |
+| `ADD_INTERVAL` | emulated | `microsecondsOnly, intervalFunction, part: …a date's arithmetic + …(…)` |  | 93 |
 | `DATE_DIFF` | emulated | `stringLit, datePart, part: date_diff(…, …)` |  | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` |  | 109 |
 | `TIMEZONE` | spelled | `timezone` |  | 6 |
 | `DATE_AT_TIME` | spelled | `an operator (+)` |  | 0 |
 | `EPOCH_NS` | spelled | `epoch_ns` |  | 0 |
 | `FROM_EPOCH_NS` | spelled | `make_timestamp_ns` |  | 0 |
-| `ADD_INTERVAL_TEMPORAL` | emulated | `intervalFunction, part: … + …(…)` |  | 0 |
+| `ADD_INTERVAL_TEMPORAL` | emulated | `microsecondsOnly, intervalFunction, part: …a date's arithmetic + …(…)` |  | 0 |
 | `EPOCH_SECONDS` | spelled | `epoch` |  | 0 |
 | `EPOCH_MS` | spelled | `epoch_ms` |  | 24 |
 | `FROM_EPOCH_SECONDS` | spelled | `to_timestamp` |  | 0 |
@@ -1526,9 +1350,9 @@ Database types planned with it: DuckDB.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `castAs: VARCHAR` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | spelled | `json_type` |  | 1 |
@@ -1543,7 +1367,7 @@ Database types planned with it: ClickHouse.
 |---|---|---|---|---:|
 | `AND` | spelled | `an operator (infix)` |  | 204 |
 | `OR` | spelled | `an operator (infix)` |  | 262 |
-| `NOT` | spelled | `an operator (notPrefix)` |  | 61 |
+| `NOT` | emulated | `notCall` |  | 61 |
 | `EQUAL` | emulated | `equalArm` |  | 246 |
 | `NOT_EQUAL` | emulated | `equalArm` |  | 16 |
 | `LESS` | spelled | `an operator (infix)` |  | 125 |
@@ -1575,6 +1399,7 @@ Database types planned with it: ClickHouse.
 | `LIST_CONCAT` | emulated | `list: arrayConcat(, …)` | `via ClickHouse.listCall` | 5 |
 | `LIST_GET` | emulated | `by its operands: arrayElement(…, …) / (CASE WHEN … = 0 OR abs(…) > length(…) THEN NULL ELSE arrayElement(…, …) END)` | `via ClickHouse.listCall` | 72 |
 | `LIST_POSITION` | emulated | `list: nullIf(toInt64(indexOf(…, …)), 0)` | `via ClickHouse.listCall` | 53 |
+| `LIST_AT` | emulated | `list: arrayElement(…, …)` | `via ClickHouse.listCall` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1642,6 +1467,7 @@ Database types planned with it: ClickHouse.
 | `CHR` | spelled | `char` |  | 9 |
 | `UC_FIRST` | emulated | `concat(upperUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))` |  | 5 |
 | `LC_FIRST` | emulated | `concat(lowerUTF8(substringUTF8(…, 1, 1)), substringUTF8(…, 2))` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached ClickHouse, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | spelled | `base64Encode` |  | 3 |
 | `LEVENSHTEIN` | emulated | `toInt64(editDistanceUTF8(…))` |  | 2 |
 | `GUID` | emulated | `toString(generateUUIDv4())` |  | 2 |
@@ -1661,7 +1487,7 @@ Database types planned with it: ClickHouse.
 | `ADD_INTERVAL` | emulated | `composed in a block` | `via ClickHouse.temporal` | 93 |
 | `DATE_DIFF` | emulated | `composed in a block` | `via ClickHouse.temporal` | 53 |
 | `TIME_BUCKET` | emulated | `timeBucket` | `via ClickHouse.temporal` | 109 |
-| `TIMEZONE` | emulated | `addSeconds(toDateTime64(…, 6, 'UTC'), timeZoneOffset(toTimeZone(toDateTime64(...` | `via ClickHouse.temporal` | 6 |
+| `TIMEZONE` | emulated | `composed in a block` | `via ClickHouse.temporal` | 6 |
 | `DATE_AT_TIME` | refused | `a time of day: ClickHouse's Time type is experimental` | `via ClickHouse.temporal` | 0 |
 | `EPOCH_NS` | refused | `a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `via ClickHouse.temporal` | 0 |
 | `FROM_EPOCH_NS` | refused | `a nanosecond epoch: ClickHouse keeps microseconds (the Cypher island's nanosecond leg is DuckDB's)` | `via ClickHouse.temporal` | 0 |
@@ -1715,9 +1541,9 @@ Database types planned with it: ClickHouse.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | spelled | `toString` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 4 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 15 |
 | `JSON_TYPE` | emulated | `multiIf(isNull(…), NULL, JSONType(…) = 'Null', 'NULL', JSONType(…) = 'String'...` |  | 1 |
@@ -1764,6 +1590,7 @@ Database types planned with it: SQLite.
 | `LIST_CONCAT` | emulated | `concatLists` | `via SQLite.lists` | 2 |
 | `LIST_GET` | emulated | `elementAt: (CASE WHEN … = 0 THEN NULL ELSE …CASE WHEN … < 0 THEN '#' \|\| … ELSE … - 1 END...` | `via SQLite.lists` | 69 |
 | `LIST_POSITION` | emulated | `elements: (SELECT min() + 1 FROM …__e__o WHERE IS …)` | `via SQLite.lists` | 39 |
+| `LIST_AT` | emulated | `elementAt: … - 1` | `via SQLite.lists` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -1831,6 +1658,7 @@ Database types planned with it: SQLite.
 | `CHR` | spelled | `char` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | emulated | `(… COLLATE BINARY)` |  | 0 |
 | `ENCODE_BASE64` | emulated | `base64Encoded` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `lower(hex(randomblob(4)) \|\| '-' \|\| hex(randomblob(2)) \|\| '-4' \|\| substr(hex(r...` |  | 2 |
@@ -1904,9 +1732,9 @@ Database types planned with it: SQLite.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE json_type(…) WHEN 'null' THEN 'NULL' WHEN 'text' THEN 'VARCHAR' WHEN 't...` |  | 1 |
@@ -1953,6 +1781,7 @@ Database types planned with it: MariaDB.
 | `LIST_CONCAT` | emulated | `composed in a block` | `via MariaDb.lists` | 2 |
 | `LIST_GET` | emulated | `composed in a block` | `via MariaDb.lists` | 69 |
 | `LIST_POSITION` | emulated | `elements: (SELECT min() FROM …__e__o WHERE <=> …)` | `via MariaDb.lists` | 39 |
+| `LIST_AT` | emulated | `composed in a block` | `via MariaDb.lists` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -2020,6 +1849,7 @@ Database types planned with it: MariaDB.
 | `CHR` | emulated | `CONVERT(CHAR(… USING utf32) USING utf8mb4)` |  | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MariaDB, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `REPLACE(TO_BASE64(…), CHAR(10 USING utf8mb4), '')` |  | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` |  | 2 |
 | `GUID` | emulated | `CAST(UUID() AS CHAR)` |  | 2 |
@@ -2093,9 +1923,9 @@ Database types planned with it: MariaDB.
 | `FLOOR_RAW` | spelled | `floor` |  | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` |  | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatLayout` |  | 40 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 2 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` |  | 1 |
@@ -2142,6 +1972,7 @@ Database types planned with it: MySQL.
 | `LIST_CONCAT` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 2 |
 | `LIST_GET` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 69 |
 | `LIST_POSITION` | emulated | `elements: (SELECT min() FROM …__e__o WHERE <=> …)` | `as MariaDb, via MariaDb.lists` | 39 |
+| `LIST_AT` | emulated | `composed in a block` | `as MariaDb, via MariaDb.lists` | 0 |
 | `LIST_EXISTS` | emulated | `listExists` | `as MariaDb` | 8 |
 | `LIST_FOR_ALL` | emulated | `listForAll` | `as MariaDb` | 3 |
 | `STRUCT_INSERT` | emulated | `structInsert` | `as MariaDb` | 0 |
@@ -2209,6 +2040,7 @@ Database types planned with it: MySQL.
 | `CHR` | emulated | `CONVERT(CHAR(… USING utf32) USING utf8mb4)` | `as MariaDb` | 9 |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as MariaDb` | 5 |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as MariaDb` | 5 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MariaDB, whose binary collation is not measured` | `as MariaDb` | 0 |
 | `ENCODE_BASE64` | emulated | `REPLACE(TO_BASE64(…), CHAR(10 USING utf8mb4), '')` | `as MariaDb` | 3 |
 | `LEVENSHTEIN` | emulated | `levenshtein` | `as MariaDb` | 2 |
 | `GUID` | emulated | `CAST(UUID() AS CHAR)` | `as MariaDb` | 2 |
@@ -2282,9 +2114,9 @@ Database types planned with it: MySQL.
 | `FLOOR_RAW` | spelled | `floor` | `as MariaDb` | 55 |
 | `TO_VARIANT` | emulated | `variantConstruct` | `as MariaDb` | 8 |
 | `BOOL_TO_TEXT` | emulated | `textOf` | `as MariaDb` | 2 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as MariaDb` | 0 |
 | `FLOAT_CANON` | emulated | `floatLayout` | `as MariaDb` | 40 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as MariaDb` | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` | `as MariaDb` | 2 |
 | `VARIANT_GET` | emulated | `variantGet` | `as MariaDb` | 14 |
 | `JSON_TYPE` | emulated | `(CASE JSON_TYPE(…) WHEN 'NULL' THEN 'NULL' WHEN 'STRING' THEN 'VARCHAR' WHEN ...` | `as MariaDb` | 1 |
@@ -2331,6 +2163,7 @@ Database types planned with it: MongoDB.
 | `LIST_CONCAT` | emulated | `listConcat` |  | 0 |
 | `LIST_GET` | emulated | `{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}` |  | 0 |
 | `LIST_POSITION` | emulated | `listPosition` |  | 0 |
+| `LIST_AT` | emulated | `{"$ifNull": [{"$arrayElemAt": […, {"$subtract": […, 1]}]}, null]}` |  | 0 |
 | `LIST_EXISTS` | emulated | `listExists` |  | 0 |
 | `LIST_FOR_ALL` | emulated | `listForAll` |  | 0 |
 | `STRUCT_INSERT` | emulated | `structInsert` |  | 0 |
@@ -2398,6 +2231,7 @@ Database types planned with it: MongoDB.
 | `CHR` | emulated | `guarded: {"$cond": [{"$or": [{"$lt": [, , 0]}, {"$gte": [, , 128]}]}, , a code beyond ASCII reached char on,  MongoDb, which has no code-to-character operator, , {"$substrCP": [, , , , 1]}]}` |  | 0 |
 | `UC_FIRST` | emulated | `firstCased: $toUpper` |  | 0 |
 | `LC_FIRST` | emulated | `firstCased: $toLower` |  | 0 |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached MongoDB, whose binary collation is not measured` |  | 0 |
 | `ENCODE_BASE64` | emulated | `guarded: {"$convert": {"input":,  {"$convert": {"input": , , "to": "binData", "format": "utf8"}},,  "to": "string", "format": "base64"}}` |  | 0 |
 | `LEVENSHTEIN` | emulated | `guarded` |  | 0 |
 | `GUID` | emulated | `{"$let": {"vars": {"h": {"$reduce": {"input": {"$range": [0, 32]}, "initialVa...` |  | 0 |
@@ -2471,9 +2305,9 @@ Database types planned with it: MongoDB.
 | `FLOOR_RAW` | emulated | `op1: $floor` |  | 0 |
 | `TO_VARIANT` | emulated | `variantConstruct` |  | 0 |
 | `BOOL_TO_TEXT` | emulated | `op1: $toString` |  | 0 |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | 0 |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | 0 |
 | `VARIANT_ELEMENTS` | emulated | `variantElements` |  | 0 |
 | `VARIANT_GET` | emulated | `variantGet` |  | 0 |
 | `JSON_TYPE` | emulated | `jsonType` |  | 0 |
@@ -2520,6 +2354,7 @@ Database types planned with it: Deephaven.
 | `LIST_CONCAT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `LIST_GET` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `LIST_POSITION` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `LIST_AT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `LIST_EXISTS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `LIST_FOR_ALL` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `STRUCT_INSERT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
@@ -2587,6 +2422,7 @@ Database types planned with it: Deephaven.
 | `CHR` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `UC_FIRST` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `LC_FIRST` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `BINARY_COLLATE` | refused | `a text's binary order (BINARY_COLLATE) reached Deephaven: its comparison orders UTF-16 code units, and no code-point order is measured there` |  | 0 |
 | `ENCODE_BASE64` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `LEVENSHTEIN` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `GUID` | refused | `function reached Deephaven: no shape yet` |  | 0 |
@@ -2660,9 +2496,9 @@ Database types planned with it: Deephaven.
 | `FLOOR_RAW` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `TO_VARIANT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `BOOL_TO_TEXT` | refused | `function reached Deephaven: no shape yet` |  | 0 |
+| `DECIMAL_TO_TEXT` | refused | `a Decimal's text (DECIMAL_TO_TEXT) reached Deephaven: no column there holds a Decimal` |  | 0 |
 | `FLOAT_CANON` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `FLOAT_PRINT` | emulated | `floatPrint` |  | 0 |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrint` |  | 0 |
 | `VARIANT_ELEMENTS` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `VARIANT_GET` | refused | `function reached Deephaven: no shape yet` |  | 0 |
 | `JSON_TYPE` | refused | `function reached Deephaven: no shape yet` |  | 0 |
@@ -2709,6 +2545,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `LIST_CONCAT` | emulated | `listCall` |  | — |
 | `LIST_GET` | emulated | `listCall` |  | — |
 | `LIST_POSITION` | emulated | `listCall` |  | — |
+| `LIST_AT` | emulated | `listCall` |  | — |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listExists` | — |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `via AnsiSqlRenderer.listForAll` | — |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `via AnsiSqlRenderer.structInsert` | — |
@@ -2776,6 +2613,7 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `CHR` | spelled | `char` |  | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` |  | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` |  | — |
+| `BINARY_COLLATE` | emulated | `composed` |  | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` |  | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` |  | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` |  | — |
@@ -2849,9 +2687,9 @@ Database types planned with it: no database type's own (it extends `AnsiSqlRende
 | `FLOOR_RAW` | spelled | `floor` |  | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` |  | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` |  | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` |  | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` |  | — |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` |  | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` |  | — |
@@ -2898,6 +2736,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `LIST_CONCAT` | emulated | `listCall` | `as EngineStyleH2` | — |
 | `LIST_GET` | emulated | `listCall` | `as EngineStyleH2` | — |
 | `LIST_POSITION` | emulated | `listCall` | `as EngineStyleH2` | — |
+| `LIST_AT` | emulated | `listCall` | `as EngineStyleH2` | — |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as EngineStyleH2, via AnsiSqlRenderer.listExists` | — |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as EngineStyleH2, via AnsiSqlRenderer.listForAll` | — |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as EngineStyleH2, via AnsiSqlRenderer.structInsert` | — |
@@ -2965,6 +2804,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `CHR` | spelled | `char` | `as EngineStyleH2` | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as EngineStyleH2` | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as EngineStyleH2` | — |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured` |  | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` | `as EngineStyleH2` | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` | `as EngineStyleH2` | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as EngineStyleH2` | — |
@@ -3038,9 +2878,9 @@ Database types planned with it: no database type's own (it extends `EngineStyleH
 | `FLOOR_RAW` | spelled | `floor` | `as EngineStyleH2` | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleH2` | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleH2` | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleH2` | — |
@@ -3087,6 +2927,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `LIST_CONCAT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_GET` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_POSITION` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `LIST_AT` | emulated | `listCall` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LIST_EXISTS` | refused | `collection exists reached a dialect without a list-predicate encoding` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listExists` | — |
 | `LIST_FOR_ALL` | refused | `collection forAll reached a dialect without a list-predicate encoding` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.listForAll` | — |
 | `STRUCT_INSERT` | refused | `struct_insert reached a dialect without struct support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.structInsert` | — |
@@ -3154,6 +2995,7 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `CHR` | spelled | `char` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `UC_FIRST` | emulated | `firstCharCased: upper` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LC_FIRST` | emulated | `firstCharCased: lower` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `BINARY_COLLATE` | refused | `a binary collation (texts ordered by their code points) reached legend-engine's DB2 text, whose binary collation is not measured` | `as EngineStyleDB2` | — |
 | `ENCODE_BASE64` | emulated | `encodeBase64` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `LEVENSHTEIN` | spelled | `levenshtein` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `GUID` | emulated | `CAST(uuid() AS VARCHAR)` | `as EngineStyleDB2, as EngineStyleH2` | — |
@@ -3227,9 +3069,9 @@ Database types planned with it: no database type's own (it extends `EngineStyleD
 | `FLOOR_RAW` | spelled | `floor` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `TO_VARIANT` | refused | `toVariant reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantConstruct` | — |
 | `BOOL_TO_TEXT` | emulated | `cast(… as varchar)` | `as EngineStyleDB2, as EngineStyleH2` | — |
+| `DECIMAL_TO_TEXT` | emulated | `varcharCast` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_CANON` | emulated | `floatCanonByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `FLOAT_PRINT` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
-| `FLOAT_PRINT_ENGINE` | emulated | `floatPrintByText` | `as EngineStyleDB2, as EngineStyleH2` | — |
 | `VARIANT_ELEMENTS` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantElements` | — |
 | `VARIANT_GET` | refused | `variant navigation reached a dialect without JSON support` | `as EngineStyleDB2, as EngineStyleH2, via AnsiSqlRenderer.variantGet` | — |
 | `JSON_TYPE` | spelled | `json_type` | `as EngineStyleDB2, as EngineStyleH2` | — |

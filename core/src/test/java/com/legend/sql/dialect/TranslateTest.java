@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlSelect;
@@ -46,7 +48,6 @@ class TranslateTest {
                 Map.entry(new DuckDb(), "translate("),
                 Map.entry(new Postgres(), "translate("),
                 Map.entry(new H2(), "translate("),
-                Map.entry(new H2Modern(), "translate("),
                 Map.entry(new Trino(), "translate("),
                 Map.entry(new Snowflake(), "translate("),
                 Map.entry(new Databricks(), "translate("),
@@ -101,7 +102,7 @@ class TranslateTest {
      *  is refused, not spelled: H2's answer would be another function's. */
     @Test
     void h2RefusesAShorterTo() {
-        for (SqlDialect h2 : List.of(new H2(), new H2Modern())) {
+        for (SqlDialect h2 : List.of(new H2())) {
             DialectCapability refusal = assertThrows(DialectCapability.class,
                     () -> h2.render(translate("abcabc", "abc", "x")));
             assertTrue(refusal.getMessage().contains("H2"), refusal.getMessage());

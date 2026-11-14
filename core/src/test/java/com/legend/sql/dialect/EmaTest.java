@@ -3,7 +3,7 @@
 
 package com.legend.sql.dialect;
 
-import com.legend.Execution;
+import com.legend.testing.Lean;
 import com.legend.error.ModelException;
 import org.junit.jupiter.api.Test;
 
@@ -42,8 +42,8 @@ class EmaTest {
                 st.execute("INSERT INTO t VALUES ('A', 1, 10.0, 4), ('A', 2, 12.0, 8), ('A', 3, NULL, 2), ('A', 4, 8.0, 6),"
                         + " ('B', 5, NULL, 1), ('B', 6, 20.0, 3)");
             }
-            var r = Execution.execute(MODEL, query, "local::RT", c);
-            return r.rows().stream().map(row -> String.join("|", row.values().stream().map(String::valueOf).toList())).toList();
+            var r = Lean.run(MODEL, query, "local::RT", c);
+            return r.rows().stream().map(row -> String.join("|", row.stream().map(String::valueOf).toList())).toList();
         }
     }
 
@@ -88,12 +88,12 @@ class EmaTest {
                 st.execute("INSERT INTO s SELECT CASE WHEN i % 2 = 0 THEN 'A' ELSE 'B' END, i, p, p FROM ("
                         + "SELECT i, 100 + sum(sin(i * 0.7) + cos(i * 1.3)) OVER (ORDER BY i) AS p FROM range(3000) r(i))");
             }
-            var rows = Execution.execute(SERIES_MODEL, query, "local::RT", c).rows();
+            var rows = Lean.run(SERIES_MODEL, query, "local::RT", c).rows();
             assertEquals(3000, rows.size());
             for (var row : rows) {
-                double cut = ((Number) row.values().get(1)).doubleValue();
-                double whole = ((Number) row.values().get(2)).doubleValue();
-                assertEquals(whole, cut, Math.ulp(whole) * 4, "row " + row.values().get(0));
+                double cut = ((Number) row.get(1)).doubleValue();
+                double whole = ((Number) row.get(2)).doubleValue();
+                assertEquals(whole, cut, Math.ulp(whole) * 4, "row " + row.get(0));
             }
         }
     }

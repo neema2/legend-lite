@@ -18,7 +18,6 @@ import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
 import com.legend.protocol.spec.NewInstance;
 import com.legend.protocol.spec.ValueSpecification;
-import com.legend.testbackend.FixtureAside;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 
@@ -56,7 +55,7 @@ import java.util.stream.Stream;
  *     its own inline data runs on a private workspace;</li>
  * <li><b>run + judge</b> — the PRODUCT's test runner ({@link PureTestRunner},
  *     upstream boundary batch 7a): sessions, setups, the body through the ONE
- *     production entry with the platform's {@link com.legend.exec.AssertListener};
+ *     production entry with the platform's {@link com.legend.testexecutionplan.AssertListener};
  *     every assert is the platform's verdict; the harness attaches its referee
  *     and its census through {@link TestObserver} and owns no judgment;</li>
  * <li><b>referee</b> — {@link com.legend.harness.ReplayReferee#INSTANCE}
@@ -334,16 +333,17 @@ public final class MinimalCorpus {
         }
         // the lane's argument (-Dlegend.judge.mode, judge-lanes.sh) is the RUN's
         // mode — handed to the runner once; nothing in the product reads it
-        com.legend.ExecuteOptions.JudgeMode judgeMode = switch (
+        com.legend.testplan.PlanningOptions.JudgeMode judgeMode = switch (
                 System.getProperty("legend.judge.mode", "host").toLowerCase(java.util.Locale.ROOT)) {
-            case "host" -> com.legend.ExecuteOptions.JudgeMode.HOST;
-            case "database" -> com.legend.ExecuteOptions.JudgeMode.DATABASE;
-            case "both" -> com.legend.ExecuteOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
+            case "host" -> com.legend.testplan.PlanningOptions.JudgeMode.HOST;
+            case "database" -> com.legend.testplan.PlanningOptions.JudgeMode.DATABASE;
+            case "both" -> com.legend.testplan.PlanningOptions.JudgeMode.BOTH;   // the agreement gate (step 6, 2026-10-18)
             default -> throw new IllegalArgumentException("legend.judge.mode='"
                     + System.getProperty("legend.judge.mode") + "': 'host', 'database' or 'both'");
         };
-        runner = new PureTestRunner(ctx, RUNTIME, BACKEND::openWorkspace, sharedSetups,
-                discovery.setupsByPackage(), new CorpusObserver(), judgeMode);
+        runner = new PureTestRunner(ctx, RUNTIME, MinimalCorpus::openWorkspace, sharedSetups,
+                discovery.setupsByPackage(), new CorpusObserver(),
+                com.legend.ExecuteOptions.NONE.withJudgeMode(judgeMode));
         sharedSetupPrograms.forEach(runner::registerSetup);
     }
 
@@ -488,8 +488,9 @@ public final class MinimalCorpus {
         return lane.isEmpty() ? TestBackends.platform() : TestBackends.named(lane);
     }
 
-    /** Whether the lane's database is the referee's: its golden runs on the session itself, and no mirror replays
-     *  beside it. */
+    /** Whether the lane's session is the referee's own: its golden runs on the session itself, and no mirror replays
+     *  beside it. No lane since 2026-11-05: the referee is legend-engine's H2 (2.1.214), loaded apart from lite's, so
+     *  the H2 lane's goldens replay on a mirror as every lane's. */
     static boolean refereeLane() {
         return BACKEND == TestBackends.referee();
     }
@@ -506,14 +507,6 @@ public final class MinimalCorpus {
         return java.util.Collections.unmodifiableMap(textDecided);
     }
 
-    /** Fixtures the runner seeded ON DEMAND (corpus-zero program):
-     * {@code test + ' ' + store} → the setup that seeded it. */
-    private final Map<String, String> fixturesProvided = new LinkedHashMap<>();
-
-    public Map<String, String> fixturesProvided() {
-        return java.util.Collections.unmodifiableMap(fixturesProvided);
-    }
-
     /** Setups the platform derived as INERT (no statement effects) and so
      * never ran — counted and pinned by the run (Phase 0.2). */
     public Set<String> inertSetups() {
@@ -521,6 +514,16 @@ public final class MinimalCorpus {
     }
 
     // ---- THE HARNESS'S INSTRUMENTS, attached through the product's seam -----
+
+    /** A workspace of the lane's backend as a session the runner owns (D68, 2026-10-30): closing it detaches and
+     *  closes the workspace, as the backend's connection did. */
+    private static com.legend.exec.Sessions.Session openWorkspace() {
+        try {
+            return com.legend.testbackend.TestSessions.owning(BACKEND.openWorkspace());
+        } catch (SQLException e) {
+            throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+        }
+    }
 
     /** The referee (the replay referee with its H2 mirror), the raw-SQL
      * recorder with the session's seed ledger, and the text-decided census —
@@ -541,22 +544,24 @@ public final class MinimalCorpus {
             // belong to (display attribution only, no verdict flows through it)
             currentTest = t.fqn();
             com.legend.harness.RefereeVerify.CURRENT_TEST.set(t.fqn());
-            // the byte-channel census attributes its disagreement samples
-            // (leg 3.0: database mode's bug list) to the running test
-            com.legend.exec.CanonicalDivergence.attributeTo(t::fqn);
-            // the primitive census's per-test tally (measurement only, under -Dlegend.diagnostics=primitives=per-test)
-            com.legend.exec.PrimitiveCensus.attributeTo(t::fqn);
+            // the measurement's one attribution label: the censuses' samples name the running test (leg 3.0: database
+            // mode's bug list); 2026-11-09, one label where each census held a hook of its own
+            com.legend.base.Attribution.to(t.fqn());
             if (com.legend.diagnostics.Diagnostics.on("progress")) {
                 System.err.println("[corpus2] > " + t.fqn());
             }
         }
 
         @Override
-        public void sessionBegan(String pkg, Connection conn) throws SQLException {
+        public void sessionBegan(String pkg, com.legend.exec.Sessions.Session conn) {
             // the referee's mirror replays goldens beside the session; on the referee's
             // own lane the session IS the referee's engine and needs no mirror
             if (!refereeLane() && com.legend.harness.RefereeVerify.ready()) {
-                mirrorConn = TestBackends.referee().openReferee("c2Mirror" + MIRROR_IDS.getAndIncrement());
+                try {
+                    mirrorConn = TestBackends.referee().openReferee("c2Mirror" + MIRROR_IDS.getAndIncrement());
+                } catch (SQLException e) {
+                    throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+                }
                 com.legend.harness.ReplayReferee.mirrorBegin(mirrorConn);
             }
             seedLedger.clear();
@@ -588,41 +593,54 @@ public final class MinimalCorpus {
             recorder = new com.legend.sql.dialect.RawSqlBoundary.Recorder(
                     shared ? seedLedger : List.of());
             referee = new com.legend.harness.ReplayReferee(recorder);
-            // the test-input resource resolver rides the same options (Phase 2d)
-            return com.legend.ExecuteOptions.recording(recorder, path -> {
-                try {
-                    return Files.readString(Corpus.RELATIONAL.getParent().getParent()
-                            .resolve(path.startsWith("/") ? path.substring(1) : path));
-                } catch (IOException e) {
-                    throw new com.legend.error.DataError("test resource '" + path + "'", e);
-                }
-            });
+            // the test resources ride the same options as a store (data: docs/DATA_IN_THE_PLAN_2026_11_09.md L1,
+            // 2026-11-09): a CSV load's plan names its file by reference and digest, the run reads it from here
+            // the same stores the edge's: the referee's copy of a CSV load reads the bytes the plan's load read (B2b)
+            com.legend.executionplan.DataStores stores = com.legend.executionplan.DataStores.resources(
+                    Corpus.RELATIONAL.getParent().getParent());
+            return com.legend.ExecuteOptions.recording(new com.legend.edge.CompatEdge(recorder, stores), stores)
+                    // backwards-compatibility mode: the judges' leniencies that meet legend-engine's goldens (the user,
+                    // 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode)
+                    .withEngineCompat(true);
         }
 
         @Override
-        public com.legend.exec.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
+        public com.legend.testexec.@com.legend.base.Nullable SqlReplayReferee referee(PureTests.TestCase t) {
             return referee;
         }
 
         @Override
-        public void bodyStarting(Connection conn, boolean effectful) throws SQLException {
-            mark = effectful ? java.util.Objects.requireNonNull(referee).beginAttempt(conn) : null;
+        public void bodyStarting(com.legend.exec.Sessions.Session conn, boolean effectful) {
+            // the harness's own referee brackets the attempt on the driver's connection: the session's, asked for it
+            try {
+                mark = effectful ? java.util.Objects.requireNonNull(referee).beginAttempt(com.legend.testbackend.TestSessions.connectionOf(conn)) : null;
+            } catch (SQLException e) {
+                throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+            }
         }
 
         @Override
-        public void bodyPassed(Connection conn, boolean effectful) throws SQLException {
+        public void bodyPassed(com.legend.exec.Sessions.Session conn, boolean effectful) {
             // the session state the body produced is what the engine's run
             // leaves too — kept whether or not the body adjudicated anything
             if (effectful) {
-                com.legend.harness.ReplayReferee.commitAttempt(conn);
+                try {
+                    com.legend.harness.ReplayReferee.commitAttempt(com.legend.testbackend.TestSessions.connectionOf(conn));
+                } catch (SQLException e) {
+                    throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+                }
                 mark = null;
             }
         }
 
         @Override
-        public void bodyFailed(Connection conn, boolean effectful) throws SQLException {
+        public void bodyFailed(com.legend.exec.Sessions.Session conn, boolean effectful) {
             if (effectful && mark != null) {
-                java.util.Objects.requireNonNull(referee).rollbackAttempt(conn, mark);
+                try {
+                    java.util.Objects.requireNonNull(referee).rollbackAttempt(com.legend.testbackend.TestSessions.connectionOf(conn), mark);
+                } catch (SQLException e) {
+                    throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
+                }
                 mark = null;
             }
         }
@@ -645,66 +663,19 @@ public final class MinimalCorpus {
             // a text-decided verdict, named by the arm (Phase 0.6)
             textDecided.merge(reason + " " + currentTest, 1, Integer::sum);
         }
-
-        /** A clashing fixture set aside in the workspace by its backend ({@code TestBackend.setFixtureAside}): names
-         * stay as written, the session's own tables keep winning, the fixture's tables resolve last. A backend that
-         * cannot set one aside refuses by name: no fixture runs over the session's tables (the plan's defect 5). */
-        private @com.legend.base.Nullable FixtureAside aside;
-
-        @Override
-        public Connection isolateFixture(Connection conn, String setupFqn) throws SQLException {
-            FixtureAside set = BACKEND.setFixtureAside(conn);
-            aside = set;
-            System.err.println("[fixture-aside] " + setupFqn + " -> " + set.name()
-                    + (set.connection() == conn ? " (" + BACKEND.name() + ")" : "") + " during " + currentTest);
-            // the referee's MIRROR replays the seed ledger: it sets the same aside
-            // its own way -- the fixture's DDL lands there, the golden SQL resolves
-            // the mirror's own tables first (fixtureIsolated)
-            if (recorder != null && !refereeLane()) {
-                for (String s : TestBackends.referee().replayAside(set.name())) {
-                    recorder.recordExecuted(s, false);
-                }
-            }
-            return set.connection();
-        }
-
-        @Override
-        public void fixtureIsolated(Connection conn) {
-            FixtureAside done = java.util.Objects.requireNonNull(aside,
-                    "fixtureIsolated without isolateFixture: the runner balances a set-aside fixture");
-            aside = null;
-            try {
-                done.restore();
-                if (recorder != null && !refereeLane()) {
-                    for (String s : TestBackends.referee().replayRestore(done.held())) {
-                        recorder.recordExecuted(s, false);
-                    }
-                }
-            } catch (SQLException e) {
-                throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
-            }
-        }
-
-        @Override
-        public void fixtureProvided(String storeFqn, String setupFqn) {
-            // fixture on demand (corpus-zero program): the rows leg reads a
-            // mapping over a store another package's setup seeds; the
-            // runner ran that setup
-            fixturesProvided.put(currentTest + " " + storeFqn, setupFqn);
-        }
     }
 
     // ---- RUN + SCORE -----------------------------------------------------------
 
     /** Run one test through the product's runner and score it for the rosters
      *  (the strength ladder is read off the runner's verdict log). */
-    /** The body's shape letters ({@link com.legend.ProgramFacts#shape()}) of a test this
+    /** The body's shape letters ({@link com.legend.planner.ProgramFacts#shape()}) of a test this
      * corpus ran — the block-compiler homework's census. */
     public @com.legend.base.Nullable String bodyShape(String fqn) {
         return runner.bodyShape(fqn);
     }
 
-    public Result run(PureTests.TestCase t) throws SQLException {
+    public Result run(PureTests.TestCase t) {
         PureTestRunner.Result r = runner.run(t);
         JudgeLedger.record(t.fqn(), r);   // leg 3.3: the per-assert ledger, when configured
         return switch (r.status()) {

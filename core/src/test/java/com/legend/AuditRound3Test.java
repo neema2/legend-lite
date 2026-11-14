@@ -1,8 +1,9 @@
 package com.legend;
 
+import com.legend.testing.Lean;
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,7 +30,7 @@ class AuditRound3Test {
 
     private static Object scalar(String query) throws Exception {
         try (Connection c = TestBackends.platform().open()) {
-            return Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
+            return Lean.run(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c).rows().get(0).get(0);
         }
     }
 
@@ -54,7 +55,7 @@ class AuditRound3Test {
         // signatures alone.
         var ex = assertThrows(Exception.class, () -> {
             try (Connection c = TestBackends.platform().open()) {
-                Execution.execute(StorelessRuntime.with(MODEL + "function test::f(): Integer[1] { [] }\n", Databases.PLATFORM),
+                Lean.run(StorelessRuntime.with(MODEL + "function test::f(): Integer[1] { [] }\n", Databases.PLATFORM),
                         "|test::f()", StorelessRuntime.RUNTIME, c);
             }
         });
@@ -89,7 +90,7 @@ class AuditRound3Test {
         var ex = rejects("#TDS\n id, r_id\n 1, 2\n#->join(#TDS\n id\n 1\n#,"
                 + " meta::pure::functions::relation::JoinKind.INNER,"
                 + " {a,b|$a.id==$b.id}, 'r')");
-        assertTrue(ex instanceof com.legend.compiler.spec.TypeInferenceException,
+        assertTrue(ex instanceof com.legend.error.TypeInferenceException,
                 ex.getClass().getName());
         assertTrue(String.valueOf(ex.getMessage()).contains("duplicate column 'r_id'"), ex.getMessage());
     }

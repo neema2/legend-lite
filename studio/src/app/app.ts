@@ -13,7 +13,7 @@ import { ProjectDatabases, ProjectRunner } from '../../../engine-client/src/proj
 import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, WorkerPort } from '../backend/planner.ts';
 import { queryBuilder, type BuilderSession } from '../backend/query-builder.ts';
-import { runner, type RunSession } from '../backend/run.ts';
+import { playground, runner, type RunSession } from '../backend/run.ts';
 import { connect, type StudioConfig } from '../backend/sdlc.ts';
 import { clear, h } from '../ui/dom.ts';
 import { renderEditor } from '../ui/editor.ts';
@@ -43,6 +43,8 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
   const user = config.user?.userId ?? 'local';
   const session: RunSession & BuilderSession = inTab ? inTabSession(inTab, config.vendor, user) : serverSession(config.engine!, user);
   const run = runner(session);
+  // upstream's SQL playground: a person's own SQL, the one statement no plan carries, handed to the editor alone
+  const sqlPlayground = playground(session);
   // the query builder (plan A5): Query's, over the same session
   const builder = queryBuilder(session);
   let dispose: (() => void) | undefined;
@@ -62,13 +64,13 @@ export async function start(root: HTMLElement, config: StudioConfig, workerUrl: 
       if (view) {
         const project = view[1]!;
         dispose = await renderEditor(root, {
-          client, depot, compiler, run, builder, monaco, project, workspace: 'view', view: { version: view[2] },
+          client, depot, compiler, run, playground: sqlPlayground, builder, monaco, project, workspace: 'view', view: { version: view[2] },
           back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
         });
       } else if (edit) {
         const project = edit[1]!;
         dispose = await renderEditor(root, {
-          client, depot, compiler, run, builder, monaco, project, workspace: edit[2]!,
+          client, depot, compiler, run, playground: sqlPlayground, builder, monaco, project, workspace: edit[2]!,
           back: () => { globalThis.location.hash = `#/project/${encodeURIComponent(project)}`; },
         });
       } else {
@@ -110,7 +112,7 @@ function serverSession(api: string, user: string): RunSession & BuilderSession {
 
 /** A run in this tab: the planner writes the SQL, DuckDB here runs it on the model's own test data (plan A2, A3). */
 function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string): RunSession & BuilderSession {
-  type Started = { engine: BrowserEngine; sql: QueryEngine; tables: TabTables };
+  type Started = { engine: BrowserEngine; sql: QueryEngine; databaseType: string; tables: TabTables };
   let started: Promise<Started> | undefined;
   const start = (): Promise<Started> => (started ??= startDuckDbInTab(duckdbVendor, grammar)
     .then((tab) => {
@@ -123,6 +125,7 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
       return {
         engine: new BrowserEngine(grammar, runner, user),
         sql: runner,
+        databaseType: tab.engine.databaseType,
         tables: new TabTables(projects, runner, tab.engine, tab.data, grammar),
       };
     }));
@@ -131,7 +134,12 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
     lambdaJson: (text) => grammar.lambdaJson(text),
     lambdaText: (lambda, style) => grammar.lambdaText(lambda, style),
     engine: async () => (await start()).engine,
-    sqlEngine: async () => (await start()).sql,
+    sqlEngine: async () => {
+      const tab = await start();
+      return { engine: tab.sql, databaseType: tab.databaseType };
+    },
+    // the playground's statement, planned for the tab's own database (Boundary.authored, 2026-11-12)
+    authored: async (text) => grammar.authored((await start()).databaseType, text),
     plane: async () => {
       const tab = await start();
       return { execution: { kind: 'duckdb-wasm', user }, engine: tab.engine, planner: grammar, cubeRows: { kind: 'sql', engine: tab.sql }, user };

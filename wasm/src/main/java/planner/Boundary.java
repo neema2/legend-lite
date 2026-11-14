@@ -48,9 +48,9 @@ public final class Boundary {
      */
     public static com.legend.server.PureV1Api.Answer pureV1(String path, String rawQuery, String body) {
         return com.legend.server.PureV1Api.route(path, rawQuery.isEmpty() ? null : rawQuery, body,
-                (model, lambda, runtime, rows) -> {
-                    throw new IllegalArgumentException("this engine answers execute in upstream's Arrow format: "
-                            + "ask with ?serializationFormat=ARROW_IPC");
+                (query, runtime, output) -> {
+                    throw new IllegalArgumentException("this engine runs no execute itself: the host runs the plan"
+                            + " (executePlan) and asks for its answer (executeJsonAnswer, executeArrowAnswer)");
                 }, HELD);
     }
 
@@ -73,9 +73,10 @@ public final class Boundary {
     }
 
     /**
-     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): everything the answer holds but its rows -- the
-     * SQL, the TDS builder, the activities, the result's columns, or a graph fetch's JSON builder -- for a host whose
-     * executor runs the SQL and types the rows (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
+     * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan): the statement to run, the answer's shape and its
+     * result columns with their type facts, and everything the answer holds but its rows -- the TDS builder, the
+     * activities, the columns' names, or a graph fetch's JSON builder -- for a host whose database runs the statement
+     * (the tab; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1).
      * {@code modelsJson}: the only models the host runs, a JSON array of their texts.
      */
     public static com.legend.server.PureV1Api.Answer executeJsonPlan(String body, String modelsJson) {
@@ -83,11 +84,23 @@ public final class Boundary {
     }
 
     /**
-     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} SQL (PureV1Api.jsonAnswer): that
-     * plan's answer and the one value its database wrote, arranged by the writers legend-lite's server answers with.
+     * Execute's answer for a host that ran {@link #executeJsonPlan}'s {@code run} statement (PureV1Api.jsonAnswer):
+     * that plan's answer and the host's rows (a JSON array of objects, each a column's name and its cell as the
+     * host's driver read it), decoded by the plan's columns and written by the writer legend-lite's server answers
+     * with.
      */
-    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String wire) {
-        return com.legend.server.PureV1Api.jsonAnswer(plan, wire);
+    public static com.legend.server.PureV1Api.Answer executeJsonAnswer(String plan, String rows) {
+        return com.legend.server.PureV1Api.jsonAnswer(plan, rows);
+    }
+
+    /**
+     * Execute's answer in upstream's Arrow format for a host that ran {@link #executeJsonPlan}'s {@code run}
+     * statement (PureV1Api.arrowAnswer; track A, 2026-10-29): that plan's answer and the host's rows, decoded by the
+     * plan's columns and written by lite's Arrow writer as the one zstd frame upstream sends -- folded as base64
+     * (Folded.http).
+     */
+    public static com.legend.server.PureV1Api.Answer executeArrowAnswer(String plan, String rows) {
+        return com.legend.server.PureV1Api.arrowAnswer(plan, rows);
     }
 
     /** The models a host runs, from their JSON array of texts. */
@@ -152,10 +165,25 @@ public final class Boundary {
                 com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime));
     }
 
+    /**
+     * A text plan as the tab and Python read it: {@code {"sql", "type"}}, and {@code "plan"} -- the execution plan the
+     * text renders from (B3, 2026-11-11), its target's loads and its slots, a {@code data:} payload's text its
+     * statement's content (which the host binds: plan-params.ts, compiler.plan_params; the tenets audit's M3) -- where
+     * the text does not run alone. One a host cannot run ({@code QueryPlan.beyondItsText}) is refused by name here,
+     * before any host sends it.
+     */
     private static String planned(com.legend.plan.QueryPlan p) {
+        String refused = p.beyondItsText();
+        if (refused != null) {
+            throw new com.legend.error.NotImplementedException("this host runs a plan's statement itself, and this"
+                    + " query's plan does not run as its text: " + refused);
+        }
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("sql", p.sql());
         out.put("type", com.legend.plan.UpstreamRelationType.of(p.rootType()));
+        if (!p.textAlone()) {
+            out.put("plan", com.legend.json.Json.parse(com.legend.executionplan.PlanJson.write(p.plan())));
+        }
         return com.legend.json.Json.toCompact(out);
     }
 
@@ -167,6 +195,12 @@ public final class Boundary {
     /** {@link com.legend.HeldModels#hold}: the handle that names {@code model}, compiled the first time it is held. */
     public static int holdModel(String model) {
         return MODELS.hold(model);
+    }
+
+    /** {@link com.legend.HeldModels#hold(String, String)}: the handle that names {@code model} over {@code library}, the
+     *  library compiled once per module (Compiler.compileModel's two-argument form, A5 2026-11-06). */
+    public static int holdModelOver(String model, String library) {
+        return MODELS.hold(model, library);
     }
 
     /** {@link com.legend.HeldModels#release}. */
@@ -185,6 +219,19 @@ public final class Boundary {
                 com.legend.protocol.ProtocolReader.lambda(lambdaJson)).plan(runtime)));
     }
 
+    /**
+     * A lambda's protocol JSON planned over a model held as an EXECUTION PLAN (PlanJson's text, version 19): a program
+     * that writes -- a store write's {@code Update}, its count bound into the query that answers it, in one
+     * {@code Sequence} -- or a query's one {@code TdsResult}, its answer TYPED rows the host reads by the plan's
+     * columns (the result boundary program, 2026-10-27: a plan names no output format; a writer at the edge spells
+     * the rows), the plan its host's runner runs step by step (docs/DATACUBE_FLOW_MODE_2026_10_24.md M6, an Output
+     * into a table; docs/WRITES_DESIGN_2026_10_18.md leg 7).
+     */
+    public static String executionPlanJsonHeld(int handle, String lambdaJson, String runtime) {
+        return MODELS.with(handle, ctx -> com.legend.executionplan.PlanJson.write(com.legend.Compiler.query(ctx,
+                com.legend.protocol.ProtocolReader.lambda(lambdaJson)).executionPlan(runtime)));
+    }
+
     /** A lambda's protocol JSON typed, compile-only, over a model held: upstream's {@code lambdaRelationType} answer. */
     public static String relationTypeJsonHeld(int handle, String lambdaJson) {
         return MODELS.with(handle, ctx -> com.legend.json.Json.toCompact(
@@ -201,58 +248,394 @@ public final class Boundary {
     // ---- a model's data and its tables
 
     /**
-     * A model's test data as the SQL the server seeds a database with, for the tab's DuckDB
-     * (docs/STUDIO_FULL_PLAN_2026_10_04.md A2, "The tab's tables are the server's"): {@code tablesJson}
-     * is {@code [{schema, table, csv}, ...]}, each a table the Database {@code database} declares (one it
-     * does not is refused, by name) and its CSV, header first. For each, in order: {@code sql}, the
-     * statements {@code CsvSeed.sqls} gives DuckDB -- the schema, the table made with the server's column
-     * types, its rows as one multi-row INSERT (none for a header alone); and the names the tab needs to
-     * reach that table again, as the same dialect spells them, so the tab spells none itself:
-     * {@code table} (no schema for the {@code default} one, as the seed makes it), {@code drop}, and
-     * {@code columns}, each its declared {@code name} (what a file's header says) and its {@code sql}
-     * name. The model is compiled once per call (one Database's tables).
+     * A HOST'S OWN FILE READ INTO ITS DATABASE, AS A PLAN (B3, 2026-11-11, the orchestrator's go: uploads and Studio's
+     * file puts as planned loads, the file a pointer; until then {@code testDataSql}'s statements and a host's operation
+     * naming the file, run outside any plan, census M14): {@code request} is
+     * {@code {"databaseType", "file": {"name", "digest", "size", "format"}, "into": {"table"} | {"model", "database",
+     * "schema", "table"}}} -- the file by the name the host keeps it under, its bytes' SHA-256 and size, and its format
+     * ({@code csv}, {@code parquet}, {@code json}); a table of its own, or a table the model's Database declares. The
+     * answer is the plan (PlanJson's), one HOST_SESSION load the host's runner runs ({@code runLoad}), its file step's
+     * {@code ?} the file as the host's store binds it ({@code LoadPlanner.hostFile}). A model this host holds is read as
+     * held, compiled no more.
      */
-    public static String testDataSql(String model, String database, String tablesJson) {
-        com.legend.compiler.element.ModelContext ctx = com.legend.Compiler.compileModel(model);
-        // the tab's engine is the platform's own (the dialect program's Phase 7, 2026-10-18: constructed by its class
-        // until then)
-        com.legend.sql.dialect.SqlDialect host =
-                com.legend.database.Databases.dialect(com.legend.database.Databases.PLATFORM);
-        if (!(com.legend.json.Json.parse(tablesJson) instanceof com.legend.json.Json.Arr tables)) {
-            throw new IllegalArgumentException("test data: the tables are not a JSON array");
+    public static String fileLoad(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        String databaseType = in.getString("databaseType");
+        com.legend.json.Json.Obj file = in.getObj("file");
+        com.legend.json.Json.Obj into = in.getObj("into");
+        boolean declared = into.has("model");
+        String format = file.getString("format");
+        com.legend.executionplan.DataRef.Format read = switch (format) {
+            // a table of its own detects a CSV's columns; a declared table reads its cells as text
+            case "csv" -> declared ? com.legend.executionplan.DataRef.Csv.DEFAULT
+                    : com.legend.executionplan.DataRef.DetectedCsv.DETECTED;
+            case "parquet" -> com.legend.executionplan.DataRef.Parquet.PARQUET;
+            case "json" -> com.legend.executionplan.DataRef.Json.RECORDS;
+            default -> throw new IllegalArgumentException("a host's file is csv, parquet or json, not " + format);
+        };
+        com.legend.executionplan.DataRef ref = new com.legend.executionplan.DataRef(
+                com.legend.executionplan.DataRef.Namespace.HOST, file.getString("name"), file.getString("digest"),
+                file.getLong("size"), read);
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        com.legend.executionplan.DatabaseType type =
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
+        com.legend.executionplan.ExecutionPlan plan = declared
+                ? MODELS.withText(into.getString("model"), ctx -> com.legend.planner.LoadPlanner.hostFile(dialect, type,
+                        ref, new com.legend.planner.LoadPlanner.DeclaredTable(ctx, into.getString("database"),
+                                into.getString("schema"), into.getString("table"))))
+                : com.legend.planner.LoadPlanner.hostFile(dialect, type, ref,
+                        new com.legend.planner.LoadPlanner.NewTable(into.getString("table")));
+        return com.legend.executionplan.PlanJson.write(plan);
+    }
+
+    /**
+     * A REMOTE FILE MOUNTED, AS A PLAN (B3's Q3, 2026-11-11, the user's ruling of that day: "Yes do option 2";
+     * docs/data-delivery-homework/B3_REMOTE_MOUNT_DESIGN_2026_11_11.md): {@code request} is
+     * {@code {"databaseType", "view"?, "location": {"url"} | {"bearer", "shown"}, "format", "credentials"?: {"name",
+     * "fields"}}} -- NAMES AND FIELDS ONLY: an address that carries no token, or a bearer URL by the name the host holds
+     * it under and its address without the query string; an S3 secret by the name the host holds it under and the
+     * fields it holds. Any other key is refused by name, so no value can ride in one. The answer is the plan
+     * (PlanJson's): one HOST_SESSION load the host's runner runs, binding what it names from the host's store
+     * ({@code LoadPlanner.remoteMount}). Until then the host ran the mount as operations, the token in a view's text.
+     */
+    public static String remoteMount(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a remote mount's request", "databaseType", "view", "location", "format", "credentials");
+        com.legend.json.Json.Obj where = in.getObj("location");
+        com.legend.planner.LoadPlanner.RemoteLocation location;
+        if (where.has("url")) {
+            only(where, "a remote file's address", "url");
+            location = new com.legend.planner.LoadPlanner.PlainLocation(where.getString("url"));
+        } else {
+            only(where, "a bearer URL's name", "bearer", "shown");
+            location = new com.legend.planner.LoadPlanner.BearerLocation(where.getString("bearer"),
+                    where.getString("shown"));
         }
-        java.util.List<Object> out = new java.util.ArrayList<>();
-        for (com.legend.json.Json.Node node : tables.items()) {
-            if (!(node instanceof com.legend.json.Json.Obj t)
-                    || !(t.getOr("schema", null) instanceof com.legend.json.Json.Str schemaNode)
-                    || !(t.getOr("table", null) instanceof com.legend.json.Json.Str tableNode)
-                    || !(t.getOr("csv", null) instanceof com.legend.json.Json.Str csvNode)) {
-                throw new IllegalArgumentException("test data: a table is not {schema, table, csv}, each a string");
-            }
-            String schema = schemaNode.value();
-            String table = tableNode.value();
-            boolean defaultSchema = "default".equals(schema);
-            com.legend.model.DatabaseDefinition.TableDefinition def = ctx
-                    .findTableDefinition(database, defaultSchema ? table : schema + "." + table)
-                    .orElseThrow(() -> new IllegalArgumentException(
-                            "test data: the Database " + database + " declares no table " + schema + "." + table));
-            java.util.Map<String, Object> seed = new java.util.LinkedHashMap<>();
-            seed.put("sql", new java.util.ArrayList<>(com.legend.setup.CsvSeed.sqls(
-                    schema + "\n" + table + "\n" + csvNode.value(), database, ctx, host)));
-            seed.put("table", defaultSchema ? host.physicalName(table)
-                    : host.physicalName(schema) + "." + host.physicalName(table));
-            seed.put("drop", host.render(com.legend.setup.Ddl.dropTable(defaultSchema ? null : schema, table)));
-            java.util.List<Object> columns = new java.util.ArrayList<>();
-            for (com.legend.model.DatabaseDefinition.ColumnDefinition c : def.columns()) {
-                java.util.Map<String, Object> column = new java.util.LinkedHashMap<>();
-                column.put("name", c.name());
-                column.put("sql", host.physicalName(c.name()));
-                columns.add(column);
-            }
-            seed.put("columns", columns);
-            out.add(seed);
+        String format = in.getString("format");
+        com.legend.sql.dialect.HostOperation.RemoteFormat read = switch (format) {
+            case "csv" -> com.legend.sql.dialect.HostOperation.RemoteFormat.CSV;
+            case "parquet" -> com.legend.sql.dialect.HostOperation.RemoteFormat.PARQUET;
+            case "iceberg" -> com.legend.sql.dialect.HostOperation.RemoteFormat.ICEBERG;
+            default -> throw new IllegalArgumentException("a remote file is csv, parquet or iceberg, not " + format);
+        };
+        com.legend.planner.LoadPlanner.RemoteCredentials credentials = null;
+        if (in.has("credentials")) {
+            com.legend.json.Json.Obj c = in.getObj("credentials");
+            only(c, "a remote file's credentials", "name", "fields");
+            credentials = new com.legend.planner.LoadPlanner.RemoteCredentials(c.getString("name"),
+                    c.getStringArray("fields"));
         }
-        return com.legend.json.Json.toCompact(out);
+        String databaseType = in.getString("databaseType");
+        return com.legend.executionplan.PlanJson.write(com.legend.planner.LoadPlanner.remoteMount(
+                dialectOf(databaseType),
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
+                new com.legend.planner.LoadPlanner.RemoteMount(in.getStringOr("view", null), location, read,
+                        credentials)));
+    }
+
+    /**
+     * A SNAPSHOT FROM A REMOTE PLANE, AS A PLAN (the user's ruling of 2026-11-11, "This is the right plan"; and of
+     * 2026-11-12, "that is a real off platform problem": the request carries the PULL, never SQL): {@code request} is
+     * {@code {"databaseType", "plane", "model", "runtime", "lambda", "schema"?, "table"}} -- the host's database's type,
+     * the name the host holds the remote plane under, the pull (the model's text, the runtime it runs through, and the
+     * grid's base query as a lambda's protocol JSON, a text), and the table of the host's database it lands in. The pull
+     * is planned HERE, in this call, for the plane's own database (the model held by its text: compiled once), and its
+     * statement is the one the plane runs. Any other key -- a statement ({@code sql}) above all -- is refused by name:
+     * no host hands the planner the text a plane runs, and no row rides in. A pull whose plan does not run as its text
+     * alone (one binding a value) is refused by name: a plane runs its statement as text. The answer is the plan
+     * (PlanJson's): one HOST_SESSION load whose stream step the host's runner runs in one transaction
+     * ({@code LoadPlanner.snapStream}).
+     */
+    public static String snapStream(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a snapshot's stream", "databaseType", "plane", "model", "runtime", "lambda", "schema", "table");
+        String databaseType = in.getString("databaseType");
+        String table = in.getString("table");
+        String statement = MODELS.withText(in.getString("model"), ctx -> {
+            com.legend.plan.QueryPlan pulled = com.legend.Compiler.query(ctx,
+                    com.legend.protocol.ProtocolReader.lambda(in.getString("lambda"))).plan(in.getString("runtime"));
+            String beyond = pulled.beyondItsText();
+            if (beyond != null || !pulled.textAlone()) {
+                throw new com.legend.error.NotImplementedException("a remote plane runs its statement as text, and the"
+                        + " pull snapped into " + table + " does not run as its text alone"
+                        + (beyond != null ? ": " + beyond : ": its plan binds values"));
+            }
+            return pulled.sql();
+        });
+        return com.legend.executionplan.PlanJson.write(com.legend.planner.LoadPlanner.snapStream(
+                dialectOf(databaseType),
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
+                new com.legend.planner.LoadPlanner.SnapStream(in.getString("plane"), statement,
+                        in.getStringOr("schema", null), table)));
+    }
+
+    /**
+     * A SNAPSHOT'S COPY, AS A PLAN (the final audit's 1(b), 2026-11-12, the user's ruling; B3's contract): {@code request}
+     * is {@code {"databaseType", "model", "runtime", "lambda", "schema"?, "table"}} -- the host's database's type, the
+     * pull (the model's text, the runtime it runs through -- the host's own store's -- and the grid's base query as a
+     * lambda's protocol JSON, a text), and the table of the host's database it is copied into. The pull is planned HERE,
+     * in this call (the model held by its text: compiled once). Any other key -- a statement ({@code sql}) above all -- is
+     * refused by name. The answer is the plan (PlanJson's): one writing {@code Sequence} on the host's database, its
+     * target carrying the database's transaction -- the schema made where one is named, the table dropped, and the
+     * table made AS the pull's own statement, its {@code data:} payloads bound as the pull binds them
+     * ({@code com.legend.planner.SnapCopy}). Until then the host made the copy as host operations around a query it handed
+     * back as text ({@code HostOperation.Source.Query}, deleted).
+     */
+    public static String snapCopy(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a snapshot's copy", "databaseType", "model", "runtime", "lambda", "schema", "table");
+        String databaseType = in.getString("databaseType");
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        com.legend.executionplan.DatabaseType type =
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(in.getString("model"), ctx ->
+                com.legend.planner.SnapCopy.plan(com.legend.Compiler.query(ctx,
+                        com.legend.protocol.ProtocolReader.lambda(in.getString("lambda"))), in.getString("runtime"),
+                        dialect, type, in.getStringOr("schema", null), in.getString("table"))));
+    }
+
+    /**
+     * A TABLE OUTPUT, AS ONE PLAN (the final audit's item 2, 2026-11-12, the user's ruling (b); B3's contract): a
+     * DataCube box's rows written into a table of the host's own database, made before it runs. {@code request} is
+     * {@code {"databaseType", "tables": [{"table", "convertible", "pkg"?, "columns"}], "output": {"name", "mode",
+     * "keys"?}, "rows", "target"?}} -- the box's tables of the host's database as their catalog answers them (read
+     * before the run), the output's table and how it is written ({@code create}, {@code overwrite}, {@code append},
+     * {@code deleteAppend}, {@code merge} by its keys), the box's rows (a lambda's protocol JSON, a text: one query of
+     * no parameter over the tables' model) and, where the table is there already (append, deleteAppend, merge), its
+     * catalog's columns. Any other key -- a statement ({@code sql}), a shape -- is refused by name. A made table is the
+     * database's own {@code CREATE TABLE ... AS <the rows' statement>}, planned, carrying the rows, so the database types
+     * its columns as it always did (the orchestrator's ruling (e) and proposal, 2026-11-12), its answer the table's rows
+     * counted; a table there is written by the store write the planner plans over one model of the tables and the target.
+     * The answer is the plan (PlanJson's): one writing {@code Sequence}, its answer the count
+     * ({@code com.legend.planner.OutputPlan}). Until then the host made the table from {@code rows LIMIT 0} as a host
+     * operation's query, read its catalog, and asked for the write's plan apart.
+     */
+    public static String outputPlan(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a table output", "databaseType", "tables", "output", "rows", "target");
+        String databaseType = in.getString("databaseType");
+        com.legend.json.Json.Obj output = in.getObj("output");
+        only(output, "a table output's output", "name", "mode", "keys");
+        String name = output.getString("name");
+        com.legend.planner.OutputPlan.Mode mode = com.legend.planner.OutputPlan.Mode.named(output.getString("mode"));
+        java.util.List<String> keys = output.has("keys") ? output.getStringArray("keys") : java.util.List.of();
+        if (mode == com.legend.planner.OutputPlan.Mode.MERGE && keys.isEmpty()) {
+            throw new IllegalArgumentException("a merge names its keys: the columns a row is matched by");
+        }
+        if (mode != com.legend.planner.OutputPlan.Mode.MERGE && output.has("keys")) {
+            throw new IllegalArgumentException("an output's keys are a merge's: " + mode.spelled() + " takes none");
+        }
+        java.util.List<com.legend.json.Json.Node> tables = in.getArr("tables").items();
+        if (tables.isEmpty()) {
+            throw new IllegalArgumentException("its rows are read from none of this page's database's tables: a table"
+                    + " output writes its own database");
+        }
+        for (com.legend.json.Json.Node t : tables) {
+            if (t instanceof com.legend.json.Json.Obj o && o.getString("table").equalsIgnoreCase(name)) {
+                throw new IllegalArgumentException("'" + name + "' is one of this page's own tables (a file's, a"
+                        + " copy's): name the output's table another way");
+            }
+        }
+        if (mode.makes() && in.has("target")) {
+            throw new IllegalArgumentException("a created table's columns are its rows' relation type: the request names"
+                    + " no target");
+        }
+        if (!mode.makes() && !in.has("target")) {
+            throw new IllegalArgumentException("this page's database has no table '" + name + "': write it with Create a"
+                    + " new table first");
+        }
+        com.legend.protocol.spec.LambdaFunction rows = com.legend.protocol.ProtocolReader.lambda(in.getString("rows"));
+        if (!rows.parameters().isEmpty() || rows.body().size() != 1) {
+            throw new IllegalArgumentException("an output's rows are one query of no parameter");
+        }
+        String rowsBody = com.legend.json.Json.toCompact(com.legend.json.Json.parseObject(in.getString("rows"))
+                .getArr("body").items().get(0));
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        java.util.List<Object> withTarget = new java.util.ArrayList<>();
+        for (com.legend.json.Json.Node t : tables) {
+            withTarget.add(com.legend.json.Json.parse(com.legend.json.Json.toCompact(t)));
+        }
+        if (mode.makes()) {
+            // the create carries the data: the rows over the box's tables alone, the database typing the made table's
+            // columns (no column declared, so none refused or mapped)
+            com.legend.json.Json.Obj sources = com.legend.json.Json.parseObject(tablesModel(com.legend.json.Json
+                    .parseObject(com.legend.json.Json.toCompact(java.util.Map.of("databaseType", databaseType,
+                            "tables", withTarget)))));
+            return com.legend.executionplan.PlanJson.write(MODELS.withText(sources.getString("model"), ctx ->
+                    com.legend.planner.OutputPlan.make(ctx, sources.getString("runtime"), in.getString("rows"), mode,
+                            name, dialect)));
+        }
+        java.util.List<Object> targetColumns = new java.util.ArrayList<>();
+        for (com.legend.json.Json.Node c : in.getArr("target").items()) {
+            targetColumns.add(com.legend.json.Json.parse(com.legend.json.Json.toCompact(c)));
+        }
+        java.util.Map<String, Object> target = new java.util.LinkedHashMap<>();
+        target.put("table", name);
+        target.put("convertible", false);
+        target.put("columns", targetColumns);
+        withTarget.add(target);
+        com.legend.json.Json.Obj model = com.legend.json.Json.parseObject(tablesModel(com.legend.json.Json.parseObject(
+                com.legend.json.Json.toCompact(java.util.Map.of("databaseType", databaseType, "tables", withTarget)))));
+        java.util.List<com.legend.json.Json.Node> modelled = model.getArr("tables").items();
+        String into = com.legend.json.Json.toCompact(((com.legend.json.Json.Obj) modelled.get(modelled.size() - 1))
+                .get("source"));
+        String program = outputProgram(rowsBody, into, mode, keys);
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(model.getString("model"), ctx ->
+                com.legend.planner.OutputPlan.write(ctx, model.getString("runtime"), program, mode)));
+    }
+
+    /** The placeholders an output's program's template holds, each a string the template alone writes. */
+    private static final String OUTPUT_ROWS = "__lite_output_rows__";
+    private static final String OUTPUT_INTO = "__lite_output_into__";
+
+    /**
+     * The Pure program that writes {@code rows} into {@code into} (each a protocol node's JSON) as {@code mode} writes,
+     * as a lambda's protocol JSON -- {@code write}, {@code delete} then {@code write}, or {@code merge} by {@code keys}
+     * (as DataCube's table output wrote it) -- its statements the parser's own reading of the program's text, each
+     * placeholder replaced by the rows' or the target's node.
+     */
+    private static String outputProgram(String rows, String into, com.legend.planner.OutputPlan.Mode mode,
+            java.util.List<String> keys) {
+        String r = "'" + OUTPUT_ROWS + "'";
+        String t = "'" + OUTPUT_INTO + "'";
+        String text = switch (mode) {
+            case APPEND -> "|" + r + "->write(" + t + ")";
+            case CREATE, OVERWRITE -> throw new IllegalStateException("an output that makes its table carries its rows"
+                    + " in the making: no write program");
+            case DELETE_APPEND -> "{|" + t + "->delete(r|true); " + r + "->write(" + t + ");}";
+            case MERGE -> "|" + r + "->merge(" + t + ", ~[" + String.join(", ", keys.stream()
+                    .map(k -> "'" + k.replace("\\", "\\\\").replace("'", "\\'") + "'").toList()) + "])";
+        };
+        String json = com.legend.parser.SpecParser.lambdaJson(text, false);
+        return placed(placed(json, OUTPUT_ROWS, rows), OUTPUT_INTO, into);
+    }
+
+    /** {@code json} with every string node holding {@code placeholder} replaced by {@code node}. */
+    private static String placed(String json, String placeholder, String node) {
+        java.util.regex.Matcher m = java.util.regex.Pattern.compile("\\{[^{}]*\"value\"\\s*:\\s*\""
+                + placeholder + "\"[^{}]*\\}").matcher(json);
+        if (!m.find()) {
+            throw new IllegalStateException("an output's program holds no " + placeholder + ": " + json);
+        }
+        return m.replaceAll(java.util.regex.Matcher.quoteReplacement(node));
+    }
+
+    /**
+     * A STATEMENT A PERSON WROTE, as a plan (the user's ruling of 2026-11-12: Studio's SQL playground goes through the
+     * planner): {@code request} is {@code {"databaseType", "text"}}, the database the playground points at and the
+     * person's one statement. The answer is the plan (PlanJson's): the text carried as written -- never parsed,
+     * rewritten or split -- as the author's SQL, its answer the relation the database reports
+     * ({@code com.legend.planner.Authored}).
+     */
+    public static String authored(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "an authored statement", "databaseType", "text");
+        String databaseType = in.getString("databaseType");
+        return com.legend.executionplan.PlanJson.write(com.legend.planner.Authored.plan(dialectOf(databaseType),
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
+                in.getString("text")));
+    }
+
+    /**
+     * ROWS THE DATABASE GENERATES INTO A DECLARED TABLE, AS A PLAN (the test-data generator's SYNTHESIZE, its simple slice:
+     * the user's ruling of 2026-11-12; register S303): {@code request} is {@code {"databaseType", "model", "database",
+     * "schema", "table", "count", "columns"?}} -- the host's database's type (DuckDB alone in this slice), the model's
+     * text, the table its Database declares, how many rows, and a knob per column by name: {@code {"values": [...]}}
+     * (taken in turn) or {@code {"range": [lo, hi], "scale"?}} (numbers, or ISO dates). Any other key is refused by name,
+     * so no row can ride in one. The answer is the plan (PlanJson's): one HOST_SESSION load the host's runner runs, its
+     * steps the table made as declared, empty, and one statement the database fills it with
+     * ({@code com.legend.planner.Synthesize}). A model this host holds is read as held, compiled no more.
+     */
+    public static String synthesize(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a synthesized table", "databaseType", "model", "database", "schema", "table", "count", "columns");
+        String databaseType = in.getString("databaseType");
+        java.util.Map<String, com.legend.planner.Synthesize.Knob> knobs = new java.util.LinkedHashMap<>();
+        com.legend.json.Json.Obj columns = in.getObjOr("columns", null);
+        if (columns != null) {
+            for (java.util.Map.Entry<String, com.legend.json.Json.Node> e : columns.fields().entrySet()) {
+                com.legend.json.Json.Obj knob = columns.getObj(e.getKey());
+                only(knob, "a synthesized column's knob", "values", "range", "scale");
+                if (knob.has("values") == knob.has("range")) {
+                    throw new IllegalArgumentException("a synthesized column's knob is its values or its range, one of"
+                            + " them: " + e.getKey());
+                }
+                if (knob.has("values")) {
+                    if (knob.has("scale")) {
+                        // a scale is a range's; beside values it would be read by nothing (the B close's audit,
+                        // SHOULD-FIX 3, 2026-11-12)
+                        throw new IllegalArgumentException("a synthesized column's scale is its range's, and "
+                                + e.getKey() + " gives values");
+                    }
+                    java.util.List<String> values = new java.util.ArrayList<>();
+                    for (com.legend.json.Json.Node v : knob.getArr("values").items()) {
+                        values.add(scalar(v, e.getKey()));
+                    }
+                    knobs.put(e.getKey(), new com.legend.planner.Synthesize.Knob.Values(values));
+                } else {
+                    java.util.List<com.legend.json.Json.Node> range = knob.getArr("range").items();
+                    if (range.size() != 2) {
+                        throw new IllegalArgumentException("a synthesized column's range is [lo, hi]: " + e.getKey());
+                    }
+                    knobs.put(e.getKey(), new com.legend.planner.Synthesize.Knob.Range(scalar(range.get(0), e.getKey()),
+                            scalar(range.get(1), e.getKey()), knob.has("scale") ? knob.getInt("scale") : null));
+                }
+            }
+        }
+        // the count a whole number as written: 2.9 is refused, never read as 2 (the B close's audit, SHOULD-FIX 3)
+        if (!(in.get("count") instanceof com.legend.json.Json.Num n) || !n.isInteger()) {
+            throw new IllegalArgumentException("a synthesized table's count is a whole number of rows, not "
+                    + com.legend.json.Json.toCompact(in.get("count")));
+        }
+        long count = n.longValue();
+        com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+        com.legend.executionplan.DatabaseType type =
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType));
+        return com.legend.executionplan.PlanJson.write(MODELS.withText(in.getString("model"), ctx ->
+                com.legend.planner.Synthesize.plan(dialect, type, new com.legend.planner.LoadPlanner.DeclaredTable(ctx,
+                        in.getString("database"), in.getString("schema"), in.getString("table")),
+                        count, knobs)));
+    }
+
+    /** A knob's value as written: a number's own token, or a text. */
+    private static String scalar(com.legend.json.Json.Node v, String column) {
+        return switch (v) {
+            case com.legend.json.Json.Str s -> s.value();
+            case com.legend.json.Json.Num n -> n.token() != null ? n.token()
+                    : n.isInteger() ? Long.toString(n.longValue()) : java.math.BigDecimal.valueOf(n.doubleValue())
+                            .toPlainString();
+            default -> throw new IllegalArgumentException("a synthesized column's value is a number or a text: "
+                    + column);
+        };
+    }
+
+    /**
+     * A HOST'S VALUE READ AS A RELATION, AS A PLAN (the user's ruling of 2026-11-11: a Python frame named, attached at
+     * run): {@code request} is {@code {"databaseType", "held", "as", "live", "schema"?, "relation"}} -- the name the host
+     * holds the value under, the relation it is attached as, whether it is read at each query (a view) or once (a
+     * table), and the relation it is read through. Any other key is refused by name, so no value can ride in one. The
+     * answer is the plan (PlanJson's): one HOST_SESSION load the host's runner runs ({@code LoadPlanner.frameLoad}).
+     */
+    public static String frameLoad(String request) {
+        com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a host value's load", "databaseType", "held", "as", "live", "schema", "relation");
+        String databaseType = in.getString("databaseType");
+        return com.legend.executionplan.PlanJson.write(com.legend.planner.LoadPlanner.frameLoad(
+                dialectOf(databaseType),
+                com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)),
+                new com.legend.planner.LoadPlanner.FrameLoad(in.getString("held"), in.getString("as"),
+                        in.getBool("live"), in.getStringOr("schema", null), in.getString("relation"))));
+    }
+
+    /** {@code o}'s keys among {@code keys}, any other refused by name ({@code what} names the object). */
+    private static void only(com.legend.json.Json.Obj o, String what, String... keys) {
+        java.util.Set<String> allowed = java.util.Set.of(keys);
+        for (String key : o.fields().keySet()) {
+            if (!allowed.contains(key)) {
+                throw new IllegalArgumentException(what + " has no key " + key + " (names and fields only, never a"
+                        + " value)");
+            }
+        }
     }
 
     /**
@@ -281,9 +664,10 @@ public final class Boundary {
      * runtime the planner compiles.
      * {@code {"table", "schema"?, "pkg"? (default "local"), "convertible", "databaseType", "columns": [catalog rows]}}
      * in; {@code {"model", "runtime", "source" (protocol), "accessor" (its Pure text), "conversions":
-     * [{"column","sql"}], "copySelectList"?, "excluded": [name], "bitColumns": [name]}} out.
-     * {@code copySelectList}: the select list the source applies when it is rewritten in place ({@code convertible}),
-     * written by its own database; a read-only source is never rewritten, and has none.
+     * [{"column","sql"}], "excluded": [name], "bitColumns": [name]}} out. A source rewritten in place
+     * ({@code convertible}) is a host operation's copy that names these catalog columns ({@code "convert"}), its select
+     * list written by the platform (the final audit's 1(d), 2026-11-12: until then this answered the select list,
+     * {@code copySelectList}, which the host handed back as text).
      * {@code bitColumns}: the columns declared BIT (DuckDB's BOOLEAN), which legend-engine types TinyInt.
      *
      * <p>SEVERAL TABLES of one database (a join's two sides, read in one place:
@@ -319,9 +703,6 @@ public final class Boundary {
         out.put("source", sourceOf(db));
         out.put("accessor", db.accessor());
         out.put("conversions", conversionsOf(db));
-        if (in.getBool("convertible")) {
-            out.put("copySelectList", dialect.copySelectList(db.conversions()));
-        }
         out.put("excluded", db.excluded());
         out.put("bitColumns", bitColumns);
         return com.legend.json.Json.toCompact(out);
@@ -554,20 +935,31 @@ public final class Boundary {
     /**
      * A project's own database on a database of the given type (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C5,
      * {@code com.legend.setup.ProjectData}): where {@code model}'s Data rows live on a host, named by what it holds
-     * (the model's Databases and Data rows). {@code {"name", "open", "use", "fill", "close"}}, each but the name the
-     * statements in order: make it, point a connection of its own at it, make and fill every table a relational Data
-     * element fills (on that connection), drop it. A database without the operations is refused by name.
+     * (the model's Databases and Data rows). {@code {"name", "open", "use", "close", "load"?}}: the statements, in
+     * order, that make it, point a connection of its own at it and drop it; and {@code load}, the plan whose root is the
+     * ONCE load that makes and fills every table a relational Data element fills -- the load a server's project plan
+     * carries, its statements a blob the host checks against its digest and runs on that connection (B3, 2026-11-11:
+     * until then the fill's statements as text, census M14) -- absent for a model with no Data rows. A database without
+     * the operations is refused by name. A model this
+     * host holds is read as held, compiled no more (HeldModels.withText: a project's model, typed and planned by the
+     * page's planner, is 4 MB of the trading model and its Data, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11).
      */
     public static String projectData(String model, String databaseType) {
-        com.legend.setup.ProjectData p = com.legend.setup.ProjectData.of(com.legend.Compiler.compileModel(model),
-                dialectOf(databaseType));
-        java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-        out.put("name", p.name());
-        out.put("open", p.open());
-        out.put("use", p.use());
-        out.put("fill", p.fill());
-        out.put("close", p.close());
-        return com.legend.json.Json.toCompact(out);
+        return MODELS.withText(model, ctx -> {
+            com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
+            com.legend.setup.ProjectData p = com.legend.setup.ProjectData.of(ctx, dialect);
+            com.legend.executionplan.ExecutionPlan load = com.legend.planner.LoadPlanner.projectData(ctx, dialect,
+                    com.legend.planner.ConnectionPlans.type(com.legend.database.Databases.named(databaseType)));
+            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
+            out.put("name", p.name());
+            out.put("open", p.open());
+            out.put("use", p.use());
+            out.put("close", p.close());
+            if (load != null) {
+                out.put("load", com.legend.json.Json.parse(com.legend.executionplan.PlanJson.write(load)));
+            }
+            return com.legend.json.Json.toCompact(out);
+        });
     }
 
     /** A JSON number field as an Integer, or null when absent or null. */

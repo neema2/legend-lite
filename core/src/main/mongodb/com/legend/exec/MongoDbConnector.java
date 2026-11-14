@@ -3,9 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.AuthenticationSpec;
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.AuthenticationSpec;
+import com.legend.executionplan.ConnectionSpecification;
 import com.mongodb.MongoClientSettings;
 import com.mongodb.MongoCredential;
 import com.mongodb.ServerAddress;
@@ -29,8 +28,8 @@ public final class MongoDbConnector implements DatabaseConnector {
     }
 
     @Override
-    public ConnectionDefinition.DatabaseType type() {
-        return ConnectionDefinition.DatabaseType.MongoDB;
+    public com.legend.executionplan.DatabaseType type() {
+        return com.legend.executionplan.DatabaseType.MongoDB;
     }
 
     /** {@inheritDoc} Yes: a MongoDB speaks no JDBC. */
@@ -48,7 +47,7 @@ public final class MongoDbConnector implements DatabaseConnector {
 
     /** {@inheritDoc} None: no JDBC opening reaches a MongoDB ({@link #open} does). */
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         throw new com.legend.error.NotImplementedException("connection '" + def.qualifiedName() + "' declares MongoDB,"
                 + " which no JDBC opening reaches: its connector opens it, through the plan runner");
     }
@@ -59,10 +58,16 @@ public final class MongoDbConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} Never asked: no JDBC session is a MongoDB's ({@link #ownSessions}). */
+    /** {@inheritDoc} No: a MongoDB session holds no SQL transaction the platform opens. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        throw new IllegalStateException("a MongoDB session holds no JDBC raise");
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} No: MongoDB's statements are its own ({@code MongoDbStatements}), which bracket no plan's steps. */
+    @Override
+    public boolean takesTransactions() {
+        return false;
     }
 
     /** {@inheritDoc} None: a server, whose connection is the engine's MongoDBConnection. */
@@ -73,7 +78,7 @@ public final class MongoDbConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Session open(ConnectionDefinition connection) {
+    public Sessions.Session open(com.legend.executionplan.Connection connection) {
         if (!(connection.specification() instanceof ConnectionSpecification.StaticDatasource(String host, int port,
                 String database))) {
             throw new com.legend.error.NotImplementedException("connection '" + connection.qualifiedName()
@@ -98,7 +103,7 @@ public final class MongoDbConnector implements DatabaseConnector {
 
     /** The password a vault reference names: {@code systemproperties:<name>} reads the JVM's system property, set by
      *  the host; any other vault is refused by name. The value is handed to the driver and never carried further. */
-    private static String secret(ConnectionDefinition connection, String reference) {
+    private static String secret(com.legend.executionplan.Connection connection, String reference) {
         int colon = reference.indexOf(':');
         String kind = colon < 0 ? reference : reference.substring(0, colon);
         if (!"systemproperties".equals(kind)) {
@@ -115,9 +120,10 @@ public final class MongoDbConnector implements DatabaseConnector {
     }
 
     /** A session on a MongoDB: no JDBC connection, its statements the connector's; closing it closes the client. */
-    private static final class MongoDbSession implements Sessions.Session {
+    private static final class MongoDbSession extends Sessions.Session {
         private final MongoClient client;
         private final MongoDbStatements statements;
+        private final SessionState state = new SessionState();
 
         MongoDbSession(MongoClient client, MongoDbStatements statements) {
             this.client = client;
@@ -125,14 +131,21 @@ public final class MongoDbConnector implements DatabaseConnector {
         }
 
         @Override
-        public Connection connection() {
+        Connection connection() {
             throw new IllegalStateException("a MongoDB session has no JDBC connection: it runs the plan's commands"
                     + " through its own statements (Sessions.Session.statements)");
         }
 
+        /** The connector's statements, reached through the session's one guarded door ({@code Session.statements}:
+         *  inside a plan's run alone, THE WALL's rule 3). */
         @Override
-        public Statements statements() {
+        Statements statementsOf() {
             return statements;
+        }
+
+        @Override
+        public SessionState state() {
+            return state;
         }
 
         @Override

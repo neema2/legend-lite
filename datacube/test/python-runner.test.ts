@@ -76,7 +76,7 @@ describe('a page on Python, planned by Python', () => {
     assert.equal(calls[0]!.auth, 'Bearer t0ken');
     // the request plan-and-run sends for the same query (planRequest), so the dry run plans what the run would
     const sent = JSON.parse(calls[0]!.body) as { lambda: string; model: string; runtime: string };
-    assert.deepEqual(sent, (runner.host.planner as LitePlanner).planRequest(QUERY));
+    assert.deepEqual(sent, await (runner.host.planner as LitePlanner).planRequest(QUERY));
   });
 
   it("refuses an answer of Python's it cannot read, never leaving the planner's request unanswered", async () => {

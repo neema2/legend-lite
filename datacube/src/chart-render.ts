@@ -11,6 +11,8 @@
 // mounts it, keeps it sized to its box, reads the theme from CSS tokens,
 // and turns a click on a mark into the values behind it.
 
+/// <reference path="./echarts-renderers.d.ts" />
+// (its painters' declarations, for every program that compiles this file: Query's and Studio's too)
 import * as echarts from 'echarts/core';
 // Each chart and component by its own module, which registers it as it loads (ECharts' `lib/<kind>.js`:
 // `use(install)`), never through the `echarts/charts` or `echarts/components` index: chart-render-kinds.ts registers
@@ -41,7 +43,8 @@ import 'echarts/lib/component/toolbox.js';
 // a long series' slider, and zooming inside the chart
 import 'echarts/lib/component/dataZoom.js';
 import { AxisBreak } from 'echarts/features';
-import { CanvasRenderer } from 'echarts/renderers';
+// the canvas painter by its own module: the `echarts/renderers` index imports the SVG one too (echarts-renderers.d.ts)
+import { install as CanvasRenderer } from 'echarts/lib/renderer/installCanvasRenderer.js';
 import type { EChartsOption } from 'echarts';
 import type { AxisHold, BrushArea, Brushed, ChartDrawing, MarkKey } from './chart-option.ts';
 import type { Scalar } from '../../engine-client/src/result.ts';
@@ -49,16 +52,24 @@ import type { Scalar } from '../../engine-client/src/result.ts';
 // a value axis's breaks, and the canvas the page draws on
 echarts.use([AxisBreak, CanvasRenderer]);
 
-/**
- * A chart as a picture, for an export of the page: the live chart's own pixels at `ratio`
- * times its size, on white (a PNG for a page or a workbook, a JPEG a PDF embeds as it is).
- */
 /** A canvas chart in `el` over the charts' ECharts, as every chart is drawn: a timeseries tile's (timeseries-render.ts),
  *  which registers nothing of its own -- one build of ECharts, fetched with whichever draws first. */
 export function canvasChart(el: HTMLElement): echarts.ECharts {
   return echarts.init(el, null, { renderer: 'canvas' });
 }
 
+/** A chart drawn as SVG, for a picture's export (a timeseries' SVG: the next phases' 2): ECharts' SVG painter fetched the
+ *  first time one is asked -- a chunk of its own, no page's start or first chart fetching it. */
+export async function svgChart(el: HTMLElement): Promise<echarts.ECharts> {
+  const { install } = await import('echarts/lib/renderer/installSVGRenderer.js');
+  echarts.use([install]);
+  return echarts.init(el, null, { renderer: 'svg' });
+}
+
+/**
+ * A chart as a picture, for an export of the page: the live chart's own pixels at `ratio`
+ * times its size, on white (a PNG for a page or a workbook, a JPEG a PDF embeds as it is).
+ */
 export interface ChartPicture {
   /** The chart's size on screen, in CSS pixels. */
   readonly width: number;
@@ -131,7 +142,7 @@ export function keptZoom(option: EChartsOption, before: readonly ZoomNow[] | nul
   latest: number | undefined): EChartsOption {
   const zooms = (option as { dataZoom?: unknown }).dataZoom;
   if (!before || !Array.isArray(zooms) || zooms.length !== before.length) return option;
-  const kept = zooms.map((z: Record<string, unknown>, i) => {
+  const kept = (zooms as Record<string, unknown>[]).map((z, i) => {
     const b = before[i]!;
     // all of it shown: the tick's window, as its option has it
     if ((b.start ?? 0) <= 0.01 && (b.end ?? 100) >= 99.99) return z;

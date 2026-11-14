@@ -33,6 +33,7 @@ import sys
 import re
 
 import model
+import query
 
 # The mapping a service runs against when its spec names none.
 DEFAULT_MAPPING = "stress::AllMapping"
@@ -170,7 +171,7 @@ def _spec_touches(c: model.Corpus, spec) -> tuple[set[str], set[tuple[str, str]]
     to be PROJECTED to be executed, not merely to live on a class some service reads:
     hier::Issuer carries a Binding transformer and is read by H_Issuer, which does not
     project it -- so counting the class alone reported the Binding as executed while the
-    only service that projects one is quarantined under F27.
+    only service that projects one was quarantined under F27 (fixed upstream by 4.145.0).
     """
     classes, props = {spec.root}, set()
     for p in getattr(spec, "projections", []):
@@ -206,7 +207,7 @@ def _spec_touches(c: model.Corpus, spec) -> tuple[set[str], set[tuple[str, str]]
                     classes.add(nxt)
                     if isinstance(sub, dict):
                         stack.append((nxt, sub))
-    for pred in getattr(spec, "filters", []):
+    for pred in query.atoms(getattr(spec, "filters", [])):
         props.add((spec.root, pred.path[-1]))
     for key in getattr(spec, "group_by", []):
         props.add((spec.root, key))
@@ -347,7 +348,351 @@ def report(c: model.Corpus, specs, quarantined: set[str]) -> list[tuple[str, boo
     add("D11 MultiGrainFilter",
         [n for k in c.class_filter if k in ks
          for n in [c.class_filter[k]] if n in c.multigrain])
+    _query_features(specs, quarantined, add)
+    _milestoning_features(c, specs, quarantined, add)
+    _vocabulary_features(specs, quarantined, add)
+    _unreached_features(c, specs, quarantined, add)
+    _m2m_features(specs, quarantined, add)
+    _relmap_features(specs, quarantined, add)
+    _checks_features(specs, quarantined, add)
+    _test_form_features(specs, quarantined, add)
+    _semi_features(specs, quarantined, add)
+    _outer_features(specs, quarantined, add)
     return out
+
+
+def _outer_features(specs, quarantined: set[str], add) -> None:
+    """Explicit join types (the improvement plan's Phase 9, outer.py), each executed when a passing service over a
+    class of that typing runs, on either database (OJT_ on H2, OJR_ on DuckDB)."""
+    live = {s.short[4:] for s in specs if s.name not in quarantined and s.name.startswith(("stress::OJT_",
+                                                                                           "stress::OJR_"))}
+
+    def of(*names):
+        return sorted(n for n in live if n in names)
+
+    add("O9  typed hop in a property chain", of("Booked", "BookedIn"))
+    add("O9  ~filter through an OUTER join", of("NoAccOuter", "NoLabelOuter", "NoLabelMixed"))
+    add("O9  ~filter through an INNER join", of("NoAccInner", "NoLabelInner", "NoLabelMixed"))
+    add("O9  ~filter through an untyped join", of("NoAccPlain", "NoLabelPlain"))
+
+
+def _semi_features(specs, quarantined: set[str], add) -> None:
+    """Semi-structured documents (the improvement plan's Phase 9, semi.py), each executed when a passing service of
+    its form runs, on either side (SJ_ on H2 over SURFACE_TYPES, SD_ on DuckDB over SEMI_DOC)."""
+    live = {s.short for s in specs if s.name not in quarantined and s.name.startswith(("stress::SJ_", "stress::SD_"))}
+
+    def of(*forms):
+        return sorted(n for n in live if n[3:] in forms)
+
+    add("S9  semi-structured navigation", of("Text", "Numbers", "Dates"))
+    add("S9  semi-structured array index", of("Index"))
+    add("S9  semi-structured quoted key", of("Quoted"))
+    add("S9  semi-structured filter", of("BigQty", "RefFilter"))
+    add("S9  semi-structured store filter", of("StoreFilter"))
+    add("S9  Binding over a semi-structured column", of("Body", "BodyDates"))
+    add("S9  semi-structured flatten", of("Flatten", "FlattenLegs"))
+    add("S9  semi-structured explode", of("Explode", "ExplodeAny"))
+    add("S9  semi-structured wildcard path", of("HopList", "LegCount", "MaxQty", "SumQty", "OnXnas", "SortedHops"))
+    add("S9  semi-structured array function", of("HopList", "LegCount", "MaxQty", "SumQty", "OnXnas", "SortedHops"))
+
+
+def _test_form_features(specs, quarantined: set[str], add) -> None:
+    """Test forms (the improvement plan's Phase 8): a mapping's test suites (mapping_tests.py), each executed when a
+    mirrored service is emitted and its test mapping is not quarantined -- the engine judges the mapping's suites as a
+    testable of their own; and the test shapes (shapes.py), each executed by a shaped service not quarantined."""
+    import mapping_tests
+    import shapes
+
+    emitted = {s.name: s for s in specs}
+    add("T8  mapping test suite", sorted(
+        f"{mapping_tests.test_mapping(emitted[n].mapping or mapping_tests.DEFAULT_MAPPING).split('::')[-1]}/"
+        f"{emitted[n].short}" for n in mapping_tests.MIRRORED
+        if n in emitted and mapping_tests.test_mapping(emitted[n].mapping or mapping_tests.DEFAULT_MAPPING)
+        not in quarantined))
+    shaped = sorted(n.split("::")[-1] for n in shapes.SHAPED if n not in quarantined)
+    add("T8  several tests in a suite", shaped)
+    add("T8  several assertions in a test", shaped)
+    add("T8  EqualTo assertion", shaped)
+
+
+def _checks_features(specs, quarantined: set[str], add) -> None:
+    """Constraints that combine (the improvement plan's Phase 8, checks.py), each executed when a passing service
+    asserts a violation of a constraint that uses it -- a constraint's own service (CK_<Constraint>) -- or, for the
+    fetch forms, a passing service of that form."""
+    live = {s.short for s in specs if s.name not in quarantined and s.name.startswith(("stress::CK", "stress::CKU"))}
+
+    def of(*constraints):
+        return sorted(n for n in ("CK_" + k[0].upper() + k[1:] for k in constraints) if n in live)
+
+    add("C8  graphFetchChecked", sorted(n for n in live if n.startswith("CK_")))
+    add("C8  constraint over dates", of("settleNotBeforeTrade", "cancelAfterTrade", "maturityAfterSettle",
+                                        "activeDeskOpened", "linesBeforeClose", "settledWithinWeek"))
+    add("C8  constraint over an enumeration", of("cancelledHasDate", "forwardMatures", "settledWithinWeek",
+                                                 "swapHasTwoLines", "sideSign"))
+    add("C8  constraint string function", of("deskCodeShape", "regionKnown", "refShape", "ccyUpper",
+                                             "lineOfBasket"))
+    add("C8  constraint exists/forAll", of("hasLiveLine", "linesInCcy", "linesBeforeClose"))
+    add("C8  constraint if", of("forwardMatures", "swapHasTwoLines", "sideSign"))
+    add("C8  constraint navigation", of("euDeskInEur", "lineOfBasket"))
+    add("C8  constraint Warn with a message", of("notionalCap"))
+    add("C8  nested defect path", sorted(n for n in live if n in ("CK_BasketLineDefects", "CK_BasketDeskDefect",
+                                                                  "CK_LineBasketDefects")))
+    add("C8  unchecked fetch of a constrained class", sorted(n for n in live if n.startswith("CKU_")))
+
+
+def _relmap_features(specs, quarantined: set[str], add) -> None:
+    """Relation (`~func`) class mappings (the improvement plan's Phase 6, relmap.py), each executed when a passing
+    relation-mapped service runs against the mapping that holds it -- held here so a change that stops executing one
+    fails the build (the plan's rule 6). The local property is read by the XStore and ModelJoin predicates, so every
+    service over those two mappings reaches it."""
+    import relmap
+
+    live = [s for s in specs if s.name not in quarantined and s.name in relmap.NAMES
+            and getattr(s, "mirrors", None) is not None]
+
+    def over(binding, *roots):
+        return [s.short for s in live if s.mapping == binding[0] and (not roots or s.root in roots)]
+
+    add("R6  relation ~src", over(relmap.SOURCED))
+    add("R6  relation filter", over(relmap.EXECUTED))
+    add("R6  relation group-by", over(relmap.SHAPED, "relmap::RmBookTotal"))
+    add("R6  relation window function", over(relmap.SHAPED, "relmap::RmRanked"))
+    add("R6  relation expression right-hand side", over(relmap.SHAPED, "relmap::RmPriced"))
+    add("R6  relation primary key", over(relmap.KEYED) + over(relmap.KEYED_PAIR))
+    add("R6  relation local property", over(relmap.CROSSED) + over(relmap.JOINED))
+    add("R6  relation embedded", over(relmap.SHAPED, relmap.FILL))
+    add("R6  relation inline embedded", over(relmap.INLINED))
+    add("R6  relation union", over(relmap.UNIONED) + over(relmap.MIXED))
+    add("R6  relation binding transformer", over(relmap.PROFILED))
+    add("R6  relation model join", over(relmap.JOINED))
+    add("R6  relation XStore association", over(relmap.CROSSED))
+
+
+def _m2m_features(specs, quarantined: set[str], add) -> None:
+    """M2M mappings chained over relational sources (the improvement plan's Phase 5, m2m.py), each executed when a
+    passing M2M service reaches the class mapping that holds it -- held here so a change that stops executing one fails
+    the build (the plan's rule 6). The merge has no entry: legend-engine cannot run one over a ModelChainConnection
+    (F86), so no passing service reaches it."""
+    import m2m
+
+    live = [s for s in specs if s.name not in quarantined and getattr(s, "mirrors", None) is not None]
+
+    def over(mapping, *roots):
+        return [s.short for s in live if s.mapping == mapping and s.root in roots]
+
+    views, gaps = m2m.VIEWS[0], m2m.GAP_VIEWS[0]
+    add("M5  M2M chained relational", [s.short for s in live
+                                       if s.mapping in (views, gaps, "canonical::M2MMapping", m2m.GAP_PURE[0])])
+    add("M5  M2M transform", over(views, "m2m::TradeView") + over("canonical::M2MMapping", "canonical::CanonicalTrade"))
+    add("M5  M2M derived source property", over(views, "m2m::TradeRef"))
+    add("M5  M2M enumeration transform", over(gaps, "m2m::DealSide", "m2m::PartyTier", "m2m::DeskLoad"))
+    add("M5  M2M nested set", over(views, "m2m::TradeCard"))
+    add("M5  M2M complex property passthrough", over(gaps, "m2m::TradeLink"))
+    add("M5  M2M target instantiation", over(views, "m2m::TradeStamp"))
+    add("M5  M2M ~filter", over(views, "m2m::OpenTrade", "m2m::UsdDeskTrade"))
+    add("M5  M2M union", over(views, "m2m::Ticket"))
+    add("M5  M2M transform over a to-many", over(views, "m2m::DealActivity"))
+    add("M5  M2M local property", over(m2m.GAP_PURE[0], "surface::GapTgt"))
+
+
+def _unreached_features(c: model.Corpus, specs, quarantined: set[str], add) -> None:
+    """Constructs declared but reached by no service before the improvement plan's Phase 7 (unreached.py), executed
+    when a passing service reaches them -- held here so a change that stops executing one fails the build (the plan's
+    rule 6)."""
+    live = [s for s in specs if s.name not in quarantined]
+
+    add("U1  DenseMapping respelling", [s.short for s in live if s.mapping == "stress::DenseMapping"])
+    # The literal lists (UO_LiteralList*) have no entry: legend-engine cannot execute one (F83), so no passing service
+    # reaches them.
+    add("U2  router union", [s.short for s in live
+                             if s.mapping == "surface::OperationSurface" and s.root == "surface::Op"])
+    add("U3  inheritance dispatch", [s.short for s in live if s.root in c.inheritance_ops])
+    add("U4  merge operation", [s.short for s in live
+                                if s.mapping == "surface::LastSurface" and s.root == "surface::MergeTgt"])
+
+    def profiled(cls):
+        # a stereotype of a profile the corpus declares, not the platform's (temporal., meta::pure::profiles)
+        k = c.classes.get(cls)
+        return k is not None and any("::" in st.split(".")[0] and not st.startswith("meta::")
+                                     for st in k.stereotypes)
+
+    add("U5  corpus profile", [s.short for s in live if any(profiled(k) for k in _spec_touches(c, s)[0])])
+    add("U6  join chain ending in an expression", [s.short for s in live if any(
+        (s.root, p.path[0]) in c.chain_exprs for p in s.projections if p.path)])
+
+    # the join conditions surface::JoinDB declared and nothing followed (70-surface-store2.pure), each followed by a
+    # passing service; its null tests and its hop into an included store were already met elsewhere (Combo_Or,
+    # Book_Rollup), so only the operators no executed join had are entries
+    followed = set()
+    for s in live:
+        followed |= _spec_joins(c, s, _spec_touches(c, s)[0])
+
+    def nodes(node):
+        tag, body = node
+        if tag in ("and", "or"):
+            return [node] + nodes(body[0]) + nodes(body[1])
+        return [node]
+
+    def joins_with(pred):
+        return sorted(n for n in followed if c.joins[n].condition is not None
+                      and any(pred(x) for x in nodes(c.joins[n].condition)))
+
+    add("U7  join not-equal", joins_with(lambda x: x[0] == "cmp" and x[1][1] in ("!=", "<>")))
+    add("U8  join numeric constant", joins_with(lambda x: x[0] == "cmp" and any(
+        o[0] == "lit" and isinstance(o[1], (int, float)) for o in (x[1][0], x[1][2]))))
+    # 2026-11-01, the improvement plan's EMIT target: EMIT's relational-polymorphic-query, a subType() downcast over a
+    # class the inheritance operation dispatches (unreached.downcasts)
+    add("U9  polymorphic query (subType over inheritance)", [
+        s.short for s in live if s.root in c.inheritance_ops
+        and any(getattr(p, "subtype", None) for p in s.projections)])
+
+
+def _vocabulary_features(specs, quarantined: set[str], add) -> None:
+    """Platform functions applied in a query (the improvement plan's Phase 4, vocab.py), executed when a passing
+    service carries them -- held here so a change that stops executing one fails the build (the plan's rule 6)."""
+    live = [s for s in specs if s.name not in quarantined]
+
+    def applied(s):
+        return ([p.apply for p in s.projections if isinstance(getattr(p, "apply", None), query.Apply)],
+                [a.apply for a in query.atoms(s.filters) if isinstance(getattr(a, "apply", None), query.Apply)])
+
+    add("Q4  function in a projection", [s.short for s in live if applied(s)[0]])
+    add("Q4  function in a filter", [s.short for s in live if applied(s)[1]])
+    add("Q4  function through map", [s.short for s in live
+                                     if any(a.through_map for a in applied(s)[0] + applied(s)[1])])
+    add("Q4  function chain", [s.short for s in live
+                               if any(len(a.steps) > 1 for a in applied(s)[0] + applied(s)[1])])
+
+    # stage 3: platform aggregates in a groupBy (query.Agg)
+    def aggs(s):
+        return [a for a in s.aggs if isinstance(a, query.Agg)]
+
+    add("Q4  aggregate in a groupBy", [s.short for s in live if aggs(s)])
+    add("Q4  aggregate with arguments", [s.short for s in live if any(a.args for a in aggs(s))])
+    add("Q4  aggregate over pairs", [s.short for s in live if any(a.pair for a in aggs(s))])
+    add("Q4  aggregate then a function", [s.short for s in live if any(a.then for a in aggs(s))])
+
+    # stage 4: relation and TDS operations after the projection (query.Spec.relation)
+    def ops(s, *kinds):
+        return [o for o in s.relation if isinstance(o, kinds)]
+
+    for name, kinds, paradigm in (
+            ("Q4  relation extend", (query.Extend,), "relation"), ("Q4  relation window", (query.Window,), "relation"),
+            ("Q4  relation join", (query.Join,), "relation"), ("Q4  relation concatenate", (query.Concatenate,),
+                                                                 "relation"),
+            ("Q4  relation rename/select/distinct", (query.Rename, query.Select, query.Distinct), "relation"),
+            ("Q4  relation ordinal", (query.Cut,), "relation"), ("Q4  TDS extend", (query.Extend,), "tds"),
+            ("Q4  TDS olapGroupBy", (query.Window,), "tds"), ("Q4  TDS join", (query.Join,), "tds"),
+            ("Q4  TDS restrict/rename/distinct", (query.Rename, query.Select, query.Distinct), "tds"),
+            ("Q4  TDS ordinal", (query.Cut,), "tds")):
+        add(name, [s.short for s in live if s.paradigm == paradigm and ops(s, *kinds)])
+
+    # stage 5: control flow in a query
+    add("Q4  if", [s.short for s in live if any(isinstance(getattr(p, "apply", None), query.If) for p in s.projections)])
+    add("Q4  let", [s.short for s in live if s.lets])
+    add("Q4  exists over a to-many", [s.short for s in live if any(a.op == "exists" for a in query.atoms(s.filters))])
+
+    # stage 6: the last PCT names (a function over a list of the value, a function as an argument, another row of a
+    # window)
+    def steps(s):
+        return [st for a in applied(s)[0] + applied(s)[1] for st in a.steps]
+
+    add("Q4  function over a list", [s.short for s in live if any(fn in ("greatest", "least") for fn, _a in steps(s))])
+    add("Q4  function as an argument", [s.short for s in live
+                                        if any(isinstance(x, query.Nullary) for _fn, args in steps(s) for x in args)])
+    add("Q4  relation window offset", [s.short for s in live if any(o.read for o in ops(s, query.Window))])
+
+
+def _query_features(specs, quarantined: set[str], add) -> None:
+    """A query's typed constants, predicate trees and parameters (the improvement plan's Phase 1,
+    literals.py), executed when a passing service carries them -- held here so a change that
+    stops executing one fails the build (the plan's rule 6)."""
+    import decimal
+
+    live = [s for s in specs if s.name not in quarantined]
+
+    def lit(test):
+        def hit(s):
+            for a in query.atoms(getattr(s, "filters", [])):
+                vals = a.value if isinstance(a.value, list) else [a.value]
+                if any(test(v) for v in vals):
+                    return True
+            return False
+        return [s.short for s in live if hit(s)]
+
+    def tree(kind):
+        def has(fs):
+            return any(isinstance(f, kind) or has(getattr(f, "items", None)
+                                                  or ([f.item] if isinstance(f, query.Not) else []))
+                       for f in fs or [])
+        return [s.short for s in live if has(getattr(s, "filters", []))]
+
+    for mult in ("1", "0..1", "*"):
+        add(f"Q1  parameter [{mult}]",
+            [s.short for s in live if any(m == mult for _n, _t, m in getattr(s, "params", []))])
+    add("Q1  Decimal literal", lit(lambda v: isinstance(v, decimal.Decimal)))
+    add("Q1  DateTime literal", lit(lambda v: isinstance(v, query.DateTimeArg)))
+    add("Q1  enumeration literal", lit(lambda v: isinstance(v, query.EnumArg)))
+    add("Q1  filter or", tree(query.Or))
+    add("Q1  filter not", tree(query.Not))
+    add("Q1  filter in", [s.short for s in live
+                          if any(a.op == "in" for a in query.atoms(getattr(s, "filters", [])))])
+
+
+def _milestoning_features(c: model.Corpus, specs, quarantined: set[str], add) -> None:
+    """Milestoning at time of day (the improvement plan's Phase 3, intraday.py), executed when a
+    passing service carries it -- held here so a change that stops executing one fails the build
+    (the plan's rule 6)."""
+    live = [s for s in specs if s.name not in quarantined]
+
+    def temporal(cls):
+        k = c.classes.get(cls)
+        return k.temporal if k else None
+
+    def steps(s):
+        paths = [p.path for p in s.projections] + [a.path for a in query.atoms(s.filters)]
+
+        def keys(tree):
+            return [k for k, v in (tree or {}).items()] + [x for v in (tree or {}).values()
+                                                           if isinstance(v, dict) for x in keys(v)]
+        return [st for path in paths for st in path] + keys(s.graph)
+
+    def root_dates(s):
+        dates = s.as_of if isinstance(s.as_of, list) else [s.as_of]
+        v = s.versions
+        return [d for d in dates + ([v.start, v.end] if v is not None else []) if d is not None]
+
+    def hop_dates(s):
+        return [d for st in steps(s) if isinstance(st, query.Hop) for d in (st.dates or ())]
+
+    def propagates(s):
+        """A temporal root read at a date, navigating into a temporal class with no date of its own."""
+        if temporal(s.root) is None or s.as_of is None or s.versions is not None:
+            return False
+        for path in [p.path for p in s.projections] + [[k] for k in (s.graph or {})]:
+            end = c.ends.get((s.root, path[0])) if path else None
+            if end is not None and temporal(end.target) and not isinstance(path[0], query.Hop):
+                return True
+        return False
+
+    def hit(pred):
+        return [s.short for s in live if pred(s)]
+
+    add("M3  processing-temporal root", hit(lambda s: temporal(s.root) == "processingtemporal"))
+    add("M3  DateTime milestoning date",
+        hit(lambda s: any(isinstance(d, query.DateTimeArg) for d in root_dates(s) + hop_dates(s))))
+    add("M3  milestoning date parameter",
+        hit(lambda s: any(isinstance(d, query.Param) for d in root_dates(s) + hop_dates(s))))
+    add("M3  allVersions", hit(lambda s: s.versions is not None and s.versions.start is None))
+    add("M3  allVersionsInRange", hit(lambda s: s.versions is not None
+                                      and s.versions.start is not None))
+    add("M3  dated navigation", hit(lambda s: any(isinstance(st, query.Hop) and st.dates
+                                                  and st.versions is None for st in steps(s))))
+    add("M3  milestoning date from the row",
+        hit(lambda s: any(isinstance(d, query.PathArg) for d in hop_dates(s))))
+    add("M3  navigation AllVersions", hit(lambda s: any(isinstance(st, query.Hop) and st.versions
+                                                        for st in steps(s))))
+    add("M3  date propagation", hit(propagates))
 
 
 def _has_chain(dyn) -> bool:
@@ -396,6 +741,7 @@ def base_specs(c: model.Corpus):
     import combos
     import graphs
     import hier
+    import literals
     import query
     import stacks
     import taxonomy
@@ -404,8 +750,8 @@ def base_specs(c: model.Corpus):
     if id(c) in _BASE_SPECS:
         return _BASE_SPECS[id(c)]
     tables = flat.all_tables(c)
-    seeded = {k for k, v in tables.items() if v}
-    _BASE_SPECS[id(c)] = (query.load() + list(battery.SPECS) + stacks.build(c, seeded)
+    seeded = literals.walked(tables)
+    _BASE_SPECS[id(c)] = (query.load() + list(battery.SPECS) + stacks.build(c, seeded, tables)
             + graphs.build(c, seeded, tables) + aggregates.build(c, seeded, tables)
             + hier.specs(c) + combos.specs(c)
             + tomany.build(c, seeded, tables)
@@ -416,14 +762,27 @@ def base_specs(c: model.Corpus):
 def all_specs(c: model.Corpus):
     """Every spec the corpus emits, from every generator."""
     import flat
+    import intraday
+    import literals
     import spread
+    import unreached
+    import vocab
 
     import features
 
     base = base_specs(c)
     tables = flat.all_tables(c)
-    seeded = {k for k, v in tables.items() if v}
-    return base + spread.build(c, seeded, base) + features.build()
+    seeded = literals.walked(tables)
+    # The typed and intraday services after spread's, which must not see them: spread measures what
+    # the walking generators leave uncovered (literals.FIXTURE_TABLES says why the packs are apart).
+    # The trader features last, outside spread's baseline (features.py).
+    import checks
+    import outer
+    import semi
+
+    return (base + spread.build(c, seeded, base) + literals.build() + intraday.build()
+            + vocab.build(c, tables) + unreached.build(c, tables) + checks.specs(c) + semi.specs(c)
+            + outer.specs(c) + features.build())
 
 
 # Every taxonomy feature that a service can execute, all of them with a passing one today.
@@ -443,6 +802,75 @@ BASELINE = {
     "D3  multi-column join", "D4  join w/ dynafunction", "D5  self-join {target}",
     "D6  Filter", "D7  View", "D8  Schema", "E2  Pure/M2M ~src", "E3  XStore",
     "E4  AggregationAware", "E5  Relation ~func", "E6  Operation union",
+    # 2026-10-23, the improvement plan's Phase 1 (literals.py): typed constants, predicate trees
+    # and parameters, each executed by passing services on legend-engine 4.145.0.
+    "Q1  parameter [1]", "Q1  parameter [0..1]", "Q1  parameter [*]", "Q1  Decimal literal",
+    "Q1  DateTime literal", "Q1  enumeration literal", "Q1  filter or", "Q1  filter not",
+    "Q1  filter in",
+    # 2026-10-28, the improvement plan's Phase 3 (intraday.py): milestoning at time of day, each
+    # executed by passing services on legend-engine 4.145.0.
+    "M3  processing-temporal root", "M3  DateTime milestoning date",
+    "M3  milestoning date parameter", "M3  allVersions", "M3  allVersionsInRange",
+    "M3  dated navigation", "M3  milestoning date from the row", "M3  navigation AllVersions",
+    "M3  date propagation",
+    # 2026-10-28, the improvement plan's Phase 4, stage 2 (vocab.py): platform functions applied in a query, each
+    # executed by passing services on legend-engine 4.145.0.
+    "Q4  function in a projection", "Q4  function in a filter", "Q4  function through map",
+    "Q4  function chain",
+    # 2026-10-28, the improvement plan's Phase 4, stage 3 (vocab.py): platform aggregates in a groupBy, each executed
+    # by passing services on legend-engine 4.145.0.
+    "Q4  aggregate in a groupBy", "Q4  aggregate with arguments", "Q4  aggregate over pairs",
+    "Q4  aggregate then a function",
+    # 2026-10-29, the improvement plan's Phase 4, stage 4 (vocab.py): relation and TDS operations after the
+    # projection, each executed by passing services on legend-engine 4.145.0.
+    "Q4  relation extend", "Q4  relation window", "Q4  relation join", "Q4  relation concatenate",
+    "Q4  relation rename/select/distinct", "Q4  relation ordinal", "Q4  TDS extend", "Q4  TDS olapGroupBy",
+    "Q4  TDS join", "Q4  TDS restrict/rename/distinct", "Q4  TDS ordinal",
+    # 2026-10-29, the improvement plan's Phase 4, stage 5 (vocab.py): control flow in a query, each executed by
+    # passing services on legend-engine 4.145.0.
+    "Q4  if", "Q4  let", "Q4  exists over a to-many",
+    # 2026-10-29, the improvement plan's Phase 4, stage 6 (vocab.py): the last PCT names, each executed by passing
+    # services on legend-engine 4.145.0.
+    "Q4  function over a list", "Q4  function as an argument", "Q4  relation window offset",
+    # 2026-10-29, the improvement plan's Phase 7 (unreached.py): constructs declared but reached by no service, each
+    # executed by passing services on legend-engine 4.145.0.
+    "U1  DenseMapping respelling", "U2  router union", "U3  inheritance dispatch", "U4  merge operation",
+    "U5  corpus profile", "U6  join chain ending in an expression", "U7  join not-equal", "U8  join numeric constant",
+    # 2026-10-30, the improvement plan's Phase 5 (m2m.py): M2M mappings chained over relational sources, each executed
+    # by passing services on legend-engine 4.145.0.
+    "M5  M2M chained relational", "M5  M2M transform", "M5  M2M derived source property",
+    "M5  M2M enumeration transform", "M5  M2M nested set", "M5  M2M complex property passthrough",
+    "M5  M2M target instantiation", "M5  M2M ~filter", "M5  M2M union", "M5  M2M transform over a to-many",
+    "M5  M2M local property",
+    # 2026-10-30, the improvement plan's Phase 6 (relmap.py): relation (~func) class mappings, each executed by passing
+    # services on legend-engine 4.145.0.
+    "R6  relation ~src", "R6  relation filter", "R6  relation group-by", "R6  relation window function",
+    "R6  relation expression right-hand side", "R6  relation primary key", "R6  relation local property",
+    "R6  relation embedded", "R6  relation inline embedded", "R6  relation union", "R6  relation binding transformer",
+    "R6  relation model join", "R6  relation XStore association",
+    # 2026-10-31, the improvement plan's Phase 8, stage 1 (checks.py): constraints that combine, checked by graph
+    # fetches, each executed by passing services on legend-engine 4.145.0.
+    "C8  graphFetchChecked", "C8  constraint over dates", "C8  constraint over an enumeration",
+    "C8  constraint string function", "C8  constraint exists/forAll", "C8  constraint if",
+    "C8  constraint navigation", "C8  constraint Warn with a message", "C8  nested defect path",
+    "C8  unchecked fetch of a constrained class",
+    # 2026-10-31, the improvement plan's Phase 8, stage 2 (mapping_tests.py): a mapping's test suites, each mirroring a
+    # service, passing on legend-engine 4.145.0.
+    "T8  mapping test suite",
+    # 2026-10-31, the improvement plan's Phase 8, stage 3 (shapes.py): a second test of a service's suite, holding two
+    # assertions, one an EqualTo, passing on legend-engine 4.145.0.
+    "T8  several tests in a suite", "T8  several assertions in a test", "T8  EqualTo assertion",
+    # 2026-10-31, the improvement plan's Phase 9, stage 1 (semi.py): semi-structured documents, each form executed by
+    # passing services on legend-engine 4.145.0, on H2 and on DuckDB (the wildcard path and the array functions on
+    # DuckDB alone, which the pin's H2 cannot plan).
+    "S9  semi-structured navigation", "S9  semi-structured array index", "S9  semi-structured quoted key",
+    "S9  semi-structured filter", "S9  semi-structured store filter", "S9  Binding over a semi-structured column",
+    "S9  semi-structured flatten", "S9  semi-structured explode", "S9  semi-structured wildcard path",
+    "S9  semi-structured array function",
+    # 2026-10-31, the improvement plan's Phase 9, stage 2 (outer.py): explicit join types in a mapping's join chains,
+    # each executed by passing services on legend-engine 4.145.0, on H2 and on DuckDB.
+    "O9  typed hop in a property chain", "O9  ~filter through an OUTER join", "O9  ~filter through an INNER join",
+    "O9  ~filter through an untyped join",
 }
 
 

@@ -29,8 +29,9 @@ exports_files(
 js_library(
     name = "src",
     srcs = glob(["src/**/*.ts", "src/**/*.css"]) + ["package.json", "tsconfig.json"],
-    # Studio embeds the query builder (src/embed.ts, plan A5), as upstream Studio embeds legend-query-builder
-    visibility = ["//studio:__pkg__"],
+    # Studio embeds the query builder (src/embed.ts, plan A5), as upstream Studio embeds legend-query-builder; DataCube's
+    # census of the brand's casts reads Query's program (datacube/test/brand-casts.test.ts, the re-audit's S5)
+    visibility = ["//datacube:__pkg__", "//studio:__pkg__"],
     deps = [
         # projects opened by name: the model home (the page's SDLC and Depot, or servers) and its Depot (by-name.ts)
         "//depot-client:depot_client",
@@ -172,7 +173,6 @@ filegroup(
         "demo/*.json",
         "demo/*.css",
         "demo/models/*.pure",
-        "demo/models/*.sql",
         # the versions each config's model home releases (docs/ONE_CONNECTION_DESK_2026_10_28.md D5): an index each,
         # naming the models beside them
         "demo/releases*/index.json",

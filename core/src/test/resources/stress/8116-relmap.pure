@@ -1,0 +1,554 @@
+// ============================================================
+// The relation-mapping pack (the improvement plan's Phase 6): relation (`~func`) class mappings
+// ============================================================
+// Relation class mappings over tables that already have seed rows: store::DB's TRADE and BOOK (stress::TestData) and
+// hier::IssuerDB's HIER_ISSUER (hier::IssuerData), so lite's runner provisions every test. One or more per feature of
+// EMIT's relation-mapping taxonomy: `~src`, a filter, a group-by and a window function in the source relation,
+// expression right-hand sides, a primary key, a local property, embedded and inline embedded, a union (of two
+// relation sets, and of a relation set and a relational one), a binding transformer, a model join and an XStore
+// association.
+//
+// Expected results come by INVARIANCE (scripts/corpus/relmap.py): the same classes are mapped relationally over the
+// same tables in relmap::Twins (and hier::Issuer in hier::IssuerMapping), and each relation-mapped service must
+// return what its twin does -- the twin reading the same rows in SQL, with the source relation's filter, group-by,
+// window or expression written in the query. The oracle evaluates only the twin; the window's is evaluated through
+// its RELATION_IMPL. The relation mappings are skipped by scripts/corpus/model.py, as modeljoin::JoinMapping is.
+//
+// Each shape here was probed on the pinned release (4.145.0) before its services were written. Every one runs as a
+// projection. None runs as a graph fetch ("Cast exception: RelationFunctionInstanceSetImplementation", or "Relation
+// function for set ... in mapping"), which the plan's D3 leaves for the bump. A relation-API projection over the
+// group-by fails on DuckDB ("GROUP BY term out of range"), and a TDS projection of it runs, so the group-by's
+// services are TDS ones and the relation-API one is quarantined (F88, scripts/corpus/quarantine.py).
+//
+// A `~func` names its function by the short descriptor, `():Relation<Any>[1]`, with the mapping section's imports:
+// legend-pure allows no package path in a descriptor's types (IN_FLIGHT, 2026-10-11). The `~src` form takes the
+// function's call, typed by its cast, since a raw `#>{...}#` under `~src` overflows the engine's parser (EMIT's
+// relation-src model). A relation property mapping's multiplicity must hold the column's: a nullable column maps to
+// an optional property.
+###Pure
+Class relmap::RmDeal
+{
+    dealId: String[1];
+    bookId: String[0..1];
+    qty: Float[0..1];
+    px: Float[0..1];
+    notional: Float[1];
+    status: String[1];
+    tradeType: String[0..1];
+    currency: String[0..1];
+    tradeDate: StrictDate[0..1];
+    fees: Float[0..1];
+
+    // Read by the twin of relmap::RmPriced's `ref`, which a relation mapping computes from two columns.
+    ref() { $this.dealId + ':' + $this.status }: String[1];
+}
+
+Class relmap::RmDesk
+{
+    bookId: String[1];
+    name: String[1];
+    currency: String[1];
+    strategy: String[0..1];
+    active: Boolean[0..1];
+}
+
+// A deal's book: an XStore association in relmap::Crossed, a ModelJoin in relmap::Joined, both over a local property
+// of the deal's set, and the store's Trade_Book join in relmap::Twins.
+Association relmap::RmDealDesk
+{
+    desk: relmap::RmDesk[0..1];
+    deals: relmap::RmDeal[*];
+}
+
+// Embedded in relmap::RmFill: its values live on the deal's own row.
+Class relmap::RmTerms
+{
+    qty: Float[0..1];
+    px: Float[0..1];
+    currency: String[0..1];
+}
+
+Class relmap::RmFill
+{
+    dealId: String[1];
+    terms: relmap::RmTerms[0..1];
+}
+
+// A row per book of the source relation's group-by.
+Class relmap::RmBookTotal
+{
+    bookId: String[0..1];
+    total: Float[0..1];
+    dealCount: Integer[1];
+}
+
+// A deal with its rank among its book's notionals, from the source relation's window.
+Class relmap::RmRanked
+{
+    dealId: String[1];
+    bookId: String[0..1];
+    notional: Float[1];
+    rank: Integer[1];
+}
+
+// Properties a relation mapping computes from `$src`: arithmetic, concatenation, a conditional and a function.
+Class relmap::RmPriced
+{
+    dealId: String[1];
+    doubled: Float[1];
+    ref: String[1];
+    band: String[1];
+    statusLower: String[1];
+}
+
+// ---- the source relations
+
+// TRADE as it is. A relation mapping binds a property to one of its columns by name.
+function relmap::deals(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+    #>{store::DB.TRADE}#
+}
+
+// The `~src` form's source: TRADE's columns the deal maps, typed by a cast.
+function relmap::dealRows(): meta::pure::metamodel::relation::Relation<(TRADE_ID:String[1], BOOK_ID:String[0..1], QUANTITY:Float[0..1], PRICE:Float[0..1], NOTIONAL:Float[1], STATUS:String[1], TRADE_TYPE:String[0..1], CURRENCY:String[0..1], TRADE_DATE:StrictDate[0..1], FEES:Float[0..1])>[1]
+{
+    #>{store::DB.TRADE}#
+        ->select(~[TRADE_ID, BOOK_ID, QUANTITY, PRICE, NOTIONAL, STATUS, TRADE_TYPE, CURRENCY, TRADE_DATE, FEES])
+        ->cast(@meta::pure::metamodel::relation::Relation<(TRADE_ID:String[1], BOOK_ID:String[0..1], QUANTITY:Float[0..1], PRICE:Float[0..1], NOTIONAL:Float[1], STATUS:String[1], TRADE_TYPE:String[0..1], CURRENCY:String[0..1], TRADE_DATE:StrictDate[0..1], FEES:Float[0..1])>)
+}
+
+// A filter in the source relation: TRD-0009's status is written `EXECUTE`, and is not kept.
+function relmap::executedDeals(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+    #>{store::DB.TRADE}#->filter(r | $r.STATUS == 'EXECUTED')
+}
+
+// The two sides of the union: disjoint, no principal trade being booked in BK-VOL-01.
+function relmap::principalDeals(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+    #>{store::DB.TRADE}#->filter(r | $r.TRADE_TYPE == 'PRINCIPAL')
+}
+
+function relmap::volDeals(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+    #>{store::DB.TRADE}#->filter(r | $r.BOOK_ID == 'BK-VOL-01')
+}
+
+// A group-by in the source relation: each book's total notional and its deals.
+function relmap::bookTotals(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+    #>{store::DB.TRADE}#
+        ->groupBy(~[BOOK_ID], ~[TOTAL: x | $x.NOTIONAL : y | $y->sum(), DEAL_COUNT: x | $x.TRADE_ID : y | $y->count()])
+}
+
+// A window in the source relation: each deal's rank by notional, largest first, within its book. Three of
+// BK-CASH-US's deals share a notional of 250,000, so the rank has a tie to keep.
+function relmap::rankedDeals(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+    #>{store::DB.TRADE}#
+        ->extend(over(~BOOK_ID, ~NOTIONAL->descending()), ~[RANK: {p, w, r | $p->rank($w, $r)}])
+}
+
+function relmap::books(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+    #>{store::DB.BOOK}#
+}
+
+function relmap::issuers(): meta::pure::metamodel::relation::Relation<meta::pure::metamodel::type::Any>[1]
+{
+    #>{hier::IssuerDB.HIER_ISSUER}#
+}
+
+###Mapping
+import meta::pure::metamodel::relation::*;
+import meta::pure::metamodel::type::*;
+
+// ---- the twins: the same classes, relationally, over the same tables
+Mapping relmap::Twins
+(
+    *relmap::RmDeal[twinDeal]: Relational
+    {
+        ~mainTable [store::DB] TRADE
+        dealId: [store::DB] TRADE.TRADE_ID,
+        bookId: [store::DB] TRADE.BOOK_ID,
+        qty: [store::DB] TRADE.QUANTITY,
+        px: [store::DB] TRADE.PRICE,
+        notional: [store::DB] TRADE.NOTIONAL,
+        status: [store::DB] TRADE.STATUS,
+        tradeType: [store::DB] TRADE.TRADE_TYPE,
+        currency: [store::DB] TRADE.CURRENCY,
+        tradeDate: [store::DB] TRADE.TRADE_DATE,
+        fees: [store::DB] TRADE.FEES
+    }
+
+    *relmap::RmDesk[twinDesk]: Relational
+    {
+        ~mainTable [store::DB] BOOK
+        bookId: [store::DB] BOOK.BOOK_ID,
+        name: [store::DB] BOOK.NAME,
+        currency: [store::DB] BOOK.CURRENCY,
+        strategy: [store::DB] BOOK.STRATEGY,
+        active: [store::DB] BOOK.IS_ACTIVE
+    }
+
+    *relmap::RmFill[twinFill]: Relational
+    {
+        ~mainTable [store::DB] TRADE
+        dealId: [store::DB] TRADE.TRADE_ID,
+        terms
+        (
+            qty: [store::DB] TRADE.QUANTITY,
+            px: [store::DB] TRADE.PRICE,
+            currency: [store::DB] TRADE.CURRENCY
+        )
+    }
+
+    relmap::RmDealDesk: Relational
+    {
+        AssociationMapping
+        (
+            desk[twinDeal, twinDesk]: [store::DB]@Trade_Book,
+            deals[twinDesk, twinDeal]: [store::DB]@Trade_Book
+        )
+    }
+)
+
+// ---- ~src: the source as an expression, a call of a typed relation function
+Mapping relmap::Sourced
+(
+    *relmap::RmDeal: Relation
+    {
+        ~src relmap::dealRows()
+        dealId: TRADE_ID,
+        bookId: BOOK_ID,
+        qty: QUANTITY,
+        px: PRICE,
+        notional: NOTIONAL,
+        status: STATUS,
+        tradeType: TRADE_TYPE,
+        currency: CURRENCY,
+        tradeDate: TRADE_DATE,
+        fees: FEES
+    }
+)
+
+// ---- a filter in the source relation
+Mapping relmap::Executed
+(
+    *relmap::RmDeal: Relation
+    {
+        ~func relmap::executedDeals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        bookId: BOOK_ID,
+        qty: QUANTITY,
+        px: PRICE,
+        notional: NOTIONAL,
+        status: STATUS,
+        tradeType: TRADE_TYPE,
+        currency: CURRENCY,
+        tradeDate: TRADE_DATE,
+        fees: FEES
+    }
+)
+
+// ---- a primary key, single and composite
+Mapping relmap::Keyed
+(
+    *relmap::RmDeal: Relation
+    {
+        ~func relmap::deals():Relation<Any>[1]
+        ~primaryKey: TRADE_ID
+        dealId: TRADE_ID,
+        bookId: BOOK_ID,
+        qty: QUANTITY,
+        px: PRICE,
+        notional: NOTIONAL,
+        status: STATUS,
+        tradeType: TRADE_TYPE,
+        currency: CURRENCY,
+        tradeDate: TRADE_DATE,
+        fees: FEES
+    }
+)
+
+Mapping relmap::KeyedPair
+(
+    *relmap::RmDeal: Relation
+    {
+        ~func relmap::deals():Relation<Any>[1]
+        ~primaryKey: [BOOK_ID, TRADE_ID]
+        dealId: TRADE_ID,
+        bookId: BOOK_ID,
+        qty: QUANTITY,
+        px: PRICE,
+        notional: NOTIONAL,
+        status: STATUS,
+        tradeType: TRADE_TYPE,
+        currency: CURRENCY,
+        tradeDate: TRADE_DATE,
+        fees: FEES
+    }
+)
+
+// ---- a union of two relation sets
+Mapping relmap::Unioned
+(
+    *relmap::RmDeal: Operation
+    {
+        meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(principalSet, volSet)
+    }
+
+    relmap::RmDeal[principalSet]: Relation
+    {
+        ~func relmap::principalDeals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        bookId: BOOK_ID,
+        notional: NOTIONAL,
+        status: STATUS,
+        tradeType: TRADE_TYPE
+    }
+
+    relmap::RmDeal[volSet]: Relation
+    {
+        ~func relmap::volDeals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        bookId: BOOK_ID,
+        notional: NOTIONAL,
+        status: STATUS,
+        tradeType: TRADE_TYPE
+    }
+)
+
+// ---- a union of a relation set and a relational one: the principal deals, then every deal again
+Mapping relmap::MixedUnion
+(
+    *relmap::RmDeal: Operation
+    {
+        meta::pure::router::operations::union_OperationSetImplementation_1__SetImplementation_MANY_(relationSet, relationalSet)
+    }
+
+    relmap::RmDeal[relationSet]: Relation
+    {
+        ~func relmap::principalDeals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        notional: NOTIONAL,
+        status: STATUS
+    }
+
+    relmap::RmDeal[relationalSet]: Relational
+    {
+        ~mainTable [store::DB] TRADE
+        dealId: [store::DB] TRADE.TRADE_ID,
+        notional: [store::DB] TRADE.NOTIONAL,
+        status: [store::DB] TRADE.STATUS
+    }
+)
+
+// ---- a local property, and an XStore association over it
+Mapping relmap::Crossed
+(
+    *relmap::RmDeal[xDeal]: Relation
+    {
+        ~func relmap::deals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        notional: NOTIONAL,
+        status: STATUS,
+        +bookRef: String[0..1]: BOOK_ID
+    }
+
+    *relmap::RmDesk[xDesk]: Relation
+    {
+        ~func relmap::books():Relation<Any>[1]
+        bookId: BOOK_ID,
+        name: NAME,
+        currency: CURRENCY,
+        strategy: STRATEGY
+    }
+
+    relmap::RmDealDesk: XStore
+    {
+        desk[xDeal, xDesk]: $this.bookRef == $that.bookId,
+        deals[xDesk, xDeal]: $this.bookId == $that.bookRef
+    }
+)
+
+// ---- a ModelJoin over the same local property
+Mapping relmap::Joined
+(
+    *relmap::RmDeal[mDeal]: Relation
+    {
+        ~func relmap::deals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        notional: NOTIONAL,
+        status: STATUS,
+        +bookRef: String[0..1]: BOOK_ID
+    }
+
+    *relmap::RmDesk[mDesk]: Relation
+    {
+        ~func relmap::books():Relation<Any>[1]
+        bookId: BOOK_ID,
+        name: NAME,
+        currency: CURRENCY,
+        strategy: STRATEGY
+    }
+
+    relmap::RmDealDesk: ModelJoin
+    {
+        {desk: relmap::RmDesk[1], deals: relmap::RmDeal[1] | $desk.bookId == $deals.bookRef}
+    }
+)
+
+// ---- the source relation's group-by and window, expression right-hand sides, and an embedded property
+Mapping relmap::Shaped
+(
+    *relmap::RmBookTotal: Relation
+    {
+        ~func relmap::bookTotals():Relation<Any>[1]
+        bookId: BOOK_ID,
+        total: TOTAL,
+        dealCount: DEAL_COUNT
+    }
+
+    *relmap::RmRanked: Relation
+    {
+        ~func relmap::rankedDeals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        bookId: BOOK_ID,
+        notional: NOTIONAL,
+        rank: RANK
+    }
+
+    *relmap::RmPriced: Relation
+    {
+        ~func relmap::deals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        doubled: $src.NOTIONAL->toOne() * 2.0,
+        ref: $src.TRADE_ID->toOne() + ':' + $src.STATUS->toOne(),
+        band: if($src.NOTIONAL->toOne() > 300000.0, |'large', |'small'),
+        statusLower: $src.STATUS->toOne()->toLower()
+    }
+
+    *relmap::RmFill: Relation
+    {
+        ~func relmap::deals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        terms
+        (
+            qty: QUANTITY,
+            px: PRICE,
+            currency: CURRENCY
+        )
+    }
+)
+
+// ---- inline embedded: the deal's terms through a set of their own over the same relation
+Mapping relmap::Inlined
+(
+    *relmap::RmFill[inFill]: Relation
+    {
+        ~func relmap::deals():Relation<Any>[1]
+        dealId: TRADE_ID,
+        terms () Inline [inTerms]
+    }
+
+    *relmap::RmTerms[inTerms]: Relation
+    {
+        ~func relmap::deals():Relation<Any>[1]
+        qty: QUANTITY,
+        px: PRICE,
+        currency: CURRENCY
+    }
+)
+
+// ---- a binding transformer: an issuer's profile read out of its JSON column, as hier::IssuerMapping reads it
+Mapping relmap::Profiled
+(
+    *hier::Issuer: Relation
+    {
+        ~func relmap::issuers():Relation<Any>[1]
+        issuerId: ISSUER_ID,
+        legalName: LEGAL_NAME,
+        profile: Binding hier::ProfileBinding: PROFILE_JSON
+    }
+)
+
+###Runtime
+Runtime relmap::TwinsRT
+{
+    mappings: [ relmap::Twins ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::SourcedRT
+{
+    mappings: [ relmap::Sourced ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::ExecutedRT
+{
+    mappings: [ relmap::Executed ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::KeyedRT
+{
+    mappings: [ relmap::Keyed ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::KeyedPairRT
+{
+    mappings: [ relmap::KeyedPair ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::UnionedRT
+{
+    mappings: [ relmap::Unioned ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::MixedUnionRT
+{
+    mappings: [ relmap::MixedUnion ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::CrossedRT
+{
+    mappings: [ relmap::Crossed ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::JoinedRT
+{
+    mappings: [ relmap::Joined ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::ShapedRT
+{
+    mappings: [ relmap::Shaped ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+Runtime relmap::InlinedRT
+{
+    mappings: [ relmap::Inlined ];
+    connections: [ store::DB: [ environment: store::Conn ] ];
+}
+
+// hier::IssuerDB alone: hier::IssuerRT connects hier::HierDB too, and lite's runner provisions one store
+Runtime relmap::ProfiledRT
+{
+    mappings: [ relmap::Profiled ];
+    connections: [ hier::IssuerDB: [ issuerEnv: hier::HierConn ] ];
+}
+
+Runtime relmap::IssuerTwinRT
+{
+    mappings: [ hier::IssuerMapping ];
+    connections: [ hier::IssuerDB: [ issuerEnv: hier::HierConn ] ];
+}

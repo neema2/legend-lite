@@ -32,7 +32,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
     protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON,
-                 LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT ->
+                 TEMPORAL_TEXT, DECIMAL_TEXT ->
                     super.scalarTypeName(s);
         };
     }
@@ -162,6 +162,10 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             // interleaved joinStrings unit: same infix chain, NEVER
             // spliced into the enclosing '+' chain (its parens pin it)
             case CONCAT_JOIN -> writer.append("(").join(a, " concat ", 0).append(")");
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on legend-engine's DB2 text, so
+            // refused by name (its composite text, which takes it from here, too)
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by"
+                    + " their code points) reached legend-engine's DB2 text, whose binary collation is not measured");
             case TRIM -> a.size() == 1
                     ? writer.append("trim(").expr(a.get(0), 0).append(")")
                     : super.call(writer, c, parentPrec);
@@ -203,7 +207,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
             // program's Phase 1, 2026-10-13: an exhaustive switch, so a new function asks this dialect too)
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
                  DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, UPPER, LOWER,
-                 GREATEST, LEAST, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_EXISTS,
+                 GREATEST, LEAST, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_EXISTS,
                  LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH, SQRT, EXP, LN, LOG10, POW, PI,
                  SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH, CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND,
                  BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT, BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL,
@@ -218,7 +222,7 @@ public class EngineStyleDB2 extends EngineStyleH2 {
                  LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN,
                  LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM,
                  ALL_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, VARIANT_ELEMENTS,
+                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, VARIANT_ELEMENTS,
                  VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
         };
     }

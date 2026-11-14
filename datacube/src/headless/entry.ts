@@ -5,22 +5,26 @@
 import './install-web.ts';
 import './install-url.ts';
 
+import { DATACUBE_LIBRARY } from '../pure-library-text.ts';
 import { REQUEST_KINDS, type PlannerWorker } from '../../../engine-client/src/legend/planner-protocol.ts';
 import { hostCalls, hostDatabase, hostWorker, type HostDatabase } from './host.ts';
 import {
   chartOwnGrid, cubeLeaves, gridAddFilter, gridApply, gridBaseOn, gridChart, gridColumn, gridCube, gridExport,
   gridFilter, gridGesture, gridMeasure, gridModelMeasure, gridOpened, gridPreset, gridRelated, leafCube, gridRelation, gridSetUp, gridSnapPull,
-  gridView, gridFailing, gridOutput, gridPivotValues, gridPure, rowsCube, snapRefused, sourceCube,
+  gridView, gridFailing, gridOutput, gridOutputQuery, gridPivotValues, gridFunction, gridPure, gridRules, gridWriteTable, macroComposed, pureImportSteps, rowsCube, snapRefused, sourceCube,
 } from './grid.ts';
 import { forget, ingest, landed, mount, remoteAccess, tableFor } from './data-in.ts';
 import { modelAssociation, modelClass, modelDataSpace } from './model.ts';
 import { layoutBands, layoutTiles } from './layout.ts';
 import {
-  chartDrill, chartPick, cubeOpensAgain, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageNew, pageOfRecord, pageOpenedLive, pageRead,
+  chartDrill, chartPick, cubeOpensAgain, flowRun, gridCopied, pageGesture, pageNoneOpened, gridSnapped, nameGiven, pageApply, pageFile, pageFilter, pageLinks, pageNew, pageOfRecord, pageOpenedLive, pageRead,
   pageReads, pageRebase, pageRecord, pageSaved, pageSearch, pageWithCube,
 } from './page.ts';
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
-import { timeseriesEdit, timeseriesMade, timeseriesNotes, timeseriesQuery } from './timeseries.ts';
+import {
+  timeseriesAsks, timeseriesCode, timeseriesCurveOrder, timeseriesEdit, timeseriesLineNames, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables,
+  timeseriesTermText, timeseriesWindow,
+} from './timeseries.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
 export { REQUEST_KINDS };
@@ -42,8 +46,16 @@ export {
  *  a pivot's values as its rows hold them now (gridPivotValues: Python's grid.load_pivot_values, a Cross Tab's Load values). */
 export { gridFailing, gridPivotValues };
 /** A flow's Pure box set as its window sets it (gridPure: Python's grid.pure), its page's setPure; a box's Output as the
- *  tab's writes it (gridOutput: Python's flow.run, the one writer). */
-export { gridOutput, gridPure };
+ *  tab's writes it (gridOutput: Python's flow.run, the one writer), and its table Output's rows and write (gridOutputQuery,
+ *  gridWriteTable: the one table writer, FL13). */
+export { gridOutput, gridOutputQuery, gridPure, gridWriteTable };
+/** A Pure box's function taken apart into its steps' texts (pureImportSteps: Python's grid.import_pure, FL12). */
+export { pureImportSteps };
+/** A Dynamic Replace's rules read off a grid's rows as it hands them on (gridRules: Python's grid.dynamic_replace). */
+export { gridRules };
+/** A box's own steps as a function of its input's rows, and a sub-flow's composed (gridFunction, macroComposed: Python's
+ *  page.macro -- a standard macro, macros.ts). */
+export { gridFunction, macroComposed };
 
 /** One condition added to a grid's filter, as a cell's Add Filter adds one (gridAddFilter: Python's grid.add_filter), and
  *  a grid's copy, as Copy of Grid makes it (gridCopied: Python's grid.copy). */
@@ -93,7 +105,7 @@ export { layoutBands, layoutTiles };
  *  record), or as a page file (pageFile: Export ▸ Page File's rule). And a new page as
  *  DataCube starts one: what Python's ll.Page() asks. And a
  *  page edited by commands (page-commands.ts): what Python's page edits send. */
-export { pageApply, pageFile, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
+export { pageApply, pageFile, pageLinks, pageNew, pageOpenedLive, pageRead, pageRecord, pageSaved };
 
 /** The commands between two pages, and between two states of a grid (page-between.ts, grid-between.ts;
  *  docs/DATACUBE_LIVE_EDITING_2026_10_24.md §3): what a page open on Python's undoes by -- the tab's history's own
@@ -110,6 +122,9 @@ export { chartDrill, chartPick };
 /** A gesture on a page, by the one function the screen's gesture calls (pageGesture: Python's chart.grid()'s steps;
  *  docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8). */
 export { pageGesture };
+/** A flow's run as Python runs it: its stages (Block Until Done) and what its Messages say (flowRun: Python's flow.run,
+ *  the canvas's Run's rule). */
+export { flowRun };
 /** A chart's grid shown, as Show Grid shows it: the one it follows, or one of its own grouping made (chartOwnGrid:
  *  Python's chart.grid(); chart-spec.ts chartGrid, the screen's rule). */
 export { chartOwnGrid };
@@ -137,19 +152,46 @@ export { nameGiven };
  *  Join window shows them -- the tab's Join…, with no screen, and its answers for a tab on the host's page (B11). */
 export { joinCube, joinQuestions, joinSides, joinTogether };
 
-/** A timeseries tile's spec as Python tells it, made by DataCube's own rules -- its expressions by DataCube's parser, a
+/** A timeseries tile's spec as Python tells it, made by DataCube's own rules -- its series' #TS texts read by core, a
  *  source's columns by its defaults -- and read by the tile's one reader (timeseriesMade: Python's page.timeseries and
  *  Timeseries's setters; docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7). */
 export { timeseriesMade };
 /** A timeseries tile changed by its one rule (timeseries-edit.ts editTimeseries, which its viewer asks): Python's
  *  Timeseries methods. */
 export { timeseriesEdit };
+/** A term of Python's builder as its #TS text, written by this builder and read by core (B3's Python twin). */
+export { timeseriesTermText };
 /** A timeseries tile's series as its query (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5), over the host's tables, for
  *  the host to plan and run where the rows are: Python's Timeseries.frame. */
 export { timeseriesQuery };
 /** What a series' rows say a reader should know, by the rule the viewer's drawing says them by (timeseries-query.ts
  *  seriesNotes): Python's Timeseries.frame, said as warnings. */
 export { timeseriesNotes };
+/** Every question a timeseries tile asks the database, by the rule its screen's Query window reads (timeseries-query.ts
+ *  tileAsks): Python's Timeseries.queries, each asked of timeseriesQuery as the screen asks it. */
+export { timeseriesAsks };
+/** A timeseries tile as the code that builds it, in Python or TypeScript, by the rule its screen's Code shows it by
+ *  (timeseries-code.ts tileCode): Python's Timeseries.code. */
+export { timeseriesCode };
+/** DataCube's Pure library (pure-library.ts), as its text: the one library Python's engine plans a request over after
+ *  the model it admits (engine.py _with_library). */
+export function pureLibrary(): string {
+  return DATACUBE_LIBRARY;
+}
+/** The series each of a timeseries tile's tables reads, by the rule its screen's tabs read (timeseries-query.ts
+ *  tableSeries): Python's Timeseries.statistics, drawdowns and correlations, each asked of timeseriesQuery with its
+ *  `table`. */
+export { timeseriesTables };
+/** The dates a timeseries tile's tables read over its range, by the rule its screen's window reads (timeseries-query.ts
+ *  rangeWindow): Python's Timeseries tables asked of no dates, each source's bounds asked of timeseriesQuery. */
+export { timeseriesWindow };
+/** Why a level's statistics are blank, by the rule the screen's statistics panel says it by (timeseries-query.ts
+ *  statBlanks): Python's Timeseries.statistics, said as warnings. */
+export { timeseriesStatNotes };
+/** A series' lines named as the screen names them (timeseries-expr.ts splitName): Python's Timeseries.table. */
+export { timeseriesLineNames };
+/** A curve's keys in the order the screen's curve draws them (timeseries-query.ts curveOrder): Python's Timeseries.curve. */
+export { timeseriesCurveOrder };
 /** A timeseries' series of one grid, as the grid reads it (its copy, a class's mapping, the page's filters): Python's
  *  Timeseries.frame of a series of one grid (headless grid.ts gridTimeseries). */
 export { gridTimeseries } from './grid.ts';

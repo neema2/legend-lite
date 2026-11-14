@@ -1,8 +1,9 @@
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.lowering.Lowerer;
@@ -494,11 +495,11 @@ class ResolveNavigationTest {
     @Test
     @DisplayName("AUTO-MAP: class-RESULT map (->map(f|$f.staff->filter(...))) re-roots at the target")
     void autoMapClassResultMapReroots() throws SQLException {
-        var r = Execution.execute(MODEL,
+        var r = Lean.run(MODEL,
                 "{| m::Firm.all()->map(f|$f.staff->filter(e|$e.name != 'Ann'))"
                         + "->map(p|$p.name);}", "m::RT", conn);
         // F6.2: the map-binder channel is a VALUE COLLECTION
-        var c = (com.legend.exec.ExecutionResult.Collection) r;
+        var c = r;
         assertEquals(List.of("Cat"),
                 c.values().stream().map(String::valueOf).sorted().toList());
     }
@@ -520,23 +521,12 @@ class ResolveNavigationTest {
         // the head natives; scalar reads off the binding then evaluate per
         // statement (toOne = the documented pass-through stand-in: a
         // multi-row source surfaces at the value compare, never silently)
-        var r = Execution.execute(MODEL,
+        var r = Lean.run(MODEL,
                 "{| let row = m::Person.all()->filter(p|$p.name == 'Ann')->toOne();\n"
                         + "$row.addr.city;}", "m::RT", conn);
         // F6.2: the map-binder channel is a VALUE COLLECTION (here to-one)
-        switch (r) {
-            case com.legend.exec.ExecutionResult.Scalar sc ->
-                    assertEquals("NYC", sc.value());
-            case com.legend.exec.ExecutionResult.Collection c2 -> {
-                assertEquals(1, c2.values().size());
-                assertEquals("NYC", c2.values().get(0));
-            }
-            default -> {
-                var t = (com.legend.exec.ExecutionResult.Tabular) r;
-                assertEquals(1, t.rows().size());
-                assertEquals("NYC", t.rows().get(0).values().get(0));
-            }
-        }
+        assertEquals(1, r.rows().size());
+        assertEquals("NYC", r.rows().get(0).get(0));
     }
 
     @Test

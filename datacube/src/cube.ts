@@ -8,7 +8,8 @@
 // throws the refusal. What it keeps is the query side's own: the runners,
 // the guard, and the plane (engine-client's snap.ts).
 
-import type { HostOperationsSource } from '../../engine-client/src/host-operations.ts';
+import type { HostOperationsSource, SnapPull } from '../../engine-client/src/host-operations.ts';
+import type { PlanText } from '../../engine-client/src/planned-sql.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { QueryEngine, ResultWindow } from '../../engine-client/src/engine.ts';
@@ -38,6 +39,7 @@ import {
 import { planPivot, typeColumns, type PivotPlan, type SchemaChange } from './plan.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import {
+  countQuery,
   HostSnaps,
   SnapManager,
   type HostFrozen,
@@ -116,6 +118,9 @@ export interface SnapCopy {
   dispose(): void;
 }
 
+/** A #TS query as one statement (Show #TS, D12): the statement, or why it has none in words. */
+export type TsShown = { readonly statement: string; readonly refused?: undefined } | { readonly statement?: undefined; readonly refused: string };
+
 export interface Planner {
   /** A query (a protocol tree, query.ts) in, SQL and the compiler's result type out. */
   plan(query: Lambda, signal?: AbortSignal): Promise<Plan>;
@@ -127,8 +132,14 @@ export interface Planner {
   relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]>;
   /** What a person typed (a source, a calculated column) as its lambda: E1, the compiler's parse. */
   parse(text: string, signal?: AbortSignal): Promise<Lambda>;
+  /** A program that writes planned as an execution plan, PlanJson's text (an Output into a table: table-output.ts);
+   *  absent where the planner plans none (a host that runs a grid's rows itself). */
+  executionPlan?(program: Lambda, signal?: AbortSignal): Promise<PlanText>;
   /** A query as Pure text, for a person to read: E4, the compiler's print (PRETTY unless asked). */
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
+  /** A #TS query over grids as the one statement a person would write (D12, legend-lite's own: legend-engine has no
+   *  #TS, so its planner has none). */
+  tsStatement?(query: Lambda, signal?: AbortSignal): Promise<TsShown>;
   /**
    * Let go of what the planner holds -- its model, compiled once and held while it plans
    * (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9): called by its owner when nothing plans through it any more.
@@ -137,6 +148,9 @@ export interface Planner {
   /** Where its queries are planned from: its model and the runtime they run on -- what a class made of its rows reads
    *  its source from (model-writer.ts). */
   source?(): GridSource;
+  /** A query as the pull a snapshot's stream asks the planner to plan where its rows are (LitePlanner's; the user's
+   *  ruling of 2026-11-12: the request carries the pull, never SQL); absent where the planner gives none. */
+  pullRequest?(query: Lambda): Promise<SnapPull>;
 }
 
 export interface CubeView {
@@ -294,6 +308,7 @@ function recording(runner: QueryRunner, into: Receipt[], plane: PlaneState): Que
     relationType: (query, signal) => runner.relationType(query, signal),
     parse: (text, signal) => runner.parse(text, signal),
     print: (query, style, signal) => runner.print(query, style, signal),
+    ...(runner.tsStatement ? { tsStatement: (query: Lambda, signal?: AbortSignal) => runner.tsStatement!(query, signal) } : {}),
   };
 }
 
@@ -581,6 +596,13 @@ export class CubeController {
   }
 
   /** A query as Pure text for a person to read: the compiler's print (E4). */
+  /** A #TS query over grids as one statement (D12), or why there is none: its runner's planner's, said where it
+   *  has none (legend-engine's). */
+  async tsStatement(query: Lambda, signal?: AbortSignal): Promise<TsShown> {
+    return this.#runner.tsStatement ? this.#runner.tsStatement(query, signal)
+      : { refused: 'this grid\'s planner is legend-engine\'s, which has no #TS' };
+  }
+
   async print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string> {
     return this.#runner.print(query, style, signal);
   }
@@ -814,15 +836,21 @@ export class CubeController {
     if (!target) {
       throw new CubeRefusal('this cube has no store to freeze a snapshot into.');
     }
-    // the PULL is the live plan: it runs where the rows are, in that database's SQL
-    const sourceSql = (await this.#livePlanner.plan(query)).sql;
+    // the PULL, which the planner plans where the rows are, in that database's SQL, in the copy's own plan (a remote
+    // plane's stream, a local copy) -- never its statement handed back (the final audit's item 1, 2026-11-12)
+    const pull = await this.#livePlanner.pullRequest?.(query);
+    if (pull === undefined) throw new CubeRefusal('this cube\u2019s planner gives no pull to copy: it cannot be snapped');
+    // and its rows counted where they are: the live planner's plan of the pull's count
+    const count = await this.#livePlanner.plan(countQuery(query));
 
     // a copy of its own: modelled as it holds the rows once they land, and planned by its own planner from then on
     const copy = target.copy();
     let planner: Planner | undefined;
     try {
-      await this.#snaps.snap(sourceSql, this.#guard.current, {
+      await this.#snaps.snap(this.#guard.current, {
         ...(label !== undefined ? { label } : {}),
+        pull,
+        count,
         target: {
           table: copy.table,
           landed: async () => {
@@ -847,6 +875,29 @@ export class CubeController {
   #letCopyGo(): void {
     this.#copy?.dispose();
     this.#copy = null;
+  }
+
+  /**
+   * ITS COPY HANDED OVER (a flow's cached box closed: docs/DATACUBE_FLOW_MODE_2026_10_24.md FL10): back to live with the
+   * copy's table kept -- the boxes after it read it -- its new owner letting it go by `discard` (its table dropped, then
+   * its name free again). Undefined when it holds no copy of its own in the tab: a host's copy is its host's to keep.
+   */
+  handOver(): { readonly discard: () => Promise<void> } | undefined {
+    if (!(this.#snaps instanceof SnapManager) || this.#snapping !== undefined) return undefined;
+    const held = this.#snaps.detach();
+    if (held === null) return undefined;
+    const copy = this.#copy;
+    this.#copy = null;
+    const snaps = this.#snaps;
+    return {
+      discard: async () => {
+        try {
+          await snaps.discard(held);
+        } finally {
+          copy?.dispose();
+        }
+      },
+    };
   }
 
   /**

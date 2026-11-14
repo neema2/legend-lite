@@ -209,18 +209,25 @@ final class StressOnDeephaven {
                 ValueSpecification parsed = Compiler.parseQuery(query);
                 com.legend.plan.QueryPlan plan = Compiler.queryResolved(on,
                         Compiler.resolveQuery(body(parsed), new ImportScope(List.of()), on)).plan(DESK_RUNTIME + DEEPHAVEN);
-                var answer = com.legend.Execution.executeResolved(
-                        Compiler.resolveQuery(body(parsed), new ImportScope(List.of()), duck), duck,
-                        DESK_RUNTIME + REFERENCE, session);
-                if (!(answer instanceof com.legend.exec.ExecutionResult.Tabular answered)) {
+                // the reference's rows as legend-engine's PURE_TDSOBJECT (objects keyed by column), what the desk's
+                // cases expect: the product's run on the twin, its answer written by the result library's writer
+                java.io.StringWriter answer = new java.io.StringWriter();
+                com.legend.Execution.run(Compiler.queryResolved(duck,
+                                Compiler.resolveQuery(body(parsed), new ImportScope(List.of()), duck)),
+                        DESK_RUNTIME + REFERENCE,
+                        com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(session)),
+                        com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(session)),
+                        com.legend.exec.ProductRun.Establish.DECLARED_SETUP,
+                        new com.legend.result.Output.Rows(new com.legend.result.TdsObjectsWriter(answer,
+                                com.legend.executionplan.ExecutionPlan.TdsResult.Shape.RELATION)));
+                if (!(com.legend.sql.Json.parse(answer.toString()) instanceof List<?> answered)) {
                     throw new IllegalStateException(query + " answered no rows on the reference: " + answer);
                 }
                 c.put("sql", plan.sql());
                 c.put("type", com.legend.plan.UpstreamRelationType.of(plan.rootType()));
                 c.put("enumerations", List.of());
-                c.put("expected", List.of(com.legend.sql.Json.canonical(
-                        com.legend.test.ServiceTestRunner.serialize(answered, "PURE_TDSOBJECT"))));
-                System.out.printf("[deephaven] %s: %d rows on the reference%n", query, answered.rows().size());
+                c.put("expected", List.of(com.legend.sql.Json.canonical(answered)));
+                System.out.printf("[deephaven] %s: %d rows on the reference%n", query, answered.size());
                 cases.add(c);
             }
         }

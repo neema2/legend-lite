@@ -55,8 +55,21 @@ exports_files(
         "test/fixtures/pages/trades.page.json",
         # the screen's and Python's one document for one edit (test/parity-screen.test.ts, //python:headless_test)
         "test/fixtures/parity/parity.json",
+        # every gallery series as Python's builder code, with its text (timeseries-builder.test.ts holds it, Python's
+        # //python:ts_builder_test runs it: B4's Show Python)
+        "test/fixtures/timeseries/builder-python.json",
+        # the markets project's own elements (the macro class, its table, the copies' mapping and runtime), which its
+        # Data fills (:markets_data) -- the project Python's test_markets.py opens as the site's config.json lists it
+        "tools/markets-data/markets-model.pure",
     ],
     visibility = ["//python:__pkg__"],
+)
+
+# every gallery series' Show #TS statement, held by the parity test (test/timeseries-ts-parity.test.ts) and replayed
+# on the other databases by //core:ts_replay_test (docs/TS_DECISIONS_2026_11_07.md item 9)
+exports_files(
+    ["test/fixtures/timeseries/show-ts.txt"],
+    visibility = ["//core:__pkg__"],
 )
 
 
@@ -65,6 +78,9 @@ exports_files(
 js_library(
     name = "src",
     srcs = glob(["src/**/*.ts"]),
+    # its declarations as files too (a `.d.ts` in srcs is passed on as types alone): a program that compiles a source
+    # referring to one (chart-render.ts: ECharts' painters, src/echarts-renderers.d.ts) finds it -- Query's, Studio's
+    data = glob(["src/**/*.d.ts"]),
     # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
     visibility = ["//query:__pkg__"],
     deps = [":src_base"],
@@ -110,6 +126,18 @@ js_library(
 )
 
 # the cube's stylesheets, for the Query app, which shows its results in a CubeApp
+# the host sources the data mechanism census reads (DataMechanismCensusTest: a deleted mechanism's host spellings read
+# zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
+filegroup(
+    name = "census_src",
+    # the demo's page code too (2026-11-12: its sample was the last load outside a plan, the census's M14)
+    srcs = glob([
+        "src/**/*.ts",
+        "demo/**/*.ts",
+    ]),
+    visibility = ["//core:__pkg__"],
+)
+
 filegroup(
     name = "styles",
     srcs = glob(["src/**/*.css"]),
@@ -204,6 +232,33 @@ _EXTRA_ENV = {
         "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
         "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
     },
+    # the markets project as the site releases it (:markets_project, demo/releases/index.json): the one trading model and
+    # the markets sample's days as its Data -- the timeseries over its classes (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md
+    # §11, Phase 6)
+    "stress-markets": {
+        "RELEASES_INDEX": "$(rlocationpath demo/releases/index.json)",
+        "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
+        # every series of the class page, its answer frozen (test/timeseries-frozen.ts; docs/TS_ONE_TREE_PLAN_2026_10_31.md)
+        "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/markets-classes-answers.json)",
+        # the copies over classes answer every series as the pages over the samples froze it (2026-11-07, a')
+        "GALLERY_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
+    },
+    # gs-quant's own signatures, which the builder's words are held to (the order's step 2)
+    "timeseries-builder": {
+        "GS_QUANT_SIGNATURES": "$(rlocationpath :gs_quant_signatures)",
+        "BUILDER_PYTHON": "$(rlocationpath test/fixtures/timeseries/builder-python.json)",
+        # the gs-quant oracle's cases, and each as Show Python prints it: the call snap.py runs (item 14f, step 2)
+        "GS_ORACLE_MAPPING": "$(rlocationpath :gs_oracle_mapping)",
+        "GS_ORACLE_CALLS": "$(rlocationpath :gs_oracle_calls)",
+    },
+    # every gallery and markets series, its answer frozen (test/timeseries-frozen.ts)
+    "timeseries-ts-parity": {
+        "TS_ANSWERS": "$(rlocationpath test/fixtures/timeseries/gallery-answers.json)",
+        # every series' Show #TS statement, held: //core:ts_replay_test replays them (2026-11-07, item 9)
+        "TS_STATEMENTS": "$(rlocationpath test/fixtures/timeseries/show-ts.txt)",
+        # every series as the one gs-quant oracle reads it, held (item 14f, step 4b)
+        "GS_ORACLE_GALLERY": "$(rlocationpath :gs_oracle_gallery)",
+    },
     "bundle-budget": {
         "BUNDLE": "$(rlocationpath :demo/bundle.js)",
         "ENGINE_BUNDLE": "$(rlocationpath :demo/bundle-engine.js)",
@@ -230,6 +285,9 @@ _EXTRA_ENV = {
     "chart-rules": {
         "CHART_RULES": "$(rlocationpath test/fixtures/chart-rules.json)",
     },
+    "sample-trades": {
+        "TRADES_MODEL": "$(rlocationpath demo/trades.pure)",
+    },
     "parity-screen": {
         "PARITY": "$(rlocationpath test/fixtures/parity/parity.json)",
     },
@@ -245,6 +303,12 @@ _EXTRA_ENV = {
 # DuckDB-WASM's users load it from node_modules by name, so they declare it (DC-N3.6)
 _DUCKDB_USERS = [
     "timeseries-queries",
+    # every gallery series both ways, the tile's writer and #TS (docs/TS_LANGUAGE_BUILD_2026_10_30.md P5)
+    "timeseries-ts-parity",
+    # the timeseries over the trading model's classes, its rows the markets sample's (2026-10-27, Phase 6)
+    "stress-markets",
+    # the Pure library spike: one function of each family against today's writer (2026-10-27)
+    "pure-library-spike",
     "timeseries-view-dom",
     # chart queries planned and run (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.2)
     "chart-queries",
@@ -261,6 +325,8 @@ _DUCKDB_USERS = [
     "class-source",
     # a join opened over one model of its tables, its rows from DuckDB (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
     "join-open",
+    # a box's rows written into a table, planned by the compiler and run by the plan runner (flow mode M6, FL13)
+    "table-output",
     "sample-trades",
     "saved-queries",
     "sorting",
@@ -275,6 +341,28 @@ _DUCKDB_USERS = [
 _BINDING_TESTS = ["warehouse-session-http"]
 
 _EXTRA_DATA = {
+    # the brand's casts, read by TypeScript's own checker (the re-audit's S5, 2026-11-12): the three programs' sources and
+    # their configs, the pinned compiler's API, and the planted violators with their own config
+    "brand-casts": [
+        "package.json",
+        "tsconfig.json",
+        "test/brand-casts.ts",
+        "test/fixtures/brand-casts/planted.ts",
+        "test/fixtures/brand-casts/tsconfig.json",
+        # every product source of the package, which the census reads (its imports are none of them)
+        ":src",
+        ":node_modules/typescript",
+        "//depot-client:depot_client",
+        "//engine-client:engine_client",
+        "//engine-client:typescript_sources",
+        # (legend-art, Studio's and Query's icons: theirs, carried by //query:src and //studio:src)
+        "//model-changes:model_changes",
+        "//pure-protocol:typescript_sources",
+        "//query:src",
+        "//query-store:typescript_sources",
+        "//sdlc-client:sdlc_client",
+        "//studio:src",
+    ],
     "warehouse-session-http": ["//warehouse:sqlapi_page_dir"],
     # the trading desk's three model files' sources -- the corpus, the desk's own, the connections' writer -- and the
     # screens that name its functions, with the page's writers they import (:src: the generated list follows a test's
@@ -286,6 +374,27 @@ _EXTRA_DATA = {
         "demo/deephaven/market/screens.ts",
         ":src",
         "//scripts/corpus:trading_model",
+    ],
+    # the demo's model, whose TRADES the sample's plan fills (src/sample-trades.ts, SYNTHESIZE)
+    "sample-trades": ["demo/trades.pure"],
+    "stress-markets": [
+        "demo/releases/index.json",
+        ":markets_project",
+        "test/fixtures/timeseries/gallery-answers.json",
+        "test/fixtures/timeseries/markets-classes-answers.json",
+        "test/timeseries-frozen.ts",
+    ],
+    "timeseries-builder": [
+        ":gs_quant_signatures",
+        "test/fixtures/timeseries/builder-python.json",
+        ":gs_oracle_mapping",
+        ":gs_oracle_calls",
+    ],
+    "timeseries-ts-parity": [
+        "test/fixtures/timeseries/gallery-answers.json",
+        "test/fixtures/timeseries/show-ts.txt",
+        "test/timeseries-frozen.ts",
+        ":gs_oracle_gallery",
     ],
     # the page's own bundle and its lazy chunks, measured against their budget (plan F7)
     "bundle-budget": [
@@ -325,6 +434,8 @@ _EXTRA_DATA = {
     "live-channel": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts"],
     "live-soak": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts", "test/page-same.ts"],
     "one-api-gestures": ["test/cube-fixture.ts", "test/gate.ts", "test/page-same.ts"],
+    # a snap's pull and its held connection, the fixture's (the final audit's item 1, 2026-11-12)
+    "app-dom": ["test/cube-fixture.ts", "test/gate.ts"],
     # DataCube's app on a page Python serves, over a stand-in editor (the S4 audit's 1, 4 and 5)
     "datacube-app-live": ["test/cube-fixture.ts", "test/gate.ts", "test/fixtures/pages/make.ts", "test/fake-keeper.ts"],
     "one-api-ledger": ["test/one-api/scan.ts"],
@@ -360,6 +471,17 @@ _EXTRA_DATA = {
 # own WASM module, loaded by test/catalog-builder.ts
 _WASM_TESTS = [
     "timeseries-queries",
+    # the builder's every word's call read back by core (docs/TS_DECISIONS_2026_11_07.md §4, the order's step 2)
+    "timeseries-builder",
+    "timeseries-ts-parity",
+    # the example pages' series are #TS text, which core alone reads (A3 step 3, 2026-11-07); a page's timeseries tile
+    # reads its series' texts by core before it is drawn, and its editor what is typed
+    "examples",
+    "timeseries-code",
+    "cube-page-shell",
+    "one-api-gestures",
+    "stress-markets",
+    "pure-library-spike",
     "timeseries-view-dom",
     "calc-fix",
     "chart-queries",
@@ -397,11 +519,15 @@ _WASM_TESTS = [
     "class-source",
     # a join's model of several tables, written by the compiler (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §17)
     "join-open",
+    # a box's rows written into a table: its write planned by the compiler (flow mode M6, FL13)
+    "table-output",
     # a remote file's operations, and Snap's copy, their statements the planner's
     # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5)
     "remote",
     "plane",
     "app-dom",
+    # (one-api-gestures, above: also a grid's snap, its copy the planner's plan of the pull -- snapCopy, the final
+    # audit's item 1, 2026-11-12)
     "parity-screen",
     # the start's trades read in as the sample file a saved start page rebuilds, by the tab's own ingest (2026-10-23)
     "sample-trades",
@@ -439,6 +565,8 @@ _SLOW_WALK_TESTS = [
         ":node_modules/jsdom",
         "test/fake-engine.ts",
         "test/fake-planner.ts",
+        # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12)
+        "//engine-client:unplanned",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + [f for f in _SCANNED.get(t[len("test/"):-len(".test.ts")], []) if f != ":src"] + (
         [":src"] if t[len("test/"):-len(".test.ts")] in _SCANNED or t[len("test/"):-len(".test.ts")] not in TEST_IMPORTS else [":src_base"] + TEST_IMPORTS[t[len("test/"):-len(".test.ts")]]
     ) + (
@@ -534,6 +662,12 @@ _HEADLESS_TESTS = [
     "cypher-spike",
     # a flow sheet's layout, a box's words and its page commands (docs/DATACUBE_FLOW_MODE_2026_10_24.md FL4): pure
     "flow-sheet",
+    # a page's parameters, bound where its queries are sent (docs/DATACUBE_FLOW_MODE_2026_10_24.md M8): pure
+    "page-parameters",
+    # a flow's standard macros: a sub-flow as one Pure function of its input's rows (M8): pure
+    "macros",
+    # a flow's Dynamic Input: a Union kept to the rows of the one input a parameter names (M8): pure
+    "dynamic-input",
     "format-code",
     "grid-commands",
     # a grid's and a page's gestures as their commands (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md S8)
@@ -546,6 +680,8 @@ _HEADLESS_TESTS = [
     "timeseries-option",
     # its changes, one rule its viewer and Python ask (2026-10-25, docs/TIMESERIES_REVIEW_2026_10_25.md A2)
     "timeseries-edit",
+    # the chart face, the rule's third front: a tile built in code (B3, docs/TS_DECISIONS_2026_11_07.md §4, 2026-11-08)
+    "timeseries-chart",
     # a text box's files (§8 step 1, 2026-10-25): the one rule, pure
     "text-files",
     # round trips as seeded properties (docs/DATACUBE_COMMAND_API_HOMEWORK_2026_10_17.md §11, part 2)
@@ -578,6 +714,7 @@ _HEADLESS_TESTS = [
     "join-inputs",
     "join-menu",
     "join-open",
+    "table-output",
     "json-shape",
     "lazily",
     "lite-planner",
@@ -628,9 +765,9 @@ _HEADLESS_TESTS = [
 # headless_roster_test reads. A file that mixed them is split in two: its screen or Node half `<name>-dom` or
 # `<name>-node`, the rest in the lane under its own name.
 _HEADLESS_LEFT_OUT = {
-    # rows put in by DuckDB-WASM's Arrow reader (insertArrowFromIPCStream), the tab's: a headless host's database has
-    # none
-    "sample-trades": "the tab's Arrow reader",
+    # the demo's sample made by the tab's planner and DuckDB-WASM, and its file read in by the tab's reader (upload.ts
+    # ingestFile): the tab's
+    "sample-trades": "the tab's planner and file reader",
     # DataCube's HTTP clients against a stubbed fetch: the host has no fetch API (nothing headless speaks HTTP: §3)
     "cancel-http": "the planner client's HTTP",
     "engine-remote-http": "the engine executor's HTTP",
@@ -650,6 +787,11 @@ _HEADLESS_LEFT_OUT = {
     # a timeseries tile's queries against gs-quant's figures, their rows read in as chart-queries' are (2026-10-25, the
     # timeseries tile, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md; dated by the review's A9)
     "timeseries-queries": "a picked File, read as the page's stream",
+    # every gallery series' tile query against its #TS answer, the samples read in as timeseries-queries' are
+    # (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P5)
+    "timeseries-ts-parity": "a picked File, read as the page's stream",
+    # the Pure library spike's prices read in as timeseries-queries' are (2026-10-27)
+    "pure-library-spike": "a picked File, read as the page's stream",
     # the lane's own stand-ins and web layer, held to Node's built-ins: they need the Node they compare against
     "headless-assert": "node:assert/strict, its reference",
     "headless-test-runner": "node:test's own run, its reference",
@@ -664,6 +806,9 @@ esbuild_bundle(
         ":node_modules/fflate",
         ":node_modules/echarts",
         ":src",
+        # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12): the headless bundles
+        # import it as the node tests do (linux-arm's sandbox found it missing, CI run 43269720233)
+        "//engine-client:unplanned",
     ],
     out_dirs = ["headless-tests"],
     args = ["test/%s.test.ts" % t for t in _HEADLESS_TESTS] + [
@@ -746,6 +891,49 @@ node_test(
     env = {"TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)"},
 )
 
+# A MEASUREMENT, not a test (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5.6): the SQL a timeseries tile's queries
+# plan to -- its bytes, its CASEs copied, its windows -- and DuckDB's time to run it. Manual: `bazel test
+# //datacube:timeseries_sql_measure --test_output=all` prints its numbers; each query's SQL is in its undeclared outputs.
+node_test(
+    name = "timeseries_sql_measure",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        ":src",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "test/catalog-builder.ts",
+        "test/host/node.ts",
+        "test/lite-compiler.ts",
+    ],
+    entry_point = "test/timeseries-sql.measure.ts",
+    wasm = True,
+)
+
+# Real examples of the timeseries language over the markets project's classes (docs/TS_LANGUAGE_BUILD_2026_10_30.md;
+# the user, 2026-10-30): each #TS query's design beside the tile's writer drawing the same chart over the page's saved
+# grids (MarketQuote and Trade through stress::AllMapping), planned and answered on DuckDB-WASM. Manual, in //gates:heavy:
+# `bazel test //datacube:ts_examples_measure --test_output=all` prints each query's Pure and its last rows.
+node_test(
+    name = "ts_examples_measure",
+    size = "large",
+    tags = ["manual"],
+    data = [
+        ":src",
+        ":markets_project",
+        "demo/releases/index.json",
+        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        "test/catalog-builder.ts",
+        "test/host/node.ts",
+        "test/lite-compiler.ts",
+    ],
+    env = {
+        "RELEASES_INDEX": "$(rlocationpath demo/releases/index.json)",
+        "MARKETS_PROJECT": "$(rlocationpath :markets_project)",
+    },
+    entry_point = "test/ts-examples.measure.ts",
+    wasm = True,
+)
+
 test_suite(
     name = "tests",
     tests = [t[len("test/"):-len(".test.ts")].replace("-", "_") + "_test" for t in _TESTS] + [
@@ -802,6 +990,8 @@ typescript.tsc_test(
         ":node_modules/@types/node",
         ":node_modules/jsdom",
         ":node_modules/playwright",
+        # the pinned compiler's own API, which test/brand-casts.ts reads the brand's casts with (the re-audit's S5)
+        ":node_modules/typescript",
     ],
 )
 
@@ -927,6 +1117,151 @@ java_run(
     deps = [":offer_facts_main"],
 )
 
+# THE CATALOG, EXPORTED (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S5): the library's enumerations, its words
+# and the guide's page of them, read from the library as core compiles it (TsCatalogExport) -- never parsed from its
+# text by a tool of their own; diff-tested below
+legend_java_library(
+    name = "ts_catalog_main",
+    srcs = ["tools/ts-catalog/TsCatalogExport.java"],
+    deps = [
+        "//core:compiler",
+        "//core:planner",
+        "//core:protocol",
+        "//json",
+    ],
+)
+
+java_run(
+    name = "ts_catalog",
+    srcs = [
+        ":timeseries_model",
+        # gs-quant's signatures as gs-quant reads them (tools/ts-oracle/signatures.py): its defaults beside the library's
+        "//projects:timeseries/gs-quant-signatures.json",
+    ],
+    outs = [
+        "generated/library-enums.gen.ts",
+        "generated/ts-words.gen.ts",
+        "generated/ts-words.gen.md",
+        "generated/ts-signatures.gen.ts",
+        "generated/ts-facts.gen.ts",
+    ],
+    arguments = [
+        "$(execpath :timeseries_model)",
+        "$(execpath generated/library-enums.gen.ts)",
+        "$(execpath generated/ts-words.gen.ts)",
+        "$(execpath generated/ts-words.gen.md)",
+        "$(execpath //projects:timeseries/gs-quant-signatures.json)",
+        "$(execpath generated/ts-signatures.gen.ts)",
+        "$(execpath generated/ts-facts.gen.ts)",
+    ],
+    main_class = "tscatalog.TsCatalogExport",
+    visibility = ["//docs:__pkg__"],
+    deps = [":ts_catalog_main"],
+)
+
+# THE #TS DOCUMENTS' EXAMPLES, WRITTEN FROM THEIR ONE SOURCE (docs/TS_V1_PROGRAM_2026_11_01.md A9): each marked sql
+# block of the spec and of the guide rewritten from docs/timeseries/examples.sql, which //core:ts_documents_test runs
+# (bazel run //docs:update_ts_examples writes them back)
+legend_java_library(
+    name = "ts_examples_doc_main",
+    srcs = ["tools/ts-catalog/TsExamplesDoc.java"],
+)
+
+java_run(
+    name = "ts_examples_doc",
+    srcs = [
+        "//docs:TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md",
+        "//docs:TIMESERIES_LANGUAGE_2026_10_29.md",
+        "//docs:timeseries/examples.sql",
+    ],
+    outs = [
+        "generated/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.gen.md",
+        "generated/TIMESERIES_LANGUAGE_2026_10_29.gen.md",
+    ],
+    arguments = [
+        "$(execpath //docs:timeseries/examples.sql)",
+        "$(execpath //docs:TIMESERIES_LANGUAGE_2026_10_29.md)",
+        "$(execpath generated/TIMESERIES_LANGUAGE_2026_10_29.gen.md)",
+        "$(execpath //docs:TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.md)",
+        "$(execpath generated/TIMESERIES_GUIDE_FOR_QUANTS_2026_10_30.gen.md)",
+    ],
+    main_class = "tscatalog.TsExamplesDoc",
+    visibility = ["//docs:__pkg__"],
+    deps = [":ts_examples_doc_main"],
+)
+
+# THE #TS BUILDER'S WORDS (docs/TS_DECISIONS_2026_11_07.md §4, the builders; the order's step 2): each word a tile draws
+# as a typed function of gs-quant 2.2.3's name, parameters, order and defaults, generated from core's catalog (the
+# signatures and words above) and gs-quant's own signatures (tools/ts-oracle/signatures.py); the tile's words its own
+# (src/timeseries-words.ts). src/generated/ts-builder-words.ts is its committed copy, diff-tested by update_generated.
+js_binary(
+    name = "ts_builder_tool",
+    data = ["src/timeseries-words.ts"],
+    entry_point = "tools/ts-builder/make.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+# gs-quant's signatures copied into this package (js_run_binary takes no input from another package)
+copy_file(
+    name = "gs_quant_signatures",
+    src = "//projects:timeseries/gs-quant-signatures.json",
+    out = "gs-quant-signatures.json",
+)
+
+# the gs-quant oracle's cases and its held calls, copied into this package for //datacube:timeseries_builder_test, which
+# prints each case as Show Python and holds calls.tsv (item 14f, step 2; rules_js takes no data from another package)
+copy_file(
+    name = "gs_oracle_mapping",
+    src = "//tools/gs-quant-oracle:mapping.yaml",
+    out = "gs-oracle/mapping.yaml",
+)
+
+copy_file(
+    name = "gs_oracle_calls",
+    src = "//tools/gs-quant-oracle:calls.tsv",
+    out = "gs-oracle/calls.tsv",
+)
+
+# and its gallery (each series as gs-quant's call), which //datacube:timeseries_ts_parity_test writes and holds (item
+# 14f, step 4b)
+copy_file(
+    name = "gs_oracle_gallery",
+    src = "//tools/gs-quant-oracle:gallery.jsonl",
+    out = "gs-oracle/gallery.jsonl",
+)
+
+js_run_binary(
+    name = "ts_builder",
+    srcs = [
+        "generated/ts-signatures.gen.ts",
+        "generated/ts-words.gen.ts",
+        ":gs_quant_signatures",
+    ],
+    # and Python's twin of the same words (B3): python/legend_lite/_ts_words.py, //python:update_generated
+    outs = [
+        "generated/ts-builder-words.gen.ts",
+        "generated/ts_words.gen.py",
+    ],
+    args = [
+        package_name() + "/generated/ts-builder-words.gen.ts",
+        "$(rootpath generated/ts-signatures.gen.ts)",
+        "$(rootpath generated/ts-words.gen.ts)",
+        "$(rootpath :gs_quant_signatures)",
+        package_name() + "/generated/ts_words.gen.py",
+    ],
+    tool = ":ts_builder_tool",
+)
+
+# the builder's words for Python (B3's twin), checked in by //python:update_generated
+filegroup(
+    name = "python_ts_words",
+    srcs = ["generated/ts_words.gen.py"],
+    visibility = ["//python:__pkg__"],
+)
+
 # THE TESTS' IMPORT CLOSURES (P3-34): test_imports.bzl, generated from the imports themselves, diff-tested below
 js_binary(
     name = "test_imports_tool",
@@ -967,10 +1302,50 @@ js_run_binary(
     tool = ":test_imports_tool",
 )
 
+# the timeseries project's library copied into this package: js_run_binary copies its inputs to the output tree, and
+# takes none from another package
+copy_file(
+    name = "timeseries_model",
+    src = "//projects:timeseries/model.pure",
+    out = "timeseries_model.pure",
+)
+
+
+# THE LIBRARY, A PURE FILE (the platform step's B, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md): the timeseries
+# project's model (//projects:timeseries/model.pure, package timeseries::; the user, 2026-10-30: not DataCube's) the
+# source, which the platform loads as it is; the page's module of it (src/pure-library-text.ts) written from it,
+# diff-tested below
+
+js_binary(
+    name = "library_text_tool",
+    entry_point = "tools/library-text.mts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "library_text",
+    srcs = [":timeseries_model"],
+    outs = ["library_text_generated.ts"],
+    args = [
+        "$(rootpath :timeseries_model)",
+        package_name() + "/library_text_generated.ts",
+    ],
+    tool = ":library_text_tool",
+)
+
 write_source_files(
     name = "update_generated",
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact this cube mirrors — regenerate: bazel run //datacube:update_generated, then read the diff (a changed Pure kind or pivot separator changes what the grid shows; a changed offer fact changes what a column is offered)",
     files = {
+        "src/generated/library-enums.ts": "generated/library-enums.gen.ts",
+        "src/generated/ts-words.ts": "generated/ts-words.gen.ts",
+        "src/generated/ts-signatures.ts": "generated/ts-signatures.gen.ts",
+        "src/generated/ts-facts.ts": "generated/ts-facts.gen.ts",
+        "src/generated/ts-builder-words.ts": "generated/ts-builder-words.gen.ts",
+        "src/pure-library-text.ts": ":library_text",
         "src/generated/offer-facts.ts": ":offer_facts",
         "test_imports.bzl": ":test_imports",
     },
@@ -1050,6 +1425,7 @@ node_test(
     size = "medium",
     data = [
         "test/pivot-rows/pivot-rows.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1066,6 +1442,7 @@ node_test(
     size = "medium",
     data = [
         "test/json-read/json-read.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1099,6 +1476,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1114,6 +1492,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1129,6 +1508,7 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1147,6 +1527,7 @@ esbuild_bundle(
     testonly = True,
     srcs = [
         "test/live-snap/page.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
     ],
@@ -1192,6 +1573,7 @@ esbuild_bundle(
     testonly = True,
     srcs = [
         "test/python-engine/page.ts",
+        "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         ":src",
     ],
@@ -1345,6 +1727,7 @@ node_test(
     name = "python_execute_test",
     size = "medium",
     data = [
+        "//engine-client:unplanned",
         "test/host/node.ts",
         "test/python-engine/execute.test.ts",
         ":dist",
@@ -1688,14 +2071,94 @@ copy_to_directory(
     root_paths = ["query/demo/models"],
 )
 
-# The trading rows' other two copies, for the test that holds them equal to the project's Data (saved-queries): the
-# warehouse's fixture and the H2 connection's setup, copied as :projects is (a test's data is its own package's).
+# The markets project (a version the site releases, demo/releases/index.json: docs/ONE_CONNECTION_DESK_2026_10_28.md D5;
+# docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6): the one
+# trading model (the Deephaven line's, //scripts/corpus:trading_model) and the markets sample's days in its tables as the
+# project's Data (tools/markets-data/emit.ts), which a page fills its project's database from (C5).
+js_binary(
+    name = "emit_markets_data",
+    data = [":src"],
+    entry_point = "tools/markets-data/emit.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "markets_data",
+    srcs = ["tools/markets-data/emit.ts"],
+    stdout = "generated/markets-data.pure",
+    tool = ":emit_markets_data",
+    # and Python's test of the example over it (python/tests/test_markets.py)
+    visibility = ["//python:__pkg__"],
+)
+
+# The gallery's samples as the pages make them (tools/ts-replay/samples.ts: the prices, the rates and the macro series,
+# one JSON object of their CSV texts), which //core:ts_replay_test loads into each database it replays the gallery's
+# Show #TS statements on (docs/TS_DECISIONS_2026_11_07.md item 9)
+js_binary(
+    name = "emit_ts_replay_samples",
+    data = [":src"],
+    entry_point = "tools/ts-replay/samples.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "ts_replay_samples",
+    srcs = ["tools/ts-replay/samples.ts"],
+    stdout = "generated/ts-replay-samples.json",
+    tool = ":emit_ts_replay_samples",
+    visibility = ["//core:__pkg__"],
+)
+
+# The example over the project as a saved page (tools/markets-data/page.ts), for Python's test of it
+js_binary(
+    name = "emit_markets_page",
+    data = [":src"],
+    entry_point = "tools/markets-data/page.ts",
+    node_options = [
+        "--experimental-strip-types",
+        "--disable-warning=ExperimentalWarning",
+    ],
+)
+
+js_run_binary(
+    name = "markets_page",
+    srcs = ["tools/markets-data/page.ts"],
+    stdout = "generated/markets-classes.page.json",
+    tool = ":emit_markets_page",
+    visibility = ["//python:__pkg__"],
+)
+
+copy_to_directory(
+    name = "markets_project",
+    srcs = [
+        ":markets_data",
+        # the project's own elements: the macro class, its table, the mapping and runtime of the copies over classes
+        # (docs/TS_DECISIONS_2026_11_07.md §4, 2026-11-07)
+        "tools/markets-data/markets-model.pure",
+        "//scripts/corpus:trading_model",
+    ],
+    out = "demo/releases/markets",
+    root_paths = [
+        "datacube/generated",
+        "datacube/tools/markets-data",
+        "scripts/corpus",
+    ],
+)
+
+# The trading rows' other copy, for the test that holds it equal to the project's Data (saved-queries): the H2
+# connection's setup, copied as :projects is (a test's data is its own package's). (2026-11-12: the warehouse's own SQL
+# file went; the warehouse is made by the project's Data load.)
 copy_to_directory(
     name = "trading_copies",
     testonly = True,
     srcs = [
         "//query:demo/models/runtime-h2.pure",
-        "//query:demo/models/trading-seed.sql",
     ],
     out = "test/trading-copies",
     root_paths = ["query/demo/models"],
@@ -1736,6 +2199,7 @@ filegroup(
         "demo/*.pure",
         "src/**/*.css",
     ]) + ["demo/releases/index.json"] + [":bundle_" + out[len("demo/"):-len(".js")].replace("-", "_") for out in _BUNDLES.values()] + [
+        ":markets_project",
         ":planner_worker",
         ":projects",
         ":site_environments",
@@ -1928,6 +2392,13 @@ _BROWSER_TESTS = {
     "verify-wasm-browser": "large",
 }
 
+# THE BROWSER TESTS THAT ASSERT A WALL-CLOCK BUDGET, each measured alone (Bazel's "exclusive": no other test runs
+# beside it). 2026-11-13, CI's run 43433798750 (linux / datacube): verify-layout's "no task over 100 ms, nor two over
+# 50 ms, while a tile is dragged" read 127 ms with three other tests on the runner's four CPUs -- a budget of the
+# page's own work, measured while the machine's CPUs were shared. The budget stays; the measurement is made alone.
+# The other harnesses read the page's clock only to wait for quiet (settle), which asserts no time.
+_TIMED_BROWSER_TESTS = ["verify-layout"]
+
 [js_binary(
     name = h.replace("-", "_"),
     # make-sample writes a CSV from the sources: it needs no site, no browser (P4-08)
@@ -1992,8 +2463,9 @@ browser_test(
     entry_point = "demo/" + h + ".mjs",
     env = _SITE_ENV,
     # CI runs these on Linux only (gates-run.yml filters the tag on macOS and Windows): the same on every platform,
-    # and live-vs-snap already checks x86_64 against the arm64 desks (the build rebuild's L1b, 2026-10-07)
-    tags = ["ci-linux-only"],
+    # and live-vs-snap already checks x86_64 against the arm64 desks (the build rebuild's L1b, 2026-10-07); a test
+    # that asserts a wall-clock budget runs alone (_TIMED_BROWSER_TESTS)
+    tags = ["ci-linux-only"] + (["exclusive"] if h in _TIMED_BROWSER_TESTS else []),
     wasm = True,
 ) for h, size in _BROWSER_TESTS.items()]
 

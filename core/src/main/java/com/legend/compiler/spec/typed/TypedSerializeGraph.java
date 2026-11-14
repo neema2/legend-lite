@@ -40,6 +40,17 @@ import java.util.List;
  *                  scalars), never json_object envelopes — the engine's
  *                  {@code otherNames: ["abc","def"]} shape
  * @param info      the fetched class collection's type (GRAPH shape)
+ * @param engineExecuteCardinality COMPATIBILITY ONLY: this graph is the value
+ *                  read through legend-engine's {@code execute(...)} function
+ *                  ({@code execute(...).values}), so its result follows the
+ *                  engine JsonBuilder's cardinality rule: a result of exactly
+ *                  ONE object serializes as the bare object, zero or several
+ *                  as the array. Set by the result-envelope splice alone
+ *                  ({@code ResultEnvelopeSplice}, carried from
+ *                  {@link TypedSerialize#engineExecuteCardinality} by the
+ *                  resolver); lite's own serialize results stay arrays (the
+ *                  user's ruling, 2026-11-03: "the right clean thing in lite,
+ *                  the backward-compatible thing in compatibility mode")
  */
 public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   List<TypedFuncCol> leaves, List<Child> nested,
@@ -54,7 +65,8 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                                   @com.legend.base.Nullable List<CheckedConstraint> checkedConstraints,
                                   boolean removeNullKeys,
                                   boolean removeEmptySets,
-                                  @com.legend.base.Nullable String objectRefPrefix)
+                                  @com.legend.base.Nullable String objectRefPrefix,
+                                  boolean engineExecuteCardinality)
         implements TypedSpec {
 
     /** The same graph over another row source (a resolver fusing two
@@ -63,7 +75,42 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         return new TypedSerializeGraph(newSource, rowVar, leaves, nested, arrayWrap,
                 bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys,
                 typeKeyName, fqTypePath, checkedConstraints, removeNullKeys,
-                removeEmptySets, objectRefPrefix);
+                removeEmptySets, objectRefPrefix, engineExecuteCardinality);
+    }
+
+    /** Engine-execute-cardinality compat: every construction but the
+     * splice's (lite's own serialize results stay arrays). */
+    public TypedSerializeGraph(TypedSpec source, String rowVar,
+            List<TypedFuncCol> leaves, List<Child> nested, boolean arrayWrap,
+            boolean bareValue, @com.legend.base.Nullable String classFqn, ExprType info,
+            boolean inlineChild, List<SubTypePatch> subTypePatches,
+            List<TypedFuncCol> orderKeys,
+            @com.legend.base.Nullable String typeKeyName,
+            boolean fqTypePath,
+            @com.legend.base.Nullable List<CheckedConstraint> checkedConstraints,
+            boolean removeNullKeys, boolean removeEmptySets,
+            @com.legend.base.Nullable String objectRefPrefix) {
+        this(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn,
+                info, inlineChild, subTypePatches, orderKeys, typeKeyName,
+                fqTypePath, checkedConstraints, removeNullKeys,
+                removeEmptySets, objectRefPrefix, false);
+    }
+
+    /** This graph as the value read through legend-engine's
+     * {@code execute(...)} ({@code execute(...).values}): its ROOT result
+     * follows the engine JsonBuilder's cardinality rule — exactly one
+     * object serializes bare, zero or several as the array
+     * ({@code Lowerer.lower}'s root, {@code SnapshotEnvelope.fold}).
+     * COMPATIBILITY ONLY, set by the result-envelope splice alone (the
+     * user's ruling, 2026-11-03: "the right clean thing in lite, the
+     * backward-compatible thing in compatibility mode"); every other
+     * component carries over verbatim. */
+    public TypedSerializeGraph withEngineExecuteCardinality() {
+        return engineExecuteCardinality ? this : new TypedSerializeGraph(source,
+                rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info,
+                inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath,
+                checkedConstraints, removeNullKeys, removeEmptySets,
+                objectRefPrefix, true);
     }
 
     /** Config compat (no objectReference channel). */
@@ -104,7 +151,7 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
                 leaves, nested, true, bareValue, classFqn, info,
                 inlineChild, subTypePatches, orderKeys, typeKeyName,
                 fqTypePath, checkedConstraints, removeNullKeys,
-                removeEmptySets, objectRefPrefix);
+                removeEmptySets, objectRefPrefix, engineExecuteCardinality);
     }
 
     /** Name prefix marking a PK DETERMINISM order key (ASC, best-effort at
@@ -273,10 +320,10 @@ public record TypedSerializeGraph(TypedSpec source, String rowVar,
         return new TypedSerializeGraph(kids.get(0), rowVar, ls, ns, arrayWrap,
                 bareValue, classFqn, info, inlineChild, sps, oks, typeKeyName,
                 fqTypePath, ccs, removeNullKeys, removeEmptySets,
-                objectRefPrefix);
+                objectRefPrefix, engineExecuteCardinality);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {
-        return new TypedSerializeGraph(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath, checkedConstraints, removeNullKeys, removeEmptySets, objectRefPrefix);
+        return new TypedSerializeGraph(source, rowVar, leaves, nested, arrayWrap, bareValue, classFqn, info, inlineChild, subTypePatches, orderKeys, typeKeyName, fqTypePath, checkedConstraints, removeNullKeys, removeEmptySets, objectRefPrefix, engineExecuteCardinality);
     }
 }

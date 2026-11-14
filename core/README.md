@@ -47,7 +47,7 @@ text                                                            [FRONTEND]
                                                                 [BACKEND]
   ──▶  sql/dialect/  SqlDialect.render(SqlQuery)                  SqlQuery → SQL string
                                                                 [RUNTIME]
-  ──▶  exec/         Executor                                    SQL string + JDBC → ExecutionResult
+  ──▶  exec/         PlanRunner (+ result/ the writers)           a plan + a session → typed rows to a sink
 ```
 
 | # | Step | Package | Driver | Output |
@@ -63,8 +63,8 @@ text                                                            [FRONTEND]
 | G½ | inline user calls | `compiler/spec/` | `UserCallInliner` | `TypedSpec` (β-inlined) |
 | H | resolve store | `resolver/` | `StoreResolver` | `TypedSpec` (class queries → relational pipelines) |
 | I | lower | `lowering/` | `Lowerer` | `sql.SqlQuery` IR (dialect-free) |
-| J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:14`); `AnsiSqlRenderer`→`DuckDb`, `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`; `H2`→`H2Modern`, `EngineStyle*` | SQL string |
-| K | execute | `exec/` | `Executor` | typed `ExecutionResult` |
+| J | render SQL | `sql/dialect/` | `SqlDialect.render` (`:14`); `AnsiSqlRenderer`→`DuckDb`, `Postgres`, `SQLite`, `MariaDb`→`MySql`, `Trino`, `ClickHouse`, `Snowflake`, `Databricks`, `BigQuery`; `H2` (one H2, 2.5.252, since 2026-11-05), `EngineStyle*` | SQL string |
+| K | execute | `exec/`, `result/` | `PlanRunner`, the writers | typed rows to a sink, each cell spelled at the boundary (the old door's `Executor`/`ExecutionResult` deleted 2026-10-27 and 2026-10-29) |
 
 Wired by `com.legend.Compiler.compile(...)`.
 
@@ -181,12 +181,44 @@ core/src/main/java/com/legend/
 │       ├── DuckDb.java
 │       └── Sqlite.java
 │
-└── exec/                              K. SQL string + JDBC → typed results
-    ├── Executor.java
-    ├── ConnectionResolver.java
-    ├── Result.java
-    ├── Row.java
-    └── Column.java                          (result-side column; distinct from element/store/Column)
+├── exec/                              K. a plan + a session → typed rows to a sink (2026-10-29: the old
+│   ├── PlanRunner.java                      executor, Executor.java, and its materialized result are gone)
+│   ├── Sessions.java + SessionState.java    (the typed session seam: a session made here alone, its state its own,
+│   │                                         D70; PlanSessions.java the sessions a plan's target names)
+│   ├── Statements.java + JdbcStatements.java (the one place a statement reaches a database)
+│   ├── JdbcDecode.java                      (a cell's typed value, read by the plan's column facts)
+│   ├── WireTypes.java                       (the wire TABLE: JDBC's type codes to the SQL vocabulary, a SQL type's
+│   │                                         Pure NAME; the runtime names a type, never holds one, D72)
+│   ├── DatabaseConnector.java + Connectors   (each database's driver facts, its decode facts among them, D72)
+│   └── *Connector.java                      (the twelve; exec depends on NO planning library since D72, 2026-10-30:
+│                                             the wall, ArchitectureTest.execReachesNoPlanning)
+│
+├── judge/                             the verdict layer (D71, 2026-10-30; out of exec: planning-side work the
+│   ├── PureAsserts.java + Equality.java     runtime must not carry): a test body's assertion judged over typed
+│   ├── TdsCompare.java                      rows -- the host lattice, the grid compare, the canonical instruments
+│   ├── CanonicalForm.java + ...Divergence   (CanonicalForm, CanonicalDivergence), the verdict batch, the SQL
+│   ├── VerdictBatch.java                    replay referee, the censuses, the assert listener; reachable from the
+│   ├── TypedSide.java                       verdict seam alone (the judges' collected side; ExecutionResult
+│   │                                        until 2026-10-29)
+│   └── Column.java + Row.java               (a judged side's column in the compiler's Type, and its row; exec's
+│                                            until D72)
+│
+├── planner/                           the plan machinery behind the plan-side doors (step C, D73, 2026-10-30):
+│   ├── PlanMaker.java                       a typed query to its plan; MetamodelSeeds + OpSeeds the system store's
+│   ├── QueryParameters.java                 rows; ProgramFacts; the cross-store guard. Part of //core:planner;
+│   └── ...                                  depends on no execution class (ArchitectureTest.plannerIsExecutionFree)
+│
+├── driver/                            the execution side's machinery behind the execution doors (step C, D73):
+│   ├── BodyDriver.java + BodyCompiler       a test body as a sequence of plans (BodyDriver has one caller,
+│   ├── HostJudge + DatabaseJudge + ...      Execution.runProgram); the judges' arms and their plans (JudgePlans,
+│   ├── CsvLoad + SeedSqlForms + ...         AssertVerdicts, AgreementArm, SqlTextVerdicts); the seeds and loads;
+│   ├── ColumnProbe + GridProbe + ...        the schema probes (D71: ColumnProbe, GridProbe, DynamicPivot,
+│   └── SystemDatabase.java                  WireProbe); the graph's system database (D72). //core:driver
+│
+└── (the root)                         THE FIVE DOORS, and nothing else since D73: Compiler, TypedQuery, HeldModels
+                                       (the plan side) and Execution, ExecuteOptions (the execution side); the
+                                       product's API, the five classes named outside core. Execution.Source (D72):
+                                       where execution gets the session for the target the compiler decided
 ```
 
 ## Naming conventions
@@ -195,7 +227,7 @@ core/src/main/java/com/legend/
 |---|---|---|
 | **Single top prefix** `com.legend.*` | `com.legend.lexer.Lexer` | Distinct from `com.gs.legend.*` (engine); makes the wall unambiguous |
 | **Folder = package**, 1:1 | folder `lexer/` ↔ package `com.legend.lexer` | One name per concept |
-| **Noun packages** | `lexer/`, `parser/`, `compiler/`, `resolver/`, `exec/` | Matches engine convention; matches Java idioms |
+| **Noun packages** | `lexer/`, `parser/`, `compiler/`, `resolver/`, `exec/`, `judge/` | Matches engine convention; matches Java idioms |
 | **Element / Spec symmetry, everywhere** | `parser/element/` + `parser/spec/`; `compiler/element/` + `compiler/spec/`; `ElementParser`+`SpecParser`; `ElementCompiler`+`SpecCompiler` | "Element" = packageable element. "Spec" = value specification. Same pair end-to-end, no ad-hoc `Model`/`Query` mixing |
 | **Pure data records** for every IR node | `record TypedFilter(...)` | No identity, free equality, free serialization |
 | **Sealed roots** for every variant family | `sealed interface TypedSpec permits ...` | Compile-time exhaustiveness on every dispatch site |
@@ -222,7 +254,7 @@ Audited 2026-08-06; 4 of 12 are enforced, 1 half, 7 are convention.
 2. **No `util/` package.** `[ENFORCED — ArchitectureTest:66]`
 3. **Sealed everywhere a hierarchy exists.** `PackageableElement`,
    `ValueSpecification`, `TypedElement`, `TypedSpec`, `Type`, `SqlQuery`,
-   `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `ExecutionResult`.
+   `SqlSource`, `SqlExpr`, `SqlAgg`, `SqlType`, `TypedSide` (the judges' side; `ExecutionResult` until 2026-10-29).
    `[CONVENTION]` — no sealed-or-final test exists.
    *(This entry previously named `Rel`, `ScalarOp`, `Dialect`, `NativeChecker`
    and `BindRule`, none of which exist in core.)*
@@ -401,6 +433,6 @@ Constructs that exist in upstream FINOS `legend-engine` but are **not implemente
 - [x] Phase G: SpecCompiler + compiler/spec (TypedSpec family) + checkers (G½: UserCallInliner)
 - [x] Phase H: StoreResolver + resolver/ (see `docs/RELATIONAL_CORPUS.md` for the coverage ledger)
 - [x] Phase I: Lowerer + lowering/ + sql/ data records
-- [x] Phase J: `SqlDialect.render(SqlQuery)` + `sql/dialect/` — `AnsiSqlRenderer`→`DuckDb`, `H2`→`H2Modern`, `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite`. (SQLite became a class of its own on 2026-10-11.)
-- [x] Phase K: Executor + exec/
+- [x] Phase J: `SqlDialect.render(SqlQuery)` + `sql/dialect/` — `AnsiSqlRenderer`→`DuckDb`, `H2` (`H2Modern` folded into it 2026-11-05), `EngineStyleH2`→`EngineStyleDB2`→`EngineStyleComposite`. (SQLite became a class of its own on 2026-10-11.)
+- [x] Phase K: PlanRunner + exec/ (`exec.Executor` deleted 2026-10-27, the result boundary program's phase 5; the old door 2026-10-29, its track D)
 - [x] Parity harness: PCT (pct module) + RelationalCorpusRunner (engine module, RUN-as-data)

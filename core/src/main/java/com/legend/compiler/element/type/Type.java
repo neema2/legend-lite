@@ -1,5 +1,6 @@
 package com.legend.compiler.element.type;
 
+
 import com.legend.builtin.Pure;
 import com.legend.sql.SqlType;
 
@@ -142,6 +143,31 @@ public sealed interface Type permits
             m.put(pp + "Timestamp", DATE_TIME);  // Timestamp extends DateTime
             m.put(pp + "Numeric", DECIMAL);      // Numeric(precision, scale) extends Decimal
             BY_FQN = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
+        }
+
+        /** The package of legend-pure's precisePrimitives.pure. */
+        public static final String PRECISE_PRIMITIVES = "meta::pure::precisePrimitives::";
+
+        /** A primitive's declared TYPE VARIABLE ({@code Primitive Varchar(x:Integer[1]) extends String}): its name and
+         *  its type. */
+        public record TypeVariable(String name, Primitive type) {
+        }
+
+        /** The type variables of the precise primitives that declare any, verbatim from legend-pure's
+         *  precisePrimitives.pure (read in the pinned source 2026-11-05): {@code Varchar(x:Integer[1])},
+         *  {@code Numeric(precision:Integer[1], scale:Integer[1])}. Every other platform primitive declares none. */
+        private static final Map<String, List<TypeVariable>> PRECISE_TYPE_VARIABLES = Map.of(
+                PRECISE_PRIMITIVES + "Varchar", List.of(new TypeVariable("x", INTEGER)),
+                PRECISE_PRIMITIVES + "Numeric", List.of(new TypeVariable("precision", INTEGER),
+                        new TypeVariable("scale", INTEGER)));
+
+        /** The type variables the PLATFORM primitive {@code fqn} declares (none for the m3 primitives and most
+         *  precise ones); empty when {@code fqn} is not a platform primitive. */
+        public static Optional<List<TypeVariable>> typeVariables(String fqn) {
+            if (!BY_FQN.containsKey(fqn)) {
+                return Optional.empty();
+            }
+            return Optional.of(PRECISE_TYPE_VARIABLES.getOrDefault(fqn, List.of()));
         }
 
         /** Looks up a built-in primitive by FQN; empty if {@code fqn} is not a known primitive. */
@@ -476,7 +502,7 @@ public sealed interface Type permits
     record RelationType(List<Column> columns, List<Column> dynamicColumns) implements Type {
 
         /** Separator between a pivoted data value and its aggregate-template name. */
-        public static final String PIVOT_SEPARATOR = "__|__";
+        public static final String PIVOT_SEPARATOR = com.legend.sql.SqlSource.Pivot.SEPARATOR;
 
         /** The LATE-BOUND schema wildcard (One-Platform Plan Phase 1c):
          * a raw-SQL grid's columns first exist at execution — the
@@ -541,10 +567,7 @@ public sealed interface Type permits
          * column stays bare (Fold.pivotIdentity is the reference-side
          * inverse). */
         public static String presentPivotName(String physical) {
-            return physical.contains(PIVOT_SEPARATOR)
-                    && !(physical.startsWith("'") && physical.endsWith("'"))
-                    ? "'" + physical + "'"
-                    : physical;
+            return com.legend.sql.SqlSource.Pivot.presented(physical);
         }
 
         public @com.legend.base.Nullable Type pivotColumnType(String rawName) {

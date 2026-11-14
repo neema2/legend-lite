@@ -3,7 +3,7 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
 
 import java.sql.Connection;
@@ -106,20 +106,20 @@ class SqlWritesExecutionTest {
         }
     }
 
-    private static ExecutionResult execute(TestBackend backend, Connection c, String sql) {
-        return com.legend.Execution.execute(MODEL.formatted(backend.connectionBody()), "#SQL{" + sql + "}#", "w::RT",
+    private static Lean.Result execute(TestBackend backend, Connection c, String sql) {
+        return Lean.run(MODEL.formatted(backend.connectionBody()), "#SQL{" + sql + "}#", "w::RT",
                 c);
     }
 
     private static Object count(TestBackend backend, Connection c, String sql) {
-        return ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(execute(backend, c, sql))).value();
+        return java.util.Objects.requireNonNull(execute(backend, c, sql)).one();
     }
 
     private static List<List<String>> rows(TestBackend backend, Connection c, String sql) {
         List<List<String>> out = new ArrayList<>();
         for (var row : execute(backend, c, sql).rows()) {
             List<String> cells = new ArrayList<>();
-            row.values().forEach(v -> cells.add(String.valueOf(v)));
+            row.forEach(v -> cells.add(String.valueOf(v)));
             out.add(cells);
         }
         return out;

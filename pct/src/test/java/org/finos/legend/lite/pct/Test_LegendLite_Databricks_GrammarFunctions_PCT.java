@@ -41,11 +41,15 @@ public class Test_LegendLite_Databricks_GrammarFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToMany_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Location"),
             one("meta::pure::functions::collection::tests::map::testMapRelationshipFromManyToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // HARNESS SERIALIZATION LOSS (as on DuckDB): the captured $address never reaches the serialized text
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // NOTE 2026-10-20 (plan-route parity, measured by the Databricks lane session at 31196a87): eq's and
             // equal's testEqNonPrimitive and testEqPrimitiveExtension pass (object identity), and
             // testLetChainedWithAnotherFunction (a type value carries its path), their pins removed;
             // testMapRelationshipFromOneToOne pins the class, as on every lane (the interpreter's ids vary per run)
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): Databricks keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "fraction digits; Databricks keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

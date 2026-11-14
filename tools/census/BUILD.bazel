@@ -16,7 +16,10 @@ legend_java_binary(
     jvm_flags = ["-Xss16m"],
     main_class = "RenderCensus",
     tags = ["manual"],
-    deps = ["//core"],
+    # testonly (2026-11-09): the storeless test runtime is the test backends' since slice 5 (it was test-only in core
+    # main until then), and this hand tool declares it beside each case's model
+    testonly = True,
+    deps = ["//core", "//core:test_backends"],
 )
 
 # The execution census, compared (README.md): two runs' lane logs as multisets of lines after removing run-to-run noise.

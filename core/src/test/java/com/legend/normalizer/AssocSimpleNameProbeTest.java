@@ -3,9 +3,9 @@
 
 package com.legend.normalizer;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -88,7 +88,7 @@ class AssocSimpleNameProbeTest {
                 st.execute("INSERT INTO PT VALUES (1,'ann'),(2,'bob')");
                 st.execute("INSERT INTO CT VALUES (10,'X1',1)");
             }
-            ExecutionResult r = Execution.execute(MODEL,
+            Lean.Result r = Lean.run(MODEL,
                     "a::m::Person.all()->filter(p|$p.roadVehicles->isNotEmpty())"
                     + "->project([p|$p.name], ['n'])->from(a::M, a::RT)",
                     "a::RT", conn);

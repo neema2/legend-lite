@@ -95,14 +95,14 @@ class ConnectorsTest {
     /** How {@code def} opens, or its refusal's message. */
     private static String opening(ConnectionDefinition def) {
         try {
-            return switch (Sessions.openingFor(def)) {
+            return switch (Sessions.openingFor(com.legend.planner.ConnectionPlans.of(def))) {
                 case Sessions.Opening.Url u -> "url " + u.url();
                 case Sessions.Opening.Named n -> {
                     assertSame(H2Connector.INSTANCE, n.memory());
                     yield "named " + n.name();
                 }
                 case Sessions.Opening.Held h -> {
-                    assertSame(Connectors.of(def.databaseType()), h.connector());
+                    assertSame(Connectors.of(com.legend.planner.ConnectionPlans.type(def.databaseType())), h.connector());
                     yield "held";
                 }
             };
@@ -184,7 +184,7 @@ class ConnectorsTest {
     @Test
     void aDatabaseRunsInProcessOnBothSidesAlike() {
         for (DatabaseType type : com.legend.database.Databases.implemented()) {
-            assertEquals(Connectors.of(type).inProcess(), com.legend.database.Databases.dialect(type).inProcess(),
+            assertEquals(Connectors.of(com.legend.planner.ConnectionPlans.type(type)).inProcess(), com.legend.database.Databases.dialect(type).inProcess(),
                     type.toString());
         }
     }
@@ -224,29 +224,32 @@ class ConnectorsTest {
         Set<DatabaseType> inProcess = Set.of(DatabaseType.H2, DatabaseType.DuckDB, DatabaseType.SQLite);
         for (DatabaseType type : DatabaseType.values()) {
             String product = products.get(type);
-            if (Connectors.of(type).ownSessions()) {
+            if (Connectors.of(com.legend.planner.ConnectionPlans.type(type)).ownSessions()) {
                 // MongoDB (since 59b547a, D12 and D14): no JDBC product; a JDBC session handed for it is refused
                 NotImplementedException refused = assertThrows(NotImplementedException.class,
-                        () -> Sessions.jdbcProduct(type));
+                        () -> Sessions.jdbcProduct(com.legend.planner.ConnectionPlans.type(type)));
                 assertEquals("sessions on MongoDB are not JDBC: its connector opens them, through the plan runner",
                         refused.getMessage());
             } else if (product == null) {
                 NotImplementedException refused = assertThrows(NotImplementedException.class,
-                        () -> Sessions.jdbcProduct(type));
+                        () -> Sessions.jdbcProduct(com.legend.planner.ConnectionPlans.type(type)));
                 assertEquals("sessions on database type '" + type + "' are not implemented", refused.getMessage());
             } else {
-                assertEquals(product, Sessions.jdbcProduct(type));
+                assertEquals(product, Sessions.jdbcProduct(com.legend.planner.ConnectionPlans.type(type)));
             }
-            assertEquals(inProcess.contains(type), Sessions.inProcess(type), type.toString());
+            assertEquals(inProcess.contains(type), Sessions.inProcess(com.legend.planner.ConnectionPlans.type(type)), type.toString());
             if (inProcess.contains(type)) {
-                // its private instance is a session of its own database, which holds no raise
-                try (Connection c = Sessions.openPrivate(type)) {
-                    assertSame(Connectors.of(type), Connectors.of(c));
-                    assertNull(Sessions.raisedMessage(c));
+                // its private instance is a session of its own database, whose errors carry their raise: no read-back
+                // declared by any target (the plan's since C2, 2026-11-12), so the seam reads nothing back after a
+                // failure (JdbcStatements.held)
+                try (Connection c = Connectors.of(com.legend.planner.ConnectionPlans.type(type)).openPrivate(
+                        com.legend.testbackend.TestBackends.settings(type))) {
+                    assertSame(Connectors.of(com.legend.planner.ConnectionPlans.type(type)), Connectors.of(c));
+                    assertNull(JdbcStatements.held(c, new SessionState(), new java.sql.SQLException("the statement's")));
                 }
             } else {
                 NotImplementedException refused = assertThrows(NotImplementedException.class,
-                        () -> Sessions.openPrivate(type));
+                        () -> Sessions.openPrivate(com.legend.planner.ConnectionPlans.type(type), null));
                 assertEquals("no in-memory instance of database type '" + type + "'", refused.getMessage());
             }
         }
@@ -261,17 +264,69 @@ class ConnectorsTest {
         Set<DatabaseType> servers = Set.of(DatabaseType.Postgres, DatabaseType.MariaDB, DatabaseType.MySQL);
         for (DatabaseType type : DatabaseType.values()) {
             if (declared.containsKey(type)) {
-                assertEquals(declared.get(type), Connectors.of(type).storelessDeclaration());
+                assertEquals(declared.get(type), Connectors.of(com.legend.planner.ConnectionPlans.type(type)).storelessDeclaration());
                 continue;
             }
             IllegalArgumentException refused = assertThrows(IllegalArgumentException.class,
-                    () -> Connectors.of(type).storelessDeclaration());
+                    () -> Connectors.of(com.legend.planner.ConnectionPlans.type(type)).storelessDeclaration());
             assertEquals(servers.contains(type)
                     ? type + " is a server: its storeless runtime declares the session's coordinates (onServer)"
                     // MongoDB (since 59b547a): a server whose connection is the engine's MongoDBConnection
-                    : Connectors.of(type).ownSessions() ? type + " is a server, and its connection is the engine's"
+                    : Connectors.of(com.legend.planner.ConnectionPlans.type(type)).ownSessions() ? type + " is a server, and its connection is the engine's"
                             + " MongoDBConnection: its storeless runtime declares the session's coordinates (onMongo)"
                     : "no storeless runtime on " + type + ": the platform does not execute on it", refused.getMessage());
+        }
+    }
+
+    /** The four driver facts each connector answers ({@code DatabaseConnector.decoding}; D72, 2026-10-30, the facts
+     *  the dialect's four hooks held until then, carried: the D72 audit asked that they be pinned, since nothing had
+     *  pinned the hooks). Positional, so a swapped argument shows here. The eleven JDBC connectors; MongoDB's
+     *  statements read no JDBC row. */
+    @Test
+    void eachConnectorAnswersItsDriversDecodeFacts() {
+        DatabaseConnector.Decoding dflt = new DatabaseConnector.Decoding(true, false, false, false, true);
+        Map<DatabaseType, DatabaseConnector.Decoding> expected = new LinkedHashMap<>();
+        // (ClickHouse's no transaction is takesTransactions's, its decoding the default: the correctness audit of PR
+        // #81, 2026-11-13, removed the field that repeated it)
+        for (DatabaseType t : List.of(DatabaseType.H2, DatabaseType.SQLite, DatabaseType.Postgres, DatabaseType.MariaDB,
+                DatabaseType.MySQL, DatabaseType.ClickHouse)) {
+            expected.put(t, dflt);
+        }
+        // no java.time re-fetch (the drivers refuse getObject(int, LocalDateTime.class); a BC date-time is designed)
+        expected.put(DatabaseType.Databricks, new DatabaseConnector.Decoding(false, false, false, false, true));
+        expected.put(DatabaseType.Snowflake, new DatabaseConnector.Decoding(false, false, false, false, false));
+        // a decimal's trailing zeros dropped by the driver (BIGNUMERIC '3.0' reads 3), padded back to the slot's scale
+        expected.put(DatabaseType.BigQuery, new DatabaseConnector.Decoding(true, true, false, false, true));
+        // JSON spells a non-finite double as a bare token
+        expected.put(DatabaseType.DuckDB, new DatabaseConnector.Decoding(true, false, false, true, true));
+        // a failed statement's result opens with no columns, its error on the first read
+        expected.put(DatabaseType.Trino, new DatabaseConnector.Decoding(true, false, true, false, true));
+        for (Map.Entry<DatabaseType, DatabaseConnector.Decoding> e : expected.entrySet()) {
+            assertEquals(e.getValue(), Connectors.of(com.legend.planner.ConnectionPlans.type(e.getKey())).decoding(), e.getKey().toString());
+        }
+    }
+
+    /** THE ONE RULE for a project's Data (the M1 tenets audit's finding 1, 2026-11-09): the planner plans the fill only
+     *  where {@code ConnectionSpecification.platformMakes} says the platform makes the database, and exec makes it only
+     *  where a connector's opening is held or named by the opener. Equal for every database type and specification a
+     *  connector opens. */
+    @Test
+    void thePlatformMakesExactlyTheDatabasesItsConnectorsOpenAsItsOwn() {
+        for (DatabaseType type : DatabaseType.values()) {
+            for (ConnectionSpecification spec : SPECIFICATIONS.values()) {
+                com.legend.executionplan.Connection plan = com.legend.planner.ConnectionPlans.of(
+                        new ConnectionDefinition(Q, "q::S", type, spec, new AuthenticationSpec.TestAuth()));
+                Sessions.Opening opening;
+                try {
+                    opening = Connectors.of(plan.databaseType()).opening(plan);
+                } catch (RuntimeException refused) {
+                    continue;
+                }
+                boolean own = opening instanceof Sessions.Opening.Held
+                        || opening instanceof Sessions.Opening.Named n && n.name() == null;
+                assertEquals(own, com.legend.executionplan.ConnectionSpecification.platformMakes(plan.specification()),
+                        type + " " + spec.getClass().getSimpleName() + ": " + opening);
+            }
         }
     }
 }

@@ -61,6 +61,17 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
 
 ## Other traps
 
+- **Never delete the LLVM toolchain's tarball from the download cache** (`~/.cache/bazel/_bazel_root/cache/repos/v1/content_addressable`,
+  the 1.9 GB `LLVM-20.1.8-Linux-X64.tar.xz`), even with its extraction in place (2026-11-01, measured the hard way):
+  the next build that needed the toolchain re-fetched the repository -- downloaded the tarball again and extracted its
+  11 GB into a full disk, killing the build -- although the repository-contents cache (`cache/repos/v1/contents`,
+  which hard-links its extractions into the output base) still held the extraction. The other downloaded archives
+  can go once extracted (about 4 GB), the LLVM one cannot. Recovery when it happens: keep `--repo_contents_cache`
+  ENABLED (the line `common --repo_contents_cache=` in `~/.bazelrc` turns it off; with it off the restore is a
+  download), then `bazel fetch --repo=@@toolchains_llvm++llvm+llvm_toolchain_llvm` restores the extraction from the
+  cache in seconds without a download; `bazel clean` (not `--expunge`) frees the build outputs (about 5 GB after a
+  gate run) at the cost of recompiling core.
+
 - **The disk allowance.** The output base (about 8 GB) and the repository cache (about 20 GB) take most of it, and
   "No space left on device" then appears mid-build, often while copying inputs into a sandbox. When no build runs,
   `rm -rf "$(bazel info output_base)"/sandbox/*` and stale scratch output free a few GB. `df` reports the
@@ -112,3 +123,9 @@ when it starts. An environment's setup script could also run `tools/cloud-distdi
   and `//wasm:planner` locally.
 - **The worker restarts.** A restarted session worker kills what it was running: run a long Bazel command in the
   background and commit a checkpoint to the branch before a long run.
+- **The memory cgroup kills the Bazel server (2026-10-29, track L's chain, twice).** The session's processes share one
+  memory cgroup; the 21 PCT lanes with `--local_test_jobs=2` beside the server's JVM crossed it, and the kernel killed
+  the server (`Server terminated abruptly (error code: 14, error message: 'Socket closed')`; `dmesg` reads
+  `Memory cgroup out of memory: Killed process ... (java)`). A lane killed mid-run leaves a log with no summary and
+  counts as failed. Run the PCT group with `--local_test_jobs=1 --jobs=2`; a test that dies that way is rerun, not
+  fixed.

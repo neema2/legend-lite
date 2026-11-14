@@ -12,5 +12,9 @@ WITH __p_0 AS (SELECT c.__n AS __c_n, n.__c AS __n_c, n.value AS __n_value
       SELECT 3 AS value
     ) AS side ON TRUE
   ) AS n)
-SELECT 0 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient
+SELECT 0 AS __ix, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __verdict, CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR) AS __expected, CAST(p.__c_n AS VARCHAR) AS __actual, CAST(NULL AS VARCHAR) AS __unjudged, FALSE AS __lenient, coalesce((p.__c_n IS NOT DISTINCT FROM CAST(p.__n_c AS BIGINT)), FALSE) AS __holds, concat('
+expected: ', coalesce(replace(CAST(CAST(p.__n_c AS BIGINT) AS VARCHAR), '
+', '\n'), 'null'), '
+actual:   ', coalesce(replace(CAST(p.__c_n AS VARCHAR), '
+', '\n'), 'null')) AS __message
 FROM __p_0 AS p

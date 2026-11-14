@@ -118,7 +118,7 @@ class PipelineStageFailureTest {
         var fn = ctx.findFunction("test::broken").get(0);
         var spec = new com.legend.compiler.spec.SpecCompiler(ctx);
         var ex = org.junit.jupiter.api.Assertions.assertThrows(
-                com.legend.compiler.spec.TypeInferenceException.class,
+                com.legend.error.TypeInferenceException.class,
                 () -> spec.compile(fn));
         messageNames(ex, "in function 'test::broken");
     }

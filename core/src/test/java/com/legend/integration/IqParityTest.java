@@ -3,8 +3,9 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Lean;
+
 import com.legend.protocol.sql.iq.IqProfile;
-import com.legend.server.QueryService;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.IqAnswers;
@@ -71,7 +72,6 @@ class IqParityTest {
         Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
         try (Connection session = PLATFORM.open()) {
             IqParity.seed(PLATFORM, session, tables);
-            QueryService service = new QueryService();
             for (IqParity.Run r : runs) {
                 String mismatch = IqParity.engineMismatch(r, names);
                 if (mismatch != null) {
@@ -86,7 +86,7 @@ class IqParityTest {
                     problems.add(order);
                 }
                 SqlParity.Outcome outcome = IqParity.outcome(r, answers.get(r.key()), tables, names,
-                        island -> service.execute(model, island, IqParity.RUNTIME, session));
+                        island -> Lean.run(model, island, IqParity.RUNTIME, session));
                 outcomes.put(r.key(), outcome);
                 // IQ island, 2026-10-14 (review 7, the user's ruling on B1): no case pins one plan's choice
                 String nondeterministic = IqParity.determinism(r, tables, outcome.status());

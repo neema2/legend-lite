@@ -1,0 +1,191 @@
+// Measured 2026-11-11 on Trino 483 (the embedded coordinator, memory connector; B, the orchestrator's correction:
+// Trino's date-time arms keep nine digits or refuse by name). Three probes; their outputs follow each.
+
+// ==== TrinoNs.java
+import java.sql.*;
+public class TrinoNs {
+    static final String T = "TIMESTAMP '2024-01-02 03:04:05.123456789'";
+    static final String U = "TIMESTAMP '2024-01-02 03:04:06.987654321'";
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:trino://127.0.0.1:18089/memory/default?user=legend&timezone=UTC");
+             Statement s = c.createStatement()) {
+            String[][] q = {
+                {"literal", T},
+                {"date_trunc second", "date_trunc('second', " + T + ")"},
+                {"date_trunc millisecond", "date_trunc('millisecond', " + T + ")"},
+                {"date_add second", "date_add('second', 1, " + T + ")"},
+                {"date_add millisecond", "date_add('millisecond', 1, " + T + ")"},
+                {"date_add microsecond", "date_add('microsecond', 1, " + T + ")"},
+                {"date_add nanosecond", "date_add('nanosecond', 1, " + T + ")"},
+                {"date_diff millisecond", "date_diff('millisecond', " + T + ", " + U + ")"},
+                {"date_diff microsecond", "date_diff('microsecond', " + T + ", " + U + ")"},
+                {"date_diff nanosecond", "date_diff('nanosecond', " + T + ", " + U + ")"},
+                {"tz lite(6)", "CAST(at_timezone(with_timezone(" + T + ", 'UTC'), 'America/New_York') AS TIMESTAMP(6))"},
+                {"tz 9", "CAST(at_timezone(with_timezone(" + T + ", 'UTC'), 'America/New_York') AS TIMESTAMP(9))"},
+                {"tz wall 9", "CAST(at_timezone(with_timezone(" + T + ", 'America/New_York'), 'UTC') AS TIMESTAMP(9))"},
+                {"tz no cast", "at_timezone(with_timezone(" + T + ", 'UTC'), 'America/New_York')"},
+                {"cast(9) of 6-digit", "CAST(TIMESTAMP '2024-01-02 03:04:05.123456' AS TIMESTAMP(9))"},
+                {"parse cast(6)", "CAST('2024-01-02 03:04:05.123456789' AS TIMESTAMP(6))"},
+                {"parse cast(9)", "CAST('2024-01-02 03:04:05.123456789' AS TIMESTAMP(9))"},
+                {"parse_datetime", "parse_datetime('2024-01-02 03:04:05.123456789', 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS')"},
+                {"to_unixtime", "to_unixtime(with_timezone(" + T + ", 'UTC'))"},
+                {"from_unixtime_nanos", "from_unixtime_nanos(1704164645123456789)"},
+                {"text(9)", "CAST(" + T + " AS VARCHAR)"},
+                {"text substr 21 9", "substr(CAST(" + T + " AS VARCHAR), 21, 9)"},
+                {"epoch nanos", "date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', " + T + ")) * 1000000000 + CAST(substr(CAST(CAST(" + T + " AS TIMESTAMP(9)) AS VARCHAR), 21, 9) AS BIGINT)"},
+                {"from epoch nanos naive", "CAST(at_timezone(from_unixtime_nanos(1704164645123456789), 'UTC') AS TIMESTAMP(9))"},
+                {"format_datetime SSSSSSSSS", "format_datetime(with_timezone(" + T + ", 'UTC'), 'SSSSSSSSS')"},
+                {"cast(6) of ns", "CAST(" + T + " AS TIMESTAMP(6))"},
+            };
+            for (String[] x : q) {
+                try (ResultSet r = s.executeQuery("SELECT typeof(" + x[1] + "), CAST(" + x[1] + " AS VARCHAR)")) {
+                    r.next();
+                    System.out.println(x[0] + " :: " + r.getString(1) + " :: " + r.getString(2));
+                } catch (SQLException e) {
+                    System.out.println(x[0] + " :: ERROR " + e.getMessage().split("\n")[0]);
+                }
+            }
+        }
+    }
+}
+/* output:
+literal :: timestamp(9) :: 2024-01-02 03:04:05.123456789
+date_trunc second :: timestamp(9) :: 2024-01-02 03:04:05.000000000
+date_trunc millisecond :: timestamp(9) :: 2024-01-02 03:04:05.123000000
+date_add second :: timestamp(9) :: 2024-01-02 03:04:06.123456789
+date_add millisecond :: timestamp(9) :: 2024-01-02 03:04:05.124456789
+date_add microsecond :: ERROR 'microsecond' is not a valid TIMESTAMP field
+date_add nanosecond :: ERROR 'nanosecond' is not a valid TIMESTAMP field
+date_diff millisecond :: bigint :: 1864
+date_diff microsecond :: ERROR 'microsecond' is not a valid TIMESTAMP field
+date_diff nanosecond :: ERROR 'nanosecond' is not a valid TIMESTAMP field
+tz lite(6) :: timestamp(6) :: 2024-01-01 22:04:05.123457
+tz 9 :: timestamp(9) :: 2024-01-01 22:04:05.123456789
+tz wall 9 :: timestamp(9) :: 2024-01-02 08:04:05.123456789
+tz no cast :: timestamp(9) with time zone :: 2024-01-01 22:04:05.123456789 America/New_York
+cast(9) of 6-digit :: timestamp(9) :: 2024-01-02 03:04:05.123456000
+parse cast(6) :: timestamp(6) :: 2024-01-02 03:04:05.123457
+parse cast(9) :: timestamp(9) :: 2024-01-02 03:04:05.123456789
+parse_datetime :: timestamp(3) with time zone :: 2024-01-02 03:04:05.123 UTC
+to_unixtime :: double :: 1.7041646451234567E9
+from_unixtime_nanos :: timestamp(9) with time zone :: 2024-01-02 03:04:05.123456789 UTC
+text(9) :: varchar :: 2024-01-02 03:04:05.123456789
+text substr 21 9 :: varchar :: 123456789
+epoch nanos :: bigint :: 1704164645123456789
+from epoch nanos naive :: timestamp(9) :: 2024-01-02 03:04:05.123456789
+format_datetime SSSSSSSSS :: varchar :: 123000000
+cast(6) of ns :: timestamp(6) :: 2024-01-02 03:04:05.123457
+*/
+
+// ==== TrinoNs2.java
+import java.sql.*;
+public class TrinoNs2 {
+    static String nanosDec(String t) {
+        return "(CAST(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(" + t
+            + " AS TIMESTAMP(9)))) AS DECIMAL(38, 0)) * 1000000000 + CAST(substr(CAST(CAST(" + t
+            + " AS TIMESTAMP(9)) AS VARCHAR), 21, 9) AS DECIMAL(38, 0)))";
+    }
+    static String fromNanosDec(String x) {
+        return "CAST(at_timezone(from_unixtime_nanos(" + x + "), 'UTC') AS TIMESTAMP(9))";
+    }
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:trino://127.0.0.1:18089/memory/default?user=legend&timezone=UTC");
+             Statement s = c.createStatement()) {
+            String T = "TIMESTAMP '2024-01-02 03:04:05.123456789'";
+            String Far = "TIMESTAMP '3000-01-02 03:04:05.123456789'";
+            String Pre = "TIMESTAMP '1969-12-31 23:59:59.500000001'";
+            String Six = "TIMESTAMP '2024-01-02 03:04:05.123456'";
+            String[][] q = {
+                {"nanosDec T", nanosDec(T)},
+                {"nanosDec Pre", nanosDec(Pre)},
+                {"nanosDec Far", nanosDec(Far)},
+                {"add 5us T", fromNanosDec(nanosDec(T) + " + 5 * 1000")},
+                {"add 5us Pre", fromNanosDec(nanosDec(Pre) + " + 5 * 1000")},
+                {"add 5us Far", fromNanosDec(nanosDec(Far) + " + 5 * 1000")},
+                {"add -1us Six", fromNanosDec(nanosDec(Six) + " + -1 * 1000")},
+                {"add 5us year 9999", fromNanosDec(nanosDec("TIMESTAMP '9999-12-31 23:59:59.999990000'") + " + 5 * 1000")},
+                {"add 5us year 0001", fromNanosDec(nanosDec("TIMESTAMP '0001-01-01 00:00:00.000000001'") + " + 5 * 1000")},
+                {"micros9 Pre (floor)", "date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(" + Pre + " AS TIMESTAMP(9)))) * 1000000 + CAST(substr(CAST(CAST(" + Pre + " AS TIMESTAMP(9)) AS VARCHAR), 21, 6) AS BIGINT)"},
+                {"parse_datetime micro fmt", "parse_datetime('2024-01-02 03:04:05.123456', 'yyyy-MM-dd HH:mm:ss.SSSSSS')"},
+                {"parse_datetime nano fmt", "parse_datetime('2024-01-02 03:04:05.123456789', 'yyyy-MM-dd HH:mm:ss.SSSSSSSSS')"},
+                {"bucket floor via 9", "CAST(floor(CAST(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(" + T + " AS TIMESTAMP(9)))) * 1000000 + CAST(substr(CAST(CAST(" + T + " AS TIMESTAMP(9)) AS VARCHAR), 21, 6) AS BIGINT) AS DOUBLE) / 1000) AS BIGINT)"},
+                {"date_at_time 9", "CAST(CAST(DATE '2024-01-02' AS VARCHAR) || ' ' || CAST(TIME '03:04:05.123456789' AS VARCHAR) AS TIMESTAMP(9))"},
+                {"time literal type", "TIME '03:04:05.123456789'"},
+                {"now 9", "CAST(current_timestamp AS TIMESTAMP(9))"},
+            };
+            for (String[] x : q) {
+                try (ResultSet r = s.executeQuery("SELECT typeof(" + x[1] + "), CAST(" + x[1] + " AS VARCHAR)")) {
+                    r.next();
+                    System.out.println(x[0] + " :: " + r.getString(1) + " :: " + r.getString(2));
+                } catch (SQLException e) {
+                    System.out.println(x[0] + " :: ERROR " + e.getMessage().split("\n")[0]);
+                }
+            }
+        }
+    }
+}
+/* output:
+nanosDec T :: decimal(38,0) :: 1704164645123456789
+nanosDec Pre :: decimal(38,0) :: -499999999
+nanosDec Far :: decimal(38,0) :: 32503777445123456789
+add 5us T :: timestamp(9) :: 2024-01-02 03:04:05.123461789
+add 5us Pre :: timestamp(9) :: 1969-12-31 23:59:59.500005001
+add 5us Far :: timestamp(9) :: 3000-01-02 03:04:05.123461789
+add -1us Six :: timestamp(9) :: 2024-01-02 03:04:05.123455000
+add 5us year 9999 :: timestamp(9) :: 9999-12-31 23:59:59.999995000
+add 5us year 0001 :: timestamp(9) :: 0001-01-01 00:00:00.000005001
+micros9 Pre (floor) :: bigint :: -500000
+parse_datetime micro fmt :: timestamp(3) with time zone :: 2024-01-02 03:04:05.123 UTC
+parse_datetime nano fmt :: timestamp(3) with time zone :: 2024-01-02 03:04:05.123 UTC
+bucket floor via 9 :: bigint :: 1704164645123
+date_at_time 9 :: timestamp(9) :: 2024-01-02 03:04:05.123456789
+time literal type :: time(9) :: 03:04:05.123456789
+now 9 :: timestamp(9) :: 2026-11-11 05:41:18.779000000
+*/
+
+// ==== TrinoNs3.java
+import java.sql.*;
+public class TrinoNs3 {
+    static String micros(String t) { return "(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(" + t + " AS TIMESTAMP(9)))) * 1000000 + CAST(substr(CAST(CAST(" + t + " AS TIMESTAMP(9)) AS VARCHAR), -9, 6) AS BIGINT))"; }
+    static String microsOld(String t) { return "(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(" + t + " AS TIMESTAMP(6)))) * 1000000 + CAST(substr(CAST(CAST(" + t + " AS TIMESTAMP(6)) AS VARCHAR), 21, 6) AS BIGINT))"; }
+    static String nanos(String t) { return "(CAST(date_diff('second', TIMESTAMP '1970-01-01 00:00:00', date_trunc('second', CAST(" + t + " AS TIMESTAMP(9)))) AS DECIMAL(38, 0)) * 1000000000 + CAST(substr(CAST(CAST(" + t + " AS TIMESTAMP(9)) AS VARCHAR), -9) AS DECIMAL(38, 0)))"; }
+    static String fromNanos(String x) { return "CAST(at_timezone(from_unixtime_nanos(" + x + "), 'UTC') AS TIMESTAMP(9))"; }
+    public static void main(String[] a) throws Exception {
+        try (Connection c = DriverManager.getConnection("jdbc:trino://127.0.0.1:18089/memory/default?user=legend&timezone=UTC");
+             Statement s = c.createStatement()) {
+            s.execute("DROP TABLE IF EXISTS t6");
+            s.execute("CREATE TABLE t6 (ts TIMESTAMP(6))");
+            s.execute("INSERT INTO t6 VALUES (TIMESTAMP '1969-12-31 23:59:59.500000'), (TIMESTAMP '2024-01-02 03:04:05.123456')");
+            String[][] q = {
+                {"micros new vs old (col)", "SELECT array_agg(" + micros("ts") + " - " + microsOld("ts") + ") FROM t6"},
+                {"micros ns lit", "SELECT " + micros("TIMESTAMP '2024-01-02 03:04:05.123456789'")},
+                {"add 3us col", "SELECT array_agg(CAST(" + fromNanos(nanos("ts") + " + CAST(3 AS DECIMAL(38, 0)) * 1000") + " AS VARCHAR)) FROM t6"},
+                {"add -2us ns lit", "SELECT CAST(" + fromNanos(nanos("TIMESTAMP '2024-01-02 03:04:05.000000001'") + " + CAST(-2 AS DECIMAL(38, 0)) * 1000") + " AS VARCHAR)"},
+                {"strftime micro of ns", "SELECT substr(CAST(CAST(TIMESTAMP '2024-01-02 03:04:05.123456789' AS TIMESTAMP(9)) AS VARCHAR), -9, 6)"},
+                {"strftime nano of ns", "SELECT substr(CAST(CAST(TIMESTAMP '2024-01-02 03:04:05.123456789' AS TIMESTAMP(9)) AS VARCHAR), -9)"},
+                {"strftime micro of col", "SELECT array_agg(substr(CAST(CAST(ts AS TIMESTAMP(9)) AS VARCHAR), -9, 6)) FROM t6"},
+                {"tz of col (9)", "SELECT array_agg(CAST(CAST(at_timezone(with_timezone(ts, 'UTC'), 'Asia/Kolkata') AS TIMESTAMP(9)) AS VARCHAR)) FROM t6"},
+                {"compare 9 to 6 col", "SELECT count(*) FROM t6 WHERE ts < TIMESTAMP '2024-01-02 03:04:05.123456001'"},
+            };
+            for (String[] x : q) {
+                try (ResultSet r = s.executeQuery(x[1])) {
+                    r.next();
+                    System.out.println(x[0] + " :: " + r.getString(1));
+                } catch (SQLException e) {
+                    System.out.println(x[0] + " :: ERROR " + e.getMessage().split("\n")[0]);
+                }
+            }
+        }
+    }
+}
+/* output:
+micros new vs old (col) :: [0, 0]
+micros ns lit :: 1704164645123456
+add 3us col :: [1969-12-31 23:59:59.500003000, 2024-01-02 03:04:05.123459000]
+add -2us ns lit :: 2024-01-02 03:04:04.999998001
+strftime micro of ns :: 123456
+strftime nano of ns :: 123456789
+strftime micro of col :: [500000, 123456]
+tz of col (9) :: [1970-01-01 05:29:59.500000000, 2024-01-02 08:34:05.123456000]
+compare 9 to 6 col :: 2
+*/

@@ -24,9 +24,9 @@ public final class StableScanOrder extends SqlRewriter {
      * added. The corpus runner attributes firings to the test that ran and
      * pins that set per lane ({@code rcorpus/<lane>-engine-order-register.txt}).
      * The count lives HERE because the SQL layer is standalone (Invariant 6a:
-     * it may not reach {@code com.legend.exec}); the one census owner
-     * ({@code Census.Key.SCAN_ORDER_FIRINGS}) reads through to it, so the
-     * lanes still read every count from one place. */
+     * it may not reach {@code com.legend.exec}); the corpus lane reads it
+     * from here (until D71, 2026-10-30, the census read through to it --
+     * the runtime's one name of a dialect, cut with the judges' move). */
     private static final java.util.concurrent.atomic.AtomicLong FIRINGS =
             new java.util.concurrent.atomic.AtomicLong();
 

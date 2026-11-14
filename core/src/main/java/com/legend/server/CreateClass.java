@@ -3,6 +3,7 @@
 
 package com.legend.server;
 
+
 import static com.legend.server.ModelChanges.arrOf;
 import static com.legend.server.ModelChanges.camelCase;
 import static com.legend.server.ModelChanges.element;

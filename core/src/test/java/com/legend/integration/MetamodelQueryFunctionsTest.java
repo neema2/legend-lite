@@ -1,11 +1,11 @@
 package com.legend.integration;
 
-import com.legend.database.Databases;
-import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testing.LaneFloor;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
+import com.legend.testing.Program;
+import com.legend.testbackend.StorelessRuntime;
+
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +32,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * query the database answers; nothing here is test-specific Java.
  */
 @DisplayName("Metamodel store: mapping-metamodel query functions as Pure bodies over rows")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class MetamodelQueryFunctionsTest {
 
     private static final String MODEL = """
@@ -88,7 +89,7 @@ class MetamodelQueryFunctionsTest {
 
     @BeforeEach
     void setUp() throws SQLException {
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -97,12 +98,8 @@ class MetamodelQueryFunctionsTest {
     }
 
     private List<Object> values(String query) throws SQLException {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with(MODEL, Databases.PLATFORM), query, StorelessRuntime.RUNTIME, connection);
-        if (r instanceof ExecutionResult.Collection c) {
-            return c.values();
-        }
-        Object v = ((ExecutionResult.Scalar) r).value();
-        return v == null ? List.of() : List.of(v);
+        Lean.Result r = Program.last(StorelessRuntime.with(MODEL, LaneFloor.backend().type()), query, StorelessRuntime.RUNTIME, connection);
+        return r.values();
     }
 
     /** The corpus's view shape: {@code db.schemas->map(x|$x->view('V'))->toOne()
@@ -224,5 +221,34 @@ class MetamodelQueryFunctionsTest {
                 "meta::relational::metamodel::Column.all()->filter(c|$c.name == 'code').type->map(t|$t->" + SQL_TEXT + "())"));
         assertEquals(List.of("DECIMAL(4, 1)"), values(
                 "meta::relational::metamodel::Column.all()->filter(c|$c.name == 'qty').type->map(t|$t->" + SQL_TEXT + "())"));
+    }
+    /** upstream's getQualifiedTableName ({@code core_relational/relational/testDataGeneration/testDataGeneration.pure}):
+     *  an if whose condition reads a table's schema name, a value the database decides. */
+    private static final String QUALIFIED = "if($t.schema.name == 'default', | '', | $t.schema.name + '.')"
+            + " + $t.name->toOne()";
+    private static final String TABLE = "let t = ext::testDatabase->meta::relational::metamodel::schema('s2')->toOne()"
+            + "->meta::relational::metamodel::table('T2')->toOne();";
+
+    @Test
+    @DisplayName("an if whose runtime condition reads a metamodel table chooses between two values: the database decides"
+            + " it (CASE WHEN) -- as a value, and as an assert's message under every judge, read only where it fails")
+    void aRuntimeIfOverATableChoosesAValue() throws SQLException {
+        // 2026-11-07, the DuckDB judges' parity: the resolver refused this if in any anchored position ("class query
+        // under if() with a runtime condition"), so the host judge refused 15 corpus bodies whose helper's assert
+        // message spells a table's name this way, while the database judge passed them
+        assertEquals(List.of("s2.T2"), values("{|" + TABLE + " " + QUALIFIED + ";}"));
+        String model = StorelessRuntime.with(MODEL, LaneFloor.backend().type());
+        for (com.legend.testplan.PlanningOptions.JudgeMode judge : com.legend.testplan.PlanningOptions.JudgeMode.values()) {
+            com.legend.ExecuteOptions options = com.legend.ExecuteOptions.NONE.withJudgeMode(judge);
+            Program.Report holds = Program.run(model, "{|" + TABLE + " assert($t.name == 'T2', | 'Table : ' + "
+                    + QUALIFIED + " + ' missing');}", StorelessRuntime.RUNTIME, connection, options);
+            assertEquals(List.of(true), holds.verdicts().stream().map(Program.Verdict::pass).toList(),
+                    judge + ": " + holds.verdicts());
+            com.legend.error.AssertFailed fails = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.error.AssertFailed.class, () -> Program.run(model, "{|" + TABLE
+                            + " assert($t.name == 'nope', | 'Table : ' + " + QUALIFIED + " + ' missing');}",
+                            StorelessRuntime.RUNTIME, connection, options), judge.name());
+            assertEquals("Table : s2.T2 missing", fails.getMessage(), judge.name());
+        }
     }
 }

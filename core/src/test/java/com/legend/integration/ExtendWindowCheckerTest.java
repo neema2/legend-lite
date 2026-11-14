@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -69,7 +70,7 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
 
     // ==================== Utilities ====================
 
-    private int colIdx(ExecutionResult result, String name) {
+    private int colIdx(Lean.Result result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name()))
                 return i;
@@ -1667,6 +1668,71 @@ public class ExtendWindowCheckerTest extends AbstractDatabaseTest {
                 else
                     assertEquals(2500.0, vr, 0.01);
             }
+        }
+    }
+
+    @Nested
+    @DisplayName("A condition over reducers: a figure given once its window holds enough values")
+    class ConditionOverReducers {
+
+        @Test
+        @DisplayName("windowed: CASE over the frame's count and its average, each windowed")
+        void windowed() throws SQLException {
+            var r = executeRelation(NUMS + "->extend(over(~p, [~o->ascending()], rows(-1, 0)),"
+                    + " ~m:{p,w,r|$r.v}:y|if($y->count() < 2, |[], |$y->average()))->sort([~p->ascending(), ~o->ascending()])");
+            int m = colIdx(r, "m");
+            // each partition's first row has one value in its frame: none
+            assertEquals(java.util.Arrays.asList(null, 15.0, 25.0, null, 150.0), r.rows().stream()
+                    .map(row -> row.get(m) == null ? null : ((Number) row.get(m)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("a window column's if with an empty arm: none, beside a number (the CASE's NULL, never an empty array)")
+        void emptyArmInAWindowColumn() throws SQLException {
+            var r = executeRelation(NUMS + "->extend(over(~p, [~o->ascending()]),"
+                    + " ~g:{p,w,r|if($p->lag($r).v->toOne() == 10, |[], |$r.v->toOne() / $p->lag($r).v->toOne())})"
+                    + "->sort([~p->ascending(), ~o->ascending()])");
+            int g = colIdx(r, "g");
+            // the first of each partition has no row before (none), the second of p 0 follows a 10 (none)
+            assertEquals(java.util.Arrays.asList(null, null, 1.5, null, 2.0), r.rows().stream()
+                    .map(row -> row.get(g) == null ? null : ((Number) row.get(g)).doubleValue()).toList());
+        }
+
+        @Test
+        @DisplayName("a lag and a rank in a framed window: the partition's, the frame never written for them (SAP IQ and H2 refuse one)")
+        void aLagReadsThePartitionNotTheFrame() throws SQLException {
+            String q = NUMS + "->extend(over(~p, [~o->ascending()], rows(0, 0)), ~[x:{p,w,r|$p->lag($r).v}, k:{p,w,r|$p->rowNumber($r)}])"
+                    + "->extend(over(~p, [~o->ascending()], rows(0, 0)), ~s:{p,w,r|$r.v}:y|$y->sum())"
+                    + "->sort([~p->ascending(), ~o->ascending()])";
+            String sql = generateSql(q);
+            assertTrue(sql.matches("(?s).*LAG\\([^)]*\\) OVER \\([^)]*\\).*") && !sql.matches("(?s).*LAG\\([^)]*\\) OVER \\([^)]*ROWS[^)]*\\).*"), sql);
+            assertTrue(sql.contains("ROWS BETWEEN"), "the sum keeps its frame: " + sql);
+            var r = executeRelation(q);
+            int x = colIdx(r, "x");
+            int k = colIdx(r, "k");
+            int sm = colIdx(r, "s");
+            // the row before in the partition, whatever the frame (which holds the row alone)
+            assertEquals(java.util.Arrays.asList(null, 10, 20, null, 100), r.rows().stream()
+                    .map(row -> row.get(x) == null ? null : ((Number) row.get(x)).intValue()).toList());
+            assertEquals(List.of(1, 2, 3, 1, 2), r.rows().stream().map(row -> ((Number) row.get(k)).intValue()).toList());
+            assertEquals(List.of(10, 20, 30, 100, 200), r.rows().stream().map(row -> ((Number) row.get(sm)).intValue()).toList());
+        }
+
+        @Test
+        @DisplayName("grouped: CASE over the group's count and its sum")
+        void grouped() throws SQLException {
+            var r = executeRelation(NUMS + "->groupBy(~p, ~s:x|$x.v:y|if($y->count() < 3, |[], |$y->sum()))->sort(~p->ascending())");
+            int s = colIdx(r, "s");
+            assertEquals(java.util.Arrays.asList(60, null), r.rows().stream()
+                    .map(row -> row.get(s) == null ? null : ((Number) row.get(s)).intValue()).toList());
+        }
+
+        @Test
+        @DisplayName("a scalar over several reducers, no condition: a group's range, its most less its least")
+        void groupedRange() throws SQLException {
+            var r = executeRelation(NUMS + "->groupBy(~p, ~s:x|$x.v:y|$y->max()->toOne() - $y->min()->toOne())->sort(~p->ascending())");
+            int s = colIdx(r, "s");
+            assertEquals(java.util.List.of(20, 100), r.rows().stream().map(row -> ((Number) row.get(s)).intValue()).toList());
         }
     }
 }

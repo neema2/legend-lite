@@ -114,7 +114,14 @@ class DanglingStateGuardTest {
                 slots.add(new Slot(cls, m.group(1), e.getKey()));
             }
         }
-        assertTrue(slots.size() >= 40, "slot census collapsed: " + slots.size()
+        // the floor 40 -> 36 (2026-10-29, the doors' audit D64): the wire census's ten counters, dead gates this
+        // guard named, were deleted with the arm that fed them (SqlTypeCensus.probeWire); 38 slots remain
+        // the floor 36 -> 19 (2026-11-09, the user's "fix all of it", mutable static state): the measured count after
+        // the static state left -- the five per-census test labels (one, base.Attribution), the two dead censuses
+        // (SqlTypeCensus, PrimitiveCensus), the mute and suspend switches, the product's statement observer, the
+        // startup registries sealed (a constant is no slot); ArchitectureTest.staticStateIsConstantOrRegistered
+        // registers what remains
+        assertTrue(slots.size() >= 19, "slot census collapsed: " + slots.size()
                 + " static slots found — the declaration regex rotted");
         // every file a word occurs in, from ONE pass over the sources: a
         // slot's uses are searched only where its name occurs at all

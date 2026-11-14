@@ -1,5 +1,7 @@
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -87,9 +89,113 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
     }
 
-    /** The query after this dialect's passes, written. */
+    /** The query after this dialect's passes, its result's columns labeled, written. */
     private SqlWriter write(SqlQuery query) {
-        return query(newWriter(), passed(query), 0);
+        com.legend.base.RunScope.planning("render a query");
+        return query(newWriter(), labeled(passed(query)), 0);
+    }
+
+    /**
+     * THE RESULT'S NAMES ARE ITS COLUMNS' PURE NAMES (2026-11-12, the total wall's B: the orchestrator's ruling (a) on the
+     * demo's start, whose table the planner made). Each column the statement answers is labeled, so the name a
+     * database reports never depends on how it stores an identifier's case:
+     * <ul>
+     *   <li>a column projected under its own name, unlabeled until now, carries that name as its label;</li>
+     *   <li>a star at the root is spelled as the columns it passes through, each labeled.</li>
+     * </ul>
+     *
+     * <p>A table lite's DDL makes from a model declaring lower-case names stores them folded upper (DuckDb.ddlIdentifier,
+     * H2: the standard's identity). An unlabeled column then answered that stored spelling ({@code YEAR} for
+     * {@code year}), and a host that types its rows by name refused them: engine-client's typedByPlan, Python's
+     * typed_by_plan, and the demo's start pivoting on year.
+     *
+     * <p>Upstream labels every projected column: {@code select "trades_0".region as "region"} in its recorded answer
+     * (core/src/test/resources/upstream-api/e9-groupby-sort.json). That is pureToSQLQuery.pure's
+     * processRelationStoreAccessor, an Alias per column, printed by dbExtension.pure as {@code <term> as <identifier>}.
+     *
+     * <p>The label is spelled by this dialect's alias rule ({@link #aliasIdent}): a bare name keeps its case on DuckDB,
+     * and H2 quotes every alias.
+     *
+     * <p>Only the root is labeled: an inner select's labels are read by the query around it, which names them as the
+     * database matches them, without regard to case. A star over a source that declares no columns (a person's raw
+     * SQL) answers that SQL's own names, and is left as it is.
+     */
+    private SqlQuery labeled(SqlQuery q) {
+        if (!labelsResults()) {
+            return q;
+        }
+        return switch (q) {
+            case com.legend.sql.SqlWith w -> new com.legend.sql.SqlWith(w.ctes(), labeled(w.body()), w.recursive());
+            case SqlUnion u -> new SqlUnion(u.branches().stream().map(this::labeled).toList(), u.all(), u.outputs());
+            case SqlSelect s -> labeledSelect(s);
+        };
+    }
+
+    /** Whether this printer labels its result's columns ({@link #labeled}): every SQL dialect does. An engine-text printer
+     *  writes legend-engine's own text, whose labels are its own, and MongoDB's text is a pipeline, whose fields are its
+     *  projections' names. */
+    protected boolean labelsResults() {
+        return true;
+    }
+
+    /** {@code s}, each column it answers labeled ({@link #labeled}); itself when every one already is. */
+    private static SqlSelect labeledSelect(SqlSelect s) {
+        List<SqlSelect.Projection> ps = s.projections().isEmpty()
+                ? List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null, null)) : s.projections();
+        List<SqlSelect.Projection> out = new java.util.ArrayList<>(ps.size());
+        boolean changed = false;
+        for (SqlSelect.Projection p : ps) {
+            List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
+            boolean whole = p.expr() instanceof SqlExpr.Star st
+                    ? starred(s.from(), st.table(), List.of(), false, spelled)
+                    : p.expr() instanceof SqlExpr.StarExcept se
+                            && starred(s.from(), se.table(), se.except(), false, spelled);
+            if (p.expr() instanceof SqlExpr.Star || p.expr() instanceof SqlExpr.StarExcept) {
+                // a star over a source that declares no columns (a person's raw SQL) answers that source's own names:
+                // it is kept whole, never spelled as the other sources' columns alone, and the select's other columns
+                // are still labeled (the B close's audit, SHOULD-FIX 1, 2026-11-12: until then such a source's columns
+                // dropped out of the spelled star, and a star that spelled nothing left the whole select unlabeled)
+                if (whole && !spelled.isEmpty()) {
+                    out.addAll(spelled);
+                    changed = true;
+                } else {
+                    out.add(p);
+                }
+            } else if (p.alias() == null && !perKey(p) && p.outputName() != null) {
+                out.add(new SqlSelect.Projection(p.expr(), p.outputName(), p.out()));
+                changed = true;
+            } else {
+                out.add(p);
+            }
+        }
+        return changed ? s.withProjections(out) : s;
+    }
+
+    /** The columns a star over {@code table} (null: every source) passes through from {@code src}, each a labeled
+     *  projection, but those named in {@code except}: a join's sides in turn, a padded side's columns nullable (as the
+     *  select's own outputs expand a star: SqlSelect.expandStar). False when a source it reads declares no columns,
+     *  whose names only the database knows. */
+    private static boolean starred(SqlSource src, @com.legend.base.Nullable String table, List<String> except,
+            boolean padded, List<SqlSelect.Projection> into) {
+        if (src instanceof SqlSource.Join j) {
+            boolean left = starred(j.left(), table, except, padded || j.kind().padsLeft(), into);
+            return starred(j.right(), table, except, padded || j.kind().padsRight(), into) && left;
+        }
+        if (src instanceof SqlSource.Dual || (table != null && !table.equals(src.alias()))) {
+            return true;
+        }
+        if (src.outputs().isEmpty()) {
+            return false;
+        }
+        for (com.legend.sql.OutputCol c : src.outputs()) {
+            if (except.contains(c.name())) {
+                continue;
+            }
+            com.legend.sql.OutputCol slot = padded && !c.nullable()
+                    ? new com.legend.sql.OutputCol(c.name(), c.type(), true, c.origin()) : c;
+            into.add(new SqlSelect.Projection(SqlExpr.Column.of(src.alias(), slot), c.name(), slot));
+        }
+        return true;
     }
 
     /** The query after this dialect's passes. */
@@ -142,9 +248,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return false;
     }
 
-    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} and
-     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} itself; else they are expanded before every other pass
-     *  ({@link FloatPrintText.Expansion}) to the portable spellings over the double's text. */
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#FLOAT_PRINT} itself; else it is expanded before every
+     *  other pass ({@link FloatPrintText.Expansion}) to the portable spelling over the double's text. */
     protected boolean spellsFloatPrint() {
         return false;
     }
@@ -179,6 +284,32 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         throw new DialectCapability("this dialect reads a column stored as " + r.stored()
                 + " as the database holds it: a stored read of it is a pass defect");
+    }
+
+    /** {@code s}'s projections with each star over {@code alias} spelled as {@code source}'s own columns (an empty
+     *  projection list is a star), for a dialect that puts helper columns beside a source under its alias: a counted
+     *  MODE's counts, or a quantile's ranks (MariaDB's, MySQL's and BigQuery's). A star there would answer the helpers
+     *  too, and a typed-rows statement answers its plan's columns alone (2026-10-27, the result boundary program:
+     *  measured on the MariaDB, MySQL and BigQuery lanes, the window mode, median and percentile). A star with
+     *  exceptions over that source is refused by name. */
+    protected static List<SqlSelect.Projection> starsAsSourceColumns(SqlSelect s, SqlSource source, String alias,
+            String product) {
+        List<SqlSelect.Projection> spelled = new java.util.ArrayList<>();
+        List<SqlSelect.Projection> projections = s.projections().isEmpty()
+                ? List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null, null)) : s.projections();
+        for (SqlSelect.Projection p : projections) {
+            if (p.expr() instanceof SqlExpr.Star st && (st.table() == null || st.table().equals(alias))) {
+                for (com.legend.sql.OutputCol oc : source.outputs()) {
+                    spelled.add(new SqlSelect.Projection(SqlExpr.Column.of(alias, oc), oc.name(), oc));
+                }
+            } else if (p.expr() instanceof SqlExpr.StarExcept se && (se.table() == null || se.table().equals(alias))) {
+                throw new DialectCapability("a star with exceptions over a source with helper columns beside it"
+                        + " reached " + product);
+            } else {
+                spelled.add(p);
+            }
+        }
+        return spelled;
     }
 
     /** A type Pure cannot name: a Pure String, read as text on every dialect. */
@@ -253,15 +384,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (s.where() != null) {
             nl(writer, depth).append("WHERE ");
-            writer.expr(s.where(), 0);
+            condition(writer, s.where());
         }
         if (!s.groupBy().isEmpty()) {
             nl(writer, depth).append("GROUP BY ");
-            writer.list(s.groupBy());
+            groupByKeys(writer, s);
         }
         if (s.having() != null) {
             nl(writer, depth).append("HAVING ");
-            writer.expr(s.having(), 0);
+            condition(writer, s.having());
         }
         if (s.qualify() != null) {
             appendQualify(writer, s, depth);
@@ -279,12 +410,62 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * Render a {@code sourceUrl} into a complete SELECT (scheme-dispatched).
-     * No ANSI spelling exists — the base is a capability statement.
+     * Write a {@code sourceUrl} as a complete SELECT (scheme-dispatched) into {@code writer}: a live source's location
+     * is a bound pointer, never the statement's text (L6, 2026-11-10). No ANSI spelling exists -- the base is a
+     * capability statement.
      */
-    protected String sourceUrl(String url) {
+    protected SqlWriter sourceUrl(SqlWriter writer, String url) {
         throw new DialectCapability("sourceUrl reached a dialect without"
                 + " an external-source encoding: " + url);
+    }
+
+    /** {@code u} as a complete SELECT: a {@code data:} payload only where this dialect reads it itself (its
+     *  {@code deliver} answered {@link SqlDialect.DataPayload#bound}: an override), refused as unread everywhere else;
+     *  any other location by its scheme ({@link #sourceUrl(SqlWriter, String)}). */
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        refuseUnread(u.url());
+        return sourceUrl(writer, u.url());
+    }
+
+    /** {@code u}'s element column (each element's JSON). */
+    protected static com.legend.sql.OutputCol payloadColumn(SqlSource.SourceUrl u) {
+        return u.outputs().stream().filter(o -> !o.name().equals(SqlSource.SourceUrl.PLACE)).findFirst()
+                .orElseThrow(() -> new IllegalStateException("a data: source with no element column: " + u.outputs()));
+    }
+
+    /** {@code u}'s place column (a frame's record's place, RECORDS form). */
+    protected static com.legend.sql.OutputCol placeColumn(SqlSource.SourceUrl u) {
+        return u.outputs().stream().filter(o -> o.name().equals(SqlSource.SourceUrl.PLACE)).findFirst()
+                .orElseThrow(() -> new IllegalStateException("a frame's data: source with no place column: "
+                        + u.outputs()));
+    }
+
+    /** {@code u}'s payload -- one JSON array, {@link SqlDialect.DataPayload#array} -- as the placeholder's bound value: a
+     *  plan value the runner binds as its text, never written into the statement. */
+    protected static SqlWriter bindPayload(SqlWriter writer, SqlSource.SourceUrl u) {
+        int comma = u.url().indexOf(',');
+        if (!u.url().startsWith("data:") || comma < 0) {
+            throw new IllegalStateException("a bound payload is a data: source's: " + u.url());
+        }
+        if (SqlSource.SourceUrl.namesByDigest(u.url())) {
+            throw new IllegalStateException("a payload named by its digest reached a render (" + u.url() + "): a"
+                    + " plan's typed tree is carried, never rendered again; its statement was written at planning");
+        }
+        return writer.bind(new RenderedStatement.Bind("", new RenderedStatement.Binding.Payload(
+                u.url().substring(comma + 1))));
+    }
+
+    /** A {@code data:} source is the source its dialect delivers it as (planner.DataSources: a bound parameter this
+     *  dialect renders, or the statement's own rows):
+     *  every road reads it so -- a query's, a program's, a test body's judges (B2a, 2026-11-11) -- so one that reaches a
+     *  render is a planner defect, refused by name the same on every database (the B2a audit's note: DuckDB raised one
+     *  type, H2 and SQLite another). */
+    static void refuseUnread(String url) {
+        if (url.startsWith("data:")) {
+            String shown = url.length() > 120 ? url.substring(0, 120) + "..." : url;
+            throw new IllegalStateException("the data: source '" + shown + "' reached a render unread: a planned"
+                    + " statement reads it as its dialect delivers it (planner.DataSources)");
+        }
     }
 
     /** Whether this dialect has a native QUALIFY clause. ANSI does not. */
@@ -306,6 +487,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A column reference, qualified by its source's alias when it has one. */
     protected String columnRef(SqlExpr.Column c) {
         return c.table() == null ? columnName(c) : aliasIdent(c.table()) + "." + columnName(c);
+    }
+
+    /** {@code s}'s GROUP BY keys, written: each its expression here (a dialect whose one expression is written two
+     *  ways in a statement, ClickHouse's numbered raises, writes a key its select names by that name). */
+    protected SqlWriter groupByKeys(SqlWriter writer, SqlSelect s) {
+        return writer.list(s.groupBy());
     }
 
     protected SqlWriter projection(SqlWriter writer, SqlSelect.Projection p) {
@@ -460,10 +647,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlSource.RawSql r -> writer.append("(").append(raw(r.sql(), r.writtenFor()))
                     .append(") AS ").append(aliasIdent(r.alias()));
             // a catalog grid of the session's database: where it keeps its catalog is the dialect's
+            case SqlSource.GridReport g -> gridReport(writer.append("("), g).append(") AS ").append(aliasIdent(g.alias()));
             case SqlSource.Catalog c -> catalog(writer.append("("), c).append(") AS ").append(aliasIdent(c.alias()));
             case SqlSource.SourceUrl u -> {
                 writer.append("(");
-                nl(writer, depth + 1).append(sourceUrl(u.url()));
+                sourceUrl(nl(writer, depth + 1), u);
                 yield nl(writer, depth).append(") AS ").append(aliasIdent(u.alias()));
             }
             case SqlSource.Pivot p -> pivotSource(writer, p, depth);
@@ -474,7 +662,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 source(writer, j.right(), depth);
                 SqlExpr on = j.on();
                 if (on != null) {
-                    writer.append(" ON ").expr(joinCondition(j.kind(), on), 0);
+                    writer.append(" ON ");
+                    condition(writer, joinCondition(j.kind(), on));
                 }
                 yield writer;
             }
@@ -519,7 +708,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             writer.append("(").list(v.rows().get(r)).append(")");
         }
         return writer.append(") AS ").append(aliasIdent(v.alias())).append("(")
-                .append(v.columns().stream().map(this::aliasIdent).collect(Collectors.joining(", "))).append(")");
+                .append(java.util.stream.IntStream.range(0, v.columns().size()).mapToObj(i -> valuesColumn(v, i))
+                        .collect(Collectors.joining(", "))).append(")");
+    }
+
+    /** The name of {@code v}'s column {@code i} in its alias list: a label ({@link #aliasIdent}). */
+    protected String valuesColumn(SqlSource.Values v, int i) {
+        return aliasIdent(v.columns().get(i));
     }
 
     /** Native PIVOT or a CASE-WHEN aggregation rewrite — no ANSI form exists. */
@@ -701,7 +896,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.BoolLit b -> writer.append(boolLit(b.value()));
             case SqlExpr.NullLit n -> writer.append("NULL");
             case SqlExpr.DateLit d -> writer.append(dateLit(d.iso()));
-            case SqlExpr.TimestampLit t -> writer.append(timestampLit(t.iso()));
+            case SqlExpr.TimestampLit t -> writer.append(timestampLit(keptFraction(t.iso())));
             case SqlExpr.TimeLit t -> writer.append(timeLit(t.iso()));
             case SqlExpr.OrderedListAgg ola -> writer.append("list(").expr(ola.value(), 0).append(" ORDER BY ")
                     .expr(ola.orderBy(), 0).append(")");
@@ -747,11 +942,19 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // a value whose kind the database decides (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a): its root
             // projects it as its tag and slots, and a rule consuming it reads a channel; no dialect writes it
             case SqlExpr.Tagged t -> tagged(writer, t, parentPrec);
+            // a list of such values (§5a's step B, track L): its root unnests its channels into rows, and a rule
+            // consuming it reads its channels; no dialect writes it
+            case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list reached the renderer: a"
+                    + " mixed list is returned, sorted, deduplicated, searched, indexed, mapped or printed, and any"
+                    + " other consumer of it is not lowered (channels of kinds "
+                    + tl.slots().stream().map(com.legend.sql.SqlType.Tagged.Slot::kind).toList() + ")");
             case SqlExpr.DeferredTdsString d -> throw new IllegalStateException(
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"
                     + " list first (DeferredTdsString id " + d.id() + ")");
-            case SqlExpr.WindowCall w -> windowCall(writer, w);
+            // a window with a computed frame offset is written inside its check (FrameGuard), by this dialect's CASE
+            case SqlExpr.WindowCall w -> FrameGuard.guarded(w) instanceof SqlExpr.Case check
+                    ? caseExpr(writer, check) : windowCall(writer, w);
             case SqlExpr.Lambda l -> lambda(writer, l);
             // a cast to the tagged carrier is the identity: the column holds the tag, an index, and the label says
             // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
@@ -861,9 +1064,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             if (i > 0) {
                 writer.append(pad).append(infix.sql()).append(pad);
             }
-            writer.expr(c.args().get(i),
-                    (i > 0 && trailingOwnValue) || nonAssociative
-                            ? infix.prec() + 1 : infix.prec());
+            int prec = (i > 0 && trailingOwnValue) || nonAssociative ? infix.prec() + 1 : infix.prec();
+            if (c.fn() == SqlFn.AND || c.fn() == SqlFn.OR) {
+                // a logical operand, where the database requires a boolean (condition's rule)
+                booleanOperand(writer, c.args().get(i), prec);
+            } else {
+                writer.expr(c.args().get(i), prec);
+            }
         }
         if (wrap) {
             writer.append(")");
@@ -925,7 +1132,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (3 < parentPrec) {
             writer.append("(");
         }
-        writer.append("NOT ").expr(a.get(0), 3);
+        writer.append("NOT ");
+        booleanOperand(writer, a.get(0), 3);
         if (3 < parentPrec) {
             writer.append(")");
         }
@@ -1069,11 +1277,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.expr(FloatCanonText.of(a.get(0)), parentPrec);
     }
 
-    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} or
-     *  {@link com.legend.sql.SqlFn#FLOAT_PRINT_ENGINE} call): the portable decomposition over the double's text (a
-     *  dialect whose double text is long spells it once, its own way). */
+    /** A Float's print form ({@code c} a {@link com.legend.sql.SqlFn#FLOAT_PRINT} call): the portable decomposition
+     *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        return writer.expr(FloatPrintText.of(c.fn(), c.args().get(0)), parentPrec);
+        return writer.expr(FloatPrintText.of(c.args().get(0)), parentPrec);
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----
@@ -1178,12 +1385,26 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append("CAST(").expr(c.value(), 0).append(" AS ").append(castTypeName(c.target())).append(")");
     }
 
+    /** A statement's condition -- its WHERE, its HAVING, a join's ON -- where the database requires a boolean: the
+     *  expression as any other unless the dialect writes one there otherwise (Postgres's raise: {@code
+     *  Postgres#condition}). */
+    protected SqlWriter condition(SqlWriter writer, SqlExpr e) {
+        return booleanOperand(writer, e, 0);
+    }
+
+    /** A value where a boolean is required -- a condition ({@link #condition}), an operand of AND or OR -- at precedence
+     *  {@code prec}: the expression as any other unless the dialect writes one there otherwise. */
+    protected SqlWriter booleanOperand(SqlWriter writer, SqlExpr e, int prec) {
+        return writer.expr(e, prec);
+    }
+
     // ---- window / aggregate / case (ANSI) ----
 
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").expr(w.then(), 0);
+            writer.append(" WHEN ");
+            condition(writer, w.condition()).append(" THEN ").expr(w.then(), 0);
         }
         if (c.otherwise() != null) {
             writer.append(" ELSE ").expr(c.otherwise(), 0);
@@ -1214,10 +1435,29 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (w.frame() != null) {
             writer.append(" ").append(keyword(w.frame().kind().toString())).append(" ").append(keyword("BETWEEN"))
-                    .append(" ").append(bound(w.frame().from())).append(" ").append(keyword("AND")).append(" ")
-                    .append(bound(w.frame().to()));
+                    .append(" ");
+            writeBound(writer, w.frame().from()).append(" ").append(keyword("AND")).append(" ");
+            writeBound(writer, w.frame().to());
         }
         return writer.append(")");
+    }
+
+    /** A frame bound into the writer: an offset the database computes as its expression, parenthesized, so a bound
+     *  parameter is written at its place ({@code (? - 1) PRECEDING}); any other as {@link #bound}'s text. */
+    protected final SqlWriter writeBound(SqlWriter writer, SqlExpr.WindowCall.Frame.Bound b) {
+        return switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c ->
+                    writer.append("(").expr(c.offset(), 0).append(") ").append(keyword("PRECEDING"));
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c ->
+                    writer.append("(").expr(c.offset(), 0).append(") ").append(keyword("FOLLOWING"));
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.Following f -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f -> writer.append(bound(b));
+        };
     }
 
     /** A keyword of the window and aggregate syntax ({@code OVER}, {@code ORDER BY}, {@code DISTINCT} ...) as this
@@ -1246,6 +1486,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     keyword("INTERVAL") + " " + p.n() + " " + p.unit() + " " + keyword("PRECEDING");
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     keyword("INTERVAL") + " " + f.n() + " " + f.unit() + " " + keyword("FOLLOWING");
+            // an offset the database computes is an expression: written into the writer (writeBound), never as text
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new IllegalStateException(
+                    "a computed frame offset is written by writeBound, into the writer");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new IllegalStateException(
+                    "a computed frame offset is written by writeBound, into the writer");
         };
     }
 
@@ -1276,6 +1521,85 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     @Override
     public final String raw(String statement, @com.legend.base.Nullable String writtenFor) {
         return RawSqlBoundary.ENGINE_TEXT.equals(writtenFor) ? fromEngineText(statement) : statement;
+    }
+
+    /**
+     * A raw grid's report ({@link SqlSource.GridReport}, the planner-driver seam program's S3c, 2026-10-30), written
+     * with a REGION per column the grid's result reports (its keyed plan reads them first): {@code COLUMNS} one row per
+     * column, its label bound from the key and its position; {@code CELLS} and {@code TEXTS} one row per cell, the
+     * grid numbered once ({@code ROW_NUMBER() OVER ()}, the result's order), its columns renamed by position in a
+     * derived column list ({@code lc_<k>}), crossed with the positions, each row's cell picked by position and carried
+     * as this database's JSON ({@link #variantOf}) or as its text; {@code ROWS} one row per grid row, its cells one list
+     * ({@link #arrayOfCells}). Measured on H2 2.1.214 and DuckDB 1.5.6.0
+     * (2026-10-30): a CTE's column list is not applied inside a derived table on H2, a derived table's is.
+     */
+    protected SqlWriter gridReport(SqlWriter writer, SqlSource.GridReport g) {
+        if (!writesGridReports()) {
+            throw new DialectCapability("a raw grid's report (its column names, cells, texts or rows) reached a dialect"
+                    + " it is not measured on (a column list on a derived table, a JSON value per cell)");
+        }
+        // the report's columns spelled as any projected alias is (H2 quotes those always), so the statement around
+        // it reads them by the same spelling
+        String value = aliasIdent(SqlSource.GridReport.VALUE);
+        String ord = aliasIdent(SqlSource.GridReport.ORD);
+        String row = aliasIdent(SqlSource.GridReport.ROW);
+        String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
+        return switch (g.part()) {
+            case COLUMNS -> writer.region("", " UNION ALL ",
+                    "SELECT CAST(NULL AS " + text + ") AS " + value + ", 0 AS " + ord + " WHERE 1 = 0",
+                    w -> w.append("SELECT CAST(").bindKey(0).append(" AS " + text + ") AS " + value + ", ")
+                            .counter().append(" AS " + ord));
+            case CELLS, TEXTS -> {
+                writer.append("SELECT g." + row + " AS " + row + ", o." + ord + " AS " + ord + ", CASE o." + ord);
+                writer.region(" ", " ", " WHEN 0 THEN NULL", w -> {
+                    w.append("WHEN ").counter().append(" THEN ");
+                    SqlWriter.Piece cell = c -> c.append("g.lc_").counter();
+                    if (g.part() == SqlSource.GridReport.Part.CELLS) {
+                        variantOf(w, cell);
+                    } else {
+                        w.append("CAST(").piece(cell).append(" AS " + text + ")");
+                    }
+                });
+                writer.append(" END AS " + value + " FROM (SELECT ROW_NUMBER() OVER () AS " + row + ", g0.* FROM (");
+                query(writer, g.grid(), 0);
+                writer.append(") AS g0) AS g(" + row);
+                writer.region(", ", ", ", "", w -> w.append("lc_").counter());
+                writer.append(") CROSS JOIN (");
+                writer.region("", " UNION ALL ", "SELECT 0 AS " + ord + " WHERE 1 = 0",
+                        w -> w.append("SELECT ").counter().append(" AS " + ord));
+                yield writer.append(") AS o");
+            }
+            case ROWS -> {
+                // one row per grid row, in the grid's own order (nothing renumbers it), its cells one list
+                writer.append("SELECT ");
+                arrayOfCells(writer, w -> variantOf(w, c -> c.append("g.lc_").counter()));
+                writer.append(" AS " + aliasIdent(SqlSource.GridReport.ROW_CELLS) + " FROM (");
+                query(writer, g.grid(), 0);
+                writer.append(") AS g(");
+                writer.region("", ", ", null, w -> w.append("lc_").counter());
+                yield writer.append(")");
+            }
+        };
+    }
+
+    /** A list of {@code cell}, one copy per column of the grid's report (a per-key region), in this database's list
+     *  spelling ({@link SqlSource.GridReport.Part#ROWS}): a dialect proven to write one writes it; any other refuses by
+     *  name. */
+    protected SqlWriter arrayOfCells(SqlWriter writer, SqlWriter.Piece cell) {
+        throw new DialectCapability("a raw grid's rows as lists of their cells reached a dialect without a list of"
+                + " JSON values");
+    }
+
+    /** Whether this dialect writes a raw grid's report ({@link #gridReport}): one whose database is measured to answer
+     *  it (a derived table's column list, the JSON hooks below); every other refuses it by name. */
+    protected boolean writesGridReports() {
+        return false;
+    }
+
+    /** {@code value} carried as this database's JSON, its kind the JSON's (a raw grid's cell, {@link #gridReport}): a
+     *  dialect proven to write one writes it; any other refuses by name. */
+    protected SqlWriter variantOf(SqlWriter writer, SqlWriter.Piece value) {
+        throw new DialectCapability("a raw grid's cells as values reached a dialect without a JSON carrier for them");
     }
 
     /** A catalog grid's query ({@link SqlSource.Catalog}): where this database keeps its catalog and how it is read,
@@ -1368,6 +1692,46 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     protected String timestampLit(String iso) {
         return "TIMESTAMP '" + iso + "'";
+    }
+
+    /**
+     * The digits of a second this database's date-time LITERAL keeps ({@link #timestampLit}): a literal with more is
+     * refused at planning ({@link #keptFraction}). Each dialect states its own, measured, never inherited (S181, the
+     * user's ruling of 2026-11-10; the re-audit's B-1 rule: a dialect that has not written its own is not given
+     * another's).
+     */
+    protected abstract int literalFractionDigits();
+
+    /**
+     * {@code iso}, a date-time literal's text, with no fraction digit past the {@link #literalFractionDigits} this
+     * database's literal keeps: zeros past them dropped (they are no digit of the value), any other digit past them
+     * REFUSED by name -- the value, its digits and the digits kept (S181, the user's ruling of 2026-11-10: a date-time
+     * with more fraction digits than its target keeps is refused, never cut and never sent for the database to round;
+     * until A7 Postgres, BigQuery and ClickHouse cut the digits, and MariaDB and Databricks sent them to be rounded).
+     */
+    protected final String keptFraction(String iso) {
+        int dot = iso.lastIndexOf('.');
+        if (dot < 0) {
+            return iso;
+        }
+        int end = dot + 1;
+        while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
+            end++;
+        }
+        int written = end - dot - 1;
+        int significant = written;
+        while (significant > 0 && iso.charAt(dot + significant) == '0') {
+            significant--;
+        }
+        int kept = literalFractionDigits();
+        if (significant > kept) {
+            throw new DialectCapability("the date-time " + iso + " has " + significant + " fraction digits; "
+                    + getClass().getSimpleName() + " keeps " + kept + ": refused, never cut (S181)");
+        }
+        if (written <= kept) {
+            return iso;
+        }
+        return (kept == 0 ? iso.substring(0, dot) : iso.substring(0, dot + 1 + kept)) + iso.substring(end);
     }
 
     /** A time of day, {@code TIME 'HH:mm:ss[.ffffff]'} (DuckDB, Postgres, H2, MariaDB, Trino, Snowflake, BigQuery
@@ -1469,40 +1833,94 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /**
-     * A plan parameter's placeholder: the value bound bare, typed by the database from the bound value (DuckDB and
-     * Postgres do, every type answering as its literal does: docs/execution-plan-boundary-2026-10-05/probes/
-     * literal-results.txt) -- but a date-time, which is cast to a TYPE HOLE the runner fills with the type of the
-     * value's literal ({@link #holeType}) and passed as its text: the drivers pass no digit finer than a microsecond
-     * alike (DuckDB's cuts it, Postgres's rounds it; probes/timestamp-results.txt). A dialect whose database types a
-     * parameter otherwise writes it typed.
+     * A plan parameter's placeholder (D1, ruled 2026-11-07; P4, 2026-11-09): typed by its DECLARED Pure type, as
+     * upstream's database extension writes its template, never by the value -- the statement's text is the same on every
+     * call. A parameter of a declared kind this dialect types ({@link #parameterType}) is cast to it, a date or date-time
+     * bound as its text; any other is bound bare, the database typing it from the value (DuckDB and Postgres do, a number
+     * answering as its literal does: docs/execution-plan-boundary-2026-10-05/probes/literal-results.txt).
      */
     protected SqlWriter placeholder(SqlWriter writer, SqlExpr.PlanParam p) {
-        com.legend.sql.ValueTyping byValue = p.byValue();
-        if (byValue != null && byValue.kinds().stream().anyMatch(k -> k == com.legend.sql.ValueKind.DATE_TIME
-                || k == com.legend.sql.ValueKind.DATE_TIME_NANOS)) {
-            java.util.Map<com.legend.sql.ValueKind, RenderedStatement.TypeSpelling> types =
-                    new java.util.EnumMap<>(com.legend.sql.ValueKind.class);
-            for (com.legend.sql.ValueKind kind : byValue.kinds()) {
-                types.put(kind, holeType(kind));
-            }
-            return writer.append("CAST(").bind(scalarBind(p)).append(" AS ").typeHole(types, byValue.absent())
-                    .append(")");
+        com.legend.sql.DeclaredKind declared = p.declared();
+        ParameterType type = declared == null ? null : parameterType(declared);
+        if (type == null) {
+            return writer.bind(scalarBind(p));
         }
-        return writer.bind(scalarBind(p));
+        RenderedStatement.AsText asText = type.asText();
+        Integer kept = asText == null ? null : asText.fraction();
+        if (asText == null || kept == null || kept >= 9) {
+            return writer.append("CAST(").bind(asText == null ? scalarBind(p) : textBind(p, asText))
+                    .append(" AS ").append(type.name()).append(")");
+        }
+        // S181 (the user's ruling of 2026-11-10): a value with more digits of a second than the slot keeps is refused
+        // by the database, by the statement's own raise -- never cut by the runner, never rounded by the database. A
+        // date-time's text ends in its nine digits of a second whatever its year's width (PlanRunner.dateTimeText:
+        // 'uuuu-MM-dd HH:mm:ss.SSSSSSSSS', the year -0001 or +10000 as it is: the A delta audit's note 8, 2026-11-11), a
+        // Date's ('uuuu-MM-dd') has no time and is read as it is: so the digits past the kept ones are the text's last
+        // 9 - kept, which must be zeros, and once they are the database reads the text WITHOUT them -- the kept digits
+        // alone, which every database's type of that precision parses (the A delta audit's MUST-FIX 1: BigQuery's
+        // DATETIME refuses a text of nine). The CASE is of the text, cast after, so every database types its branches
+        // alike (a raise typed as text: BigQuery's DATETIME refuses a raise beside it, BigQuery.projectionValue)
+        String text = castTypeName(com.legend.sql.SqlType.Scalar.VARCHAR);
+        int past = 9 - kept;
+        String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
+        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("the " + kind
+                + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
+                + " keeps (" + kept + "): refused, never cut (S181)"));
+        java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
+                .append(" AS " + text + ")");
+        java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");
+        // the text has a time where it is longer than a date's (at most 12: a sign and five digits of a year)
+        value.apply(length.apply(writer.append("CAST(CASE WHEN ")).append(" > 19 AND SUBSTRING("))
+                .append(", ");
+        length.apply(writer).append(" - " + (past - 1) + ") <> '" + "0".repeat(past) + "' THEN ").expr(raise, 0)
+                .append(" WHEN ");
+        length.apply(writer).append(" > 19 THEN SUBSTRING(");
+        value.apply(writer).append(", 1, ");
+        // the kept digits, and the point with them where none is kept
+        length.apply(writer).append(" - " + (kept == 0 ? past + 1 : past) + ") ELSE ");
+        return value.apply(writer).append(" END AS ").append(type.name()).append(")");
     }
 
-    /** The type this dialect's database gives a literal of a value of {@code kind}, for a placeholder cast to its value's
-     *  type: here, a date and a date-time's (every other value is bound bare); a date-time finer than a microsecond is
-     *  each dialect's own. */
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    /** The SQL type a placeholder of a parameter declared {@code kind} is cast to, and whether its value is bound as its
+     *  text; null where the value is bound bare. Here: a number bare; a Date and a DateTime REFUSED by name -- each
+     *  dialect writes its own, read from upstream's literal processor for the type (D1), and a dialect that has not is
+     *  refused, never given another's spelling (the re-audit's B-1, 2026-11-09: until then a base {@code TIMESTAMP}
+     *  every dialect without its own inherited -- Trino's of three digits, ClickHouse's of seconds). */
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME -> new RenderedStatement.TypeSpelling("TIMESTAMP", RenderedStatement.Digits.NONE);
-            case DATE_TIME_NANOS -> throw new DialectCapability("a date-time finer than a microsecond: this dialect"
-                    + " names no type its literal has");
-            case INTEGER, DECIMAL, FLOATING -> throw new DialectCapability("a value of kind " + kind + " is bound"
-                    + " bare here, typed by the database from the value");
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> throw new DialectCapability("a " + kind + " parameter: " + getClass().getSimpleName()
+                    + " writes no placeholder for its declared type");
         };
+    }
+
+    /**
+     * Whether {@code e} is an INSTANT for {@link com.legend.sql.SqlFn#TIMEZONE}'s two meanings, DuckDB's
+     * {@code timezone(zone, t)}: a plain {@code t} read as a wall time in the zone is an instant, and an instant becomes
+     * the zone's wall time, a plain value. An operand is an instant by its type (a zoned timestamp) or as a
+     * {@code timezone()} of a plain one -- every lowering nests the two so ({@code localIn}, {@code instantIn}, a zoned
+     * parameter, a format's zone shift), and the inner call is typed plain though it is an instant. The one rule of every
+     * dialect that spells the two apart (the correctness audit's S3, A6, 2026-11-10: BigQuery's and Snowflake's own until
+     * then; H2's, Trino's, ClickHouse's and Databricks' take it here).
+     */
+    protected static boolean zonedInstant(SqlExpr e) {
+        if (e instanceof SqlExpr.Call c && c.fn() == com.legend.sql.SqlFn.TIMEZONE && c.args().size() == 2) {
+            return !zonedInstant(c.args().get(1));
+        }
+        return e.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() == com.legend.sql.SqlType.Scalar.TIMESTAMPTZ;
+    }
+
+    /** {@code x} as the VARCHAR cast a dialect wrote for a Decimal's or a Number's text until the Lowerer marked it
+     *  ({@code SqlFn.DECIMAL_TO_TEXT}, A6, the tenets audit's M-6): every dialect's spelling of it but H2's. */
+    protected static SqlExpr varcharCast(SqlExpr x) {
+        return new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR);
+    }
+
+    /** A placeholder's declared cast: the SQL type's name, and how the value is bound as text (null: as it is). */
+    public record ParameterType(String name, RenderedStatement.@com.legend.base.Nullable AsText asText) {
+        public ParameterType {
+            java.util.Objects.requireNonNull(name, "name");
+        }
     }
 
     /**
@@ -1524,23 +1942,28 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return new RenderedStatement.Bind(p.name(), new RenderedStatement.Binding.One(nullType(p), null));
     }
 
-    /** The JDBC type an absent value of {@code p} is bound as: its type's; for a parameter its value types, its absent
+    /** {@link #scalarBind} of a date or date-time bound as its text ({@code asText}). */
+    protected static RenderedStatement.Bind textBind(SqlExpr.PlanParam p, RenderedStatement.AsText asText) {
+        RenderedStatement.Bind one = scalarBind(p);
+        return new RenderedStatement.Bind(one.parameter(), new RenderedStatement.Binding.One(
+                ((RenderedStatement.Binding.One) one.binding()).nullType(), asText));
+    }
+
+    /** The JDBC type an absent value of {@code p} is bound as: its type's; for a parameter of a declared kind, that
      *  kind's. Refused by name for a parameter of neither (a legacy plan's template parameter). */
     protected static String nullType(SqlExpr.PlanParam p) {
         if (p.type() instanceof com.legend.sql.TypeFact.Typed t) {
             return jdbcType(t.type(), p.name());
         }
-        com.legend.sql.ValueTyping byValue = p.byValue();
-        if (byValue == null) {
-            throw new DialectCapability("plan parameter '" + p.name() + "' has no type and is not typed by its value:"
-                    + " not bound");
+        com.legend.sql.DeclaredKind declared = p.declared();
+        if (declared == null) {
+            throw new DialectCapability("plan parameter '" + p.name() + "' has no type and no declared kind: not"
+                    + " bound");
         }
-        return switch (byValue.absent()) {
-            case INTEGER -> "BIGINT";
-            case DECIMAL -> "DECIMAL";
-            case FLOATING -> "DOUBLE";
+        return switch (declared) {
+            case FLOAT, DECIMAL, NUMBER -> "DECIMAL";
             case DATE -> "DATE";
-            case DATE_TIME, DATE_TIME_NANOS -> "TIMESTAMP";
+            case DATE_TIME -> "TIMESTAMP";
         };
     }
 
@@ -1556,7 +1979,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 case DATE -> "DATE";
                 case TIMESTAMP -> "TIMESTAMP";
                 case TIME -> "TIME";
-                case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
+                case HUGEINT, TIMESTAMPTZ, JSON, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
                         "plan parameter '" + parameter + "' is typed " + scalar + ", which no parameter is bound as");
             };
             case com.legend.sql.SqlType.Decimal d -> "DECIMAL";
@@ -1589,8 +2012,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (wrap) {
             writer.append("(");
         }
+        // a date's or a date-time's elements are the driver's timestamps, which no statement's raise reads: the digits of
+        // a second its database keeps of one, the plan's, which the runner holds each element to (S181; the A delta
+        // audit's 2, 2026-11-11: measured on DuckDB 1.5.5, an element of nine digits cut to six; H2 keeps nine)
+        Integer fraction = null;
+        if (element == com.legend.sql.SqlType.Scalar.TIMESTAMP || element == com.legend.sql.SqlType.Scalar.DATE) {
+            ParameterType type = parameterType(com.legend.sql.DeclaredKind.DATE_TIME);
+            Integer kept = type == null || type.asText() == null ? null : type.asText().fraction();
+            fraction = kept == null || kept >= 9 ? null : kept;
+        }
         writer.expr(needle, 5).append(" = ANY(").bind(new RenderedStatement.Bind(list.name(),
-                        new RenderedStatement.Binding.Array(element.name())))
+                        new RenderedStatement.Binding.Array(element.name(), fraction)))
                 .append(")");
         return wrap ? writer.append(")") : writer;
     }
@@ -1607,6 +2039,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** A writer for this dialect: its {@link SqlWriter#expr} writes a sub-expression in this dialect's spelling. */
     protected final SqlWriter newWriter() {
+        com.legend.base.RunScope.planning("render a statement");
         return new SqlWriter(this::expr);
     }
 
@@ -1713,22 +2146,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public String render(com.legend.sql.SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateTable ct -> {
                 // a TEMPORARY table: the one ANSI spelling every target here accepts
                 // (H2: CREATE [LOCAL] TEMPORARY TABLE; DuckDB: CREATE TEMPORARY TABLE)
                 StringBuilder sb = new StringBuilder(ct.temporary() ? "Create Temporary Table " : "Create Table ")
-                        .append(ddlQualified(ct.schema(), ct.table(), ct.quoting())).append("(");
-                boolean first = true;
-                for (com.legend.sql.SqlDdl.Column col : ct.columns()) {
-                    if (!first) {
-                        sb.append(ddlColumnSeparator());
-                    }
-                    first = false;
-                    sb.append(ddlIdentifier(col.name(), col.declaredQuoted()))
-                            .append(' ').append(ddlType(col.type()))
-                            .append(ddlNullability(col.primaryKey() || col.notNull()));
-                }
+                        .append(ddlQualified(ct.schema(), ct.table(), ct.quoting())).append("(")
+                        .append(ddlColumns(ct.columns()));
                 java.util.List<String> pks = ct.columns().stream()
                         .filter(com.legend.sql.SqlDdl.Column::primaryKey)
                         .map(col -> ddlKeyIdentifier(col.name(), col.declaredQuoted()))
@@ -1738,10 +2163,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     // (translateCreateTableStatementDefault)
                     sb.append(", PRIMARY KEY(").append(String.join(",", pks)).append(')');
                 }
-                yield sb.append(");").toString();
+                yield sb.append(")").append(ddlTableOptions(ct)).append(";").toString();
             }
-            case com.legend.sql.SqlDdl.DropTable dt ->
-                    "Drop table if exists " + ddlQualified(dt.schema(), dt.table(), dt.quoting()) + ";";
+            case com.legend.sql.SqlDdl.DropTable dt -> (dt.temporary() ? dropTemporaryTable() : "Drop table if exists ")
+                    + ddlQualified(dt.schema(), dt.table(), dt.quoting()) + ";";
             case com.legend.sql.SqlDdl.CreateSchema cs ->
                     "Create Schema if not exists " + storedName(cs.schema(), cs.quoted()) + ";";
             case com.legend.sql.SqlDdl.DropSchema ds ->
@@ -1749,8 +2174,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         };
     }
 
+    /** What a CREATE TABLE writes after its columns, before its ';': nothing here (a dialect whose database needs a
+     *  table's engine or storage said, ClickHouse's, writes it). */
+    protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
+        return "";
+    }
+
+    /** The words that drop a session's own table ({@link com.legend.sql.SqlDdl.DropTable#temporary}), before its
+     *  name: the plain drop here (a session's temporary table hides the database's of its name, and the drop takes the
+     *  session's); a dialect whose plain drop falls through to the database's table (ClickHouse's) names it. */
+    protected String dropTemporaryTable() {
+        return "Drop table if exists ";
+    }
+
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
                 SqlWriter writer = newWriter().append("INSERT INTO ").append(ddlQualified(iv.schema(), iv.table(), iv.quoting()))
@@ -1771,15 +2210,62 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.DeleteAll da ->
                     "DELETE FROM " + ddlQualified(da.schema(), da.table(), da.quoting()) + ";";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            case com.legend.sql.SqlDml.CreateTableAs ct -> tableAs(ct).text();
             case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).text();
             case com.legend.sql.SqlDml.Update u -> update(u).text();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).text();
             case com.legend.sql.SqlDml.Merge m -> merge(m).text();
+            case com.legend.sql.SqlDml.LoadCsv lc -> String.join(";\n", csvLoad(lc).statements());
         };
+    }
+
+    /** {@inheritDoc} The base: refused by name -- the database reads no file of the runner's (option 1, the user's
+     *  ruling of 2026-11-10 on docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.3). A database's native loader (Postgres
+     *  {@code COPY ... FROM STDIN}, MariaDB {@code LOAD DATA LOCAL INFILE}, a cloud stage) is added one database at a
+     *  time, when someone needs it: each is the database reading the file, so the model does not change. */
+    @Override
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        throw new DialectCapability("a CSV file's load into " + load.table() + " reached " + getClass().getSimpleName()
+                + ", whose database reads no file of the runner's: refused by name, not split by the platform");
+    }
+
+    /**
+     * A CSV reader's RECORD CHECK over its columns {@code C0..C<width>} -- one column past the table's, where a wide
+     * record shows (docs/DATA_DELIVERY_DESIGN_2026_11_10.md §1.3, A3): a cell there refuses the load in the database, by
+     * its own raise, as upstream refuses a record wider than the table. A condition for the read's WHERE: TRUE, or the
+     * raise. It binds no value.
+     */
+    protected String csvRecordCheck(int width) {
+        SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
+                SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
+                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.StringLit("a record of the CSV"
+                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true));
+        SqlWriter where = newWriter().expr(check, 0);
+        if (where.bound() != 0) {
+            throw new IllegalStateException("a CSV load's record check binds no value");
+        }
+        return where.text();
+    }
+
+    /** A CSV read's cells into the table's columns, in order: each {@code C<i>}, an empty cell NULL (upstream's rule:
+     *  an empty cell, quoted or not, is NULL), the INSERT casting each into its column. */
+    protected static String csvCells(int width) {
+        StringBuilder cells = new StringBuilder();
+        for (int i = 0; i < width; i++) {
+            cells.append(i == 0 ? "" : ", ").append("NULLIF(C").append(i).append(", '')");
+        }
+        return cells.toString();
+    }
+
+    /** {@code load}'s target, as an INSERT names it: the table and its columns. */
+    protected String csvInsertInto(com.legend.sql.SqlDml.LoadCsv load) {
+        return "INSERT INTO " + ddlQualified(load.schema(), load.table(), load.quoting())
+                + dmlColumns(load.columns(), load.quotedColumns());
     }
 
     @Override
     public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this
             // dialect renders it)
@@ -1787,10 +2273,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case com.legend.sql.SqlDml.InsertFromTable it -> new RenderedStatement(render(it), List.of());
             case com.legend.sql.SqlDml.DeleteAll da -> new RenderedStatement(render(da), List.of());
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).statement();
+            case com.legend.sql.SqlDml.CreateTableAs ct -> tableAs(ct).statement();
             case com.legend.sql.SqlDml.InsertSelect is -> insertSelect(is).statement();
             case com.legend.sql.SqlDml.Update u -> update(u).statement();
             case com.legend.sql.SqlDml.DeleteWhere dw -> deleteWhere(dw).statement();
             case com.legend.sql.SqlDml.Merge m -> merge(m).statement();
+            // its placeholders are the runner's to bind (the file's copy, or a row's cells): never values the plan binds
+            case com.legend.sql.SqlDml.LoadCsv lc -> throw new IllegalStateException("a CSV file's load is spelled by"
+                    + " csvLoad, its placeholders bound by the runner: " + lc.table());
         };
     }
 
@@ -1844,7 +2334,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .expr(read.projections().get(i).expr(), 0);
         }
         if (read.where() != null) {
-            writer.append(" WHERE ").expr(read.where(), 0);
+            condition(writer.append(" WHERE "), read.where());
         }
         return writer.append(";");
     }
@@ -1855,7 +2345,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlWriter writer = newWriter().append("DELETE FROM ").append(ddlQualified(dw.schema(), dw.table(), dw.quoting()))
                 .append(" AS ").append(aliasIdent(dw.alias()));
         if (read.where() != null) {
-            writer.append(" WHERE ").expr(read.where(), 0);
+            condition(writer.append(" WHERE "), read.where());
         }
         return writer.append(";");
     }
@@ -1951,6 +2441,23 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return query(head.append(options).append(" AS "), passed(ct.query()), 0).append(";");
     }
 
+    /** A host's table holding a query's rows (a snapshot's copy, the final audit's 1(b), 2026-11-12): refused unless the
+     *  dialect's database is measured to run {@link #createTableAs} -- every host copies into its own DuckDB. */
+    protected SqlWriter tableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
+        throw new DialectCapability("a snapshot's copy (CREATE TABLE ... AS) on " + getClass().getSimpleName()
+                + ": no spelling measured on its database (every host copies into its own DuckDB)");
+    }
+
+    /** The standard {@code CREATE TABLE [schema.]table AS <query>}, for a dialect whose database runs it: each name
+     *  delimited, the query written as this dialect writes a query statement -- its passes applied, its result's columns
+     *  labeled ({@link #renderStatement(SqlQuery)}'s own root), each plan parameter bound where it is written -- so the
+     *  statement is the query's own under the table's making, and binds what the query alone binds, in its order. */
+    protected final SqlWriter createTableAs(com.legend.sql.SqlDml.CreateTableAs ct) {
+        SqlWriter head = newWriter().append("CREATE TABLE ")
+                .append(ct.schema() == null ? "" : delimited(ct.schema()) + ".").append(delimited(ct.table()));
+        return query(head.append(" AS "), labeled(passed(ct.query())), 0);
+    }
+
     /** {@code " (a, b)"}, each column a {@link #storedName} (as the queries reference it), or empty for every
      *  column. */
     private String dmlColumns(java.util.List<String> columns, java.util.Set<String> quoted) {
@@ -1995,6 +2502,20 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A key-list identifier ({@code PRIMARY KEY(...)}): the column rule. */
     protected String ddlKeyIdentifier(String name, boolean declaredQuoted) {
         return ddlIdentifier(name, declaredQuoted);
+    }
+
+    /** {@code columns} as a table's column list, each its name, type and nullability as this dialect's DDL spells
+     *  them. */
+    protected String ddlColumns(java.util.List<com.legend.sql.SqlDdl.Column> columns) {
+        StringBuilder sb = new StringBuilder();
+        for (com.legend.sql.SqlDdl.Column col : columns) {
+            if (sb.length() > 0) {
+                sb.append(ddlColumnSeparator());
+            }
+            sb.append(ddlIdentifier(col.name(), col.declaredQuoted())).append(' ').append(ddlType(col.type()))
+                    .append(ddlNullability(col.primaryKey() || col.notNull()));
+        }
+        return sb.toString();
     }
 
     protected String ddlColumnSeparator() {

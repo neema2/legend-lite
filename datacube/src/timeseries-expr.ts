@@ -1,16 +1,19 @@
-// A TIMESERIES' EXPRESSIONS AND ITS RULES AGAINST ITS GRIDS (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §3-§4): the
-// expression language a person types (parseExpr) and the text the spec's tree prints as (exprText); what an
-// expression reads, what its figures are and what it inlines; what stops a spec from being drawn over its grids' columns
+// A TIMESERIES' EXPRESSIONS AND ITS RULES AGAINST ITS GRIDS (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §3-§4): what
+// an expression reads, what its figures are and what it inlines; what stops a spec from being drawn over its grids' columns
 // (timeseriesProblems); and a first source and a first series of a grid (sourceOf, defaultTimeseries).
 //
 // Apart from the spec's reader (timeseries-spec.ts, which a page reads at its start): this is the viewer's and the
 // headless tile's, fetched with the first timeseries tile drawn (page/cube-page.ts) -- a page with none loads none of it
-// (test/bundle-budget.test.ts). Nothing here computes a value either: it reads and writes words.
+// (test/bundle-budget.test.ts). Nothing here computes a value either, and nothing reads or prints a text: a series'
+// text is #TS, read by core alone and written by timeseries-text.ts (docs/TS_DECISIONS_2026_11_07.md §4, the order's
+// step 3).
 
 import { isNumeric, isTemporal, isTimeOfDay } from '../../engine-client/src/types.ts';
+import { NOT_BUILT, textProblem, treeOf, writtenText } from './timeseries-text.ts';
+import { WORD_FACTS } from './generated/ts-facts.ts';
 import {
-  AGGREGATES, ALIAS, seriesWords, TS_SIGNATURES, type TimeseriesSpec, type TsAggregate, type TsExpr, type TsFunctionName, type TsMatch,
-  type TsOperator, type TsParamShape, type TsSeries, type TsSource,
+  isConditionOp, treeProblem, TS_SIGNATURES, type TimeseriesSpec, type TsExpr, type TsFunctionName, type TsParamShape,
+  type TsSeries, type TsSource, paramValue, TS_FUNCTION_NAMES,
 } from './timeseries-spec.ts';
 
 // ------------------------------------------------------------------ the catalog
@@ -33,14 +36,17 @@ export interface TsParam extends TsParamShape {
   readonly about: string;
 }
 
-export type TsFamily = 'Returns' | 'Level' | 'Rolling statistics' | 'Risk' | 'Relationships' | 'Technicals' | 'Math';
+export type TsFamily = 'Returns' | 'Level' | 'Rolling statistics' | 'Risk' | 'Relationships' | 'Technicals' | 'Math' | 'Dates';
 
 export interface TsFunction {
   readonly name: TsFunctionName;
   readonly label: string;
   readonly family: TsFamily;
-  /** How many series it reads: one, two (a correlation's), or four (a candle's). */
-  readonly series: 1 | 2 | 4;
+  /** How many series it reads: one, two (a correlation's), three (an if's), four (a candle's), or `many` with their
+   *  weights (a weighted sum's). */
+  readonly series: 1 | 2 | 3 | 4 | 'many';
+  /** What each series is, where not x and y (timeseries-spec.ts TsSignature). */
+  readonly reads?: readonly string[];
   readonly params: readonly TsParam[];
   /** What its figures are; `input` where it depends on a parameter (returns' type). */
   readonly unit: TsUnit | 'input';
@@ -69,167 +75,50 @@ export interface TsFunction {
 }
 
 /** A function's words: all of it but its signature, and what each parameter is (`w` and `obs`, `type` said once). */
-type TsWords = Omit<TsFunction, 'name' | 'series' | 'params'> & { readonly params?: Readonly<Record<string, string>> };
+export type TsWords = Omit<TsFunction, 'name' | 'series' | 'params'> & { readonly params?: Readonly<Record<string, string>> };
 
 const PARAM_ABOUT: Readonly<Record<string, string>> = {
-  w: 'observations in the window; 0 from the start',
-  obs: 'observations back',
+  w: 'observations in the window, or a calendar period (3m, 1y: the dates after one that far back, to this one); 0 from the start',
+  obs: 'observations back, or a calendar period back (1y: the value as of a year before, its last at or before)',
   type: 'simple: x / x[-obs] - 1; log: ln x - ln x[-obs]; absolute: x - x[-obs]',
+  annualization_factor: 'the periods a year its figure is annualized by; where not told, the frequency\'s periods a year, else what its dates infer',
+  r: 'the ramp, gs-quant\'s Window(w, r): its first r observations dropped, each figure before the w-th over the observations it has; where not told, the window\'s size',
 };
 
 /** Where every rolling figure's first value differs from gs-quant's: drawn at the observation its window first holds
  *  w, where gs-quant's ramp (apply_ramp, x[w:]) drops that one too. */
-const RAMP_DIFFERS = 'drawn from the observation its window first holds w (gs-quant\'s ramp starts one observation later)';
+const RAMP_DIFFERS = 'a window of w observations drawn from the observation it first holds w (gs-quant\'s ramp starts one observation later); of a calendar period, from its first date that period on, as gs-quant\'s';
+/** Where a lag by a calendar period differs: the value as of the date that far back, where gs-quant's lag moves each
+ *  date on by the period and keeps only the dates it lands on. */
+const OBS_DIFFERS = 'obs a calendar period back is the value as of that date, its last at or before it (gs-quant\'s only on the dates whose date that far back has a value)';
 /** Where beta differs on two calendars: each series' returns on its own dates, joined on the dates both have. */
 const BETA_DIFFERS = 'on two calendars, over the dates both have (gs-quant takes the covariance over every date either has, over the benchmark\'s own variance)';
 
-/**
- * THE FUNCTIONS' WORDS, gs-quant's names first (PlotTool Pro's words), each with what it computes -- and, where
- * DataCube's differs, how. Every one is written by timeseries-query.ts as columns the database computes.
- */
-const WORDS: Readonly<Record<TsFunctionName, TsWords>> = {
-  // returns
-  returns: { label: 'Returns', family: 'Returns', unit: 'input', about: 'The return over obs observations.', gsQuant: 'econometrics.returns' },
-  prices: { level: 'makes',
-    // a level compounded from initial, as an index is (the timeseries gallery, 2026-10-25: as its returns' unit, a
-    // level of 1,139 read as 113,949.58%)
-    label: 'Prices from returns', family: 'Returns', unit: 'index', params: { initial: 'the level it starts from' },
-    about: 'A level compounded from a series of returns, from initial: initial times the product of (1 + each return) to date.',
-    gsQuant: 'econometrics.prices',
-  },
-  diff: { label: 'Difference', family: 'Returns', unit: 'same', about: 'The change over obs observations: x - x[-obs].', gsQuant: 'analysis.diff' },
-  lag: { level: 'keeps',
-    label: 'Lag', family: 'Returns', unit: 'same', about: 'The value obs observations before.', gsQuant: 'analysis.lag',
-    differs: 'a whole number of observations; gs-quant also takes a calendar period (1m), not built',
-  },
-  annualize: {
-    label: 'Annualize', family: 'Returns', unit: 'same',
-    about: 'Times the square root of the periods in a year (252 days, 52 weeks, 12 months, 4 quarters).',
-    gsQuant: 'econometrics.annualize', differs: 'with a frequency, the periods in a year are the tile\'s (gs-quant always reads them off the dates, as DataCube does with none)',
-  },
-  // level
-  index: { level: 'makes',
-    label: 'Index', family: 'Level', unit: 'index', params: { initial: 'its value as of the first date shown' },
-    about: 'Divided by its value as of the first date shown (its last at or before it), times initial.', gsQuant: 'econometrics.index', anchored: true,
-  },
-  rebase: { level: 'makes',
-    label: 'Rebase to 100', family: 'Level', unit: 'index', params: { base: 'its value as of the first date shown' },
-    about: 'Its value as of the first date shown (its last at or before it) made base (100): index(x, 100).', gsQuant: 'DataCube (econometrics.index)', anchored: true,
-  },
-  change: { label: 'Change from start', family: 'Level', unit: 'same', about: 'Less its value as of the first date shown (its last at or before it).', gsQuant: 'econometrics.change', anchored: true },
-  percent_change: {
-    label: '% change from start', family: 'Level', unit: 'ratio', about: 'Its change from its value as of the first date shown (its last at or before it), as a share of it.',
-    gsQuant: 'DataCube (econometrics.index - 1)', anchored: true,
-  },
-  // rolling statistics
-  mean: { level: 'keeps',
-    label: 'Moving average', family: 'Rolling statistics', unit: 'same', about: 'The average over the last w observations.',
-    gsQuant: 'statistics.mean, technicals.moving_average', aliases: ['moving_average', 'sma', 'ma', 'average'],
-    differs: 'w defaults to 22 observations (gs-quant: every observation)',
-  },
-  sum: {
-    label: 'Rolling sum', family: 'Rolling statistics', unit: 'same', about: 'The sum over the last w observations; from the start, a running total.',
-    gsQuant: 'statistics.sum_', aliases: ['sum_', 'cumsum'],
-  },
-  min: { level: 'keeps', label: 'Rolling minimum', family: 'Rolling statistics', unit: 'same', about: 'The least over the last w observations.', gsQuant: 'statistics.min_', aliases: ['min_'], differs: 'w defaults to 22 observations (gs-quant: every observation)' },
-  max: { level: 'keeps', label: 'Rolling maximum', family: 'Rolling statistics', unit: 'same', about: 'The most over the last w observations.', gsQuant: 'statistics.max_', aliases: ['max_'], differs: 'w defaults to 22 observations (gs-quant: every observation)' },
-  range: {
-    label: 'Rolling range', family: 'Rolling statistics', unit: 'same', about: 'The most less the least over the last w observations.',
-    gsQuant: 'statistics.range_', aliases: ['range_'],
-    differs: 'w defaults to 22 observations (gs-quant: every observation)',
-  },
-  std: {
-    label: 'Rolling standard deviation', family: 'Rolling statistics', unit: 'same', about: 'The sample standard deviation over the last w observations.',
-    gsQuant: 'statistics.std', aliases: ['stdev'],
-    differs: 'w defaults to 22 observations (gs-quant: every observation)',
-  },
-  // in its input's units squared: a number, never a ratio's or a price's units (the second audit's N5)
-  var: {
-    label: 'Rolling variance', family: 'Rolling statistics', unit: 'number', about: 'The sample variance over the last w observations.',
-    gsQuant: 'statistics.var', aliases: ['variance'],
-    differs: 'w defaults to 22 observations (gs-quant: every observation)',
-  },
-  zscores: {
-    label: 'Z-score', family: 'Rolling statistics', unit: 'number', params: { w: 'observations in the window; 0 every observation' },
-    about: 'How many standard deviations from the mean: over the last w observations, or (0) every one.',
-    gsQuant: 'statistics.zscores', aliases: ['zscore', 'z'],
-  },
-  winsorize: { level: 'keeps',
-    label: 'Winsorize', family: 'Rolling statistics', unit: 'same', params: { limit: 'standard deviations from the mean it is held within' },
-    about: 'Held within limit standard deviations of its mean over every observation.', gsQuant: 'statistics.winsorize',
-  },
-  // risk
-  volatility: {
-    label: 'Realized volatility', family: 'Risk', unit: 'percent',
-    about: 'The annualized standard deviation of its returns over the last w observations, in percent (20% is 20).',
-    gsQuant: 'econometrics.volatility', aliases: ['vol'],
-    differs: 'w defaults to 22 observations (gs-quant: the whole series)',
-  },
-  drawdown: {
-    label: 'Drawdown', family: 'Risk', unit: 'ratio', params: { w: 'observations its peak is taken over; 0 from the start' },
-    about: 'Below its running peak, as a share of it: x / max(x) - 1.', gsQuant: 'DataCube (econometrics.max_drawdown\'s first step)',
-  },
-  max_drawdown: {
-    label: 'Maximum drawdown', family: 'Risk', unit: 'ratio', about: 'The deepest drawdown over the last w observations (-0.2 for 20%).',
-    gsQuant: 'econometrics.max_drawdown',
-  },
-  sharpe_ratio: {
-    label: 'Sharpe ratio', family: 'Risk', unit: 'number',
-    about: 'Its annualized mean return over its annualized volatility, over the last w observations.', gsQuant: 'econometrics.sharpe_ratio',
-    differs: 'w defaults to 252 observations (gs-quant: every observation); a risk-free rate of zero and the arithmetic mean of simple returns; gs-quant takes excess returns over a currency\'s rate and compounds',
-  },
-  // relationships
-  correlation: {
-    label: 'Rolling correlation', family: 'Relationships', unit: 'number',
-    about: 'The correlation of the two series\' simple returns over the last w observations, on the dates both have.',
-    gsQuant: 'econometrics.correlation', aliases: ['corr'],
-    differs: 'w defaults to 63 observations (gs-quant: every observation)',
-  },
-  beta: {
-    label: 'Rolling beta', family: 'Relationships', unit: 'number',
-    about: 'The first\'s beta to the second (a benchmark): the covariance of their simple returns over the second\'s variance.',
-    gsQuant: 'econometrics.beta',
-    differs: 'w defaults to 63 observations (gs-quant: every observation)',
-  },
-  cov: {
-    label: 'Rolling covariance', family: 'Relationships', unit: 'number',
-    about: 'The sample covariance of the two series as they are, over the last w observations.', gsQuant: 'statistics.cov',
-    differs: 'w defaults to 63 observations (gs-quant: every observation)',
-  },
-  // technicals
-  bollinger_bands: { level: 'keeps',
-    label: 'Bollinger bands', family: 'Technicals', unit: 'same', params: { k: 'standard deviations either side' },
-    about: 'A band k standard deviations either side of the moving average over the last w observations.',
-    gsQuant: 'technicals.bollinger_bands', band: true, aliases: ['bollinger'],
-    differs: 'w defaults to 20 observations (gs-quant: every observation)',
-  },
-  ohlc: { level: 'keeps',
-    label: 'Candles (open, high, low, close)', family: 'Technicals', unit: 'same', candles: true, aliases: ['candles', 'candlestick'],
-    about: 'A candle per period: its first open, its highest high, its lowest low and its last close (each a column of the '
-      + 'grid, taken so by the period unless its expression says how), green when it closed above its open, red below.',
-    gsQuant: 'DataCube (PlotTool Pro\'s candlesticks)',
-  },
-  rsi: {
-    label: 'Relative strength index', family: 'Technicals', unit: 'number',
-    about: '100 - 100 / (1 + average gain / average loss) over the last w changes: 0 to 100.',
-    gsQuant: 'technicals.relative_strength_index', aliases: ['relative_strength_index'], bounds: [0, 100],
-    differs: 'simple averages of the gains and losses (Cutler\'s); gs-quant smooths them (Wilder\'s), a recursion the database\'s windows have not',
-  },
-  // math
+/** SQL'S WORDS PER POINT, which no word of the library is yet (A4 makes them library words): their facts the tile's own
+ *  (timeseries-spec.ts SCALARS, their signatures). */
+const SCALAR_WORDS: Readonly<Partial<Record<TsFunctionName, TsWords>>> = {
   log: { label: 'Natural log', family: 'Math', unit: 'number', about: 'ln x.', gsQuant: 'algebra.log' },
   exp: { label: 'Exponential', family: 'Math', unit: 'number', about: 'e to the x.', gsQuant: 'algebra.exp' },
   sqrt: { label: 'Square root', family: 'Math', unit: 'same', about: 'The square root.', gsQuant: 'algebra.sqrt' },
   abs: { label: 'Absolute value', family: 'Math', unit: 'same', about: '|x|.', gsQuant: 'algebra.abs_', aliases: ['abs_'] },
   power: { label: 'Power', family: 'Math', unit: 'number', params: { y: 'the power' }, about: 'x to the power y.', gsQuant: 'algebra.power' },
-  floor: { level: 'keeps',
-    label: 'Floor at a value', family: 'Math', unit: 'same', params: { value: 'the least it may be' },
-    about: 'Never below value: the greater of x and value.', gsQuant: 'algebra.floor',
-  },
-  ceil: { level: 'keeps',
-    label: 'Cap at a value', family: 'Math', unit: 'same', params: { value: 'the most it may be' },
-    about: 'Never above value: the lesser of x and value.', gsQuant: 'algebra.ceil',
+  not: {
+    label: 'Not', family: 'Math', unit: 'number', about: 'A condition turned over: 1 where it does not hold, 0 where it does.',
+    gsQuant: 'algebra.not_', aliases: ['not_'], differs: 'a value other than 0 holds (gs-quant refuses values but 0 and 1)',
   },
 };
+
+/**
+ * THE FUNCTIONS' WORDS, gs-quant's names first (PlotTool Pro's words), each with what it computes -- and, where
+ * DataCube's differs, how: the library's own facts (its timeseries::Words tags, generated/ts-facts.ts WORD_FACTS:
+ * the order's step 1, 2026-11-07, in place of the tile's hand-kept table), SQL's per point the tile's. Every one is
+ * written by timeseries-query.ts as columns the database computes.
+ */
+export const WORDS: Readonly<Record<TsFunctionName, TsWords>> = Object.fromEntries(TS_FUNCTION_NAMES.map((name) => {
+  const words = SCALAR_WORDS[name] ?? WORD_FACTS[name];
+  if (words === undefined) throw new Error(`the tile draws ${name}, whose facts the library does not tell`);
+  return [name, words];
+})) as Record<TsFunctionName, TsWords>;
 
 /** THE FUNCTIONS: each one's signature (TS_SIGNATURES, what a saved spec is read by) with its words, in the catalog's
  *  order. */
@@ -242,9 +131,11 @@ export const TS_FUNCTIONS: readonly TsFunction[] = (Object.keys(WORDS) as TsFunc
     return { ...p, about: said };
   });
   // every rolling figure's ramp, and beta's calendar, said where they differ (the second audit's N1, N2: undeclared)
-  const differs = [words.differs, sig.params.some((p) => p.name === 'w') ? RAMP_DIFFERS : undefined,
+  // vol_swap_volatility's first value is gs-quant's own (its Window(n, n - 1): the Phase 1 review's 7)
+  const differs = [words.differs, sig.params.some((p) => p.name === 'w' && p.kind === 'span') && name !== 'vol_swap_volatility' ? RAMP_DIFFERS : undefined,
+    sig.params.some((p) => p.name === 'obs') ? OBS_DIFFERS : undefined,
     name === 'beta' ? BETA_DIFFERS : undefined].filter((d): d is string => d !== undefined);
-  return { name, series: sig.series, params, ...words, ...(differs.length > 0 ? { differs: differs.join('; ') } : {}) };
+  return { name, series: sig.series, ...(sig.reads !== undefined ? { reads: sig.reads } : {}), params, ...words, ...(differs.length > 0 ? { differs: differs.join('; ') } : {}) };
 });
 
 /** The functions by name. */
@@ -254,19 +145,7 @@ export const TS_FUNCTION: ReadonlyMap<TsFunctionName, TsFunction> = new Map(TS_F
  * gs-quant's functions DataCube does not compute, each with why: typed, they are refused in these words rather than
  * read as a column of the grid.
  */
-export const NOT_BUILT: Readonly<Record<string, string>> = {
-  exponential_moving_average: 'an exponential average is a recursion (each value from the one before), which the database\'s windows have not: use mean(x, w)',
-  ema: 'an exponential average is a recursion (each value from the one before), which the database\'s windows have not: use mean(x, w)',
-  macd: 'MACD is a difference of exponential averages, a recursion the database\'s windows have not',
-  exponential_volatility: 'an exponentially weighted volatility is a recursion the database\'s windows have not: use volatility(x, w)',
-  exponential_std: 'an exponentially weighted deviation is a recursion the database\'s windows have not: use std(x, w)',
-  smoothed_moving_average: 'a smoothed average is a recursion the database\'s windows have not: use mean(x, w)',
-  seasonally_adjusted: 'a seasonal decomposition is a model fitted to the series, not a window over it',
-  trend: 'a trend from a seasonal decomposition is a model fitted to the series, not a window over it',
-  median: 'a rolling median is a window the planner does not write yet: use mean(x, w) or zscores(x, w)',
-  percentiles: 'a rolling percentile rank is a window the planner does not write yet',
-  excess_returns: 'excess returns need a risk-free rate series: divide by one of your own',
-};
+export { NOT_BUILT };
 
 
 /** Every name a person may type, an alias to its function. */
@@ -279,12 +158,10 @@ export function functionNamed(name: string): TsFunction | undefined {
   return TYPED_NAMES.get(name.toLowerCase());
 }
 
-/** A function's parameter as a call has it: told, else its default. */
-export function paramOf(call: Extract<TsExpr, { kind: 'call' }>, name: string): number | string {
-  const f = TS_FUNCTION.get(call.fn);
-  const p = f?.params.find((q) => q.name === name);
-  if (!p) throw new Error(`${call.fn} has no parameter ${name}`);
-  return call.params?.[name] ?? p.default;
+/** A function's parameter as a call has it: told, else its default -- undefined where neither (an optional the
+ *  library has no default for). */
+export function paramOf(call: Extract<TsExpr, { kind: 'call' }>, name: string): number | string | undefined {
+  return paramValue(call.fn, call.params, name);
 }
 
 // ------------------------------------------------------------------ what an expression reads and is
@@ -371,6 +248,11 @@ export function aliasFor(title: string | undefined, taken: readonly string[]): s
   for (let n = 2; ; n++) if (!taken.includes(`${base}${n}`)) return `${base}${n}`;
 }
 
+/** A series' tree with every series it reads inlined: what is computed of it. */
+export function wholeOf(s: TsSeries, series: readonly TsSeries[]): TsExpr {
+  return inlined(treeOf(s, series), series);
+}
+
 /** A series that cannot be inlined: one reading itself, or a series there is not -- said where it is drawn. */
 export class TsInlineError extends Error {}
 
@@ -378,10 +260,10 @@ export class TsInlineError extends Error {}
 export function inlined(e: TsExpr, series: readonly TsSeries[], seen: readonly string[] = []): TsExpr {
   switch (e.kind) {
     case 'ref': {
-      if (seen.includes(e.series)) throw new TsInlineError(`series ${e.series} reads itself: ${[...seen, e.series].map((id) => `$${id}`).join(' reads ')}`);
+      if (seen.includes(e.series)) throw new TsInlineError(`series ${e.series} reads itself: ${[...seen, e.series].join(' reads ')}`);
       const s = series.find((x) => x.id === e.series);
       if (!s) throw new TsInlineError(`there is no series ${e.series}`);
-      return inlined(s.expr, series, [...seen, e.series]);
+      return inlined(treeOf(s, series), series, [...seen, e.series]);
     }
     case 'binary':
       return { ...e, left: inlined(e.left, series, seen), right: inlined(e.right, series, seen) };
@@ -401,6 +283,8 @@ export function unitOf(e: TsExpr): TsUnit {
     case 'number':
       return 'number';
     case 'binary': {
+      // a condition: 1 where it holds, 0 where not
+      if (isConditionOp(e.op)) return 'number';
       const l = unitOf(e.left);
       const r = unitOf(e.right);
       // a level times or over a number is still a level; two levels divided are a number (a ratio of prices)
@@ -422,6 +306,8 @@ export function unitOf(e: TsExpr): TsUnit {
       const f = TS_FUNCTION.get(e.fn);
       if (!f) throw new Error(`no function ${e.fn} in the catalog (the spec's reader refuses one)`);
       if (f.unit === 'input') return paramOf(e, 'type') === 'absolute' ? unitOf(e.args[0]!) : 'ratio';
+      // an if's unit is its branches' (a number branch takes the other's)
+      if (e.fn === 'if') return e.args[1]!.kind === 'number' ? unitOf(e.args[2]!) : unitOf(e.args[1]!);
       if (f.unit === 'same') return e.args[0] ? unitOf(e.args[0]) : 'same';
       return f.unit;
     }
@@ -447,6 +333,7 @@ export function levelOf(e: TsExpr): boolean {
       const l = levelOf(e.left);
       const r = levelOf(e.right);
       const positive = (x: TsExpr): boolean => x.kind === 'number' && x.value > 0;
+      if (isConditionOp(e.op)) return false;
       // a basket of levels is one; a level shifted by a number, or a spread of two, is none -- its start can be zero or
       // below, which compare would divide by (the second audit's B1: index(close) - 1, rebase(close) - 100)
       if (e.op === '+') return l && r;
@@ -458,6 +345,12 @@ export function levelOf(e: TsExpr): boolean {
     case 'call': {
       const f = TS_FUNCTION.get(e.fn);
       if (!f) throw new Error(`no function ${e.fn} in the catalog (the spec's reader refuses one)`);
+      // a level of every series it reads: an if's branches, a splice's two, a weighted sum's series of positive weights
+      if (e.fn === 'if') return levelOf(e.args[1]!) && levelOf(e.args[2]!);
+      if (e.fn === 'union' || e.fn === 'append' || e.fn === 'prepend') return levelOf(e.args[0]!) && levelOf(e.args[1]!);
+      if (e.fn === 'weighted_sum') {
+        return e.args.every((a, i) => (i % 2 === 0 ? levelOf(a) : a.kind === 'number' && a.value > 0));
+      }
       return f.level === 'makes' || (f.level === 'keeps' && levelOf(e.args[0]!));
     }
   }
@@ -471,6 +364,12 @@ export function boundsOf(e: TsExpr): readonly [number, number] | undefined {
 /** Whether an expression draws a band (a Bollinger band): two lines, nothing reading it. */
 export function isBand(e: TsExpr): boolean {
   return e.kind === 'call' && TS_FUNCTION.get(e.fn)?.band === true;
+}
+
+/** Whether an expression is a CONDITION -- a comparison, or conditions joined by and, or -- drawn as the periods it
+ *  holds, shaded (timeseries-option.ts), its runs the database's (timeseries-query.ts). */
+export function isCondition(e: TsExpr): boolean {
+  return (e.kind === 'binary' && isConditionOp(e.op)) || (e.kind === 'call' && e.fn === 'not');
 }
 
 /** Whether an expression draws candles (ohlc): a candle per period, nothing reading it. */
@@ -511,334 +410,20 @@ export function drawnOnly(e: TsExpr): string | undefined {
   return isBand(e) ? 'a band' : isCandles(e) ? 'candles' : undefined;
 }
 
-// ------------------------------------------------------------------ the expression language
-
-/** An expression typed that cannot be read, said where. */
-export class TsSyntaxError extends Error {
-  /** Where in the text, from 0. */
-  readonly at: number;
-  constructor(message: string, at: number) {
-    super(message);
-    this.name = 'TsSyntaxError';
-    this.at = at;
-  }
-}
-
-type Token =
-  | { readonly t: 'num'; readonly v: number; readonly at: number }
-  | { readonly t: 'id'; readonly v: string; readonly at: number; readonly quoted: boolean }
-  | { readonly t: 'str'; readonly v: string; readonly at: number }
-  | { readonly t: 'ref'; readonly v: string; readonly at: number }
-  | { readonly t: 'op'; readonly v: string; readonly at: number }
-  | { readonly t: 'end'; readonly at: number };
-
-function tokenize(text: string): Token[] {
-  const out: Token[] = [];
-  let i = 0;
-  while (i < text.length) {
-    const c = text[i]!;
-    if (/\s/.test(c)) {
-      i++;
-      continue;
-    }
-    const at = i;
-    if (/[0-9]/.test(c) || (c === '.' && /[0-9]/.test(text[i + 1] ?? ''))) {
-      const m = /^(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?/i.exec(text.slice(i))!;
-      // a number run straight into letters is a word -- a tenor, a period: 10Y, 3M
-      if (/[A-Za-z_]/.test(text[i + m[0].length] ?? '')) {
-        const w = /^[0-9A-Za-z_]+/.exec(text.slice(i))!;
-        out.push({ t: 'id', v: w[0], at, quoted: false });
-        i += w[0].length;
-        continue;
-      }
-      out.push({ t: 'num', v: Number(m[0]), at });
-      i += m[0].length;
-      continue;
-    }
-    if (/[A-Za-z_]/.test(c)) {
-      const m = /^[A-Za-z_][A-Za-z0-9_]*/.exec(text.slice(i))!;
-      out.push({ t: 'id', v: m[0], at, quoted: false });
-      i += m[0].length;
-      continue;
-    }
-    if (c === '$') {
-      const m = /^\$([A-Za-z][A-Za-z0-9]*)/.exec(text.slice(i));
-      if (!m) throw new TsSyntaxError('a $ names a series: $A', at);
-      out.push({ t: 'ref', v: m[1]!.toUpperCase(), at });
-      i += m[0].length;
-      continue;
-    }
-    if (c === '`' || c === '"' || c === '\'') {
-      // a column with a name of its own (`total pnl`), or a value ("AAPL")
-      const end = text.indexOf(c, i + 1);
-      if (end < 0) throw new TsSyntaxError(`a ${c} is not closed`, at);
-      const v = text.slice(i + 1, end);
-      out.push(c === '`' ? { t: 'id', v, at, quoted: true } : { t: 'str', v, at });
-      i = end + 1;
-      continue;
-    }
-    if ('+-*/(),[]=.:'.includes(c)) {
-      out.push({ t: 'op', v: c, at });
-      i++;
-      continue;
-    }
-    throw new TsSyntaxError(`"${c}" means nothing here`, at);
-  }
-  out.push({ t: 'end', at: text.length });
-  return out;
-}
-
-/**
- * AN EXPRESSION AS A PERSON TYPES IT, read into the tree the spec keeps -- PlotTool Pro's style over gs-quant's names:
- *
- *   close                      the first source's column, each period's latest value
- *   px:close, rates:yield      a column of the source of that alias
- *   close[AAPL]                its rows whose instrument column (the source's key) is AAPL
- *   close[venue=NYSE, AAPL]    and whose venue is NYSE
- *   volume[AAPL].sum           each period's rows summed (last, first, average, sum, min, max)
- *   $A                         series A's expression
- *   returns(close[AAPL], 1, log), volatility($A, 63), correlation($A, $B, 126), zscores($A, w=252)
- *   close[AAPL] / close[MSFT], ($A + $B) / 2, 100 * returns($A)
- *
- * A column whose name is not a word is quoted with backticks (`total pnl`); a value that is not a word or a number with
- * quotes ("BRK.B"). A function's parameters follow its series, by place or by name (w=63, type=log).
- */
-export function parseExpr(text: string): TsExpr {
-  const toks = tokenize(text);
-  let p = 0;
-  const peek = (): Token => toks[p]!;
-  const next = (): Token => toks[p++]!;
-  const isOp = (v: string): boolean => {
-    const t = peek();
-    return t.t === 'op' && t.v === v;
-  };
-  const expect = (v: string): void => {
-    const t = next();
-    if (t.t !== 'op' || t.v !== v) throw new TsSyntaxError(`a "${v}" was expected here`, t.at);
-  };
-
-  const sum = (): TsExpr => {
-    let left = product();
-    while (isOp('+') || isOp('-')) {
-      const op = (next() as { v: string }).v as TsOperator;
-      left = { kind: 'binary', op, left, right: product() };
-    }
-    return left;
-  };
-  const product = (): TsExpr => {
-    let left = unary();
-    while (isOp('*') || isOp('/')) {
-      const op = (next() as { v: string }).v as TsOperator;
-      left = { kind: 'binary', op, left, right: unary() };
-    }
-    return left;
-  };
-  const unary = (): TsExpr => {
-    if (isOp('-')) {
-      next();
-      const operand = unary();
-      return operand.kind === 'number' ? { kind: 'number', value: -operand.value }
-        : { kind: 'binary', op: '*', left: { kind: 'number', value: -1 }, right: operand };
-    }
-    if (isOp('+')) {
-      next();
-      return unary();
-    }
-    return primary();
-  };
-  const value = (): string | number | boolean => {
-    const t = next();
-    if (t.t === 'num') return t.v;
-    if (t.t === 'str') return t.v;
-    if (t.t === 'id') return t.v === 'true' ? true : t.v === 'false' ? false : t.v;
-    if (t.t === 'op' && t.v === '-' && peek().t === 'num') return -(next() as { v: number }).v;
-    throw new TsSyntaxError('a value was expected here (AAPL, "BRK.B", 42)', t.at);
-  };
-  const column = (name: string, source?: string): TsExpr => {
-    const where: TsMatch[] = [];
-    let fn: TsAggregate | undefined;
-    if (isOp('[')) {
-      next();
-      do {
-        const t = peek();
-        const named = (t.t === 'id') && toks[p + 1]?.t === 'op' && (toks[p + 1] as { v: string }).v === '=';
-        if (named) {
-          next();
-          next();
-          where.push({ column: (t as { v: string }).v, value: value() });
-        } else {
-          where.push({ value: value() });
-        }
-      } while (isOp(',') && next());
-      expect(']');
-    }
-    if (isOp('.')) {
-      next();
-      const t = next();
-      if (t.t !== 'id' || !AGGREGATES.includes(t.v as TsAggregate)) {
-        throw new TsSyntaxError(`a period's value is one of ${AGGREGATES.join(', ')}`, t.at);
-      }
-      fn = t.v as TsAggregate;
-    }
-    return {
-      kind: 'column', ...(source !== undefined ? { source } : {}), column: name, ...(fn !== undefined ? { fn } : {}),
-      ...(where.length > 0 ? { where } : {}),
-    };
-  };
-  const call = (name: string, at: number): TsExpr => {
-    const f = functionNamed(name);
-    if (!f) {
-      const why = NOT_BUILT[name.toLowerCase()];
-      throw new TsSyntaxError(why ? `${name}: ${why}` : `there is no function ${name}`, at);
-    }
-    next();
-    const args: TsExpr[] = [];
-    const params: Record<string, number | string> = {};
-    let positional = 0;
-    if (!isOp(')')) {
-      do {
-        const t = peek();
-        const named = t.t === 'id' && toks[p + 1]?.t === 'op' && (toks[p + 1] as { v: string }).v === '=';
-        if (named) {
-          next();
-          next();
-          const param = f.params.find((q) => q.name === (t as { v: string }).v);
-          if (!param) throw new TsSyntaxError(`${f.name} has no parameter ${(t as { v: string }).v} (it has ${f.params.map((q) => q.name).join(', ') || 'none'})`, t.at);
-          params[param.name] = paramValue(param);
-          continue;
-        }
-        if (args.length < f.series) {
-          args.push(sum());
-          continue;
-        }
-        const param = f.params[positional++];
-        if (!param) throw new TsSyntaxError(`${f.name} takes ${seriesWords(f.series)}${f.params.length > 0 ? ` and ${f.params.map((q) => q.name).join(', ')}` : ''}`, t.at);
-        params[param.name] = paramValue(param);
-      } while (isOp(',') && next());
-    }
-    expect(')');
-    if (args.length < f.series) throw new TsSyntaxError(`${f.name} reads ${seriesWords(f.series)}`, at);
-    return { kind: 'call', fn: f.name, args, ...(Object.keys(params).length > 0 ? { params } : {}) };
-  };
-  const paramValue = (param: TsParam): number | string => {
-    const t = next();
-    if (param.kind === 'word') {
-      const v = t.t === 'id' || t.t === 'str' ? t.v.toLowerCase() : undefined;
-      if (v === undefined || !param.words!.includes(v)) throw new TsSyntaxError(`${param.name} is one of ${param.words!.join(', ')}`, t.at);
-      return v;
-    }
-    let n: number | undefined;
-    if (t.t === 'num') n = t.v;
-    else if (t.t === 'op' && t.v === '-' && peek().t === 'num') n = -(next() as { v: number }).v;
-    if (n === undefined) throw new TsSyntaxError(`${param.name} is a number`, t.at);
-    if (param.kind === 'whole' && !Number.isInteger(n)) throw new TsSyntaxError(`${param.name} is a whole number`, t.at);
-    if (param.min !== undefined && n < param.min) throw new TsSyntaxError(`${param.name} is at least ${param.min}`, t.at);
-    return n;
-  };
-  const primary = (): TsExpr => {
-    const t = next();
-    if (t.t === 'num') return { kind: 'number', value: t.v };
-    if (t.t === 'ref') return { kind: 'ref', series: t.v };
-    if (t.t === 'op' && t.v === '(') {
-      const inner = sum();
-      expect(')');
-      return inner;
-    }
-    if (t.t === 'id') {
-      if (!t.quoted && isOp('(')) return call(t.v, t.at);
-      // a source's column: `px:close`, `rates:yield[10Y]`
-      if (!t.quoted && isOp(':')) {
-        if (!ALIAS.test(t.v)) throw new TsSyntaxError(`"${t.v}" is not a source's name`, t.at);
-        next();
-        const c = next();
-        if (c.t !== 'id') throw new TsSyntaxError(`a column of ${t.v} was expected here`, c.at);
-        return column(c.v, t.v);
-      }
-      if (!t.quoted && NOT_BUILT[t.v.toLowerCase()]) throw new TsSyntaxError(`${t.v}: ${NOT_BUILT[t.v.toLowerCase()]}`, t.at);
-      return column(t.v);
-    }
-    if (t.t === 'end') throw new TsSyntaxError('the expression stops before its end', t.at);
-    throw new TsSyntaxError(`"${t.t === 'str' ? t.v : (t as { v: string }).v}" was not expected here`, t.at);
-  };
-
-  const e = sum();
-  const last = peek();
-  if (last.t !== 'end') throw new TsSyntaxError('the expression goes on past its end', last.at);
-  return e;
-}
-
-const WORD = /^[A-Za-z_][A-Za-z0-9_]*$/;
-const PRECEDENCE: Readonly<Record<TsOperator, number>> = { '+': 1, '-': 1, '*': 2, '/': 2 };
-
-/** A number as an expression writes it. */
-function numberText(n: number): string {
-  return Number.isInteger(n) || Math.abs(n) >= 1e-6 ? String(n) : n.toExponential();
-}
-
-/** A value of a match as an expression writes it: a word as it is, anything else quoted. */
-function valueText(v: string | number | boolean): string {
-  if (typeof v !== 'string') return String(v);
-  // a word as it is (AAPL, 10Y), unless it would read back as something else: a number, true or false
-  return /^[A-Za-z0-9_]+$/.test(v) && !Number.isFinite(Number(v)) && !/^\d+(\.\d*)?e\d*$/i.test(v) && v !== 'true' && v !== 'false'
-    ? v : JSON.stringify(v);
-}
-
-/** A column's name as an expression writes it: a word as it is, anything else in backticks. */
-function columnText(c: string): string {
-  return WORD.test(c) && !functionNamed(c) && !AGGREGATES.includes(c as TsAggregate) ? c : `\`${c}\``;
-}
-
-/**
- * AN EXPRESSION AS TEXT, the one way it is written (parseExpr reads it back to the same tree): a function's parameters
- * by place, those left at their defaults left off its end.
- */
-export function exprText(e: TsExpr, outer = 0): string {
-  switch (e.kind) {
-    case 'number':
-      return numberText(e.value);
-    case 'ref':
-      return `$${e.series}`;
-    case 'column': {
-      const where = (e.where ?? []).map((m) => (m.column !== undefined ? `${m.column}=${valueText(m.value)}` : valueText(m.value)));
-      return `${e.source !== undefined ? `${e.source}:` : ''}${columnText(e.column)}${where.length > 0 ? `[${where.join(', ')}]` : ''}${e.fn !== undefined ? `.${e.fn}` : ''}`;
-    }
-    case 'binary': {
-      const mine = PRECEDENCE[e.op];
-      // a minus or a division binds its right side tighter: a - (b - c), a / (b * c)
-      const right = e.op === '-' || e.op === '/' ? mine + 1 : mine;
-      const text = `${exprText(e.left, mine)} ${e.op} ${exprText(e.right, right)}`;
-      return mine < outer ? `(${text})` : text;
-    }
-    case 'call': {
-      const f = TS_FUNCTION.get(e.fn);
-      const args = e.args.map((a) => exprText(a));
-      if (f) {
-        const told = f.params.map((q) => e.params?.[q.name]);
-        let lastTold = told.length - 1;
-        while (lastTold >= 0 && (told[lastTold] === undefined || told[lastTold] === f.params[lastTold]!.default)) lastTold--;
-        for (let i = 0; i <= lastTold; i++) {
-          const v = told[i] ?? f.params[i]!.default;
-          args.push(typeof v === 'number' ? numberText(v) : v);
-        }
-      }
-      return `${e.fn}(${args.join(', ')})`;
-    }
-  }
-}
-
-/** A series' name as the legend says it: its own, else its expression's text. */
+/** A series' name as the legend says it: its own, else its text. */
 export function seriesName(s: TsSeries): string {
-  return s.name ?? exprText(s.expr);
+  return s.name ?? s.text;
 }
 
 /**
  * A line's name: its series' -- and, one of a split series' lines, its value with it: a named series' after its name
  * ("Yield 10Y"), a plain column's alone ("AAPL"), else before its expression ("AAPL volatility(close, 63)").
  */
-export function splitName(s: TsSeries, split: unknown): string {
+export function splitName(s: TsSeries, split: unknown, series: readonly TsSeries[]): string {
   if (split === undefined) return seriesName(s);
   if (s.name !== undefined) return `${s.name} ${String(split)}`;
-  const plain = s.expr.kind === 'column' && (s.expr.where ?? []).length === 0;
+  const tree = textProblem(s) === null ? treeOf(s, series) : undefined;
+  const plain = tree?.kind === 'column' && (tree.where ?? []).length === 0;
   return plain ? String(split) : `${String(split)} ${seriesName(s)}`;
 }
 
@@ -891,19 +476,29 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
   if (ts.series.length === 0) out.push(NO_SERIES);
   for (const s of ts.series) {
     const name = `Series ${s.id}`;
-    for (const ref of refsOf(s.expr)) {
-      const other = ts.series.find((x) => x.id === ref);
-      if (!other) {
-        out.push(`${name} reads $${ref}, which there is not.`);
-        continue;
-      }
-      if ((other.split ?? null) !== (s.split ?? null)) out.push(`${name} reads $${ref}, split ${other.split === undefined ? 'by nothing' : `by '${other.split}'`}: a series reads only series split as it is.`);
-      const drawn = drawnOnly(other.expr);
-      if (drawn !== undefined) out.push(`${name} reads $${ref}, ${drawn}: ${drawn} ${drawn === 'candles' ? 'are' : 'is'} drawn, never read.`);
+    // its text as core reads it, judged by the tile's words (timeseries-text.ts): one that is no series, said
+    const unread = textProblem(s);
+    if (unread !== null) {
+      out.push(`${unread}.`);
+      continue;
+    }
+    const tree = treeOf(s, ts.series);
+    const wrong = treeProblem(tree, name, ts.sources.map((x) => x.alias));
+    if (wrong !== null) {
+      out.push(`${wrong}.`);
+      continue;
+    }
+    for (const ref of refsOf(tree)) {
+      // every ref is a series of the tile (a name of none reads a column: treeOf), one whose text is no series said
+      const other = ts.series.find((x) => x.id === ref)!;
+      if (textProblem(other) !== null) continue;
+      if ((other.split ?? null) !== (s.split ?? null)) out.push(`${name} reads series ${ref}, split ${other.split === undefined ? 'by nothing' : `by '${other.split}'`}: a series reads only series split as it is.`);
+      const drawn = drawnOnly(treeOf(other, ts.series));
+      if (drawn !== undefined) out.push(`${name} reads series ${ref}, ${drawn}: ${drawn} ${drawn === 'candles' ? 'are' : 'is'} drawn, never read.`);
     }
     let whole: TsExpr;
     try {
-      whole = inlined(s.expr, ts.series);
+      whole = wholeOf(s, ts.series);
     } catch (e) {
       out.push(`${name}: ${e instanceof Error ? e.message : String(e)}.`);
       continue;
@@ -944,6 +539,21 @@ export function timeseriesProblems(ts: TimeseriesSpec, columns: ReadonlyMap<stri
       }
     };
     walk(whole, true);
+  }
+  // marks from a grid's rows: each column they read one of their source's, the one they are drawn at a number
+  for (const [i, a] of (ts.annotations ?? []).entries()) {
+    if (a.kind !== 'marks') continue;
+    const name = `Marks ${a.label !== undefined ? `"${a.label}"` : i + 1}`;
+    const typeOf = types.get(a.source);
+    const src = ts.sources.find((x) => x.alias === a.source);
+    if (!typeOf || !src) continue;
+    for (const c of [a.at, a.text, ...(a.where ?? []).map((m) => m.column ?? src.key)]) {
+      if (c !== undefined && !typeOf.has(c)) out.push(`${name} read '${c}', which source ${a.source} has not.`);
+    }
+    if (a.at !== undefined && typeOf.has(a.at) && !isNumeric(typeOf.get(a.at))) out.push(`${name} are drawn at '${a.at}', which is not a number.`);
+    if (src.key === undefined && (a.where ?? []).some((m) => m.column === undefined)) {
+      out.push(`${name} match a value with no column ([AAPL]): choose source ${src.alias}'s instrument column (Key).`);
+    }
   }
   return [...new Set(out)];
 }
@@ -1005,7 +615,7 @@ export function firstPlot(columns: readonly TsColumn[], source: TsSource): Pick<
   if (value === undefined) return undefined;
   const rebased = source.key !== undefined && !RATE_WORDS.some((w) => value.toLowerCase().includes(w));
   return {
-    series: [{ id: 'A', expr: columnRef(value), ...(source.key ? { split: source.key } : {}) }],
+    series: [{ id: 'A', text: writtenText(columnRef(value), []), ...(source.key ? { split: source.key } : {}) }],
     ...(rebased ? { view: { compare: 'rebase' } } : {}),
   };
 }

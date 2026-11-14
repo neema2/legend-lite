@@ -126,7 +126,9 @@ class HarnessDisciplineTest {
             // the timing ledger: the slowest tests DISPLAYED, no comparison
             // 1 -> 2 (2026-09-20, statement-origin census): the per-origin top-five is a
             // DISPLAY ordering of statement counts (largest first) — no verdict, no comparison policy
-            Map.entry("MinimalCorpusTest.java", 2),
+            // 2 -> 3 (2026-11-01, the test-is-the-product plan's M9, the kind census): the bodies the router left on
+            // the walk DISPLAYED by kinds, most frequent first — a report line, no verdict, no comparison policy
+            Map.entry("MinimalCorpusTest.java", 2),   // 3 -> 2 (2026-11-06, the walk deletion: the body-router stayed-kinds histogram and its sort deleted with the walk)
             // the eager corpus compile PROBE (COMPILE_EVERYTHING_HOMEWORK §10, run
             // by name, not a gate): sorted REPORT lines — failures by reason,
             // package, source file, name — a display, never a verdict
@@ -155,14 +157,20 @@ class HarnessDisciplineTest {
             // and the row-multiset match moved here from PureAsserts /
             // TdsCompare; two-sided comparison policy, never a result order
             Map.entry("Equality.java", 4),
+            // 2026-11-09 (slice 5: the test's planner scanned in the driver's place): the body's kinds named in the
+            // program road's refusal message, sorted so the message reads the same each run -- a diagnostic's text,
+            // never a result's order
+            Map.entry("BodyKinds.java", 1),
             // TYPED-IR Slice 1: census-class DISPLAY ordering
             // (largest-first report lines) — reporting, never a result
             // reordering; two-sided by construction (both sides of no
             // comparison flow through it). 1 -> 2 (§E3 M-N1): the
             // nullability differential's report sorts its OWN class
             // map largest-first. 2 -> 3 (§E3 slack census): the slack
-            // report, same display-only shape.
-            Map.entry("SqlTypeCensus.java", 3),
+            // report, same display-only shape. 3 -> 2 (2026-10-29, the doors' audit D64): the slack report
+            // deleted with the wire census's arm, callerless since the plan runner.
+            // (SqlTypeCensus.java 2 -> deleted 2026-11-09, the full audit: the census had no feeder; with its static
+            // state, the class went)
             // CanonicalDivergence: the assertSameElements byte-channel
             // stand-in sorts RENDERED STRINGS on BOTH sides (two-sided
             // comparison policy — the census-side mirror of R2's
@@ -178,6 +186,10 @@ class HarnessDisciplineTest {
             // decline-witness list sorts for stable console diffs —
             // the SAME display-ordering class; no comparison flows
             // through it (FULL_RESIDUE_CENSUS_2026_08_30.md §0).
+            // 7 -> 5 (2026-11-03, the user's ruling, judges never more lenient than upstream): the rendered-text
+            // and order-leniency probes deleted with the policies they measured; 5 -> 7 (2026-11-03, the user's
+            // ruling "no sort can be multiset compare" restored: an unsorted side may compare as a multiset, so the
+            // rendered-text probe's two-sided line sort is back with the policy it measures)
             Map.entry("CanonicalDivergence.java", 7),
             // (MetamodelWalk.java: its 3 record-accessor `.distinct()`
             // sites left with the resolvePrimaryKey arm — metamodel-as-
@@ -196,8 +208,49 @@ class HarnessDisciplineTest {
             // (WholeTestFlip, the old runner and the walk: DELETED in
             // batch 115 — their rows left this list)
             // 4 -> 3 -> 2 (JUDGING_TWO_MODES step 2a/2b): the row-multiset
-            // match and its pool moved to Equality
-            Map.entry("TdsCompare.java", 2));
+            // match and its pool moved to Equality; 2 -> 0 (2026-11-03, the user's ruling: a grid's rows compare in
+            // order, the rendered text exactly -- the multiset and token-pool paths deleted); 0 -> 2 (2026-11-03, the
+            // user's ruling "no sort can be multiset compare" restored: an unsorted render's lines and tokens compare
+            // as a multiset again, a sorted one in order)
+            Map.entry("TdsCompare.java", 2),
+            // ---- src/main/com/legend/driver (step C, D73, 2026-10-30; the D73 audit): the judges' arms sat at
+            // the root, which this guard never walked; the root dissolved into a package the walk now covers. ----
+            // HostJudge: the host arm's compare sorts both sides' element lists (two sites, twice) before an
+            // order-insensitive equality -- comparison policy, two-sided, the same on each side; 4 -> 2
+            // (2026-11-03, the user's ruling: the flat-cells byte channel compares in order -- assertSameElements
+            // keeps its own sort, upstream's sort-then-compare); 2 -> 4 (2026-11-03, the user's ruling "no sort can be
+            // multiset compare" restored: an INCIDENTAL actual side's flat-cells byte channel sorts both sides again)
+            // 4 -> 0 (2026-11-07, P1: the four sorts were the byte channel's, a canon rider built and declined at run
+            // since 2026-10-18; deleted with it -- the host lattice's own order policy is Equality's)
+            // (BodyDriver: 2 -> 1 (2026-10-31, the seam program's S2g): its distinct() over a plan's chain mappings
+            // left for the planner with the engine's plan text (EnginePlans, below); 1 -> 0 (2026-10-31, S4a): the
+            // canon's JSON key order left for the planner with the side's plan (SidePlanner, below))
+            // ---- src/main/com/legend/planner (2026-10-31, the seam program's S2g): the body driver's planning
+            // helpers left for the planner, and the discipline follows the code; the planner's own sites, walked for
+            // the first time, register with them. None reorders a result: each is a set of names or a record's
+            // accessor. ----
+            // PlanAllocations: sel.distinct() is the SqlSelect record's DISTINCT accessor, read to rebuild the
+            // select -- the regex's one false positive here, registered rather than special-cased (the driver's
+            // file until S2g)
+            Map.entry("PlanAllocations.java", 1),
+            // EnginePlans: a distinct() over the plan call's chain mappings (names, to find the one that binds the
+            // root class; the body driver's until S2g)
+            Map.entry("EnginePlans.java", 1),
+            // CrossStoreGuard: the stores and connections a query names, collected in sorted sets and maps so the
+            // refusal's message names them in one order (names, not a result)
+            Map.entry("CrossStoreGuard.java", 5),
+            // MetamodelSeeds: two record accessors, a relation's declared DISTINCT flag and a mapping's distinct()
+            // -- false positives of the regex
+            Map.entry("MetamodelSeeds.java", 2),
+            // PlanMaker: a select's distinct() accessor, read to decide whether a select can be extended
+            Map.entry("PlanMaker.java", 1),
+            // DataSources (2026-11-11, the payload's order, the Databricks lane's finding): a select's distinct()
+            // accessor, read to decide whether an unsorted select of a payload is ordered by its place (no reordering
+            // of a result: the database orders it)
+            Map.entry("DataSources.java", 1),
+            // SidePlanner (2026-10-31, the seam program's S4a): the canon's JSON key order (JsonKeyOrder.sort, the
+            // plan's spelling, not a value's order), the body driver's until then
+            Map.entry("SidePlanner.java", 1));
             // (JsonCompare.java's graph-root message sort left this list in
             // step 2: the JSON rules moved to Equality, counted there)
 
@@ -236,7 +289,15 @@ class HarnessDisciplineTest {
                 // audit-of-audits #9: the comparison policy lives in
                 // PRODUCTION exec now (TdsCompare/PureAsserts moved
                 // from the harness) — the discipline follows the code
-                "core/src/main/java/com/legend/exec"}) {
+                "core/src/main/java/com/legend/exec",
+                // D71 (2026-10-30): the comparison policy moved on, out of exec into
+                // the judge layer, and with slice 5 (2026-11-09) into the test's run -- the discipline follows it
+                "core/src/main/java/com/legend/testexec",
+                // step C (D73, 2026-10-30): the judges' arms, the body driver and the plan allocations in the driver
+                // package, the test's planner's since slice 5 -- the discipline follows the code
+                "core/src/main/java/com/legend/testplan",
+                // the seam program's S2g (2026-10-31): the driver's planning helpers in the planner package
+                "core/src/main/java/com/legend/planner"}) {
             try (Stream<Path> files = SourceFiles.under(root).stream()) {
                 for (Path f : files
                         .filter(p -> p.toString().endsWith(".java"))

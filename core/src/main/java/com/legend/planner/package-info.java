@@ -1,0 +1,19 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+/**
+ * THE PLANNER'S MACHINERY (step C, D73, 2026-10-30; docs/RESULT_BOUNDARY_START_HERE.md, "The seam and the wall"): a
+ * typed query to its plan -- the plan maker ({@link com.legend.planner.PlanMaker}: a typed query, a runtime and a
+ * server version to an execution plan), the system metamodel store's rows ({@link com.legend.planner.MetamodelSeeds},
+ * {@code OpSeeds}), a program's facts ({@link com.legend.planner.ProgramFacts}), a query's parameters
+ * ({@link com.legend.planner.QueryParameters}), the cross-store guard, and the planning half of a body's environment
+ * ({@link com.legend.planner.PlanEnv}; the seam program's S2g, 2026-10-31; its site-id minter is the lowering's
+ * {@code ObjectSites} since the test-is-the-product plan's M1, one per program). Part of {@code //core:planner} with the
+ * root's three plan-side doors ({@code Compiler}, {@code TypedQuery}, {@code HeldModels}), which are the product's API;
+ * this package is theirs and the driver's. Until D73 these files shared the root package with the doors and with the
+ * driver, and Bazel alone told the two sides apart; the package line makes the planner-driver wall the language's too
+ * (nothing here depends on the test planner, exec or the test run -- the driver until slice 5: the build has no such edge, and
+ * {@code ArchitectureTest.plannerIsExecutionFree} says it at the class level). A closed register
+ * ({@code JavaEvalLedgerTest.PLANNER_CLASSES}).
+ */
+package com.legend.planner;

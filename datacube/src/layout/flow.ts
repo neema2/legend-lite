@@ -24,21 +24,149 @@ export interface FlowBox {
   /** A Test box (checks.ts) that stops a run when one of its checks fails, before the run writes any Output (FL8's
    *  refuse); absent, it warns -- the run writes on, its failure said. A grid's only. */
   readonly stops?: true;
+  /** A box whose rows are cached (FL10, Alteryx's Cache): copied into its host's own database when it is shown or run --
+   *  its grid's Snap -- the boxes after it, and a join of it, reading the copy for as long as the session lasts (FL11).
+   *  A grid's only. */
+  readonly cache?: true;
+  /** A box after which nothing runs until every Output before it is written (Alteryx's Block Until Done; M8): the boxes
+   *  after it shown, and their Outputs written, once each Output of the boxes not after it is (runStages). A grid's only. */
+  readonly blocks?: true;
+  /** What a run's log says of a box (Alteryx's Message; M8), when its rows are as it asks: an error stops the run as a
+   *  failing Test does, no Output written (FL8). A grid's only. */
+  readonly message?: FlowMessage;
 }
 
-/** Where an Output box writes its rows: a file of a format, by its name (no folder: where it lands is its host's -- the
- *  browser's downloads, Python's folder). */
-export interface Output {
-  readonly format: 'csv';
-  readonly name: string;
+/** A box's message (Alteryx's Message tool): its words -- `{rows}` its rows counted -- said in a run's log `when` its
+ *  rows are as it asks (always, when it has some, when it has none), as information, a warning, or an error that stops
+ *  the run. */
+export interface FlowMessage {
+  readonly text: string;
+  readonly when: MessageWhen;
+  readonly level: MessageLevel;
+}
+export type MessageWhen = 'always' | 'rows' | 'noRows';
+export type MessageLevel = 'info' | 'warning' | 'error';
+export const MESSAGE_WHEN: readonly MessageWhen[] = ['always', 'rows', 'noRows'];
+export const MESSAGE_LEVELS: readonly MessageLevel[] = ['info', 'warning', 'error'];
+
+/** What is wrong with a message, in words, if anything. */
+export function messageProblem(m: FlowMessage): string | undefined {
+  if (typeof m.text !== 'string' || m.text.trim() === '') return 'a message says something: its words are none';
+  if (m.text.length > 500) return `a message is 500 letters at most, not ${m.text.length}`;
+  if (!MESSAGE_WHEN.includes(m.when)) return `a message is said ${MESSAGE_WHEN.join(', ')}, not ${JSON.stringify(m.when)}`;
+  if (!MESSAGE_LEVELS.includes(m.level)) return `a message is ${MESSAGE_LEVELS.join(', ')}, not ${JSON.stringify(m.level)}`;
+  return undefined;
 }
 
-/** What is wrong with an Output, if anything: a name with no folder in it, of its format's own ending. */
+/** A message read from JSON (the page's, a command's): `{text, when, level}`, or what is wrong with it. */
+export function readMessage(raw: unknown): FlowMessage | string {
+  const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
+  if (o === undefined) return `a message is {text, when, level}, not ${JSON.stringify(raw)}`;
+  const odd = Object.keys(o).filter((k) => k !== 'text' && k !== 'when' && k !== 'level');
+  if (odd.length > 0) return `a message takes no ${odd.join(', ')}`;
+  const m = { text: o['text'], when: o['when'], level: o['level'] } as FlowMessage;
+  return messageProblem(m) ?? m;
+}
+
+/** What a box's message says of a run whose box gave `rows` rows -- its `{rows}` that count -- or undefined: its rows
+ *  are not as it asks, or were not counted. */
+export function messageSaid(m: FlowMessage, rows: number | undefined): string | undefined {
+  if (rows === undefined && m.when !== 'always') return undefined;
+  if (m.when === 'rows' && rows === 0) return undefined;
+  if (m.when === 'noRows' && rows !== 0) return undefined;
+  return m.text.replaceAll('{rows}', rows === undefined ? '?' : rows.toLocaleString('en-US'));
+}
+
+/**
+ * A RUN'S STAGES (Block Until Done, M8): the boxes of `flow` (its comments left out by `isBox`) in the order a run runs
+ * them, stage by stage -- a box's stage the most of its inputs' (`reads`: the boxes it reads live), one more past an
+ * input that blocks -- each stage in the canvas's order (left to right, then top to bottom). A run shows each stage's
+ * boxes and writes its Outputs before the next's.
+ */
+export function runStages(flow: Flow, reads: (tile: string) => readonly string[], isBox: (tile: string) => boolean = () => true): string[][] {
+  const boxes = flow.boxes.filter((b) => isBox(b.tile));
+  const at = new Map(boxes.map((b) => [b.tile, b] as const));
+  const stage = new Map<string, number>();
+  const stageOf = (tile: string, seen: readonly string[] = []): number => {
+    const known = stage.get(tile);
+    if (known !== undefined) return known;
+    // a box read twice on the way to itself is no flow a page holds (live-inputs.ts liveProblem): its stage its own
+    const s = Math.max(0, ...reads(tile).filter((i) => at.has(i) && !seen.includes(i))
+      .map((i) => stageOf(i, [...seen, tile]) + (at.get(i)!.blocks === true ? 1 : 0)));
+    stage.set(tile, s);
+    return s;
+  };
+  const order = [...boxes].sort((a, b) => a.x - b.x || a.y - b.y).map((b) => b.tile);
+  const stages: string[][] = [];
+  for (const t of order) (stages[stageOf(t)] ??= []).push(t);
+  return stages.filter((s) => s !== undefined);
+}
+
+/**
+ * Where an Output box writes its rows: a file of a format, by its name (no folder: where it lands is its host's -- the
+ * browser's downloads, Python's folder) -- or a TABLE of its host's own database, by its name (M6's Output Data to a
+ * table, FL13): made for them (`create`; `overwrite`, made again), its rows added (`append`; `deleteAppend`, its rows
+ * deleted first) or matched by `keys` (`merge`: each row of the same key updated, each new one added) -- each a write the
+ * planner plans and the database runs in one transaction (table-output.ts).
+ */
+export type Output =
+  | { readonly format: 'csv'; readonly name: string }
+  | { readonly format: 'table'; readonly name: string; readonly mode: TableMode; readonly keys?: readonly string[] };
+
+/** A table Output. */
+export type TableOutput = Extract<Output, { readonly format: 'table' }>;
+
+/** What an Output writes, in a few words (a run's log): its file's name, or its table's. */
+export function outputWords(o: Output): string {
+  return o.format === 'csv' ? o.name : `table ${o.name}`;
+}
+
+/** How an Output writes its table (Alteryx's Output Data options). */
+export type TableMode = 'create' | 'overwrite' | 'append' | 'deleteAppend' | 'merge';
+export const TABLE_MODES: readonly TableMode[] = ['create', 'overwrite', 'append', 'deleteAppend', 'merge'];
+
+/** Each way in words, as the Output's settings offer it. */
+export const TABLE_MODE_WORDS: Readonly<Record<TableMode, string>> = {
+  create: 'Create a new table', overwrite: 'Overwrite the table (made again)', append: 'Append to the table',
+  deleteAppend: 'Delete its rows, then append', merge: 'Update by key, insert the new (merge)',
+};
+
+/** A table's or a key's name as a table Output takes one: letters, digits and underscores, not a digit first. */
+const PLAIN_NAME = /^[A-Za-z_][A-Za-z0-9_]{0,62}$/;
+
+/** What is wrong with an Output, if anything: a file's name with no folder in it, of its format's own ending; a table's
+ *  plain name, none of legend-lite's own, its mode one of TABLE_MODES, keys a merge's alone (one at least, each once). */
 export function outputProblem(o: Output): string | undefined {
-  if (o.format !== 'csv') return `an output is a CSV file, not ${JSON.stringify(o.format)}`;
+  if (o.format === 'table') {
+    if (!PLAIN_NAME.test(o.name)) return `a table output is named by letters, digits and underscores, not a digit first: not ${JSON.stringify(o.name)}`;
+    if (/^__legend_lite/i.test(o.name)) return `'${o.name}' is a name of legend-lite's own: name the table another way`;
+    if (!TABLE_MODES.includes(o.mode)) return `a table output is written by ${TABLE_MODES.join(', ')}, not ${JSON.stringify(o.mode)}`;
+    const keys = o.keys ?? [];
+    if (o.mode !== 'merge') return keys.length > 0 ? `only a merge is matched by keys, not a ${o.mode}` : undefined;
+    if (keys.length === 0) return 'a merge matches its rows by a key: name its columns';
+    const odd = keys.find((k) => !PLAIN_NAME.test(k));
+    if (odd !== undefined) return `a key is a column's plain name, not ${JSON.stringify(odd)}`;
+    return new Set(keys).size === keys.length ? undefined : 'a merge names each key once';
+  }
+  if (o.format !== 'csv') return `an output is a CSV file or a table, not ${JSON.stringify((o as { format: unknown }).format)}`;
   if (o.name.trim() === '' || /[\\/]/.test(o.name)) return `an output is a file's name with no folder in it, not ${JSON.stringify(o.name)}`;
   if (!o.name.toLowerCase().endsWith('.csv')) return `a CSV output's name ends .csv, not ${JSON.stringify(o.name)}`;
   return undefined;
+}
+
+/** An Output read field by field from JSON (the page's reader, a command's): `{format: 'csv', name}` or `{format:
+ *  'table', name, mode, keys?}` -- or what is wrong, in words (its rule is outputProblem's, asked after). */
+export function readOutput(raw: unknown): Output | string {
+  const o = raw !== null && typeof raw === 'object' && !Array.isArray(raw) ? raw as Record<string, unknown> : undefined;
+  const odd = (keys: readonly string[]): string[] => (o === undefined ? [] : Object.keys(o).filter((k) => !keys.includes(k)));
+  if (o?.['format'] === 'csv' && typeof o['name'] === 'string' && odd(['format', 'name']).length === 0) return { format: 'csv', name: o['name'] };
+  if (o?.['format'] === 'table' && typeof o['name'] === 'string' && typeof o['mode'] === 'string' && odd(['format', 'name', 'mode', 'keys']).length === 0) {
+    const keys = o['keys'];
+    if (keys !== undefined && (!Array.isArray(keys) || !keys.every((k): k is string => typeof k === 'string'))) return `a table output's keys are a list of names, not ${JSON.stringify(keys)}`;
+    // no keys is no keys, as setOutput keeps it: `keys: []` read as none (the roadmap audit of 2026-10-26)
+    return { format: 'table', name: o['name'], mode: o['mode'] as TableMode, ...(keys !== undefined && keys.length > 0 ? { keys } : {}) };
+  }
+  return `an output is {format: 'csv', name} or {format: 'table', name, mode, keys?}, not ${JSON.stringify(raw)}`;
 }
 
 /** A container's size on the canvas; folded (`collapsed`), its head alone is drawn and the boxes in it are not. The boxes
@@ -115,8 +243,9 @@ export function moveBox(flow: Flow, tile: string, x: number, y: number, frame?: 
       if (b.tile !== tile) return b;
       // its frame given, else the one it has (null: none)
       const kept = frame === undefined ? b.frame : frame === null ? undefined : framed(frame);
-      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}), ...(b.output !== undefined ? { output: b.output } : {}),
-        ...(b.stops === true ? { stops: true as const } : {}) };
+      // its settings (an Output, its stopping, its cache, its blocking, its message) as they are: its place alone moved
+      const { tile: _t, x: _x, y: _y, frame: _f, ...settings } = b;
+      return { tile, x: Math.round(x), y: Math.round(y), ...(kept !== undefined ? { frame: kept } : {}), ...settings };
     }),
   };
 }
@@ -167,7 +296,10 @@ export function setOutput(flow: Flow, tile: string, output: Output | null): Flow
     boxes: flow.boxes.map((b) => {
       if (b.tile !== tile) return b;
       const { output: _was, ...rest } = b;
-      return output === null ? rest : { ...rest, output: { format: output.format, name: output.name.trim() } };
+      if (output === null) return rest;
+      const kept: Output = output.format === 'csv' ? { format: 'csv', name: output.name.trim() }
+        : { format: 'table', name: output.name, mode: output.mode, ...(output.keys !== undefined && output.keys.length > 0 ? { keys: [...output.keys] } : {}) };
+      return { ...rest, output: kept };
     }),
   };
 }
@@ -181,6 +313,45 @@ export function setStops(flow: Flow, tile: string, stops: boolean): Flow {
       if (b.tile !== tile) return b;
       const { stops: _was, ...rest } = b;
       return stops ? { ...rest, stops: true } : rest;
+    }),
+  };
+}
+
+/** A box set to cache its rows (`cache`: FL10), or no longer. Refused when it is no box of the flow. */
+export function setCache(flow: Flow, tile: string, cache: boolean): Flow {
+  if (!flow.boxes.some((b) => b.tile === tile)) throw new FlowRefusal(`'${tile}' is no box of this flow`);
+  return {
+    boxes: flow.boxes.map((b) => {
+      if (b.tile !== tile) return b;
+      const { cache: _was, ...rest } = b;
+      return cache ? { ...rest, cache: true } : rest;
+    }),
+  };
+}
+
+/** A box set to block (`blocks`: Block Until Done), or no longer. Refused when it is no box of the flow. */
+export function setBlocks(flow: Flow, tile: string, blocks: boolean): Flow {
+  if (!flow.boxes.some((b) => b.tile === tile)) throw new FlowRefusal(`'${tile}' is no box of this flow`);
+  return {
+    boxes: flow.boxes.map((b) => {
+      if (b.tile !== tile) return b;
+      const { blocks: _was, ...rest } = b;
+      return blocks ? { ...rest, blocks: true } : rest;
+    }),
+  };
+}
+
+/** A box set to say `message` in a run's log, or nothing (null). Refused when it is no box of the flow, or the message
+ *  is none (messageProblem). */
+export function setMessage(flow: Flow, tile: string, message: FlowMessage | null): Flow {
+  if (!flow.boxes.some((b) => b.tile === tile)) throw new FlowRefusal(`'${tile}' is no box of this flow`);
+  const problem = message === null ? undefined : messageProblem(message);
+  if (problem !== undefined) throw new FlowRefusal(problem);
+  return {
+    boxes: flow.boxes.map((b) => {
+      if (b.tile !== tile) return b;
+      const { message: _was, ...rest } = b;
+      return message === null ? rest : { ...rest, message: { text: message.text, when: message.when, level: message.level } };
     }),
   };
 }

@@ -23,7 +23,7 @@ import org.finos.legend.pure.runtime.java.interpreted.extension.InterpretedExten
  * 
  * This extension is discovered via SPI (ServiceLoader) and registers
  * the executeLegendLiteQuery native function which bridges PCT tests
- * to Legend-Lite's QueryService execution engine.
+ * to Legend-Lite's execution front door.
  */
 public class LegendLitePCTExtensionInterpreted extends BaseInterpretedExtension {
 

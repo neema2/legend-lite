@@ -14,8 +14,9 @@ import type { PageApp } from '../page/page-app.ts';
 import type { PlanAndRun } from '../runner.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
 import { catalogColumns } from '../upload.ts';
+import type { ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { GridRows, LocalEngine, OpenedTogether, Services } from './services.ts';
-import type { PageSources } from './sources.ts';
+import type { GridPlace, PageSources } from './sources.ts';
 
 /** Where grids are opened together, and how a query over the model they make is planned and run. */
 export interface TogetherOf {
@@ -36,8 +37,57 @@ export async function openTogether(grids: readonly string[], o: TogetherOf): Pro
   const rows = o.rows(opened.model, opened.runtime);
   return {
     relations: new Map(eachRelation(opened, grids)),
-    run: async (query) => (await rows.run.host.planAndRun(query, 0)).rows,
+    run: async (query) => {
+      const { plan, rows: answered } = await rows.run.host.planAndRun(query, 0);
+      return { rows: answered, sql: plan.sql };
+    },
     dispose: () => rows.letGo(),
+  };
+}
+
+/**
+ * GRIDS OF ONE PROJECT TOGETHER (docs/TS_DECISIONS_2026_11_07.md §4, a', 2026-11-07: the markets page over classes, a
+ * series of the prices and the curve): grids that are each a saved query or a class of one project version, through
+ * one mapping and runtime -- each planned by a planner of its own over that project's model, its rows that project's
+ * database (GridPlace.engine) -- are read together over that model as they are: each its own query (its grid's
+ * snapshot's), the series' one query planned by the first grid's planner and run on that database. Undefined where
+ * they are not (the tab's tables are then read: tabSources).
+ */
+export function projectTogether(grids: readonly string[], o: {
+  readonly page: PageApp;
+  readonly sources: PageSources;
+  readonly rowsOf: (place: GridPlace) => PlanAndRun | undefined;
+}): TsTogether | undefined {
+  const places = grids.map((id) => o.sources.place(id));
+  const contexts = new Set<string>();
+  for (const p of places) {
+    if (p?.engine === undefined || p.planner === undefined || p.runner !== undefined) return undefined;
+    const s = p.cubeSource;
+    if (s?._type === 'savedQuery') {
+      contexts.add(JSON.stringify([s.query.groupId, s.query.artifactId, s.query.versionId, s.query.executionContext]));
+    } else if (s?._type === 'class') {
+      contexts.add(JSON.stringify([s.project, s.workspace, s.revision, s.mapping, s.runtime]));
+    } else {
+      return undefined;
+    }
+  }
+  if (contexts.size !== 1 || new Set(places.map((p) => p!.engine)).size !== 1) return undefined;
+  const relations = new Map<string, ValueSpecification>();
+  for (const id of grids) {
+    const grid = o.page.grid(id);
+    if (!grid) return undefined;
+    relations.set(id, grid.snapshot.source.query);
+  }
+  const run = o.rowsOf(places[0]!);
+  if (!run) return undefined;
+  return {
+    relations,
+    run: async (query) => {
+      const { plan, rows } = await run.host.planAndRun(query, 0);
+      return { rows, sql: plan.sql };
+    },
+    // the grids' planners are theirs: let go with them
+    dispose: () => undefined,
   };
 }
 

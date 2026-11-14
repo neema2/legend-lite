@@ -8,6 +8,7 @@
 //
 // The server and its key are the deployment's: a test server's key is a test key, never a production browser's.
 
+import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 import { DeephavenEngine } from '../../engine-client/src/deephaven-engine.ts';
 import type { QueryEngine, RawTable, ResultWindow, WindowedResult } from '../../engine-client/src/engine.ts';
 import type { Plan } from '../../engine-client/src/relation-type.ts';
@@ -285,7 +286,7 @@ class OnReader implements QueryEngine {
     return (await this.#reader()).stream(plan, epoch, onChunk, signal);
   }
 
-  async run(sql: string, epoch: number, signal?: AbortSignal): Promise<RawTable> {
+  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal): Promise<RawTable> {
     return (await this.#reader()).run(sql, epoch, signal);
   }
 

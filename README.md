@@ -31,7 +31,7 @@ text                                                             [FRONTEND]
                                                                  [BACKEND]
   J  sql/dialect/      SqlDialect.render              SqlQuery → SQL string
                                                                  [RUNTIME]
-  K  exec/             Executor.execute               SQL + JDBC → ExecutionResult
+  K  exec/             PlanRunner.stream              a plan + a session → typed rows to a sink
 ```
 
 **Phases A–F are model loading** — once per source. **G–K are query
@@ -226,7 +226,7 @@ core/src/main/java/com/legend/          418 files   120,629 LOC
 ├── resolver/      26 files   24,953   StoreResolver — logical → physical (phase H)
 ├── lowering/      34 files   11,483   Lowerer — TypedSpec → SqlQuery (phase I)
 ├── sql/           33 files    7,290   MIR (sealed, pure data) + dialect/ (phase J)
-├── exec/          15 files    4,260   Executor — SQL + JDBC → ExecutionResult
+├── exec/          53 files    9,722   PlanRunner — a plan + a session → typed rows to a sink
 ├── plan/           5 files    1,601   plan representation
 ├── builtin/        1 file     1,959   the platform prelude (Pure.java)
 ├── lineage/        3 files    3,043   column-level lineage
@@ -235,8 +235,8 @@ core/src/main/java/com/legend/          418 files   120,629 LOC
 ├── validation/     3 files      675   desugar validation
 ├── ide/            4 files      616   demand-driven indexing (dormant)
 ├── values/ error/ cache/               leaves
-└── Compiler.java                      the one driver; StatementExecutor is
-                                       package-private behind it
+└── Compiler.java                      the one driver; BodyDriver (the body driver) is
+                                       package-private behind Execution.runProgram
 ```
 
 `engine/src/main/java/com/gs/legend/` (341 files, 47,949 LOC) is the **frozen

@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -43,6 +44,122 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     // ========================================================================
     // 1. Scalar extend — single column expressions
     // ========================================================================
+
+    // ==================== read (lite surface, docs/SEMANTICS_REGISTER.md S114) ====================
+
+    @Nested
+    @DisplayName("read — a row's column through a column spec, as $r.col")
+    class ReadTests {
+
+        private static final String SCORES = """
+                |#TDS
+                id, name, score
+                1, Alice, 95
+                2, Bob, 87
+                #""";
+
+        @Test
+        @DisplayName("a row's column read through ~col is the column")
+        void readIsTheColumn() throws SQLException {
+            var result = executeRelation(SCORES + "->extend(~twice:r|$r->read(~score)->toOne() * 2)->sort(ascending(~id))");
+            assertEquals(190, ((Number) result.rows().get(0).get(3)).intValue());
+            assertEquals(174, ((Number) result.rows().get(1).get(3)).intValue());
+        }
+
+        @Test
+        @DisplayName("its SQL is the column read's")
+        void theSqlOfTheRead() {
+            String people = "model::Person.all()->project(~[name:p|$p.firstName, age:p|$p.age])";
+            assertEquals(generateSql(people + "->extend(~a2:r|$r.age->toOne() + 1)"),
+                    generateSql(people + "->extend(~a2:r|$r->read(~age)->toOne() + 1)"));
+        }
+
+        @Test
+        @DisplayName("a row a window gives reads the same: the row before's column")
+        void aWindowsRow() throws SQLException {
+            var result = executeRelation(SCORES + "->extend(over([~id->ascending()]), ~before:{p,w,r|$p->lag($r)->read(~score)})"
+                    + "->sort(ascending(~id))");
+            assertNull(result.rows().get(0).get(3));
+            assertEquals(95, ((Number) result.rows().get(1).get(3)).intValue());
+        }
+
+        @Test
+        @DisplayName("a column the row has not: refused by name")
+        void aColumnItHasNot() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(SCORES + "->extend(~x:r|$r->read(~nope))"));
+            assertTrue(ex.getMessage().contains("nope"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("a column spec not written at the call names no column: refused")
+        void aColumnSpecNotWritten() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(
+                    "|let c = ~score; " + SCORES.substring(1) + "->extend(~x:r|$r->read($c));"));
+            assertTrue(ex.getMessage().contains("column spec written at the call"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("a receiver that is not a row (a table) is refused: read is a row's column")
+        void aTableIsNotARow() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(SCORES + "->read(~score)"));
+            assertTrue(ex.getMessage().contains("read takes a row"), ex.getMessage());
+        }
+
+        // read(row, ~[a, b]) (2026-11-02): the row's values in several columns, a list without the columns that have
+        // none -- so a function over any number of a table's columns asks whether a row has any value, in one call
+        private static final String GROUPS = """
+                |#TDS
+                id, grp, score
+                1, a, 10
+                2, a, 20
+                3, b, 30
+                #->extend(over(~grp, [~id->ascending()]), ~before:{p,w,r|$p->lag($r)->read(~score)})\
+                ->extend(over(~grp, [~id->ascending()]), ~after:{p,w,r|$p->lead($r)->read(~score)})""";
+
+        @Test
+        @DisplayName("several columns read as one list: not empty where any column has a value")
+        void severalColumnsAnyValue() throws SQLException {
+            var result = executeRelation(GROUPS + "->filter(r|$r->read(~[before, after])->isNotEmpty())"
+                    + "->sort(ascending(~id))");
+            assertEquals(List.of(1, 2), result.rows().stream().map(r -> ((Number) r.get(0)).intValue()).toList());
+        }
+
+        @Test
+        @DisplayName("several columns read as one list: empty where no column has a value")
+        void severalColumnsNoValue() throws SQLException {
+            var result = executeRelation(GROUPS + "->filter(r|$r->read(~[before, after])->isEmpty())");
+            assertEquals(List.of(3), result.rows().stream().map(r -> ((Number) r.get(0)).intValue()).toList());
+        }
+
+        @Test
+        @DisplayName("several columns: a use other than isEmpty/isNotEmpty is refused by name, as a value of no SQL list")
+        void severalColumnsOtherUse() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(
+                    GROUPS + "->extend(~n:r|$r->read(~[before, after])->size())"));
+            assertTrue(ex.getMessage().contains("is read by isEmpty or isNotEmpty"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("its SQL is the columns' null tests, as written by hand")
+        void theSqlOfSeveralColumns() {
+            String people = "model::Person.all()->project(~[name:p|$p.firstName, age:p|$p.age])";
+            assertEquals(generateSql(people + "->filter(r|$r.name->isNotEmpty() || $r.age->isNotEmpty())"),
+                    generateSql(people + "->filter(r|$r->read(~[name, age])->isNotEmpty())"));
+            assertEquals(generateSql(people + "->filter(r|$r.name->isEmpty() && $r.age->isEmpty())"),
+                    generateSql(people + "->filter(r|$r->read(~[name, age])->isEmpty())"));
+        }
+
+        @Test
+        @DisplayName("several columns: a column the row has not is refused by name, as is no column")
+        void severalColumnsRefused() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(
+                    SCORES + "->filter(r|$r->read(~[score, nope])->isNotEmpty())"));
+            assertTrue(ex.getMessage().contains("nope"), ex.getMessage());
+            var none = assertThrows(Exception.class, () -> executeRelation(
+                    SCORES + "->filter(r|$r->read(~[])->isNotEmpty())"));
+            assertTrue(none.getMessage().contains("at least one column"), none.getMessage());
+        }
+    }
 
     @Nested
     @DisplayName("extend(~col: x | expr)")
@@ -1981,17 +2098,18 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         @Test
         @DisplayName("now() — current datetime in extend")
         void testNow() throws SQLException {
-            // the year of DuckDB's own clock either side of the query, not the JVM's (P3-15)
-            String before = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
-            String beforeUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
+            // the year of the database's own clock either side of the query, not the JVM's (P3-15), by the backend's
+            // own probe (T-d2: DuckDB's spelling ran on every lane); the UTC year from the launcher's clock (one zone)
+            String before = dbScalar(backend().yearOfNowSql());
+            String beforeUtc = String.valueOf(java.time.Year.now(java.time.ZoneOffset.UTC).getValue());
             var r = executeRelation("""
                     |#TDS
                     id
                     1
                     #->extend(~ts: x | now())""");
             assertEquals(1, r.rowCount());
-            String after = dbScalar("SELECT CAST(year(current_timestamp) AS VARCHAR)");
-            String afterUtc = dbScalar("SELECT CAST(year(current_timestamp AT TIME ZONE 'UTC') AS VARCHAR)");
+            String after = dbScalar(backend().yearOfNowSql());
+            String afterUtc = String.valueOf(java.time.Year.now(java.time.ZoneOffset.UTC).getValue());
             String ts = r.rows().get(0).get(colIdx(r, "ts")).toString();
             // the value may be rendered in the session's zone or in UTC: either year, either side of the query
             assertTrue(java.util.stream.Stream.of(before, after, beforeUtc, afterUtc).anyMatch(ts::startsWith),
@@ -2248,7 +2366,7 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
     // ========================================================================
 
     /** Finds column index by name. */
-    private int colIdx(ExecutionResult result, String name) {
+    private int colIdx(Lean.Result result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name()))
                 return i;

@@ -3,9 +3,10 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
@@ -26,6 +27,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * committed. Each database the writes are measured on runs {@link #writes} in a test named for it (DatabaseOwners:
  * a database is named only by its owners).
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class StoreWritesExecutionTest {
 
     private static final String MODEL = """
@@ -55,7 +57,7 @@ class StoreWritesExecutionTest {
     @Test
     void theCheckerRefusesAWriteTheTableCannotHold() {
         var ctx = com.legend.Compiler.compileModel(
-                MODEL.formatted(TestBackends.platform().connectionBody()));
+                MODEL.formatted(LaneFloor.backend().connectionBody()));
         for (var refused : List.of(
                 List.of("#>{w::DB.SRC}#->extend(~X:r|1)->write(#>{w::DB.T}#)", "'X' is not a column of w::DB.T"),
                 List.of("#>{w::DB.SRC}#->select(~[NAME])->rename(~NAME, ~AGE)->write(#>{w::DB.T}#)",
@@ -76,7 +78,7 @@ class StoreWritesExecutionTest {
      *  anything runs; a let of rows no later write changes is read as usual. */
     @Test
     void aLetTheWritesWouldChangeIsRefusedByName() throws Exception {
-        TestBackend backend = TestBackends.platform();
+        TestBackend backend = LaneFloor.backend();
         String model = MODEL.formatted(backend.connectionBody());
         var ctx = com.legend.Compiler.compileModel(model);
         try (Connection c = backend.openWorkspace()) {
@@ -101,7 +103,7 @@ class StoreWritesExecutionTest {
                 assertTrue(String.valueOf(e.getMessage()).contains(refused.get(1)), refused.get(0) + ": "
                         + e.getMessage());
                 Exception p = assertThrows(Exception.class, () -> com.legend.Compiler.query(ctx, refused.get(0))
-                        .executionPlan("w::RT", com.legend.TypedQuery.Output.JSON), refused.get(0));
+                        .executionPlan("w::RT"), refused.get(0));
                 assertTrue(String.valueOf(p.getMessage()).contains(refused.get(1)), refused.get(0) + ": "
                         + p.getMessage());
                 assertEquals(List.of("9|z|90"), rows(c), refused.get(0));
@@ -194,8 +196,8 @@ class StoreWritesExecutionTest {
     }
 
     private static Object count(TestBackend backend, Connection c, String query) {
-        ExecutionResult r = com.legend.Execution.execute(MODEL.formatted(backend.connectionBody()), query, "w::RT", c);
-        return ((ExecutionResult.Scalar) java.util.Objects.requireNonNull(r)).value();
+        Lean.Result r = Lean.run(MODEL.formatted(backend.connectionBody()), query, "w::RT", c);
+        return java.util.Objects.requireNonNull(r).one();
     }
 
     private static void run(Connection c, String sql) throws Exception {

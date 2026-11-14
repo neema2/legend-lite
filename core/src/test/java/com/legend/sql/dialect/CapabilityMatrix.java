@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlFn;
@@ -126,7 +128,7 @@ public final class CapabilityMatrix {
     /**
      * The concrete dialects among {@code names}, in the matrix's order: each database type's dialect in the order
      * the database types are declared, then each dialect no database type names, after its nearest ancestor among them
-     * (H2Modern after H2), the rest at the end by name.
+     * (EngineStyleDB2 after EngineStyleH2), the rest at the end by name.
      */
     static List<Class<?>> dialects(Set<String> names) throws ClassNotFoundException {
         Set<Class<?>> concrete = new LinkedHashSet<>();

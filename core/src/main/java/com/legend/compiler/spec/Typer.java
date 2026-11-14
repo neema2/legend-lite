@@ -1,5 +1,8 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.SchemaInvariantException;
+
+import com.legend.error.TypeInferenceException;
 
 import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;
@@ -105,6 +108,31 @@ final class Typer {
 
     /** The overload machinery: the generic application rule and candidate ranking (plan W1.6: moved out whole). */
     private final Overloads overloads;
+    /** The arguments of the generic calls being inlined, each by its own node, as their calls typed them. */
+    private final java.util.IdentityHashMap<ValueSpecification, TypedSpec> pretyped = new java.util.IdentityHashMap<>();
+
+    /** Whether {@code vs} is a node a call typed already ({@link #withPretyped}): the static fold keeps it as it is. */
+    boolean pretyped(ValueSpecification vs) {
+        return !pretyped.isEmpty() && pretyped.containsKey(vs);
+    }
+
+    /** While {@code body} runs, each of {@code typed}'s nodes types as it was typed; after it, as it did before (a call
+     *  inlined within another's body, handed the outer's table, leaves the outer's typing of it in place). */
+    <R> R withPretyped(java.util.Map<ValueSpecification, TypedSpec> typed, java.util.function.Supplier<R> body) {
+        java.util.IdentityHashMap<ValueSpecification, TypedSpec> before = new java.util.IdentityHashMap<>();
+        typed.forEach((node, typing) -> before.put(node, pretyped.put(node, typing)));
+        try {
+            return body.get();
+        } finally {
+            before.forEach((node, was) -> {
+                if (was == null) {
+                    pretyped.remove(node);
+                } else {
+                    pretyped.put(node, was);
+                }
+            });
+        }
+    }
 
     Typer(ModelContext ctx, InferenceKernel kernel) {
         this.ctx = ctx;
@@ -148,6 +176,12 @@ final class Typer {
 
     /** Synthesis (inference) mode: produce the node and its intrinsic type. */
     TypedSpec synth(ValueSpecification vs, Env env) {
+        // an argument of a generic call already typed, met again in the call's inlined body (Overloads.inlineNormalized):
+        // its typing, never typed again -- a chain of k calls typed once each, not 2^k times (2026-10-28)
+        TypedSpec pre = pretyped.isEmpty() ? null : pretyped.get(vs);
+        if (pre != null) {
+            return pre;
+        }
         return switch (vs) {
             // Path literals normally dissolve at resolution; an unresolved one types as
             // its desugared lambda.
@@ -181,7 +215,7 @@ final class Typer {
             // (SqlIslands; docs/LEGEND_SQL_STUDY_2026_10_11.md §3)
             // IQ island, 2026-10-14 (M1e): the model's tables and env's variables, which IQ's names may read
             case com.legend.protocol.spec.SqlIsland si ->
-                    synth(SqlIslands.desugar(si, source -> synth(source, env), ctx, env), env);
+                    synth(SqlIslands.desugar(si, this, ctx, env), env);
             case com.legend.protocol.spec.GqlIsland gi ->
                     throw new com.legend.error.NotImplementedException(
                             "#GQL{...}# expression islands are not compilable"
@@ -766,7 +800,7 @@ final class Typer {
             case INLINE_VIEW -> InlineViewChecker.check(this, af, env);
             case RECURSE -> RecurseChecker.check(this, af, env);
             // stage(rows): its relation, typed by the signature; a let's value only, which the executor runs into
-            // the session's temporary table (StatementExecutor.stageRows, docs/WRITES_DESIGN_2026_10_18.md §8 leg 6)
+            // the session's temporary table (BodyDriver.stageRows, docs/WRITES_DESIGN_2026_10_18.md §8 leg 6)
             case STAGE -> applyGeneric(af, env);
             case IS_DISTINCT -> IsDistinctChecker.check(this, af, env);
             case GRAPH_FETCH -> GraphFetchChecker.graphFetch(this, af, env);
@@ -796,6 +830,8 @@ final class Typer {
             case EMPTY_LAST -> SortChecker.nullOrder(this, af, env, TypedSortInfo.NullOrder.LAST);
             case RENAME -> RenameChecker.check(this, af, env);
             case SELECT -> SelectChecker.check(this, af, env);
+            case WITHOUT -> SelectChecker.without(this, af, env);
+            case READ -> ReadChecker.check(this, af, env);
             case DISTINCT -> DistinctChecker.check(this, af, env);
             case CONCATENATE -> ConcatenateChecker.check(this, af, env);
             case LIMIT, TAKE -> SlicingChecker.limit(this, af, env);
@@ -831,6 +867,10 @@ final class Typer {
 
     ValueSpecification alphaRename(ValueSpecification v) {
         return overloads.alphaRename(v);
+    }
+
+    AlphaRename.Apart renameApart(List<String> parameters, ValueSpecification body) {
+        return overloads.renameApart(parameters, body);
     }
 
     Application checkGeneric(AppliedFunction af, Env env) {
@@ -1012,6 +1052,13 @@ final class Typer {
                     TypedFunction::definition);
             if (res.exact().size() == 1) {
                 fns = res.exact();
+            } else if (res.exact().size() > 1) {
+                // legend-pure's spelling of overloads that differ only in a relation's column types (register S146):
+                // it names them all, so the reference is ambiguous and refused (the A2 review, 2026-11-03)
+                throw new com.legend.error.ResolutionException("'" + ref.fullPath() + "' names "
+                        + res.exact().size() + " functions that differ only in a relation's column types: name one by"
+                        + " its id that spells the columns (" + String.join(", ", res.exact().stream()
+                                .map(f -> f.id().toString()).toList()) + ")");
             } else if (res.baseExists()) {
                 // BASE-EXISTS is the safety property: a misspelled or
                 // absent base still fails the lookup and throws below.
@@ -1209,10 +1256,12 @@ final class Typer {
      * {@code .values} (the cells — count unknown) and
      * {@code .columnNames} (the names — first exist at execution)
      * SURVIVE as identity-preserving MARKERS, the same node shapes the
-     * ResultSet class declaration produced pre-retype; the execution
-     * BOUNDARY RESOLVER (RawGridSchema) substitutes them against the
-     * stamped schema, and reaching the Lowerer instead is a loud wall,
-     * never a silent guess. Null = not such a read. */
+     * ResultSet class declaration produced pre-retype; the Lowerer
+     * writes them as the grid's report (SqlSource.GridReport: a keyed
+     * plan whose keys are the grid's reported columns, read when it
+     * runs; the planner-driver seam program's S3c, 2026-10-30 -- until
+     * then a boundary resolver stamped a probed schema). Null = not
+     * such a read. */
     static @com.legend.base.Nullable TypedSpec lateBoundGridMarker(
             TypedSpec source, AppliedProperty ap, Type.RelationType rt2) {
         if (!rt2.isLateBound()) {
@@ -1427,7 +1476,11 @@ final class Typer {
                                         .Bounded.ZERO_MANY));
             }
         }
-        // The member is either a class property ($obj.prop) or a relation column ($row.col).
+        // A ROW receiver (Row-vs-Relation): a bare struct IS one row, so the read is that row's column.
+        if (source.info().type() instanceof Type.RelationType rowT) {
+            return rowColumn(source, rowT, ap.property());
+        }
+        // The member is either a class property ($obj.prop) or a table's column collection ($rel.col).
         String relColName = null;
         ExprType member = switch (source.info().type()) {
             case Type.ClassType ct -> {
@@ -1487,16 +1540,6 @@ final class Typer {
             // Result<String|1>.values): instantiation extracted to its
             // own method (CodeShape seam — leg 2 grew this arm).
             case Type.GenericType g -> genericReceiverProperty(g, ap);
-            // A ROW receiver (Row-vs-Relation): a bare struct IS one
-            // row — one cell, the per-cell stamp BY TYPE. This arm is
-            // the detective's replacement: no walk, no inference — the
-            // type says row.
-            case Type.RelationType rowT -> {
-                // QUOTE-BEARING column identity (the pivot rule's sibling):
-                Type.Column col = relationColumn(rowT, ap.property());
-                relColName = col.name();
-                yield new ExprType(col.type(), col.multiplicity());
-            }
             // an ENUM VALUE's name (real m3 Enum.name) — the SQL value of an enum IS its name
             case Type.EnumType ignored when ap.property().equals("name") ->
                     new ExprType(Type.Primitive.STRING, Multiplicity.Bounded.ONE);
@@ -1622,6 +1665,15 @@ final class Typer {
                             throw new TypeInferenceException(
                                     "relation has no column '" + name + "'");
                         }));
+    }
+
+    /** A row's column: {@code $row.col}, and {@code read(row, ~col)} (S114, ReadChecker), which is the same read.
+     * One cell, stamped BY TYPE (Row-vs-Relation): no walk, no inference, the type says row. The column's identity is
+     * QUOTE-BEARING (the pivot rule's sibling), its multiplicity the row's composed with the column's. */
+    TypedSpec rowColumn(TypedSpec row, Type.RelationType rowT, String name) {
+        Type.Column col = relationColumn(rowT, name);
+        return new TypedPropertyAccess(row, col.name(),
+                new ExprType(col.type(), compose(row.info().multiplicity(), col.multiplicity())));
     }
 
     /**

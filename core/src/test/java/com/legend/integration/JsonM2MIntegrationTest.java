@@ -1,8 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -25,10 +25,10 @@ import static org.junit.jupiter.api.Assertions.*;
  * {@code data:application/json,...} URIs in the runtime's JsonModelConnection.
  */
 @DisplayName("JSON Source M2M Integration Tests")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class JsonM2MIntegrationTest {
 
     private Connection connection;
-    private final QueryService queryService = new QueryService();
 
     // ==================== Pure Model ====================
 
@@ -114,7 +114,7 @@ class JsonM2MIntegrationTest {
     void setUp() throws SQLException {
         // In-memory DuckDB — no test data to set up!
         // All data comes from JsonModelConnection.
-        connection = TestBackends.platform().open();
+        connection = LaneFloor.backend().open();
     }
 
     @AfterEach
@@ -125,14 +125,14 @@ class JsonM2MIntegrationTest {
     // ==================== Helper ====================
 
     private String executeGraphFetch(String pureQuery) throws SQLException {
-        var result = queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
-        assertInstanceOf(ExecutionResult.Graph.class, result,
-                "graphFetch/serialize should return GraphResult, got: " + result.getClass().getSimpleName());
-        return result.asGraph().json();
+        var result = Lean.run(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape(),
+                "graphFetch/serialize answers OBJECTS, got: " + result.shape());
+        return result.json();
     }
 
-    private ExecutionResult executeProject(String pureQuery) throws SQLException {
-        return queryService.execute(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
+    private Lean.Result executeProject(String pureQuery) throws SQLException {
+        return Lean.run(PURE_MODEL, pureQuery, "test::TestRuntime", connection);
     }
 
     // ==================== Tests ====================
@@ -143,17 +143,16 @@ class JsonM2MIntegrationTest {
         var result = executeProject("""
                 model::Person.all()->project(~[fullName:x|$x.fullName, age:x|$x.age])
                 """);
-        var tabular = result.asTabular();
-        assertEquals(3, tabular.rows().size(), "Should have 3 persons from JSON");
+        assertEquals(3, result.rows().size(), "Should have 3 persons from JSON");
 
-        var colNames = tabular.columns().stream()
-                .map(com.legend.exec.Column::name).toList();
+        var colNames = result.columns().stream()
+                .map(Lean.Column::name).toList();
         assertTrue(colNames.contains("fullName"), "Should have fullName column");
         assertTrue(colNames.contains("age"), "Should have age column");
 
         // some row is John Smith's (no sort: not "the first", P3-11)
-        assertTrue(tabular.rows().stream().anyMatch(r -> "John Smith".equals(r.get(colNames.indexOf("fullName")))),
-                "a row with fullName John Smith: " + tabular.rows());
+        assertTrue(result.rows().stream().anyMatch(r -> "John Smith".equals(r.get(colNames.indexOf("fullName")))),
+                "a row with fullName John Smith: " + result.rows());
     }
 
     @Test
@@ -177,7 +176,6 @@ class JsonM2MIntegrationTest {
         var result = executeProject("""
                 model::Person.all()->filter(x|$x.age > 26)->project(~[fullName:x|$x.fullName])
                 """);
-        var tabular = result.asTabular();
-        assertEquals(2, tabular.rows().size(), "Should have 2 persons with age > 26");
+        assertEquals(2, result.rows().size(), "Should have 2 persons with age > 26");
     }
 }

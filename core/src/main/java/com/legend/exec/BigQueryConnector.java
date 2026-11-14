@@ -3,10 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
-import java.sql.Connection;
 
 /** BigQuery's sessions: the platform opens no declared connection to it yet (its sessions are the test harnesses');
  *  a session handed to execution is checked against its driver's product name. */
@@ -29,7 +27,7 @@ final class BigQueryConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         return DatabaseConnector.notOpened(def);
     }
 
@@ -39,9 +37,24 @@ final class BigQueryConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code BigQuery}'s errors carry their raise. */
+    /** {@inheritDoc} No: BigQuery holds no transaction the platform opens across statements (none is kept in a turn). */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
+
+    /** {@inheritDoc} The dialect's {@code dropsDecimalTrailingZeros} until D72 (2026-10-30), carried: The driver hands an ARRAY as a java.sql.Array and a STRUCT as a java.sql.Struct (measured:
+     *  BigQueryJsonArray, BigQueryJsonStruct), DATETIME and TIMESTAMP as java.sql.Timestamp, and NUMERIC and BIGNUMERIC
+     *  as a BigDecimal with its trailing zeros dropped ({@code BIGNUMERIC '3.0'} reads 3, measured): the column's
+     *  declared scale is the value's own, so the reader pads the digits back, never rounding. */
+    @Override
+    public DatabaseConnector.Decoding decoding() {
+        return new DatabaseConnector.Decoding(true, true, false, false, true);
     }
 }

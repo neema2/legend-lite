@@ -1,0 +1,646 @@
+# Data in the plan: one load vocabulary, every other mechanism deleted (2026-11-09)
+
+**Status: the user's go of 2026-11-09** ("Lets do the real plan ... I want the right general solution"; "Write into
+plan - including provably deleting all other 17 mechanisms please that's the real guarantee that we fixed
+everything"). Its open decisions are in §8; nothing in §1-§7 waits on them. It closes D3 of
+`docs/PLAN_AS_DATA_2026_11_07.md` §11 and replaces hole 7 v1's inline project fill.
+
+**Progress:** L1 built 2026-11-09 (§4's L1 row, "as built"): D3 is a `File` load by reference, the Windows long path
+gone with it; the deletion census (§6, P4) is on with M8's row deleted.
+
+**Evidence:** `docs/data-in-the-plan-homework/` -- `inventory.md` (the 17 mechanisms lite has today, with file:line
+and measured sizes), `upstream.md` (what legend-pure and legend-engine do, read from the pinned sources), `usage.md`
+(sixteen workflows of the platform's users and what each needs of data in a plan).
+
+**The rule this program enforces:** data enters a database through a LOAD, and only through a load. A load is plan
+data: a reference to the data (never a machine's path, and never the rows of anything but small data) and how it is
+delivered to the target's database. Exec resolves the reference, verifies its digest and delivers it. Every other way
+data reaches a database today is deleted, and guards prove there is no other way left (§6).
+
+---
+
+## 1. Why: what is wrong today
+
+Measured in `inventory.md`:
+
+- **17 mechanisms, 15 shapes, 5 identity schemes, 7 cadences** for one concept: rows that must be in a database before a
+  statement reads them.
+- **Machine paths in plans:** `loadCsvToDbTable` (D3) and `sourceUrl('file:...')` put the planning machine's path into
+  statement text. On the Windows CI runner the D3 path is 308 characters, past Windows' 260, and DuckDB cannot open it
+  (PR #92's one red job, 2026-11-09).
+- **A resolver function at planning:** `PlanningOptions.resources` is code the planner calls (D3).
+- **The same data carried up to three times** in one test plan (the connection's raw text, the setup steps, the session
+  target), and the whole project fill inside every server product plan.
+- **Data outside every plan:** the browser tab, Python and DataCube load project data, files and URLs with statements
+  the platform writes outside any plan; test harnesses seed by JDBC.
+
+## 2. The vocabulary
+
+### 2.1 A reference to data
+
+```
+DataRef(namespace, name, digest, size, format)
+```
+
+- **namespace:** where the name is meaningful to any runner: `resource` (a repository's test resources), `content`
+  (a content store keyed by digest), `bundle` (bytes shipped with the plan), later `url` (§2.4).
+- **name:** a name inside the namespace. Never absolute, never a drive letter, never `..`: the record refuses them.
+- **digest:** SHA-256 of the bytes. The bytes the plan was planned against, so the same plan loads the same data
+  (determinism, G10).
+- **size** and **format** (`CSV`, `JSON`, later `PARQUET`).
+- **Amended 2026-11-10 (the user's ruling: a live source is a pointer, data written in the model travels with the
+  plan):** a reference is for data the plan was planned against -- a test's resource file (checksummed, so a changed
+  input fails loudly, G10) or the model's own text (content). A model's LIVE source, a `JsonModelConnection`'s or a
+  `sourceUrl`'s `file:` location, is not a reference: it is a pointer, as a table is, read by the database at the run
+  under the run's admission (L6a below), with no digest and no copy -- upstream's behaviour, so no register row.
+
+### 2.2 A load
+
+```
+Load(identity, cadence, target, steps)
+
+identity  SHA-256 of a canonical encoding of the load's steps: the declared shapes and every digest in it
+          (one scheme for every load, carried in the plan, never recomputed at run)
+cadence   BEFORE_STEP      the seeds a program's next statement reads: skipped where the session holds the identity
+                           and has run no write since (the seed step's memo), else run and the identity recorded (L1)
+          AT_STEP          a program's own load at its place (loadCsvToDbTable): run every time it is reached, a
+                           write as an effect is (L1)
+          PER_ACQUISITION  established on every session acquisition (a target's setup: L2)
+          ONCE             made once per identity and kept (a project's Data: L3)
+          PER_TRANSACTION  inside a transaction that is rolled back (the catalog in tests: L4)
+target    the database it loads into (the plan's Target)
+steps     LoadStep...
+```
+
+### 2.3 The steps
+
+```
+LoadStep
+  Statement(sql)              DDL, or an author's setup statement, written at planning for the target's database
+  Rows(table, columns, cells, digest)
+                              small data inline: text cells the database casts, through its bulk loader where it has
+                              one (today's SetupStep.Rows, with its digest)
+  File(ref, table, columns, delivery)
+                              data by reference, delivered as the plan says (2.5)
+  View(url, format, pin, sql) later (§2.4): the database reads a location itself
+  Held(name)                  later (§2.4): a relation the host already holds, named, never copied
+```
+
+Small data and large data are one reference: `Rows` is how a small reference travels inline. The threshold is measured
+(§8).
+
+### 2.4 Kinds that come later, designed now
+
+- **View (a location):** a URL and a format the database reads itself (Parquet, CSV, Iceberg). Not deterministic unless
+  pinned; marked so in the plan; admitted or refused by the runner's policy, never by the plan.
+- **Held (a host's relation):** a dataframe, an uploaded file's table, a warehouse table: named, never copied, never
+  cached as if it were content.
+
+### 2.5 Delivery: what is the plan's, how is the database's
+
+The plan says WHAT (the reference, the table, its columns) the same way everywhere. HOW the data reaches the database
+is chosen at planning for the target's database, as every SQL spelling is (invariant 3):
+
+| Delivery | Databases | What exec does |
+|---|---|---|
+| `DatabaseReads(sql)` | DuckDB (measured 2026-11-09: `read_csv(?)` takes the path as a bound parameter) | stages the verified bytes in a file of its own and binds that file's path to the statement's one parameter |
+| `Streamed(staging)` | H2 (measured 2026-11-09: `CSVREAD(?)` refuses a bound parameter), every server database (they cannot read the runner's files) | splits the verified text into cells and streams them through the database's bulk path (the staging statements written at planning: today's `SetupStep.Rows` staging, Postgres `COPY`) |
+| `Uploaded(stage)` | later: warehouses with an upload stage | uploads the verified bytes, then runs the stage's load |
+
+No delivery edits SQL at run: a path is a bound parameter, cells are bound or streamed. Splitting text into cells is
+carriage; the database casts every value.
+
+### 2.6 Where loads live in a plan
+
+- **A program's own loads are nodes at their place** (`ExecutionPlan.Load`, `BEFORE_STEP` and `AT_STEP`: L1; until
+  then the `Setup` node, the seeds alone).
+- **One load section per plan** for the loads a target needs (`PER_ACQUISITION`, `ONCE`), keyed by identity: the
+  product's `ExecutionPlan` and the test's `TestPlan` alike. A target names the identities it needs. A load is written
+  once in a plan however many statements need it (L2, L3).
+- **A portable plan is a package:** the plan, its loads and the bytes of its `bundle` references. A plan alone stays
+  small (G3); the package runs from nothing (G11).
+- **Plan JSON:** a new version of `PlanJson` and `TestPlanJson`; every runner reads it (§6, P7).
+
+### 2.7 What exec does
+
+1. **Resolve** a reference through the stores the run is configured with. The stores are data, a sealed set:
+   `Directory(namespace, root)`, `ContentStore(...)`, `Bundle(bytes by digest)`. They reach the run as its other inputs
+   do (the run takes data and sealed sets alone: `ArchitectureTest.aRunTakesDataSealedSourcesAndNamedReceiversAlone`).
+2. **Admit or refuse** by the runner's policy: which namespaces, which URL schemes and hosts. A plan cannot widen it.
+3. **Verify** the digest of the bytes it read. A mismatch is refused by name.
+4. **Deliver** exactly the verified bytes, as the plan says (2.5). The staged copy is the runner's own file (short path,
+   cached by digest), so what the database reads is what was verified. The Windows long path disappears with it.
+
+### 2.8 What planning does
+
+- Reads a referenced file once, from a declared resource root (data, not a function), to compute its digest and size:
+  knowledge, eager. Data that enters the platform elsewhere (an upload) gets its digest where it enters.
+- Chooses the delivery for the target's database and writes its statements.
+- Never puts a path in the plan, and never puts the rows of large data in it.
+
+## 3. The 17 mechanisms: each one's fate
+
+Four of the 17 are not loads at all: they are the query language and the user's own program. They stay, and a guard
+(§6, P9) proves none of them can carry a load. The other 13 move onto loads and their code is deleted.
+
+**Amended 2026-11-09 (the tenets re-audit's A-1 and A-2):** 12 of the 13 move onto loads and are deleted. M4 is BOUNDED
+instead -- the orchestrator's decision of 2026-11-09: keep legend-engine's harness overlay (upstream's shape, so no
+divergence); option 2, a door-level fixture, was declined as surface with no gain to the seal -- its data reaches a plan
+only as a load (`ServiceTestProvisionKeyTest`). M8's row below names `SqlDml.LoadCsv` as deleted: the record stays, as
+the streamed insert's MIR (`EffectPlanner.loadCsv` builds it for `Delivery.Streamed`'s statement), and holds no path;
+what M8 deleted is the path in the statement (`csvSource`, `TestKinds.resourceFile`, the dialects' file read). The
+census (`DataMechanismCensusTest`) is the authority for each row's state; the table states the design.
+
+| # | Today (inventory §1) | Fate | What is deleted |
+|---|---|---|---|
+| M1 | `###Data` into the server's project database: `Project.made` inside every product plan's target | a `Load(ONCE)` in the plan's load section, named by identity | `ExecutionPlan.Project.made`/`refused` (the refusal moves to planning the load), `PlanSessions.made`, `ProjectData.fill`'s statement text path |
+| M2 | a connection's declared test data on the product path: `Target.setup` | a `Load(PER_ACQUISITION)` | `ExecutionPlan.Target.setup`, `SetupStep` (replaced by `LoadStep`), `PlanSessions.setUp`/`establish`, `refuseSetup` |
+| M3 | declared, `from()` and runtime test data on the test road: the `Setup` node, `SeedTexts`, `TestPlan.session.setup`, the raw text in every target | the same loads as M2 (one road, G1) | `ExecutionPlan.Setup` (the node), `Seeds.planned`'s seed path, `SeedTexts`, the raw test data in a plan's connection description |
+| M4 | service-suite data: the harness rewrites the runtime into a synthetic `LocalH2` connection | loads planned from the suite's data element | the connection overlay in `ServiceTestRunner`, `RuntimeKey`'s seed part |
+| M5 | the system metamodel store on the test road: `SystemRoutes.seeds`, `Setup(SYSTEM_STORE)` | the catalog's registration load (`docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md` §4.3), `PER_TRANSACTION` in tests | `SystemRoutes.seeds`, `Setup.SYSTEM_STORE`, `SystemDatabase` (as the catalog design rules) |
+| M6 | the system metamodel store on the product road: three forms by engine | the catalog's loads, `ONCE` per process and per project | the `Target.setup` form, the `Target.session` TEMP-table form, the inline `VALUES` form |
+| M7 (seed forms) | `setUpDataSQLs` and the other seed forms, planned through `CsvSeed` | loads | the seed-form arm of `Seeds`/`TestKinds` |
+| M8 | `loadCsvToDbTable`: the planning machine's path in an effect's text (D3) | a `File` load step at its program position (`AT_STEP`) | `SqlDml.LoadCsv`, the dialects' `csvSource`, `TestKinds.resourceFile`, `PlanningOptions.resources` (the function) |
+| M9 | package setups and on-demand fixtures provided by the harness between a body's plan and its run | loads the plan names; exec establishes them | `PlannedAppeals.stores` as a harness question, `fixturesByStore`, `TestExecution.runFixture`'s seeding role |
+| M10 | JSON model data: `data:` inlined as a SQL literal, `file:` as a path in SQL | `data:` a `Rows`/`File` reference; `file:` refused in a plan unless it names an admitted namespace; `http:` a `View` | the JSON-literal inlining, `read_json_objects('<path>')` |
+| M13 (output) | the test-data generator's rows enter the next plan as seed text | its output saved as a load | the generator's seed-text hand-off |
+| M14 | the browser tab, Python and DataCube load data outside every plan (`projectData`, `testDataSql`, `HostOperation` File/Remote) | the host runners execute loads; a file is a `File` reference, a remote table a `View`, a frame `Held` (2026-11-12, the user's ruling of 2026-11-11: a remote plane's snapshot a `Stream` step, a Python frame an `Attach` step by name -- census M14-snap, M14-frames) | `projectData`, `testDataSql`, the `HostOperation` load arms, `engine-client`'s project-data lifecycle |
+| M15 | test harnesses seed by JDBC; the referee's mirror replays seed texts | harnesses seed through loads run by the runner; the referee replays the plan's loads | `Seed.sql`, `PostgresSeed`, the harnesses' seeding statements, `SeedTexts` |
+| M17 | data parsed and never loaded (ExternalFormat, ModelStore, stubs, mapping-test data) | loaded through the vocabulary where it is relational or JSON; otherwise refused by name where a test or query needs it, never ignored | the silent drop |
+| M7 (author's statements) | `executeInDb('INSERT ...')`: SQL the user wrote | **stays**: it is the user's program (world map: programs are input). It is not a platform load | nothing |
+| M11 | literal relations and instances in a query, and product writes of them | **stays**: the query's own constants | nothing |
+| M12 | model-derived constants in statements (enum value tables, stamps) | **stays**: compile-time knowledge | nothing |
+| M16 | parameters, keyed keys, counts, host rows | **stays**: run inputs and values between steps, not loads | nothing |
+
+## 4. The order of work
+
+Each slice lands with every lane green, its deletions done, its guard hard, and its measurements recorded. A slice
+that cannot delete what it replaces is not done.
+
+| Slice | What | Deletes | Guard turned on |
+|---|---|---|---|
+| **L0** | this spec; the homework kept | -- | -- |
+| **L1** | `DataRef`, `Load`, `LoadStep` (`Statement`, `Rows`, `File`), the deliveries `DatabaseReads` and `Streamed`; exec's resolver, digest check and staging; stores as run data; plan JSON versions; **M8 (D3) onto a `File` step**. Fixes PR #92's Windows job as a byproduct | M8's list | P5 (no machine path), P6 (digests verified), P4 started (the census, M8's row) |
+| **L2** | M2, M3, M4 and M7's seed forms onto loads: one road for test data | their lists | P1 (one record family), P2 (one constructor) |
+| **L3** | M1 onto `Load(ONCE)` in the load section | M1's list | P4 census rows M1-M4, M7, M8 |
+| **L4** | M5, M6: the catalog design, on loads | their lists | census rows M5, M6 |
+| **L5** | M9: fixtures as loads the plan names | M9's list | census row M9 |
+| **L6** | M10: JSON model data as references and views | M10's list | census row M10 |
+| **L7** | M14: the TypeScript and Python runners execute loads; the cross-runner version guard | M14's list | P7, census row M14 |
+| **L8** | M15, M17, M13's output: harnesses and the referee through loads; the never-loaded refused or loaded | their lists | P8, census rows M13, M15, M17; the census complete |
+
+### L1 as built (2026-11-09)
+
+- **Records** (`executionplan`): `DataRef` (refuses an absolute name, a drive letter, a backslash, an empty, `.` or `..`
+  segment); `ExecutionPlan.Load(identity, cadence, steps, target)` (the `Setup` node renamed, `BEFORE_STEP` its old
+  rule, `AT_STEP` new); `LoadStep` (`SetupStep` renamed) gains `File(ref, delivery)`; `Delivery.DatabaseReads(sql)`,
+  `Delivery.Streamed(insert, columns)`. `DataStores` (a directory per namespace) is the runner's and the planner's
+  configuration, never in a plan. Plan JSON v31, test plan JSON v11; the TypeScript runner reads v31 (it refuses a
+  load node and any target setup, as it refused the setup node).
+- **Planning:** `PlanningOptions.resources` (a function) is gone: planning reads the file once through the stores for
+  its digest and size; the dialect chooses the delivery (`SqlDialect.csvLoad`: DuckDB reads, H2 streams, every other
+  refuses by name). `SqlDml.LoadCsv` holds no file. A file of no row plans no load (it loads what it was planned against:
+  nothing). A header whose width is not the table's is refused at planning.
+- **Run:** `PlanRunner.seed` runs a `File` step: `DataLoads.verified` (size and SHA-256 against the plan), then
+  `DataLoads.stage` (the runner's own temporary copy, deleted after) bound to DuckDB's one `?`, or `DataLoads.cells`
+  streamed to H2's insert in one batch. The stores reach the run through the test door (`ExecuteOptions.stores`).
+- **The CSV rule** (`base.CsvCells`) is H2's `CSVREAD`'s, measured equal on quoted, padded, short, empty and CRLF input
+  (`CsvLoadRenderTest.theStreamedCellsAreTheCellsCsvreadReads`), so the H2 lane loads the rows it loaded before.
+- **Interim, named:** the compatibility referee's copy of a loaded file's rows rides the edge's ledger texts at the
+  load's step (one insert, the rows split at planning), as every seed's referee copy does today (M15); L8 replaces it
+  with the referee replaying the plan's loads.
+- **Proof:** `DataLoadsTest` (both deliveries end to end on every in-process database that spells one, through a store
+  at a long path; the plan JSON holds no path and reads back; a digest that differs and a run with no store refused by
+  name; path-shaped names refused); `PlanTypesAreDataTest` already refuses a `Path` in any plan record;
+  `DataMechanismCensusTest` (the 17 rows, M8 deleted, its symbols at zero in every source tree); the corpus's
+  `testLoadCsv` passes on the DuckDB and H2 lanes.
+
+### L2 and L3 as built (2026-11-09, branch `claude/total-wall`)
+
+- **The CSV format (decision 6, ruled):** `DataRef.Csv(delimiter, quote)`, `DEFAULT` a comma and a double quote, a
+  closed format written as an object in the plan (plan JSON v32). `base.CsvCells` is upstream's rule (Commons CSV 1.5
+  `EXCEL`, an empty or quoted empty cell NULL), measured equal to that library on 2,000,000 random texts
+  (`docs/data-in-the-plan-homework/probes/csv_format_probe.java.txt`). A record whose width is not the header's and a
+  malformed quoted cell are refused by name at planning and at the run (S174, D-c). **Every database takes the
+  streamed cells:** DuckDB's own reader cannot read the format exactly (a cell whose quote follows a space read as
+  quoted, an empty line in a wider table skipped, mixed line breaks refused; pinned by
+  `CsvLoadRenderTest.duckDbsOwnReaderReadsTheFormatOtherwise`), so `Delivery.DatabaseReads`, `DataLoads.stage` and
+  `Statements.readsFile` are deleted. A file's load admits upstream's 500 MB (`LoadStep.File.sizeLimitMegabytes`,
+  upstream's words, at planning and at the run: D-b). A cell is bound as text and the database casts it (S173, D-a).
+  S172 closed.
+- **A target's loads (M2):** `Target(database, session, loads)`; each load `PER_ACQUISITION` (declared test data) after
+  any `ONCE` one (a project's Data). Plan JSON v32 and test plan JSON v12 write each load once in a `loads` section, a
+  target naming identities (`PlanJson.hoistLoads`/`inlineLoads`). `planner/LoadPlanner` is the one maker of a load and
+  the one identity scheme (`load:` + the SHA-256, portable `cache.Hash`, of a length-prefixed encoding of the steps).
+  Exec runs every load through one deliverer (`PlanRunner.seed`), a target's at the points its setup ran (once per kept
+  in-memory database; on each query's acquisition on the project road).
+- **The test road (M3):** the seeds are `BEFORE_STEP` loads made by `LoadPlanner`; the plan's connection description no
+  longer carries `testDataSetupCsv/Sqls`. A seed form mapped over `executeInDb` stays the effect's script, as the M1
+  correctness audit's C3 restored it (2026-11-09: as an `AT_STEP` load it changed what the referee replayed), so M7-seed
+  is PENDING for L5.
+- **Service suites (M4, the orchestrator's decision, 2026-11-09: option 1 -- keep legend-engine's harness overlay,
+  upstream's shape, so no divergence; option 2, a door-level fixture, declined as surface with no gain to the seal;
+  until the re-audit's A-2 this line called it the user's ruling, which it was not):** the harness keeps legend-engine's own overlay (a synthetic
+  connection carrying the suite's CSV); its data reaches a plan only as a load
+  (`ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad`).
+- **A project's Data (M1, L3, S171):** the target's `ONCE` load, made once where the platform makes the
+  project's database and kept; `Project` names its key and refusal alone (the refusal stays where the database is
+  made, slice 5's rule).
+- **The census, corrected by the M1 tenets audit (2026-11-09, finding 2) and by the re-audit (A-2):** DELETED M2, M8 (2
+  of 17); M4 BOUNDED (the orchestrator's option 1: the harness's overlay stays, legend-engine's own shape; its data
+  reaches a plan only as a load, `ServiceTestProvisionKeyTest.aSuitesDataReachesThePlanOnlyAsALoad`); M7-seed PENDING
+  (L5: the seed forms stay the effect's script, C3); M1 PENDING (the fill is still
+  `ProjectData.fill`'s INSERT text inline: decision 1's reference above the threshold), M3 PENDING (`Seeds.planned` is
+  still the seeds' own path; `SeedTexts`, the referee's copy, goes with M15 at L8), each with what L2/L3 removed held at
+  zero. The TypeScript runner refuses a target naming any load, as it refused a setup.
+- **The guards (finding 3):** P2 is on (`ArchitectureTest.onlyTheLoadPlannerMakesALoad`, `SystemRoutes` a dated exception
+  closed by L4; `execMakesNoLoad`). P1 (one record family) is not yet on: `Load`/`LoadStep` are the only row-holding
+  records but no test asserts it; it lands with L4.
+- **After the audit (finding 1):** a project's Data and its refusal run on every database the platform makes and are
+  refused by name on a database the user owns, by one rule both sides read (`ConnectionSpecification.platformMakes`);
+  a load's identity (its cadence and its steps' canonical content, `Load.canonical`) is recomputed by exec before a load
+  runs, a mismatch refused; the header record is dropped unread, as upstream drops it.
+
+### L4 as built, the test half (2026-11-09, branch `claude/total-wall`)
+
+- **L4a, the system store's load is the load planner's:** `SystemRoutes.seeds` makes it through `LoadPlanner`, named by
+  its content as every load is; `Load.SYSTEM_STORE` (the constant it was named by), exec's exception in
+  `verifyIdentity`, P2's dated exception (`onlyTheLoadPlannerMakesALoad`) and the walk's own seeding door
+  (`PlanRunner.seedSystemStore`, no caller) are deleted. Exec tells the system store's load by its target (the system
+  database) and refuses any other load there: a seed or a registration, of statements and rows, never a file.
+- **L4b, the catalog's test half (`docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md` 4.1-4.5, the implementation plan of
+  `docs/PLAN_AS_DATA_2026_11_07.md`, hole 2):**
+  - **One catalog per in-process engine per process** (DuckDB, H2, SQLite): the system target is
+    `Database.System(type, platform key)` with one `ONCE` load, the store's tables and the platform's rows
+    (`SystemRoutes.target`, the one maker of a system target). The platform's rows are a constant of the platform, the
+    rows of a model of no element of its own (`SystemRoutes.Platform`), derived once per process.
+  - **A model's registration** is a `PER_TRANSACTION` load (plan JSON v33): its own rows -- its rows less the
+    platform's, as multisets (a model that would change a platform row is refused by name: a registration of inserts
+    cannot express it) -- inserts with no DDL (`Ddl.metamodelRowSteps`; on DuckDB the staged `INSERT ... SELECT`).
+    None for a model of no row of its own.
+  - **Exec:** `SystemDatabase.Leases.sessionFor(target)` makes the catalog once with its `ONCE` load, then takes the
+    run's TURN on it -- one run at a time, a run nested in another's turn on one thread refused by name -- and begins a
+    transaction (`Sessions.beginTurn`); the run's leases roll it back when the run ends (`Sessions.endTurn`), whatever
+    the outcome. A `PER_TRANSACTION` load on a session that holds no such transaction is refused by name; a keyed
+    step's snapshot joins the transaction a caller holds, never commits it (`JdbcStatements.inSnapshot`).
+  - **Open, dated 2026-11-09 (the correctness re-audit's 7):** a load's identity is its cadence and steps, not its
+    target, so a plan whose two targets each need an equal load writes it once in the load section and the reader's
+    hoist refuses the second as a duplicate (`PlanJson.hoistLoads`); no plan has such a pair today (the catalog's ONCE
+    load sits on the system target alone, a project's fill on its own). Predates the branch; fixed when a plan needs it
+    by naming a load by its identity and its target.
+  - **`Class.all()` in a test is unchanged:** the platform plus its model (no register row). A server engine's system
+    database keeps the whole store per graph in its session's temporary tables until the design's check 3 (census row
+    M5 stays PENDING for it). The product's metamodel (M6, the catalog's product half) waits on the user's ruling.
+
+### The CSV file read by its database (2026-11-10, branch `claude/total-wall`)
+
+The user's ruling of 2026-11-09: "Csv I vote that we just reject options we cannot support instead of building our own
+streamer". It supersedes L2's "every database takes the streamed cells" above.
+- **Delivery:** `Delivery.Reads(statements)` was the one delivery (plan JSON v34, the TypeScript runner's `PLAN_VERSION`
+  with it; amended below the same day). The runner verifies the bytes (size, digest), writes them to a copy of its own (`DataLoads.stage`), and sends
+  each of the plan's statements as written, binding the copy's path to the statement's one `?` where it has one
+  (`Statements.readsFile`). A database's refusal comes back in its own words, with the file named.
+- **The dialects:** DuckDB: `INSERT ... SELECT * FROM read_csv(?, header = true, delim, quote, escape = quote,
+  auto_detect = false, strict_mode = true, nullstr = '', columns = {every column VARCHAR})`. H2: `SET @legend_csv = ?`,
+  then `INSERT ... SELECT NULLIF(Cn, '') ... FROM (SELECT * FROM CSVREAD(@legend_csv, 'C0,...,Cn+1', options) OFFSET 1
+  ROW) AS x WHERE <the record check>` (the columns named, so a header of any width is skipped unread). H2 refuses a white-space delimiter or quote by name, since its
+  options are split on white space. Every other dialect refuses a CSV file's load, as before.
+- **Deleted:** `Delivery.Streamed`, `Delivery.Bulk`, `DataLoads.cells`, the planner's split of the cells and its
+  refusals at planning, and `AnsiSqlRenderer.csvStreamed`, each pinned gone (`DataMechanismCensusTest` M8's list;
+  `TypeHoleDeletedTest`, where the pin on `Statements.readsFile` moved with a dated note). `base.CsvCells` stays only
+  for the referee's copy (census M15, until L8), split lazily when an edge asks.
+- **Where the readers differ from upstream:** S184 (DuckDB) lists the cases, pinned by
+  `DataLoadsTest.eachReadersEdgesArePinned`.
+- **Amended the same day (the user's ruling of 2026-11-10, "Okay I guess that can be used for databases that have no
+  csv read then"):** H2's `CSVREAD` reads three cases exactly as a valid record (a record short by one cell, one wide by
+  one empty cell, an unclosed quote in its last cell), so no SQL can refuse them. Every database whose reader does not
+  read the format as upstream does therefore takes upstream's own mechanism: the runner reads the file by upstream's
+  rule and inserts its rows.
+  - **DuckDB** keeps its own reader (`Delivery.Reads`) and S184's ruled rows.
+  - **Every other database** that takes a file (H2, SQLite, Postgres, and every server dialect through the base's
+    insert) takes `Delivery.Streamed(insert, columns)` (plan JSON v35): `DataLoads.cells` splits the verified bytes by
+    `base.CsvCells`, which is byte-equal to Commons CSV 1.5 `EXCEL`; planning refuses a malformed file by name, and so
+    does the run (S174); the runner sends one row's insert in one batch (`Statements.streams`). The base dialect spells
+    the insert; MongoDB refuses a load by name.
+  - H2's `CSVREAD` path and its SQL-side record check are deleted. S185 is withdrawn, since H2 is now upstream exactly.
+    The bulk delivery stays deleted.
+  - Pinned by `DataLoadsTest` on every in-process database, and by `//core:data_loads_postgres_test` on the embedded
+    Postgres 16.
+
+### L6a as built: a file: source is a pointer (2026-11-10, branch `claude/total-wall`)
+
+The user's ruling of 2026-11-10: "why not pointers to the files? Like when planner plans to read from db table it
+doesn't extract it to a content store? ... I'm not so sure it's any different from a database table."
+- **The plan:** a model's `file:` source (a `JsonModelConnection` url, an M2M `sourceUrl`) is a slot,
+  `ExecutionPlan.Binding.Source(location)`, holding the location as the model declares it (plan JSON v36; the
+  TypeScript runner refuses it by name, as a host admits no source). DuckDB's dialect writes
+  `SELECT json AS data FROM read_json_objects(?)`; no path is in the text.
+- **The run:** `PlanRunner` binds each source slot to the path `exec.SourceAdmission` admits, the run input beside
+  `DataStores` that the session source carries (`PlanSessions.admitting`; the default admits none). The admission
+  refuses by name: a location outside the admitted directories (its real path, links followed), and any scheme but
+  `file:` (decision 4's `url`, not built). `ProductRun` keeps the caller's admission on the answer's session.
+- **Tests:** `SourceAdmissionTest` covers the guard. The JSON M2M file-source cases admit their resource directory, and
+  a case that admits nothing is refused by name. Census M10's `file:` half reads zero (`REMOVED_SO_FAR`); its `data:`
+  half is L6b.
+
+### L6b as built: a data: source is a load (2026-11-10, branch `claude/total-wall`)
+
+The orchestrator's reading of decision 1 (2026-11-10): always a load, with no SQL-literal form at any size.
+- **The plan:** `planner.DataSources` turns each distinct `data:` content a query reads into a session table named by
+  its digest (`legend_data_<16 hex>`). The target gets a `PER_ACQUISITION` load whose steps drop the table, create it
+  TEMPORARY with one column of the dialect's JSON type (`SqlDialect.dataSourceColumn`), and insert each array element's
+  JSON text, verbatim. The query reads the table where the source stood, at any depth (a subquery's, a union's). Two
+  sources of equal content read one table.
+- **Lifetime:** the table is the session's own and gone with it, as the metamodel's per-query tables are. It is remade
+  on each acquisition, dropped first, so a run reads exactly the plan's rows.
+- **Deleted:** DuckDB's `data:` arm, the payload as a SQL literal. A dialect with no JSON source refuses by name, as
+  it refused the source before (H2, SQLite: their floor lines).
+- **Tests:** `SourceUrlUserCallableTest` checks the digest-named TEMPORARY table, a statement that holds no payload,
+  and a union of two equal sources that answers both arms' rows from one table. Census M10 is DELETED.
+- **The content store** for model text above the threshold (M1's large fill, a large `data:` payload) is L6c, below.
+  Below the threshold the rows ride in the load's steps, as here.
+
+### L6c as built: the plan's bundle (2026-11-10, branch `claude/total-wall`)
+
+The orchestrator's ruling (2026-11-10): (a), the bundle. A write at planning, (b), would break G4 ("plan only plans").
+- **The records:** `DataRef.Namespace.CONTENT` and `DataRef.Rows` (rows of text cells as a JSON array of arrays, an empty
+  string kept apart from a NULL). `ExecutionPlan.Load` carries its bundle, `content` (each text by its SHA-256). It
+  holds exactly the CONTENT digests its file steps name, and it refuses by name, wherever it is made or read, a bundle
+  that lacks one and a text whose bytes are not its digest.
+- **The planner:** `planner.ContentRows` handles a project's Data fill (M1: `ProjectData.fillSteps`) and a `data:`
+  source's elements (`DataSources`).
+  - Rows whose text is at most 16 KB ride inline, as the one insert the database runs.
+  - Above that, they go to the bundle. The steps create a temporary staging table of text columns, stream the
+    bundle's rows into it (`Delivery.Streamed` with `SqlDialect.rowsInsert`, each cell bound as text), copy them into
+    the table (the database casts, as with the inline literals) and drop the staging table.
+  - A load that casts its cells, or a database with no temporary table, keeps its rows inline.
+- **The run:** a CONTENT file step reads the load's own bundle. Every other file reads through the run's stores.
+- **Travel:** `PlanJson.write` keeps a load's bundle inline, so a plan written whole reads back as it was.
+  `PlanJson.writeBundle` returns `Bundle(json, blobs)`: the plan's JSON with no content in it, plus one blob per digest.
+  `PlanJson.read(json, blobs)` gives each load its blobs back, verified by the load's own check. Plan JSON v37.
+- **Tests:** `ContentBundleTest`:
+  - a plan written out and read back on a fresh runner loads the same 2,000 rows;
+  - a blob whose bytes are not its digest is refused by name;
+  - a bundle that lacks a digest is refused by name;
+  - rows below the threshold ride inline.
+
+### L4, the catalog's product half: the plan (written 2026-11-10, before building)
+
+The design is `docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md` §4.4 and §4.6, ruled by the user (S178). The test half (L4b)
+built the catalog: one per process per in-process engine, the platform's rows committed once (a `ONCE` load), and a
+model's rows registered in a rolled-back transaction (`PER_TRANSACTION`). The product half moves the product road onto
+it. Census M6 lists three forms of the metamodel tables in a product plan; this half removes the first and bounds the
+other two.
+
+**Today (`PlanMaker.metamodel`):** a product query that reads `Class.all()` carries the metamodel tables it reads in its
+own plan:
+- on an in-process engine, as the target's `PER_ACQUISITION` setup in the query's own database (form 1);
+- on a server engine with temporary tables, as the session's TEMP tables (form 2);
+- on a server with none (Trino, MongoDB), inline as rows (form 3).
+
+**The plan, in three steps:**
+1. **The one-request model, on an in-process engine** (§4.4's ad-hoc row; `Execution.run` with model text):
+   - the planner routes the metamodel read to the catalog, `SystemCatalog.target(ctx, type, session)`, exactly as the
+     test road does;
+   - the plan carries the platform's `ONCE` load and the model's `PER_TRANSACTION` registration;
+   - `ProductRun` opens a `System` target through `SystemDatabase.Leases`, a turn that rolls back.
+   - Deletes form 1 (`Ddl.metamodelSteps` on the product road; `Metamodel.setup`).
+   - Files: `planner/PlanMaker` (`query`, `target`, `metamodel`), `planner/SystemCatalog`, `exec/ProductRun`,
+     `exec/SessionSource` (a `System` target), `exec/SystemDatabase`.
+   - Tests: a product `Class.all()` lists the platform's classes plus the model's own, and a second model's query in the
+     same process does not see the first's.
+2. **A held project, on the server** (§4.4's loaded project, committed):
+   - `HeldModels.hold` registers the project's rows in the catalog, committed, keyed by the model's content;
+   - a re-hold whose content changed replaces them in one transaction (the old key deleted, the new inserted);
+   - `release` deletes them.
+   - The server's plans for a held model carry the same registration, and exec skips it where the catalog already holds
+     the key committed (§4.3: "idempotent") -- a memo of committed keys in `SystemDatabase`, read before the turn.
+   - The registration is a plan the server runs through the execution door (`HeldModels` is the planner's; it plans,
+     and the server's holder runs).
+   - Files: `HeldModels`, `server/...` (the holder), `exec/SystemDatabase` (commit, replace, delete), `planner/SystemCatalog`
+     (a registration plan by key, and its delete).
+   - Tests: a held project's classes are listed by another request's `Class.all()`; a re-hold shows the new version
+     alone, never both; a release removes them.
+3. **Server engines** (Postgres, Snowflake, ...) and engines with no temporary table keep forms 2 and 3. The catalog for
+   a server engine is M5's "a server engine's whole store per graph" (the catalog design's check 3), not designed. Census
+   M6 becomes BOUNDED: form 1 deleted; forms 2 and 3 bounded by a guard that a product plan's metamodel tables reach a
+   server only as the session's own TEMP tables or inline rows.
+
+**Order:** step 1, then step 2, each its own commit with its lanes; then the M6 row.
+
+### L5b, the seed forms (census M7-seed): the plan (written 2026-11-10, before building)
+
+**Today:** a seed form mapped over `executeInDb` (`setUpDataSQLs(csv, db)->map(s|executeInDb(s, ...))`) folds its data
+at planning, and its statements -- the DDL and the INSERTs whose literals are the CSV's rows -- go into the program's
+effect script (`ExecutionPlan.Effect`: its transaction bracket, its abort, its ledger on failure, the B8 refusal). L2
+made them a load, and the M1 correctness audit's C3 put them back the same day: as a load they lost all four.
+
+**The plan:** the rows become a load step INSIDE the effect script, so they keep the bracket.
+- `ExecutionPlan.Effect.Script` items become a statement or a load step (`LoadStep.Statement` or `LoadStep.Rows`/`File`,
+  by `ContentRows`: inline below 16 KB, the bundle above).
+- The runner runs the script as now (bracket, abort, ledger), each load item through the one deliverer
+  (`PlanRunner.seed`'s step arms) on the script's own `Statements`, inside its transaction.
+- The seed-form arm (`TestKinds`, the `EffectPlanner.statements` seed arm) emits the form's DDL as statements and each
+  table's rows as a `RowLoad`, never as INSERT text.
+- The referee's ledger texts stay the form's own text (census M15, until L8).
+- Deletes the INSERT-literal path of a seed form; census M7-seed becomes DELETED.
+- Files: `executionplan/ExecutionPlan` (`Effect.Script`), `PlanJson` (the script's items), `exec/PlanRunner.script`,
+  `testplan/TestKinds`, `testplan/EffectPlanner`, `setup/CsvSeed` (the form's steps), the census.
+- Tests: a seed form's rows load inside the script's transaction; an abort after them rolls them back; a failing step's
+  ledger names the step; the B8 refusal stands; the corpus and PCT lanes' seed-form bodies are unmoved.
+
+### L4 product half, step 1 as built: the one-request model on the catalog (2026-11-10, branch `claude/total-wall`)
+
+- `PlanMaker.query`: a product query on an engine in this process whose SQL reads the system metamodel store's tables
+  and no other source (`readsOnlySystemTables`: a user's table, a file, a payload, a store's own SQL each keep the old
+  road) names the process's catalog, `SystemCatalog.forQuery`: the platform's `ONCE` load (`SystemCatalog.target`'s) and
+  the model's own rows as a `PER_ACQUISITION` registration (inserts, no DDL; none where the model adds no row).
+- `SystemDatabase.Leases`: the catalog is keyed by its `ONCE` loads alone, so every model shares one catalog per engine;
+  a target's `PER_ACQUISITION` loads run inside the run's turn, after `beginTurn`, and roll back with it.
+- `ProductRun`: an answer whose target names the system database runs on `PlanSessions.system(leases)`, a lease of the
+  catalog for the run, never on the caller's session.
+- Not yet moved: a held project's metamodel read on the server (`projectDatabase`, step 2) keeps form 1, so census M6
+  stays PENDING.
+- Tests: `exec/CatalogProductTest` (the target's two loads; the model's class listed, the platform's once, a second
+  model's run seeing none of the first's, a re-run registering once); `PlanMakerTest`'s forms test now names the
+  in-process form `catalog`.
+
+### L5 as built: no fixture between a body's plan and its run (2026-11-10, branch `claude/total-wall`)
+
+Option C, upstream's shape (the orchestrator's word, 2026-11-10): legend-engine runs a package's setups at the package's
+start, and nothing more. Lite's harness also provided a store's fixture ON DEMAND, between a body's plan and its run,
+for an appeal whose rows read a store another package seeds. It ran in an ASIDE (a schema or a catalog per backend), so
+that its tables did not overwrite the session's.
+- **Measured before deleting:** with the provision skipped (a patch never committed), the `corpus_duckdb` and
+  `corpus_h2` rosters were byte-identical and `stress_suites` and `stress_suites_h2` passed. No verdict needed one.
+- **Deleted (census M9, BOUNDED):**
+  - `PureTestRunner`'s on-demand provision: `fixturesByStore`, `provideFixtures`, `mayProvide`, `provideFixture`, the
+    aside branch of `runFixture`, `setupsCalled`, `tablesOf`, `setupStores`;
+  - `TestObserver.isolateFixture`, `fixtureIsolated` and `fixtureProvided`;
+  - the corpus observer's aside;
+  - `FixtureAside` and each backend's `setFixtureAside` (DuckDB's aside catalogs, H2's and Postgres's aside schemas,
+    and Postgres's search path that named 64 asides ahead);
+  - the referee's `replayAside` and `replayRestore`;
+  - `//core:fixture_aside_postgres_test`, which pinned only the aside: its rollback survival on Postgres.
+- **Bounded:** a package's setups run at its start, each a program planned whole and run by its plan
+  (`TestExecution.runFixture`, a door of one planning call and one run call). Their move to loads the plan names is the
+  same design as M7-seed's.
+- **The plan's ask, deleted with it:** `Appeal.Rows.stores` and `PlannedAppeals.stores` (the stores the plan "asked the
+  harness to provide"), `SqlTextVerdicts.storesOf`, and the fixture's planning-ahead path (`TestExecution.planProgram`,
+  `TestPlanner.planAhead` and `planned`). Test plan JSON v13.
+
+## 5. Upstream
+
+lite's choices here are its own design. Where one differs observably from legend-pure or legend-engine (for example a
+project's `###Data` made once and kept, which upstream does not do for a product query), it is a row of
+`docs/SEMANTICS_REGISTER.md` the user rules, posted before it lands (the fidelity tenet's ledger, not its argument).
+
+## 6. The proof: how we know every other mechanism is gone
+
+The guarantee is mechanical. Each is a test that fails if a second way back opens.
+
+- **P1 One record family.** The plan records (`executionplan`, `testexecutionplan`) hold data for a database only in
+  `Load`/`LoadStep`: no other record has a row-shaped field (`List<List<String>>`, bytes) but `Constant` (an answer the
+  program wrote, not a load). `PlanTypesAreDataTest` extended.
+- **P2 One constructor.** Only the load planner constructs `Load` (`ArchitectureTest.onlyTheLoadPlannerMakesALoad`); a
+  `LoadStep` is made only by the planner's makers of statements and rows (`setup.CsvSeed`, `setup.Ddl`, `setup.RowLoad`,
+  `planner.PlanMaker`, `planner.SystemCatalog`, `testplan.EffectPlanner`: `onlyThePlannersMakersMakeALoadStep`); the
+  JSON reader rebuilds either; exec makes neither (`execMakesNoLoad`). `LoadPlanner.load` is public (the test planner
+  calls it): the guard is the one constructor call and identity scheme, not the caller set (the re-audit's A-5,
+  2026-11-09: until then this line claimed both records were the load planner's alone).
+- **P3 One deliverer.** Only exec's loader sends a load's statements, streams its rows or binds a staged file: the JDBC
+  census pins the LOADS act and a load's sends to it (`JdbcSurfaceCensusTest`).
+- **P4 The deletion census.** A source census lists, per mechanism M1-M17, its deleted symbols (§3's last column),
+  each reading zero in every source tree, and for the four that stay, the guard that bounds them. A row per mechanism,
+  all 17: the census fails if a deleted symbol returns or a mechanism has no row.
+- **P5 No machine path in SQL text, and no path the runner did not admit** (restated 2026-11-10 by the user's ruling,
+  "why not pointers to the files? ... I'm not so sure it's any different from a database table"). `DataRef` refuses
+  absolute names, drive letters and `..`; no plan record has a `java.nio.file.Path`; the plan JSON round-trip on every
+  lane refuses a path-shaped string in a load. A LIVE source's location as its model declares it (a `file:` URL) may
+  stand in the plan's source description, as a connection's URL does, as a slot's binding
+  (`ExecutionPlan.Binding.Source`), never in a statement's text; the runner binds it only under a directory its run
+  admits (`exec.SourceAdmission`).
+- **P6 Digests verified.** Exec refuses bytes whose digest is not the plan's; a test proves it.
+- **P7 Every runner reads the same plan.** The TypeScript runner's plan version equals `PlanJson.VERSION` (a test reads
+  both); a runner executes each load kind or refuses it by name.
+- **P8 Test code seeds through loads.** A source guard over the test trees: no seeding statement sent by a harness
+  outside the runner, pinned at today's count and ratcheted to zero by L8.
+- **P9 The four that stay carry no load.** An effect's statements are the author's text, folded (no platform-made rows);
+  a statement's literal rows come only from the query's own literals (`SqlSource.Values` from lowering); constants
+  only from the compiled model; parameters only from the caller. Each by a guard on its one producer.
+
+## 7. What this does not change
+
+- The catalog design (`docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md`) stands; L4 builds it on this vocabulary.
+- The separation guards of slice 5 stand; the stores are one more sealed run input.
+- Product writes (`write`, `merge`, decision A) stay statements of the query.
+
+## 8. Decisions (ruled by the user 2026-11-09 where marked; the rest each with a recommendation)
+
+1. **Where data lives in a plan (ruled 2026-11-09).** A file is always a reference, at any size: it has a store, so
+   nothing is gained by copying it into the plan. Data written in the model text (`testDataSetupCsv`, `###Data`) is
+   inline below a threshold, with its digest, and above it goes to the content store and the plan carries a reference.
+   The threshold is measured first (the demo, markets at 1.87 MB, a stress body); about 16 KB, near a query's own SQL
+   at p99, is the starting proposal.
+   - **Clarified 2026-11-10 (the orchestrator, reading this ruling for L6b):** "inline below a threshold" is where the
+     BYTES travel, never what a statement holds. Below the threshold the rows ride inline in the plan, in the load's
+     steps, with their digest; above it the plan carries a content reference into the content store. Either way the
+     database receives them through one load, and the query reads the session table: a SQL literal of model data is
+     never written, at any size (M10's inlining deleted). A model's LIVE source (`file:`) is not model text: it is a
+     pointer (L6a).
+2. **When a project's `###Data` loads (ruled 2026-11-09).** At first use, `ONCE` per identity, and kept: a register
+   row (`docs/SEMANTICS_REGISTER.md` S171). The catalog's rows load with the model, as its design rules.
+3. **(Folded into 2.)**
+4. **The runners' default admission policy.** Recommended: `resource`, `content` and `bundle` everywhere; `url` only
+   where the host enables it, never a local `file:`.
+5. **Staging cache.** Recommended: by digest, per process; dropping it is always correct. (L1 stages per load and
+   deletes the copy after it; no cache.)
+6. **A file's format is declared, one meaning on every database (ruled 2026-11-09).**
+   - **The meaning of a file's cells is the platform's, never a database's.** The format is data on the reference
+     (today `DataRef.format`, a typed CSV-format record from L2). The dialect spells it in its database's reader
+     (`read_csv`'s options, a `COPY`'s) or, where the reader cannot express it, chooses the streamed delivery. The
+     delivery is the dialect's (2.5); the cells are not. Letting each database read a file its own way would load one
+     file as different rows on different lanes (measured below), the one dialect decision that changed an answer.
+   - **Amended 2026-11-10 (the user's rulings):** DuckDB reads a file itself (`read_csv`, its ruled differences
+     S184); every other database takes the runner's cells by upstream's rule, upstream's own mechanism (2026-11-10,
+     "Okay I guess that can be used for databases that have no csv read then"). See "The CSV file read by its
+     database" above.
+   - **Amended 2026-11-09 (L2, measured):** the default is upstream's rule -- Commons CSV 1.5 `EXCEL`, an empty cell NULL
+     -- which DuckDB's own reader does NOT read exactly (a cell whose quote follows a space read as quoted, an empty line
+     in a wider table skipped, mixed line breaks refused, even configured strictly); so every database takes the cells
+     the runner streams by the declared format, and the user accepted that (D-a, D-b, D-c and "every database streams",
+     2026-11-09). The paragraph below, written before the measurement, called DuckDB's rule upstream's.
+   - **The default is DuckDB's rule (the user's pick), which is upstream's** (measured 2026-11-09, read from the pinned
+     sources): legend-pure's `loadCsvToDbTable` reads the file in Java (`CsvReader.readCsv`: Apache Commons CSV 1.5,
+     `CSVFormat.EXCEL`), drops the header, reads an empty cell as NULL (`LoadToDbTableHelper.collectIterable`:
+     `StringIterate.isEmpty`) and binds the rest. On `  Joe  ,"",` both give `[  Joe  ]`, NULL, NULL; a doubled quote,
+     CRLF and a space after a closing quote read alike. **So the default needs no register row, and compatibility mode
+     needs no format of its own.** (The design said until now that legend-engine reads the file with H2's `CSVREAD`; the
+     sources say otherwise: `CSVREAD` is H2's, used by legend-engine for other loads.)
+   - **H2's `CSVREAD` rule is nobody's.** It trims a padded cell and reads `""` as an empty string. The H2 lane loaded
+     files by it before L1 (`CSVREAD` in the statement) and since L1 (`base.CsvCells`, its rule measured equal): a
+     divergence on `main`, register row S172 (pending), removed by L2, whose streamed rule is the default.
+   - **A malformed row is an error, never repaired** (invariant 4). Measured: a short row -- DuckDB refuses it, upstream
+     binds too few values; a long row -- upstream fails on the extra cell, **DuckDB as lite configures it returns no
+     row and no error** (it must be configured to refuse: L2); an empty line -- DuckDB skips it, upstream reads a record
+     of one empty cell. L2 measures what each of upstream's does at the insert and writes the rule to refuse each.
+   - **User options: a small closed set, added when a real file needs one** (null text, quoted empty, trim, delimiter,
+     quote and escape, header; UTF-8 only to start), each a typed value with the default's value as its default. Never
+     an option that is a fallback (skip bad rows, ignore errors, pad a short row), never a database's raw option passed
+     through, never a per-database option. Declared on the data (the file, or a named format element as Snowflake's
+     FILE FORMAT), never in the call: upstream's `loadCsvToDbTable(path, table, conn)` keeps its signature and the
+     default. First expected need: the DataCube and Python file uploads (L7).
+   - **Model-written test data** (`testDataSetupCsv`) is another format, with its own upstream rule (cells stripped,
+     `---null---` NULL), kept as it is.
+   - **A cell's value:** upstream converts an `Integer` column's cell in Java (`Long.valueOf`) and refuses a bad one
+     with its own message; lite binds the text and the database casts. The outcome is the same refusal, the message
+     differs: posted to the user with L2, a register row if ruled.
+
+## 8a. Later (the user's word, 2026-11-09)
+
+- **A nanosecond Pure type.** "Duckdb timestamp is fine, later we need a nanosecond pure type but that's for later": a
+  Date or DateTime parameter on DuckDB is upstream's microsecond `TIMESTAMP` (no row); a value's nanosecond digit is the
+  database's to cut, as upstream's literal is.
+- **A connection's time zone outside an `execute(...)` frame** (row S183, a known gap): "Timezone agree we can do later".
+  Scope, measured 2026-11-09: in upstream's relational test sources two tests name a non-GMT connection time zone
+  outside an execute frame (`executionPlanTest.pure`'s US/Arizona plan tests and one Israel runtime); lite's own tests
+  name `timezone:` in `CypherToPureTest` and `PlanMakerTest`.
+
+## 9. Measurements to take (L1 and L3)
+
+- A product plan's JSON size with a project's data: the demo, markets, a stress service body; a stress body's test plan.
+- First-load time: `Streamed` against `DatabaseReads` on DuckDB for the stress data.
+- The stress lane's memory by load identity.
+
+### Measured 2026-11-09 (the M1 tenets audit's finding 6)
+
+- **A server product plan's JSON with a project's Data** (`projectPlan`, the demo's trading model on DuckDB, one
+  `Firm.all()->project(...)`): 7,511 bytes, of which the ONCE fill's statements are 4,216. The same model with its
+  `TRADING.FIRM` table grown to 1.42 MB of model text: 1,476,331 bytes, of which the fill is 1,473,036 -- the plan is
+  the fill. Planning 154-339 ms, writing the JSON 2 ms. So decision 1's reference is needed: a Data element above the
+  threshold must travel as a `content` reference, not inline.
+- **First-load time, streamed against bulk** (DuckDB, 50,000 rows of a file, `DataLoadsTest`): one row's insert per row
+  12,908 ms; the appender 158 ms. A file load on DuckDB takes the bulk loader since 2026-11-09.
+- **OPEN, dated 2026-11-09:** the `content` namespace (a store keyed by digest, the fill's rows referenced above the
+  threshold, resolved and verified by exec's stores) is not built; M1 stays PENDING until it is. It lands with L4,
+  which needs the same reference for the system catalog's rows (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md), unless the
+  user orders it sooner.
+
+## 10. Brief for the next session: L2 and L3
+
+Start from `main` (PR #92 merged; the follow-up branch's database-judge message fix). This session's disk allowance is
+spent: run in a new session (`docs/CLOUD_SESSIONS.md`).
+
+- **L2, the CSV format first:** `DataRef.format` becomes a typed CSV-format record with the default (decision 6);
+  `base.CsvCells` takes the default's rule (no trimming, an empty or `""` cell NULL, a malformed row refused by name),
+  its equivalence test measured against DuckDB's reader and Commons CSV 1.5 `EXCEL` (not `CSVREAD`); DuckDB's
+  `read_csv` configured so a long or short row is refused (measure `strict_mode`, `null_padding`, `ignore_errors`);
+  S172 closed. No corpus test should move (its one file is clean); run both corpus lanes and the H2 PCT lane.
+- **L2, test data onto loads (M2, M3, M4, M7's seed forms):** `Target.setup` and the seed `Load` become loads with
+  cadences `PER_ACQUISITION` and `BEFORE_STEP`; model-written data inline below the threshold with its digest; the
+  census rows M2, M3, M4, M7-seed deleted (their symbols in `DataMechanismCensusTest`), the deleted count moved with a
+  dated line.
+- **L3, a project's `###Data`:** a `Load(ONCE)` named by identity, made at first use and kept (S171); the inline
+  `Project.made` deleted; census row M1.
+- **Each slice:** every lane green (local; CI on every OS; the warm lane sessions for the lanes CI does not run, as
+  round 25 did), its deletions done, its guard hard, its record in `docs/GATES.md`.

@@ -349,6 +349,7 @@ export function extendWindow(rel: Relation, name: string, w: WindowSpec): Relati
   switch (w.fn) {
     case 'sum': spec = agg(name, pwr(read(r)), reduce('plus')); break;
     case 'average': spec = agg(name, pwr(read(r)), reduce('average')); break;
+    case 'median': spec = agg(name, pwr(read(r)), reduce('median')); break;
     case 'min': spec = agg(name, pwr(read(r)), reduce('min')); break;
     case 'max': spec = agg(name, pwr(read(r)), reduce('max')); break;
     case 'count': spec = agg(name, pwr(read(r)), reduce('count')); break;

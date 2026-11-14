@@ -1,0 +1,118 @@
+package org.finos.legend.lite.pct.extension;
+
+import org.junit.jupiter.api.Test;
+
+import java.math.BigDecimal;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Random;
+
+/** A local measurement, never committed: the dialect's Float text against Java's, over many doubles. */
+class BigQueryFloatTextProbe {
+
+    /** The dialect's rendered text of CAST(x AS VARCHAR) for a DOUBLE x (BigQuery.floatText, as rendered). */
+    private static final String EXPR = "(SELECT CASE WHEN IS_NAN(`__fv`) OR IS_INF(`__fv`) THEN CAST(`__fv` AS STRING) WHEN `__fv` = 0 OR (ABS(`__fv`) >= 1e-4 AND ABS(`__fv`) < 1e16) THEN (CASE WHEN STRPOS(`__fr`, '.') = 0 THEN CONCAT(`__fr`, '.0') ELSE `__fr` END) ELSE CAST(`__fv` AS STRING) END FROM (SELECT `__fv`, CAST(CASE WHEN SAFE_CAST(CAST(ROUND(`__fn`, 14 - `__fe`) AS STRING) AS FLOAT64) = `__fv` THEN ROUND(`__fn`, 14 - `__fe`) WHEN SAFE_CAST(CAST(ROUND(`__fn`, 15 - `__fe`) AS STRING) AS FLOAT64) = `__fv` THEN ROUND(`__fn`, 15 - `__fe`) ELSE ROUND(`__fn`, 16 - `__fe`) END AS STRING) AS `__fr` FROM (SELECT `__fv`, `__fn`, CASE WHEN `__fn` IS NULL OR `__fn` = 0 THEN 0 WHEN ABS(`__fn`) >= 1 THEN LENGTH(CAST(TRUNC(ABS(`__fn`)) AS STRING)) - 1 ELSE -1 - LENGTH(REGEXP_EXTRACT(CAST(ABS(`__fn`) AS STRING), '^0\\\\.(0*)')) END AS `__fe` FROM (SELECT `__fv`, SAFE_CAST(`__fv` AS BIGNUMERIC) AS `__fn` FROM (SELECT `t`.`x` AS `__fv`)))))";
+
+    private static String expected(double x) {
+        if (x == 0 || (Math.abs(x) >= 1e-4 && Math.abs(x) < 1e16)) {
+            String plain = new BigDecimal(Double.toString(x)).stripTrailingZeros().toPlainString();
+            return plain.contains(".") ? plain : plain + ".0";
+        }
+        return null; // exponent form: checked by reading it back
+    }
+
+    private static String digits(String s) {
+        String m = s.toLowerCase(java.util.Locale.ROOT).split("e")[0].replace("-", "").replace(".", "");
+        return m.replaceAll("^0+", "").replaceAll("0+$", "");
+    }
+
+    @Test
+    void floatTexts() throws Exception {
+        List<Double> xs = new ArrayList<>(List.of(Math.E, Math.PI, 1.0 / 3, 1.5e15, 2.5e-7, 1e300, -1e-300,
+                Math.cosh(1.5), Math.cosh(100), 123456789123456789.0, 0.1 + 0.2, 3.0, -1.0, 0.0, 1e-4, 9.99e-5, 1e16,
+                9999999999999998.0, 185.46332835263038, 0.982793723247329, 0.5238095238095238, 0.010416666666666666,
+                21.11111111111111, 31.666666666666668, 11.573574828312076, 53126.3144145034, 1.7976931348623157e308,
+                4.9e-324, 2.2250738585072014e-308, 100.0, 1e10, 0.001, 123.456, -0.5, 5e-5, 7.0e15, 1.2345678901234567e-5));
+        Random r = new Random(20261021);
+        for (int i = 0; i < 1500; i++) {
+            double m = r.nextDouble() * (r.nextBoolean() ? 1 : -1);
+            int e = r.nextInt(26) - 8; // 1e-8 .. 1e17: the plain range and both edges
+            xs.add(m * Math.pow(10, e));
+        }
+        for (int i = 0; i < 300; i++) {
+            xs.add(Double.longBitsToDouble(r.nextLong() & 0x7fefffffffffffffL)); // any finite magnitude
+        }
+        int rows = 0, plainOk = 0, plainBad = 0, sciOk = 0, sciBad = 0, sent = 0;
+        List<String> bad = new ArrayList<>();
+        try (Connection c = CloudLane.connect(CloudLane.Cloud.BIGQUERY); Statement st = c.createStatement()) {
+            // the exact decimal of a double, its text, and that text read back
+            try (ResultSet d = st.executeQuery("SELECT CAST(CAST(CAST('185.46332835263038' AS FLOAT64) AS BIGNUMERIC) AS STRING),"
+                    + " CAST(ROUND(CAST(CAST('185.46332835263038' AS FLOAT64) AS BIGNUMERIC), 14) AS STRING),"
+                    + " CAST(CAST('185.46332835263038' AS FLOAT64) AS STRING),"
+                    + " SAFE_CAST('185.46332835263038' AS FLOAT64) = CAST('185.46332835263038' AS FLOAT64),"
+                    + " CAST(CAST(CAST('1.3440585709080678e43' AS FLOAT64) AS STRING) AS STRING)")) {
+                d.next();
+                System.out.println("[bq-float] DIAG bignumeric=" + d.getString(1) + " round14=" + d.getString(2)
+                        + " cast=" + d.getString(3) + " readBack=" + d.getString(4) + " castBig=" + d.getString(5));
+            } catch (Exception e) {
+                System.out.println("[bq-float] DIAG ERROR " + e.getMessage());
+            }
+            for (int from = 0; from < xs.size(); from += 100) {
+                int to = Math.min(xs.size(), from + 100);
+                StringBuilder values = new StringBuilder();
+                for (int i = from; i < to; i++) {
+                    values.append(i == from ? "" : ", ").append("STRUCT(").append(i).append(" AS i, CAST('")
+                            .append(Double.toString(xs.get(i))).append("' AS FLOAT64) AS x)");
+                }
+                String sql = "SELECT `t`.`i`, `t`.`x`, " + EXPR + " AS `s` FROM UNNEST([" + values + "]) AS `t`"
+                        + " ORDER BY `t`.`i`";
+                try (ResultSet rs = st.executeQuery(sql)) {
+                    while (rs.next()) {
+                        rows++;
+                        int i = rs.getInt(1);
+                        double x = rs.getDouble(2);
+                        String s = rs.getString(3);
+                        if (x != xs.get(i)) {
+                            sent++;
+                        }
+                        String want = expected(x);
+                        if (i < 12) {
+                            System.out.println("[bq-float] " + Double.toString(x) + " -> " + s);
+                        }
+                        if (want != null) {
+                            if (want.equals(s)) {
+                                plainOk++;
+                            } else {
+                                plainBad++;
+                                if (bad.size() < 25) {
+                                    bad.add("plain " + Double.toString(x) + " want " + want + " got " + s);
+                                }
+                            }
+                        } else {
+                            boolean same = s != null && !s.isEmpty() && Double.parseDouble(s) == x
+                                    && digits(s).equals(digits(Double.toString(x)));
+                            if (same) {
+                                sciOk++;
+                            } else {
+                                sciBad++;
+                                if (bad.size() < 25) {
+                                    bad.add("sci " + Double.toString(x) + " got " + s);
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    System.out.println("[bq-float] CHUNK " + from + ".." + (to - 1) + " ERROR " + e.getMessage());
+                }
+            }
+        }
+        System.out.println("[bq-float] rows=" + rows + " of " + xs.size() + " plainOk=" + plainOk + " plainBad=" + plainBad
+                + " sciOk=" + sciOk + " sciBad=" + sciBad + " sentDiffers=" + sent);
+        for (String b : bad) {
+            System.out.println("[bq-float] BAD " + b);
+        }
+    }
+}

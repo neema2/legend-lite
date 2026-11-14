@@ -8,6 +8,13 @@
       "files": ["trading/trading.pure", "trading/runtime-duckdb.pure", "trading/trading-data.pure"]
     },
     {
+      "groupId": "demo",
+      "artifactId": "markets",
+      "versionId": "0.0.0",
+      "title": "Markets on the trading model",
+      "files": ["markets/trading-model.pure", "markets/markets-model.pure", "markets/markets-data.pure"]
+    },
+    {
       "groupId": "org.finos.legend.lite.demo",
       "artifactId": "trader-screens",
       "versionId": "local",

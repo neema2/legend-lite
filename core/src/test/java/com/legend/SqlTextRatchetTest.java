@@ -55,7 +55,7 @@ class SqlTextRatchetTest {
 
     private static final Pattern SQL_SHAPE = Pattern.compile(
             "(?i)(\\bselect\\s+\\S.*\\s+from\\b"
-            // create schema (2026-10-13, the dialect program's Phase 0: its blind spot let StatementExecutor's
+            // create schema (2026-10-13, the dialect program's Phase 0: its blind spot let StatementExecutor's (BodyDriver since 2026-10-29)
             // dropAndCreateSchemaInDb text through)
             + "|^\"\\s*(select|create table|create schema|insert into|drop table"
             + "|delete from|alter table)\\s+\\S"
@@ -65,12 +65,12 @@ class SqlTextRatchetTest {
     /** The register: file &rarr; exact SQL-text site count, measured
      * 2026-08-18 (audit §8 seeded 33 with a narrower rule; this rule
      * also counts Ddl — the one registered DDL owner — and
-     * StatementExecutor's engine-text sites). */
+     * StatementExecutor's engine-text sites; BodyDriver since 2026-10-29). */
     private static final Map<String, Integer> REGISTER =
             new LinkedHashMap<>();
 
     static {
-        // (StatementExecutor.java: its two sites were the record-only PRIMARY KEY
+        // (StatementExecutor.java, BodyDriver since 2026-10-29: its two sites were the record-only PRIMARY KEY
         // ALTER strings of a write-only meta ledger — deleted in batch 137)
         // (LineageTreeVerdicts.java: its one site — the tree-print → rows
         // query, DuckDB-only — DELETED in task #14 leg 1, 2026-09-21: the
@@ -81,7 +81,9 @@ class SqlTextRatchetTest {
         // population statement (`select distinct <col> from <table>`) in
         // a GOLDEN — a referee's read of the spec text's shape (the let
         // it populates supplies our rows), never an emission of ours.
-        REGISTER.put("SqlTextVerdicts.java", 1);
+        // (moved 2026-11-09, slice 5: the driver deleted; the recognizer is one of the helpers both halves call, the
+        // test plan's Verdicts -- the planner and the run's text arm read it alike)
+        REGISTER.put("testexecutionplan/Verdicts.java", 1);
         // 0 -> 2 (2026-10-13, the dialect program's Phase 0, docs/DIALECT_LEAK_CENSUS_AND_PLAN_2026_10_12.md): not new
         // sites -- the rule now sees `create schema`, and two were there: dropAndCreateSchemaInDb's H2 text and a
         // schema's create in the module DDL. They go to the dialect (a SqlDdl node) with the program's Phase 3
@@ -132,12 +134,28 @@ class SqlTextRatchetTest {
         // exec/Sessions.java -> exec/MariaDbConnector.java (2026-10-16, the dialect program's Phase 5): the
         // read is MariaDB's connector's (DatabaseConnector.raisedMessage), the owner of its sessions' state
         // (the plan's §4: the connector owns the held raise). exec may not reach the dialect for it
-        // (ArchitectureTest.execsReachIntoPlanningOnlyShrinks), so the statement stays on the execution side
-        REGISTER.put("exec/MariaDbConnector.java", 1);
+        // (ArchitectureTest.execReachesNoPlanning), so the statement stays on the execution side.
+        // 2026-10-29 (D65, the three routings): the connector DECLARES the read and the reset as data
+        // (DatabaseConnector.raiseRecovery) and the seam runs them (JdbcStatements.held); the one SQL-shaped
+        // literal is the same SELECT, the count unmoved
+        // 1 -> 0, row deleted (2026-11-12, C2, D4): the read and the reset are the PLAN's -- MariaDB's dialect
+        // declares them (SqlDialect.raiseReadBack), the target carries them, the seam sends them as written (the
+        // charter's A3(c)); exec holds no SQL text of its own
         // 0 -> 1 (2026-10-16, the Cypher island's zoned date-time leg, docs/CYPHER_STUDY_2026_10_15.md §12.8): no
         // SQL -- Neo4j's own error text "Cannot select datetime from: <value>", which the translator raises as
         // Neo4j does when a datetime is asked of a date or a time; the rule reads its "select ... from"
         REGISTER.put("protocol/cypher/CypherToPure.java", 1);
+        // 0 -> 11 (2026-10-30, the #TS island, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): no SQL -- the timeseries
+        // language's refusals quote its own queries as their fix ("a #TS query is SELECT item, ... FROM source ON
+        // date", "FROM (SELECT *, price * qty AS value FROM trades)"); its Pure is TsToPure's, which writes none.
+        // 11 -> 14 (2026-10-31, a query of the language's own marked AS TS, the user's ruling): its three refusals
+        // quote the marked forms as their fix ("WITH daily AS TS (SELECT ...)", "FROM TS (SELECT ...)",
+        // "SELECT ... FROM source ON date"); still no SQL written
+        REGISTER.put("protocol/ts/TsParser.java", 14);
+        // 0 -> 1 (2026-11-01, Show #TS, docs/TS_ONE_TREE_PLAN_2026_10_31.md D12): no SQL -- the #TS printer writes the
+        // language's own text for a person to read (a flat source's "(SELECT items FROM class WHERE ...)", TsParser's
+        // grammar printed back), never a statement a database runs; the database's SQL stays the compiler's
+        REGISTER.put("protocol/ts/TsPrinter.java", 1);
     }
 
     @Test

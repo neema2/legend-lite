@@ -1,7 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.exec.Row;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -73,7 +72,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
 
             // Verify values: NYC 2011=5000, SAN 2011=2000
             int cityIdx = columnIndex(result, "city");
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 String city = row.get(cityIdx).toString();
                 if ("NYC".equals(city)) {
                     assertPivotValue(result, row, "2011", "total", 5000);
@@ -109,7 +108,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             assertTrue(hasPivotColumn(result, "count"), "Should have 'count' aggregate columns");
 
             int cityIdx = columnIndex(result, "city");
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 String city = row.get(cityIdx).toString();
                 if ("NYC".equals(city)) {
                     // NYC 2011: sum=5000+3000=8000, count=2
@@ -154,11 +153,14 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                     SAN, 2011
                 #->pivot(~[year], ~[cnt:x|1:y|$y->plus()])
                 """);
-            assertTrue(sql.contains("SUM(1)"), "Should use SUM(1) for literal count. Got: " + sql);
+            // the keyed body (B3, 2026-11-11: the text plan is the execution plan's, a keyed result on every database):
+            // each key's count a SUM of the literal 1 where the row is the key's (until then DuckDB's native SUM(1))
+            assertTrue(sql.replace("\"", "").matches("(?s).*SUM\\(CASE WHEN .* = \\? THEN 1 END\\).*"),
+                    "Should use SUM of a literal 1 per key for literal count. Got: " + sql);
 
             assertEquals(2, result.rowCount(), "Should have 2 rows (NYC, SAN)");
             int cityIdx = columnIndex(result, "city");
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 String city = row.get(cityIdx).toString();
                 if ("NYC".equals(city)) {
                     assertPivotValue(result, row, "2011", "cnt", 2);
@@ -195,7 +197,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
 
             assertEquals(2, result.rowCount(), "Should have 2 rows (NYC, SAN)");
             int cityIdx = columnIndex(result, "city");
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 String city = row.get(cityIdx).toString();
                 if ("NYC".equals(city)) {
                     // NYC 2011: (100*3) + (200*2) = 300 + 400 = 700
@@ -251,7 +253,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             // Aggregated values per year:
             //   2020 → USA/NYC=150 (100+50), USA/LA=200, UK/LDN=NULL
             //   2021 → USA/NYC=NULL,         USA/LA=NULL, UK/LDN=300
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 int year = ((Number) row.get(yearIdx)).intValue();
                 if (year == 2020) {
                     assertEquals(150, ((Number) row.get(usaNycIdx)).intValue(), "2020 USA/NYC = 100+50");
@@ -292,7 +294,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             assertTrue(usaNycSum >= 0 && usaNycCount >= 0 && ukLdnSum >= 0 && ukLdnCount >= 0,
                     "Expected spread columns for both (country,city) × {sum,count}: got " + names);
 
-            Row row = result.rows().get(0);
+            List<Object> row = result.rows().get(0);
             // USA/NYC has 5000 + 3000 → sum=8000, count=2
             assertEquals(8000, ((Number) row.get(usaNycSum)).intValue(),   "USA/NYC sum");
             assertEquals(2,    ((Number) row.get(usaNycCount)).intValue(), "USA/NYC count");
@@ -330,7 +332,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             assertTrue(col2011 >= 0, "Should have 2011 pivot column");
             assertTrue(col2012 >= 0, "Should have 2012 pivot column");
 
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 Object country = row.get(countryIdx);
                 if (country != null && "UK".equals(country.toString())) {
                     // UK only has 2011 data (LDN=3000), no 2012 data
@@ -361,7 +363,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             int col2020 = findColumnContaining(colNames, "2020");
             int col2021 = findColumnContaining(colNames, "2021");
 
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 String name = row.get(nameIdx).toString();
                 if ("Alice".equals(name)) {
                     assertEquals(100, ((Number) row.get(col2020)).intValue());
@@ -395,13 +397,13 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             // All pivot columns should report Integer type, not String
             for (var col : result.columns()) {
                 if (col.name().contains("__|__")) {
-                    assertEquals("Integer", col.pureType().typeName(),
-                            "Pivot column '" + col.name() + "' should be Integer, not " + col.pureType().typeName());
+                    assertEquals("Integer", col.type(),
+                            "Pivot column '" + col.name() + "' should be Integer, not " + col.type());
                 }
             }
 
             // Verify actual values are numeric (not String)
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 for (int i = 0; i < result.columns().size(); i++) {
                     if (result.columns().get(i).name().contains("__|__")) {
                         Object val = row.get(i);
@@ -429,7 +431,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
 
             for (var col : result.columns()) {
                 if (col.name().contains("__|__")) {
-                    assertEquals("Integer", col.pureType().typeName(),
+                    assertEquals("Integer", col.type(),
                             "Pivot column '" + col.name() + "' should be Integer");
                 }
             }
@@ -459,7 +461,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             assertTrue(hasColumn(result, "combined"), "Should have 'combined' column");
 
             int combinedIdx = columnIndex(result, "combined");
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 String combined = (String) row.get(combinedIdx);
                 assertTrue(combined.endsWith("_test"),
                         "Combined column should end with '_test': " + combined);
@@ -525,7 +527,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
 
             // USA has NYC(5000) + SAN(2600) = 7600 for 2011
             int countryIdx = columnIndex(result, "country");
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 String country = row.get(countryIdx).toString();
                 if ("USA".equals(country)) {
                     // NYC 2011=5000, SAN 2011=2600 → grouped = 7600
@@ -621,7 +623,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
             assertTrue(col2012 >= 0, "Should have 2012 pivot column");
 
             // Find rows by city
-            for (Row row : result.rows()) {
+            for (List<Object> row : result.rows()) {
                 String city = row.get(cityIdx).toString();
                 String country = row.get(countryIdx).toString();
                 if ("LDN".equals(city) && "UK".equals(country)) {
@@ -647,25 +649,29 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
     class SqlGeneration {
 
         @Test
-        @DisplayName("single-column pivot SQL — PIVOT ON col USING agg AS alias")
+        @DisplayName("single-column pivot SQL — the keys read from the column itself, a SUM per key, named <key>__|__alias")
         void testSingleColumnPivotSql() throws SQLException {
-            String sql = generateSql("""
+            // B3, 2026-11-11: the text plan renders from the execution plan, which runs a pivot whose columns the data
+            // names as a KEYED result on every database -- its keys statement first, then its body written once per key
+            // (until then the text was DuckDB's native PIVOT ... ON ... USING, which no plan runs)
+            var keyed = generateKeyed("""
                 #TDS
                     city, year, treePlanted
                     NYC, 2011, 5000
                     SAN, 2012, 2000
                 #->pivot(~[year], ~[total:x|$x.treePlanted:y|$y->plus()])
                 """);
-
-            assertTrue(sql.contains("PIVOT"), "Should contain PIVOT keyword");
-            assertTrue(sql.contains("ON \"year\""), "Should pivot ON the source's year column directly (no synthetic key)");
-            assertTrue(sql.contains("USING"), "Should contain USING keyword");
-            assertTrue(sql.contains("SUM("), "Should use SUM aggregate");
-            assertTrue(sql.contains("\"_|__total\""), "Should alias as \"_|__total\"");
+            String keys = keyed.keys().statement().replace("\"", "");
+            String body = keyed.body().statement().replace("\"", "");
+            assertTrue(keys.contains("SELECT DISTINCT _tds0.year AS _pct_k"),
+                    "the keys are the source's year column directly (no synthetic key): " + keys);
+            assertTrue(body.matches("(?s).*SUM\\(CASE WHEN CAST\\(_tds0.year AS \\w+.*\\) = \\? THEN _tds0.treePlanted END\\).*"),
+                    "each key's SUM of its rows' value: " + body);
+            assertTrue(keys.contains("'__|__total'"), "each per-key column named <key>__|__total: " + keys);
             // Single-column pivot must NOT take the multi-column path:
             // no SelectExcept wrapper, no separator concatenation.
-            assertFalse(sql.contains("EXCLUDE"), "Single-column pivot should not emit EXCLUDE");
-            assertFalse(sql.contains("'__|__'"),
+            assertFalse(keys.contains("EXCLUDE") || body.contains("EXCLUDE"), "Single-column pivot should not emit EXCLUDE");
+            assertFalse(keys.contains("'__|__'") || body.contains("'__|__'"),
                     "Single-column pivot should not synthesize a composite key");
         }
 
@@ -687,7 +693,14 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
                     "EXCLUDE should drop the source pivot columns");
             assertTrue(sql.contains("'__|__'"),
                     "Should concatenate pivot columns with __|__ separator");
-            assertTrue(sql.contains("\"_|__total\""), "Should alias aggregate as \"_|__total\"");
+            // B3, 2026-11-11: the keyed plan's keys statement names each per-key column <key>__|__total (until then
+            // DuckDB's native PIVOT aliased the aggregate "_|__total")
+            assertTrue(generateKeyed("""
+                #TDS
+                    country, city, year, sales
+                    USA, NYC, 2020, 100
+                #->pivot(~[country, city], ~[total:x|$x.sales:y|$y->plus()])
+                """).keys().statement().contains("'__|__total'"), "Should name each per-key column <key>__|__total");
         }
     }
 
@@ -713,19 +726,19 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
     // ==================== Utilities ====================
 
     /** Checks if a column with the given exact name exists. */
-    private boolean hasColumn(ExecutionResult result, String name) {
+    private boolean hasColumn(Lean.Result result, String name) {
         return result.columns().stream().anyMatch(c -> c.name().equals(name));
     }
 
     /** Checks if any column name contains the pivot __|__ separator + suffix. */
-    private boolean hasPivotColumn(ExecutionResult result, String suffix) {
+    private boolean hasPivotColumn(Lean.Result result, String suffix) {
         return result.columns().stream()
                 .anyMatch(c -> c.name().contains("__|__" + suffix));
     }
 
     /** Finds column index by exact name (the engine PRESENTATION of a
      * pivot name — quotes as part of the name — matches too). */
-    private int columnIndex(ExecutionResult result, String name) {
+    private int columnIndex(Lean.Result result, String name) {
         String presented = com.legend.compiler.element.type.Type
                 .RelationType.presentPivotName(name);
         for (int i = 0; i < result.columns().size(); i++) {
@@ -748,7 +761,7 @@ public class PivotCheckerTest extends AbstractDatabaseTest {
      * Asserts a pivot value in a row by looking up the dynamic column name.
      * Dynamic columns are named: {pivotValue}__|__{aggAlias}
      */
-    private void assertPivotValue(ExecutionResult result, Row row,
+    private void assertPivotValue(Lean.Result result, List<Object> row,
                                    String pivotValue, String aggAlias, int expected) {
         // ENGINE presentation (pureToSQLQuery.pure:2985, re-pinned
         // 2026-08-19): separator-bearing pivot names carry literal

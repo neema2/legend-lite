@@ -3,9 +3,9 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -57,8 +57,8 @@ class AnyLiteralByteDecidabilityTest {
     }
 
     private static long size(String query) throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL, query, "m::RT", conn);
-        return ((Number) ((ExecutionResult.Scalar) r).value()).longValue();
+        Lean.Result r = Lean.run(MODEL, query, "m::RT", conn);
+        return ((Number) r.one()).longValue();
     }
 
     @Test

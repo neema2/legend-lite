@@ -714,7 +714,18 @@ public final class Json {
      *  table was spelled three times, differing ONLY in hex case; it lived
      *  in protocol.Escapes until 2026-09-26, when JSON's own module took it. */
     public static void escapeTo(Appendable out, String s, boolean upperHex) throws IOException {
-        for (int i = 0; i < s.length(); i++) {
+        // the run that needs no escape (most of every text: no quote, backslash or control) appended whole, not a
+        // character at a time (the payoff measurement, 2026-11-01: a tenth of the JSON writer's time)
+        int plain = 0;
+        while (plain < s.length()) {
+            char c = s.charAt(plain);
+            if (c < 0x20 || c == '"' || c == '\\') {
+                break;
+            }
+            plain++;
+        }
+        out.append(s, 0, plain);
+        for (int i = plain; i < s.length(); i++) {
             char c = s.charAt(i);
             switch (c) {
                 case '"' -> out.append("\\\"");
@@ -991,7 +1002,9 @@ public final class Json {
             String num = src.substring(start, pos);
             if (isFloat) {
                 java.math.BigDecimal exact = new java.math.BigDecimal(num);
-                return new Num(exact.longValue(), exact.doubleValue(), false, exact, num);
+                // the double from the TOKEN: a BigDecimal has no negative zero, and "-0.0" is one (2026-10-29, the
+                // Cypher parity lanes on the twin's reader: Neo4j's -0.0 read back as 0.0)
+                return new Num(exact.longValue(), Double.parseDouble(num), false, exact, num);
             }
             // an integer past a long (DuckDB writes UINT64's max) is still a JSON number: kept exact
             if (num.length() >= 19) {

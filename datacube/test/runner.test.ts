@@ -15,6 +15,7 @@ import { FakeEngine } from './fake-engine.ts';
 import { fakeParse, fakePrint, limitsOf } from './fake-planner.ts';
 import { fromElement, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import { variable } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 /** A cube query, as DataCube builds one. */
 const Q = fromElement('demo::T').select(['region']).lambda();
@@ -57,7 +58,7 @@ class StubPlanner implements Planner {
   readonly queries: Lambda[] = [];
   async plan(query: Lambda): Promise<Plan> {
     this.queries.push(query);
-    return { sql: 'SELECT 1', columns: [] };
+    return { sql: unplanned('SELECT 1'), columns: [] };
   }
   async relationType(): Promise<PlanColumn[]> {
     return [];
@@ -272,7 +273,7 @@ describe('a flat cube read by a window', () => {
   class CountingPlanner extends StubPlanner {
     override async plan(query: Lambda): Promise<Plan> {
       this.queries.push(query);
-      return { sql: JSON.stringify(query).includes(TOTAL_ROWS_COLUMN) ? 'COUNT' : 'ROWS', columns: [] };
+      return { sql: unplanned(JSON.stringify(query).includes(TOTAL_ROWS_COLUMN) ? 'COUNT' : 'ROWS'), columns: [] };
     }
   }
 

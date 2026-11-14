@@ -370,6 +370,11 @@ class TypedSpecChildrenTest {
             // declared store type — a value, not a typed child
             return new com.legend.sql.SqlDdl.ColumnType.Plain(com.legend.sql.SqlDdl.ColumnType.Kind.OTHER);
         }
+        if (type == com.legend.compiler.spec.typed.TypedTds.Parameter.class) {
+            // TypedTds.parameters (the test-is-the-product plan's M3f, 2026-10-31): a cell bound when the plan runs --
+            // a value, not a typed child
+            return new com.legend.compiler.spec.typed.TypedTds.Parameter(0, 0, "#stamp0");
+        }
         throw new IllegalStateException("TypedSpecChildrenTest needs a dummy rule for "
                 + type.getName() + " — add one when introducing new node component types");
     }

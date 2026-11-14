@@ -3,10 +3,10 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
 import com.legend.testcases.CypherGraph;
 import com.legend.testcases.SqlParity;
@@ -27,9 +27,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * direction, a MERGE's by the stored relationship's source, which an undirected MERGE matches either way (the rows
  * derived by hand from Cypher's semantics; the TCK's one case, Merge5/[11], is a MERGE that creates).
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class CypherNativeEndsTest {
 
-    private static final TestBackend PLATFORM = TestBackends.platform();
+    private static final TestBackend PLATFORM = LaneFloor.backend();
 
     @Test
     void theNodesAtAWrittenRelationshipsEndsAreItsStartAndItsEnd() throws Exception {
@@ -73,11 +74,11 @@ class CypherNativeEndsTest {
     }
 
     /** The statement's rows, in a transaction rolled back after (each write leaves the graph as it was). */
-    private static ExecutionResult written(Connection session, String model, String cypher) throws Exception {
+    private static Lean.Result written(Connection session, String model, String cypher) throws Exception {
         session.setAutoCommit(false);
         try {
             // (the graph the island reads and writes: the DataSpace marked native)
-            return new QueryService().execute(model, "#Cypher{USE " + CypherGraph.DATASPACE + " " + cypher + "}#",
+            return Lean.run(model, "#Cypher{USE " + CypherGraph.DATASPACE + " " + cypher + "}#",
                     CypherGraph.RUNTIME, session);
         } finally {
             session.rollback();
@@ -85,11 +86,11 @@ class CypherNativeEndsTest {
         }
     }
 
-    private static List<String> rows(ExecutionResult result) {
+    private static List<String> rows(Lean.Result result) {
         List<String> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<String> cells = new ArrayList<>();
-            for (Object value : row.values()) {
+            for (Object value : row) {
                 cells.add(String.valueOf(value));
             }
             rows.add(String.join("|", cells));

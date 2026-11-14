@@ -16,6 +16,7 @@ import { joinSummary, joinTitle, readJoinHow, summaryWords, type JoinHow } from 
 import { joinInputOf } from '../page-commands.ts';
 import { pageBoxName } from '../flow-boxes.ts';
 import { resolvedSource } from '../live-inputs.ts';
+import { boundIn } from '../page-parameters.ts';
 import { layoutTiles, readPage, type PageDocument } from '../page-document.ts';
 import { CubeRefusal } from '../snapshot.ts';
 import { LitePlanner } from '../lite-planner.ts';
@@ -124,7 +125,8 @@ export async function joinCube(spec: string): Promise<string> {
     const source: JoinSource = {
       _type: 'join', name: joinTitle(s.how, named(s.mine, s.left), named(s.theirs, s.right)), left: s.left, right: s.right, how: s.how, columns: [],
     };
-    const opened = await openJoin(source, o);
+    // opened with the page's parameters' values (page-parameters.ts boundIn); written as the page keeps it, `$name`
+    const opened = await openJoin(boundIn(source, s.page.parameters ?? []), o);
     const made = rebuilt(undefined, opened.relation, opened.columns, source.name, gridCapped(gridsOnPage));
     // written as the screen holds the grid it opens (cube-state.ts openedState), as headless gridCube writes one
     const state = openedState(made.snapshot, made.configuration, made.tree ?? newGridTree(made.configuration));
@@ -241,7 +243,7 @@ export async function rowsOpenedOn(source: RowsSource, tables: readonly string[]
 export async function joinSides(spec: string): Promise<string> {
   const s = await inputsOf(spec);
   return using(async (o) => {
-    const inputs = await openInputs(s.left, s.right, o);
+    const inputs = await openInputs(boundIn(s.left, s.page.parameters ?? []), boundIn(s.right, s.page.parameters ?? []), o);
     return toJson({ left: inputs.left, right: inputs.right, notes: inputs.notes });
   }, s.tables);
 }
@@ -254,7 +256,7 @@ export async function joinSides(spec: string): Promise<string> {
 export async function joinQuestions(spec: string): Promise<string> {
   const s = await read(spec);
   return using(async (o) => {
-    const inputs = await openInputs(s.left, s.right, o);
+    const inputs = await openInputs(boundIn(s.left, s.page.parameters ?? []), boundIn(s.right, s.page.parameters ?? []), o);
     // each question's rows read by the host's plan-and-run, the one way every row is read on the host (D16)
     const calls = hostCalls();
     const rows = pythonRunner(hostEngine(calls), inputs.model, inputs.runtime, {}, () => hostWorker(calls));

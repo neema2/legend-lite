@@ -1,8 +1,8 @@
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -73,10 +73,10 @@ class ResolveSerializeTest {
     }
 
     private String graph(String query) throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL, query, "m::RT", conn);
-        assertInstanceOf(ExecutionResult.Graph.class, r,
+        Lean.Result r = Lean.run(MODEL, query, "m::RT", conn);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, r.shape(),
                 "a serialize/bare-class root must produce the GRAPH shape");
-        return ((ExecutionResult.Graph) r).json();
+        return r.json();
     }
 
     @Test

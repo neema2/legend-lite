@@ -83,12 +83,31 @@ public final class PlanCases {
                     "#>{s::DB." + table + "}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending())",
                     java.util.Map.of("t", java.time.LocalDateTime.of(2024, 1, 2, 10, 30, 0, 123_456_789))),
             // a parameter whose value decides its type: bound as its value's kind
-            new Parameterised("d: Date[1]", "let d = %2024-01-02;",
+            // (its lets form names the declared type, so the register tells it from the StrictDate parameter's case)
+            new Parameterised("d: Date[1]", "let d = %2024-01-02->cast(@Date);",
                     "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
                     java.util.Map.of("d", java.time.LocalDate.of(2024, 1, 2))),
             new Parameterised("d: Date[1]", "let d = %2024-01-02T10:30:00;",
                     "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
                     java.util.Map.of("d", java.time.LocalDateTime.of(2024, 1, 2, 10, 30))),
+            // dates at the ends of the calendar (the correctness re-audit's 1, 2026-11-09: a milestoned table's
+            // 9999-12-31 and the year 1, each a parameter's value, and a value compared with one): every database holds
+            // them, as its literal does
+            new Parameterised("t: DateTime[1]", "let t = %9999-12-31T23:59:59;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending())",
+                    java.util.Map.of("t", java.time.LocalDateTime.of(9999, 12, 31, 23, 59, 59))),
+            new Parameterised("t: DateTime[1]", "let t = %0001-01-01T00:00:00;",
+                    "#>{s::DB." + table + "}#->filter(r|$r.ID < 3)->extend(~t: r|$t)->select(~[ID, t])->sort(~ID->ascending())",
+                    java.util.Map.of("t", java.time.LocalDateTime.of(1, 1, 1, 0, 0, 0))),
+            new Parameterised("d: StrictDate[1]", "let d = %9999-12-31;",
+                    "#>{s::DB." + table + "}#->extend(~d: r|$d)->select(~[ID, d])->sort(~ID->ascending())",
+                    java.util.Map.of("d", java.time.LocalDate.of(9999, 12, 31))),
+            new Parameterised("d: Date[1]", "let d = %9999-12-31->cast(@Date);",
+                    "#>{s::DB." + table + "}#->filter(r|$d > %2024-01-02T10:30:00)->select(~[ID])->sort(~ID->ascending())",
+                    java.util.Map.of("d", java.time.LocalDate.of(9999, 12, 31))),
+            new Parameterised("t: DateTime[1]", "let t = %2024-01-02T10:30:00;",
+                    "#>{s::DB." + table + "}#->filter(r|$t < %9999-12-31T00:00:00)->select(~[ID])->sort(~ID->ascending())",
+                    java.util.Map.of("t", java.time.LocalDateTime.of(2024, 1, 2, 10, 30))),
             // a Number: a whole one, and a decimal one (a Float's literal)
             new Parameterised("n: Number[1]", "let n = 1;",
                     "#>{s::DB." + table + "}#->filter(r|$r.ID > $n)->select(~[ID])->sort(~ID->ascending())",
@@ -205,104 +224,63 @@ public final class PlanCases {
                         java.util.Map.of("ts", List.of(java.time.LocalDateTime.of(2024, 1, 5, 0, 0)))));
     }
 
-    /** {@link #run(ExecutionPlan, Connection, java.util.Map)} for a plan of no parameters. */
-    public static String run(ExecutionPlan plan, Connection c) throws java.io.IOException {
-        return run(plan, c, java.util.Map.of());
+    /** How a plan's answer is written in these tests: lite's CSV and JSON rows over its typed rows
+     *  (docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */
+    public enum Written {
+        CSV, JSON;
+
+        /** This form's writer of an answer of {@code shape} onto {@code out} (a plan streamed by the runner directly). */
+        public com.legend.result.ResultSink writer(java.io.Writer out, ExecutionPlan.TdsResult.Shape shape) {
+            return output(out).writerFor(shape);
+        }
+
+        /** This form onto {@code out}, as data: the result library makes its writer from the plan. */
+        public com.legend.result.Output output(java.io.Writer out) {
+            return switch (this) {
+                case CSV -> new com.legend.result.Output.Csv(out);
+                case JSON -> new com.legend.result.Output.JsonRows(out);
+            };
+        }
     }
 
-    /** {@code plan} run by the runner ({@code exec.PlanRunner}) on {@code c} with {@code values} (as legend-engine's
-     *  execute API makes them), the target's setup run on {@code c} first: the text it writes. */
-    public static String run(ExecutionPlan plan, Connection c, java.util.Map<String, ?> values)
-            throws java.io.IOException {
-        java.io.StringWriter out = new java.io.StringWriter();
-        ExecutionPlan.Target target = switch (plan.root()) {
-            case ExecutionPlan.TextResult text -> text.sql().target();
-            case ExecutionPlan.Keyed keyed -> keyed.keys().target();
-            case ExecutionPlan.TdsResult tds -> tds.sql().target();
-            case ExecutionPlan.Sequence s -> throw new IllegalArgumentException("a plan of several steps");
-            case ExecutionPlan.Update u -> u.sql().target();
-            case ExecutionPlan.Check k -> k.sql().target();
-        };
-        com.legend.exec.PlanRunner.run(plan, values, com.legend.exec.PlanSessions.setUp(c, target), out);
+    /** {@code plan}'s TYPED answer on {@code c} (the target's setup run on {@code c} first), each row on its own line,
+     *  its cells comma-joined in Pure's print forms ({@code result.CellText.pure}: the writers' one rule), a null
+     *  {@code null}: the value text a judge of a value compares. */
+    public static String pureText(ExecutionPlan plan, Connection c) throws java.io.IOException {
+        com.legend.exec.PlanRunner.Rows rows = com.legend.exec.PlanRunner.rows(plan, java.util.Map.of(),
+                com.legend.exec.PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()), java.util.UUID.randomUUID());
+        StringBuilder out = new StringBuilder();
+        for (List<Object> row : rows.rows()) {
+            out.append(out.isEmpty() ? "" : "\n");
+            for (int i = 0; i < row.size(); i++) {
+                Object cell = row.get(i);
+                out.append(i == 0 ? "" : ",").append(cell == null ? "null"
+                        : com.legend.result.CellText.pure(cell, rows.columns().get(i)));
+            }
+        }
         return out.toString();
     }
 
-    /**
-     * Today's path for {@code TypedQuery.Output.TDS_TEXT} (2026-10-17): the legacy route under
-     * {@code ExecuteOptions.TDS_TEXT} answers a relation as its TDS text and a value as the value itself, so a
-     * value's expected text is spelled here as the one-column relation {@code value} -- the header from the result's
-     * type, each value's own text a row (loosely: {@code String.valueOf}; the plan path's TDS text is the judge of
-     * record on the PCT lane, where every print form is pinned).
-     */
-    public static String todayTdsText(String model, String query, String runtime, Connection c) {
-        com.legend.exec.ExecutionResult r = java.util.Objects.requireNonNull(com.legend.Execution.execute(model, query,
-                (com.legend.model.ImportScope) null, runtime, c, com.legend.ExecuteOptions.TDS_TEXT));
-        return switch (r) {
-            case com.legend.exec.ExecutionResult.TdsText t -> t.text();
-            case com.legend.exec.ExecutionResult.Scalar s -> "value:" + s.returnType().typeName() + "[1]\n"
-                    + (s.value() == null ? "null" : String.valueOf(s.value()));
-            case com.legend.exec.ExecutionResult.Collection col -> {
-                StringBuilder sb = new StringBuilder("value:" + col.returnType().typeName() + "[1]");
-                for (Object v : col.values()) {
-                    sb.append('\n').append(v == null ? "null" : String.valueOf(v));
-                }
-                yield sb.toString();
-            }
-            case com.legend.exec.ExecutionResult.Tabular t -> throw new IllegalStateException(
-                    "a tabular result under the TDS text option: the wrap missed a relation root");
-            case com.legend.exec.ExecutionResult.Graph g -> throw new IllegalStateException(
-                    "graph results have no TDS text");
-        };
+    /** Today's path's answer to {@code query} on {@code c}, as the server runs a query (the result boundary program's
+     *  {@code Execution.run}, the session as the caller set it up), written in {@code written}. */
+    public static String today(String model, String query, String runtime, Connection c, Written written)
+            throws java.io.IOException {
+        java.io.StringWriter out = new java.io.StringWriter();
+        com.legend.Execution.run(model, query, runtime, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)), written.output(out));
+        return out.toString();
     }
 
-    /**
-     * The TDS text plan ({@code TypedQuery.Output.TDS_TEXT}) answers as today's path: its rows are today's rows, and
-     * its header is the plan's own typed relation. The header is judged against the plan's relation and not the
-     * let-query's text because a let-bound literal's type carries its digits ({@code Decimal(38,2)}) where a declared
-     * parameter's does not ({@code Decimal}): each query's header is its own typed relation, and the rows are the
-     * judge of the answer.
-     */
-    public static void assertTdsTextAnswersAsToday(String model, String query, String runtime, Connection today,
-            ExecutionPlan plan, Connection planned, java.util.Map<String, ?> values, String what)
-            throws java.io.IOException {
-        String actual = run(plan, planned, values);
-        if (plan.root() instanceof ExecutionPlan.Keyed) {
-            // a dynamic pivot's probe plan (2026-10-20): its columns are its keys', named by the database, so the text
-            // is judged whole against today's
-            String expected = todayTdsText(model, query, runtime, today);
-            if (!expected.equals(actual)) {
-                throw new AssertionError(what + ": the TDS text\nexpected: " + expected + "\nactual: " + actual);
-            }
-            return;
-        }
-        ExecutionPlan.Relation relation = (ExecutionPlan.Relation) ((ExecutionPlan.TextResult) plan.root()).type();
-        ExecutionPlan.Relation lets = (ExecutionPlan.Relation) ((ExecutionPlan.TextResult) com.legend.Compiler.query(
-                com.legend.Compiler.compileModel(model), query)
-                .executionPlan(runtime, com.legend.TypedQuery.Output.TDS_TEXT).root()).type();
-        if (relation.equals(lets)) {
-            String expected = todayTdsText(model, query, runtime, today);
-            if (!expected.equals(actual)) {
-                throw new AssertionError(what + ": the TDS text\nexpected: " + expected + "\nactual: " + actual);
-            }
-            return;
-        }
-        // the let-bound literal types its column more precisely than the declared parameter (Decimal(38,2) against
-        // Decimal; StrictDate against Date), and the TDS text prints by the column's type: the two queries' texts
-        // differ by design, so the plan's is judged by its header alone, the rows being the declared type's print
-        // that no path with lets spells
-        int nl = actual.indexOf('\n');
-        String[] header = (nl < 0 ? actual : actual.substring(0, nl)).split(",");
-        if (header.length != relation.columns().size()) {
-            throw new AssertionError(what + ": the TDS header " + java.util.Arrays.toString(header) + " is not the"
-                    + " plan's relation " + relation.columns());
-        }
-        for (int i = 0; i < header.length; i++) {
-            ExecutionPlan.Column c = relation.columns().get(i);
-            if (!header[i].endsWith(":" + c.type() + "[1]") && !header[i].endsWith(":" + c.type() + "[0..1]")) {
-                throw new AssertionError(what + ": the TDS header column '" + header[i] + "' is not the plan's "
-                        + c.name() + ":" + c.type());
-            }
-        }
+    /** {@code plan}'s TYPED answer run by the runner on {@code c} with {@code values}, the target's setup run on
+     *  {@code c} first, and written by the writer {@code writerOf} makes for the answer's shape (lite's CSV, its JSON
+     *  rows: docs/RESULT_BOUNDARY_PROGRAM_2026_10_26.md, the end state of 2026-10-27). */
+    public static String write(ExecutionPlan plan, Connection c, java.util.Map<String, ?> values,
+            java.util.function.BiFunction<java.io.Writer, ExecutionPlan.TdsResult.Shape, com.legend.result.ResultSink>
+                    writerOf) throws java.io.IOException {
+        java.io.StringWriter out = new java.io.StringWriter();
+        com.legend.exec.PlanRunner.stream(plan, values,
+                com.legend.exec.PlanSessions.acquired(com.legend.testbackend.TestSessions.over(c), plan.answerSql().target()), writerOf.apply(out, plan.answerShape()), java.util.UUID.randomUUID());
+        return out.toString();
     }
 
     /** A TDS text's rows: the lines after the header. */

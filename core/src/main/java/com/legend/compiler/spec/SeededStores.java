@@ -2,6 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.builtin.Subsumed;
 import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.spec.typed.TypedNativeCall;
@@ -15,7 +17,7 @@ import java.util.Set;
 /**
  * The STORES a typed program seeds, transitively through user calls — a
  * fact the platform states about a program (beside
- * {@code StatementExecutor.containsEffect}, the same walk), read by the
+ * {@code BodyDriver.containsEffect}, the same walk), read by the
  * corpus runner's fixture-on-demand: the engine's suite runs a package's
  * BeforePackage setups only for that package's tests, so a golden whose
  * mapping reads another package's store was judged by text; with this

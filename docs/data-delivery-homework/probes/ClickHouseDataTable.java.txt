@@ -1,0 +1,103 @@
+// The data: session-table probe for ClickHouse (B, the orchestrator's item (b) of 2026-11-11; to be run by the ClickHouse lane's
+// session at the B checkpoint's lane round). Usage: java -cp <the ClickHouse JDBC driver>:. ClickHouseDataTableProbe '<jdbc url>' [user] [password]
+// What it asks, in order, each answer printed (a refusal printed, never hidden):
+//   1. a USER's permanent table of the session table's name, holding the user's row;
+//   2. the session table made as lite would make it (below), two records filled -- a quote and a line break in their
+//      JSON text -- and read back ordered by their place;
+//   3. the session table dropped as lite would drop it, then the user's table read: its row must be there;
+//   4. the drop run again where the session holds no table of the name: it must raise nothing and drop nothing of
+//      the user's; and a second connection must not see the session's table while it lives.
+// The SQL is the candidate spelling, written from the database's documentation before it was measured (its output below)
+// decides SqlDialect.dataTable for ClickHouse, or its refusal by name (a register row).
+// each connection's URL with {session} replaced by an id of its own (run once with &clickhouse_setting_session_id={session}, once
+// without); a ClickHouse TEMPORARY table lives in the HTTP session (the JDBC driver's session_id): the probe shows whether lite's connector keeps one session for a plan; a backslash is an escape in ClickHouse string literals.
+import java.sql.*;
+
+public class ClickHouseDataTableProbe {
+    // each connection its own HTTP session where the URL names one: {session} replaced by a new id per connection
+    static String url(String u) {
+        return u.replace("{session}", "probe_" + java.util.UUID.randomUUID());
+    }
+
+    static final String USER_TABLE = "CREATE TABLE legend_data_probe (data String) ENGINE = Memory";
+    static final String[] MAKE = new String[] {"DROP TEMPORARY TABLE IF EXISTS legend_data_probe", "CREATE TEMPORARY TABLE legend_data_probe (data String, u_frame_ord__ Int32)"};
+    static final String[] INSERT = new String[] {"INSERT INTO legend_data_probe VALUES ('{\"t\":\"it''s\"}', 0), ('{\"t\":\"a\\\\nb\"}', 1)"};
+    static final String READ = "SELECT data, u_frame_ord__, JSONExtractString(data, 't') FROM legend_data_probe ORDER BY u_frame_ord__";
+    static final String DROP = "DROP TEMPORARY TABLE IF EXISTS legend_data_probe";
+
+    public static void main(String[] a) throws Exception {
+        try (Connection c = a.length > 1 ? DriverManager.getConnection(url(a[0]), a[1], a.length > 2 ? a[2] : null)
+                : DriverManager.getConnection(url(a[0])); Statement s = c.createStatement()) {
+            step("1 the user's table", s, USER_TABLE);
+            step("1 the user's row", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "INSERT INTO legend_lite_probe.legend_data_probe VALUES ('the user''s row')"
+                    : "INSERT INTO legend_data_probe VALUES ('the user''s row')");
+            for (String m : MAKE) step("2 make", s, m);
+            for (String i : INSERT) step("2 fill", s, i);
+            query("2 read", s, READ);
+            try (Connection other = a.length > 1 ? DriverManager.getConnection(url(a[0]), a[1], a.length > 2 ? a[2] : null)
+                    : DriverManager.getConnection(url(a[0])); Statement o = other.createStatement()) {
+                query("4 another connection reads it (must be refused)", o, READ);
+            }
+            step("3 drop", s, DROP);
+            query("3 the user's table", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "SELECT data FROM legend_lite_probe.legend_data_probe" : "SELECT data FROM legend_data_probe");
+            step("4 drop again (the session holds none)", s, DROP);
+            query("4 the user's table again", s, USER_TABLE.contains("legend_lite_probe.")
+                    ? "SELECT data FROM legend_lite_probe.legend_data_probe" : "SELECT data FROM legend_data_probe");
+        }
+    }
+
+    static void step(String what, Statement s, String sql) {
+        try {
+            s.execute(sql);
+            System.out.println(what + " :: ok :: " + sql);
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + e.getMessage().split("\n")[0] + " :: " + sql);
+        }
+    }
+
+    static void query(String what, Statement s, String sql) {
+        try (ResultSet r = s.executeQuery(sql)) {
+            StringBuilder rows = new StringBuilder();
+            int n = r.getMetaData().getColumnCount();
+            while (r.next()) {
+                rows.append('[');
+                for (int i = 1; i <= n; i++) {
+                    rows.append(i > 1 ? " | " : "").append(r.getString(i));
+                }
+                rows.append(']');
+            }
+            System.out.println(what + " :: " + rows);
+        } catch (SQLException e) {
+            System.out.println(what + " :: REFUSED " + e.getMessage().split("\n")[0]);
+        }
+    }
+}
+
+// MEASURED 2026-11-11 on ClickHouse 25.8.2.29 (the embedded lane's server), clickhouse-jdbc 0.10.0, run with a session per connection and without one; its output:
+//   == with a session
+//   1 the user's table :: ok :: CREATE TABLE legend_data_probe (data String) ENGINE = Memory
+//   1 the user's row :: ok :: INSERT INTO legend_data_probe VALUES ('the user''s row')
+//   2 make :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   2 make :: ok :: CREATE TEMPORARY TABLE legend_data_probe (data String, u_frame_ord__ Int32)
+//   2 fill :: ok :: INSERT INTO legend_data_probe VALUES ('{"t":"it''s"}', 0), ('{"t":"a\\nb"}', 1)
+//   2 read :: [{"t":"it's"} | 0 | it's][{"t":"a\nb"} | 1 | a
+//   b]
+//   4 another connection reads it (must be refused) :: REFUSED Code: 47. DB::Exception: Unknown expression identifier `u_frame_ord__` in scope SELECT data, u_frame_ord__, JSONExtractString(data, 't') FROM legend_data_probe ORDER BY u_frame_ord__ ASC. (UNKNOWN_IDENTIFIER) (version 25.8.2.29 (official build))  (queryId= fd99afd3-82d3-41ed-b479-9a26bdf548dc)
+//   3 drop :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   3 the user's table :: [the user's row]
+//   4 drop again (the session holds none) :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   4 the user's table again :: [the user's row]
+//   == no session
+//   1 the user's table :: ok :: CREATE TABLE legend_data_probe (data String) ENGINE = Memory
+//   1 the user's row :: ok :: INSERT INTO legend_data_probe VALUES ('the user''s row')
+//   2 make :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   2 make :: ok :: CREATE TEMPORARY TABLE legend_data_probe (data String, u_frame_ord__ Int32)
+//   2 fill :: REFUSED Code: 62. DB::Exception: Cannot parse expression of type String here: '{"t":"it''s"}', 0), ('{"t":"a\ b"}', 1): While executing ValuesBlockInputFormat. (SYNTAX_ERROR) (version 25.8.2.29 (official build))  (queryId= ee7e2cb1-abdd-4e4f-9877-654aae767349) :: INSERT INTO legend_data_probe VALUES ('{"t":"it''s"}', 0), ('{"t":"a\\nb"}', 1)
+//   2 read :: REFUSED Code: 47. DB::Exception: Unknown expression identifier `u_frame_ord__` in scope SELECT data, u_frame_ord__, JSONExtractString(data, 't') FROM legend_data_probe ORDER BY u_frame_ord__ ASC. (UNKNOWN_IDENTIFIER) (version 25.8.2.29 (official build))  (queryId= 96097d79-145e-46cd-b425-67f3920aec4f)
+//   4 another connection reads it (must be refused) :: REFUSED Code: 47. DB::Exception: Unknown expression identifier `u_frame_ord__` in scope SELECT data, u_frame_ord__, JSONExtractString(data, 't') FROM legend_data_probe ORDER BY u_frame_ord__ ASC. (UNKNOWN_IDENTIFIER) (version 25.8.2.29 (official build))  (queryId= c01c0bb4-6028-484d-b8ce-eb801f54a398)
+//   3 drop :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   3 the user's table :: [the user's row]
+//   4 drop again (the session holds none) :: ok :: DROP TEMPORARY TABLE IF EXISTS legend_data_probe
+//   4 the user's table again :: [the user's row]

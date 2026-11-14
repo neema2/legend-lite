@@ -1,8 +1,8 @@
 package com.legend.integration;
 
-import com.legend.testbackend.TestBackends;
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -34,14 +34,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * the fold.
  */
 @DisplayName("Relation ~func mapping: windows are extent boundaries")
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class RelationMappingWindowSeamTest {
 
     private Connection conn;
-    private final QueryService qs = new QueryService();
 
     @BeforeEach
     void setUp() throws SQLException {
-        conn = TestBackends.platform().open();
+        conn = LaneFloor.backend().open();
         try (Statement s = conn.createStatement()) {
             s.execute("CREATE TABLE PERSON (ID INT, NAME VARCHAR(100), AGE INT, GRP VARCHAR(20), SAL INT)");
             // Group A: Peter (23, sal 10) ranks 1st, John (30, sal 20) 2nd;
@@ -99,11 +99,11 @@ class RelationMappingWindowSeamTest {
             Runtime test::RT { mappings: [ test::M ]; connections: [ store::DB: [ environment: store::Conn ] ]; }
             """;
 
-    private ExecutionResult exec(String query) throws SQLException {
-        return qs.execute(MODEL, query, "test::RT", conn);
+    private Lean.Result exec(String query) throws SQLException {
+        return Lean.run(MODEL, query, "test::RT", conn);
     }
 
-    private static Map<String, Integer> rankByName(ExecutionResult r) {
+    private static Map<String, Integer> rankByName(Lean.Result r) {
         Map<String, Integer> out = new TreeMap<>();
         for (var row : r.rows()) {
             out.put(String.valueOf(row.get(0)), ((Number) row.get(1)).intValue());

@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.DatePart;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -70,6 +72,39 @@ public final class Snowflake extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached Snowflake, which has no translation of it");
     }
 
+    /** {@inheritDoc} 9: its {@code TIMESTAMP_NTZ} keeps nanoseconds (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 9: its date-time column is a {@code TIMESTAMP_NTZ}, of nine digits (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 9;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
+    /** {@inheritDoc} The payload as ONE bound parameter, split by the database ({@link #sourceUrl}: the user's ruling,
+     *  2026-11-11, on round 2's measurement, probes/SnowflakeDelivery2.java.txt): at 100,000 records 0.48 s, against
+     *  17.0 s as the statement's own rows and 73 s as a temporary table (whose one safe drop, a Snowflake Scripting block
+     *  that drops a LOCAL TEMPORARY table alone, costs 1-2 s: round 1 measured {@code DROP TABLE IF EXISTS} dropping a
+     *  user's permanent table of the name); no size limit met; the quote, the line break, the order and the empty
+     *  array kept. */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -80,7 +115,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "NUMBER(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP_NTZ";
             case TIMESTAMPTZ -> "TIMESTAMP_LTZ";
@@ -89,14 +124,6 @@ public final class Snowflake extends AnsiSqlRenderer {
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
-    }
-
-    /** No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
-     *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
-     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). */
-    @Override
-    public boolean refetchesTimestampAsJavaTime() {
-        return false;
     }
 
     /** Snowflake (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): double quotes; Snowflake's documented reserved keywords. The dialect quotes EVERY
@@ -175,8 +202,8 @@ public final class Snowflake extends AnsiSqlRenderer {
         return true;
     }
 
-    /** {@inheritDoc} Spelled here ({@link #floatPrint}, {@link #floatPrintEngine}): the portable spellings read this
-     *  dialect's long double text some nine times (Pure's print form) and over a thousand (legend-engine's text). */
+    /** {@inheritDoc} Spelled here ({@link #floatPrint}): the portable spelling reads this dialect's long double text
+     *  some nine times (Pure's print form). */
     @Override
     protected boolean spellsFloatPrint() {
         return true;
@@ -205,15 +232,30 @@ public final class Snowflake extends AnsiSqlRenderer {
      * (a to-many hoist nests lambdas and walls here); the substring start clamp (a negative start counts from the
      * end here); a select-list UNNEST as a lateral FLATTEN; a constant GROUP BY or ORDER BY key as a typed
      * expression (Snowflake reads an integer one as a position); and the root's DECIMAL(p,s) and HUGEINT columns
-     * cast to their declared types. QUALIFY and star exclusion are native.
+     * cast to their declared types. QUALIFY and star exclusion are native. A select over one subselect merged into it
+     * where the answer is kept (SelectMerge), and a chain of windowed levels laid out again, each value once
+     * (SelectLayers), after the explosions as SQLite has them (the user, 2026-11-06: "Enable and run in the warm
+     * session that can connect to snowflake" -- rendered here, its answers checked on the account). Last, a window
+     * of a ROWS frame past Snowflake's 1000 rows as a RANGE frame over its rows' numbers (LongRowsFramesAsRanges).
      */
     @Override
     protected List<com.legend.sql.SqlRewriter> passes() {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new CheckedDefectsToLists(),
                 new SubstringClamp(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
+                new SelectMerge(java.util.function.UnaryOperator.identity()),   // every name quoted: labelled as written
+                new SelectLayers(java.util.function.UnaryOperator.identity()), new LongRowsFramesAsRanges("Snowflake", 1000, OVER_NUMBERS),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
+
+    /** The aggregates a window over a RANGE frame of the rows' numbers is written with (LongRowsFramesAsRanges):
+     *  SUM, COUNT, AVG, MIN, MAX, the variances and the deviations, each measured over 2000 rows with the right values
+     *  (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 10; MEDIAN and CORR refused there), and CORR and the
+     *  covariances, written from those sums ({@link #pairMoments}). */
+    private static final Set<SqlAgg.Fn> OVER_NUMBERS = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(
+            SqlAgg.Fn.SUM, SqlAgg.Fn.COUNT, SqlAgg.Fn.AVG, SqlAgg.Fn.MIN, SqlAgg.Fn.MAX, SqlAgg.Fn.VAR_SAMP,
+            SqlAgg.Fn.VAR_POP, SqlAgg.Fn.VARIANCE, SqlAgg.Fn.STDDEV_SAMP, SqlAgg.Fn.STDDEV_POP, SqlAgg.Fn.STDDEV,
+            SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP, SqlAgg.Fn.COVAR_POP));
 
     @Override
     protected boolean supportsQualify() {
@@ -296,24 +338,10 @@ public final class Snowflake extends AnsiSqlRenderer {
         return "'" + value.replace("\\", "\\\\").replace("'", "''") + "'";
     }
 
-    /** {@code TIMESTAMP '...'} is TIMESTAMP_NTZ under the session's mapping ({@code TIMESTAMP_NTZ '...'} is a syntax
-     *  error, measured). Snowflake keeps nanoseconds; DuckDB and the platform keep microseconds: finer digits are cut. */
-    @Override
-    protected String timestampLit(String iso) {
-        return super.timestampLit(microseconds(iso));
-    }
-
-    private static String microseconds(String iso) {
-        int dot = iso.lastIndexOf('.');
-        if (dot < 0) {
-            return iso;
-        }
-        int end = dot + 1;
-        while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
-            end++;
-        }
-        return end - dot - 1 > 6 ? iso.substring(0, dot + 7) + iso.substring(end) : iso;
-    }
+    // A timestamp literal is the base's TIMESTAMP '...', TIMESTAMP_NTZ under the session's mapping (TIMESTAMP_NTZ '...' is
+    // a syntax error, measured), every digit written: Snowflake keeps nanoseconds, as upstream's '…'::timestamp does (the
+    // orchestrator's note, 2026-11-09, upstream fidelity: until then the finer digits were cut to a microsecond, and a
+    // literal and its parameter answered apart).
 
     /** A Float literal's plain spelling; NaN and the infinities as FLOAT text (a bare {@code NaN} is no literal). */
     @Override
@@ -352,15 +380,14 @@ public final class Snowflake extends AnsiSqlRenderer {
         return "OBJECT";
     }
 
-    /** A date and a date-time placeholder take the NTZ timestamp; finer than a microsecond is cut to six digits, as
-     *  its literal is. */
+    /** A Date and a DateTime parameter are a {@code TIMESTAMP_NTZ(9)} ({@code '…'::timestamp}, upstream's, which keeps
+     *  nine digits of a second), bound as its text whole (D1: the database's finest precision; the re-audit's B-2,
+     *  2026-11-09 -- until then cut to six, as lite's own literal was). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME -> new RenderedStatement.TypeSpelling("TIMESTAMP_NTZ", RenderedStatement.Digits.NONE);
-            case DATE_TIME_NANOS -> new RenderedStatement.TypeSpelling("TIMESTAMP_NTZ", RenderedStatement.Digits.NONE, 6);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP_NTZ(9)", new RenderedStatement.AsText(null));
         };
     }
 
@@ -846,6 +873,9 @@ public final class Snowflake extends AnsiSqlRenderer {
             // 1-based, negative from the end, out of range (0 included) NULL, as DuckDB's list_extract; GET is 0-based
             // and raises on a negative index (measured), so the negative branch guards it
             case LIST_GET -> writer.piece(typed(listGet(xs, a.get(1)), element != null ? element : result));
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> writer.piece(typed(w -> w.append("GET(").expr(xs, 0).append(", ").expr(a.get(1), 6)
+                    .append(" - 1)"), element != null ? element : result));
             // DuckDB's list_position: 1-based, NULL when absent (ARRAY_POSITION is 0-based, NULL when absent)
             case LIST_POSITION -> writer.append("(ARRAY_POSITION(TO_VARIANT(").expr(a.get(1), 0).append("), ")
                     .expr(xs, 0).append(") + 1)");
@@ -1362,8 +1392,12 @@ public final class Snowflake extends AnsiSqlRenderer {
             case RPAD -> padWithSpace(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on Snowflake, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached Snowflake, whose binary collation is not measured");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             // Pure's divide is a Float division: both operands DOUBLE
             case DIVIDE -> divideAsDoubles(writer, c.args());
@@ -1373,8 +1407,6 @@ public final class Snowflake extends AnsiSqlRenderer {
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
-            case FLOAT_PRINT_ENGINE -> isDouble(a.get(0)) ? floatPrintEngine(writer, a.get(0))
-                    : floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1531,7 +1563,7 @@ public final class Snowflake extends AnsiSqlRenderer {
             case STRPTIME -> strptime(writer, c);
 
             // ---- lists
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_FLATTEN, LIST_ZIP,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_FLATTEN, LIST_ZIP,
                  LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, LIST_BOOL_AND,
                  LIST_BOOL_OR, TYPEOF -> list(writer, c.fn(), a, typeOf(c));
@@ -1785,7 +1817,7 @@ public final class Snowflake extends AnsiSqlRenderer {
                 case INTEGER, BIGINT, HUGEINT, DOUBLE, BOOLEAN, DATE, TIMESTAMP, TIMESTAMPTZ, TIME ->
                         w -> w.append("CAST(").piece(text).append(" AS " + castTypeName(s) + ")");
                 case JSON -> w -> w.append("TO_VARIANT(").piece(number).append(")");
-                case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> w -> w.append("CAST(").piece(number)
+                case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> w -> w.append("CAST(").piece(number)
                         .append(" AS VARCHAR)");
             };
             case SqlType.Decimal d -> w -> w.append("CAST(").piece(text).append(" AS " + castTypeName(d) + ")");
@@ -1855,21 +1887,6 @@ public final class Snowflake extends AnsiSqlRenderer {
                     + fixed + ") ELSE " + d.sign() + " || LEFT(" + d.digits() + ", 1) || IFF(LENGTH(" + d.digits()
                     + ") > 1, '.' || SUBSTR(" + d.digits() + ", 2), '') || 'e' || TO_VARCHAR(" + d.exponent() + ") END";
         }));
-    }
-
-    /**
-     * legend-engine's text of a Float ({@link SqlFn#FLOAT_PRINT_ENGINE}), spelled here from {@link #floatText}'s digits,
-     * the value read once: Java's {@code Double.toString} layout, plain where the exponent is from -3 to 6 with at least
-     * one fraction digit, else one digit, a point, the rest (or {@code 0}) and {@code E} with the exponent. The portable
-     * spelling took {@link #floatText}'s text apart over a thousand times (Snowflake's served statement for
-     * {@code 1.5 + 2.25} was 6 MB, measured 2026-10-22).
-     */
-    private SqlWriter floatPrintEngine(SqlWriter writer, SqlExpr v) {
-        return writer.piece(shortestDigits(v, d -> "CASE WHEN " + nonFinite(d.value()) + " THEN "
-                + javaNonFinite(d.value()) + " WHEN " + d.value() + " = 0 THEN '0.0' WHEN " + d.exponent()
-                + " BETWEEN -3 AND 6 THEN " + d.sign() + " || " + d.unfolded() + " ELSE " + d.sign() + " || LEFT("
-                + d.digits() + ", 1) || '.' || IFF(LENGTH(" + d.digits() + ") > 1, SUBSTR(" + d.digits() + ", 2), '0')"
-                + " || 'E' || TO_VARCHAR(" + d.exponent() + ") END"));
     }
 
     /** Java's name of the non-finite double {@code x}: Snowflake's NaN equals itself and exceeds every number. */
@@ -2612,10 +2629,20 @@ public final class Snowflake extends AnsiSqlRenderer {
                 : aggregate(writer, "AVG", doubleArgs(r));
     }
 
-    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}, the value a number when {@code numeric}. */
+    /** {@code name(level) WITHIN GROUP (ORDER BY value[ DESC])}, the value a number when {@code numeric}. Its level
+     *  must be a constant (a literal: "argument 0 to function PERCENTILE_CONT needs to be constant", measured
+     *  2026-11-07 on the #TS island's lane, of the library's {@code n / 100}); a continuous one of any other level is
+     *  the group's values sorted and interpolated, as a window's is ({@link #windowQuantile}). */
     private SqlWriter percentile(SqlWriter writer, String name, SqlAgg.Reducer r, boolean numeric) {
         if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
             throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        if (!numberLiteral(r.args().get(1))) {
+            if (r.fn() != SqlAgg.Fn.QUANTILE_CONT) {
+                throw new DialectCapability(r.fn() + " of a level that is no literal reached Snowflake (its"
+                        + " PERCENTILE_DISC takes a constant)");
+            }
+            return writer.piece(windowQuantile(r, null));
         }
         boolean desc = !r.orderBy().isEmpty() && !r.orderBy().get(0).ascending();
         writer.append(name).append("(").expr(r.args().get(1), 0)
@@ -2669,6 +2696,14 @@ public final class Snowflake extends AnsiSqlRenderer {
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         SqlExpr.WindowCall.Frame frame = w.frame();
+        if (frame != null && frame.computed()) {
+            // measured 2026-11-07 (docs/TS_DECISIONS_2026_11_07.md item 10, the Snowflake session's probes over JDBC): a
+            // frame's bound there is a literal or a session variable -- a bind parameter (ROWS BETWEEN ? PRECEDING) and
+            // an expression ((1 + 1) PRECEDING) are syntax errors; a bound value could reach it through SET var = ?
+            // before the query (open: a plan step the runner does not take yet)
+            throw new DialectCapability("a window frame offset the database computes (a parameter, arithmetic) reached"
+                    + " Snowflake, whose frame bound is a literal or a session variable");
+        }
         if (frame != null && w.orderBy().isEmpty()) {
             if (!(frame.from() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding
                     && frame.to() instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing)) {
@@ -2786,6 +2821,9 @@ public final class Snowflake extends AnsiSqlRenderer {
         if (r.fn() == SqlAgg.Fn.QUANTILE_CONT) {
             return writer.piece(windowQuantile(r, win));
         }
+        if (PAIR_MOMENTS.contains(r.fn()) && ordered) {
+            return writer.piece(pairMoments(r, win));
+        }
         if ((r.fn() == SqlAgg.Fn.STRING_AGG || r.fn() == SqlAgg.Fn.LIST) && ordered) {
             if (!r.orderBy().isEmpty() && !r.orderBy().equals(win.orderBy())) {
                 throw new DialectCapability("an ordered " + r.fn() + " over a window of another order reached"
@@ -2827,15 +2865,81 @@ public final class Snowflake extends AnsiSqlRenderer {
         return over(writer, win);
     }
 
+    private static final Set<SqlAgg.Fn> PAIR_MOMENTS = Set.of(SqlAgg.Fn.CORR, SqlAgg.Fn.COVAR_SAMP,
+            SqlAgg.Fn.COVAR_POP);
+
     /**
-     * A continuous quantile over a window's partition, as DuckDB and the engine interpolate it: the partition's
+     * CORR, COVAR_SAMP and COVAR_POP over an ordered window. Snowflake takes them over a whole partition alone
+     * ("Sliding window frame unsupported for function CORR", "Cumulative window frame unsupported for function
+     * COVAR_SAMP", "RANGE BETWEEN 6 PRECEDING AND CURRENT ROW window frame unsupported for function CORR", measured
+     * 2026-11-07 on the #TS island's lane, docs/TS_DECISIONS_2026_11_07.md item 10), and SUM and COUNT over every
+     * frame, so each is written from its frame's sums: over the pairs both of whose values are present, n of them,
+     * {@code Σa}, {@code Σb}, {@code Σab} (and {@code Σa²}, {@code Σb²} for CORR). As DuckDB: NULL over no pair,
+     * COVAR_SAMP NULL below two, CORR NULL where a side's values are all one. The sums round otherwise than DuckDB's
+     * streaming moments (in the last bits: the island compares within 1e-9 of a value's scale, as ruled for answers
+     * across databases, 2026-11-07).
+     */
+    private SqlWriter.Piece pairMoments(SqlAgg.Reducer r, Window win) {
+        if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
+            throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
+        }
+        SqlAgg.Reducer d = doubleArgs(r);
+        SqlExpr a = d.args().get(0);
+        SqlExpr b = d.args().get(1);
+        // each side present where the other is: a pair's values, or none
+        SqlWriter.Piece pa = w -> w.append("CASE WHEN (").expr(b, 0).append(") IS NULL THEN NULL ELSE (").expr(a, 0)
+                .append(") END");
+        SqlWriter.Piece pb = w -> w.append("CASE WHEN (").expr(a, 0).append(") IS NULL THEN NULL ELSE (").expr(b, 0)
+                .append(") END");
+        java.util.function.Function<SqlWriter.Piece, SqlWriter.Piece> sum = x -> w -> {
+            w.append("SUM(").piece(x).append(")");
+            over(w, win);
+        };
+        java.util.function.BinaryOperator<SqlWriter.Piece> times = (x, y) -> w -> w.append("(").piece(x)
+                .append(") * (").piece(y).append(")");
+        SqlWriter.Piece n = w -> {
+            w.append("COUNT(").piece(pa).append(")");
+            over(w, win);
+        };
+        SqlWriter.Piece sa = sum.apply(pa);
+        SqlWriter.Piece sb = sum.apply(pb);
+        SqlWriter.Piece sab = sum.apply(times.apply(pa, pb));
+        if (r.fn() == SqlAgg.Fn.CORR) {
+            SqlWriter.Piece saa = sum.apply(times.apply(pa, pa));
+            SqlWriter.Piece sbb = sum.apply(times.apply(pb, pb));
+            // (n Σab - Σa Σb) / sqrt((n Σa² - (Σa)²) (n Σb² - (Σb)²)); a spread rounded below zero is none
+            return w -> w.append("(CASE WHEN ").piece(n).append(" = 0 THEN NULL ELSE (").piece(n).append(" * ")
+                    .piece(sab).append(" - ").piece(sa).append(" * ").piece(sb).append(") / NULLIF(SQRT(GREATEST(")
+                    .piece(n).append(" * ").piece(saa).append(" - ").piece(sa).append(" * ").piece(sa)
+                    .append(", 0) * GREATEST(").piece(n).append(" * ").piece(sbb).append(" - ").piece(sb)
+                    .append(" * ").piece(sb).append(", 0)), 0) END)");
+        }
+        // Σab - Σa Σb / n, over n - 1 (sample) or n (population)
+        boolean sample = r.fn() == SqlAgg.Fn.COVAR_SAMP;
+        return w -> w.append("(CASE WHEN ").piece(n).append(sample ? " < 2" : " = 0").append(" THEN NULL ELSE (")
+                .piece(sab).append(" - ").piece(sa).append(" * ").piece(sb).append(" / ").piece(n).append(") / ")
+                .append(sample ? "(" : "").piece(n).append(sample ? " - 1)" : "").append(" END)");
+    }
+
+    /** Whether {@code e} is a number's literal, under casts and parentheses. */
+    private static boolean numberLiteral(SqlExpr e) {
+        SqlExpr x = e;
+        while (x instanceof SqlExpr.Cast || x instanceof SqlExpr.Group) {
+            x = x instanceof SqlExpr.Cast c ? c.value() : ((SqlExpr.Group) x).inner();
+        }
+        return x instanceof SqlExpr.IntLit || x instanceof SqlExpr.FloatLit || x instanceof SqlExpr.DecimalLit;
+    }
+
+    /**
+     * A continuous quantile over a window's partition (or, with no window, over a group: an aggregate whose level is
+     * no literal, {@link #percentile}), as DuckDB and the engine interpolate it: the partition's
      * non-NULL values sorted in the quantile's order, {@code rn = (n - 1) * q}, {@code lo + (hi - lo) * (rn -
      * floor(rn))}; NULL over none. Snowflake's own window PERCENTILE_CONT interpolates as {@code (1 - f) * lo + f *
      * hi}, another last bit: 0.6 of (1, 2, 3) descending is 1.7999999999999998 there, 1.8 in its aggregate form and in
      * the reference (testPercentile_Relation_Window, measured on the lane 2026-10-21; the merge-base passed it by
      * printing ten digits). The values and q are bound once, in a one-element TRANSFORM.
      */
-    private SqlWriter.Piece windowQuantile(SqlAgg.Reducer r, Window win) {
+    private SqlWriter.Piece windowQuantile(SqlAgg.Reducer r, @com.legend.base.Nullable Window win) {
         if (r.args().size() != 2 || r.distinct() || r.orderBy().size() > 1) {
             throw new DialectCapability(r.fn() + " of this shape reached Snowflake");
         }
@@ -2849,7 +2953,9 @@ public final class Snowflake extends AnsiSqlRenderer {
         return w -> {
             w.append("CAST(GET(TRANSFORM(ARRAY_CONSTRUCT(OBJECT_CONSTRUCT_KEEP_NULL('s', ARRAY_SORT(ARRAY_COMPACT("
                     + "ARRAY_AGG(").expr(r.args().get(0), 0).append(")");
-            over(w, win);
+            if (win != null) {
+                over(w, win);
+            }
             w.append("), " + (ascending ? "TRUE" : "FALSE") + "), 'q', CAST(").expr(r.args().get(1), 0)
                     .append(" AS DOUBLE))), " + o + " OBJECT -> CASE WHEN " + n + " = 0 THEN NULL ELSE " + lo + " + ("
                             + hi + " - " + lo + ") * (" + rn + " - FLOOR(" + rn + ")) END), 0) AS DOUBLE)");
@@ -2904,6 +3010,9 @@ public final class Snowflake extends AnsiSqlRenderer {
                     "INTERVAL '" + p.n() + " " + p.unit() + "' PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     "INTERVAL '" + f.n() + " " + f.unit() + "' FOLLOWING";
+            // refused before a frame is written (windowCall): not yet measured on Snowflake
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 
@@ -3092,19 +3201,37 @@ public final class Snowflake extends AnsiSqlRenderer {
             return writer;
         }
         // DuckDB's ASOF LEFT JOIN ... ON eq AND t >= u: the one inequality is the MATCH_CONDITION, the equalities ON
-        // (an unmatched left row is kept, as DuckDB's)
+        // (an unmatched left row is kept, as DuckDB's). Snowflake's ON takes equalities alone, so a condition that reads
+        // the right side only (the library's `u IS NOT NULL`, 2026-11-07, TS decisions item 10) filters the right side
+        // before the join: a right row it rejects matches no left row either way.
         if (src instanceof SqlSource.Join j && j.kind() == SqlSource.Join.Kind.ASOF_LEFT) {
             List<SqlExpr> conjuncts = new ArrayList<>();
             conjuncts(j.on(), conjuncts);
-            List<SqlExpr> match = conjuncts.stream().filter(Snowflake::inequality).toList();
-            List<SqlExpr> on = conjuncts.stream().filter(e -> !inequality(e)).toList();
+            String rightAlias = j.right().alias();
+            List<SqlExpr> rightOnly = conjuncts.stream().filter(e -> rightAlias != null && readsOnly(e, rightAlias))
+                    .toList();
+            List<SqlExpr> match = conjuncts.stream().filter(e -> !rightOnly.contains(e) && inequality(e)).toList();
+            List<SqlExpr> on = conjuncts.stream().filter(e -> !rightOnly.contains(e) && !inequality(e)).toList();
             if (match.size() != 1) {
                 throw new DialectCapability("an as-of join of " + match.size() + " inequalities reached Snowflake (its"
                         + " MATCH_CONDITION takes one)");
             }
+            if (on.stream().anyMatch(e -> !(e instanceof SqlExpr.Call c && c.fn() == SqlFn.EQUAL))) {
+                throw new DialectCapability("an as-of join whose condition is more than equalities and one inequality"
+                        + " reached Snowflake (its ASOF JOIN's ON takes equalities)");
+            }
             source(writer, j.left(), depth);
             nl(writer, depth).append("ASOF JOIN ");
-            source(writer, j.right(), depth);
+            if (rightOnly.isEmpty()) {
+                source(writer, j.right(), depth);
+            } else {
+                SqlExpr where = rightOnly.get(0);
+                for (int i = 1; i < rightOnly.size(); i++) {
+                    where = SqlExpr.Call.of(SqlFn.AND, where, rightOnly.get(i));
+                }
+                source(writer, new SqlSource.Subselect(SqlSelect.starOf(j.right()).withWhere(where), rightAlias,
+                        null), depth);
+            }
             writer.append(" MATCH_CONDITION (").expr(match.get(0), 0).append(")");
             if (!on.isEmpty()) {
                 writer.append(" ON ").join(on, " AND ", (w, e) -> w.append("(").expr(e, 0).append(")"));
@@ -3126,10 +3253,28 @@ public final class Snowflake extends AnsiSqlRenderer {
         if (e == null || e instanceof SqlExpr.BoolLit b && b.value()) {
             return;
         }
-        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.AND) {
+        if (e instanceof SqlExpr.Group g) {
+            conjuncts(g.inner(), into);
+        } else if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.AND) {
             c.args().forEach(x -> conjuncts(x, into));
         } else {
             into.add(e);
+        }
+    }
+
+    /** Whether {@code e} reads columns, every one of them {@code alias}'s. */
+    private static boolean readsOnly(SqlExpr e, String alias) {
+        Set<String> read = new java.util.LinkedHashSet<>();
+        tablesRead(e, read);
+        return read.equals(Set.of(alias));
+    }
+
+    private static void tablesRead(SqlExpr e, Set<String> out) {
+        if (e instanceof SqlExpr.Column c && c.table() != null) {
+            out.add(c.table());
+        }
+        for (SqlExpr child : e.children()) {
+            tablesRead(child, out);
         }
     }
 
@@ -3152,13 +3297,67 @@ public final class Snowflake extends AnsiSqlRenderer {
         };
     }
 
-    /** VALUES takes constants only (ARRAY_CONSTRUCT and PARSE_JSON are refused there, measured): rows holding any
-     *  other expression are a UNION ALL of selects. */
+    /** A {@code data:} payload bound as one parameter, split here (round 2, 2026-11-11, measured): each element a
+     *  VARIANT, a frame's record its place as FLATTEN's index (from 0, the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.index AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM TABLE(FLATTEN(INPUT => PARSE_JSON(");
+        return bindPayload(writer, u).append("))) legend_payload");
+    }
+
+    /** VALUES takes constants only (ARRAY_CONSTRUCT and PARSE_JSON are refused there, measured): a column of JSON
+     *  texts is VALUES of the texts, which the select over it parses ({@code data:}'s inline rows: the lane's form,
+     *  measured 2026-11-11, the rows' order and a quote and a line break kept; a NULL text a {@code NULL::STRING}, as
+     *  measured); rows holding any other expression are a UNION ALL of selects. */
     @Override
     protected SqlWriter valuesSource(SqlWriter writer, SqlSource.Values v) {
         boolean constants = v.rows().stream().allMatch(r -> r.stream().allMatch(Snowflake::constant));
         if (constants && !v.rows().isEmpty()) {
             return super.valuesSource(writer, v);
+        }
+        boolean[] parsed = new boolean[v.columns().size()];
+        boolean texts = !v.rows().isEmpty();
+        for (int c = 0; c < parsed.length && texts; c++) {
+            int col = c;
+            parsed[c] = v.rows().stream().allMatch(r -> jsonText(r.get(col)));
+            texts = parsed[c] || v.rows().stream().allMatch(r -> constant(r.get(col)));
+        }
+        if (texts) {
+            // each other column cast to its declared type: a VALUES column types by its literals (the empty form's one 0
+            // is a NUMBER(1,0), measured by the lane, 2026-11-11), so both forms answer one type
+            boolean declared = v.outputs().size() == v.columns().size();
+            writer.append("(SELECT ");
+            for (int c = 0; c < parsed.length; c++) {
+                String column = "column" + (c + 1);
+                writer.append(c > 0 ? ", " : "").append(parsed[c] ? "PARSE_JSON(" + column + ")"
+                        : declared ? "CAST(" + column + " AS " + castTypeName(v.outputs().get(c).type()) + ")"
+                        : column).append(" AS ").append(aliasIdent(v.columns().get(c)));
+            }
+            writer.append(" FROM VALUES ");
+            for (int r = 0; r < v.rows().size(); r++) {
+                writer.append(r > 0 ? ", (" : "(");
+                List<SqlExpr> row = v.rows().get(r);
+                for (int c = 0; c < row.size(); c++) {
+                    writer.append(c > 0 ? ", " : "");
+                    SqlExpr cell = parsed[c] ? ((SqlExpr.Cast) row.get(c)).value() : row.get(c);
+                    if (cell instanceof SqlExpr.NullLit) {
+                        writer.append(parsed[c] ? "NULL::STRING" : "NULL");
+                    } else {
+                        writer.expr(cell, 0);
+                    }
+                }
+                writer.append(")");
+            }
+            return writer.append(") AS ").append(aliasIdent(v.alias()));
         }
         if (v.rows().isEmpty()) {
             throw new DialectCapability("an empty VALUES reached Snowflake");
@@ -3183,6 +3382,13 @@ public final class Snowflake extends AnsiSqlRenderer {
         return writer.append(") AS ").append(aliasIdent(v.alias()));
     }
 
+    /** A JSON text written as a value: a constant text (or NULL) cast to JSON. */
+    private static boolean jsonText(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.JSON
+                && (c.value() instanceof SqlExpr.NullLit || c.value() instanceof SqlExpr.StringLit s
+                        && s.value().indexOf('\u0000') < 0);
+    }
+
     private static boolean constant(SqlExpr e) {
         return switch (e) {
             case SqlExpr.IntLit i -> true;
@@ -3198,52 +3404,6 @@ public final class Snowflake extends AnsiSqlRenderer {
                     || c.target() instanceof SqlType.Struct || c.target() == SqlType.Scalar.JSON) && constant(c.value());
             default -> false;
         };
-    }
-
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A struct or a map arrives as JSON text (OBJECT; keys sorted, measured): decoded to the platform's map, a
-     *  struct's fields in its declared order. A list cell is decoded by the executor's JSON carrier (compact and
-     *  strict by the session). */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            Object parsed = com.legend.sql.Json.parse(s);
-            return type instanceof SqlType.Struct st ? declaredOrder(parsed, st) : parsed;
-        }
-        // a decimal of scale 0 is a NUMBER(p,0), which the driver hands back as a Long (measured: CAST(8 AS
-        // DECIMAL(38, 0)) reads 8L)
-        if (type instanceof SqlType.Decimal && (jdbcValue instanceof Long || jdbcValue instanceof Integer)) {
-            return java.math.BigDecimal.valueOf(((Number) jdbcValue).longValue());
-        }
-        return jdbcValue;
-    }
-
-    /** A parsed object's fields in the struct's declared order (nested structs too); a field Snowflake dropped is
-     *  null, an undeclared one follows. */
-    private static @com.legend.base.Nullable Object declaredOrder(@com.legend.base.Nullable Object v, SqlType t) {
-        if (t instanceof SqlType.Struct st && v instanceof Map<?, ?> m) {
-            LinkedHashMap<String, Object> out = new LinkedHashMap<>();
-            for (SqlType.Struct.Field f : st.fields()) {
-                out.put(f.name(), declaredOrder(m.get(f.name()), f.type()));
-            }
-            for (Map.Entry<?, ?> e : m.entrySet()) {
-                out.putIfAbsent(String.valueOf(e.getKey()), e.getValue());
-            }
-            return out;
-        }
-        if (t instanceof SqlType.Array a && v instanceof List<?> l) {
-            List<Object> out = new ArrayList<>(l.size());
-            for (Object e : l) {
-                out.add(declaredOrder(e, a.element()));
-            }
-            return out;
-        }
-        return v;
     }
 
     // ==================================================================

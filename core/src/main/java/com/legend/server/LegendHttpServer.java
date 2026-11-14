@@ -47,16 +47,31 @@ public class LegendHttpServer {
     private final @com.legend.base.Nullable SavedQueries queryStore;
     /** DataCube's saved pages, beside the queries ({@code DIR/dataCube}; the program's B6), or null. */
     private final @com.legend.base.Nullable SavedCubes cubeStore;
+    /** The product door, its file: sources fenced to the folders the server's startup settings name, none when they
+     *  name none ({@link #sources}; the user's ruling of 2026-11-10). */
+    private final PureV1Api.Runner runner;
 
-    /** On the loopback interface, loopback origins only: the development server. */
+    /** On the loopback interface, loopback origins only: the development server, reading no file: source. */
     public LegendHttpServer(int port) throws IOException {
         this(port, java.net.InetAddress.getLoopbackAddress(), Origins.LOOPBACK, null);
     }
 
     /** {@code queryStore}: the directory {@code --query-store DIR} names -- the saved queries in it, DataCube's saved
-     *  pages in its {@code dataCube} -- or null, every call of the store's then refused. */
+     *  pages in its {@code dataCube} -- or null, every call of the store's then refused. No file: source is read. */
     public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
             java.nio.file.@com.legend.base.Nullable Path queryStore) throws IOException {
+        this(port, bind, origins, queryStore, NO_SOURCES);
+    }
+
+    /** {@link #LegendHttpServer(int, java.net.InetAddress, Origins, java.nio.file.Path)}, its file: sources read from
+     *  the folders {@code sources} names ({@link #sources}: {@code any}, {@code none}, or folders separated by the
+     *  platform's path separator). */
+    public LegendHttpServer(int port, java.net.InetAddress bind, Origins origins,
+            java.nio.file.@com.legend.base.Nullable Path queryStore, String sources) throws IOException {
+        // the folders validated once, where the server starts: a folder that is none refuses the start, never every
+        // query after it (the A delta audit's 5, 2026-11-11)
+        validateSources(sources);
+        this.runner = ConnectionResolver.runner(sources);
         this.server = HttpServer.create(new InetSocketAddress(bind, port), 0);
         this.lspServer = new PureLspServer();
         this.origins = origins;
@@ -123,9 +138,9 @@ public class LegendHttpServer {
         // Engine - query and SQL execution
         // legend-engine's own pure/v1 API, exactly (PureV1Api; the user's ruling of
         // 2026-09-27: lite serves upstream's APIs and nothing of its own)
-        route("/api/pure/v1/", new PureV1Handler());
+        route("/api/pure/v1/", new PureV1Handler(runner));
         // and lite's own route beside it, on the same dispatcher (every compile error; the user, 2026-10-10)
-        route("/api/lite/v1/", new PureV1Handler());
+        route("/api/lite/v1/", new PureV1Handler(runner));
         // legend-engine's query store and current user (SavedQueries; the Query app's G5/G7)
         route("/api/pure/v1/query", exchange -> {
             addCorsHeaders(exchange);
@@ -215,6 +230,12 @@ public class LegendHttpServer {
      * is read RAW -- a grammar text's line endings are part of its source positions.
      */
     private static final class PureV1Handler implements HttpHandler {
+        private final PureV1Api.Runner runner;
+
+        PureV1Handler(PureV1Api.Runner runner) {
+            this.runner = runner;
+        }
+
         @Override
         public void handle(HttpExchange exchange) throws IOException {
             addCorsHeaders(exchange);
@@ -233,8 +254,10 @@ public class LegendHttpServer {
             }
             // the routes are the API's own (PureV1Api.route, the plan side); execute runs through the driver
             PureV1Api.Answer answer = PureV1Api.route(exchange.getRequestURI().getPath(),
-                    exchange.getRequestURI().getRawQuery(), body, new QueryService()::executeUpstream);
-            sendResponse(exchange, answer.status(), answer.json(), answer.contentType());
+                    exchange.getRequestURI().getRawQuery(), body, runner);
+            // a binary answer (the ARROW_IPC execute, track A, 2026-10-29): its bytes under upstream's headers
+            answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
+            sendResponse(exchange, answer.status(), answer.body(), answer.contentType());
         }
     }
 
@@ -268,7 +291,10 @@ public class LegendHttpServer {
     }
 
     static void sendResponse(HttpExchange exchange, int status, String body, String contentType) throws IOException {
-        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        sendResponse(exchange, status, body.getBytes(StandardCharsets.UTF_8), contentType);
+    }
+
+    static void sendResponse(HttpExchange exchange, int status, byte[] bytes, String contentType) throws IOException {
         exchange.getResponseHeaders().add("Content-Type", contentType);
         exchange.sendResponseHeaders(status, bytes.length);
         try (OutputStream os = exchange.getResponseBody()) {
@@ -323,6 +349,53 @@ public class LegendHttpServer {
         }
     }
 
+    /** The fence of a server whose startup settings name no folder: none (the user's ruling of 2026-11-10). */
+    static final String NO_SOURCES = "none";
+
+    /** The server's command line, its {@code --help}. */
+    static final String USAGE = """
+            legend-lite server: [PORT] [--query-store DIR] [--sources DIR]... [--help]
+              PORT                the port to listen on (or $PORT; 8080 by default)
+              --query-store DIR   the saved queries' directory (DataCube's saved pages in DIR/dataCube)
+              --sources DIR       a folder a model's file: sources may read, repeatable (or $LEGEND_LITE_SOURCE_DIRS,
+                                  folders separated by the path separator); 'any' reads every file. With none given the
+                                  server reads no file: source: each is refused by name
+            Environment: LEGEND_LITE_BIND (the listen address, loopback by default), LEGEND_LITE_ALLOWED_ORIGINS (the
+            pages beside loopback that may call it), LEGEND_LITE_SOURCE_DIRS (as --sources).""";
+
+    /**
+     * The folders a model's {@code file:} sources may read, from the server's startup settings (the user's ruling of
+     * 2026-11-10: the library reads any file by default, the SERVER fences them to the folders its settings name): each
+     * {@code --sources DIR} of {@code args}, else {@code env} ({@code LEGEND_LITE_SOURCE_DIRS}), else none -- every
+     * {@code file:} source refused by name until a folder is named. {@code any} widens it to every file.
+     */
+    static String sources(String[] args, @com.legend.base.Nullable String env) {
+        java.util.List<String> dirs = new java.util.ArrayList<>();
+        for (int i = 0; i < args.length; i++) {
+            if ("--sources".equals(args[i]) && i + 1 < args.length) {
+                dirs.add(args[++i]);
+            }
+        }
+        if (!dirs.isEmpty()) {
+            return dirs.contains("any") ? "any" : String.join(java.io.File.pathSeparator, dirs);
+        }
+        return env == null || env.strip().isEmpty() ? NO_SOURCES : env.strip();
+    }
+
+    /** {@code sources} ({@link #sources}) refused by name where a folder it names is no directory: the server does not
+     *  start (the A delta audit's 5, 2026-11-11). */
+    static void validateSources(String sources) {
+        if (sources.equals("any") || sources.equals(NO_SOURCES)) {
+            return;
+        }
+        for (String d : sources.split(java.util.regex.Pattern.quote(java.io.File.pathSeparator))) {
+            if (!d.strip().isEmpty() && !java.nio.file.Files.isDirectory(java.nio.file.Path.of(d.strip()))) {
+                throw new IllegalArgumentException("the server's sources folder '" + d.strip() + "' (--sources DIR or"
+                        + " LEGEND_LITE_SOURCE_DIRS) is no directory: the server does not start");
+            }
+        }
+    }
+
     public void start() {
         server.setExecutor(null);
         server.start();
@@ -347,11 +420,18 @@ public class LegendHttpServer {
                 System.err.println("Invalid PORT env var: " + envPort);
             }
         }
-        // arguments: [port] [--query-store DIR] (the saved-query store's directory)
+        // arguments: [port] [--query-store DIR] (the saved-query store's directory) [--sources DIR]... (the folders
+        // a model's file: sources may read) [--help]
         java.nio.file.Path queryStore = null;
         for (int i = 0; i < args.length; i++) {
+            if ("--help".equals(args[i]) || "-h".equals(args[i])) {
+                System.out.println(USAGE);
+                return;
+            }
             if ("--query-store".equals(args[i]) && i + 1 < args.length) {
                 queryStore = java.nio.file.Path.of(args[++i]);
+            } else if ("--sources".equals(args[i]) && i + 1 < args.length) {
+                i++;   // read by sources(args, ...) below
             } else {
                 try {
                     port = Integer.parseInt(args[i]);
@@ -369,8 +449,21 @@ public class LegendHttpServer {
             System.err.println("WARNING: LEGEND_LITE_BIND=" + bind + " exposes this server beyond this machine;"
                     + " a caller's model runs its connections' setup SQL on this host.");
         }
-        LegendHttpServer server = new LegendHttpServer(port, address,
-                Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore);
+        String sources = sources(args, System.getenv("LEGEND_LITE_SOURCE_DIRS"));
+        if (sources.equals(NO_SOURCES)) {
+            System.err.println("NOTE: no --sources DIR given: a model's file: sources are refused (any widens to every"
+                    + " file).");
+        }
+        LegendHttpServer server;
+        try {
+            server = new LegendHttpServer(port, address,
+                    Origins.fromEnv(System.getenv("LEGEND_LITE_ALLOWED_ORIGINS")), queryStore, sources);
+        } catch (IllegalArgumentException refused) {
+            // a startup setting that names no folder: refused by name, the server not started
+            System.err.println("ERROR: " + refused.getMessage());
+            System.exit(2);
+            return;
+        }
         server.start();
 
         System.out.println();

@@ -3,9 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.DatabaseType;
+import com.legend.executionplan.ConnectionSpecification;
 
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -31,7 +30,7 @@ final class SqliteConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         if (def.specification() instanceof ConnectionSpecification.LocalFile(String path)) {
             return new Sessions.Opening.Url("jdbc:sqlite:" + path);
         }
@@ -47,7 +46,8 @@ final class SqliteConnector implements DatabaseConnector {
     }
 
     @Override
-    public Connection openPrivate() throws SQLException {
+    public Connection openPrivate(com.legend.executionplan.ExecutionPlan.@com.legend.base.Nullable DatabaseSettings settings) throws SQLException {
+        DatabaseConnector.noSettings(type(), settings);
         return DriverManager.getConnection("jdbc:sqlite::memory:");
     }
 
@@ -56,9 +56,15 @@ final class SqliteConnector implements DatabaseConnector {
         return "specification: SQLite { };\n  auth: Test";
     }
 
-    /** {@inheritDoc} None: {@code SQLite}'s errors carry their raise. */
+    /** {@inheritDoc} No: SQLite rolls back the failed statement alone; its transaction goes on. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
     }
 }

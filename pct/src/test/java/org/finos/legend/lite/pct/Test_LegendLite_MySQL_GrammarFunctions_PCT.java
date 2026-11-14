@@ -44,12 +44,16 @@ public class Test_LegendLite_MySQL_GrammarFunctions_PCT extends PCTReportConfigu
             // OneToOne: the captured $address reaches the text since 2026-10-20 (the adapter binds captured objects by
             // lets, object identity); its assertIs then needs the interpreter's own object back (the ids it prints vary
             // per run, so the pin is the class), as on the DuckDB lane
-            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address")
+            one("meta::pure::functions::collection::tests::map::testMapRelationshipFromOneToOne_Function_1__Boolean_1_", "instanceOf meta::pure::functions::collection::tests::map::model::M_Address"),
             // NOTE 2026-10-20 (the parity phase): testDateCompare unpinned -- two dates without a time compare on their
             // day numbers, year*10000 + month*100 + day, in any year (MixedEncoding.dayNumberOrNull)
             // NOTE 2026-10-20 (plan-route parity, a type value as its path): testLetChainedWithAnotherFunction passes again: a type
             // value carries its path (PlatformTypes.typeValuePath), so the text carrier's reader resolves TestClass
             // whatever its namesakes; a printer takes the name.
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): MySQL keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::lang::tests::compare::testDateCompare_Function_1__Boolean_1_", "fraction digits; MySql keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

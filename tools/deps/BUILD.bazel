@@ -14,7 +14,7 @@ genquery(
     scope = ["//core:core"],
 )
 
-# NullAway subtracted as for core: //core:duckdb_load (the drivers' bulk loader)
+# NullAway subtracted as for core: //core:duckdb_cells (the drivers' DuckDB cell types)
 # compiles with it, and a compiler plugin is on javac's processor path, never on a
 # running core's classpath (2026-09-23: its jsr305 read as a driver)
 genquery(
@@ -72,6 +72,37 @@ junit_test(
     data = [":warehouse_closure"],
     jvm_flags = ["-Dclosure.warehouse_closure=$(rlocationpath :warehouse_closure)"],
     select = ["--select-class=com.legend.tools.deps.WarehouseClosureTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# NO ARROW LIBRARY IN THE PRODUCT (the result boundary program's R9; track A, 2026-10-29): the planner's plan side, the
+# WebAssembly planner's Java, the native library's Java and the warehouse server reach no external repository named
+# for Arrow; the framer (//arrow_ipc) reaches //base alone (ArrowClosureTest).
+[genquery(
+    name = name + "_closure",
+    # NullAway subtracted as for core's closure: a compiler plugin, on javac's processor path, never on a classpath
+    expression = "kind(\"java_library|jvm_import|java_import|http_jar|.*_library\", deps(%s) except deps(//tools/nullaway:nullaway))" % target,
+    opts = ["--noimplicit_deps"],
+    scope = [target],
+) for name, target in [
+    ("plan_side", "//core:plan_side"),
+    ("wasm", "//wasm:tab"),
+    ("native", "//native:entry"),
+    ("native_image", "//warehouse:server_lib"),
+    ("arrow_ipc", "//arrow_ipc"),
+]]
+
+junit_test(
+    name = "arrow_closure_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["ArrowClosureTest.java"],
+    data = [":%s_closure" % c for c in ["plan_side", "wasm", "native", "native_image", "arrow_ipc"]],
+    jvm_flags = ["-Dclosure.%s_closure=$(rlocationpath :%s_closure)" % (c, c) for c in ["plan_side", "wasm", "native", "native_image", "arrow_ipc"]],
+    select = ["--select-class=com.legend.tools.deps.ArrowClosureTest"],
     deps = [
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",

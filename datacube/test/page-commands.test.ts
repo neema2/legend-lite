@@ -21,6 +21,7 @@ import { rebaseEdits, renamedCommand as rebaseCommand, withCube } from '../src/p
 import { corpus } from './fixtures/pages/make.ts';
 import { bandsOf } from './bands-of.ts';
 import { layoutTiles } from '../src/page-document.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2, chart (following grid) stacked with chart-2 (frozen, of
 // grid-2) on sheet-1 beside grid; grid-2 alone on sheet-2
@@ -250,7 +251,7 @@ describe('a timeseries tile: added, its spec set, titled and removed by the page
       { alias: 'trades', cube: 'grid', date: 'tradeDate', key: 'desk' },
       { alias: 'other', cube: 'grid-2', date: 'tradeDate' },
     ],
-    series: [{ id: 'A', expr: { kind: 'column' as const, column: 'notional' }, split: 'desk' }],
+    series: [{ id: 'A', text: writtenText({ kind: 'column' as const, column: 'notional' }, []), split: 'desk' }],
   };
   const add = (more: Partial<Extract<PageCommand, { kind: 'addTimeseries' }>> = {}): Extract<PageCommand, { kind: 'addTimeseries' }> => ({
     kind: 'addTimeseries', sheet: 'sheet-1', near: null, spec: SPEC, title: null, columns: null, ...more,
@@ -328,7 +329,7 @@ describe('a timeseries tile: added, its spec set, titled and removed by the page
   it('refused in words: a source no grid shows, a spec of a word it does not know, a chart set as a timeseries', () => {
     refused(() => apply(add({ spec: { ...SPEC, sources: [{ alias: 'x', cube: 'nowhere', date: 'd' }] } })), /source x reads 'nowhere', which is no cube of the page/);
     refused(() => apply(add({ spec: { ...SPEC, grain: 'hour' } as never })), /frequency "hour"/);
-    refused(() => apply(add({ spec: { ...SPEC, series: [{ id: 'A', expr: { kind: 'call', fn: 'macd', args: [] } }] } as never })), /calls "macd", which this DataCube does not compute/);
+    refused(() => apply(add({ spec: { ...SPEC, series: [{ id: 'A', text: '' }] } as never })), /series A has no text/);
     refused(() => apply(add({ sheet: 'sheet-9' })), /'sheet-9' is not a sheet of the page/);
     refused(() => apply(add({ near: 'grid-2' })), /'grid-2' is not on sheet-1/);
     refused(() => apply({ kind: 'setTimeseries', tile: 'chart', spec: SPEC }), /'chart' is a chart, not a timeseries tile/);
@@ -421,7 +422,7 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'addText', id: 'text-1', sheet: 'sheet-1', text: '# Sales', title: null, columns: null },
     {
       kind: 'addTimeseries', id: 'timeseries-1', sheet: 'sheet-1', near: 'grid', title: null, columns: null,
-      spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] },
+      spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] },
     },
     { kind: 'setTimeseries', tile: 'timeseries-1', spec: { sources: [{ alias: 'trades', cube: 'grid', date: 'tradeDate' }], series: [] } },
     {
@@ -442,6 +443,12 @@ describe('a page command read from JSON is the same command, and what DataCube d
     // a page filter's two (applied over a page of class grids: test/page-filters.test.ts)
     { kind: 'setPageFilter', id: 'filter-1', class: 'trades::domain::Trade', condition: { kind: 'condition', column: 'region', operator: 'equal', value: 'EMEA' }, from: null },
     { kind: 'removePageFilter', filter: 'filter-1' },
+    // a parameter of the page, set and taken off (test/page-parameters.test.ts)
+    { kind: 'setParameter', parameter: { name: 'min', type: 'Float', value: 90, choices: [90, 100], label: 'Smallest' } },
+    { kind: 'removeParameter', name: 'min' },
+    // a macro of the page, saved and taken off (test/macros.test.ts)
+    { kind: 'setMacro', name: 'Big', pure: { _type: 'lambda', parameters: [{ _type: 'var', name: 'input' }], body: [{ _type: 'func', function: 'limit', parameters: [{ _type: 'var', name: 'input' }, { _type: 'integer', value: 5 }] }] } },
+    { kind: 'setMacro', name: 'Big', pure: null },
     { kind: 'snap', grid: 'grid', copy: SNAP },
     { kind: 'live', grid: 'grid' },
     { kind: 'modelInto', project: 'datacube:q3', workspace: 'datacube', package: 'q3' },
@@ -455,6 +462,9 @@ describe('a page command read from JSON is the same command, and what DataCube d
     { kind: 'setOutput', grid: 'grid-3', output: { format: 'csv', name: 'trades out.csv' } },
     { kind: 'setOutput', grid: 'grid-3', output: null },
     { kind: 'setStops', grid: 'grid-3', stops: true },
+    { kind: 'setCache', grid: 'grid-3', cache: true },
+    { kind: 'setBlocks', grid: 'grid-3', blocks: true },
+    { kind: 'setMessage', grid: 'grid-3', message: { text: '{rows} rows', when: 'rows', level: 'warning' } },
     { kind: 'setPure', grid: 'grid-3', pure: { _type: 'lambda', parameters: [{ _type: 'var', name: 'input' }], body: [{ _type: 'func', function: 'limit', parameters: [{ _type: 'var', name: 'input' }, { _type: 'integer', value: 5 }] }] } },
     { kind: 'setPure', grid: 'grid-3', pure: null },
     { kind: 'setJoin', grid: 'grid-3', how: { form: 'semi', on: { rows: [{ left: 'region', op: '==', right: 'region' }] } } },

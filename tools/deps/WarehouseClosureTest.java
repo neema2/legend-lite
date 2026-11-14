@@ -25,8 +25,10 @@ class WarehouseClosureTest {
                 .toList();
         assertTrue(reached.contains("//base:base") && reached.contains("//json:json"),
                 () -> "the warehouse closure query did not see //base and //json — the guard is not looking: " + reached);
+        // 2026-10-29 (the result boundary program's track A): the Arrow IPC framer, the warehouse's own until then,
+        // is //arrow_ipc, a module below core that core's writers share
         assertEquals(List.of(), reached.stream().filter(t -> t.startsWith("//core")).toList(),
-                "the warehouse reaches core — it needs //base and //json only; a core class it wants belongs in a"
-                        + " module of its own, below core");
+                "the warehouse reaches core — it needs //base, //json and //arrow_ipc only; a core class it wants"
+                        + " belongs in a module of its own, below core");
     }
 }

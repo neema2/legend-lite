@@ -13,6 +13,7 @@ import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { LitePlanner } from '../src/lite-planner.ts';
 import { plannerFor } from './catalog-builder.ts';
 import { agg, asc, col, fn, from, lambda, variable, type ValueSpecification } from '../../pure-protocol/src/index.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 // the island's integration model (core/src/test/java/com/legend/integration/CypherIslandIntegrationTest.java): people,
 // firms and cities -- a person's firm an association, a firm's city a class-typed property -- over three tables
@@ -78,7 +79,7 @@ before(async () => {
     "INSERT INTO T_CITY VALUES (1, 'NYC'), (2, 'LA')",
     "INSERT INTO T_FIRM VALUES (1, 'Acme', 1990, 1), (2, 'Globex', NULL, NULL)",
     "INSERT INTO T_PERSON VALUES (1, 'Alice', 30, true, 1), (2, 'Bob', 40, NULL, 1), (3, 'Charlie', 25, false, 2), (4, 'Diana', NULL, true, NULL)",
-  ]) await engine.run(sql, 0);
+  ]) await engine.run(unplanned(sql), 0);
   planner = plannerFor(MODEL, 'test::RT');
 });
 

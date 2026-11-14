@@ -1,0 +1,108 @@
+// F37 (addendum, 2026-10-28): in a TDS `extend`, `substring` is still SQL's one-based reading, where a Relation
+// `extend` of the same query answers Pure's.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/substring-tds-extend/model.pure \
+//       --testable=demo::RelationExtend --testable=demo::TdsExtend
+//
+// legend-pure's substring(str, start) is zero-based, so 'TRD-0001'->substring(4) is '0001'. legend-engine 4.145.0's
+// pureToSQLQuery lowers a Relation extend's substring through processSubstr, as Pure defines it; a TDS
+// extend([col(...)]) passes it to SQL's substring(s, 4), one-based, which answers '-0001'. RelationExtend passes;
+// TdsExtend fails.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(10) PRIMARY KEY)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID\n' +
+      'TRD-0001\n';
+  }#
+}
+
+###Service
+Service demo::RelationExtend
+{
+  pattern: '/demo/relationextend';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id])->extend(~[digits:r|$r.id->substring(4)]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    RelationExtend_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"TRD-0001","digits":"0001"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}
+
+###Service
+Service demo::TdsExtend
+{
+  pattern: '/demo/tdsextend';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project([x|$x.id], ['id'])->extend([col(r|$r.getString('id')->substring(4), 'digits')]);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    TdsExtend_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"TRD-0001","digits":"0001"} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

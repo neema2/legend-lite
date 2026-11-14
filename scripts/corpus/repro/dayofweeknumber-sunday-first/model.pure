@@ -1,0 +1,81 @@
+// F74: dayOfWeekNumber counts from Sunday in the SQL, where legend-pure counts from Monday (ISO).
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/dayofweeknumber-sunday-first/model.pure \
+//       --testable=demo::IsoNumbers
+//
+// legend-pure's own tests have `DayOfWeek.Monday->dayOfWeekNumber()` 1 and Sunday 7, and its Sunday-first overload
+// is `dayOfWeekNumber($day)->mod(7) + 1`, so the one-argument form is ISO: 2024-06-03, a Monday, is 1, and
+// 2024-06-09, a Sunday, is 7. legend-engine 4.145.0's DuckDB SQL is `dayofweek(d) + 1`, written for "Sunday = 0,
+// Saturday = 6 >> we need from 1 to 7", and answers 2 and 1. The service fails.
+###Pure
+Class demo::Row
+{
+  id: String[1];
+  d: StrictDate[1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table T (ID VARCHAR(4) PRIMARY KEY, D DATE)
+)
+
+###Mapping
+Mapping demo::M
+(
+  demo::Row: Relational
+  {
+    ~primaryKey ( [demo::DB]T.ID )
+    ~mainTable [demo::DB]T
+    id: [demo::DB]T.ID,
+    d: [demo::DB]T.D
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{ store: demo::DB; type: DuckDB; specification: DuckDB { }; auth: Test; }
+
+###Runtime
+Runtime demo::RT { mappings: [ demo::M ]; connections: [ demo::DB: [ env: demo::Conn ] ]; }
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.T:
+      'ID,D\n' +
+      'R1,2024-06-03\n' +
+      'R2,2024-06-09\n';
+  }#
+}
+
+###Service
+Service demo::IsoNumbers
+{
+  pattern: '/demo/isonumbers';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Row.all()->project(~[id:x|$x.id, n:x|$x.d->dayOfWeekNumber()])->sort(~id->ascending());
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    IsoNumbers_suite:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        pure:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts: [ a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json';
+            data: '[ {"id":"R1","n":1}, {"id":"R2","n":7} ]'; }#; }# ]
+        }
+      ]
+    }
+  ]
+}

@@ -3,9 +3,10 @@
 
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedFilter;
@@ -78,7 +79,7 @@ class NestedExistsCorrelationStampTest {
                 st.execute("CREATE TABLE C (PID INTEGER, MAKE VARCHAR)");
                 st.execute("INSERT INTO C VALUES (10, 'BMW'), (NULL, 'VW')");
             }
-            var r = Execution.execute(MODEL, query, "m::RT", c);
+            var r = Lean.run(MODEL, query, "m::RT", c);
             List<String> out = new ArrayList<>();
             for (var row : r.rows()) {
                 StringBuilder sb = new StringBuilder();

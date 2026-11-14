@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 import com.legend.compiler.element.ModelContext;
 import com.legend.model.ClassDefinition;
 import com.legend.model.DatabaseDefinition;
@@ -343,13 +343,13 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         connection.createStatement().execute(
                 "INSERT INTO T_ADULT VALUES (1, 'Alice', 25), (2, 'Bob', 15), (3, 'Charlie', 30)");
 
-        // Execute the function body via QueryService
+        // Execute the function body via Execution.run
         String functionBody = "model::Adult.all()->filter({p | $p.age >= 18})";
-        var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Bare class query → JSON-wrapped GraphResult
-        assertInstanceOf(ExecutionResult.Graph.class, result);
-        String json = result.asGraph().json();
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, result.shape());
+        String json = result.json();
         assertNotNull(json);
         assertTrue(json.contains("Alice"), "JSON should contain Alice (age 25)");
         assertTrue(json.contains("Charlie"), "JSON should contain Charlie (age 30)");
@@ -421,9 +421,9 @@ class SQLiteIntegrationTest extends AbstractDatabaseTest {
         connection.createStatement().execute(
                 "INSERT INTO T_WORKER VALUES (1, 'Engineering', 100000), (2, 'Engineering', 120000), (3, 'Sales', 80000)");
 
-        // Execute the function body via QueryService
+        // Execute the function body via Execution.run
         String functionBody = "model::Worker.all()->project([{w | $w.dept}, {w | $w.salary}], ['department', 'sal'])";
-        var result = queryService.execute(pureSource, functionBody, "test::TestRuntime", connection);
+        var result = Lean.run(pureSource, functionBody, "test::TestRuntime", connection);
 
         // THEN: Should return 3 rows with projected columns
         assertEquals(3, result.rows().size(), "Should have 3 worker rows");

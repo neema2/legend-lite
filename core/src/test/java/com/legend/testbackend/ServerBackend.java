@@ -3,7 +3,6 @@
 
 package com.legend.testbackend;
 
-
 import com.legend.exec.Sessions;
 import com.legend.model.AuthenticationSpec;
 import com.legend.model.ConnectionDefinition;
@@ -47,7 +46,7 @@ abstract class ServerBackend implements TestBackend {
     final Connection openedAsThePlatformOpens(String database, Properties settings) throws SQLException {
         ConnectionDefinition declared = new ConnectionDefinition("test::" + name(), null, type(),
                 new ConnectionSpecification.StaticDatasource(HOST, port(), database), new AuthenticationSpec.TestAuth());
-        if (!(Sessions.openingFor(declared) instanceof Sessions.Opening.Url url)) {
+        if (!(Sessions.openingFor(com.legend.planner.ConnectionPlans.of(declared)) instanceof Sessions.Opening.Url url)) {
             throw new IllegalStateException(type() + "'s connector opens no URL for a static datasource");
         }
         return DriverManager.getConnection(url.url(), settings);

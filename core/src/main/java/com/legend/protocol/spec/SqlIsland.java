@@ -16,37 +16,27 @@ import java.util.Objects;
  * ({@code com.legend.protocol.sql.SqlToPure}, through the language's dialect) and types that, so the island runs
  * through the same typed pipeline as any query ({@code compiler/spec/SqlIslands}).
  *
- * @param language {@link #SQL}, {@link #IQ} or {@link #CYPHER} (as the parser and the wire reader make it; the typer
- *                 refuses any other)
+ * @param language the island's language ({@link IslandLanguage}: the registry of every island language's facts)
  * @param profile  the profile an {@code #IQ:<profile>{...}#} island names, as written; null when it names none (and
- *                 always for {@code #SQL{...}#})
+ *                 always for a language that takes none)
  */
 public record SqlIsland(String sql,
         @com.legend.base.Nullable com.legend.protocol.SourceInfo pos,
-        String language,
+        IslandLanguage language,
         @com.legend.base.Nullable String profile)
         implements ValueSpecification {
-
-    /** The Postgres island's language. */
-    public static final String SQL = "SQL";
-    /** The SAP IQ island's language. */
-    public static final String IQ = "IQ";
-    /** The Cypher island's language ({@code #Cypher{...}#}, docs/CYPHER_STUDY_2026_10_15.md §4 C1): its text is a
-     *  Cypher query as Neo4j accepts it, carried in this record's {@code sql} field (the island's text), with no
-     *  profile; the wire value is {@code {"cypher": <content>}}. The typer translates it through
-     *  {@code compiler/spec/CypherIslands}. */
-    public static final String CYPHER = "Cypher";
 
     /** Position is excluded from equality, as on every value specification ({@code ValueSpecEqualityTest}). */
     @Override
     public boolean equals(Object o) {
-        return o instanceof SqlIsland other && sql.equals(other.sql()) && language.equals(other.language())
+        return o instanceof SqlIsland other && sql.equals(other.sql()) && language == other.language()
                 && Objects.equals(profile, other.profile());
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(sql, language, profile);
+        // the opener, the language's name as the string field held it: a hash as before, stable across runs
+        return Objects.hash(sql, language.opener(), profile);
     }
 
     public SqlIsland {
@@ -56,11 +46,11 @@ public record SqlIsland(String sql,
 
     /** A {@code #SQL{...}#} island. */
     public SqlIsland(String sql, @com.legend.base.Nullable com.legend.protocol.SourceInfo pos) {
-        this(sql, pos, SQL, null);
+        this(sql, pos, IslandLanguage.SQL, null);
     }
 
     /** The island's opening as written, up to its first brace: #SQL, #IQ or #IQ:profile, then the brace. */
     public String opening() {
-        return "#" + language + (profile == null ? "" : ":" + profile) + "{";
+        return "#" + language.opener() + (profile == null ? "" : ":" + profile) + "{";
     }
 }

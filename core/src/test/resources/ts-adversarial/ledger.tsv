@@ -1,0 +1,13 @@
+# the adversarial fixture's cases, each one's status on the target's database, whether it faces its trap and lite's value: the ratchet TsAdversarialTest holds
+case	duckdb	faces_trap	value	detail
+holiday_gap	PASS	yes	0.0013684930785831106	
+fill_prev_series_start	PASS	yes	none	
+weekly_sample_holiday_end	PASS	yes	186.46	
+late_print	PASS	yes	-2.2246941045611646E-4	
+duplicate_row	DIFF	yes	226756.0	lite {date: 2025-02-09, value: 226756.0}, correct {date: 2025-02-09, value: 193862.0}
+duplicate_row/last_print_source	PASS	no	193862.0	
+duplicate_row/latest_by_seq	PASS	yes	193862.0	
+stale_price_5d	PASS	no	14.870221753433476	
+split_2_for_1	PASS	no	0.02098377368108073	
+tenor_3m_month_end	PASS	yes	-0.059946091644204835	
+vwap_zero_volume	PASS	no	189.09990759958782	

@@ -19,7 +19,7 @@ See [NOTICE](NOTICE) for the files and their notice.
 
 | Component | Version | Licence | Shipped in |
 |---|---|---|---|
-| [DuckDB](https://github.com/duckdb/duckdb) (JDBC driver and native library) | 1.4.4.0 (core), 1.5.5.1 (warehouse) | MIT, © Stichting DuckDB Foundation; DuckDB includes third-party code under its own licences (see its `third_party/` directory) | core server; warehouse; DataCube app |
+| [DuckDB](https://github.com/duckdb/duckdb) (JDBC driver and native library) | 1.5.6.0 (core), 1.5.5.1 (warehouse) | MIT, © Stichting DuckDB Foundation; DuckDB includes third-party code under its own licences (see its `third_party/` directory) | core server; warehouse; DataCube app |
 | DuckDB [postgres extension](https://github.com/duckdb/duckdb-postgres) | 1.5.5 | MIT; links libpq (PostgreSQL Licence) | warehouse; DataCube app |
 | [H2 Database Engine](https://h2database.com) | 2.1.214 | MPL-2.0 or EPL-1.0 (source: https://github.com/h2database/h2database) | core server |
 | [PostgreSQL JDBC Driver](https://jdbc.postgresql.org) | 42.7.13 | BSD-2-Clause | core server |

@@ -90,7 +90,7 @@ def _branches(c: model.Corpus, root: str, seeded: set[str]) -> list[tuple[str, s
     """
     out = []
     for (owner, name), end in sorted(c.ends.items()):
-        if owner != root or end.to_many or not end.join:
+        if owner != root or end.to_many or not model.walked(c, end):
             continue
         if c.main_table.get(end.target) not in seeded:
             continue
@@ -211,6 +211,29 @@ def build(c: model.Corpus, seeded: set[str],
         query.apply_temporal(c, spec)
         specs.append(spec)
     return specs
+
+
+def spine_targets(c: model.Corpus, seeded: set[str], tables) -> list:
+    """Every sub-object a generated tree fetches, down to its deepest: spines.py gives each roots
+    whose object there exists, so no tree is hollow at the bottom."""
+    import spines
+    import stacks
+
+    out = []
+    for s in build(c, seeded, tables):
+        def walk(node, path, cls):
+            for prop, sub in node.items():
+                if not isinstance(sub, dict):
+                    continue
+                tgt = c.ends[(cls, prop)].target
+                leaf = stacks._identifier(c, tgt) or next(
+                    (k for k, v in sub.items() if v is None), None)
+                if leaf is not None:
+                    out.append(spines.Target(s.root, tuple(path + [prop, leaf]), s.as_of, s.short,
+                                              filtered=False))
+                walk(sub, path + [prop], tgt)
+        walk(s.graph, [], s.root)
+    return out
 
 
 def _signature(tree: dict) -> tuple:

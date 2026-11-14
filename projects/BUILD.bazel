@@ -8,6 +8,29 @@ load("//tools/legend:defs.bzl", "legend_graph_test", "legend_library")
 # THE DEPENDENCY GRAPH: each project and the projects it may refer to (CONTRACT.md, "Dependencies"). This is the one
 # source of truth (each MANIFEST.md's opening paragraph says the same in prose, unchecked: G17 keeps Markdown out of
 # every verdict). A project depends only on a lower layer.
+# the timeseries project's one file, read as it is by DataCube (its page's library text and option table) and by
+# core's //core:timeseries_library_test (docs/TS_LANGUAGE_BUILD_2026_10_30.md P1)
+exports_files(
+    [
+        "timeseries/model.pure",
+        # gs-quant 2.2.3's signatures, read from gs-quant itself (tools/ts-oracle/signatures.py): the builders' spelling
+        "timeseries/gs-quant-signatures.json",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+# the adversarial markets fixture (timeseries/fixtures/adversarial, made by its generate.py): core's
+# //core:ts_adversarial_test reads it as it is, and so does the gs-quant oracle (2026-11-07)
+exports_files(
+    ["timeseries/fixtures/adversarial/" + f for f in [
+        "calendar.csv",
+        "manifest.yaml",
+        "prices.csv",
+        "prices_adjusted.csv",
+    ]],
+    visibility = ["//core:__pkg__"],
+)
+
 PROJECT_DEPS = {
     # layer 0
     "core-account": [],
@@ -24,6 +47,10 @@ PROJECT_DEPS = {
     "core-units": [],
     # the property-graph profile (docs/CYPHER_STUDY_2026_10_15.md §5.6): one Profile, no dependencies
     "graph": [],
+    # the timeseries library (the user, 2026-10-30: not DataCube's; docs/TS_LANGUAGE_BUILD_2026_10_30.md P1): functions
+    # and their option enumerations over any table, no store, no dependencies; DataCube, the core's library test and
+    # the #TS{...}# island read its model.pure
+    "timeseries": [],
     # layer 1
     "cash-core": ["core-account", "core-types"],
     "client-core": ["core-geo", "core-party"],
@@ -113,6 +140,24 @@ py_test(
     },
     main = "contract_test.py",
     deps = ["@rules_python//python/runfiles"],
+)
+
+# the adversarial fixture's files are its generator's: generate.py --check regenerates them in memory and compares
+# them byte for byte with the committed ones (the fixture's own diff test, in the core lane beside
+# //core:ts_adversarial_test; 2026-11-08)
+py_test(
+    name = "timeseries_adversarial_fixture_test",
+    size = "small",
+    srcs = ["timeseries/fixtures/adversarial/generate.py"],
+    args = ["--check"],
+    data = ["timeseries/fixtures/adversarial/" + f for f in [
+        "calendar.csv",
+        "manifest.yaml",
+        "prices.csv",
+        "prices_adjusted.csv",
+    ]],
+    main = "timeseries/fixtures/adversarial/generate.py",
+    visibility = ["//gates:__pkg__"],
 )
 
 # every check of the projects: each compiled alone, the graph, the contract's file checks (//gates:local, CI's checks)

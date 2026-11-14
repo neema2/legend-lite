@@ -19,9 +19,25 @@ abstract class InProcessBackend implements TestBackend {
         return name();
     }
 
+    /** A private in-memory instance made with the settings a plan's target on it declares (H2's: the C checkpoint's
+     *  SHOULD-FIX 3, 2026-11-12), and the dialect's session statements run on it, as a plan's run runs them first --
+     *  counted as the session's: a test's own text sent on it reads the session a plan would. */
     @Override
     public final Connection open() throws SQLException {
-        return Sessions.openPrivate(type());
+        com.legend.executionplan.DatabaseType t = com.legend.planner.ConnectionPlans.type(type());
+        com.legend.executionplan.ExecutionPlan.Target target = com.legend.planner.Targets.of(
+                new com.legend.executionplan.ExecutionPlan.Database.Platform(t, null), dialect());
+        Connection c = Connectors.of(t).openPrivate(target.settings());
+        try (java.sql.Statement st = c.createStatement()) {
+            for (String statement : target.session()) {
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.SESSION);
+                st.execute(statement);
+            }
+        } catch (SQLException e) {
+            c.close();
+            throw e;
+        }
+        return c;
     }
 
     @Override
@@ -38,6 +54,6 @@ abstract class InProcessBackend implements TestBackend {
     /** Its connector's in-memory specification ({@code exec.DatabaseConnector.storelessDeclaration}). */
     @Override
     public final String specificationAndAuth() {
-        return Connectors.of(type()).storelessDeclaration();
+        return Connectors.of(com.legend.planner.ConnectionPlans.type(type())).storelessDeclaration();
     }
 }

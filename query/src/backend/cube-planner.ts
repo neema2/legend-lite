@@ -10,6 +10,7 @@ import { toJson, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { Planner } from '../../../datacube/src/embed.ts';
 import type { PrintStyle } from '../../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../../engine-client/src/relation-type.ts';
+import { planParams } from '../../../engine-client/src/plan-params.ts';
 import type { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import type { PureModelContext } from './wire.ts';
 
@@ -39,7 +40,10 @@ export class CubePlanner implements Planner {
     signal?.throwIfAborted();
     const planned = await this.#grammar.plan(this.#model, query, this.#runtime);
     signal?.throwIfAborted();
-    const plan: Plan = { sql: planned.sql, columns: this.#columns(planned.type) };
+    // the values its statement binds (a JSON connection's data: payload), read once here from the plan beside the text
+    // (plan-params.ts: by digest, verified; the tenets audit's M3) -- the engine binds them
+    const params = planParams(planned.plan);
+    const plan: Plan = { sql: planned.sql, columns: this.#columns(planned.type), ...(params.length > 0 ? { params } : {}) };
     this.#plans.set(key, plan);
     return plan;
   }

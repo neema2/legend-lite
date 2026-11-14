@@ -1,0 +1,20 @@
+###Relational
+Database my::DB ( Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER) )
+
+###Pure
+Class my::P { name: String[1]; age: Integer[0..1]; }
+
+###Mapping
+Mapping my::M ( my::P: Relational { ~mainTable [my::DB]PERSON name: [my::DB]PERSON.NAME, age: [my::DB]PERSON.AGE } )
+
+###Connection
+RelationalDatabaseConnection my::C
+{
+  store: my::DB;
+  type: H2;
+  specification: LocalH2 { testDataSetupSqls: ['drop table if exists PERSON', 'create table PERSON(ID INT PRIMARY KEY, NAME VARCHAR(20), AGE INT)', 'insert into PERSON values (1, \'a\', 10), (2, \'b\', null), (3, \'c\', 30)']; };
+  auth: DefaultH2;
+}
+
+###Runtime
+Runtime my::R { mappings: [my::M]; connections: [my::DB: [c: my::C]]; }

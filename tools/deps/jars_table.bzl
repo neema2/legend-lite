@@ -1,7 +1,7 @@
 """THE PRODUCT'S JARS, the table: the third-party jars our programs run with, each fetched by http_jar (jars.bzl).
 
 docs/BUILD_REBUILD_DESIGN_2026_10_05.md, section 5b. These are leaf jars: each is a JDBC driver with no dependency it
-needs at run time, so no Maven resolution is wanted. One is test-only (h2_modern, a PCT lane's H2). rules_jvm_external
+needs at run time, so no Maven resolution is wanted. rules_jvm_external
 stays for the pools that resolve trees (pools.bzl): upstream, the engine runner, TeaVM, test tooling and compiler
 plugins.
 
@@ -13,10 +13,14 @@ here, with the reason. This file is data, so a BUILD file that checks its users 
 
 # name -> struct(coordinate, sha256, users): users are packages, or single targets "package:name".
 JARS = {
-    # core's DuckDB, through JDBC: //core:drivers, and //core:duckdb_load compiles its bulk loader against it
+    # core's DuckDB, through JDBC: //core:drivers, and //core:duckdb_cells compiles its cell types against it.
+    # 1.4.4.0 until 2026-10-29: 1.5.0 answered zero rows for the first() lowering's LIMIT shape (duckdb/duckdb#21160,
+    # docs/SESSION_HANDOFF_2026_09_02.md). Bumped to 1.5.6.0 on the user's ask (the result boundary program, D60): the
+    # LIMIT shapes answer correctly there (probes/duckdb_1_5_6.txt), and ASOF LEFT JOIN keeps its left rows against a
+    # derived table the planner proves empty, where 1.4.4 dropped them (register S126); the whole chain measured.
     "duckdb_jdbc": struct(
-        coordinate = "org.duckdb:duckdb_jdbc:1.4.4.0",
-        sha256 = "43f0cc93c892699162d46e8a45e2cbb92d92f74b933832f84c78ed551a2608df",
+        coordinate = "org.duckdb:duckdb_jdbc:1.5.6.0",
+        sha256 = "04ae3375d7c40dc88dc9bf0014b82ba5e66715564584af4e3abea39c7ba144d3",
         users = ["core", "spec"],
     ),
     # THE WAREHOUSE's DuckDB (docs/WAREHOUSE_W1_DESIGN_2026_09_26.md): 1.5.x for chunked fetching and host functions.
@@ -28,18 +32,21 @@ JARS = {
         # datacube's one use, the catalog-facts generator, went with DataCube's TypeScript model writer (2026-10-08)
         users = ["warehouse"],
     ),
-    # core's H2
+    # lite's ONE H2 (the user, 2026-11-05: "I want latest version of H2"): core, the corpus and PCT's H2 lane. 2.5.252,
+    # released 2026-09-26. Until then core and the corpus ran 2.1.214 and PCT's lane 2.4.240 (h2_modern, deleted).
     "h2": struct(
+        coordinate = "com.h2database:h2:2.5.252",
+        sha256 = "90b11dc413da82070ef15fc943282c1408e6ffd34fa68998335fea8603b5ff20",
+        users = ["core", "pct"],
+    ),
+    # legend-engine's own H2 (its root POM's h2.version), for the test harness's REPLAY REFEREE alone: the referee stands
+    # in for the engine's database when it replays the engine's golden SQL (the user, 2026-11-05: "Engine's 2.1.214,
+    # isolated"). Never on a classpath -- a file every test JVM and corpus pass is handed by path, loaded through a class
+    # loader of its own (testbackend/EngineH2Referee), so lite's 2.5.252 and it never meet.
+    "h2_engine": struct(
         coordinate = "com.h2database:h2:2.1.214",
         sha256 = "d623cdc0f61d218cf549a8d09f1c391ff91096116b22e2475475fce4fbe72bd0",
-        users = ["core"],
-    ),
-    # THE MODERN H2, for the one PCT lane that runs on it (gate 7: PCT relation on H2 2.4.240, the engine's own PCT
-    # H2 profile). An ALTERNATIVE to core's 2.1.214, never beside it. Test-only: no product runs it.
-    "h2_modern": struct(
-        coordinate = "com.h2database:h2:2.4.240",
-        sha256 = "29b70e427cc1c40cdc376283adbb0cc62853073797bb5fe5761f81fe73d57ce0",
-        users = ["pct"],
+        users = ["tools/junit", "spec"],
     ),
     # The server's Postgres arm (ConnectionResolver: jdbc:postgresql://). 42.7.13, released 2026-07-06.
     # Its POM declares checker-qual (annotations only) and waffle-jna (optional: Windows single sign-on). Neither is
@@ -63,7 +70,10 @@ JARS = {
     "snowflake_jdbc": struct(
         coordinate = "net.snowflake:snowflake-jdbc:4.4.0",
         sha256 = "eeabc114d2fd429365f8bdde0cb5dd00f0cf529b22aab754751bab1b09fc65c0",
-        users = ["pct"],
+        # core: the manual //core:ts_island_snowflake_test, ts_replay_snowflake_test and ts_documents_snowflake_test,
+        # the #TS island, the gallery's replay and the documents' examples on a real account
+        # (docs/TS_DECISIONS_2026_11_07.md items 9, 9b and 10, 2026-11-07)
+        users = ["core", "pct"],
     ),
     # group:artifact:version:classifier -- the shaded jar; the plain one declares 109 runtime dependencies
     "bigquery_jdbc": struct(
@@ -77,7 +87,9 @@ JARS = {
     "mariadb_jdbc": struct(
         coordinate = "org.mariadb.jdbc:mariadb-java-client:3.5.10",
         sha256 = "919b8c1c771d9ee3465811462f242c9543ab401e140c64988ddbf1d8abcb18b2",
-        users = ["pct"],
+        # core: //core:data_source_servers_test, a data: source on each embedded server (2026-11-11, the user: JSON on
+        # every database); a test's runtime dependency, never shipped
+        users = ["core", "pct"],
     ),
     # Trino's JDBC driver (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): the PCT Trino lanes' sessions on the
     # embedded server (@embedded_trino). Test-only; one shaded jar with no dependencies. Apache-2.0. Checked against
@@ -85,7 +97,9 @@ JARS = {
     "trino_jdbc": struct(
         coordinate = "io.trino:trino-jdbc:483",
         sha256 = "518062369fdfa937b35f11aa45276daa31cccaaad3c8c05eb51e674e23a419e3",
-        users = ["pct"],
+        # core: //core:data_source_servers_test, a data: source on each embedded server (2026-11-11, the user: JSON on
+        # every database); a test's runtime dependency, never shipped
+        users = ["core", "pct"],
     ),
     # ClickHouse's JDBC driver (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §19): the PCT ClickHouse lanes'
     # sessions on the embedded server (@embedded_clickhouse), over its HTTP port. Test-only;
@@ -94,7 +108,11 @@ JARS = {
     "clickhouse_jdbc": struct(
         coordinate = "com.clickhouse:clickhouse-jdbc:0.10.0:all-dependencies",
         sha256 = "ba4325c59a8ff5ec6cb7cf85b206e4317e6be5d056512aadc7a6e6a4abbd3e81",
-        users = ["pct"],
+        # core: //core:ts_replay_clickhouse_test and ts_documents_clickhouse_test, the gallery's #TS and the documents'
+        # examples on the embedded ClickHouse (ClickHouse a v1 database, the user 2026-11-07: "All four";
+        # docs/TS_DECISIONS_2026_11_07.md items 9 and 9b); and //core:data_source_servers_test, a data: source on each
+        # embedded server (2026-11-11, the user: JSON on every database); a test's runtime dependency, never shipped
+        users = ["core", "pct"],
     ),
     "sqlite_jdbc": struct(
         coordinate = "org.xerial:sqlite-jdbc:3.47.1.0",

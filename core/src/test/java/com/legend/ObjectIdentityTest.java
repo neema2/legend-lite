@@ -96,13 +96,11 @@ class ObjectIdentityTest {
         List<String> wrong = new ArrayList<>();
         {
             DatabaseType type = backend.type();
-            String model = com.legend.test.StorelessRuntime.with(MODEL, type);
+            String model = com.legend.testbackend.StorelessRuntime.with(MODEL, type);
             for (String[] c : CASES) {
                 try (Connection connection = backend.open()) {
-                    String text = PlanCases.run(Compiler.query(Compiler.compileModel(model), c[1])
-                            .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT),
-                            connection);
-                    String got = text.substring(text.indexOf('\n') + 1);
+                    String got = PlanCases.pureText(Compiler.query(Compiler.compileModel(model), c[1])
+                            .executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME), connection);
                     if (!got.equals(c[0])) {
                         wrong.add(type + ": " + c[1] + " answered " + got + ", Pure " + c[0]);
                     }
@@ -118,7 +116,7 @@ class ObjectIdentityTest {
      *  identity raises by name: never an answer from an id shared by every row, iteration or copy. */
     @Test
     void anUntrackedObjectsIdentityIsRefusedByName() throws Exception {
-        String model = com.legend.test.StorelessRuntime.with(MODEL, com.legend.database.Databases.PLATFORM);
+        String model = com.legend.testbackend.StorelessRuntime.with(MODEL, com.legend.database.Databases.PLATFORM);
         String[] queries = {
             // a lambda body's let read inside a nested lambda: Pure's 2, a use per inner element here
             "|[1, 2]->map(i | let a = ^s::P(n=$i); [3, 4]->map(j | $a);)->removeDuplicates()->size()",
@@ -126,9 +124,9 @@ class ObjectIdentityTest {
         for (String q : queries) {
             try (Connection connection = com.legend.testbackend.TestBackends.platform().open()) {
                 var plan = Compiler.query(Compiler.compileModel(model), q)
-                        .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT);
+                        .executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME);
                 RuntimeException e = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
-                        () -> PlanCases.run(plan, connection), q);
+                        () -> PlanCases.pureText(plan, connection), q);
                 assertTrue(e.getMessage().contains("an object's identity is read where the product does not track"),
                         q + ": " + e.getMessage());
             }
@@ -138,14 +136,14 @@ class ObjectIdentityTest {
         // DuckDB, so a fold that builds objects from integers does not run there yet: the SQL is the witness)
         String fold = Compiler.query(Compiler.compileModel(model),
                 "|range(0, 3, 1)->fold({i, acc | [^s::P(n=$i)]->concatenate($acc)}, [^s::P(n=8), ^s::P(n=9)])"
-                        + "->removeDuplicates()->size()").plan(com.legend.test.StorelessRuntime.RUNTIME).sql();
+                        + "->removeDuplicates()->size()").plan(com.legend.testbackend.StorelessRuntime.RUNTIME).sql();
         assertTrue(fold.contains("'__id': CAST(NULL AS VARCHAR)") && fold.contains("'__id': 'o1'"), fold);
     }
 
     /** A map's result is the concatenation of its mapper's values: a mapper whose value is a list flattens. */
     @Test
     void aMapConcatenatesItsMappersValues() throws Exception {
-        String model = com.legend.test.StorelessRuntime.with("Class s::Q { xs: Integer[*]; }",
+        String model = com.legend.testbackend.StorelessRuntime.with("Class s::Q { xs: Integer[*]; }",
                 com.legend.database.Databases.PLATFORM);
         String[][] cases = {
             {"3", "|[^s::Q(xs=[1, 2]), ^s::Q(xs=[3])]->map(q | $q.xs)->size()"},
@@ -155,10 +153,8 @@ class ObjectIdentityTest {
         };
         for (String[] c : cases) {
             try (Connection connection = com.legend.testbackend.TestBackends.platform().open()) {
-                String text = PlanCases.run(Compiler.query(Compiler.compileModel(model), c[1])
-                        .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT),
-                        connection);
-                assertEquals(c[0], text.substring(text.indexOf('\n') + 1), c[1]);
+                assertEquals(c[0], PlanCases.pureText(Compiler.query(Compiler.compileModel(model), c[1])
+                        .executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME), connection), c[1]);
             }
         }
     }

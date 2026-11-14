@@ -117,6 +117,18 @@ class FoldTest {
     }
 
     @Test
+    @DisplayName("a window folds until truncation, dedup, grouping or a QUALIFY: it reads the rows a QUALIFY kept")
+    void windowRules() {
+        assertTrue(Fold.windowFolds(BARE));
+        assertTrue(Fold.windowFolds(BARE.withWhere(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, col("A")))), "WHERE is evaluated before it");
+        assertFalse(Fold.windowFolds(BARE.withLimit(1L)));
+        assertFalse(Fold.windowFolds(BARE.withDistinct()));
+        assertFalse(Fold.windowFolds(BARE.withGroupBy(List.of(col("A")))));
+        // a QUALIFY filters after the select's windows: a window beside it would read the rows it drops (2026-10-26)
+        assertFalse(Fold.windowFolds(BARE.withQualify(SqlExpr.Call.of(SqlFn.IS_NOT_NULL, col("A")))));
+    }
+
+    @Test
     @DisplayName("projection folds until DISTINCT or truncation")
     void projectionRules() {
         assertTrue(Fold.projectionFolds(BARE));

@@ -3,6 +3,8 @@
 
 package com.legend;
 
+import com.legend.testplan.BodyDriver;
+
 import com.legend.testing.SourceFiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Tag;
@@ -48,7 +50,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * counted): the egress decode cluster ({@code Executor.fetch/unwrap/
  * latticeKind/decodeAny} — decoding carriers the DATABASE produced, by
  * declared contract), {@code LiteralFold} (the engine's own
- * ConstantExecutionNode, differential-pinned), the harness COMPARISON
+ * ConstantExecutionNode, differential-pinned), the compiler's
+ * {@code Literals} fold of CONSTANT tokens (a literal, a list of them, a
+ * let bound to one, and three string operations over such constants
+ * alone -- {@code +}, {@code joinStrings}, {@code replace} -- never a
+ * value the database answered; the user's ruling of 2026-10-30, "it's
+ * okay to join CONSTANT strings only": the set is pinned by
+ * {@link #theCompilersLiteralFoldJoinsConstantsAlone} and proven equal to
+ * the database's answer by {@code LiteralsParityTest}), the harness COMPARISON
  * layer (verification consumes two sides, never produces a result),
  * and the deleted {@code JsonAssertCanon.sortByKey} (re-created the TEST'S OWN
  * canonicalization over a metamodel that never executes through SQL).
@@ -68,7 +77,7 @@ class JavaEvalLedgerTest {
     // Phase 0.8 (batch 134, 2026-09-08): every row re-pinned to its MEASURED
     // stripped count and the check made exact (a shrink re-pins, like
     // EVICT_NAMES) — 723 lines of banked headroom burned: AggAwareActivities
-    // 227→211, StatementExecutor 2699→2045, DynamicPivot 118→106, JsonCompare
+    // 227→211, StatementExecutor (BodyDriver since 2026-10-29) 2699→2045, DynamicPivot 118→106, JsonCompare
     // 70→64, StoreNav 199→188, PctExecuteNative 131→107.
     private static final Map<String, Integer> EVICT_SIZE = Map.ofEntries(
             // 844 -> 850 (documented-debts 2026-08-18): the emptyCell
@@ -104,7 +113,12 @@ class JavaEvalLedgerTest {
             // 109 -> 116 (2026-10-17, the MongoDB PCT lane, §11.3 of the same plan): the route by lane -- a lane with
             // no JDBC session runs through the plan (PctPlanRoute, one call); the legacy route is its own method
             // (legacyRoute, the query service on the session PctBackend opens, as before). Nothing evaluated in Java.
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 116),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
+            // 116 -> 94 (2026-10-27, the result boundary program's phase 4: the legacy route and the shadow plan
+            // deleted; the PCT runs the typed plan alone); 94 -> 99 the same day (stage 1, step 3: the relation's
+            // crossing measured both ways, Pure's TDS text and the engine's JSON read by its own adapter's steps; the
+            // loser's lines leave with the switch); 99 -> 94 (2026-10-28, the switch: every lane measured the
+            // engine's crossing exact, and the TDS text crossing is deleted with PureTdsText)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/PctExecuteNative.java", 94),   // 106 -> 105 (2026-10-04, C3b: PctBackend.withStorelessRuntime declares the lane's real session)
             // 250 -> 259 (B4): the no-shadowing WALL — a fixture function
             // colliding with a lite-native name refuses injection loudly;
             // guard growth, anti-compensation
@@ -124,7 +138,16 @@ class JavaEvalLedgerTest {
             Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ModelPacker.java", 318),
             // +2 (B8): the BigDecimal-under-FLOAT arm — the reference's own
             // Float shape (FloatCoreInstance IS BigDecimal-backed)
-            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 355),
+            // 355 -> 376 (2026-10-27, the result boundary program's phase 4: a value's elements built as the
+            // reference's own instances from the plan's typed cells, by the query's result type -- the conversions
+            // pct_adapter.pure's text readers (readPureLiteral, quotedCells) did, deleted with them; each cell one
+            // carrier hop, nothing evaluated)
+            // 376 -> 428 the same day (stage 1, step 3: the engine's JSON answer read as legend-engine's PCT adapter reads
+            // it, json-simple's typing of each value, beside the TDS text crossing it is measured against; one of the
+            // two is deleted with the switch); 428 -> 418 (2026-10-28, the switch: the TDS text's wrapper,
+            // createTDSResult, deleted; the engine's crossing is the one that stays); 418 -> 417 (2026-10-29, S1.4's
+            // correction: the written-precision fact read off the plan column in place of two slot-spelling matches)
+            Map.entry("pct/src/test/java/org/finos/legend/lite/pct/extension/ValueBridge.java", 417),
             // MetamodelWalk (1307) + MetamodelSteps (196) DELETED (batch 55a,
             // 2026-09-04): the Java port of toPostgresModel and the host
             // metamodel walk are gone — the three tests they still scored
@@ -143,7 +166,7 @@ class JavaEvalLedgerTest {
             // single node (table accessor / tableToTDS plans; engine
             // spelling facts — precisePrimitives + default relational
             // types via PreciseTypes) and the plan-root finders MOVED here
-            // from StatementExecutor (its count fell 2724 -> ~2700 under
+            // from StatementExecutor (BodyDriver since 2026-10-29; its count fell 2724 -> ~2700 under
             // its unchanged pin). Printing engine plan text, no evaluation.
             // 845 -> 881 (batch 112, 2026-09-06): PlanText.storeDbs +
             // tableIn — the plan printer types each physical column by
@@ -163,7 +186,8 @@ class JavaEvalLedgerTest {
             // 225 -> 227 (lambda-classifier slice: the lambda spelling
             // reader unwraps the m3 carrier stamp — LambdaFunction<ft> —
             // via PlatformTypes.functionTypeOf; a TYPE read, no evaluation)
-            Map.entry("core/src/main/java/com/legend/AggAwareActivities.java", 211),
+            // path only (2026-10-31, the seam program's S2g): the activity rows' Java derivation left the driver for the planner
+            Map.entry("core/src/main/java/com/legend/planner/AggAwareActivities.java", 211),
             // ADVERSARIAL_TENET_AUDIT_2026_08_18 §5: the grid egress was
             // "the sixth class the JDBC guard doesn't name" — these four
             // rows pin it until the relation-typed fetchDb leg DELETES
@@ -191,7 +215,14 @@ class JavaEvalLedgerTest {
             // integer literal (a decode, not evaluation)
             // 111 -> 112 (2026-10-12, ClickHouse delivers an Int128 key, a sum of integers, as BigInteger): the same
             // rule's arm for that JDBC kind, the integral BigDecimal arm's twin (a decode, not evaluation)
-            Map.entry("core/src/main/java/com/legend/exec/DynamicPivot.java", 112),
+            // 112 -> 111 (2026-10-29, track B's B1a: the static pivot reads its keys as typed rows through the body's
+            // session seam, DynamicPivot.KeyReader, and types a key the lowering did not by the database's report,
+            // Statements.columns; its own JDBC statement and result-set decode are gone)
+            // 111 -> 113 (2026-10-29, the doors): the key's type probe is a plan statement of the body's target the
+            // plan runner runs (PlanRunner.columns: checked, the target's session statements run) -- two lines of
+            // parameters (the plan sessions, the target), no evaluation
+            // DynamicPivot.java's row RETIRED 2026-10-31 (the planner-driver seam program's S3a): the staticizer deleted,
+            // a dynamic pivot keyed where it is planned, its keys read when the plan runs (KeyedPivotKeyRoundTripTest)
             // Phase 1c endgame: the boundary resolver (stamp + marker
             // substitution over stamped schema — the DynamicPivot model;
             // audit 2026-08-18 Tier-3: size-pinned so the resolver never
@@ -216,7 +247,11 @@ class JavaEvalLedgerTest {
             // evaluation; it EXISTS to delete the Any-wildcard stamp so
             // late-bound cells type and the wire ledger burns.
             // 52 -> 53 (2026-09-20, statement-origin census): the column probe counts itself
-            Map.entry("core/src/main/java/com/legend/exec/GridProbe.java", 53),
+            // 53 -> 46 (2026-10-29, track B's B1a: the probe reads the session's reported columns through the seam,
+            // Statements.columns; its own JDBC statement and metadata read are gone)
+            // 46 -> 48 (2026-10-29, the doors): the LIMIT-0 probe is a plan statement of the body's target the plan
+            // runner runs (PlanRunner.columns) -- two lines of parameters, no evaluation
+            // GridProbe.java 52 -> gone (2026-10-30, the planner-driver seam program's S3c): the LIMIT-0 probe deleted with the stamp it fed; a raw grid's columns are the ones its result reports, read when the plan runs
             // Phase 2: the comparison layer, size-pinned at its landing
             // 212 -> 221: assertEqWithinTolerance MIGRATED IN from the
             // harness arm (net move, not new evaluation)
@@ -261,14 +296,14 @@ class JavaEvalLedgerTest {
             // 416 -> 441 (step 2b): grid cells by COLUMN kind and the mixed
             // verdict's leniency-only test moved here from TdsCompare (-59)
             // and AssertVerdicts; PureAsserts -24, JsonCompare gone (-25)
-            Map.entry("core/src/main/java/com/legend/exec/Equality.java", 447),   // 451 -> 447 (cleanup move 3: the ULP-firing counter moved to the one census owner; no rule changed)
+            Map.entry("core/src/main/java/com/legend/testexec/Equality.java", 452),   // 444 -> 452 (2026-11-08, the plan-as-data design's step 1 (docs/PLAN_AS_DATA_2026_11_07.md 2.5): the judges' types the exec way -- a judged value carries the plan's type name, never the compiler's Type: declaredNumeric reads a declared kind from that name, the same decisions as the Type arms it replaces; nothing evaluated)   // 461 -> 444 (2026-11-07, P1: the host judge's byte channel deleted -- a canon rider built and declined at run since the plan path's step 6, 2026-10-18, the dual verdict it fed, its canon framing, its census and the grid canons it read; nothing evaluated, nothing judged differently)   // 498 -> 461 (2026-11-06, the S132 scope fix, the user's "okay": two Strings compare exactly under every rule set, the float-token comparison inside any two Strings deleted; a rendered text's 2-ULP cells stay TdsCompare's on the host, the rows in the verdict row on the database judge) 494 -> 498 (2026-11-05, the exact-comparison report (the user's ruling S15/S132, 2026-11-05: clean mode compares Floats exactly, measured first): a print under -Dlegend.diagnostics=judge-declines where the 2-ULP tolerance, not equality, decided a verdict; a measurement, nothing evaluated)   // 502 -> 494 (2026-11-04, the explicit rule: the rules each verdict is judged by are its plan step's, ExecutionPlan.JudgingRules, handed to the judge -- the thread-local and its scope deleted, the comparisons take the rules as a parameter)   // 498 -> 502 (2026-11-04, register S127 ruled by the user: two numbers of different kinds are never equal in lite's own runs; in backwards-compatibility mode compiled legend-pure's rule, an Integer and a Decimal by their texts -- integerAndDecimal; one comparison, nothing computed)   // 487 -> 498 (2026-11-04, backwards-compatibility mode (the user, 2026-11-04: lite's own runs exact, PCT and the corpus in compat mode): S132's float tokens in a String scoped to a compat run's judgment (compat); the comparison itself unchanged)   // 485 -> 487 (2026-11-03, S132 narrowed: two spellings of one double fail as text, never tolerated -- the H2 percentile witness; judgement only, nothing evaluated)   // 420 -> 485 (2026-11-03, the user's ruling "no sort can be multiset compare" restored: pureJsonUnorderedRoot, an unsorted chain's root array as a multiset, back (+28); with it the same day's S15 float-token tolerance the user allowed, floatTokensWithinTwoUlp and the STRING arm that calls it (+37), measured here; judgement only, nothing evaluated)   // 448 -> 420 (2026-11-03, the user's ruling: never more lenient than upstream -- the multiset, rendered-text, cell-pool, unordered-JSON and stamped-kind paths deleted)   // 447 -> 448 (2026-10-30, D71): in judge, out of exec -- the one exec import the move needs (the census); no rule changed   // 451 -> 447 (cleanup move 3: the ULP-firing counter moved to the one census owner; no rule changed)
             // 242 -> 218 -> 229 (step 2b): the equality API is gone; the typed
             // message facade (assertEqualsTyped) builds a grid's narrative
             // from the SAME typed cells the judge decided — no divergence
-            Map.entry("core/src/main/java/com/legend/exec/PureAsserts.java", 229),   // 313 -> 336 (numeric charter Rule 3, 2026-09-17: equality by the DECLARED kind — a Float-declared BigDecimal carrier and a double are the same kind, compared by canonical value; judgement only, nothing evaluated)
+            Map.entry("core/src/main/java/com/legend/testexec/PureAsserts.java", 218),   // 257 -> 218 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the shared value spelling (repr, wireId) left for the test plan's library, testexecutionplan/Verdicts (148, pinned below), read by planning's messages and the run's judges alike)   // 263 -> 257 (2026-11-08, the plan-as-data design's step 1 (docs/PLAN_AS_DATA_2026_11_07.md 2.5): the judges' types the exec way -- the messages take a side's class FQN, classFqnOf's walk of the compiler type deleted; nothing evaluated)   // 250 -> 263 (2026-11-05, the assert bar: assertSameElements' and assertContains' messages take each side's static type -- an instance's instanceOf half, a list of pairs printed 'instanceOf ?'; messages from values already read, nothing evaluated)   // 251 -> 250 (2026-11-04, the assert bar: assertEquals' message writes each side's %r where BOTH hold one value, else both as lists -- upstream's rule, one helper for the two entries; reprSide deleted)   // 247 -> 251 (2026-11-04, the core parity program: assertEq over two keyless instances planned by the database judge -- the static gate admits the pair (AssertVerdicts.keylessInstances), the verdict the identity canon the database compares; the host's distinct-instances failure in upstream's %r words; no value computed)   // 229 -> 247 (2026-11-03, the user's order of fixes, step 3: upstream's own failure texts for assertNotEquals, assertContains and assertEmpty (their .pure format strings, verbatim), spelled from the values the step read -- nothing evaluated)   // in judge since 2026-10-30 (D71)   // 313 -> 336 (numeric charter Rule 3, 2026-09-17: equality by the DECLARED kind — a Float-declared BigDecimal carrier and a double are the same kind, compared by canonical value; judgement only, nothing evaluated)
             // NEW ROW (2026-08-19 Clause-2c redesign): the K-arm —
             // assert-family VERDICT dispatch (World 1). Arguments execute
-            // in the database (StatementExecutor.evalValue); this file
+            // in the database (BodyDriver.evalValue); this file
             // only routes members to PureAsserts and judges the quantified
             // boolean vector. Adjudication orchestration, never evaluation.
             // 221→246 (2026-08-19 standard-suite burn): the assertInstanceOf
@@ -335,7 +370,7 @@ class JavaEvalLedgerTest {
             // render judges) + renderSide FRAMING (spec separators over
             // DB-computed element texts) moved here when the canon
             // collapsed into the side query. In exchange the WHOLE
-            // prepCanon/runCanon execution arm left StatementExecutor
+            // prepCanon/runCanon execution arm left StatementExecutor (BodyDriver since 2026-10-29)
             // (−402): the verdict system's total surface SHRANK 355.
             // The DB still computes every element text and the
             // canonical order — framing writes '[', ', ', ']' only.
@@ -488,7 +523,7 @@ class JavaEvalLedgerTest {
             // 1576 -> 1595 (batch 58, the H2VERSION decision): an if whose
             // BRANCHES are asserts (assertEqualsH2Compatible's body) — the
             // condition is a value QUERY the database evaluates
-            // (StatementExecutor.evalValue); Java only dispatches the taken
+            // (BodyDriver.evalValue); Java only dispatches the taken
             // branch to the existing verdict arms. No value computation.
             // 1595 -> 1599 (batch 59, the lineage-tree row verdict): the
             // seam dispatches the assert to LineageTreeVerdicts (its rows
@@ -535,14 +570,16 @@ class JavaEvalLedgerTest {
             // 2598 -> 2599 (leg 3.4 step 2, 2026-09-20): an immediately executed verdict
             // statement carries the batch's frame definitions (one attach line)
             // 2599 -> 2593 (2026-09-20, lean ladder): the once-per-JVM JUDGE_MODE static
-            // deleted — the mode rides the run's options (ExecuteOptions.JudgeMode)
+            // deleted — the mode rides the run's options (com.legend.testplan.PlanningOptions.JudgeMode)
             // 2593 -> 2599 (2026-09-20, lean ladder rung 4): SideRows.scalarRow — a
             // declared-one operand handed to VerdictSql as a one-row relation; plan
             // wiring, nothing evaluated
             // 806 -> 804 (2026-10-19, re-pinned to the measured count after the plan path program's step 6)
-            Map.entry("core/src/main/java/com/legend/HostJudge.java", 804),   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
-            Map.entry("core/src/main/java/com/legend/DatabaseJudge.java", 595),   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
-            Map.entry("core/src/main/java/com/legend/AssertVerdicts.java", 1249),   // 1237 -> 1249 (2026-09-22, forAll/zip relational: the vector contract route: a per-element assert is the predicate it means, asked of the arm before the unroll fetches (routing, no evaluation))
+            Map.entry("core/src/main/java/com/legend/testplan/HostJudge.java", 237),   // 864 -> 237 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the package split: the host judge's run half -- the judgment over the rows the database read -- left for testexec/HostJudgments (pinned below at 633) and HostSideShapes (27); the planning half stays; nothing evaluated differently)   // 829 -> 864 (2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): the key tree a pair restricts to selected here at run from the plan's facts (restrictKeys, from HostJudgment.Keys.resolve, which left with the judgment for the test plan's library), a row assert's literal read back from its carrier and text; nothing evaluated)   // 828 -> 829 (2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): the test plan's types in its signatures (the verdict and its side are TestPlan's); nothing evaluated)   // 826 -> 828 (2026-11-08, the plan-as-data design's step 2 (docs/PLAN_AS_DATA_2026_11_07.md 2.4): failures as data -- a planned failure raised from its data at its turn (Failures.raised); nothing evaluated)   // 825 -> 826 (2026-11-08, the plan-as-data design's step 1 (docs/PLAN_AS_DATA_2026_11_07.md 2.5): the judges' types the exec way -- a side's declared type its plan name, the class FQN handed to the messages; one line, nothing evaluated)   // 840 -> 825 (2026-11-07, the P1 milestone audit's 4: the byte channel's static gate -- the keys and keyless-constructor scan built at planning and read by nothing -- deleted with its record; nothing evaluated)   // 1087 -> 840 (2026-11-07, P1: the host judge's byte channel deleted -- a canon rider built and declined at run since the plan path's step 6, 2026-10-18, the dual verdict it fed, its canon framing, its census and the grid canons it read; nothing evaluated, nothing judged differently)   // 1086 -> 1087 (2026-11-07, register S144, the user's ruling: assertJsonStringsEqual's texts read as the judging rules read JSON -- JudgeJson; the rules handed to the JSON judgment, one line; nothing evaluated)   // 1266 -> 1086 (2026-11-07, I2: the walk's leftovers deleted -- measured unreached on every lane by print-only probes, then cut: the eager frame run, the statement executor and its effect sends, the host arm judged in place, the no-batch verdicts; nothing evaluated)   // 1263 -> 1266 (2026-11-05, the user's ruling "after a verdict the harness may only explain": a rendered text's ruled row comparison only under the compatibility rules (renderedOf takes the step's rules); nothing evaluated)   // 1255 -> 1263 (2026-11-05, the user's clean-ups: the caller's message an EXPLICIT reader handed to the judgment -- the lazily filled list deleted; signatures, nothing evaluated)   // 1253 -> 1255 (2026-11-05, the assert bar: assertContains' judgment carries its sides' static facts, an instance's instanceOf half in the message; nothing evaluated)   // 1248 -> 1253 (2026-11-04, the assert bar: messagedOf raises an unplanned message's failure where the assert fails; assertError's judgment takes the run's rules for an inner assert; nothing evaluated)   // 1234 -> 1248 (2026-11-04, the asserts-as-plan-nodes program, step 5: a quantified equality element by element -- planPerElement: the host reads the operand pairs the database computed, each judged as the element arm judges a pair; nothing computed in Java)   // 1229 -> 1234 (2026-11-04, the explicit rule: the rules each verdict is judged by are its plan step's, ExecutionPlan.JudgingRules, handed to the judge -- the dispatch passes the rules down; HostJudge.decided, a planned verdict that compares nothing; nothing evaluated)   // 1228 -> 1229 (2026-11-04, backwards-compatibility mode: the Compat judgment's one dispatch arm; nothing evaluated)   // 1210 -> 1228 (2026-11-04, the asserts-as-plan-nodes program, steps 2-3: a caller's failure message one more side of the check, HostJudgment.Messaged raising its text (HostJudge.messaged, messagedOf); nothing evaluated)   // 1206 -> 1210 (2026-11-04, the core program: equalsMessage, upstream's assertEquals text for an engine-text arm declining its step's texts, spelled on the verdict seam; nothing evaluated)   // 1203 -> 1206 (2026-11-04, the core program: statementAsk -- an assertIs / assertInstanceOf no arm plans is lowered as the walk's generic path lowers it, its raise the assert's at its turn; no value computed)   // 1179 -> 1203 (2026-11-04, the core program: the quantified assertEquals / assertEqWithinTolerance over rows planned for the program road -- HostJudgment.Rows, its arguments and the zip's pairing read at planning as data, judged row by row by PureAsserts as the walk judged them; the walk's copy deleted, it runs the planned check in place; no value computed)   // 1170 -> 1179 (2026-11-03, the core parity program: the grid pair's failure in upstream's words, '\nexpected: %r\nactual:   %r', each grid's rows framed as the database judge frames them (gridText) -- the summary '[age] (2 rows) does not match' was lite's; a message composed from rows already read, no value computed)   // 1100 -> 1170 (2026-11-03, the user's ruling "no sort can be multiset compare" restored: where the actual side is not SORTED the equality may be a multiset again -- the incidental flat-cells row-cohesion fallback and its byte channel's two-sided sort, the grid pair under the order view, the JSON root multiset, the rendered-text arm (rendered, planRendered, renderedOf); the cell pool and the [x] root unwrap stay deleted; nothing evaluated)   // 1189 -> 1100 (2026-11-03, the user's ruling: never more lenient than upstream -- the multiset, rendered-text, cell-pool, unordered-JSON and stamped-kind paths deleted)   // 1184 -> 1189 (2026-11-03, the walker-deletion program): the dispatch over a side read as rows OR its error -- assertError's judgment takes the error as its answer, every other judgment's failure (the user's "why are we special casing assertError"); the walk's arm and its silent verdict go with the walk; nothing evaluated   // 1168 -> 1184 (2026-11-02, the test-is-the-product plan's M10c item 9): planCellPool (the pool's two asks, judged as a cell multiset where a side is planned as a grid: a planning fact read with nothing sent) and cellPoolOf (the walk's judgment at the step); the walk's cellPool now runs the plan; nothing evaluated   // 1132 -> 1168 (2026-11-02, the test-is-the-product plan's M10c item 5): planAllRows, allRowsOf (the walk's quantified judgment, planned), unrolledOf (each element's planned assert judged over its slice, as the walk adjudicates them); the judgments the walk made, at the step   // 1128 -> 1132 (2026-11-02, the test-is-the-product plan's M10c item 2): the gridPair arm of the one dispatch, the grid owner as before; nothing evaluated   // 1127 -> 1128 (2026-11-01, the test-is-the-product plan's M10b): the EngineText arm of the one dispatch; nothing evaluated   // 1066 -> 1127 (2026-11-01, the test-is-the-product plan's M8a): the host judgment as DATA -- each planX builds a HostJudgment record (the comparison's name and the facts read at planning: the side facts, the key trees, the byte gates, the flat facts, the order views) and ONE static dispatch (judge) switches on it; each xOf takes the record and the rows and nothing else. The growth is the dispatch and the records' unpacking; the comparisons are the same ones (structuredSide moved in from AssertVerdicts); no judgment moved into Java   // 956 -> 1066 (2026-11-01, the test-is-the-product plan's M6): every single-fetch arm split into a PLAN half (planX: the sides it asks for and its judgment, HostSides.Check) and the walk's run form (X = run/judged of planX, both halves back to back), so the program road places the sides as a verdict step and judges at that step; the same comparisons, not one more -- the growth is the second entry per arm, which goes with the walk's run forms at M10   // 817 -> 956 (2026-10-30, the seam program's step after S2f): the quantified assert's row form, and a zip's arms read as sides of one group and paired by position (zip's own rule, the pairing the unroll did; it replaces the unroll's database fetch and the compiler's literal re-spelling, both deleted) -- the zip's rows read ONCE and each judged as the element arm judges it (PureAsserts, the same decision and message), the predicate vector for assert/assertFalse; the host fetches no zip arm into Java any more (sideCells deleted)   // 804 -> 817 (2026-10-30, the seam program's S2f): the arms name their sides up front and take them back from the runner by position (the three ask helpers and the group fetch); no judgment moved into Java   // 802 -> 806 (2026-09-22, forAll/zip relational: quantifiedVector returns null: the host judge fetches and unrolls by design)
+            Map.entry("core/src/main/java/com/legend/testplan/DatabaseJudge.java", 790),   // 819 -> 790 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the package split: the database judge's verdict over a row left for testexec/DatabaseVerdicts (38), pinned below)   // 818 -> 819 (2026-11-08, the slice 3 follow-up audit: a verdict row's UNJUDGED column is counted at the row's turn, in verdictOf -- the run's census, which the move off planning had left uncounted; nothing evaluated)   // 819 -> 818 (2026-11-08, the slice 3 invariant audit's fixes: an UNJUDGED shape is counted at the root's turn (RootLoops), not when the arm plans it; nothing evaluated)   // 818 -> 819 (2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): the kind class the test plan's (one import); nothing evaluated)   // 815 -> 818 (2026-11-07, register S144, the user's ruling: the JSON golden read once as the judging rules read JSON -- JudgeJson -- and a golden they refuse fails in the host judge's words; nothing evaluated)   // 819 -> 815 (2026-11-07, I2: the walk's leftovers deleted -- measured unreached on every lane by print-only probes, then cut: the eager frame run, the statement executor and its effect sends, the host arm judged in place, the no-batch verdicts; nothing evaluated)   // 828 -> 819 (2026-11-06, the user: "Remove fallback": holdsNow deleted -- a rendered text sent alone and its rows sent after a failure; the two are one verdict row in the batch, refused by name outside one) // 825 -> 828 (2026-11-05, the user's ruling S139: lite compares a Decimal by value -- each equality side, and the per-element form, told whether its Decimal canon drops its scale, VerdictSql.decimalByValue, three argument lines; nothing evaluated)   // 824 -> 825 (2026-11-05, the user's ruling S15/S132 built: clean mode compares a Float exactly, the 2-ULP tolerance compatibility mode's alone -- the equality verdict told the rules' JudgingRules.floatTolerance, one argument line; nothing evaluated)   // 823 -> 824 (2026-11-05, the exact-comparison report (the user's ruling S15/S132, 2026-11-05: clean mode compares Floats exactly, measured first): a print under -Dlegend.diagnostics=judge-declines where the 2-ULP tolerance, not equality, decided a verdict; a measurement, nothing evaluated)   // 821 -> 823 (2026-11-05, the strict database judge's measurement: a verdict statement sent after the plan's rows are read named under -Dlegend.diagnostics=judge-declines -- holdsNow and runVerdict with no batch; a measurement, nothing evaluated)   // 818 -> 821 (2026-11-05, the user's clean-ups: a date literal's message text spelled at planning as a constant -- the SQL string-length rule deleted; nothing evaluated)   // 809 -> 818 (2026-11-05, the assert bar: a list of a generic class's instances -- pairs -- written per element from their structs (VerdictSql.Message.instances), the side's plan read for its struct type at planning; nothing evaluated)   // 803 -> 809 (2026-11-05, the assert bar: one instance of a generic class -- a Pair -- written for the failure message from its struct's fields (VerdictSql.genericInstanceRepr), the planned objects' own representation for every other; nothing evaluated)   // 795 -> 803 (2026-11-04, the assert bar: plannedMessage -- a caller's message planned with the session its row reads, so the batch sends it at the failing root's place alone; a generic class's instance written by its raw class; nothing evaluated)   // 775 -> 795 (2026-11-04, the assert bar: each side's elements WRITTEN in the failure message as upstream writes them -- VerdictSql.Message from the side's canon kind, the emptiness and membership verdicts over written rows (toRepresentation, Pure's sort for assertSameElements, a List's %s for assertEmpty); the comparison the canons'; nothing evaluated)   // 751 -> 775 (2026-11-04, the asserts-as-plan-nodes program, step 5: a quantified equality element by element -- the database arm plans the operand pairs as a side and VerdictSql.perElement composes the verdict; an assertEquals no longer reads SQL equal over a predicate vector; nothing evaluated)   // 726 -> 751 (2026-11-04, register S127 ruled by the user: two single numbers of different known kinds decided false at planning, the rows read for the message (crossNumberKinds, fineNumber); in backwards-compatibility mode an Integer and a Decimal compared by the canon's text as compiled legend-pure compares them; nothing evaluated)   // 725 -> 726 (2026-11-04, the asserts-as-plan-nodes program: the vector form's assert fails with the call's literal message, VerdictQueries.assertMessage, not the default; nothing evaluated)   // 719 -> 725 (2026-11-04, the asserts-as-plan-nodes program: a single Decimal side's message text carries its D as upstream's %r writes it -- VerdictSql.messageWithDecimals over the row's expected and actual texts, the comparison the row's own; nothing evaluated)   // 703 -> 719 (2026-11-04, the asserts-as-plan-nodes program, step 2: a caller's failure message carried to the verdict row (failureMessage: a folded literal or the row the database computes; runVerdict's one hook); nothing evaluated)   // 684 -> 703 (2026-11-04, the core program: an equality over two class sides spells its failure message as the host judge prints instances -- instancesMessage, classOf, the re-spelled plans joined into the row (VerdictSql.instancesRepr, messageAsInstances); nothing evaluated)   // 679 -> 684 (2026-11-04, the core program: a quantified equality over a literal source declines the vector form, each element judged as itself with upstream's own message; nothing evaluated)   // 672 -> 679 (2026-11-04, the core program: textRow, a rendered text planned as the host judge plans it, a plain value with no canon wrap, for the verdict row; nothing evaluated)   // 664 -> 672 (2026-11-04, the core program: holdsNow, a generic verdict run with no batch open and its holds column read, where a ruled fallback decides its failure; nothing evaluated)   // 655 -> 664 (2026-11-04: the grid-pair rule scoped to the grid pair family -- databaseVerdict's gridPairArm overload; a flat cells compare that reaches two grids compares their cells alone, the corpus's validation tests; no value computed)   // 643 -> 655 (2026-11-04, the core parity program: a grid pair whose schemas differ planned by the database judge -- names or widths decide false at planning (VerdictSql.decidedFalse), kinds that differ spelled in the expected's; no value computed)   // 639 -> 643 (2026-11-04, the core parity program: assertEq over two keyless instances planned by the database judge -- the static gate admits the pair (AssertVerdicts.keylessInstances), the verdict the identity canon the database compares; the host's distinct-instances failure in upstream's %r words; no value computed)   // 616 -> 639 (2026-11-03, the core parity program: core's tests under the database judge alone write the host's words -- an assert's own message ("Assert failed", the quantified assert's), assertInstanceOf decided by the value's static type with upstream's 'expected %r to be an instance of %s, actual: %s' over the value's row, each composed into the statement the database runs (VerdictSql); nothing evaluated)   // 612 -> 616 (2026-11-03, round 18: two single Strings compared by their raw text print as upstream's %r prints a String -- the message framed by VerdictSql.messageAsStrings, a statement the database writes; nothing evaluated)   // 602 -> 612 (2026-11-03, the database judge on par with the host, round 17: the rendered-text family's message the two Strings upstream prints -- databaseVerdict's overload carrying the flag and its three statements framed by VerdictSql.messageAsStrings, a statement the database writes; nothing evaluated)   // 603 -> 602 (2026-11-03, the database judge on par with the host: a side's decline renders the side first, so the dialect's refusal is the outcome as the host's read raises it -- the two decline arms one; nothing evaluated)   // 581 -> 603 (2026-11-03, the corpus's database pass: the unsorted-root JSON multiset (bucket 9) restored under the host's own gate, OrderView INCIDENTAL, so the two judges decide the same documents alike -- the statement the database runs, nothing evaluated)   // 576 -> 581 (2026-11-03, the user's ruling "no sort can be multiset compare" restored: the equality and grid-pair arms take the order view again, the rendered arm back (renderedValueVerdict); the cell pool and the JSON root multiset gated by the deleted rootMany sniff stay out; plan wiring, nothing evaluated)   // 600 -> 576 (2026-11-03, the user's ruling: never more lenient than upstream -- the multiset, rendered-text, cell-pool, unordered-JSON and stamped-kind paths deleted)   // 595 -> 600 (2026-11-02, the test-is-the-product plan's M10c item 2): the gridPair arm -- the SQL grid pair over two planned grids (databaseVerdict's two-grid branch, a statement the database judges); nothing evaluated   // 596 -> 595 (2026-11-01, the test-is-the-product plan's M8b): verdictOf reads the row's own holds and message (the polarity and the text composed in the statement by VerdictSql.selfContained), one line less; nothing evaluated   // 595 -> 596 (2026-10-30, the step after S2f): the vector arm's signature carries the source, the lambda and the element assert (one line); no evaluation added   // 586 -> 595 (2026-09-22, forAll/zip relational: quantifiedVector: the predicate vector planned and judged in the fused statement)
+            // 1249 -> 1258 (2026-10-27, the result boundary program's phase 5: Executor.structured moved here, its
+            // one caller, when the old executor was deleted; a JSON text read to its structure, nothing evaluated)
+            Map.entry("core/src/main/java/com/legend/testplan/AssertVerdicts.java", 1528),   // 1536 -> 1528 (2026-11-11, B2d.2 of the total-wall program: the generator's assertSqlEquals root arm deleted with the TDG appeal; nothing evaluated)   // 1789 -> 1536 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the package split: the verdicts' run halves left for testexec/AssertRuns (208) and AssertErrorRuns (70), pinned below; planning keeps the classification and the plans)   // 1791 -> 1789 (2026-11-08, the slice 3 invariant audit's fixes: the database judge's planning counts no verdict outcome -- the census's enter and a wall's raise at planning deleted, the root loop counting them at the root's turn from the plan's data; nothing evaluated)   // 1802 -> 1791 (2026-11-08, the slice 2 audit: HostAssert's enter() and its two judge(...) deleted, nothing called them -- the run judges from the verdict's own facts)   // 1799 -> 1802 (2026-11-08, the plan-as-data design's step 4b (docs/PLAN_AS_DATA_2026_11_07.md 2.3): the three step seams take the plan's host facts -- the assert, its judgment, its sides' shapes -- off the verdict, where they read the planner's assert; signatures, nothing evaluated)   // 1784 -> 1799 (2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): an assert's facts and parts as the plan's data (assertionOf, part) and their census and judgment at the step (enter, judge), HostAssert's own delegating; nothing evaluated)   // 1782 -> 1784 (2026-11-08, the plan-as-data design's step 2 (docs/PLAN_AS_DATA_2026_11_07.md 2.4): failures as data -- a planning failure recorded as data with its site (Failures.of), raised from it at its turn; nothing evaluated)   // 1815 -> 1782 (2026-11-07, the P1 milestone audit's 4: the keyless-constructor scan the byte channel's gate read deleted; nothing evaluated)   // 1847 -> 1815 (2026-11-07, P1: the host judge's byte channel deleted -- a canon rider built and declined at run since the plan path's step 6, 2026-10-18, the dual verdict it fed, its canon framing, its census and the grid canons it read; nothing evaluated, nothing judged differently)   // 1884 -> 1847 (2026-11-07, I2: the walk's leftovers deleted -- measured unreached on every lane by print-only probes, then cut: the eager frame run, the statement executor and its effect sends, the host arm judged in place, the no-batch verdicts; nothing evaluated)   // 1960 -> 1884 (2026-11-06, the walk's orphans: tryAdjudicate, the walk's statement-root entry, with batched and flush)   // 1956 -> 1960 (2026-11-06, the walk deletion: a rendered RAW grid -- executeInDb's late-bound rows, its text a keyed statement -- planned by the database arm as a static grid is, renderedStatic's rawGrid; a type read, nothing evaluated)   // 1938 -> 1956 (2026-11-06, the walk deletion's step 3: engineTextDecidedEqual -- an engine-text assert whose two texts are constants and equal never appeals, so a system-routed body admits it -- and the unplanned census named by test under judge-declines; planning and measurement, nothing evaluated)   // 1934 -> 1938 (2026-11-05, the deep audit: two grids whose schemas differ fail by name under the database judge instead of reaching the host grid owner; nothing evaluated)   // 1906 -> 1934 (2026-11-05, the user's ruling S135, assertError -- the host catches, the database judges: judgedRowAtItsStep, the database's own verdict row for an assertError judged at its step and counted and reported as judgedAtItsStep counts a host verdict; the comparison is the statement's, VerdictSql.assertError; nothing evaluated)   // 1900 -> 1906 (2026-11-05, the user's ruling "after a verdict the harness may only explain": textFirst's clean-mode branch -- under the LITE rules a rendered text is one string comparison the database computes (runVerdict over the text row), the ruled row comparison compatibility mode's alone; nothing evaluated)   // 1897 -> 1900 (2026-11-05, the user's clean-ups: the message reader through the step judges; signatures, nothing evaluated)   // 1891 -> 1897 (2026-11-04, the assert bar: a caller's message that reads handed to the batch, read only where the assert fails -- VerdictBatch.message; plan wiring, nothing evaluated)   // 1864 -> 1891 (2026-11-04, the assert bar: a caller's message that reads planned as a side, its planning failure the assert's failure text under the database judge; assertIs over two primitives judged as assertEq (compiled pure's Is native: left == right); assertError over a failing assert, the literal-indexed element's static type; plan wiring, nothing evaluated)   // 1842 -> 1864 (2026-11-04, the asserts-as-plan-nodes program, step 5: a quantified equality element by element -- perElementPairs and the per-element route in planQuantified and the walk's unrolled; the row reader steps aside on a computed argument; plan wiring, nothing evaluated)   // 1841 -> 1842 (2026-11-04, the explicit rule: the rules each verdict is judged by are its plan step's, ExecutionPlan.JudgingRules, handed to the judge -- the host assert is judged under the rules its step names; the Compat wrapper deleted; nothing evaluated)   // 1840 -> 1841 (2026-11-04, the asserts-as-plan-nodes program: the planned vector form's message is the call's literal one, VerdictQueries.assertMessage; nothing evaluated)   // 1837 -> 1840 (2026-11-04, the corpus regression of the asserts-as-plan-nodes batch, bisected: the judgment's wrappers (Compat, Messaged) hid its type, so gateOf, holdsEngineText, deferredTextOrigin, oneTextOrigin and the routed census ask HostJudgment.core; staticTypeName's narrowing to a construction (aaa8badb) reverted -- it lost two PCT tests and closed no gap; plan wiring, nothing evaluated)   // 1836 -> 1837 (2026-11-04, backwards-compatibility mode: a compat run's judgment wrapped at planning; plan wiring)   // 1826 -> 1836 (2026-11-04, the asserts-as-plan-nodes program, step 2: an assert call split into its base overload and its message at the two entries (planHost, adjudicate); plan wiring, nothing evaluated)   // 1820 -> 1826 (2026-11-04, the core program: -Dlegend.diagnostics=judge-declines prints the database planner's refusals -- the gate's and the arm's -- with the running test; measurement, nothing evaluated)   // 1791 -> 1820 (2026-11-04, the core program: the rendered-text asserts generic first -- textFirst (the two strings compared, the database computing the render) and the ruled row comparison split out as its fallback (renderedRows); nothing evaluated)   // 1778 -> 1791 (2026-11-04, the core program: the database gate's ENGINE_TEXT_READ and planDatabase running the arm under the database judge's text collector; nothing evaluated)   // 1777 -> 1778 (2026-11-04, the core parity program: a grid pair whose schemas differ planned by the database judge -- names or widths decide false at planning (VerdictSql.decidedFalse), kinds that differ spelled in the expected's; no value computed)   // 1769 -> 1777 (2026-11-04, the core parity program: assertEq over two keyless instances planned by the database judge -- the static gate admits the pair (AssertVerdicts.keylessInstances), the verdict the identity canon the database compares; the host's distinct-instances failure in upstream's %r words; no value computed)   // 1766 -> 1769 (2026-11-04, the core program: the quantified assertEquals / assertEqWithinTolerance over rows planned for the program road -- HostJudgment.Rows, its arguments and the zip's pairing read at planning as data, judged row by row by PureAsserts as the walk judged them; the walk's copy deleted, it runs the planned check in place; no value computed)   // 1566 -> 1766 (2026-11-03, the user's ruling "no sort can be multiset compare" restored: the order view read at the equality and grid-pair arms, the rendered-text arm whole (renderedArm, renderedPlan, renderedValueVerdict, renderForm, firstTextDiff, renderedStatic) at the walk, the planner and the database gate; bareSortOverCells, serializedRootMany and planIsEnvelope stay deleted; nothing evaluated)   // 1871 -> 1566 (2026-11-03, the user's ruling: never more lenient than upstream -- the multiset, rendered-text, cell-pool, unordered-JSON and stamped-kind paths deleted)   // 1885 -> 1871 (2026-11-03, the walker-deletion program): sideRefused deleted -- a side the runner could not read is judged by the step's one path (judgedAtItsStep over a side that raises its error)   // 1824 -> 1885 (2026-11-02, the walker-deletion program: the agreement judge on the program road -- heldAtItsStep holds the host half's verdict over the sides the runner read, agreedAtItsStep reports the verdict of record the agreement rule decides, each counted and reported as tryAdjudicate counts the walk's agreement arm; HostHeld, the held verdict as data; nothing evaluated)   // 1819 -> 1824 (2026-11-02, the unplanned-assert census: a refusal label written only where the statement reaches a verdict -- the walk asks the host planner about every statement root, and a println is no refused assert; a measurement)   // 1815 -> 1819 (2026-11-02, M10c item 9): planArm plans the cell pool where it refused it; nothing evaluated   // 1795 -> 1815 (2026-11-02, the M10c item 8 audit's folds: the database gate refuses an engine text read at the step by name -- the batch row composes the equality at planning, so the side would be read then -- and oneTextOrigin refuses an unroll whose parts carry two statement origins; the if-root census label narrowed; nothing evaluated)   // 1794 -> 1795 (2026-11-02, M10c item 8's census: a root that is no call named for the census, the equals arm's decline named on a final decline alone; a measurement)   // 1777 -> 1794 (2026-11-02, the test-is-the-product plan's M10c item 8): deferredTextOrigin reads the origin the arm marked for a deferred text off the judgment, and the walk's run fetches such a check under it as the program road's step is sent; nothing evaluated   // 1775 -> 1777 (2026-11-02, the test-is-the-product plan's M10c): the not-a-constant census row names the side the arm would evaluate beside the assert's shape (SqlTextVerdicts.why); a measurement, nothing evaluated   // 1737 -> 1775 (2026-11-02, the test-is-the-product plan's M10c): the unplanned-assert census -- Census.unplannedAssert at each of the host planner's declines and shapeOf, an assert's callee and argument types as a label the lanes histogram; a measurement, nothing evaluated
             // NEW ROW (2026-08-19 cross-phase audit E.2): the
             // K-ORCHESTRATOR itself. Not host evaluation — statement
             // routing, session plumbing, verdict dispatch — but it
@@ -710,7 +747,7 @@ class JavaEvalLedgerTest {
             // 2298 -> 2297 (2026-10-13, the dialect program's Phase 1c, decision D2): adaptRaw deleted; the language of
             // executeInDb's text and of a from()'s setup SQL is read by the context reader (ExecutionContext.rawLanguage)
             // and passed to the dialect (SqlDialect.raw); nothing evaluated
-            // 2296 -> 2297 (2026-10-16, the dialect program's Phase 3: the test-data generator's plan takes its engine-text dialect and connection from the caller, two arguments on a second line, where it hard-coded H2's; nothing evaluated); 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the cross-store plan's four engine-text renderers are one, which also writes each node's select list; nothing evaluated); 2314 -> 2281 (2026-10-08, execution plan boundary step 2: the legacy plan's two parameter readers — its text form and its walkable form, each spelling optionality, types and template parameters itself, one with a dead `many` flag — replaced by QueryParameters, the one parameter list; nothing evaluated); 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four StatementExecutor execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
+            // 2296 -> 2297 (2026-10-16, the dialect program's Phase 3: the test-data generator's plan takes its engine-text dialect and connection from the caller, two arguments on a second line, where it hard-coded H2's; nothing evaluated); 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the cross-store plan's four engine-text renderers are one, which also writes each node's select list; nothing evaluated); 2314 -> 2281 (2026-10-08, execution plan boundary step 2: the legacy plan's two parameter readers — its text form and its walkable form, each spelling optionality, types and template parameters itself, one with a dead `many` flag — replaced by QueryParameters, the one parameter list; nothing evaluated); 2382 -> 2314 (2026-10-04, C1: the effect scan, containsEffect, moved verbatim to compiler/spec/StatementEffects -- a compile-time fact about the typed program, the plan side's one reach into execution); 2377 -> 2382 (2026-10-04, C3b: one execution-resolution helper, resolvedToExecute — resolve, then check every touched store against the runtime's connections — used by all four BodyDriver execution paths, three of which ran unchecked; the system database opened by the declared type; nothing evaluated); 2392 -> 2377 (2026-10-03, C3a: the engine-text renderer choice — the toSQLString switch and planDialect with its default -> H2 — moved to its one owner EngineText, by declared DatabaseType; nothing evaluated); 2413 -> 2392 (2026-09-27: running a connection's setup steps moved to CsvSeed.run, beside declaredSteps which builds them, so pure/v1 execute establishes a connection through the same loop); 2415 -> 2413 (2026-09-26, execution plan step 2: a callee compare against a catalog constant reads the constant's identity on one line, `FunctionId.of(Pure.X)`, where the two-line signature-key build stood, and the context-owner family is asked by the callee's identity instead of a name held in a local; nothing evaluated); 2427 -> 2415 (2026-09-23: a runtime's declared test data moved to CsvSeed.declaredSteps, beside the CSV steps it builds; test data rows load through Executor.load); 2431 -> 2427 (2026-09-23: an execute() call's activity rows are LAZY — PlanAllocations builds the second render on first read, so the two call sites hand it the chain instead of the rendered SQL); 2436 -> 2431 (2026-09-22: the driver's hand-built view accessor deleted — the compiler hands it the view's relation); 2414 -> 2436 (views stage 3, 2026-09-22: the test-data generator's view fetch renderer — the view's relation accessor compiled and planned by the driver like any query, the fetched tables renamed by the replaceTables pass; it replaces ~150 lines of hand-built view SQL in the generator; no evaluation); 2385 -> 2414 (2026-09-22, literal folding — a side a canon rider rides is NOT folded (its canon text is the database's render): a literal-only side (golden text, seed CSV, bare number — 167 of 168 sides measured) is read from the compiler's fold instead of sent, AFTER the inliner (a helper-built golden is literal only then): the side body split into its inline and staging steps; the lines ask the folder and box its answer, they evaluate nothing) — after 2367 -> 2385 (exact-FQN datatypes)
             // 2297 -> 2296 (2026-10-16, the dialect program's Phase 3: the test-data specification's class is the model's, ConnectionSpecification.TEST_DATA_SPECIFICATION_CLASS, one line where PlatformTypes' took two; nothing evaluated)
             // 2296 -> 2298 (2026-10-18, the Cypher line's W5 legs 1 and 2a, found by the merge of main for its PR): the
             // datatype-to-store-type table gains the relational grammar's TIME and TIMESTAMP_NS column types (one entry
@@ -750,7 +787,48 @@ class JavaEvalLedgerTest {
             // path branch (2026-10-26, measured by the ledger's own run at d408e1b8: stripped code lines): main's
             // lowererFor and the named lowerAndPrepare carry the branch's object layouts and declared egress; both
             // sides' lines, nothing evaluated
-            Map.entry("core/src/main/java/com/legend/StatementExecutor.java", 2419),
+            // 2419 -> 2316 (2026-10-27, the result boundary program's phase 5: the body driver's effects sent through
+            // the plan runner, its value statements through JudgePlans, the canon rider off the value path)
+            // 2316 -> 2313 (2026-10-29, track B's B1a: the body driver's schema probes and seeds read its session
+            // through the seam (ExecEnv.statements); its JDBC tunnel for the grid referee and its connection
+            // parameter to lowerAndPrepare are gone)
+            // 2313 -> 2290 (2026-10-29, the result boundary program's track B, B1b: the Connection leaves the body driver -- its environment holds a session (Sessions.Session) and reaches the database through the seam's statements, state and version; the established-state class and its two statics moved to exec/SessionState; three unused Connection locals deleted; nothing evaluated)
+            // 2290 -> 2273 (2026-10-29, track B's B2: the back half takes the query typed once (TypedQuery: its body and its spec compiler) where it typed the resolved AST itself for each of three entries, two of them delegating; nothing evaluated)
+            // StatementExecutor.java renamed BodyDriver.java 2026-10-29 (track D: named for what it is), the count kept
+            // 2273 -> 2282 (2026-10-29, the doors): the seeds as the plan side's setup steps the plan runner runs
+            // (CsvSeed.planned, PlanRunner.setUp, the referee's recorder as the runner's listener), the environment's
+            // plan-sessions and target accessors in place of its statements accessor, the transaction bracket on the
+            // session -- plumbing to the one seam, nothing evaluated; exec.SetupRunner deleted with it
+            // 2282 -> 2313 (2026-10-29, the doors, door 1): the body's last value statement answered to the caller's sink
+            // (answerValue, the answer parameter of executeTyped, answered, toOneReader) -- a planned statement
+            // streams through the plan runner (JudgePlans.streamResult), a computed side goes as host rows
+            // (com.legend.testexec.SideShapes.host); plumbing to the one seam, nothing evaluated; the materialized ProgramReport gone
+            // the body driver's planning helpers (the seam program's S2g, 2026-10-31), moved with no rule changed and
+            // pinned where they went, so the code they hold stays on this ledger: the engine's plan text (D30's plan-time
+            // values: planToString, toSQLString, the plan model) and the body planner (the resolver, the Lowerer, the
+            // plan-preparation ladder, a value's road to its body); 2,281 = 1,498 + 658 + 127 - 2 (the generator's plan
+            // text handed in by the driver, two lines more there)
+            Map.entry("core/src/main/java/com/legend/planner/EnginePlans.java", 717),   // 707 -> 717 (2026-10-31, the test-is-the-product plan's M2, its census re-run): toSQLString applies its own runtime argument's table renames (the connection's post-processors, read from the model) wherever it is planned -- the product stages it with no frame, and printed the text without them; nothing evaluated   // 663 -> 707 (2026-10-31, the shared preparation): the DDL text generators' text (ddlText, D30's plan-time values) from the body driver's prelude   // 658 -> 663 (2026-10-31, S2g's third step): engineTestSql, the frame planner's road to an activity's engine SQL (only the plan-text classes hold the engine-text dialect)
+            // 127 -> 268 (2026-10-31, the shared preparation): the body driver's prelude's framing and its classification of a
+            // statement's answer with no plan (prepare), the orchestration handle's type, the effect scan, and the bare plan with
+            // no session (bare) -- from the body driver; the answers that run stay there
+            Map.entry("core/src/main/java/com/legend/planner/BodyPlanner.java", 343),   // 341 -> 343 (2026-11-06, I1: the runtime wall's guard at boundContext -- RunScope.planning, a run that would bind a runtime's context refused by name; a guard, nothing evaluated)   // 336 -> 341 (2026-11-01, the test-is-the-product plan's M9c): lowererFor binds the environment's trace-stamp parameters (PlanEnv.stamps) as typed String plan parameters, as the program road binds every stamp it minted (PlanMaker.withStamps); plumbing, nothing evaluated   // 294 -> 336 (2026-11-01, the test-is-the-product plan's MRa, R20): imports for the inline fully-qualified names, one line each; nothing evaluated   // 282 -> 294 (2026-11-01, the test-is-the-product plan's M3h, R17 C9): a statement's from() frame's own table renames merged with the environment's, a conflict refused by name; nothing evaluated   // 268 -> 282 (2026-10-31, S2j's first piece): the generator's view SQL (viewSql), from the body driver
+            // a frame's chain planned (the seam program's S2g, third step, 2026-10-31): moved from the body driver, pinned where it went
+            Map.entry("core/src/main/java/com/legend/planner/FramePlanner.java", 219),   // 199 -> 219 (2026-11-01, the test-is-the-product plan's M9b audit, F5): relationRooted, a frame's relation-rootedness read off the query lambda's typed root with no chain built and no raise, for the body-class rule; planning over a typed fact, nothing evaluated   // 201 -> 199 (2026-11-01, MR's audit fold): two fully-qualified names split across lines joined and imported; nothing evaluated   // 176 -> 201 (2026-11-01, the test-is-the-product plan's MRa, R20): imports for the inline fully-qualified names, one line each; nothing evaluated   // 172 -> 176 (2026-11-01, the test-is-the-product plan's M3g): the CTE planner takes its chain's lowering (the walk's identity lane or the product's), its old signature delegating; nothing evaluated   // 140 -> 172 (2026-10-31, the test-is-the-product plan's M3f): the frame renames' union (renames), from the body driver's frameReplaceEnv, which delegates; nothing evaluated   // 96 -> 140 (2026-10-31, the shared preparation): the frame's planned CTE and class extent rows (cte), from the body driver's buildFrame
+            // a let's kind (the seam program's S2b, 2026-10-31): the frame alias analysis from the body driver, the
+            // read-after-effect analysis from the body compiler, pinned where they went
+            Map.entry("core/src/main/java/com/legend/planner/LetPlanner.java", 191),   // 131 -> 191 (2026-11-03, the user's ruling of 2026-11-02: an unread let IS the statement it binds -- unreadAsStatements rewrites each unread let before the body's last into its value at the same place, the reads asked of the SOURCE body (the typer substitutes a let into the lambdas that read it; readInSource, by name and occurrence) and of the typed tree; kept: a staged let, a frame alias, a value that does no work (a lambda, an element, a variable, a constant, a handle, the census carrier) and the generator's carrier until T8; planning, nothing evaluated)   // 123 -> 131 (2026-11-01, the test-is-the-product plan's M9a audit, S1): badAliasIndex names the shape aliasOf raises on, both over one unwrap walk (a private record for its two facts), so the frame rule leaves that body to the walk by name instead of catching the raise; nothing evaluated   // 107 -> 123 (2026-11-01, the test-is-the-product plan's MRa, R20): imports for the inline fully-qualified names, one line each; nothing evaluated   // 110 -> 107 (2026-11-01, the test-is-the-product plan's M3 audit fold): the frame test (execute or executeLegendQuery) is NativeFn.Handle.runsAFrame, the let kinds' and the query door's one test; nothing evaluated
+            // the system route planned (the seam program's S2h, 2026-10-31): the route and its tables' names, from the body driver
+            Map.entry("core/src/main/java/com/legend/planner/SystemRoutes.java", 38),   // 66 -> 38 (2026-11-11, B4: every route goes to the process's in-process catalog -- the server's temporary-table renames, the in-process gate and the server's graph key deleted; the route carries its catalog's engine and dialect; nothing evaluated)   // 137 -> 66 (2026-11-09, L4b: the system target and the store's loads left for planner/SystemCatalog, registered with the planner's classes; the routes stay)   // 135 -> 137 (2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L4a: the system store's load made by the load planner and named by its content -- the identity memoized beside its steps, one record; nothing evaluated)   // 134 -> 135 (2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L1: the system store's seed step is a Load, its cadence named on its own line; nothing evaluated)   // 130 -> 134 (2026-11-08, the slice 2 lanes: the content key hashed in plain long arithmetic, two 64-bit hashes, where MessageDigest stood -- the planner's WebAssembly build (TeaVM) has no java.security; nothing evaluated)   // 93 -> 130 (2026-11-08, the plan-as-data design's step 7 (docs/PLAN_AS_DATA_2026_11_07.md 2.6): the graph's system store named by its content's key -- a hash of each table's definition and the graph's rows, derived once per graph at planning (knowledge, never a query's value); nothing evaluated)     // 94 -> 93 (2026-11-04, the core program: the store scan named, SystemRoutes.stores, and the mixed-store refusal moved to CrossStoreGuard.oneSession, which the program road's statements ask too; nothing evaluated)   // 58 -> 94 (2026-11-03, planning sends nothing: the graph's system store as the plan's own seed step, SystemRoutes.seeds -- every table's DDL and rows planned into one Setup, memoized per graph and engine, moved here from the driver's SystemDatabase, which only opens the session now; nothing evaluated)   // 55 -> 58 (2026-11-01, the test-is-the-product plan's M10a): inProcess -- whether a runtime's engine runs in process, the class rule's gate for a system-routed body; a model read, nothing evaluated
+            // an effect's statements planned (the seam program's S2d, 2026-10-31): the effect arms' texts and the store data
+            // types' readers, from the body driver; in the test-planning library since M3d (2026-10-31, R17 C7: a
+            // test's effects ship in no planner of the plan side), moved whole
+            // base/src/main/java/com/legend/base/CsvCells.java unregistered 2026-11-11 (B2b, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6): the referee reads a file with its own CSVREAD, so no load splits a file's cells in Java; the class has no caller and no build reference, the census reads it no more, and its creator deletes the file (census M15-referee)
+            Map.entry("core/src/main/java/com/legend/testplan/EffectPlanner.java", 225),   // 226 -> 225 (2026-11-11, B3, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: a host's upload formats join the data reference's -- loadCsvToDbTable's format check one refusal of every reference but a CSV, where a switch named each; nothing evaluated)   // 219 -> 226 (2026-11-11, B2b, docs/DATA_DELIVERY_DESIGN_2026_11_10.md §6: the referee's copy of a CSV file's load is the same file read by the referee's own H2 -- its csvLoad written when an edge asks, a format its reader cannot take refused by name -- where the Java split of the file's cells stood (base.CsvCells, its use gone); planning, nothing evaluated)   // 224 -> 219 (2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A3: a file is read by its database or refused by name -- the streamed delivery's arm and the planner's split of a file's cells deleted; nothing evaluated)   // 222 -> 224 (2026-11-10, L6c: a rows reference is the content store's, refused by name for loadCsvToDbTable, the CSV file's native -- the format's new arm; nothing evaluated)   // 204 -> 222 (2026-11-10, the user's ruling "Okay I guess that can be used for databases that have no csv read then": the delivery the dialect chose, the streamed one's cells refused at planning by upstream's rule as before L2 (S174), and each column's declared type for a server's cast; nothing evaluated)   // 216 -> 204 (2026-11-10, the user's CSV ruling of 2026-11-09: the database reads the file, so the planner no longer splits its cells, refuses a malformed file or chooses a bulk delivery -- one Reads delivery the dialect spells; nothing evaluated)   // 212 -> 216 (2026-11-09, the M1 tenets audit's finding 8: a file load through the database's bulk loader where its dialect has one -- the staging statements chosen at planning -- and the referee's copy of the rows rendered only when an edge asks; nothing evaluated)   // 211 -> 212 (2026-11-09, the user's ruling D-b: loadCsvToDbTable's size limit, upstream's 500 MB, a named constant the file step carries; nothing evaluated)   // 209 -> 211 (2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L2, decision 6: the file's cells read once at planning by its declared format (base.CsvCells.table, upstream's rule), a malformed file or a record of another width refused by name before anything is sent, the delivery the one streamed form; the header check folded into the format's reading; nothing evaluated)   // 187 -> 209 (2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L1: loadCsvToDbTable planned as a load by reference -- the delivery the dialect chose, the header's width checked against the table's, the referee's copy of the rows split by base.CsvCells, carriage, until L8 replays the plan's loads; nothing evaluated)   // 186 -> 187 (2026-11-09, mutable static state: the referee's DDL dialect made per use (refereeDdl()), where one shared instance held per-render state; nothing evaluated)   // 156 -> 186 (2026-11-06, the owner's ruling: loadCsvToDbTable is a plan step the database runs -- its statement planned here, the table and columns the store declares, the file the resource names; nothing evaluated)   // 133 -> 156 (2026-11-01, the test-is-the-product plan's MRa, R20): imports for the inline fully-qualified names, one line each; nothing evaluated   // 132 -> 133 (2026-10-31, the test-is-the-product plan's M3d): the one import line the move needs (planner.PlanEnv); nothing evaluated
+            // a side's plan made with no session (the seam program's S4a, 2026-10-31): the body driver's prelude's route
+            // and planStaged/wrapSide, pinned where they went
+            Map.entry("core/src/main/java/com/legend/planner/SidePlanner.java", 97),   // 87 -> 97 (2026-11-01, the test-is-the-product plan's MRa, R20): imports for the inline fully-qualified names, one line each; nothing evaluated
+            Map.entry("core/src/main/java/com/legend/testplan/BodyDriver.java", 522),   // 516 -> 522 (2026-11-13, main's #95 merged into the timeseries branch, measured by the guard's run: the branch's six lines of 2026-11-09 -- its planValue writing a database-judge side's shared relations in place, and the plan options (PlanOption) given to the body's planning -- on main's 516; nothing evaluated)   // 514 -> 516 (2026-11-12, the execution id as upstream: an inline execute's activity is an execution of its own -- inlineStamp names it by its call site and registers it on the environment -- where ActivityComments' one constant comment stood; nothing evaluated)   // 523 -> 514 (2026-11-11, the JSON pass: the body's data: tables gone from its environment -- the component, its reader through them and sharingTables; a payload is its statement's own, read in the environment's dialect; nothing evaluated)   // 519 -> 523 (2026-11-11, B4's audit, finding 4: ExecEnv.sharingTables -- a system-routed body on a server reads and makes one set of data: tables through its two environments, the catalog's and its own; a copy of the environment, nothing evaluated)   // 503 -> 519 (2026-11-11, B4: the environment over the process's catalog in the catalog's dialect for a body on a server -- ExecEnv.withTarget switching the dialect onto a catalog of another engine than the runtime's and back, which every judge's retargeting of a side goes through, and onCatalogBody, a whole system-routed body's copy with its data: tables in that dialect; the route's helpers shortened; nothing evaluated)   // 498 -> 503 (2026-11-11, B2a: the body's data: tables, one more component of its environment, threaded through its copies, and its reader that every judge statement is planned from; nothing evaluated)   // 501 -> 498 (2026-11-09, L4b: the system target made by planner/SystemCatalog, the route carries no graph key; nothing evaluated)   // 502 -> 501 (2026-11-09, mutable static state: the engine-text DDL dialect made per use (EngineText.engineText()), the shared instance gone; nothing evaluated)   // 504 -> 502 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the run record: the environment's activity comment is planning's ActivityComments, the thread-local scope deleted)   // 514 -> 504 (2026-11-08, the plan-as-data design's slice 3, holes 4 and 5 (docs/PLAN_AS_DATA_2026_11_07.md §11): the planning environment carries no listener and no referee -- ExecEnv's two components, withListeners and bodyEnv's two parameters deleted: planning tells no one anything and depends on no run-time service; nothing evaluated)   // 512 -> 514 (2026-11-08, the plan-as-data design's step 7 (docs/PLAN_AS_DATA_2026_11_07.md 2.6): the system database's target names the plan's database type, the model's copied (ConnectionPlans.type), and its store by its content's key (7b); two lines, nothing evaluated)   // 511 -> 512 (2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): the body's engine-text appeals, one more component of its environment; nothing evaluated)   // 514 -> 511 (2026-11-08, the plan-as-data design's step 1 (docs/PLAN_AS_DATA_2026_11_07.md 2.5): the judges' types the exec way -- a constant side built with its type's name; nothing evaluated)   // 512 -> 514 (2026-11-08, the plan-as-data design's step 0: the body's verdict ids, one more component of its environment, threaded through its copies and handed to its verdict batch; nothing evaluated)   // 517 -> 512 (2026-11-07, P1: the test-data generator's view renderer, called by the deleted transcript path, deleted; nothing evaluated)   // 520 -> 517 (2026-11-07, D2: a relation's toOne() is the database's to check -- ToOneGuard in the SQL; the Java row count and the run-time read of the typed tree deleted)   // 532 -> 520 (2026-11-07, I3: planning names a target, never a session -- the environment's session, its sources and the system route's opening gone from planning; the test-data generator's rows leg refused by name, its transcript helpers deleted; nothing evaluated)   // 800 -> 532 (2026-11-07, I2: the walk's leftovers deleted -- measured unreached on every lane by print-only probes, then cut: the eager frame run, the statement executor and its effect sends, the host arm judged in place, the no-batch verdicts; nothing evaluated)   // 820 -> 800 (2026-11-06, the walk's orphans: evalValue, whose callers went with the walk; found by name-level reachability)   // 1044 -> 820 (2026-11-06, the walk deleted: BodyDriver.execute and executeStatements, the prepared value and its run, the segment walk's staging, script sends and context establishing -- with BodyCompiler and WalkDoor, whose files are gone)   // 1043 -> 1044 (2026-11-06, the walk deletion: an eager inline execute planned for the program road builds its frame without running it -- the test door runs it as a check step; nothing evaluated)   // 1038 -> 1043 (2026-11-06, the walk deletion's step 3: ExecEnv's appealOn -- the environment a system-routed body's compatibility appeal plans its rows under, the database judge's as the host's -- and its wither; nothing evaluated)   // 1037 -> 1038 (2026-11-05, the deep audit: the walk checks its own door, WalkDoor.check at BodyDriver.execute; nothing evaluated)   // 1034 -> 1037 (2026-11-05, planning sends nothing, mechanically: the system route seeds the store only when the walk runs as it plans -- while a program is planned the plan's own seed step writes it (PlanMaker); nothing evaluated)   // 1015 -> 1034 (2026-11-04, the asserts-as-plan-nodes program, step 3 narrowed: isAssertHelper -- a helper is its assert only where its body is one statement, an assert or another such helper -- and the helper root rule restored to readsStringEntry or assertsClassValue beside it; plan wiring, nothing evaluated)   // 1004 -> 1015 (2026-11-04, the asserts-as-plan-nodes program, steps 2-3: ExecEnv's failure message and its wither; a helper whose inlined root is any assert, or an assert the compiler decided (assert(true)), planned as that assert; nothing evaluated)   // 1005 -> 1004 (2026-11-03, planning sends nothing: the system route opens the graph's system database and the plan side's own seed step writes it, PlanRunner.seedSystemStore; the renames check gone with the holder's renames; nothing evaluated)   // 1000 -> 1005 (2026-11-02, the identity guardrail's ratchet: assertsPackageNative asks the verdict family and assertError's by the callee's id where the helper rule read the name's package prefix -- the same set; nothing evaluated)     // 961 -> 1000 (2026-11-02, the test-is-the-product plan's M10c item 4, with its audit's folds): the walk's helper rule named once (isHelperAssertRoot) and its inlining shared with the program road (helperAssertRoot: a necessary-condition pre-check over the callee's body, then the same inliner and staging prepareValue runs); nothing evaluated   // 954 -> 961 (2026-11-01, the test-is-the-product plan's M10b): ExecEnv carries the engine-text arms' collector while an assert is planned for the program road (withEngineText); nothing evaluated   // 946 -> 954 (2026-11-01, the test-is-the-product plan's M10a): systemRoute (the graph's system database opened once per graph, shared with the router) and systemRouteOf (the route of a system-routed body: the runtime's engine, the system store) factored out of openRoute; nothing evaluated   // 945 -> 946 (2026-11-01, the test-is-the-product plan's M8b): newVerdictBatch hands the batch the lowering's self-contained form of a verdict row (VerdictSql::selfContained), one more argument line; nothing evaluated   // 939 -> 945 (2026-11-01, the test-is-the-product plan's M9c): plannedFrame, a moved body's frame built as the walk builds it but not run, its activity comment the stamp parameter the program's check step binds (registered on the environment for the sides' lowering); the private build takes the parameter; nothing evaluated   // 934 -> 939 (2026-11-01, the test-is-the-product plan's M6): bodyEnv, the body's environment at its start factored out of execute, so the router plans an assert program's asserts on the walk's own environment; nothing evaluated   // 937 -> 934 (2026-11-01, the test-is-the-product plan's M5f, its audit's B4): the to-one reader rule spelled once, in ProductStatements.toOneReader, for the walk, the body classes and the router; nothing evaluated   // 939 -> 937 (2026-11-01, the test-is-the-product plan's M5, its audit's B3): an effect segment's failure message spelled once, in testplan/EffectSegment, for the walk and the program road; nothing evaluated   // 963 -> 939 (2026-10-31, the test-is-the-product plan's M3f): frameReplaceEnv's union left for planner/FramePlanner.renames; nothing evaluated   // 1009 -> 963 (2026-10-31, the test-is-the-product plan's M3e): a statement's seed sources and steps left for testplan/Seeds, their one owner for the walk and the test door; nothing evaluated   // 1012 -> 1009 (2026-10-31, the test-is-the-product plan's M1, its audit): the environment's site-id accessor deleted (no caller; the minter is the planning half's, one per program); nothing evaluated   // 1062 -> 1012 (2026-10-31, the seam program's S4a): a side's plan made with no session in planner/SidePlanner (the body prepared under its system route, lowered, the canon wrap); the driver opens the route's session once the side is planned and answers a kind with no plan on it; nothing evaluated   // 1074 -> 1062 (2026-10-31, the seam program's S2j, first piece): the test-data generator's view SQL planned in the planner (BodyPlanner.viewSql); the renderer the driver hands the generator a call of it; nothing evaluated   // 1154 -> 1074 (2026-10-31, the seam program's S2d): the effect arms ask planner/EffectPlanner for their statements (two phases: the String arguments, evaluated here, then the texts) and send them; the referee's DDL spelling and the data types' readers left with them; nothing evaluated   // 1345 -> 1154 (2026-10-31, the seam program's shared preparation): the prelude prepares through the planner and runs only the answers that run (an effect's arm, a store write, an effectful map); the DDL text, the handle's type and the frame's planned CTE left for the planner; nothing evaluated   // 1369 -> 1345 (2026-10-31, the seam program's S2h): the system route's stores, refusal and table renames planned in planner/SystemRoutes; the driver opens the session and checks it names the tables as planned; ExecEnv.withSystemRoute gone; nothing evaluated   // 1407 -> 1369 (2026-10-31, the seam program's S2b): the frame alias analysis left for planner/LetPlanner with the let's kind; nothing evaluated   // 1498 -> 1407 (2026-10-31, the seam program's S2g, third step): the frame's chain planned in planner/FramePlanner (the plan-execute normalization, the string entry's envelope and activity SQL, the runtime's renames, the chain's assembly); the run at the let, its trace comment and the planned CTE stay; nothing evaluated   // 2281 -> 1498 (2026-10-31, the seam program's S2g, second step): the planning helpers left for the planner (EnginePlans and BodyPlanner, pinned above; PlanAllocations, PlanEnvelope, EngineText, SqlTextInputs and AggAwareActivities moved whole); nothing evaluated   // 2310 -> 2281 (2026-10-31, the seam program's S2g, first step): the environment split in two -- its planning half (the model, the runtime, the dialect, the lets, the renames, the frame, the features, the site ids) is planner/PlanEnv, the record here holds the session, the trace, the batch, the sink, the listeners and the options and delegates the rest; the six legacy constructors gone for one factory; nothing evaluated   // 2318 -> 2310 (2026-10-31, the seam program's S3a, the staticizer deleted): the static pivot's call and its key reader gone (a dynamic pivot keyed where it is planned)   // 2304 -> 2318 (2026-10-30, the seam program's S3c, third part): a raw grid let read after an effect is a STAGED TABLE (D75) -- its table named (stagedGridTable), dropped when the body ends (dropTables) and read back raw (stagedGridRead); plumbing to the one seam, nothing evaluated; the stamp and its referee deleted here, RawGridSchema (361 lines), GridProbe (87) and WireProbe (43) deleted outright   // 2309 -> 2304 (2026-10-30, the seam program's S3c): the database judge's late-bound grid side is not framed by a planning-time describe (WireProbe.staticized's call in wrapSide deleted)   // 2317 -> 2309 (2026-10-30, the seam program's S3b): the wire probe's reconcile call deleted (the canon asks the value in the statement)   // 2322 -> 2317 (2026-10-30, the seam program's S3a): the column probe's call deleted, a refusal by name in its place   // 2321 -> 2322 (2026-10-30, S2f): a planned value says whether the compiler JOINED a constant's tokens (the plan's constant side marks it); no evaluation added   // 2313 -> 2321 (2026-10-30, D73, step C): in com.legend.driver -- the eight import lines the move needs (the root's doors, the planner's classes); no rule changed
             // NEW (SQLTEXT charter slice 3a, 2026-09-01): the sql-text
             // verdict arm — detection (typed-node + exact FQN),
             // four-artifact sequencing through evalValue and the
@@ -930,7 +1008,7 @@ class JavaEvalLedgerTest {
             // converges on defers the text row into the batch with the rows leg as its APPEAL,
             // and applies the byte-equal ruling outside a batch — routing and deferral, nothing
             // evaluated on the host that was not before
-            Map.entry("core/src/main/java/com/legend/SqlTextVerdicts.java", 1240),   // 1239 -> 1240 (views stage 3, 2026-09-22: the TDG transcript takes the driver's view renderer — one argument threaded to the generator, no rule; 1248 -> 1239 cleanup move 4: the let-binding lookups and callee-name readers moved to Lets / Calls in the typed package)
+            Map.entry("core/src/main/java/com/legend/testplan/SqlTextVerdicts.java", 1157),   // 1237 -> 1157 (2026-11-11, B2d.2 of the total-wall program: the TDG appeal deleted -- tryArmTdgSql, tryArmTdgRoot, hasTdgProducer and their gates; the generator's fetch texts are planning constants, compared as texts, register S193; nothing evaluated)   // 1259 -> 1237 (2026-11-10, L5, census M9: an appeal's rows name no stores for the harness to provide -- storesOf and the plan field deleted with the on-demand fixtures; nothing evaluated)   // 1491 -> 1259 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the package split: the engine-text appeal's decision after the run left for testexec/SqlTextRuns (233), pinned below)   // 1490 -> 1491 (2026-11-08, slice 4's A1: a database row's appeal that is a second hearing of the host half's joins it, Appeals.join, never holding a second; plan wiring, nothing evaluated)   // 1489 -> 1490 (2026-11-08, the plan-as-data design's slice 4, hole 1: the rows leg's appeal carries the enumerations the referee decodes, read from the model at planning (JudgmentFacts.enumsOf), and its decision takes no model; plan wiring, nothing evaluated)   // 1492 -> 1489 (2026-11-08, the slice 3 invariant audit's fixes: an engine-text step reports its decline once, first, whatever the texts then decide (the agreement judge's host half reported none for a golden read at the step that differed); nothing evaluated)   // 1552 -> 1492 (2026-11-08, the plan-as-data design's slice 3, holes 4 and 5 (docs/PLAN_AS_DATA_2026_11_07.md §11): an arm's decline is its verdict row's data (RootLoop.Row.decline), reported at the row's turn -- the planning-time report and its two listener helpers deleted, a decline no plan carries refused by name; the six "needs a replay oracle" walls and rowsLegAndVerdict's unread referee parameter deleted (planning gates on the judging rules alone, the decision refuses a missing referee); the rows leg's after-run fixture ask deleted (the caller provides the plan's stores before the run); nothing evaluated)   // 1528 -> 1552 (2026-11-08, the slice 2 audit: an appeal side's planning failure of a class off the closed list kept as its words (Appeal.Unlisted) and read as the decline or the fault it was, its one decline spelled once (underivable); a failed text at planning under the compatibility rules refused by name without numbering an appeal; nothing evaluated)   // 1535 -> 1528 (2026-11-08, the plan-as-data design's step 8c: the rows leg names its stores without asking the harness at planning -- the harness is asked before the run, from the plan; nothing evaluated)   // 1492 -> 1535 (2026-11-08, the plan-as-data design's step 8b (docs/PLAN_AS_DATA_2026_11_07.md 2.7): an engine-text appeal is the plan's data -- the four closures replaced by records, the rows leg decided after the run from them (decideAppeal, rowAppealed, the planned side read and shaped from the plan); the referee compares, nothing evaluated)     // 1489 -> 1492 (2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): the engine-text comparison written into the plan's judgment as data, its appeal held by number (EngineTextAppeals) and read back at the step; nothing evaluated)   // 1488 -> 1489 (2026-11-08, the plan-as-data design's step 2 (docs/PLAN_AS_DATA_2026_11_07.md 2.4): failures as data -- the engine-text arm's refusal recorded as the plan's Failure and asked by its kind; nothing evaluated)   // 1495 -> 1488 (2026-11-07, the P1 milestone audit's 5: the test-data generator's folded result, never minted since the walk's fold was deleted, no longer looked for; nothing evaluated)   // 1496 -> 1495 (2026-11-07, D2: a relation's toOne() is the database's to check -- ToOneGuard in the SQL; the Java row count and the run-time read of the typed tree deleted)   // 1602 -> 1496 (2026-11-07, I3: planning names a target, never a session -- the environment's session, its sources and the system route's opening gone from planning; the test-data generator's rows leg refused by name, its transcript helpers deleted; nothing evaluated)   // 1649 -> 1602 (2026-11-06, I1: the engine-text appeal planned with its assert -- the arm's re-run over the step's texts (Replaying, Rerun), the judge-time IN-list temps and the plan-now fallback deleted; TextAppeal takes the golden the step read, the IN-list seed planned (InListSeed); nothing evaluated)   // 1653 -> 1649 (2026-11-06, the walk deletion's step 3: THE WALL's named residue deleted -- the appeal's rows leg no longer wrapped in RunScope.residue(ENGINE_TEXT_APPEAL), the constant gone; nothing evaluated)   // 1644 -> 1653 (2026-11-06, the walk deletion's step 3: the appeal reads its planned rows through the running program's reader (RunReader) and runs on its own environment (ExecEnv.appealOn: the referee, the store provision); a runtime-dialect text deferred with its environment; no value evaluated)   // 1640 -> 1644 (2026-11-06, THE WALL made total: the engine-text appeal's runs inside a body's run named as the wall's one residue -- RunScope.residue(ENGINE_TEXT_APPEAL) around the rows leg, its door opened by the corpus lanes alone; nothing evaluated)   // 1567 -> 1640 (2026-11-05, zero exemptions on the runtime wall: the compatibility appeal's rows planned with the assert -- rowsAhead, RowsAhead and SideAhead (our rows and the page population planned as evalSide plans a side, run and shaped at the appeal; a planning failure kept and raised there), the runner's fixture provision planned ahead (fixtureAhead), the re-run arm reading the rows its planning planned (Replaying); the exemption's wrapper deleted; plan wiring, nothing evaluated)   // 1562 -> 1567 (2026-11-05, the deep audit's runtime wall: the appeal is heard through SqlTextVerdicts.appealed, which enters the wall's one exemption -- compatibility mode's rows after a text mismatch, the owner's ruled exception; nothing evaluated)   // 1542 -> 1562 (2026-11-05, the user's ruling "after a verdict the harness may only explain": an engine text's equality with its golden IS the verdict under the LITE rules -- the clean branch of decide (the text row deferred with no appeal), appeals() and textsDiffer (the failure naming the first difference); the appeal and the re-run compatibility mode's alone; nothing evaluated)   // 1541 -> 1542 (2026-11-04, the corpus regression's fix: notAConstant and why read the judgment through HostJudgment.core; nothing evaluated)   // 1406 -> 1541 (2026-11-04, the core program: the SQL-text asserts generic first -- either text, the golden too, a side the verdict step reads (Collecting), the arm re-run over the step's texts on a failed comparison (Replaying, armOf, readText), the database judge's text collector planning our text into the verdict row (BatchTexts); sides planned and texts routed, nothing evaluated)   // 1405 -> 1406 (2026-11-02, the identity guardrail's ratchet: the not-a-constant label a constant the census reads, no name cut; nothing evaluated)     // 1343 -> 1405 (2026-11-02, the test-is-the-product plan's M10c item 8): OUR text as a side the verdict step RUNS -- the collector defers a VALUES text side (the step's ask, the origin the arm marked) and answers the arm a token, the appeal takes the texts it judges as parameters (TextAppeal), the step's judge reads our text off the side the database answered and computes the equality the arm computed, and one reader (oursText) gates every arm's actual side by its declared type (R16) where the walk evaluated it to learn it; the texts are the database's, nothing evaluated here that was not   // 1335 -> 1343 (2026-11-02, the test-is-the-product plan's M10c): the not-a-constant answer carries its reason (the side's kind and planned root) for the unplanned-assert census -- notAConstant and why read the check; a measurement, nothing evaluated   // 1254 -> 1335 (2026-11-01, the test-is-the-product plan's M10b): the arms' PLANNING ENTRY for the program road (plan: the arm run once under a collector, its two texts the verdict step's constant sides, its appeal the walk's own rows leg), the step's judge, and decide -- the one verdict site the arms' three policy sites folded into (the batch row, the step, the walk); the texts are constants and the rows leg is unchanged: nothing evaluated here that was not   // 1240 -> 1254 (2026-11-01, the test-is-the-product plan's M6): mayArm, a static superset of tryArm's gates, so the host checks leave an engine-text assert on the walk by a rule over the typed shape (R16); nothing evaluated   // 1239 -> 1240 (views stage 3, 2026-09-22: the TDG transcript takes the driver's view renderer — one argument threaded to the generator, no rule; 1248 -> 1239 cleanup move 4: the let-binding lookups and callee-name readers moved to Lets / Calls in the typed package)
             // NEW ROW (batch 59, 2026-09-04): the lineage-tree verdict arm —
             // the scanRelations sibling of SqlTextVerdicts: both prints
             // become rows through one DATABASE query (TREE_ROWS) and the
@@ -955,7 +1033,15 @@ class JavaEvalLedgerTest {
             // judge under the verdict's own declared row-multiset
             // policy). All comparison-layer judgment: consumes two
             // produced sides, never produces a result.
-            Map.entry("core/src/main/java/com/legend/exec/TdsCompare.java", 343));   // 366 -> 343 (2026-09-20, one float rule: the printed-precision cell tolerance DELETED; cellEquals delegates to Equality.withinTwoUlp)
+            Map.entry("core/src/main/java/com/legend/testexec/HostJudgments.java", 633),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the host judge's run half, from testplan/HostJudge (864 -> 237): the host lattice's judgment over the rows the plan read, the judgment record the plan's)
+            Map.entry("core/src/main/java/com/legend/testexec/HostSideShapes.java", 27),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the host sides' row-count contract at run, from testplan/HostJudge)
+            Map.entry("core/src/main/java/com/legend/testexec/AssertRuns.java", 208),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the verdicts' run half, from testplan/AssertVerdicts (1789 -> 1536): a planned verdict step judged at its turn)
+            Map.entry("core/src/main/java/com/legend/testexec/AssertErrorRuns.java", 70),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): assertError's run half, from testplan/AssertVerdicts: the planned failure compared with the raised one)
+            Map.entry("core/src/main/java/com/legend/testexec/SideShapes.java", 287),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): a side's row-count and shape contract at run, from TestPlanner's Moved and AssertVerdicts: counting rows, never computing a cell); 279 -> 287 (2026-11-12, the C4 exec-id item, B3's check): the cardinality holder hands on answers() and execution() to the sink it holds -- two delegating methods, no value computed -- so the door's execution id reaches a writer under it
+            Map.entry("core/src/main/java/com/legend/testexec/SqlTextRuns.java", 220),   // 224 -> 220 (2026-11-11, B2d.2 of the total-wall program: the TDG appeal's case deleted with its kind; nothing evaluated)   // 233 -> 224 (2026-11-09, mutable static state: the census suspend toggles around the appeal's runs deleted with SqlTypeCensus, a dead census; nothing evaluated)   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the engine-text appeal decided after the run, from testplan/SqlTextVerdicts (1491 -> 1259))
+            Map.entry("core/src/main/java/com/legend/testexec/DatabaseVerdicts.java", 38),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the database judge's verdict over its row, from testplan/DatabaseJudge (819 -> 790))
+            Map.entry("core/src/main/java/com/legend/testexecutionplan/Verdicts.java", 148),   // new (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the shared value spelling (repr, wireId) from testexec/PureAsserts (257 -> 218), read by planning's messages and the run's judges)
+            Map.entry("core/src/main/java/com/legend/testexec/TdsCompare.java", 236));   // 235 -> 236 (2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): one import line: the judged side's type is the test plan's library's, com.legend.testexecutionplan.TypedSide; nothing evaluated)   // 350 -> 235 (2026-11-07, P1: the host judge's byte channel deleted -- a canon rider built and declined at run since the plan path's step 6, 2026-10-18, the dual verdict it fed, its canon framing, its census and the grid canons it read; nothing evaluated, nothing judged differently)   // 346 -> 350 (2026-11-05, the exact-comparison report (the user's ruling S15/S132, 2026-11-05: clean mode compares Floats exactly, measured first): a print under -Dlegend.diagnostics=judge-declines where the 2-ULP tolerance, not equality, decided a verdict; a measurement, nothing evaluated)   // 207 -> 346 (2026-11-03, the user's ruling "no sort can be multiset compare" restored: grids' row multiset unless the actual side is sorted, renderedText with its line / token multiset and cell rule, ordLeniency, as at de641baf (344) plus the per-side column kinds kept (+2); judgement only, nothing evaluated)   // 344 -> 207 (2026-11-03, the user's ruling: never more lenient than upstream -- the multiset, rendered-text, cell-pool, unordered-JSON and stamped-kind paths deleted)   // 343 -> 344 (2026-10-31, the seam program's S4a): the import of CanonRider, the lowering's now; nothing evaluated   // in judge since 2026-10-30 (D71)   // 366 -> 343 (2026-09-20, one float rule: the printed-precision cell tolerance DELETED; cellEquals delegates to Equality.withinTwoUlp)
     // Phase 1c: DbMetaData MOVED OUT of the evaluator surface — its
     // content was always pure catalog-SQL composition (zero JDBC), now
     // compiler/spec/CatalogGrids (the Typer's fetchDb retype needs the
@@ -969,7 +1055,9 @@ class JavaEvalLedgerTest {
     // decision rule's permitted classes. (E4.e's fold/at interpreter
     // residue DIED with HostEval's Phase-1 eviction — grids are typed
     // relations now; its stale ledger row was deleted 2026-08-19.)
-    // E5 wire rows LANDED (2026-08-17): the product wire is
+    // (2026-10-27, the result boundary program's phase 3: the wires below are
+    // deleted -- a result is its typed rows, spelled by a writer at the edge,
+    // com.legend.result.) E5 wire rows LANDED (2026-08-17): the product wire was
     // PLAN-RENDERED (Compiler.executeWire → WireRender → Render
     // csvWire/jsonWire — the DB composes the bytes through the ONE
     // RFC-4180 owner and its own json_object policy). ResultJson is
@@ -988,7 +1076,7 @@ class JavaEvalLedgerTest {
             new LinkedHashMap<>();
 
     static {
-        // E4 — StatementExecutor's walk family. 42→40 (2026-08-21):
+        // E4 — StatementExecutor's (BodyDriver since 2026-10-29) walk family. 42→40 (2026-08-21):
         // activityEnvelopeRead moved to compiler.spec.ResultEnvelopeSplice
         // (splice-ownership leg slice 1, Invariant 7) — there it is a
         // private REWRITE RULE; the Java-side derivation it asks for
@@ -1005,7 +1093,9 @@ class JavaEvalLedgerTest {
         // connectionStoreElementOf is gone — the plan connection reads
         // the bound ExecutionContext (its store, its connection instance).
         // connectionStoreElementOf) that PlanRows turns into rows.
-        EVICT_NAMES.put("core/src/main/java/com/legend/StatementExecutor.java",
+        // 2026-10-31 (the seam program's S2g): the plan MODEL left the body driver for the planner with the engine's
+        // plan text (planner/EnginePlans), the same three sites, so the row follows the file (path only)
+        EVICT_NAMES.put("core/src/main/java/com/legend/planner/EnginePlans.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
                         3});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
@@ -1028,17 +1118,19 @@ class JavaEvalLedgerTest {
         // UNNEST at project lowering; probe: ZERO firings on the full
         // sweep). This row pins the deletion: a list cell in a scalar
         // slot is a loud lowering-defect wall now, never a repair.
-        EVICT_NAMES.put("core/src/main/java/com/legend/exec/Executor.java",
-                new Object[]{"two many-valued TDS cells", 0});
+        // (its Executor.java row left 2026-10-27 with the file: the result boundary program's phase 5 deleted the
+        // legacy executor whole, so nothing remains to pin the explosion's deletion in)
         // E3 LANDED (2026-08-17): the frame is a one-Variant-column
         // VALUES relation — each cell an object's RAW JSON TEXT, every
         // property a typed variant extraction IN SQL (get + to-cast +
         // toOne); the DATABASE does all value interpretation. This row
         // PINS the deletion of the Java realization (classSource /
         // cellText / Json.parseAll — the lossy string grid) at zero.
-        // objectTexts residue is SCISSORS: a lexical string-aware brace
-        // scan cutting the model-text payload into row spans at plan
-        // build; no JSON value ever materializes in Java.
+        // The scissors (a lexical string-aware brace scan cutting the
+        // payload into records) moved to the planner with the frame's
+        // move onto the data: load (B2a, 2026-11-11: DataSources.records,
+        // each record a row of the plan's load, never of the statement);
+        // no JSON value ever materializes in Java.
         EVICT_NAMES.put("core/src/main/java/com/legend/resolver/JsonSourceFrame.java",
                 new Object[]{"(classSource|cellText)\\(", 0});
         // E5 LANDED (2026-08-17): the testdatagen ROW TEXT is SQL — the
@@ -1058,7 +1150,8 @@ class JavaEvalLedgerTest {
         // PctRender at the execution seam; PCT 1110/1110). This row now
         // PINS the deletion at zero. The adapter-contract RESIDUE moved
         // to the PERMANENT register: createTDSResult (wraps the DB text
-        // into the TDSResult CoreInstance), multText (model-source
+        // into the TDSResult CoreInstance; deleted 2026-10-28 with the
+        // TDS text crossing), multText (model-source
         // extraction, ingress), stripTrailingZeros (scalar-bridge date
         // instance precision decode), remapErrorMessage (error-text
         // adapter, H4 known weakness documented), reEscapeStringLiterals
@@ -1078,24 +1171,39 @@ class JavaEvalLedgerTest {
      * surface and registers consciously. Exact in both directions. */
     private static final java.util.Set<String> EXEC_CLASSES =
             java.util.Set.of(
-                    // 2026-10-18 (the plan path program's step 6, typed rows): a JSON row's cells read by the
-                    // plan's columns, each by its three type facts; decode only, nothing evaluated
-                    "RowDecode.java",
+                    // RowDecode.java (2026-10-18) left the register 2026-10-27 (the result boundary program's
+                    // phase 3): moved to the plan side's result package, where a host's rows decode by it too
                     // 2026-10-08: CsvSeed/Ddl/RowLoad text half moved exec -> setup, execution
                     // plan boundary step 2's opening piece (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): CsvSeed.java, Ddl.java and RowLoad.java left the register (no JDBC, no
-                    // egress: they write text and rows); SetupRunner.java is CsvSeed.run, the half
-                    // that runs them on a connection
-                    "Column.java", "SetupRunner.java",
+                    // egress: they write text and rows); SetupRunner.java was CsvSeed.run, the half
+                    // that ran them on a connection -- deleted 2026-10-29 (the doors): the runner runs the
+                    // steps (PlanRunner.setUp)
                     // execution plan step 3 (2026-10-09, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
                     // §9): THE RUNNER -- a plan's own statement run as the plan says, model-free
                     // (ArchitectureTest.theRunnerIsModelFree): PlanRunner binds the plan's slots and
                     // carries the database's text out, writing a value's type into a plan's type hole;
                     // PlanParameters checks a caller's typed values (none parsed, none computed:
                     // a Float bound as its literal is typed, SqlTyping.floatDecimal); PlanSessions gives out
-                    // sessions by the plan's target and runs its setup once; BulkLoads finds an
-                    // engine's loader. No value is computed or compared: the database executes
-                    "PlanRunner.java", "PlanParameters.java", "PlanSessions.java", "BulkLoads.java",
+                    // sessions by the plan's target and runs its setup once. No value is computed or compared:
+                    // the database executes. BulkLoads.java (an engine's loader found) left 2026-11-10 (A2,
+                    // docs/DATA_DELIVERY_DESIGN_2026_11_10.md): deleted with the plan's rows step, the model's data
+                    // statements in the plan
+                    "PlanRunner.java", "PlanParameters.java", "PlanSessions.java",
+                    // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8), the user's ruling: the runner's program half, its own target -- a program's steps on one
+                    // session and a callback at a step it does not know; no value is computed or compared
+                    "ProgramRunner.java",
+                    // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L1: a file's load, its data -- the plan's reference
+                    // read through the run's stores, its size and digest checked, the verified bytes written to a copy
+                    // of the runner's own, which the DATABASE reads with its own reader (text corrected 2026-11-12, the
+                    // final audit: until A3 the bytes were split into text cells here and streamed; since then nothing
+                    // here reads a cell); no value is computed or compared, and no session is touched (PlanRunner sends)
+                    "DataLoads.java",
+                    // a live source's admission (L6a, 2026-11-10, the user's ruling: a file: source is a pointer):
+                    // the run's configured directories, a location's real path compared with them and its path
+                    // handed to the binding, or the source refused by name; no value is computed and no session
+                    // is touched
+                    "SourceAdmission.java",
                     // the Statements seam (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D12): what a session does
                     // with a plan's text -- JdbcStatements is the runner's JDBC moved whole (prepare, bind, run,
                     // the one getString: carriage); DatabaseConnector (main's Phase 5, listed below since its merge,
@@ -1107,24 +1215,26 @@ class JavaEvalLedgerTest {
                     // and unwrap rules, the slot first); nothing computed, nothing compared. RowDecode (step 6)
                     // stays for a document's row and a JSON-carried cell
                     "JdbcDecode.java",
+                    // the JSON a database writes with a bare token for a double that is not finite (2026-10-27,
+                    // the result boundary program's phase 5; DatabaseConnector.decoding().nonFiniteJson): the typed
+                    // reader's parse of such a cell, the token kept to be written back; nothing computed
+                    "NonFiniteJson.java",
                     "Statements.java", "JdbcStatements.java",
-                    "DynamicPivot.java",
-                    "ExecutionResult.java", "Executor.java",
+                    // ExecutionResult.java renamed TypedSide.java 2026-10-29 (the result boundary program's track D: the
+                    // judges' collected side, its old-door role gone); Executor.java left 2026-10-27: deleted (phase 5)
                     // leg 3.4 (2026-09-20): the body's DEFERRED verdict
                     // statements sent as one statement and reported in body
                     // order; the SQL shape is the lowering's, the row's
                     // judgment the verdict arm's — no value compared here
-                    "VerdictBatch.java",
-                    // THE ONE CENSUS OWNER (cleanup move 3, 2026-09-22): counters only —
-                    // one storage, one snapshot; no value is produced or compared
-                    "Census.java",
-                    // bulk load (2026-09-23): the seam an engine's own bulk API
-                    // joins through, for rows of TEXT cells the database casts
-                    // (setup.RowLoad since 2026-10-08). Egress only: nothing is
-                    // typed, produced or compared here
-                    "BulkLoad.java",
+                    // D72, 2026-10-30 (B2, the wall): Column and Row left for judge (a judged side's column in the
+                    // compiler's types; the runtime's row is typed by the plan's own column), SystemDatabase for the
+                    // root (the driver's: keyed by the graph, seeded through the plan side's DDL and dialect)
+                    // Census.java left 2026-11-08 (the plan-as-data design's step 0): the one census owner moved to
+                    // //core:diagnostics, which both the planning and the running halves reach (counters only)
+                    // BulkLoad.java (2026-09-23, the seam an engine's own bulk API joined through) left 2026-11-10
+                    // (A2): deleted with DuckDB's Appender, the model's data statements in the plan
                     // C3c (2026-10-04): a driver's own cell types, found beside the
-                    // driver as BulkLoad is (DuckDB's JSON node to its text); the
+                    // driver by ServiceLoader (DuckDB's JSON node to its text); the
                     // executor names no driver class. Carriage only
                     "DriverCells.java",
                     // C3b (2026-10-04): the execution side's ONE session owner, which
@@ -1143,31 +1253,23 @@ class JavaEvalLedgerTest {
                     "SqliteConnector.java", "PostgresConnector.java", "MariaDbConnector.java",
                     "MySqlConnector.java", "SnowflakeConnector.java", "DatabricksConnector.java",
                     "BigQueryConnector.java", "TrinoConnector.java", "ClickHouseConnector.java",
-                    // block-compiler stage 3 (2026-09-21): an EFFECT SEGMENT under
-                    // construction — the statements the effect natives would have
-                    // sent, collected (text + the ledger's text + a statically
-                    // decided kind) and sent as ONE script; no value is produced,
-                    // nothing is compared
-                    "EffectSink.java",
-                    // lean ladder (2026-09-20): the TIMED prepare/execute seam —
-                    // env-switched diagnostics (LEGEND_LITE_PREP_TRACE) writing
-                    // one line per statement; no value a verdict reads is produced
-                    "PrepTrace.java",
+                    // EffectSink.java deleted 2026-11-07 (I2: never constructed once the walk's effect sends went)
+                    // lean ladder (2026-09-20): env-switched diagnostics (LEGEND_LITE_PREP_TRACE) writing the
+                    // verdict batch's branch sizes; no value a verdict reads is produced (its timed prepare/execute
+                    // arms deleted 2026-10-29, the doors' audit D64: callerless since the plan runner)
                     // THE SYSTEM DATABASE (user ruling 2026-09-02): the
                     // graph's metamodel rows in a database of their own,
                     // separate from every user connection — opened once
                     // per graph per engine, written once; store-reading
-                    // bodies ROUTE to it (StatementExecutor). Egress only:
+                    // bodies ROUTE to it (BodyDriver). Egress only:
                     // seed DDL + content-addressed constructed rows; no
                     // value a verdict reads is produced here
-                    "SystemDatabase.java",
                     // Phase 2 (One-Platform Plan): THE COMPARISON LAYER —
                     // the platform assert family (spec = legend-pure's
                     // essential/tests/*.pure) + the TDS-grid compare
                     // policies. Verification CONSUMES two produced sides,
                     // never produces a result (the permanent-allowed
                     // decision rule); wireEquals' private copy DIED here.
-                    "PureAsserts.java", "TdsCompare.java",
                     // B7 (truthfulness burn): the ONE owner of raised-
                     // message envelope unwrap — provenance-scoped
                     // (sentinel pair), so native errors keep their class;
@@ -1181,10 +1283,8 @@ class JavaEvalLedgerTest {
                     // in PureAsserts / TdsCompare / JsonCompare /
                     // TestAssertions became delegations to it. It compares
                     // two produced sides and never produces a value.
-                    "Equality.java",
                     // (H2Settings.java: H2's URL settings, DELETED 2026-10-16 -- into H2Connector.SETTINGS,
                     // the dialect program's Phase 5)
-                    "ColumnProbe.java",   // PctProbe, renamed ColumnProbe for what it does (2026-10-17)
                     // leg 3.3 (2026-09-19): the wire-decided kinds of a
                     // store-reading verdict side are the DATABASE's — one
                     // prepare (no row fetched), the reported type cast
@@ -1193,15 +1293,21 @@ class JavaEvalLedgerTest {
                     // never by the store's declaration; §4t). A schema read
                     // at the execution seam, ColumnProbe's own pattern; no
                     // value a verdict reads is computed here.
-                    "WireTypes.java",
-                    // batch 83 (2026-09-06): the engine's execution-trace
-                    // comment — the statement the database receives carries
-                    // `-- "executionTraceID" : "<uuid>"` (the engine's
-                    // RelationalExecutor mints one per execution) and the
-                    // frame's activity records the comment of its own run.
-                    // An identifier stamped at the JDBC boundary; no value
-                    // a verdict reads is computed here.
-                    "ExecutionTrace.java",
+                    // D71, 2026-10-30 (the seam-and-wall program's B1): the judge layer left for com.legend.judge (com.legend.testexec since 2026-11-09, slice 5)
+                    // (TESTEXEC_CLASSES below: PureAsserts, TdsCompare, Equality, CanonicalForm, CanonicalDivergence,
+                    // TypedSide, VerdictBatch, CanonRider, InstanceIds, SqlTypeCensus, PrimitiveCensus, AssertListener,
+                    // SqlReplayReferee) and the probes for the root (ROOT_CLASSES: ColumnProbe, GridProbe, DynamicPivot,
+                    // and WireProbe, the probe half of WireTypes); exec is the runtime: a plan and a session to typed rows
+                    "WireTypes.java",   // the wire TABLE only since D71 (JDBC's type codes to the SQL vocabulary)
+                    // 2026-10-29 (the result boundary program's track B, B1b): what a body driver ESTABLISHED on a
+                    // session -- the seeds it ran by their sources, the reported column types per statement, the
+                    // write mark -- keyed weakly by the session's connection; the driver's own ESTABLISHED map and
+                    // its Established class, moved to the seam so the driver holds a session and no JDBC. A memo of
+                    // facts the database reported; no value a verdict reads is computed here.
+                    "SessionState.java",
+                    // (ExecutionTrace.java, batch 83's execution-trace comment written in front of every statement
+                    // at the JDBC boundary: DELETED by C1, 2026-11-12, the user's ruling of 2026-11-10 -- the database
+                    // receives exactly the plan's text; the execution id is the runner's bound value, register S304)
                     // (TestResources.java: the per-run resource resolver — DELETED
                     // in batch 138, it rides ExecuteOptions.resources now)
                     // (QueryPlan.java and ResultShape.java: LEFT exec for com.legend.plan
@@ -1213,11 +1319,9 @@ class JavaEvalLedgerTest {
                     // never values). The REWRITE pass moved to
                     // resolver.RawGridSchema (Invariant 7, staged
                     // compilation); only the probe stays in exec.
-                    "GridProbe.java",
                     // StatementOrigin (2026-09-20): the statement-origin CENSUS — a thread-scoped
                     // mark + counters; sends nothing, reads no value; printed by the corpus lanes
                     "StatementOrigin.java",
-                    "Row.java",
                     // R1 (CANONICAL_FORM_SPEC §0): the byte-channel
                     // REFERENCE render + its divergence census. Pure
                     // MEASUREMENT beside the comparison layer — probes
@@ -1226,7 +1330,6 @@ class JavaEvalLedgerTest {
                     // verdict (the probe returns void). R2 moves the
                     // render of record into SQL; these stay as the
                     // permanent parallel-referee half.
-                    "CanonicalForm.java", "CanonicalDivergence.java",
                     // V11 (2026-08-22, user-ratified single-query
                     // canon): the rider that carries DB-computed canon
                     // texts OUT of the one side execution — pure
@@ -1235,7 +1338,6 @@ class JavaEvalLedgerTest {
                     // evaluation, no verdict logic. It EXISTS so the
                     // second per-side execution (runCanon) could be
                     // deleted — tenet #1's number went DOWN with it.
-                    "CanonRider.java",
                     // D4 (arch-audit 2026-08-28, user-ratified): the
                     // DECLINE-TAXONOMY REGISTER — a constants list of
                     // the byte channel's refusal prefixes, guarded by
@@ -1249,19 +1351,18 @@ class JavaEvalLedgerTest {
                     // bookkeeping: no JDBC, no evaluation, no verdict —
                     // the id EMITS into SQL as a struct literal (the
                     // database still computes every compare over it).
-                    "InstanceIds.java",
                     // TYPED-IR Slice 1 (2026-08-23, user-ratified deep
                     // fix): the LABEL-LIE CENSUS — declared OutputCol
                     // labels vs the bottom-up SqlTyping judgment, per
                     // executed plan. Pure measurement beside
                     // CanonicalDivergence (probes consume a finished
                     // plan and count; nothing here produces a result).
-                    "SqlTypeCensus.java",
+                    // Its wire arm (a ResultSet's metadata against the labels) deleted 2026-10-29 (the doors'
+                    // audit D64: callerless since the plan runner), with its counters and the pins on them
                     // the PRIMITIVE CENSUS (2026-10-12, the coverage map, docs/PRIMITIVE_COVERAGE_2026_10_12.md):
                     // reads each executed plan's MIR primitives and counts them by the statement's outcome, under
                     // a diagnostics switch only. Pure measurement beside SqlTypeCensus: no JDBC, no value
                     // computed, nothing a verdict reads.
-                    "PrimitiveCensus.java",
                     // HARNESS-DELETION item 1 slice 2 (2026-08-31): the
                     // assert-verdict OBSERVER interface — one callback
                     // the runner supplies to score (count/attribute)
@@ -1269,7 +1370,6 @@ class JavaEvalLedgerTest {
                     // no JDBC, no evaluation, no verdict logic — it
                     // exists so the harness's own assert orchestration
                     // can delete at the whole-test cutover.
-                    "AssertListener.java",
                     // SQLTEXT charter §2 (slice 1, 2026-09-01): the
                     // replay-oracle SPI — one interface the harness
                     // implements (its H2 mirror) and registers on
@@ -1279,7 +1379,6 @@ class JavaEvalLedgerTest {
                     // evaluation, no verdict logic — rows come from
                     // the REFEREE database, judgment stays in the
                     // verdict layer.
-                    "SqlReplayReferee.java",
                     // SQLTEXT slice 3 (2026-09-01): the text-emission
                     // CENSUS — pure counters (LongAdders) the sql-text
                     // verdict arms feed and the runner prints. Under
@@ -1287,135 +1386,376 @@ class JavaEvalLedgerTest {
                     // census number, never a verdict: nothing here can
                     // affect one (the CanonicalDivergence pattern); no
                     // JDBC, no evaluation.
+                    "package-info.java",
+                    // 2026-11-09, slice 5: PrepTrace moved to diagnostics (a trace switch, read by planning and run alike).
+                    // THE SYSTEM DATABASE HOLDER, the driver's until slice 5 (hole 2): the current system database of
+                    // each engine, found by the plan's own target and leased per run; it opens and closes sessions
+                    // through the seam's doors and evaluates nothing
+                    "SystemDatabase.java",
+                    // 2026-11-09, slice 5's two doors: a product plan's run (the door's runPlan until then: where the plan
+                    // says it runs -- its writes on its own sessions, a read on its answer's target's session, a constant
+                    // on none) and the contract of where a read's session comes from (the door's Source); both take the
+                    // plan and nothing of the model, and evaluate nothing
+                    "ProductRun.java", "SessionSource.java");
+
+    /** THE JUDGE PACKAGE is a CLOSED REGISTER (D71, 2026-10-30, the seam-and-wall program's B1): the verdict layer
+     * out of exec -- the host lattice, the grid compare, the canonical instruments, the verdict batch, the referee,
+     * the judges' collected side, the rider, the instance ids, the censuses, the listener. Reachable only from the
+     * verdict seam (ArchitectureTest.hostVerdictIsReachableOnlyFromTheVerdictSeam); a NEW class here is a new place
+     * Java judges a value and registers consciously. Exact in both directions. */
+    private static final java.util.Set<String> TESTEXEC_CLASSES =
+            java.util.Set.of(
+                    "PureAsserts.java", "TdsCompare.java",
+                    "Equality.java",
+                    "CanonicalForm.java", "CanonicalDivergence.java",
+                    // the judged side's column and row, exec's until D72 (2026-10-30)
+                    // 2026-11-08 (the plan-as-data design's step 5): the database judge's root loop run from the plan --
+                    // the batch's planned half's run, moved: each row judged by the function the caller hands, the
+                    // census and listener protocol as before; no value produced (it leaves for testexec at step 10)
+                    "RootLoops.java",
+                    // 2026-11-08 (the plan-as-data design's step 0): a body's verdict ids, one counter per body -- planning
+                    // state that names each verdict of the plan; it produces no value and compares none (it leaves for
+                    // testplan with the planners, step 10)
+                    // 2026-11-08 (the plan-as-data design's step 2): a planning failure to the test plan's data and back
+                    // at its turn -- the exception's class and message carried, no value produced or compared (its two
+                    // halves leave for testplan and testexec at step 10)
+                    // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): the reader of a test plan's side on demand (a verdict's message, where it fails) -- the
+                    // judges' type, the side being the test plan's; it reads, it computes nothing
+                    "SideReader.java",
+                    // CanonRider.java left for the lowering 2026-10-31 (the seam program's S4a): the canon wrap's outcome,
+                    // written by CanonicalRenderSql's caller where a side is planned and read by the judges
+                    // InstanceIds.java left for the planner 2026-10-31 (the seam program's S2g): the site-id minter is
+                    // planning state (the lowering mints ids from it), the planning half of the body's environment
+                    // SqlTypeCensus.java and PrimitiveCensus.java deleted 2026-11-09 (the full audit, no mutable static
+                    // state): neither had a feeder -- their probe and record lost their last callers -- so every count
+                    // read zero; the PCT gates that pinned them were dead gates
+                    "SqlReplayReferee.java",
+                    // 2026-11-07, P1.2 (the goals of record: a compatibility appeal is decided after the body's run):
+                    // whether the assert being judged carries a caller's message, so an appeal held under it is refused
+                    // by name if it fails (the message is unread after the run) -- a flag, no value judged
+                    // 2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the judge package is the
+                    // test's run, testexec. The judged side, its column and row, the listener and the failures went to the
+                    // test plan's library (data the plan carries); the verdict batch and its ids to the test's planner;
+                    // CallerMessage was deleted with the thread-local state (the flag is the run record's). Joining them,
+                    // the driver's run classes and the run halves of the classes that held both halves until slice 5:
+                    // the run's entry and sink (TestRunner, Answer), the run record (BodyRun), the held appeals and their
+                    // decision after the run (Appeals, SqlTextRuns), the judges' run halves over rows the database read
+                    // (HostJudgments, AssertRuns, AssertErrorRuns, DatabaseVerdicts, SideShapes, HostSideShapes), the
+                    // agreement rule (AgreementArm, AgreementRuns) and the plan's run (TestRun). They judge rows the plan
+                    // read, compute nothing the database did not, and reach no planning library
+                    "TestRunner.java", "BodyRun.java", "Appeals.java", "SqlTextRuns.java",
+                    "HostJudgments.java", "AssertRuns.java", "AssertErrorRuns.java", "DatabaseVerdicts.java",
+                    "SideShapes.java", "HostSideShapes.java", "AgreementArm.java", "AgreementRuns.java", "TestRun.java",
+                    // (MintedPlan.java, the executions a door minted for one run, went 2026-11-12 with the user's ruling:
+                    // one execution id per plan run)
                     "package-info.java");
 
-    /** THE ORCHESTRATION ROOT, closed (user directive 2026-09-01,
-     * SQLTEXT slice 3): the top-level package holds the executor and
-     * the verdict arms — exactly where host evaluation likes to creep
-     * back in — yet only its NAMED files carried line pins, so a NEW
-     * file here grew the host surface with no gate ever seeing it (the
-     * scan-boundary hole the new-assert-file question exposed). Every
-     * file now registers at birth with its tenet argument, same as the
-     * funnel packages; the line ledger above still ratchets the named
-     * evaluators. */
+
+    /** THE ROOT, closed (user directive 2026-09-01, SQLTEXT slice 3; step C, D73, 2026-10-30): the top-level package
+     * holds the product's public doors and nothing else -- the plan side's {@code Compiler}, {@code TypedQuery},
+     * {@code HeldModels}, the product's {@code Execution} and the test body's {@code TestExecution} and
+     * {@code ExecuteOptions} (the two execution doors split in slice 5, 2026-11-09). Until D73 it held the
+     * executor and the verdict arms too (exactly where host evaluation likes to creep back in), told apart from the
+     * plan side by Bazel alone; the machinery is {@code planner/} and {@code driver/} now, each a closed register
+     * below, and a NEW file at the root is a new door, registered consciously. */
     private static final java.util.Set<String> ROOT_CLASSES =
             java.util.Set.of(
-                    // 2026-10-18 (the plan path program's step 6, both judges on plans): the judges' plans and
-                    // the agreement gate's arm -- plan, run through the plan runner, compare; nothing evaluated
-                    "AgreementArm.java", "JudgePlans.java",
-                    "AggAwareActivities.java", "AssertErrorNative.java",
-                    "AssertVerdicts.java",
-                    // task #27 (2026-09-21): the router's two arms — HostJudge (both
-                    // sides executed, Java compares the rows: the host verdict of
-                    // record) and DatabaseJudge (both sides planned, one verdict
-                    // statement, the database returns the row) — moved out verbatim
-                    "HostJudge.java", "DatabaseJudge.java",
-                    // cleanup move 2b (2026-09-21): the arm interface — one method per assert
-                    // family, implemented by the two judges; the router dispatches once
-                    "VerdictArm.java",
-                    // BodyCompiler (2026-09-21, block compiler stage 1): compiles a PURE
-                    // body to its artifact (frames + verdict rows on the batch) before
-                    // anything runs; the executor's own planning arms, in order — no
-                    // evaluation of its own
-                    "BodyCompiler.java", "Compiler.java",
-                    // C2a (2026-10-04): the execution front door — the execute entry
-                    // points moved out of Compiler (the planner): a session handed or
-                    // opened, the planned query run through StatementExecutor; it
-                    // sequences, it evaluates nothing
-                    "Execution.java",
-                    // C2b (2026-10-05): a query typed once against a compiled model; its
-                    // type, target, lowering and plan off the one object (the planner's
-                    // text-recompiling statics replaced). Planning only, no evaluation
-                    "TypedQuery.java",
-                    // execution plan boundary step 2 (2026-10-08): a query's declared
-                    // parameters read ONCE — names, types, multiplicities — for the lite
-                    // plan's declarations and the legacy plan's template parameters and
-                    // signatures. Reads the typed tree and the model's enum names;
-                    // evaluates nothing
-                    "QueryParameters.java",
-                    // execution plan boundary step 2, landing 2 (2026-10-09): a typed query
-                    // planned as a lite execution plan — the wire statement rendered for the
-                    // target's dialect, the target's connection, server versions, session
-                    // statements and setup written at plan time. Planning only: it renders
-                    // and records, no value is evaluated and no database is touched
-                    "PlanMaker.java",
-                    // compile once, plan many (2026-10-10, docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9): the models a host
-                    // holds -- a model compiled once and its context lent to each plan, under its own lock; a
-                    // HeldStore (com.legend.cache) of contexts. Compiles and lends, evaluates nothing
-                    "HeldModels.java",
-                    "ConnectionLets.java",
-                    // audit §4y (2026-09-20): pure's equality KIND CLASSES
-                    // over stamps as a CLOSED type (the stringly "numeric" /
-                    // "enum:fqn" / "instance:fqn" keys deleted) — a
-                    // classification of static types, no value evaluated
-                    "KindClass.java",
-                    "CrossStoreGuard.java", "LiteralFold.java",
-                    // Nullable.java / NonNull.java left the root package for
-                    // com.legend.base on 2026-09-26 (execution plan step 0:
-                    // the two marker annotations were the edge that made
-                    // core one 26-package cycle); they are annotations, not
-                    // funnel classes, and need no register row there
-                    // metamodel-as-relations step 3 (2026-09-02): the
-                    // system store's SEED derivations — compile-time
-                    // facts (mappings, class mappings, include closure,
-                    // tables) rendered as ROWS for the database to
-                    // evaluate over; no value is computed here that a
-                    // verdict reads (tenet #1: Java orchestrates, the
-                    // database executes)
-                    "MetamodelSeeds.java",
-                    // group F burn (2026-09-02): the relational-operation
-                    // TREE seeds (mapping / view expressions as node rows,
-                    // types stamped) — the same seed-derivation class of
-                    // fact as MetamodelSeeds; nothing a verdict reads is
-                    // computed here
-                    "OpSeeds.java",
-                    // batch 118: the facts the platform STATES about a
-                    // resolved program (effects / inline CSV seeds / a
-                    // verdict call) — read off the typed tree by the one
-                    // context reader; nothing evaluated, no static sink
-                    "ProgramFacts.java", "ExecuteOptions.java",
-                    "PlanAllocations.java", "PlanEnvelope.java",
-                    "SeedSqlForms.java",
-                    // SQLTEXT charter slice 3a (2026-09-01): the
-                    // sql-text verdict arm — typed-tree navigation +
-                    // outcome judgment ONLY (Clause 2c); both texts,
-                    // our rows and the golden replay all compute in
-                    // the database through evalValue and the
-                    // SqlReplayReferee SPI. Line-pinned below like its
-                    // sibling AssertVerdicts.
-                    "SqlTextVerdicts.java", "StatementExecutor.java",
-                    // batch 75 (2026-09-06): the toSQLString surface's
-                    // STRUCTURED INPUTS across its overloads (query lambda,
-                    // mapping ref, dialect, runtime) — the qualified-property
-                    // form toSQL(...).toSQLString(...) reads them off the
-                    // toSQL handle. Typed-tree navigation only: no value is
-                    // computed, the render and the verdict stay where they
-                    // were (the K-routine, SqlTextVerdicts)
-                    "SqlTextInputs.java",
-                    // C3a (2026-10-03, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): which
-                    // engine golden-text renderer a declared DatabaseType gets — a constructor choice per type,
-                    // root layer by invariant 4d; it computes no value
-                    "EngineText.java",
-                    // batch 85 (2026-09-06): the loadCsvToDbTable EFFECT arm —
-                    // the engine's native reads a classpath CSV, drops its
-                    // header and inserts positionally; here the harness
-                    // resolves the CSV (test input) and Java orchestrates the
-                    // INSERT statements the database executes. No verdict
-                    // value is computed.
-                    "CsvLoad.java",
+                    "Compiler.java", "TypedQuery.java", "HeldModels.java",
+                    "Execution.java", "ExecuteOptions.java",
+                    // 2026-11-09, slice 5 (the user's word: "split the door"): the test body's door, its own library
+                    // beside the product's -- a body planned by the test planner, its plan run by the test runner; it
+                    // holds no logic (theDoorsHoldNoLogic; ArchitectureTest.theDoorsOnlyCompose)
+                    "TestExecution.java",
+                    // (ExecutionIds.java, the test door's mint of one id per execute(), went 2026-11-12 with the user's
+                    // ruling: one execution id per plan run -- the door mints the run's id itself)
                     "package-info.java");
 
-    /** The other two funnel packages (documented-debts 2026-08-18,
-     * audit item 9's remainder): server and testdatagen may touch JDBC
-     * per F1.3, so their class lists close the same way exec's does. */
+    /** THE PLANNER'S MACHINERY, closed (step C, D73, 2026-10-30): a typed query to its plan -- the plan maker, the
+     * system store's rows, a program's facts, a query's parameters, the cross-store guard. Part of
+     * {@code //core:planner} with the root's three plan-side doors; depends on no execution class
+     * ({@code ArchitectureTest.plannerIsExecutionFree}). Exact in both directions. */
+    private static final java.util.Set<String> PLANNER_CLASSES =
+            java.util.Set.of(
+                    "PlanMaker.java",
+                    // 2026-11-08, the plan-as-data design's step 7 (docs/PLAN_AS_DATA_2026_11_07.md 2.6): the plan's copy of a
+                    // connection description made from the model's, variant by variant and field by field; nothing evaluated
+                    "ConnectionPlans.java",
+                    // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): a program's step as the planner holds it, a product node or an extension's by its handle
+                    "PlannedStep.java",
+                    // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L2 (P2): the one place a plan's load is made and the
+                    // one identity scheme (a digest of the steps' content, every digest in it); data in, no value computed
+                    "LoadPlanner.java",
+                    // 2026-11-12, C2 (D4, the charter's A3(c)): a target as its dialect writes it -- the database, the
+                    // session setup and the error read-back the dialect declares, copied into the plan; nothing evaluated
+                    "Targets.java",
+                    // 2026-11-12, register S303 (the user's ruling of that day: SYNTHESIZE's simple slice, DuckDB alone):
+                    // a declared table's rows as one load -- the table made as declared, then one statement whose every
+                    // value is a formula of the row's number the DATABASE computes; the planner chooses each column's
+                    // formula from its declared type and the request's knob (model and request text, never a value)
+                    "Synthesize.java",
+                    // 2026-11-12 (the user's ruling "Yes do 5 and 6": Studio's SQL playground through the planner): a
+                    // person's one statement as a plan, carried as written -- never parsed, rewritten or split; the
+                    // planner computes nothing, the database answers the relation it reports
+                    "Authored.java",
+                    // 2026-11-12, the final audit's 1(b) (the user's ruling; B3's contract): a snapshot's copy as one
+                    // writing plan -- the pull planned as the product plans its one statement, the copy its statement's
+                    // tree written by the dialect (CREATE TABLE ... AS), its payloads the pull's; schema, drop and copy
+                    // the host's operations, on a target carrying the database's transaction; nothing evaluated
+                    "SnapCopy.java",
+                    // 2026-11-12, the final audit's item 2 (the user's ruling (b); B3's contract): a DataCube table Output
+                    // as one writing plan -- a created table's DDL from the rows' relation type (each Pure type mapped
+                    // by the dialect, every name delimited), then the store write the planner plans; the program's text
+                    // the parser's own reading of a template, the rows and the target placed as protocol nodes;
+                    // nothing evaluated
+                    "OutputPlan.java",
+                    // 2026-11-10, docs/DATA_IN_THE_PLAN_2026_11_09.md L6b: a query's data: sources as one load into
+                    // session tables named by their content's digest, the payload split into its elements verbatim
+                    // (build-time model text, compared never computed) and the source read as its table
+                    "DataSources.java",
+                    // ContentRows.java (2026-11-10, L6c: the model's rows inline or from the load's bundle through a
+                    // text staging table) left the same day (A2): every table's rows a content blob of statements,
+                    // setup.LoadSteps
+                    // 2026-11-09, docs/DATA_IN_THE_PLAN_2026_11_09.md L4b (docs/SYSTEM_CATALOG_DESIGN_2026_11_08.md): the one
+                    // maker of a system target and of the store's loads -- the catalog's ONCE load (its tables, the
+                    // platform's rows), a model's registration (its rows less the platform's, compared as multisets of
+                    // texts), a server's whole store; knowledge, no value computed
+                    "SystemCatalog.java",
+                    "MetamodelSeeds.java", "OpSeeds.java",
+                    "ProgramFacts.java",
+                    "QueryParameters.java",
+                    "CrossStoreGuard.java",
+                    // the planning half of a body's environment (the seam program's S2g, 2026-10-31): the model, the
+                    // runtime, the dialect, the lets, the renames, the frame, the features -- what a statement is
+                    // planned against, no session. InstanceIds.java DELETED 2026-10-31 (the test-is-the-product plan's
+                    // M1, B9): it was the lowering's ObjectSites twice over, and one program's objects take one minter
+                    "PlanEnv.java",
+                    // the body driver's planning helpers (the seam program's S2g, 2026-10-31): the body planner (the
+                    // statement resolver, the Lowerer and the plan-preparation ladder, a value's road to its body),
+                    // the engine's plan text (EnginePlans, EngineText, PlanEnvelope, SqlTextInputs), the handles' and
+                    // activities' rows (PlanAllocations, AggAwareActivities) -- planning work, no session, moved from
+                    // the driver with no rule changed
+                    "BodyPlanner.java", "EnginePlans.java", "EngineText.java", "PlanEnvelope.java",
+                    // a frame's chain (S2g's third step, 2026-10-31): the execute call to the chain its readers splice
+                    "FramePlanner.java",
+                    // a let's kind and its read analyses (S2b, 2026-10-31): where a let's rows live, decided with no
+                    // session; the connection-chain read analysis with it, the driver's until then
+                    "LetPlanner.java", "ConnectionLets.java",
+                    // the system route (S2h, 2026-10-31): the system store's database and its tables' names, planned
+                    "SystemRoutes.java",
+                    // a statement's body prepared, or the kind of answer it is given with no plan (the shared
+                    // preparation, 2026-10-31): a closed result type the driver dispatches on
+                    "Prepared.java",
+                    // (EffectPlanner.java, S2d's effect statements, left for the test-planning library at M3d, 2026-10-31)
+                    // a side's plan (S4a, 2026-10-31): a statement's or a verdict side's body prepared under its system
+                    // route, lowered and wrapped as its judge reads it, with no session; the driver opens the route
+                    "SidePlanner.java",
+                    "SqlTextInputs.java", "PlanAllocations.java", "AggAwareActivities.java",
+                    // the product's statement road (the test-is-the-product plan's M2, B11, 2026-10-31): a query's and
+                    // a program's statements planned by the test road's front half (inlined with the lets kept, natives
+                    // staged, resolved with the lets' bindings, prepared, lowered with the product's configuration and
+                    // the frame's facts, post-processed); a String or Boolean literal -- a staged planToString or
+                    // toSQLString text among them -- and a DDL text the plan's own constant; the admitted literal kinds'
+                    // one owner. Planning, no session; nothing evaluated: a constant is the literal's, the model's or
+                    // the plan-time text's
+                    "ProductStatements.java",
+                    // the query door and the program road's state (the test-is-the-product plan's M3c, B12 items 1-3,
+                    // 2026-10-31): the door scans a typed body once for the kinds only a test's program holds and
+                    // refuses them by name (the compiler's own reach scans; no value computed); the one planning
+                    // state of a program; the extension point the test-planning library plans those kinds through.
+                    // Planning, no session
+                    "QueryDoor.java", "ProgramState.java", "ProgramKinds.java",
+                    // a program's frames (M3f, B12 items 8 and 10): the execute(...) results its statements read,
+                    // spliced by the inliner's hook; their activity rows and the stamp parameters their comments
+                    // bind. Planning, no session; nothing evaluated (a stamp is the runner's, bound when the plan runs)
+                    "ProgramFrames.java",
+                    "package-info.java");
+
+    /** THE DRIVER, closed (step C, D73, 2026-10-30): the execution side's machinery behind the root's two execution
+     * doors -- the body driver and compiler, the judges' arms and their plans, the seeds and loads, the schema probes,
+     * the graph's system database. The one layer holding a compiled model and a session at once; the body driver is
+     * the execution door's alone ({@code ArchitectureTest.theDriverHasOneCaller}); no JDBC
+     * ({@code theBodyDriverAndTheJudgesHoldNoJdbc}). Every file registers at birth with its tenet argument; the line
+     * ledger above still ratchets the named evaluators. Exact in both directions. */
+    private static final java.util.Set<String> TESTPLAN_FROM_DRIVER =
+            java.util.Set.of(
+                    "JudgePlans.java",
+                    // the agreement judge's asserts planned before the program (the walker-deletion program,
+                    // 2026-11-02): each statement-root assert's step carries the host half's base sides (HostAsserts)
+                    // and the database half's verdict statement (DatabaseAsserts.planEach), the router's sink holding
+                    // the agreement rule (AgreementArm.agree) through AssertVerdicts' seam. Plans only; sends nothing;
+                    // judges through the two judges' seams
+                    "AgreementAsserts.java",
+                    // 2026-11-08 (the plan-as-data design's step 6): the agreement judge run from the plan -- each
+                    // assert's pairing and its database half's root loop read off the group that closes it, the host
+                    // half held and the agreement rule deciding through AssertVerdicts' seam, as the planner's One did;
+                    // sends nothing, plans nothing
+                    // 2026-11-08 (the plan-as-data design's step 8b): the appeals a test plan's verdicts name, by verdict
+                    // (the plan's extensionsByVerdict, built from the arms' planned records) and by number at run; a
+                    // walk over the plan's data, nothing evaluated
+                    "AppealsByVerdict.java",
+                    // an assert under an if (the asserts-as-plan-nodes program, step 4, 2026-11-04): a branch
+                    // statement's parts read from the typed tree -- its condition, each side a statement a judge plans
+                    // or a constant -- so each side is planned as a body of its own by the same judge's planner, the
+                    // branch a plan node the runner takes one side of. Reads the tree; plans nothing itself, sends
+                    // nothing, evaluates nothing
+                    "AssertBranch.java",
+                    // the run's reader while a moved body's sink judges (the walk deletion's step 3, 2026-11-06): the
+                    // program's own SideReader published for the judgment, so a compatibility appeal reads the rows
+                    // planned with its assert inside the body's run and never starts a run of its own. A scoped slot;
+                    // sends nothing itself, plans nothing, evaluates nothing
+                    // 2026-11-07, P1.2 (the goals of record, G4/G5: a compatibility appeal plans and runs its own
+                    // statements after the body's run, never through the body's reader): a body's held appeals --
+                    // held at their asserts while the run goes on, the listener's reports kept back, then decided in
+                    // order, each planned side read as a plan of its own on the body's sessions. Plans nothing, sends
+                    // through the runner, judges nothing itself (the appeal's judgment is SqlTextVerdicts')
+                    // 2026-11-07, register S144 (the user's ruling, option 2): assertJsonStringsEqual's two texts as
+                    // both judges read them -- strict JSON in lite's own runs, upstream's json-simple 1.1.1 grammar
+                    // under the compatibility rules. Reads text into values; judges nothing, sends nothing
+                    // the host judge's sides as a verdict step's base (the seam program's S2f, 2026-10-30): plans the
+                    // arm's sides, hands them to the runner as one verdict's base and carries the rows back by
+                    // position; judges nothing (D7: the host judge is the receiver's exception, never in the plan)
+                    "HostSides.java",
+                    // the database judge's asserts planned before the program (the test-is-the-product plan's M7,
+                    // 2026-11-01): the body walked under a COLLECTING verdict batch (each arm's verdict statement
+                    // deferred, nothing sent), the batch planned at each segment's close (VerdictBatch.plan: the fused
+                    // statement composed as the walk composes it) and placed as the segment's verdict groups; the
+                    // router's sink hands the rows back and the batch's own root loop judges (the walk's census and
+                    // listener protocol). Plans only; sends nothing; judges through the batch's seam
+                    "DatabaseAsserts.java",
+                    // the host judge's asserts planned before the program (the test-is-the-product plan's M6, B3,
+                    // 2026-11-01): each statement-root assert of an assert program classified (AssertVerdicts.planHost)
+                    // and its sides planned (HostSides.plan) with the walk's let prefix and environment, handed to the
+                    // test library as the verdict step at the assert's turn (TestDoor.Asserts); a planning failure a
+                    // planned raise at that turn (R14). Plans only; sends nothing, counts nothing, judges nothing (the
+                    // router's sink judges at the step through AssertVerdicts' seam)
+                    "HostAsserts.java",
+                    // the host judgment as DATA (the test-is-the-product plan's M8a, 2026-11-01): one sealed record per
+                    // host comparison, carrying the facts the comparison needs beyond the rows -- a side's static type
+                    // and kind class, the key trees and the subtype relation, the byte gates, the flat and order
+                    // facts -- every one read from the typed tree and the model when the arm is PLANNED; the sink
+                    // holds no typed tree, no let prefix, no model, no closure. Data: it evaluates nothing (Keys.resolve
+                    // reads the wire's classifiers to pick the planned key tree, a selection, never a computation)
+                    // HostJudgment.java left for the test plan's library 2026-11-08 (step 4): the judgment as the plan's
+                    // data; its planning facts are JudgmentFacts' (below), its key-tree selection the host judge's
+                    "AssertErrorNative.java",
+                    // 2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): the judgment's facts read at planning from the typed tree and the model
+                    // (a side's facts, its kind class, the key trees) into the test plan's vocabulary; nothing evaluated
+                    "JudgmentFacts.java",
+                    // 2026-11-08, the plan-as-data design's step 4 (docs/PLAN_AS_DATA_2026_11_07.md 2.2): the body's engine-text appeals by number, planning's registry
+                    // (since step 8b the plan carries those its verdicts name); it holds and hands back, it decides nothing
+                    "EngineTextAppeals.java",
+                    "AssertVerdicts.java",
+                    "HostJudge.java", "DatabaseJudge.java",
+                    "VerdictArm.java",
+                    "BodyDriver.java",
+                    // the test door's router (the test-is-the-product plan's M5, R16, 2026-11-01): a body of a moved
+                    // class (testplan/BodyClass) planned whole and run as one plan, every other walked; it plans
+                    // nothing itself and evaluates no value (the ledger's texts are the plan's, recorded as they
+                    // ran). Since M5f (2026-11-01) it holds on a moved body's answer the row-count contract the walk
+                    // holds (com.legend.testexec.SideShapes.holding: at most one row, at least one, exactly one for a to-one reader),
+                    // counting rows, never computing a cell -- the D30 residue until the plan carries the contract
+                    "TestPlanner.java",
+                    // 2026-11-11, B2d.2 of the total-wall program (docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2, the
+                    // generator design the user approved 2026-11-10): a body's generateTestData planned before the body
+                    // is classed (TestDataPlanner's one read-only statement), its sqls the fetch texts as constants, its
+                    // dataCsvString the statement's cell read where it stands; planning only, it rewrites the typed
+                    // body, sends nothing and evaluates no value (the database answers the text)
+                    "GeneratedTestData.java",
+                    // 2026-11-08, the plan-as-data design's step 3 (docs/PLAN_AS_DATA_2026_11_07.md 2.8): a test plan run -- lowered to the runner's program, each verdict step read as its judge
+                    // asks through the callback and handed to the judges; it reads and hands on, it decides nothing
+                    // ConnectionLets.java left for the planner 2026-10-31 (the seam program's S2b: a let's read analysis)
+                    // KindClass.java left for the test plan's library 2026-11-08 (step 4): a side's kind class is plan data
+                    "LiteralFold.java",
+                    // AggAwareActivities, PlanAllocations, PlanEnvelope, SqlTextInputs and EngineText left for the
+                    // planner 2026-10-31 (the seam program's S2g: planning work, PLANNER_CLASSES above)
+                    "SeedSqlForms.java",
+                    "SqlTextVerdicts.java",
+                    // CsvLoad.java deleted 2026-11-07 (I2: the walk's loadCsvToDbTable arm; the load is a plan step)
+                    // the schema probes (D71) and the graph's system database (D72), out of exec; ColumnProbe deleted
+                    // 2026-10-30 (the seam program's S3a: a cast-named pivot's columns are the compiler's, F10);
+                    // WireProbe and GridProbe the same day (S3b, S3c: the canon asks the value in the statement; a raw
+                    // grid's columns are the ones its result reports)
+                    // DynamicPivot.java deleted 2026-10-31 (the seam program's S3a: a dynamic pivot keyed where planned)
+                    // 2026-11-09, slice 5 (docs/PLAN_AS_DATA_2026_11_07.md, "Slice 5: the spec"): the driver package is
+                    // deleted. Its planning classes above are the test's planner's (testplan); its run classes went to
+                    // testexec, the system database holder to exec, the compatibility JSON reader to the test plan's
+                    // library, and RunReader was deleted with the thread-local state (the reader is the run record's).
+                    // Joining them: its options (PlanningOptions), and the verdict batch and its ids from the judge
+                    // package -- planning only, nothing evaluated, no session. (ActivityComments, planning's activity
+                    // comment, left 2026-11-12 with the execution id as upstream: an inline execute's activity is an
+                    // execution of its own, its stamp named by its call site, BodyDriver.inlineStamp)
+                    "PlanningOptions.java", "VerdictBatch.java", "VerdictIds.java");
+
+    /** The RESULT PACKAGE is a CLOSED REGISTER too (2026-10-28, the result boundary program's R3 and R8; the start
+     * page's S1.4 item 3, approved by the user 2026-10-28): the typed result as a stream of batches, and the writers
+     * at the edge, where every value leaves as text. A writer spells the typed value it was handed and decides none
+     * ({@code ArchitectureTest.writersAreCarriageOnly} keeps it off every other layer, {@code WriterCarriageGuardTest}
+     * keeps arithmetic and comparison out of it); a NEW class here is a new place a value meets text and registers
+     * consciously with its tenet argument. Exact in both directions. */
+    private static final java.util.Set<String> RESULT_CLASSES =
+            java.util.Set.of(
+                    // the typed result (phase 1, 51688f36, R8): ResultSink is the seam a result streams into (columns,
+                    // batches, end); Batch holds up to N rows as typed arrays with a null mask behind one accessor;
+                    // Batcher fills and flushes them; Collector collects a whole result into memory, a test helper and
+                    // the judges' writer, never a production method. No value is computed or compared
+                    "ResultSink.java", "Batch.java", "Batcher.java", "Collector.java",
+                    // the decode of a host's rows (the plan path program's step 6, moved here from exec 2026-10-27, held
+                    // model-free by ArchitectureTest.theRunnerIsModelFree): a cell from a JSON row's token by the plan's
+                    // column -- one carrier conversion each, by the slot then the Pure type; nothing computed, a token no
+                    // arm reads refused by name. HostRows streams the rows a host's own database ran through it
+                    "RowDecode.java", "HostRows.java",
+                    // the cell texts (phase 2, 12b89c7d, R3): every spelling of a typed cell -- Pure's print forms,
+                    // legend-engine's tokens, lite's -- each a function of the carrier and the column's facts alone (its
+                    // written-precision fact since 2026-10-28); digits chosen for a value held whole, no kind converted,
+                    // no zone shifted, no null defaulted
+                    "CellText.java",
+                    // the writers (phase 2, R4): legend-engine's exact answer (LEGACY), lite's JSON rows and CSV (LEAN),
+                    // each a ResultSink spelling cells through CellText in its consumer's layout; nothing else
+                    "PureV1Writer.java", "JsonRowsWriter.java", "CsvWriter.java",
+                    // the Arrow writer (track A, 2026-10-29, docs/RESULT_BOUNDARY_START_HERE.md): a ResultSink that
+                    // lays each batch's typed cells into Arrow IPC buffers (the framer //arrow_ipc, a FlatBuffers
+                    // builder over base alone) -- one encoder per column kind, each a carriage of the carrier's own
+                    // bits (a long's eight bytes, a BigDecimal's unscaled value at the column's scale, a text's
+                    // UTF-8, a date's epoch days); nothing computed, a carrier an encoder cannot lay down refused
+                    // by name; its carriage register is WriterCarriageGuardTest's ArrowWriter.java rows
+                    "ArrowWriter.java",
+                    // a tagged column's cell as a decoder hands it to the batch (track F, 2026-10-29; D57 (5)): the
+                    // slot index and the slot's carrier, a record of two fields and nothing computed
+                    "TaggedCell.java",
+                    // legend-engine's PURE_TDSOBJECT serialization (the doors, 2026-10-29; D63): the service test
+                    // runner's answer as a writer at the boundary -- objects keyed by the presented column name, each
+                    // cell legend-engine's token (CellText.engine); a to-one value as its one cell; spells, decides
+                    // nothing
+                    "TdsObjectsWriter.java",
+                    // where a run's answer goes, as data (2026-11-09, the user's question "why do we have any
+                    // callbacks?"): a closed set of formats and their streams, the writer chosen by the answer's shape
+                    // from the plan before any statement runs (PureV1Writer.Facts, the envelope's facts read before the
+                    // run) -- a switch over the variants and the shape; nothing computed, an answer a format has no
+                    // form for refused by name
+                    "Output.java");
+
+    /** The other funnel packages (documented-debts 2026-08-18,
+     * audit item 9's remainder): server and testdatagen could touch JDBC
+     * under F1.3's package exemption (gone 2026-10-30, D69: the funnel exempts the JDBC census register's classes
+     * only; testdatagen left 2026-10-29), so their class lists close the same way exec's does; the result package
+     * (2026-10-28) closes as the edge where every value becomes text. */
+    private static java.util.Set<String> union(java.util.Set<String> a, java.util.Set<String> b) {
+        java.util.Set<String> out = new java.util.TreeSet<>(a);
+        out.addAll(b);
+        return java.util.Collections.unmodifiableSet(out);
+    }
+
     private static final java.util.Map<String, java.util.Set<String>>
             FUNNEL_PACKAGE_REGISTERS = java.util.Map.of(
                     "core/src/main/java/com/legend", ROOT_CLASSES,
+                    "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
+                    "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,
+                    "core/src/main/java/com/legend/result", RESULT_CLASSES,
                     "core/src/main/java/com/legend/server",
                     java.util.Set.of("ConnectionResolver.java",
                             "DiagramService.java",
-                            "LegendHttpServer.java", "OutputFormat.java",
+                            "LegendHttpServer.java",
                             "PureLspServer.java",
                             // 2026-10-10/11, DataCube's Create a Class…, an Association…, a Data Space…
                             // (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §15.6a): the model's writer and its three
@@ -1425,19 +1765,71 @@ class JavaEvalLedgerTest {
                             // compile and PLAN only -- no connection, no JDBC, no value
                             // computed; the plan's SQL is the database's to run
                             "PureV1Api.java",
+                            // 2026-11-03, the one reader (docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 2): one #TS
+                            // item's parsed tree written as data for the route that answers it -- each node's kind,
+                            // place and parts, a number's text as the parser read it; parse only, no connection, no
+                            // JDBC, no value computed
+                            "TsTree.java",
                             // 2026-10-21, leg 8 step 3 (docs/PROTOCOL_PROGRAM_2026_10_05.md): a pure/v1 request's model,
                             // text or PureModelContextData -- read and compiled only; no connection, no JDBC, no value
                             "ModelInput.java",
+                            // 2026-11-12, B2d.3e (the B2d.3 design's §3.3, the user's rulings R1 and R5 of 2026-11-11):
+                            // legend-engine's four test-data routes -- each the generator's statement planned (the
+                            // database building the answer's text) and run by the host's door, as an execute is; the
+                            // census a model fact; no connection, no JDBC, no value computed, the one cell written as is
+                            "TestDataRoutes.java"),
                             // (SavedQueries.java left this package 2026-10-13 for com.legend.queries, the program's B5:
-                            // the rules over a records interface, one implementation for the server, Python and the page)
-                            "QueryService.java"),
+                            // the rules over a records interface, one implementation for the server, Python and the page;
+                            // QueryService.java and OutputFormat.java DELETED 2026-10-30, D67: the HTTP door's runner is
+                            // ConnectionResolver.RUNNER over Execution.run, and the text conveniences were tests' alone)
+                    // THE TEST-PLANNING LIBRARY (the test-is-the-product plan's B4, brought forward to M3 by R17 C7,
+                    // 2026-10-31): the test door and a test's kinds on the program road; planning, no session
+                    "core/src/main/java/com/legend/testplan",
+                    union(TESTPLAN_FROM_DRIVER, java.util.Set.of(
+                            // the test door: a body planned whole through the program road (M3c)
+                            "TestDoor.java",
+                            // a test's kinds on the program road: effects as script steps (M3d), the others refused
+                            // by name until their sub-step
+                            "TestKinds.java",
+                            // an effect's statements: the texts executeInDb and the DDL natives send, written from their
+                            // String arguments' values (S2d; moved from the planner at M3d)
+                            "EffectPlanner.java",
+                            // a statement's seeds: their sources (the key the session's state is checked by) and their
+                            // setup steps (CsvSeed.planned), one owner for the walk and the test door (M3e, from the
+                            // body driver); since M10c item 7c (2026-11-02) the one reader of a seed form mapped over an
+                            // effect too (its data folded, its texts CsvSeed's); nothing evaluated
+                            "Seeds.java",
+                            // the classes of bodies that run whole on the program road (M5, R16, 2026-11-01): a named
+                            // rule over a body's typed shape, reading it, never running it; nothing evaluated
+                            "BodyClass.java",
+                            // (EffectSegment.java, an effect segment's name and its failure's message, deleted
+                            // 2026-11-07, P1: a failed script raises the database's own error, as upstream's executeInDb
+                            // does; nothing read which statement failed -- no corpus body fails in a script)
+                            // the kind census of a body the router leaves on the walk (M9, 2026-11-01): the kinds it
+                            // holds, named in the body-class rule's own vocabulary and joined for the lanes'
+                            // histogram; a measurement carrier like ProgramFacts.shape, deciding nothing
+                            "BodyKinds.java",
+                            // the consumption of a body's element bindings (M10c item 7b, 2026-11-02): which lets bind
+                            // store elements alone and are read in source form only -- through a chain of lets, through
+                            // a helper's parameter -- a static reading of the typed tree for the body-class rule and the
+                            // kinds census; it evaluates nothing and sends nothing
+                            "ElementConsumption.java")),
                     "core/src/main/java/com/legend/testdatagen",
                     // TestDataGenerationNatives (TDG lane S1): the ORCHESTRATION-time fold
                     // of the checker's census CARRIER — computes the census
                     // (this layer owns it) and calls DOWN to the compiler's
                     // literal factory; no evaluation, no JDBC of its own
                     java.util.Set.of("TestDataGenerator.java",
-                            "TestDataGenerationNatives.java"));
+                            "TestDataGenerationNatives.java",
+                            // 2026-11-11, B2d (the user's approved design of 2026-11-10): the generator as ONE
+                            // planned read-only statement -- WITH clauses per fetch, each table's lines hashed,
+                            // scrubbed and joined by the database; it builds IR and evaluates nothing
+                            "TestDataPlanner.java",
+                            // 2026-11-12, B2d.3b (the B2d.3 design's §3.2, the user's rulings of 2026-11-11): the
+                            // census (getRelationalCSVDataFromQuery) as a planning constant -- a MODEL fact read from
+                            // the relation tree (build-time model text -> typed constants, the charter's rule); it
+                            // reads no row and evaluates nothing
+                            "TestDataCensus.java"));
 
     /** THE JUDGMENT-ONLY VOCABULARY PIN (user directive 2026-09-01):
      * verdict-arm files may JUDGE database-produced results — equals,
@@ -1456,9 +1848,9 @@ class JavaEvalLedgerTest {
      * needs a number you cannot mint.) */
     private static final java.util.List<String> VERDICT_FILES =
             java.util.List.of(
-                    "core/src/main/java/com/legend/AssertVerdicts.java",
-                    "core/src/main/java/com/legend/SqlTextVerdicts.java",
-                    "core/src/main/java/com/legend/AssertErrorNative.java");
+                    "core/src/main/java/com/legend/testplan/AssertVerdicts.java",
+                    "core/src/main/java/com/legend/testplan/SqlTextVerdicts.java",
+                    "core/src/main/java/com/legend/testplan/AssertErrorNative.java");
 
     private static final java.util.List<java.util.regex.Pattern>
             EVAL_VOCABULARY = java.util.stream.Stream.of(
@@ -1501,6 +1893,148 @@ class JavaEvalLedgerTest {
                 "verdict files JUDGE, never COMPUTE (banned at zero, no"
                         + " register — route the computation to the"
                         + " database):" + drift);
+    }
+
+    /** The files that hold a SESSION and never its connection (the result boundary program's track B, B1b,
+     *  2026-10-29): the body driver, the judges and their arms, the seed and error natives, the generator and its
+     *  natives.
+     *  {@code ArchitectureTest.theBodyDriverAndTheJudgesHoldNoJdbc} pins their bytecode to no {@code java.sql}; an
+     *  ArchUnit dependency rule cannot see a {@code .connection()} call chained into a {@code com.legend} callee
+     *  (the B1b audit's finding 2), so the SPELLING is pinned at zero here, in comment-stripped source. */
+    private static final java.util.List<String> SESSION_ONLY_FILES = java.util.List.of(
+            "core/src/main/java/com/legend/testplan/BodyDriver.java",
+            "core/src/main/java/com/legend/testplan/HostJudge.java",
+            "core/src/main/java/com/legend/testplan/DatabaseJudge.java",
+            "core/src/main/java/com/legend/testplan/JudgePlans.java",
+            "core/src/main/java/com/legend/testplan/AssertVerdicts.java",
+            "core/src/main/java/com/legend/testplan/SqlTextVerdicts.java",
+            "core/src/main/java/com/legend/testexec/AgreementArm.java",
+            "core/src/main/java/com/legend/testplan/VerdictArm.java",
+            "core/src/main/java/com/legend/testplan/SeedSqlForms.java",
+            "core/src/main/java/com/legend/testplan/AssertErrorNative.java",
+            // 2026-11-09, slice 5: the test's run holds the body's sessions (the run record's) and never a connection
+            "core/src/main/java/com/legend/testexec/TestRunner.java",
+            "core/src/main/java/com/legend/testexec/TestRun.java",
+            "core/src/main/java/com/legend/testexec/Appeals.java",
+            "core/src/main/java/com/legend/testexec/SqlTextRuns.java",
+            "core/src/main/java/com/legend/testexec/SqlReplayReferee.java",
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerationNatives.java",
+            // 2026-10-29 (the doors): the generator itself -- every statement the plan runner's
+            "core/src/main/java/com/legend/testdatagen/TestDataGenerator.java");
+
+    /** The doors' sources (the user's question of 2026-11-09: "something that enforces that this should only call one
+     *  line to call planner and one line to call executor and that's all it can do"). */
+    private static final java.util.List<String> DOOR_FILES = java.util.List.of(
+            "core/src/main/java/com/legend/Execution.java",
+            "core/src/main/java/com/legend/TestExecution.java",
+            // the test door's options (the full audit, 2026-11-09: a switch and a check hid there): a record of the two
+            // halves' options and its withers -- a wither makes options, so {@code new} is its one allowance
+            "core/src/main/java/com/legend/ExecuteOptions.java");
+
+    /** The doors' options file: where {@code new} is allowed (its withers). */
+    private static final String OPTIONS_FILE = "core/src/main/java/com/legend/ExecuteOptions.java";
+
+    /** Logic's spellings: a branch, a loop, a catch, a throw, a lambda or method reference, a ternary, an object made. */
+    private static final Pattern DOOR_LOGIC = Pattern.compile(
+            "\\b(if|else|for|while|do|switch|case|try|catch|finally|throw|new|synchronized)\\b|->|::|(?<![<,]|[<,] )\\?");
+
+    /** THE DOORS HOLD NO LOGIC (slice 5, 2026-11-09): in comment-stripped source, a door spells no branch, loop, catch,
+     *  throw, lambda, method reference, ternary or {@code new}, and each method is ONE statement -- its run call, the
+     *  planning call an argument of it
+     *  ({@code ArchitectureTest.theDoorsOnlyCompose} pins which calls, in bytecode; a branch is invisible there). Pinned
+     *  at zero, no register: a door that needs a decision has found work for the planner or the runner. */
+    @Test
+    void theDoorsHoldNoLogic() throws IOException {
+        StringBuilder drift = new StringBuilder();
+        for (String f : DOOR_FILES) {
+            String src = Files.readString(SourceFiles.file(f))
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "")
+                    .replaceAll("\"(\\\\.|[^\"\\\\])*\"", "\"\"");
+            String[] lines = src.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                java.util.regex.Matcher m = DOOR_LOGIC.matcher(lines[i]);
+                boolean found = m.find();
+                while (found && f.equals(OPTIONS_FILE) && m.group().equals("new")) {
+                    found = m.find();
+                }
+                if (found) {
+                    drift.append("\n  ").append(f).append(":").append(i + 1).append(": '").append(m.group())
+                            .append("' in ").append(lines[i].strip());
+                }
+            }
+            // ONE STATEMENT A METHOD: a method's body (depth 2, inside the class's) holds at most one statement -- its
+            // run, the plan an argument of it -- so nothing is planned after a run starts and nothing sits between
+            int depth = 0;
+            int line = 1;
+            int bodyLine = 0;
+            int statements = 0;
+            for (int i = 0; i < src.length(); i++) {
+                char c = src.charAt(i);
+                if (c == '\n') {
+                    line++;
+                } else if (c == '{') {
+                    depth++;
+                    if (depth == 2) {
+                        bodyLine = line;
+                        statements = 0;
+                    }
+                } else if (c == '}') {
+                    if (depth == 2 && statements > 1) {
+                        drift.append("\n  ").append(f).append(":").append(bodyLine).append(": a method of ")
+                                .append(statements).append(" statements (a door's is one: its run, its plan an argument)");
+                    }
+                    depth--;
+                } else if (c == ';' && depth == 2) {
+                    statements++;
+                }
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertTrue(drift.length() == 0,
+                "a door holds logic (move it to the planner or the runner):" + drift);
+    }
+
+    private static final Pattern CONNECTION_SPELLING = Pattern.compile("\\.connection\\(\\)|java\\.sql\\.");
+
+    @Test
+    void theBodyDriverSpellsNoConnection() throws IOException {
+        StringBuilder drift = new StringBuilder();
+        for (String f : SESSION_ONLY_FILES) {
+            String src = Files.readString(SourceFiles.file(f))
+                    .replaceAll("(?s)/\\*.*?\\*/", "")
+                    .replaceAll("//.*", "");
+            String[] lines = src.split("\n", -1);
+            for (int i = 0; i < lines.length; i++) {
+                if (CONNECTION_SPELLING.matcher(lines[i]).find()) {
+                    drift.append("\n  ").append(f).append(":").append(i + 1).append(": ").append(lines[i].strip());
+                }
+            }
+        }
+        assertTrue(drift.length() == 0,
+                "the body driver, the judges and the generator's natives hold a session and never reach its"
+                        + " connection (track B's B1b; banned at zero, no register):" + drift);
+    }
+
+    /** The compiler's fold of literal-only expressions ({@code compiler/spec/typed/Literals}): the operations it
+     *  evaluates are exactly three, each over constants the test wrote ({@code +}, {@code joinStrings},
+     *  {@code replace}), and every other native returns null so the side is sent to the database. A fourth operation
+     *  is a ruling first (the user, 2026-10-30, the seam program's S2f), then a parity leg in
+     *  {@code LiteralsParityTest}, then this pin. */
+    @Test
+    void theCompilersLiteralFoldJoinsConstantsAlone() throws IOException {
+        String src = Files.readString(SourceFiles.file("core/src/main/java/com/legend/compiler/spec/typed/Literals.java"))
+                .replaceAll("(?s)/\\*.*?\\*/", "")
+                .replaceAll("//.*", "");
+        java.util.List<String> operations = new java.util.ArrayList<>();
+        java.util.regex.Matcher m = Pattern.compile("case TypedNativeCall n when ([A-Za-z_.]+)").matcher(src);
+        while (m.find()) {
+            operations.add(m.group(1));
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of("PlatformTypes.isPlus",
+                "PlatformTypes.STRING_JOIN_STRINGS.equals", "PlatformTypes.STRING_REPLACE.equals"), operations,
+                "the compiler's literal fold evaluates three string operations over constants, by the user's"
+                        + " ruling of 2026-10-30; a fourth is a ruling, a parity leg and this pin, in that order");
+        assertTrue(src.contains("default -> null;"), "anything the fold does not admit is sent to the database");
     }
 
     @Test

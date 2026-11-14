@@ -10,9 +10,11 @@ import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, HttpEngine, type Grammar } from './engine.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
-import type { SeedTable, TableSeed } from '../model-data.ts';
+import type { FileLoadRequest } from '../model-data.ts';
+import type { RemoteMountRequest, SnapCopyRequest, SnapStreamRequest, SynthesizeRequest } from '../host-operations.ts';
 import type { ProjectDataStatements } from '../project-data.ts';
 import type { HostOperation } from '../host-operations.ts';
+import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../planned-sql.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {
@@ -109,15 +111,22 @@ function httpAnswer(folded: string): { status: number; type: string; body: strin
 
 /**
  * Execute's plan half in the engine's JSON (PureV1Api.jsonPlan; docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C1): `run`, the
- * SQL the tab runs -- a relation's JSON wire (the rows as the server's database writes them, one value), a graph
- * fetch's objects' array -- and the answer's every part but its rows (its text, for the planner's executeAnswer).
+ * typed statement the tab runs -- a relation's rows, or a graph fetch's objects, one per row -- its answer's shape and
+ * result columns, and the answer's every part but its rows (its text, for the planner's executeAnswer).
  */
 export interface ExecutePlan {
-  /** The plan's own SQL: what the answer's activity reports. */
+  /** The plan's statement: what the answer's activity reports. */
   readonly sql: string;
-  /** What the host runs: one value, the whole result as the database writes it. */
-  readonly run: string;
+  /** What the host runs: the same statement, its rows handed back to executeAnswer (typed where the answer is read). */
+  readonly run: PlannedSql;
+  /** A relation's rows, or a graph fetch's objects. */
+  readonly shape: 'RELATION' | 'OBJECTS';
+  /** The statement's result columns with their type facts, by which the planner reads the rows back. */
+  readonly resultColumns: readonly unknown[];
   readonly builder: { readonly _type: string };
+  /** Where `run` binds values (a data: payload, the tenets audit's M3): the execution plan, which carries them by digest
+   *  (plan-params.ts reads them). None for a statement that runs alone. */
+  readonly plan?: unknown;
 }
 
 export class WasmGrammar implements Grammar {
@@ -176,20 +185,28 @@ export class WasmGrammar implements Grammar {
     const model = input.model as { readonly _type?: string; readonly code?: string };
     const models = model._type === 'text' && typeof model.code === 'string' ? [model.code] : [];
     const text = answered(await this.#port.ask({ kind: 'executePlan', body: toJson(input), models: JSON.stringify(models) }));
-    return { plan: JSON.parse(text) as ExecutePlan, text };
+    const read = JSON.parse(text) as Omit<ExecutePlan, 'run'> & { readonly run: string };
+    // the statement the host runs, as the planner's answer carries it (planned-sql.ts)
+    return { plan: { ...read, run: fromPlan(read.run) }, text };
   }
 
   /**
-   * Execute's answer (PureV1Api.jsonAnswer): `plan` (executePlan's text) and the one value the tab's database wrote
-   * running its `run` SQL, arranged by the writers legend-lite's server answers with -- its text, the server's.
+   * Execute's answer (PureV1Api.jsonAnswer): `plan` (executePlan's text) and the rows the tab's database answered its
+   * `run` statement with (browser-engine's hostRows), decoded by the plan's columns and written by the writer
+   * legend-lite's server answers with -- its text, the server's.
    */
-  async executeAnswer(plan: string, wire: string): Promise<string> {
-    return answered(await this.#port.ask({ kind: 'executeAnswer', plan, wire }));
+  async executeAnswer(plan: string, rows: string): Promise<string> {
+    return answered(await this.#port.ask({ kind: 'executeAnswer', plan, rows }));
   }
 
-  /** The SQL a query compiles to on its runtime, and the type of its result (upstream's relationType shape). */
-  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: string; type: unknown }> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as { sql: string; type: unknown };
+  /** The SQL a query compiles to on its runtime, the type of its result (upstream's relationType shape), and -- where the
+   *  text does not run alone -- the execution plan it renders from, whose data: payloads its `?`s bind (plan-params.ts
+   *  reads them: the tenets audit's M3). */
+  async plan(model: PureModelContext, lambda: Lambda, runtime: string): Promise<{ sql: PlannedSql; type: unknown; plan?: unknown }> {
+    const read = JSON.parse(unfold(await this.#port.ask({ kind: 'planModel', model: model.code, lambda: toJson(lambda), runtime }))) as {
+      sql: string; type: unknown; plan?: unknown;
+    };
+    return { ...read, sql: fromPlan(read.sql) };
   }
 
   /** The SQL a query compiles to on its runtime -- legend-lite's plan, shown to a person ("Show SQL"). */
@@ -201,8 +218,8 @@ export class WasmGrammar implements Grammar {
    * What a session of the database runs before it is queried, so that it answers as the planner's SQL expects -- the
    * dialect's own setup (Boundary.sessionSetup: a DuckDB session in UTC), as legend-lite's server sets up its own.
    */
-  async sessionSetup(databaseType: string): Promise<readonly string[]> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'sessionSetup', databaseType }))) as string[];
+  async sessionSetup(databaseType: string): Promise<readonly PlannedSql[]> {
+    return allFromPlan(JSON.parse(unfold(await this.#port.ask({ kind: 'sessionSetup', databaseType }))) as string[]);
   }
 
   /**
@@ -210,13 +227,13 @@ export class WasmGrammar implements Grammar {
    * make it, point a connection at it, fill it from the model's Data elements, and drop it.
    */
   async projectData(model: string, databaseType: string): Promise<ProjectDataStatements> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'projectData', model, databaseType }))) as ProjectDataStatements;
+    return plannedProjectData(JSON.parse(unfold(await this.#port.ask({ kind: 'projectData', model, databaseType }))));
   }
 
   /** A host's named operations on a database of that type (D5, Boundary.hostOperations): each one's statements. */
-  async hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<string[][]> {
+  async hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]> {
     const asked = await this.#port.ask({ kind: 'hostOperations', databaseType, operations: JSON.stringify(operations) });
-    return JSON.parse(unfold(asked)) as string[][];
+    return (JSON.parse(unfold(asked)) as string[][]).map(allFromPlan);
   }
 
   /** Build the planner's boot layer for this model now, before a person waits on it. */
@@ -235,11 +252,50 @@ export class WasmGrammar implements Grammar {
   }
 
   /**
-   * A model's test data as the statements the server seeds DuckDB with (setup.CsvSeed, on the plan side), and each
-   * table's names as those statements spell them: for each table `database` declares, its SeedSource answer
-   * (model-data.ts), in order.
+   * A host's own file read into its database, as a plan (Boundary.fileLoad, B3): one HOST_SESSION load the hosts'
+   * runner runs (plan-runner.ts runLoad), the file a reference the host's store binds -- PlanJson's text.
    */
-  async testDataSql(model: string, database: string, tables: readonly SeedTable[]): Promise<TableSeed[]> {
-    return JSON.parse(unfold(await this.#port.ask({ kind: 'testData', model, database, tables: JSON.stringify(tables) }))) as TableSeed[];
+  async fileLoad(request: FileLoadRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'fileLoad', request: JSON.stringify(request) })));
+  }
+
+  /**
+   * A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): one HOST_SESSION load the hosts' runner runs,
+   * binding by name what this host holds (its keys, a bearer URL) -- PlanJson's text, holding no value.
+   */
+  async remoteMount(request: RemoteMountRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'remoteMount', request: JSON.stringify(request) })));
+  }
+
+  /**
+   * A snapshot from a remote plane, as a plan (Boundary.snapStream, the user's ruling of 2026-11-11): one HOST_SESSION
+   * load whose stream step the hosts' runner runs in one transaction -- PlanJson's text, the plane by name, never a row.
+   */
+  async snapStream(request: SnapStreamRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'snapStream', request: JSON.stringify(request) })));
+  }
+
+  /** A snapshot's local copy, as a plan (Boundary.snapCopy, the final audit's item 1(b)): one write in its target's
+   *  transaction -- the table made from the pull, planned in the call -- PlanJson's text, never the pull's statement. */
+  async snapCopy(request: SnapCopyRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'snapCopy', request: JSON.stringify(request) })));
+  }
+
+  /**
+   * Rows the database generates into a declared table, as a plan (Boundary.synthesize: SYNTHESIZE, the user's ruling of
+   * 2026-11-12): one HOST_SESSION load -- the table made as declared, then one statement filling it -- PlanJson's text,
+   * never a row.
+   */
+  async synthesize(request: SynthesizeRequest): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'synthesize', request: JSON.stringify(request) })));
+  }
+
+  /**
+   * A statement a person wrote, as a plan (Boundary.authored: Studio's SQL playground, the user's ruling of 2026-11-12):
+   * the person's one text on a database of `databaseType`, carried as written -- never parsed, rewritten or split --
+   * PlanJson's text, its answer the relation the database reports (plan-runner.ts runAuthored).
+   */
+  async authored(databaseType: string, text: string): Promise<PlanText> {
+    return planFromAnswer(unfold(await this.#port.ask({ kind: 'authored', request: JSON.stringify({ databaseType, text }) })));
   }
 }

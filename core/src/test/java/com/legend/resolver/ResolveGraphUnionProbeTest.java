@@ -3,9 +3,9 @@
 
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -283,14 +283,13 @@ class ResolveGraphUnionProbeTest {
             st.execute("INSERT INTO NPT1 VALUES (20, 'WRONG')");
             st.execute("INSERT INTO NPT2 VALUES (20, 'def2')");
         }
-        ExecutionResult r = Execution.execute(MODEL_NAMED_SET,
+        Lean.Result r = Lean.run(MODEL_NAMED_SET,
                 "g::NOrder.all()->filter(o|$o.product.pname == 'def2')"
                         + "->project([o|$o.oid], ['id'])->from(g::M7, g::RT7)",
                 "g::RT7", conn);
         System.out.println("[named-set] " + r);
-        assertEquals(true,
-                String.valueOf(r).contains("rows=[Row[values=[2]]]"),
-                String.valueOf(r));
+        assertEquals(1, r.rowCount(), String.valueOf(r));
+        assertEquals(2L, ((Number) r.rows().get(0).get(0)).longValue(), String.valueOf(r));
     }
 
     private static final String MODEL_TEMPORAL = """
@@ -339,9 +338,8 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::TOrder{oid, product(%2015-08-20){pname}}}#)"
                 + "->serialize(#{g::TOrder{oid, product(%2015-08-20){pname}}}#)"
                 + "->from(g::M6, g::RT6)";
-        ExecutionResult r = Execution.execute(MODEL_TEMPORAL, query, "g::RT6", conn);
-        String json = r instanceof ExecutionResult.Graph g ? g.json()
-                : String.valueOf(r);
+        Lean.Result r = Lean.run(MODEL_TEMPORAL, query, "g::RT6", conn);
+        String json = r.json();
         System.out.println("[graph-temporal] " + json);
         assertSameJson("[{\"oid\":1,\"product(2015-08-20)\":"
                 + "[{\"pname\":\"Current\"}]}]", json);
@@ -370,9 +368,8 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::MOrder{oid, product{pname}}}#)"
                 + "->serialize(#{g::MOrder{oid, product{pname}}}#)"
                 + "->from(g::M5, g::RT5)";
-        ExecutionResult r = Execution.execute(MODEL_MATRIX, query, "g::RT5", conn);
-        String json = r instanceof ExecutionResult.Graph g ? g.json()
-                : String.valueOf(r);
+        Lean.Result r = Lean.run(MODEL_MATRIX, query, "g::RT5", conn);
+        String json = r.json();
         System.out.println("[graph-matrix] " + json);
         assertSameJson("[{\"oid\":1,\"product\":[{\"pname\":\"A1\"},{\"pname\":\"A2\"}]},"
                 + "{\"oid\":2,\"product\":[{\"pname\":\"B2\"}]}]", json);
@@ -389,9 +386,8 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::EPerson{firstName, firm{legalName}}}#)"
                 + "->serialize(#{g::EPerson{firstName, firm{legalName}}}#)"
                 + "->from(g::M4, g::RT4)";
-        ExecutionResult r = Execution.execute(MODEL_EMBEDDED, query, "g::RT4", conn);
-        String json = r instanceof ExecutionResult.Graph g ? g.json()
-                : String.valueOf(r);
+        Lean.Result r = Lean.run(MODEL_EMBEDDED, query, "g::RT4", conn);
+        String json = r.json();
         System.out.println("[graph-embedded] " + json);
         assertEquals("[{\"firstName\":\"Peter\",\"firm\":{\"legalName\":\"Firm X\"}}]",
                 json);
@@ -418,9 +414,8 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::Trade{tradeId, product{productId, productName}}}#)"
                 + "->serialize(#{g::Trade{tradeId, product{productId, productName}}}#)"
                 + "->from(g::M3, g::RT3)";
-        ExecutionResult r = Execution.execute(MODEL_DIAGONAL, query, "g::RT3", conn);
-        String json = r instanceof ExecutionResult.Graph g ? g.json()
-                : String.valueOf(r);
+        Lean.Result r = Lean.run(MODEL_DIAGONAL, query, "g::RT3", conn);
+        String json = r.json();
         System.out.println("[graph-diagonal] " + json);
         assertSameJson("[{\"tradeId\":1,\"product\":{\"productId\":\"30\",\"productName\":\"Prod_1\"}},"
                 + "{\"tradeId\":5,\"product\":null},"
@@ -435,9 +430,8 @@ class ResolveGraphUnionProbeTest {
                 + "->graphFetch(#{g::Firm{legalName, employees{lastName}}}#)"
                 + "->serialize(#{g::Firm{legalName, employees{lastName}}}#)"
                 + "->from(g::M2, g::RT2)";
-        ExecutionResult r = Execution.execute(MODEL_ROOT_ONLY, query, "g::RT2", conn);
-        String json = r instanceof ExecutionResult.Graph g ? g.json()
-                : String.valueOf(r);
+        Lean.Result r = Lean.run(MODEL_ROOT_ONLY, query, "g::RT2", conn);
+        String json = r.json();
         System.out.println("[graph-union-root] " + json);
         assertEquals(true, json.contains("ACME") && json.contains("Ann"), json);
     }
@@ -451,9 +445,8 @@ class ResolveGraphUnionProbeTest {
                 + "->serialize(#{g::Firm{legalName, employees{lastName,"
                 + " address{name}}}}#)"
                 + "->from(g::M, g::RT)";
-        ExecutionResult r = Execution.execute(MODEL, query, "g::RT", conn);
-        String json = r instanceof ExecutionResult.Graph g ? g.json()
-                : String.valueOf(r);
+        Lean.Result r = Lean.run(MODEL, query, "g::RT", conn);
+        String json = r.json();
         System.out.println("[graph-union] " + json);
         assertEquals(true,
                 json.contains("\"legalName\":\"ACME\"")

@@ -2,9 +2,9 @@
 // DataCube's own samples -- daily prices of ten instruments and a Treasury curve -- a sheet each for what a markets desk
 // reads first: performance rebased, risk (drawdowns, realized volatility, correlation, beta), technicals (candles,
 // Bollinger bands, moving averages, RSI, volume) and rates (the curve, the 10s2s spread, a bond fund against its yield, the two
-// grids read in one query). Each series is typed as a person types it and read by DataCube's parser (timeseries-expr.ts
-// parseExpr); the page is written by DataCube's own writers, as the other example pages are, and opens as a saved page
-// does. test/examples.test.ts reads it back.
+// grids read in one query). Each series is its #TS text, as a person types it and as the tile keeps it -- read by core
+// when the page opens, as every saved page's are (timeseries-text.ts readSeriesTexts); the page is written by DataCube's
+// own writers, as the other example pages are, and opens as a saved page does. test/examples.test.ts reads it back.
 
 import { element } from '../../../pure-protocol/src/index.ts';
 import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../config.ts';
@@ -14,7 +14,6 @@ import { openedState } from '../cube-state.ts';
 import { writePageOf, type PageDocument, type PageSheet, type PageView } from '../page-document.ts';
 import { sampleById, sampleFileName } from '../samples.ts';
 import type { ColumnSpec, CubeSnapshot } from '../snapshot.ts';
-import { parseExpr } from '../timeseries-expr.ts';
 import { readTimeseries, type TimeseriesSpec, type TsSeries, type TsSource } from '../timeseries-spec.ts';
 import { TreeState } from '../tree.ts';
 
@@ -38,6 +37,21 @@ export const RATE_SPECS: readonly ColumnSpec[] = [
   { name: 'yield', type: 'Float', kind: 'measure' },
 ];
 
+/** The macro sample's columns as the compiler types them. */
+export const MACRO_SPECS: readonly ColumnSpec[] = [
+  { name: 'series', type: 'String' },
+  { name: 'date', type: 'StrictDate' },
+  { name: 'value', type: 'Float', kind: 'measure' },
+];
+
+/** The cash sample's columns as the compiler types them: an overnight rate and its cash index, by currency. */
+export const CASH_SPECS: readonly ColumnSpec[] = [
+  { name: 'currency', type: 'String' },
+  { name: 'date', type: 'StrictDate' },
+  { name: 'rate', type: 'Float', kind: 'measure' },
+  { name: 'index', type: 'Float', kind: 'measure' },
+];
+
 /** A sample's file as a cube records it, built here and hashed, so the page reopens over the same rows rebuilt. */
 export async function sampleSource(id: string, columns: readonly ColumnSpec[]): Promise<FileSource> {
   const sample = sampleById(id);
@@ -59,10 +73,13 @@ function cubeOf(name: string, source: CubeDocument['source'], snapshot: CubeSnap
 }
 
 export const PRICES: TsSource = { alias: 'px', cube: 'prices', date: 'date', key: 'symbol' };
+export const MACRO: TsSource = { alias: 'macro', cube: 'macro', date: 'date', key: 'series' };
 export const RATES: TsSource = { alias: 'rates', cube: 'rates', date: 'date', key: 'tenor' };
+/** The risk-free cash (item 13b): a currency's overnight rate and cash index, `cash.index['USD']`. */
+export const CASH: TsSource = { alias: 'cash', cube: 'cash', date: 'date', key: 'currency' };
 
-/** A series as a person writes it: its id, its expression typed, and the rest of its slots. */
-export const s = (id: string, expr: string, rest: Omit<TsSeries, 'id' | 'expr'> = {}): TsSeries => ({ id, expr: parseExpr(expr), ...rest });
+/** A series as a person writes it: its id, its #TS text, and the rest of its slots. */
+export const s = (id: string, text: string, rest: Omit<TsSeries, 'id' | 'text'> = {}): TsSeries => ({ id, text, ...rest });
 
 /** A timeseries tile, its spec read by the tile's one reader (a slip here is refused at build, not drawn wrong). */
 export function tile(id: string, title: string, spec: TimeseriesSpec): PageView {
@@ -97,17 +114,45 @@ export async function marketCubes(): Promise<{ readonly id: string; readonly cub
   return [{ id: 'prices', cube: prices }, { id: 'rates', cube: rates }];
 }
 
-/** The page: four sheets over the prices and the curve, each a timeseries tile or two beside its grid. */
-export async function marketsPage(): Promise<PageDocument> {
+/** The macro sample's grid (the timeseries gallery's Dates sheet): monthly, by series, each value its month's average. */
+export const MACRO_GRID: PageView = { id: 'macro', kind: 'grid', cube: 'macro', title: 'Macro, monthly' };
+
+/** The cube of MACRO_GRID, over its sample rebuilt on opening. */
+export async function macroCube(): Promise<{ readonly id: string; readonly cube: CubeDocument }> {
+  const file = await sampleSource('macro', MACRO_SPECS);
+  return { id: 'macro', cube: cubeOf('Macro', file, grouped('macro', MACRO_SPECS, ['series']),
+    { ...DEFAULT_CONFIGURATION, reportTitle: 'Macro', columns: { value: { aggregateFn: 'average' } } }) };
+}
+
+/** The cash sample's grid (the timeseries gallery's data sheet): by currency, a rate and an index their days' average. */
+export const CASH_GRID: PageView = { id: 'cash', kind: 'grid', cube: 'cash', title: 'Cash, overnight' };
+
+/** The cube of CASH_GRID, over its sample rebuilt on opening. */
+export async function cashCube(): Promise<{ readonly id: string; readonly cube: CubeDocument }> {
+  const file = await sampleSource('cash', CASH_SPECS);
+  return { id: 'cash', cube: cubeOf('Cash', file, grouped('cash', CASH_SPECS, ['currency']),
+    { ...DEFAULT_CONFIGURATION, reportTitle: 'Cash', columns: { rate: { aggregateFn: 'average' }, index: { aggregateFn: 'average' } } }) };
+}
+
+/** A page's grids given: its name and its cubes by the ids its views read (src/examples/on-classes.ts: the same page
+ *  over the markets project's classes). */
+export interface PageOver {
+  readonly name: string;
+  readonly cubes: readonly { readonly id: string; readonly cube: CubeDocument }[];
+}
+
+/** The page: four sheets over the prices and the curve, each a timeseries tile or two beside its grid -- over the
+ *  samples, or over the cubes `over` gives. */
+export async function marketsPage(over?: PageOver): Promise<PageDocument> {
   const views: PageView[] = [
     ...MARKET_GRIDS,
     // performance: every line rebased to 100 at the first date shown (a zoom rebases again), a pane of realized vol
     tile('performance', 'Performance, rebased to 100', {
       sources: [PRICES],
       series: [
-        s('A', 'close[SPX]', { name: 'S&P 500' }), s('B', 'close[NDX]', { name: 'Nasdaq 100' }),
-        s('C', 'close[GLD]', { name: 'Gold' }), s('D', 'close[TLT]', { name: 'Long bonds' }),
-        s('E', 'volatility($A, 21)', { name: 'S&P 500 21d vol', pane: 1, style: { kind: 'area' } }),
+        s('A', "close['SPX']", { name: 'S&P 500' }), s('B', "close['NDX']", { name: 'Nasdaq 100' }),
+        s('C', "close['GLD']", { name: 'Gold' }), s('D', "close['TLT']", { name: 'Long bonds' }),
+        s('E', "volatility(A, w => 21, type => 'simple')", { name: 'S&P 500 21d vol', pane: 1, style: { kind: 'area' } }),
       ],
       range: { last: 'max' },
       view: { compare: 'rebase', stats: true },
@@ -118,20 +163,20 @@ export async function marketsPage(): Promise<PageDocument> {
     tile('drawdowns', 'Drawdowns from the running peak', {
       sources: [PRICES],
       series: [
-        s('A', 'drawdown(close[SPX])', { name: 'S&P 500', style: { kind: 'area' } }),
-        s('B', 'drawdown(close[NVDA])', { name: 'Nvidia' }),
-        s('C', 'drawdown(close[TLT])', { name: 'Long bonds' }),
+        s('A', "drawdown(close['SPX'], w => all)", { name: 'S&P 500', style: { kind: 'area' } }),
+        s('B', "drawdown(close['NVDA'], w => all)", { name: 'Nvidia' }),
+        s('C', "drawdown(close['TLT'], w => all)", { name: 'Long bonds' }),
       ],
       annotations: [...MARKS],
     }),
     tile('vol-corr', 'Realized volatility, correlation and beta', {
       sources: [PRICES],
       series: [
-        s('A', 'volatility(close[SPX], 63)', { name: 'S&P 500 3m vol' }),
-        s('B', 'volatility(close[NVDA], 63)', { name: 'Nvidia 3m vol' }),
-        s('C', 'correlation(close[AAPL], close[MSFT], 63)', { name: 'Apple ~ Microsoft 3m corr', pane: 1 }),
-        s('D', 'correlation(close[SPX], close[TLT], 63)', { name: 'Stocks ~ bonds 3m corr', pane: 1 }),
-        s('E', 'beta(close[NVDA], close[SPX], 126)', { name: 'Nvidia 6m beta', pane: 2 }),
+        s('A', "volatility(close['SPX'], w => 63, type => 'simple')", { name: 'S&P 500 3m vol' }),
+        s('B', "volatility(close['NVDA'], w => 63, type => 'simple')", { name: 'Nvidia 3m vol' }),
+        s('C', "correlation(close['AAPL'], close['MSFT'], w => 63)", { name: 'Apple ~ Microsoft 3m corr', pane: 1 }),
+        s('D', "correlation(close['SPX'], close['TLT'], w => 63)", { name: 'Stocks ~ bonds 3m corr', pane: 1 }),
+        s('E', "beta(close['NVDA'], close['SPX'], w => 126)", { name: 'Nvidia 6m beta', pane: 2 }),
       ],
       range: { last: '3y' },
       panes: [{ height: 2 }, { height: 1.5 }, { height: 1 }],
@@ -141,12 +186,12 @@ export async function marketsPage(): Promise<PageDocument> {
     tile('technicals', 'Apple: candles, Bollinger bands, moving averages, RSI, volume', {
       sources: [PRICES],
       series: [
-        s('A', 'ohlc(open[AAPL], high[AAPL], low[AAPL], close[AAPL])', { name: 'Apple' }),
-        s('B', 'bollinger_bands(close[AAPL], 20, 2)', { name: '20d ±2σ' }),
-        s('C', 'mean(close[AAPL], 50)', { name: '50d average', style: { dash: 'dashed', width: 1 } }),
-        s('D', 'mean(close[AAPL], 200)', { name: '200d average', style: { dash: 'dashed', width: 1 } }),
-        s('E', 'rsi(close[AAPL], 14)', { name: 'RSI 14', pane: 1 }),
-        s('F', 'volume[AAPL].sum', { name: 'Volume', pane: 2, style: { kind: 'bars' } }),
+        s('A', "ohlc(open['AAPL'], high['AAPL'], low['AAPL'], close['AAPL'])", { name: 'Apple' }),
+        s('B', "bollinger_bands(close['AAPL'], w => 20, k => 2)", { name: '20d ±2σ' }),
+        s('C', "mean(close['AAPL'], 50)", { name: '50d average', style: { dash: 'dashed', width: 1 } }),
+        s('D', "mean(close['AAPL'], 200)", { name: '200d average', style: { dash: 'dashed', width: 1 } }),
+        s('E', "rsi(close['AAPL'], w => 14)", { name: 'RSI 14', pane: 1 }),
+        s('F', "sum(volume['AAPL'])", { name: 'Volume', pane: 2, style: { kind: 'bars' } }),
       ],
       range: { last: '6m' },
       panes: [{ height: 3 }, { height: 1 }, { height: 1 }],
@@ -156,8 +201,8 @@ export async function marketsPage(): Promise<PageDocument> {
     tile('curve', 'The Treasury curve and the 10s2s spread', {
       sources: [RATES],
       series: [
-        s('A', 'yield', { name: 'Yield', split: 'tenor' }),
-        s('B', 'yield[10Y] - yield[2Y]', { name: '10s2s', pane: 1, style: { kind: 'area' } }),
+        s('A', "yield", { name: 'Yield', split: 'tenor' }),
+        s('B', "yield['10Y'] - yield['2Y']", { name: '10s2s', pane: 1, style: { kind: 'area' } }),
       ],
       panes: [{ height: 2 }, { height: 1 }],
       annotations: [{ kind: 'level', value: 0, pane: 1, label: 'inverted below' }, ...MARKS],
@@ -165,9 +210,9 @@ export async function marketsPage(): Promise<PageDocument> {
     tile('bonds', 'Long bonds against the 10-year yield (two grids, one query)', {
       sources: [PRICES, RATES],
       series: [
-        s('A', 'px:close[TLT]', { name: 'TLT' }),
-        s('B', 'rates:yield[10Y]', { name: '10Y yield', axis: 'right' }),
-        s('C', 'correlation(px:close[TLT], rates:yield[10Y], 63)', { name: '3m correlation', pane: 1 }),
+        s('A', "px.close['TLT']", { name: 'TLT' }),
+        s('B', "rates.yield['10Y']", { name: '10Y yield', axis: 'right' }),
+        s('C', "correlation(px.close['TLT'], rates.yield['10Y'], w => 63)", { name: '3m correlation', pane: 1 }),
       ],
       panes: [{ height: 2 }, { height: 1 }],
       annotations: [...MARKS],
@@ -185,8 +230,8 @@ export async function marketsPage(): Promise<PageDocument> {
       band(0.5, { tile: 'bonds' })] } },
   ];
   return writePageOf({
-    name: 'Markets',
-    cubes: await marketCubes(),
+    name: over?.name ?? 'Markets',
+    cubes: over?.cubes ?? await marketCubes(),
     views: { views, sheets },
   });
 }

@@ -53,4 +53,42 @@ final class AlphaRename {
             default -> v.mapChildren(this::apply);
         };
     }
+
+    /** A function's body as a call inlines it: {@link #apply}'s binders, and each of its parameters renamed fresh too,
+     *  so a caller's name is never captured by a parameter's binding (the second review, 2026-10-28). Each fresh name
+     *  is in {@code parameters} at its parameter's place; null for a parameter the body never reads. */
+    record Apart(List<String> parameters, ValueSpecification body) {
+    }
+
+    Apart apart(List<String> parameters, ValueSpecification body) {
+        ValueSpecification own = apply(body);
+        java.util.Map<String, ValueSpecification> ren = new java.util.LinkedHashMap<>();
+        List<String> fresh = new ArrayList<>(parameters.size());
+        for (String p : parameters) {
+            // every binder in the body is fresh now, so a read of the parameter's name is the parameter's
+            com.legend.protocol.spec.Variable read = firstRead(own, p);
+            if (read == null) {
+                fresh.add(null);
+                continue;
+            }
+            com.legend.protocol.spec.Variable renamed = read.renamed("_nr" + nrFresh++);
+            ren.put(p, renamed);
+            fresh.add(renamed.name());
+        }
+        return new Apart(fresh, SourceSubst.substitute(own, ren));
+    }
+
+    private static com.legend.protocol.spec.@com.legend.base.Nullable Variable firstRead(ValueSpecification v, String name) {
+        if (v instanceof com.legend.protocol.spec.Variable var) {
+            return var.name().equals(name) ? var : null;
+        }
+        com.legend.protocol.spec.@com.legend.base.Nullable Variable[] found = {null};
+        v.mapChildren(x -> {
+            if (found[0] == null) {
+                found[0] = firstRead(x, name);
+            }
+            return x;
+        });
+        return found[0];
+    }
 }

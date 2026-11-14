@@ -63,6 +63,11 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'savedAs':
     case 'modelInto':
     case 'modelPin':
+    // a parameter names no tile
+    case 'setParameter':
+    case 'removeParameter':
+    // a macro names no tile: its function reads its input's rows alone
+    case 'setMacro':
       return command;
     // a maker's planned id follows too (page-state.ts rename: a tile brought back under a new id is that tile in every
     // later step; the keeper gives a taken one out afresh either way)
@@ -81,6 +86,9 @@ export function renamedCommand(command: PageCommand, renamed: ReadonlyMap<string
     case 'setPure':
     case 'setOutput':
     case 'setStops':
+    case 'setCache':
+    case 'setBlocks':
+    case 'setMessage':
       return { ...command, grid: n(command.grid) };
     case 'setJoin':
       return { ...command, grid: n(command.grid), ...(command.more !== undefined ? { more: command.more.map((i) => relinkedInput(i, n)) } : {}) };
@@ -164,16 +172,17 @@ export function rearranged(command: PageCommand, page: PageDocument): PageComman
     const knew = new Set(command.layout.boxes.map((b) => b.tile));
     let flow: Flow = { boxes: command.layout.boxes.filter((b) => now.includes(b.tile)) };
     for (const t of now) if (!flowTiles(flow).includes(t)) flow = placeAfter(flow, t);
-    // a box's Output and its stopping a run are its settings, not its place: as the page has them now, the other
-    // writer's too; a box it did not know keeps its frame (the review of 2026-10-26: each was dropped)
+    // a box's Output, its stopping a run, its cache, its blocking and its message are its settings, not its place: as the
+    // page has them now, the other writer's too; a box it did not know keeps its frame (the review of 2026-10-26: each was
+    // dropped; the cache, the roadmap audit of 2026-10-26)
     const current = new Map(sheet.layout.kind === 'flow' ? sheet.layout.boxes.map((b) => [b.tile, b] as const) : []);
     const settled = flow.boxes.map((b): FlowBox => {
-      const { output: _o, stops: _s, ...place } = b;
+      const { tile, x, y, frame: given } = b;
       const c = current.get(b.tile);
-      const frame = knew.has(b.tile) ? place.frame : c?.frame;
-      const { frame: _f, ...at } = place;
-      return { ...at, ...(frame !== undefined ? { frame } : {}), ...(c?.output !== undefined ? { output: c.output } : {}),
-        ...(c?.stops === true ? { stops: true as const } : {}) };
+      const frame = knew.has(b.tile) ? given : c?.frame;
+      // its settings (an Output, its stopping, its cache, its blocking, its message) the page's now: all but its place
+      const { tile: _t, x: _x, y: _y, frame: _f, ...settings } = c ?? { tile, x, y };
+      return { tile, x, y, ...(frame !== undefined ? { frame } : {}), ...settings };
     });
     return { ...command, layout: { kind: 'flow', boxes: settled } };
   }

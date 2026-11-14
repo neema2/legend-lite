@@ -1,0 +1,19 @@
+import sys,re
+s=open(sys.argv[1]).read()
+i=s.index('WITH ')+5; depth=0; start=i; parts=[]; j=i; main=''
+while j < len(s):
+    c=s[j]
+    if c=='(':
+        if depth==0: body_start=j
+        depth+=1
+    elif c==')':
+        depth-=1
+        if depth==0:
+            parts.append((s[start:body_start].strip(' ,\n').replace(' AS',''), s[body_start:j+1])); start=j+1
+            k=j+1
+            while k<len(s) and s[k] in ' \n,': k+=1
+            if not re.match(r'__let\d+\s+AS', s[k:k+20]): main=s[k:]; break
+    j+=1
+for n,b in parts:
+    print(f"{n:8} {len(b):6} joins {len(re.findall(r'JOIN',b))} reads {sorted(set(x for t in re.findall(r'FROM (__let\d+)|JOIN (__let\d+)',b) for x in t if x))} windows {len(re.findall(' OVER ',b))}")
+print(f"main     {len(main):6} joins {len(re.findall(r'JOIN',main))} reads {sorted(set(x for t in re.findall(r'FROM (__let\d+)|JOIN (__let\d+)',main) for x in t if x))}")

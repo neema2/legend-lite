@@ -288,7 +288,7 @@ class CreateClassTest {
                 .filter(e -> e instanceof ServiceDefinition s && s.qualifiedName().equals("trades::Check"))
                 .map(e -> (ServiceDefinition) e).findFirst().orElseThrow();
         List<ServiceTestRunner.Result> results = new ServiceTestRunner(com.legend.Compiler.compileModel(model),
-                () -> TestBackends.platform().open(), ServiceTestRunner.Sessions.FRESH_PER_TEST,
+                TestBackends.platform()::openSession, ServiceTestRunner.Sessions.FRESH_PER_TEST,
                 Databases.PLATFORM).run(service);
         assertEquals(1, results.size(), results.toString());
         assertTrue(results.get(0).pass(), results.toString());
@@ -411,7 +411,7 @@ class CreateClassTest {
     // Through the route, and what cannot be a class
     // ---------------------------------------------------------------------
 
-    private static final PureV1Api.Runner NO_RUN = (model, lambda, runtime, rows) -> {
+    private static final PureV1Api.Runner NO_RUN = (query, runtime, output) -> {
         throw new AssertionError("nothing is run here");
     };
 

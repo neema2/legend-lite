@@ -80,6 +80,14 @@ describe("a Cross Tab's values pinned (FL2: pivot.pin, grid-edits.ts pinPivot): 
     refused(() => gridGesture('pivot.pin', pivoted(), { values: [2023, null] }), /an empty 'year', which names no column/);
   });
 
+  it("adds the values its pin lacks after those it has, typed so, each once (FL8's Add to the cast: pivot.addValues)", () => {
+    assert.deepEqual(gridGesture('pivot.addValues', pivoted({ pivotValues: [2023] }), { values: ['2025', 2023, 2024, '2025', null] }),
+      [{ kind: 'pinPivot', values: [2023, 2025, 2024] }], 'an empty value names no column: skipped');
+    refused(() => gridGesture('pivot.addValues', pivoted({ pivotValues: [2023] }), { values: ['2023', null] }), /a column for each of them already/);
+    refused(() => gridGesture('pivot.addValues', pivoted(), { values: [2023] }), /its columns are not fixed: Load values fixes them/);
+    refused(() => gridGestureGiven('pivot.addValues', pivoted({ pivotValues: [2023] }), { values: 2024 }), /a pivot's values are a list/);
+  });
+
   it("a Decimal's values kept as their text, every digit (the review of 2026-10-26's B1); a Float's a number", () => {
     const priced = grid({ columns: [...CUBE.columns, { name: 'px', type: 'Decimal' }, { name: 'rate', type: 'Float' }], pivotOn: ['px'] });
     assert.deepEqual(gridGesture('pivot.pin', priced, { values: ['12.10', '12345678901234.567'] }),

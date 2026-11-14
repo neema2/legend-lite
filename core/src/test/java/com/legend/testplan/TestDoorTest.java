@@ -1,0 +1,495 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.testplan;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.legend.Compiler;
+import com.legend.TypedQuery;
+import com.legend.database.Databases;
+import com.legend.error.NotImplementedException;
+import com.legend.executionplan.ExecutionPlan;
+import com.legend.testbackend.StorelessRuntime;
+import com.legend.exec.PlanSessions;
+import com.legend.testbackend.TestBackends;
+import com.legend.testbackend.TestSessions;
+import com.legend.testcases.PlanRoundTrip;
+import java.sql.Connection;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import org.junit.jupiter.api.Test;
+
+/**
+ * THE TEST DOOR (the test-is-the-product plan's M3c, B12 items 1 and 3): a body planned whole as one program on the
+ * product's program road; its target carries no setup (R17 C6: a test's seeds are its own steps, M3e); a kind only a
+ * test's program holds is the test-planning library's, refused by name until the sub-step that plans it.
+ */
+class TestDoorTest {
+
+    private static final String SEEDED = """
+            Class x::Firm { name: String[1]; }
+            ###Relational
+            Database x::DB ( Table FIRM (ID INTEGER PRIMARY KEY, NAME VARCHAR(32)) )
+            ###Mapping
+            Mapping x::M ( *x::Firm: Relational { ~mainTable [x::DB] FIRM name: [x::DB] FIRM.NAME } )
+            ###Connection
+            RelationalDatabaseConnection x::Conn
+            {
+                store: x::DB;
+                type: H2;
+                specification: LocalH2 { testDataSetupCSV: 'default\\nFIRM\\nID,NAME\\n1,Acme\\n'; };
+                auth: DefaultH2;
+            }
+            ###Runtime
+            Runtime x::RT { mappings: [x::M]; connections: [ x::DB: [ env: x::Conn ] ]; }
+            """;
+
+    @Test
+    void aBodyIsOneProgramWhoseTargetCarriesNoSetup() {
+        TypedQuery body = Compiler.query(Compiler.compileModel(SEEDED),
+                "|x::Firm.all()->project([f|$f.name], ['name'])");
+        ExecutionPlan test = productPlan(body, "x::RT", Set.of());
+        PlanRoundTrip.assertRoundTrips(test, "a body through the test door");
+        ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, test.root());
+        assertEquals(2, seq.steps().size(), seq.steps().toString());
+        ExecutionPlan.TdsResult answer = assertInstanceOf(ExecutionPlan.TdsResult.class, seq.steps().get(1));
+        assertEquals(List.of(), answer.sql().target().loads(), "R17 C6: the test door's target carries no load");
+        // the statement is the query door's: one road
+        ExecutionPlan query = body.executionPlan("x::RT");
+        assertEquals(query.answerSql().statement(), answer.sql().statement());
+        assertFalse(query.answerSql().target().loads().isEmpty(), "the query door's target: the declared rows");
+        // M3e: the runtime's seeds are a step of the program, the same steps the query door's target carries
+        ExecutionPlan.Load seeds = assertInstanceOf(ExecutionPlan.Load.class, seq.steps().get(0));
+        assertEquals(query.answerSql().target().loads().get(0).steps(), seeds.steps());
+    }
+
+    /** M3e: a statement's seeds are placed once until a write; after an effect the next statement's are placed
+     *  again (the walk's established state), and the runner skips a key the session holds clean. */
+    @Test
+    void seedsArePlacedOnceUntilAnEffectWrites() throws Exception {
+        String model = SEEDED.replace("type: H2;", "type: DuckDB;").replace("LocalH2 { testDataSetupCSV",
+                "LocalH2 { testDataSetupCSV");
+        String read = "x::Firm.all()->project([f|$f.name], ['name'])";
+        TypedQuery body = Compiler.query(Compiler.compileModel(model), "{|let a = " + read + "->size();\n"
+                + "meta::relational::metamodel::execute::executeInDb('Create Table m3e_w(i INT);',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB), 0, 1000);\n"
+                + read + ";}");
+        ExecutionPlan plan = productPlan(body, "x::RT", Set.of());
+        PlanRoundTrip.assertRoundTrips(plan, "seeds, an effect, seeds again");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
+        assertEquals(List.of("Load", "Effect", "Load", "TdsResult"),
+                steps.stream().map(n -> n.getClass().getSimpleName()).toList());
+        assertEquals(steps.get(0), steps.get(2), "the same sources, the same seeds");
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("Acme")), run(plan, c));
+        }
+    }
+
+    @Test
+    void aTestsKindIsTheLibrarysRefusedByNameUntilItsStep() {
+        TypedQuery body = Compiler.query(Compiler.compileModel(StorelessRuntime.with("", Databases.PLATFORM)),
+                "{|let x = 1; assertEquals(1, $x);}");
+        assertEquals("an assert on the test door's program road: not planned yet (the test-is-the-product plan's"
+                + " M6-M8: an assert its judge planned no verdict step for)", assertThrows(NotImplementedException.class,
+                        () -> productPlan(body, StorelessRuntime.RUNTIME, Set.of())).getMessage());
+    }
+
+    private static final String CONN = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+            + "type=meta::relational::runtime::DatabaseType.DuckDB);\n";
+    private static final String EXEC = "meta::relational::metamodel::execute::executeInDb(";
+
+    private static ExecutionPlan storeless(String body) {
+        ExecutionPlan plan = productPlan(Compiler.query(Compiler.compileModel(StorelessRuntime.with("",
+                Databases.PLATFORM)), body), StorelessRuntime.RUNTIME, Set.of());
+        PlanRoundTrip.assertRoundTrips(plan, body);
+        return plan;
+    }
+
+    /** {@code body}'s test plan as the product's plan of its steps (these bodies hold no verdict step: a test plan's
+     *  product steps and frame runs alone, the plan-as-data design's step 3, 2026-11-08), the test plan read back from
+     *  its JSON as written. */
+    private static ExecutionPlan productPlan(TypedQuery body, String runtime, Set<com.legend.platform.Feature> features) {
+        com.legend.testexecutionplan.TestPlan test = TestDoor.plan(body, runtime, features);
+        assertEquals(test, com.legend.testexecutionplan.TestPlanJson.read(
+                com.legend.testexecutionplan.TestPlanJson.write(test)), "the test plan reads back as written");
+        List<ExecutionPlan.Node> nodes = new java.util.ArrayList<>();
+        for (com.legend.testexecutionplan.TestPlan.TestStep step : test.steps()) {
+            nodes.add(switch (step) {
+                case com.legend.testexecutionplan.TestPlan.Run r -> r.node();
+                case com.legend.testexecutionplan.TestPlan.FrameRun f -> f.check();
+                default -> throw new AssertionError("a verdict step in a body these tests plan: " + step);
+            });
+        }
+        // the planner's program is a sequence of its steps, one step or many, as the test door made it before step 3
+        return ExecutionPlan.reading(test.parameters(), new ExecutionPlan.Sequence(nodes));
+    }
+
+    /** {@code plan} run as the test door's plans run, through the program runner (its seed steps are the program
+     *  runner's alone), the answer's rows collected; these programs hold no verdict. */
+    private static List<List<Object>> run(ExecutionPlan plan, Connection c) throws Exception {
+        List<List<Object>> rows = new java.util.ArrayList<>();
+        List<ExecutionPlan.Node> nodes = plan.root() instanceof ExecutionPlan.Sequence s ? s.steps()
+                : List.of(plan.root());
+        List<com.legend.exec.ProgramRunner.Step> steps = new java.util.ArrayList<>();
+        nodes.forEach(n -> steps.add(new com.legend.exec.ProgramRunner.Node(n, null)));
+        com.legend.exec.ProgramRunner.run(new com.legend.exec.ProgramRunner.Program(plan.parameters(), steps), Map.of(),
+                PlanSessions.of(TestSessions.over(c)), com.legend.executionplan.DataStores.none(), (id, open) -> {
+                    throw new AssertionError("no verdict in these programs");
+                }, new com.legend.exec.ProgramRunner.ProgramSink() {
+                    @Override
+                    public void columns(List<ExecutionPlan.Column> columns) {
+                    }
+
+                    @Override
+                    public void batch(com.legend.result.Batch batch) {
+                        for (int i = 0; i < batch.size(); i++) {
+                            rows.add(batch.row(i));
+                        }
+                    }
+
+                    @Override
+                    public void end() {
+                    }
+                }, java.util.UUID.randomUUID());
+        return rows;
+    }
+
+    private static long count(Connection c, String table) throws Exception {
+        try (var st = c.createStatement(); var rs = st.executeQuery("SELECT count(*) FROM " + table)) {
+            rs.next();
+            return rs.getLong(1);
+        }
+    }
+
+    /** M3d: consecutive effects are ONE script, any other statement closes it (the walk's segment rule); the script
+     *  is its dialect's bracket, run where the session owns its transaction. */
+    @Test
+    void consecutiveEffectsAreOneScriptAndAnotherStatementClosesIt() throws Exception {
+        ExecutionPlan plan = storeless(CONN + EXEC + "'Create Table m3d_a(i INT);', $c, 0, 1000);\n"
+                + EXEC + "'Insert into m3d_a values (1);', $c, 0, 1000);\n"
+                + "let x = 2;\n"
+                + EXEC + "'Insert into m3d_a values (2);', $c, 0, 1000);\n"
+                + "'done';}");
+        ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root());
+        assertEquals(3, seq.steps().size(), seq.steps().toString());
+        ExecutionPlan.Effect first = assertInstanceOf(ExecutionPlan.Effect.class, seq.steps().get(0));
+        assertEquals(List.of("Create Table m3d_a(i INT)", "Insert into m3d_a values (1)"),
+                first.script().statements());
+        assertEquals("BEGIN TRANSACTION;\nCreate Table m3d_a(i INT);\nInsert into m3d_a values (1);\nCOMMIT;",
+                first.script().bracketed());
+        assertEquals("ROLLBACK", first.script().abort());
+        assertEquals("Create Table m3d_a(i INT);\nInsert into m3d_a values (1);", first.sql().statement());
+        ExecutionPlan.Effect second = assertInstanceOf(ExecutionPlan.Effect.class, seq.steps().get(1));
+        assertEquals(List.of("Insert into m3d_a values (2)"), second.script().statements());
+        assertInstanceOf(ExecutionPlan.Constant.class, seq.steps().get(2));
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("done")), run(plan, c));
+            assertEquals(2, count(c, "m3d_a"));
+        }
+    }
+
+    /** A raw grid's rows or column names are a KEYED result whose keys are the grid's reported columns (D29, step 7):
+     *  on the TEST road, whose programs plan {@code executeInDb}'s read -- PCT and the corpus run it. Moved from the
+     *  product's ProductStatementsTest on 2026-11-13 (the user's ruling (a) on the orchestrator's item 5: the product's
+     *  doors refuse it by name, QueryDoorTest). */
+    @Test
+    void aRawGridsRowsAreAKeyedResultOnTheTestRoad() throws Exception {
+        String valuesBody = CONN + EXEC + "'select 7 as A', $c).rows->map(r|$r.values);}";
+        ExecutionPlan values = storeless(valuesBody);
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, values.root()).steps();
+        assertInstanceOf(ExecutionPlan.Keyed.class, steps.get(steps.size() - 1), steps.toString());
+        String namesBody = CONN + EXEC + "'select 7 as A, 8 as B', $c).columnNames;}";
+        ExecutionPlan names = storeless(namesBody);
+        List<ExecutionPlan.Node> nameSteps = assertInstanceOf(ExecutionPlan.Sequence.class, names.root()).steps();
+        assertInstanceOf(ExecutionPlan.Keyed.class, nameSteps.get(nameSteps.size() - 1), nameSteps.toString());
+        try (Connection c = TestBackends.platform().open()) {
+            // the test road's own answer to each body, as its program runs it
+            assertEquals(com.legend.testing.Program.last(StorelessRuntime.with("", Databases.PLATFORM), valuesBody,
+                    StorelessRuntime.RUNTIME, c).rows(), run(values, c));
+            assertEquals(List.of(List.of("A"), List.of("B")), run(names, c));
+        }
+    }
+
+    /** M3d, R17 C11: an effect as the program's last statement answers as the walk's arm does -- no value for
+     *  executeInDb, true for the DDL that drops and creates. */
+    @Test
+    void anEffectAsTheLastStatementAnswersAsTheWalksArm() throws Exception {
+        ExecutionPlan plan = storeless(CONN + EXEC + "'Create Table m3d_b(i INT);', $c, 0, 1000);}");
+        ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root());
+        assertEquals(2, seq.steps().size(), seq.steps().toString());
+        assertInstanceOf(ExecutionPlan.Effect.class, seq.steps().get(0));
+        ExecutionPlan.Constant answer = assertInstanceOf(ExecutionPlan.Constant.class, seq.steps().get(1));
+        // no value, as the walk answers it (M5's audit B2): a [0..1] column and no row
+        assertEquals(List.of(), answer.cells());
+        assertEquals(new ExecutionPlan.Multiplicity(0, 1), answer.columns().get(0).multiplicity());
+        try (Connection c = TestBackends.platform().open()) {
+            run(plan, c);
+            assertEquals(0, count(c, "m3d_b"));
+        }
+    }
+
+    /** M3d: an effect's String argument is a literal folded; a computed one is the T9 kind M9 plans, refused by
+     *  name. */
+    @Test
+    void aComputedStringArgumentIsRefusedByName() {
+        // the refusal's text since the user's ruling of 2026-11-04 (the core program): a SQL text built at run time is a
+        // text hole, which lite does not have
+        assertEquals("a computed String argument of meta::relational::metamodel::execute::executeInDb: a SQL text built"
+                + " at run time is a text hole, which lite does not have -- write a computed value with a store write"
+                + " (the user's ruling, 2026-11-04)", assertThrows(NotImplementedException.class,
+                        () -> storeless(CONN + EXEC + "'Create Table m3d_' + 1->toString() + '(i INT);', $c, 0,"
+                                + " 1000); 1;}")).getMessage());
+    }
+
+    /** M3d, R18 (both doors): print plans no step, its argument never evaluated; as the last statement it answers no
+     *  value. */
+    @Test
+    void printPlansNoStepOnEitherDoor() {
+        ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class,
+                storeless("{|print('x'); 'y';}").root());
+        assertEquals(1, seq.steps().size(), seq.steps().toString());
+        ExecutionPlan query = Compiler.query(Compiler.compileModel(StorelessRuntime.with("", Databases.PLATFORM)),
+                "|print('x')").executionPlan(StorelessRuntime.RUNTIME);
+        ExecutionPlan.Constant none = assertInstanceOf(ExecutionPlan.Constant.class, query.root());
+        assertNull(none.cells().get(0).get(0));
+    }
+
+    /** M3d: a test's program ending on a handle (a setup that returns its runtime) answers no value, as the walk
+     *  does; the query door refuses a handle as an answer. */
+    @Test
+    void aProgramEndingOnAHandleAnswersNoValueOnTheTestDoorAlone() {
+        String handle = CONN + "$c;}";
+        ExecutionPlan.Sequence seq = assertInstanceOf(ExecutionPlan.Sequence.class, storeless(handle).root());
+        ExecutionPlan.Constant none = assertInstanceOf(ExecutionPlan.Constant.class, seq.steps().get(0));
+        assertEquals(List.of(), none.cells());
+        assertThrows(NotImplementedException.class, () -> Compiler.query(Compiler.compileModel(
+                StorelessRuntime.with("", Databases.PLATFORM)), handle).executionPlan(StorelessRuntime.RUNTIME));
+    }
+
+    private static final String DUCK = SEEDED.replace("type: H2;", "type: DuckDB;");
+    private static final String RUN = "meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']),"
+            + " x::M, x::RT.runtimeValue, [])";
+
+    /** M3f: a frame bound by a let is run at the let as a check (decision 1, MV7), its readers paste its chain. */
+    @Test
+    void aFrameLetIsRunAtTheLetAndReadAfter() throws Exception {
+        TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.values->filter(x|$x.name == 'Acme');}");
+        ExecutionPlan plan = productPlan(body, "x::RT", Set.of());
+        PlanRoundTrip.assertRoundTrips(plan, "a frame let");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
+        assertEquals(List.of("Load", "Check", "TdsResult"),
+                steps.stream().map(n -> n.getClass().getSimpleName()).toList());
+        assertNull(((ExecutionPlan.Check) steps.get(1)).sql().stamp(),
+                "no later statement reads the run's comment: it binds no stamp (the M3 audit's B7a)");
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("Acme")), run(plan, c));
+        }
+    }
+
+    /** M3f, R17 C4: an activity's comment is the execution-trace stamp of the statement that ran its frame, bound
+     *  when the plan runs -- the plan names it, never writes it. */
+    @Test
+    void anActivitysCommentIsTheStampOfTheRunBoundWhenThePlanRuns() throws Exception {
+        TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity).comment;}");
+        ExecutionPlan plan = productPlan(body, "x::RT", Set.of());
+        PlanRoundTrip.assertRoundTrips(plan, "an activity's comment");
+        ExecutionPlan.TdsResult answer = assertInstanceOf(ExecutionPlan.TdsResult.class,
+                assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps().get(2));
+        assertEquals(Set.of("#stamp0"), answer.sql().slots().stream().map(ExecutionPlan.Slot::parameter)
+                .collect(java.util.stream.Collectors.toSet()), "the reader binds the let's run's stamp");
+        assertEquals(null, answer.sql().stamp(), "the stamp is the let's run's, not the reader's");
+        try (Connection c = TestBackends.platform().open()) {
+            List<List<Object>> rows = run(plan, c);
+            assertEquals(1, rows.size());
+            assertTrue(String.valueOf(rows.get(0).get(0)).matches(
+                    "-- \"executionTraceID\" : \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\""),
+                    String.valueOf(rows.get(0).get(0)));
+        }
+    }
+
+    /** M3g, B10's rule (per statement): a statement that reads a frame more than once reads it through its CTE,
+     *  lowered once at the let with the product's configuration; one that reads it once pastes its chain. */
+    @Test
+    void aFrameReadTwiceInAStatementIsItsCteAndReadOncePasted() throws Exception {
+        TypedQuery twice = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.values->filter(x|$x.name == 'Acme')->concatenate($r.values);}");
+        ExecutionPlan plan = productPlan(twice, "x::RT", Set.of());
+        PlanRoundTrip.assertRoundTrips(plan, "a frame read twice");
+        String sql = plan.answerSql().statement();
+        assertTrue(sql.startsWith("WITH frame_r AS"), sql);
+        assertEquals(sql.indexOf("frame_r AS MATERIALIZED ("), sql.lastIndexOf("frame_r AS MATERIALIZED ("),
+                "defined once: " + sql);
+        assertEquals(2, sql.split("FROM frame_r AS ", -1).length - 1, "read twice: " + sql);
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("Acme"), List.of("Acme")), run(plan, c));
+        }
+        TypedQuery once = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.values->filter(x|$x.name == 'Acme');}");
+        String pasted = productPlan(once, "x::RT", Set.of()).answerSql().statement();
+        assertFalse(pasted.contains("frame_r"), pasted);
+    }
+
+    /** The M3 audit's B3, end to end: a program on a runtime that declares test data whose one statement sends
+     *  nothing still seeds (the walk establishes a statement's contexts before any statement). */
+    @Test
+    void aConstantOnASeededRuntimeSeedsAndAnswers() throws Exception {
+        ExecutionPlan plan = productPlan(Compiler.query(Compiler.compileModel(DUCK), "|'x'"), "x::RT", Set.of());
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
+        assertEquals(List.of("Load", "Constant"), steps.stream().map(n -> n.getClass().getSimpleName()).toList());
+        try (Connection c = TestBackends.platform().open()) {
+            assertEquals(List.of(List.of("x")), run(plan, c));
+        }
+    }
+
+    /** The M3 audit's B4: a statement that reads a frame's activities and pastes its values once is no second read
+     *  (the hook is asked for the frame twice; the chain is pasted once): no CTE. */
+    @Test
+    void aFramesActivitiesAndOneValuesReadPasteNoCte() {
+        TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.values->filter(x|$x.name == $r.activities->at(0)"
+                + "->cast(@meta::relational::mapping::RelationalActivity).sql);}");
+        String sql = productPlan(body, "x::RT", Set.of()).answerSql().statement();
+        assertFalse(sql.contains("frame_r"), sql);
+    }
+
+    /** The M3 audit's B7a: a frame's run binds its stamp where a later statement reads its comment. */
+    @Test
+    void aFramesRunBindsTheStampALaterStatementReads() {
+        TypedQuery body = Compiler.query(Compiler.compileModel(DUCK), "{| let r = " + RUN + ";\n"
+                + "$r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity).comment;}");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
+                productPlan(body, "x::RT", Set.of()).root()).steps();
+        assertEquals("#stamp0", ((ExecutionPlan.Check) steps.get(1)).sql().stamp(), "the comment's reader reads it");
+    }
+
+    /** The M3 audit's B7d: one call site run inline by two statements (a helper called twice) -- each statement's
+     *  activity comment is its own run's stamp. */
+    @Test
+    void oneInlineCallSiteRunByTwoStatementsBindsEachItsOwnStamp() throws Exception {
+        String model = DUCK + """
+                ###Pure
+                function x::comment(): String[0..1]
+                {
+                    meta::pure::router::execute(|x::Firm.all()->project([f|$f.name], ['name']), x::M,
+                        x::RT.runtimeValue, []).activities->at(0)
+                        ->cast(@meta::relational::mapping::RelationalActivity).comment
+                }
+                """;
+        ExecutionPlan plan = productPlan(Compiler.query(Compiler.compileModel(model),
+                "{| x::comment();\nx::comment();}"), "x::RT", Set.of());
+        PlanRoundTrip.assertRoundTrips(plan, "a helper's inline run, twice");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class, plan.root()).steps();
+        ExecutionPlan.Sql first = assertInstanceOf(ExecutionPlan.Check.class, steps.get(1)).sql();
+        ExecutionPlan.Sql second = assertInstanceOf(ExecutionPlan.TdsResult.class, steps.get(2)).sql();
+        assertEquals("#stamp0", first.stamp());
+        assertEquals("#stamp1", second.stamp());
+        assertEquals(Set.of("#stamp1"), second.slots().stream().map(ExecutionPlan.Slot::parameter)
+                .collect(java.util.stream.Collectors.toSet()), "the second statement reads its own run's comment");
+        try (Connection c = TestBackends.platform().open()) {
+            assertTrue(String.valueOf(run(plan, c).get(0).get(0)).startsWith("-- \"executionTraceID\""));
+        }
+    }
+
+    /** MRe (the MR inventory's latent defect 1, verified): a frame let's eager run and its readers run under the
+     *  table renames of the frame's own runtime (its connection's mapper post-processor). */
+    @Test
+    void aFrameLetsRunAndReadersApplyItsRuntimesRenames() {
+        String model = SEEDED + """
+                ###Pure
+                Class x::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}
+                """;
+        String runtime = "^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
+                + "element = x::DB, connection = ^meta::external::store::relational::runtime::RelationalDatabaseConnection("
+                + "type = meta::relational::runtime::DatabaseType.H2, datasourceSpecification ="
+                + " ^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(),"
+                + " authenticationStrategy = ^x::Auth(), postProcessors ="
+                + " [^meta::pure::alloy::connections::MapperPostProcessor(mappers ="
+                + " [^meta::pure::alloy::connections::TableNameMapper(from = 'FIRM', to = 'FIRM_R', schema ="
+                + " ^meta::pure::alloy::connections::SchemaNameMapper(from = 'default', to = 'default'))])])))";
+        TypedQuery body = Compiler.query(Compiler.compileModel(model), "{| let r = meta::pure::router::execute("
+                + "|x::Firm.all()->project([f|$f.name], ['name']), x::M, " + runtime + ", []);\n$r.values;}");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
+                productPlan(body, "x::RT", Set.of()).root()).steps();
+        String run = steps.stream().filter(ExecutionPlan.Check.class::isInstance)
+                .map(n -> ((ExecutionPlan.Check) n).sql().statement()).findFirst().orElseThrow();
+        assertTrue(run.contains("FIRM_R"), run);
+        String reader = assertInstanceOf(ExecutionPlan.TdsResult.class, steps.get(steps.size() - 1)).sql().statement();
+        assertTrue(reader.contains("FIRM_R"), reader);
+    }
+
+    /** MR's audit S3: a frame let whose query carries its own from() runs, at the let, under the renames of the
+     *  runtime its execute(...) names -- as the walk runs it, in the frame's environment. */
+    @Test
+    void aFrameLetsRunWithItsOwnFromAppliesTheExecutesRenames() {
+        String model = SEEDED + """
+                ###Pure
+                Class x::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}
+                """;
+        String runtime = "^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
+                + "element = x::DB, connection = ^meta::external::store::relational::runtime::RelationalDatabaseConnection("
+                + "type = meta::relational::runtime::DatabaseType.H2, datasourceSpecification ="
+                + " ^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(),"
+                + " authenticationStrategy = ^x::Auth(), postProcessors ="
+                + " [^meta::pure::alloy::connections::MapperPostProcessor(mappers ="
+                + " [^meta::pure::alloy::connections::TableNameMapper(from = 'FIRM', to = 'FIRM_R', schema ="
+                + " ^meta::pure::alloy::connections::SchemaNameMapper(from = 'default', to = 'default'))])])))";
+        TypedQuery body = Compiler.query(Compiler.compileModel(model), "{| let r = meta::pure::router::execute("
+                + "|x::Firm.all()->project([f|$f.name], ['name'])->from(x::M, x::RT), x::M, " + runtime + ", []);\n"
+                + "$r.values;}");
+        List<ExecutionPlan.Node> steps = assertInstanceOf(ExecutionPlan.Sequence.class,
+                productPlan(body, "x::RT", Set.of()).root()).steps();
+        String run = steps.stream().filter(ExecutionPlan.Check.class::isInstance)
+                .map(n -> ((ExecutionPlan.Check) n).sql().statement()).findFirst().orElseThrow();
+        assertTrue(run.contains("FIRM_R"), run);
+    }
+
+    /** M3h (R17 C9): a {@code from()}'s own runtime's table renames (its connection's mapper post-processor) apply
+     *  to the statement it frames, on both doors. */
+    @Test
+    void aFromsOwnTableRenamesApply() {
+        String model = SEEDED + """
+                ###Pure
+                Class x::Auth extends meta::pure::alloy::connections::alloy::authentication::AuthenticationStrategy {}
+                """;
+        String renamed = "|x::Firm.all()->project([f|$f.name], ['name'])->from(x::M,"
+                + " ^meta::core::runtime::Runtime(connectionStores = ^meta::core::runtime::ConnectionStore("
+                + "element = x::DB, connection = ^meta::external::store::relational::runtime::RelationalDatabaseConnection("
+                + "type = meta::relational::runtime::DatabaseType.H2, datasourceSpecification ="
+                + " ^meta::pure::alloy::connections::alloy::specification::LocalH2DatasourceSpecification(),"
+                + " authenticationStrategy = ^x::Auth(), postProcessors ="
+                + " [^meta::pure::alloy::connections::MapperPostProcessor(mappers ="
+                + " [^meta::pure::alloy::connections::TableNameMapper(from = 'FIRM', to = 'FIRM_R', schema ="
+                + " ^meta::pure::alloy::connections::SchemaNameMapper(from = 'default', to = 'default'))])]))))";
+        TypedQuery query = Compiler.query(Compiler.compileModel(model), renamed);
+        String test = productPlan(query, "x::RT", Set.of()).answerSql().statement();
+        assertTrue(test.contains("FIRM_R"), test);
+        assertEquals(test, query.executionPlan("x::RT").answerSql().statement(), "one road: the query door's own");
+    }
+
+    /** A seed step's key spells its content unambiguously (the design audit's H1, 2026-11-02): one cell {@code "a, b"}
+     *  and two cells {@code "a"}, {@code "b"} printed one record text, so the second seed's key equalled the first's
+     *  and a session holding the first skipped it. Since A2 (2026-11-10) a table's rows are a content blob of inserts,
+     *  named by the digest of their statements: the two loads' keys differ as their statements do. */
+    @Test
+    void twoSeedsThatPrintAlikeHaveTwoKeys() {
+        var d = com.legend.database.Databases.dialect(com.legend.database.Databases.PLATFORM);
+        var one = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null, "t",
+                com.legend.sql.NameQuoting.BARE, java.util.List.of(), java.util.Set.of(), 1,
+                java.util.List.of(java.util.List.of("a, b"))), d);
+        var two = com.legend.setup.LoadSteps.rows(new com.legend.setup.RowLoad(null, "t",
+                com.legend.sql.NameQuoting.BARE, java.util.List.of(), java.util.Set.of(), 2,
+                java.util.List.of(java.util.List.of("a", "b"))), d);
+        assertFalse(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, one.steps()).equals(com.legend.planner.LoadPlanner.identity(com.legend.executionplan.ExecutionPlan.Load.Cadence.BEFORE_STEP, two.steps())),
+                "their keys differ");
+    }
+}

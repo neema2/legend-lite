@@ -6,7 +6,7 @@ package com.legend.exec;
 import java.util.List;
 
 /**
- * A JDBC driver's own cell types, joined through {@code ServiceLoader} as {@link BulkLoad} is: core compiles
+ * A JDBC driver's own cell types, joined through {@code ServiceLoader} (as DuckDB's bulk load was until A2): core compiles
  * against no driver, so what only a driver's classes can recognise lives beside that driver and is found at run
  * time (C3c, docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md). A driver with no such types registers
  * nothing.

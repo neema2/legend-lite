@@ -113,7 +113,7 @@ def main():
              if not f.endswith("builtin/Pure.java")]
     CONST_ONLY = {"compiler/element/type/PlatformTypes.java", "builtin/SystemMetamodel.java", "builtin/Prelude.java"}
     LOW = ("lowering/", "sql/", "exec/", "setup/")
-    ROOT_VERDICT = {"StatementExecutor", "AssertVerdicts", "SqlTextVerdicts", "LineageTreeVerdicts", "CsvLoad",
+    ROOT_VERDICT = {"BodyDriver", "AssertVerdicts", "SqlTextVerdicts", "LineageTreeVerdicts", "CsvLoad",
                     "SeedSqlForms", "PlanAllocations", "ConnectionLets", "AggAwareActivities"}
     handlers = collections.defaultdict(set)
     for f in files:

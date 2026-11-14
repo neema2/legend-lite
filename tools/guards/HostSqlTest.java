@@ -1,6 +1,7 @@
 package com.legend.tools.guards;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.testing.Runfile;
@@ -15,6 +16,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeSet;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
@@ -36,7 +38,8 @@ import org.junit.jupiter.api.Test;
 class HostSqlTest {
 
     /** The rule: host_sql.txt's sections. */
-    record Rule(List<String> typescript, List<String> python, Pattern statement, List<Kept> kept) {
+    record Rule(List<String> typescript, List<String> python, Pattern statement, List<Kept> kept,
+            List<Harness> harnesses) {
 
         /** Whether a literal's text begins a statement. */
         boolean isStatement(String text) {
@@ -65,7 +68,12 @@ class HostSqlTest {
                 String[] parts = l.split(" \\| ", 3);
                 return new Kept(parts[0].strip(), quoted(parts[1].strip()), parts[2].strip());
             }).toList();
-            return new Rule(sections.get("typescript"), sections.get("python"), Pattern.compile(either), kept);
+            List<Harness> harnesses = sections.getOrDefault("harnesses", List.of()).stream().map(l -> {
+                String[] parts = l.split(" \\| ", 2);
+                return new Harness(parts[0].strip(), parts[1].strip());
+            }).toList();
+            return new Rule(sections.get("typescript"), sections.get("python"), Pattern.compile(either), kept,
+                    harnesses);
         }
     }
 
@@ -79,6 +87,11 @@ class HostSqlTest {
 
     /** A site kept: its file, the literal's whole text as written, and why it is not a statement the host spells. */
     record Kept(String file, String text, String reason) {
+    }
+
+    /** A harness script kept whole (the C final audit's H12, 2026-11-12): a test in all but its folder, whose statements
+     *  build its own fixture database or stand for a person's typing, and why. */
+    record Harness(String file, String reason) {
     }
 
     /** A string literal of a source: its line, and its text (escapes as written). */
@@ -246,9 +259,27 @@ class HostSqlTest {
 
     @Test
     void noProductTypeScriptSpellsSqlButTheSitesKept() throws IOException {
+        noProductTypeScriptSpellsSqlButTheSitesKept(Map.of());
+    }
+
+    /** CHECK 6 (the final audit's item 5, 2026-11-12): the census's own pinned comparison FAILS over the tree with a
+     *  statement planted in a product source, naming it -- never merely that its reader finds the literal. */
+    @Test
+    void theCensusFailsOnAPlantedStatement() throws IOException {
+        String planted = "datacube/src/planted-violator.ts";
+        AssertionError failed = assertThrows(AssertionError.class, () -> noProductTypeScriptSpellsSqlButTheSitesKept(
+                Map.of(planted, "export const sql = 'SELECT * FROM trades WHERE desk = ?';")));
+        assertTrue(failed.getMessage().contains(planted), "failed without naming the planted file: " + failed.getMessage());
+    }
+
+    /** The census over the tree's product TypeScript, and any file {@code planted} on top of it (path to its text). */
+    static void noProductTypeScriptSpellsSqlButTheSitesKept(Map<String, String> planted) throws IOException {
         Rule rule = rule();
-        List<String> files = Files.readAllLines(Runfile.property("inventory.files")).stream()
-                .filter(f -> f.endsWith(".ts") && !f.endsWith(".d.ts"))
+        List<String> files = java.util.stream.Stream.concat(Files.readAllLines(Runfile.property("inventory.files")).stream(),
+                        new TreeSet<>(planted.keySet()).stream())
+                // and the JavaScript beside it (the C final audit's H12, 2026-11-12: a harness's .mjs sent its own
+                // statements, which no census read)
+                .filter(f -> f.endsWith(".ts") && !f.endsWith(".d.ts") || f.matches(".*\\.(?:mjs|cjs|js)$"))
                 .filter(f -> rule.typescript().stream().anyMatch(d -> f.startsWith(d + "/")))
                 .toList();
         for (String folder : rule.typescript()) {
@@ -257,10 +288,17 @@ class HostSqlTest {
         }
         List<String> found = new ArrayList<>();
         List<Kept> used = new ArrayList<>();
+        Set<String> harnessed = new TreeSet<>();
+        Set<String> harnesses = new TreeSet<>(rule.harnesses().stream().map(Harness::file).toList());
         for (String file : files) {
-            String src = Files.readString(Runfile.of("_main/" + file), StandardCharsets.UTF_8);
+            String src = planted.containsKey(file) ? planted.get(file)
+                    : Files.readString(Runfile.of("_main/" + file), StandardCharsets.UTF_8);
             for (Literal l : literals(src)) {
                 if (!rule.isStatement(l.text())) {
+                    continue;
+                }
+                if (harnesses.contains(file)) {
+                    harnessed.add(file);
                     continue;
                 }
                 Kept kept = rule.kept().stream().filter(k -> k.file().equals(file) && l.text().equals(k.text()))
@@ -274,8 +312,11 @@ class HostSqlTest {
         }
         assertEquals(List.of(), found, "SQL spelled in the tab: name the operation and its data instead (engine-client/"
                 + "src/host-operations.ts), which the planner writes by the database's type (HostOperations.java)");
-        List<String> stale = rule.kept().stream().filter(k -> k.file().endsWith(".ts") && !used.contains(k))
+        List<String> stale = rule.kept().stream()
+                .filter(k -> k.file().matches(".*\\.(?:ts|mjs|cjs|js)$") && !used.contains(k))
                 .map(k -> k.file() + ": " + k.text()).toList();
         assertEquals(List.of(), stale, "a site kept is no longer there: take it out of host_sql.txt");
+        List<String> idle = harnesses.stream().filter(h -> !harnessed.contains(h)).toList();
+        assertEquals(List.of(), idle, "a harness kept spells no statement now: take it out of host_sql.txt's [harnesses]");
     }
 }

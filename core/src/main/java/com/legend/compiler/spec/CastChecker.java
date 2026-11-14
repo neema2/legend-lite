@@ -1,5 +1,7 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.spec.typed.TypedCast;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedTypeRef;

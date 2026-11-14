@@ -35,6 +35,11 @@ public enum SqlFn {
     // include Pure's empty-collection semantics (exists([])=false,
     // forAll([])=true) — the dialect's expansion must honor them.
     LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION,
+    /** {@code (list, position)}: the element at a 1-based position the list's own construction names (a tagged
+     *  list's positions, never negative; past the end NULL), written with its list and its position ONCE -- where
+     *  {@link #LIST_GET}'s negative-index arms write them two to five times, which nested positions multiply
+     *  (2026-11-03: the tagged list's statements, 18.7K -> 721.8K chars on Snowflake, past SQLite's 1 MB). */
+    LIST_AT,
     LIST_EXISTS, LIST_FOR_ALL,
     /** struct_insert(struct, name, value): the struct with one field
      * appended (the construction-site canon rides the bound struct). */
@@ -63,6 +68,13 @@ public enum SqlFn {
      *  indexed; NULL past the end (batch 139). Semantic — each dialect spells it. */
     PURE_SPLIT_PART,
     REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST,
+    /** Its one text argument in the database's BINARY collation, an order key: texts ordered by their code points,
+     *  whatever the column's or the database's own collation (the test-data generator's seed, the user's ruling R4 of
+     *  docs/data-delivery-homework/TEST_DATA_GENERATOR_B2D3_DESIGN_2026_11_11.md §5, its design's §3.1; register S198's
+     *  note; the B2d.3 audit's M4, 2026-11-12): Postgres {@code COLLATE "C"}, SQLite {@code COLLATE BINARY}; DuckDB and
+     *  H2 compare texts by their code points already (measured 2026-11-12), so the text as it is; a dialect whose
+     *  binary collation is not measured refuses it by name. */
+    BINARY_COLLATE,
     ENCODE_BASE64, LEVENSHTEIN, GUID, FORMAT, HASH, MD5, SHA1, SHA256,
     /** The database's random float in [0, 1) (lite's {@code random()}, the Cypher island's {@code rand()}): a value
      *  of the call, not of the data, read once per row it is spelled in. */
@@ -107,6 +119,11 @@ public enum SqlFn {
     ROUND_HALF_UP, ERROR, FLOOR_RAW,
     // Variant construction
     TO_VARIANT, BOOL_TO_TEXT,
+    /** {@code (x)}: a Decimal's or a Number's text, its plain digits (the tenets audit's M-6, A6, 2026-11-10): a semantic
+     *  node the Lowerer marks by the operand's Pure type, as {@link #BOOL_TO_TEXT} is -- each dialect spells it, most
+     *  as the VARCHAR cast they wrote until then; H2 with its number printer for every such operand (its DECFLOAT's
+     *  cast writes {@code 1E+2}), where its dialect walked the expression's shape and missed some. */
+    DECIMAL_TO_TEXT,
     /** A Float's Pure literal spelling (2026-10-11): every zero {@code 0.0}, the exponent unfolded to fixed point, at
      *  least one fraction digit -- the kind-faithful carrier's text of a double (lowering/LiteralSpelling). One call
      *  per value, which each dialect spells (dialect/FloatCanonText the portable decomposition). */
@@ -115,15 +132,27 @@ public enum SqlFn {
      *  database's plain range and fixed point past it where exact, at least one fraction digit (lowering/LiteralSpelling).
      *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). */
     FLOAT_PRINT,
-    /** A Float's text as legend-engine's {@code pure/v1} execute writes it (2026-10-22): Java's
-     *  {@code Double.toString} layout over the shortest digits. One call per value, as {@link #FLOAT_PRINT}. */
-    FLOAT_PRINT_ENGINE,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */
     JSON_ARRAY_LENGTH,
     /** The pretty-printed JSON text (meta::json::toPrettyJSONString). */
     JSON_PRETTY;
+
+    /** The functions that raise, or answer a fresh value, when evaluated (an ERROR, a parse, a domain or range check, a
+     *  GUID): never moved out of a branch (the dialect's CommonSubexpressions), never dropped unread (the lowering's
+     *  SubselectPrune). */
+    public static final java.util.Set<SqlFn> RAISING = java.util.Collections.unmodifiableSet(java.util.EnumSet.of(ERROR,
+            PARSE_INT, PARSE_DATE, ACOS, ASIN, ADD_INTERVAL, ADD_INTERVAL_TEMPORAL, STRPTIME, GUID, TIMEZONE, MAKE_DATE,
+            MAKE_TIMESTAMP));
+
+    /** Whether this function draws afresh at every place it is written -- the database's random float ({@link #RANDOM})
+     *  or uuid ({@link #GUID}) -- so two places of it are two values: a value holding one is computed once, in its own
+     *  select, never written into its readers (the lowering's Fold.nondeterministic; the dialect's SelectLayers, the
+     *  A2' review's finding 1, 2026-11-06). */
+    public boolean drawsAfresh() {
+        return this == RANDOM || this == GUID;
+    }
 
     /** Whether this function's RESULT is a list value — function
      * METADATA (moved here from the dissolved ListShapes): read by the

@@ -1,0 +1,41 @@
+package org.finos.legend.lite.pct.extension;
+
+import org.junit.jupiter.api.Test;
+
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.Statement;
+
+/** A local measurement, never committed: Snowflake's exact decimals of a double (DECFLOAT, NUMBER). */
+class SnowflakeDecimalProbe {
+    @Test
+    void decimals() throws Exception {
+        String[] xs = {"2.718281828459045e0", "1.3440585709080678e43", "-2.7860822197753245e15", "3.0000000000000004e-1",
+                "1.0e300", "4.9e-324", "1.2420305316324342e-4", "1.2345678912345678e17", "5.0e-5", "1.7976931348623157e308",
+                "3.0e0", "-1.0e0", "1.1291998179327467e-5"};
+        String[] spellings = {"TO_VARCHAR(CAST(x AS DECFLOAT))", "CAST(CAST(x AS DECFLOAT) AS VARCHAR)",
+                "SYSTEM$TYPEOF(CAST(x AS DECFLOAT))", "TO_VARCHAR(ROUND(CAST(x AS DECFLOAT), 3))",
+                "TO_VARCHAR(ROUND(CAST(x AS DECFLOAT), s))", "TO_VARCHAR(CAST(x AS DECFLOAT) * 1)",
+                "TO_DOUBLE(TO_VARCHAR(CAST(x AS DECFLOAT))) = x", "CAST(CAST(x AS DECFLOAT) AS DOUBLE) = x",
+                "TO_VARCHAR(CAST(IFF(ABS(x) < 1E16, x, 0) AS NUMBER(38, 22)))",
+                "TO_VARCHAR(CAST(IFF(ABS(x) < 1E38, x, 0) AS NUMBER(38, 0)))",
+                "TO_VARCHAR(ROUND(CAST(IFF(ABS(x) < 1E16, x, 0) AS NUMBER(38, 22)), s))",
+                "TRY_TO_DOUBLE('1.79769313486232E308')", "TO_VARCHAR(x, 'FM9.999999999999999EE')"};
+        try (Connection c = CloudLane.connect(CloudLane.Cloud.SNOWFLAKE); Statement st = c.createStatement()) {
+            for (String x : xs) {
+                StringBuilder line = new StringBuilder("[sf-dec] ").append(x).append(" |");
+                for (String sp : spellings) {
+                    String sql = "SELECT " + sp + " FROM (SELECT " + x + "::FLOAT AS x, 5 AS s)";
+                    try (ResultSet rs = st.executeQuery(sql)) {
+                        rs.next();
+                        line.append(" ").append(sp).append("=").append(rs.getString(1)).append(" |");
+                    } catch (Exception e) {
+                        String m = String.valueOf(e.getMessage());
+                        line.append(" ").append(sp).append("=ERROR ").append(m, 0, Math.min(m.length(), 120)).append(" |");
+                    }
+                }
+                System.out.println(line);
+            }
+        }
+    }
+}

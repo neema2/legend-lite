@@ -32,26 +32,30 @@ final class JdbcDecodeCases {
     private JdbcDecodeCases() {
     }
 
+    // (no written-precision fact: the decoders read none; it is the writers' -- CellText -- and ResultWritersTest's)
     static ExecutionPlan.Column col(String name, String type, String slot) {
-        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(1, 1), slot, null);
+        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(1, 1), slot, null, null);
     }
 
     static ExecutionPlan.Column opt(String name, String type, String slot) {
-        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, 1), slot, null);
+        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, 1), slot, null, null);
     }
 
     static ExecutionPlan.Column many(String name, String type, String slot) {
-        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, null), slot, null);
+        return new ExecutionPlan.Column(name, type, new ExecutionPlan.Multiplicity(0, null), slot, null, null);
     }
 
     static List<List<Object>> rows(Connection c, com.legend.model.ConnectionDefinition.DatabaseType type, String sql,
             List<ExecutionPlan.Column> columns) throws Exception {
         List<List<Object>> out = new ArrayList<>();
         // checked against its database first, as the runner checks every session (the timestamp re-read is its fact)
-        JdbcStatements st = new JdbcStatements(c);
-        st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(type),
-                new ExecutionPlan.Servers.Every(), List.of(), List.of()));
-        st.rows(sql, List.of(), List.of(), columns, out::add);
+        JdbcStatements st = new JdbcStatements(c, new SessionState());
+        // the seam's acts are a run's (THE WALL's rule 3, 2026-11-06)
+        try (var run = com.legend.base.RunScope.enter()) {
+            st.check(new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(type), null),
+                    List.of(), List.of(), null, com.legend.testbackend.TestBackends.settings(type), null));
+            st.rows(com.legend.testbackend.Unplanned.sql(sql), List.of(), List.of(), columns, out::add);
+        }
         return out;
     }
 

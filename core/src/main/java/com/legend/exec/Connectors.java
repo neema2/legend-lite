@@ -3,8 +3,7 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
 import java.sql.Connection;
 import java.sql.SQLException;
@@ -88,7 +87,7 @@ public final class Connectors {
             implements DatabaseConnector {
 
         @Override
-        public Sessions.Session open(ConnectionDefinition def) {
+        public Sessions.Session open(com.legend.executionplan.Connection def) {
             throw unbuilt();
         }
 
@@ -98,7 +97,7 @@ public final class Connectors {
         }
 
         @Override
-        public Sessions.Opening opening(ConnectionDefinition def) {
+        public Sessions.Opening opening(com.legend.executionplan.Connection def) {
             return DatabaseConnector.notOpened(def);
         }
 
@@ -108,8 +107,18 @@ public final class Connectors {
         }
 
         @Override
-        public @com.legend.base.Nullable String raisedMessage(Connection session) {
+        public boolean abortsTransactionOnError() {
+            throw unbuilt();   // refused by name, as every fact of an unbuilt connector
+        }
+
+        @Override
+        public boolean takesTransactions() {
             throw unbuilt();
+        }
+
+        @Override
+        public Decoding decoding() {
+            throw unbuilt();   // refused by name, as every fact of an unbuilt connector (the D72 audit)
         }
 
         private com.legend.error.NotImplementedException unbuilt() {

@@ -25,7 +25,7 @@ import { configurationOf, gridCapped, treeOf, type CubeDocument } from '../cube-
 import { gridBetween } from '../grid-between.ts';
 import type { GridCommand } from '../grid-commands.ts';
 import type { PageCommand } from '../page-commands.ts';
-import { boxCubes, type GridCopy, type GridView, type PageDocument } from '../page-document.ts';
+import { boxCubes, cubesHeld, type GridCopy, type GridView, type PageDocument } from '../page-document.ts';
 import type { GridMaker, PageApp } from '../page/page-app.ts';
 import { sameValue, type CubeSnapshot } from '../snapshot.ts';
 import type { Converge, Converged } from './live-channel.ts';
@@ -67,9 +67,10 @@ export async function convergeOn(on: Converge, deps: ConvergeDeps): Promise<Conv
   const { page } = deps;
   page.hold();
   const held = new Set<ConvergeGrid>();
-  // every grid on the board held, each made as the screen is set held as it appears (the fourth round's 5)
+  // every grid of the page held -- on the board, or kept off it for a tile that reads it -- each made as the screen is
+  // set held as it appears (the fourth round's 5)
   const holdGrids = (): void => {
-    for (const id of page.grids) {
+    for (const id of page.cubes) {
       const grid = deps.grid(id);
       if (grid !== undefined && !held.has(grid)) {
         grid.hold();
@@ -88,13 +89,17 @@ export async function convergeOn(on: Converge, deps: ConvergeDeps): Promise<Conv
 
 async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => void): Promise<Converged> {
   const { page } = deps;
-  const was = new Map(page.grids.map((id) => [id, deps.grid(id)] as const));
+  const was = new Map(page.cubes.map((id) => [id, deps.grid(id)] as const));
   // the grids whose history starts again: another editor changed them (their cube on the keeper's page is not the one
   // this screen last knew there, with what it sent -- a cube's name is the page's, and is no change of the grid's), or
   // the refused batch edited them (their history holds steps the keeper never took)
   const theirs = new Set<string>();
   for (const view of on.target.views) {
     if (view.kind === 'grid' && !sameCube(cubeIn(on.base, view.id), cubeIn(on.target, view.id))) theirs.add(view.id);
+  }
+  // and a cube kept off the board for a tile that reads it, by its id
+  for (const { id } of on.target.cubes) {
+    if (!on.target.views.some((v) => v.kind === 'grid' && v.cube === id) && !sameCube(cubeThere(on.base, id), cubeThere(on.target, id))) theirs.add(id);
   }
   for (const e of on.refused) if ('grid' in e) theirs.add(e.grid);
   // a grid another editor opened again over its source as it is now (`rebuilt`: a frame's columns moved) is no state a
@@ -107,11 +112,12 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
       throw new Error(`${view.id} was opened again over its source as it is now`);
     }
   }
-  // each grid at its cube there, by its own commands
+  // each grid at its cube there, by its own commands -- one kept off the board for a tile too (the review's follow-up: a
+  // cube kept here, its document replaced by another editor's setTimeseries, stayed as it was)
   const gridsAtTarget = async (): Promise<void> => {
-    for (const id of page.grids) {
+    for (const id of page.cubes) {
       const grid = deps.grid(id);
-      const cube = cubeIn(on.target, id);
+      const cube = cubeThere(on.target, id);
       if (grid === undefined || cube === undefined) continue;
       const back = gridBetween({ snapshot: grid.snapshot, config: grid.configuration, tree: grid.tree }, draftOf(cube, grid.snapshot));
       if (back.length === 0) continue;
@@ -121,19 +127,30 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   };
   // 1. the grids the board and the keeper's page both have, at their cubes there
   await gridsAtTarget();
-  // 2. the board at the keeper's page; a grid of it this page has never had opened from its cube there
+  // 2. the board at the keeper's page; a grid of it this page has never had opened from its cube there -- and so is a
+  //    cube a view there reads that no grid shows (a detached chart's, a timeseries' whose grid was removed: the
+  //    review's follow-up, refused as "maker is gone" when another editor's change brought one this tab never held)
   const makers = new Map<string, GridMaker>();
   // a flow's box is a document until it is shown: drawn from its cube there, never opened here (page-document.ts boxCubes)
   const boxes = boxCubes(on.target);
+  // capped as a grid sharing its page is (the page it joins: the keeper's)
+  const several = gridCapped(on.target.views.filter((v) => v.kind === 'grid').length);
   for (const view of on.target.views) {
     if (view.kind !== 'grid' || page.grids.includes(view.id) || page.knows(view.id) || boxes.has(view.cube)) continue;
     const cube = cubeIn(on.target, view.id);
     if (cube === undefined) continue;
-    // capped as a grid sharing its page is (the page it joins: the keeper's)
-    const opened = await deps.open(cube, view.id, gridCapped(on.target.views.filter((v) => v.kind === 'grid').length),
-      { page: on.target, cube: view.cube });
+    const opened = await deps.open(cube, view.id, several, { page: on.target, cube: view.cube });
     if (opened === undefined) throw new Error(`${cube.source.name} was not opened`);
     makers.set(view.id, opened.make);
+  }
+  const shown = new Set(on.target.views.flatMap((v) => (v.kind === 'grid' ? [v.cube] : [])));
+  for (const id of cubesHeld(on.target.views)) {
+    if (shown.has(id) || page.knows(id)) continue;
+    const cube = on.target.cubes.find((c) => c.id === id)?.cube;
+    if (cube === undefined) throw new Error(`a view of the keeper's page reads ${id}, which it holds no cube of`);
+    const opened = await deps.open(cube, id, several, { page: on.target, cube: id });
+    if (opened === undefined) throw new Error(`${cube.source.name} was not opened`);
+    makers.set(id, opened.make);
   }
   const refusedSteps = on.refused.flatMap((e): PageCommand[] => ('page' in e ? [e.page] : []));
   page.putBack(on.target, on.held, makers, refusedSteps);
@@ -143,12 +160,14 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   // live, which keeps where the person put it: the edit is made again on the keeper's page after, and written (the
   // audit's 5)
   const ownCopy = new Set(on.pending.flatMap((e) => ('page' in e && (e.page.kind === 'snap' || e.page.kind === 'live') ? [e.page.grid] : [])));
-  for (const id of page.grids) {
+  for (const id of page.cubes) {
     if (ownCopy.has(id)) continue;
     const grid = deps.grid(id);
-    const view = on.target.views.find((v): v is GridView => v.kind === 'grid' && v.id === id);
-    if (grid === undefined || view === undefined) continue;
-    const copy = (on.target.copies ?? {})[view.cube];
+    // its cube there: its grid tile's, or the one kept for a tile by its id
+    const cube = on.target.views.find((v): v is GridView => v.kind === 'grid' && v.id === id)?.cube
+      ?? (on.target.cubes.some((c) => c.id === id) ? id : undefined);
+    if (grid === undefined || cube === undefined) continue;
+    const copy = (on.target.copies ?? {})[cube];
     if (sameValue(grid.copy, copy)) continue;
     if (!grid.followSnap || !grid.followLive) throw new Error(`${id} cannot read its other editor's copy here`);
     if (copy === undefined) await grid.followLive();
@@ -159,7 +178,7 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   // 3. every grid's change in flight landed (a chart's removal refilters its grid, asynchronously) before the page is
   //    read: the hash is of the page as it will be, never of a state passing (the D19 audit's second round, 2)
   const until = Date.now() + QUIET_AT_MOST;
-  while (page.grids.some((id) => deps.grid(id)?.busy === true) && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
+  while (page.cubes.some((id) => deps.grid(id)?.busy === true) && Date.now() < until) await new Promise((r) => setTimeout(r, 10));
   const now = deps.pageNow();
   if (now === undefined) throw new Error('the page cannot say what it is');
   // a grid a pending snap or live names kept its own rows (above), its copy the pending edit's: the page is checked
@@ -168,7 +187,7 @@ async function converging(on: Converge, deps: ConvergeDeps, holdGrids: () => voi
   const checked = ownCopy.size === 0 ? now : withKeepersCopies(now, on.target, ownCopy);
   // a grid made as the screen was set (opened, or made again) starts its history here; one a pending edit makes is made
   // again with it, from the cube that edit gave it
-  const remade = page.grids.filter((id) => deps.grid(id) !== was.get(id));
+  const remade = page.cubes.filter((id) => deps.grid(id) !== was.get(id));
   const made = on.pending.flatMap((e) => ('page' in e && e.page.kind === 'addGrid' && e.page.id !== undefined ? [e.page.id] : []));
   return { page: checked, restarted: new Set([...theirs, ...remade, ...made]) };
 }
@@ -186,6 +205,12 @@ function withKeepersCopies(page: PageDocument, target: PageDocument, grids: Read
   const { copies: _all, ...rest } = page;
   // as the page writes it (page-document.ts writePageOf): no field when it has none
   return Object.keys(copies).length > 0 ? { ...rest, copies } : rest;
+}
+
+/** The cube a grid of `page` reads: its grid tile's, or -- kept off the board for a tile that reads it -- the cube of its
+ *  id; undefined when `page` has neither. */
+function cubeThere(page: PageDocument, id: string): CubeDocument | undefined {
+  return cubeIn(page, id) ?? page.cubes.find((c) => c.id === id)?.cube;
 }
 
 /** The cube a grid tile of `page` shows, or undefined. */

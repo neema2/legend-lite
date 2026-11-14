@@ -1,0 +1,39 @@
+diff --git a/core/src/main/java/com/legend/driver/SystemDatabase.java b/core/src/main/java/com/legend/driver/SystemDatabase.java
+index 519c1cda..ff1228ac 100644
+--- a/core/src/main/java/com/legend/driver/SystemDatabase.java
++++ b/core/src/main/java/com/legend/driver/SystemDatabase.java
+@@ -128,6 +128,7 @@ public final class SystemDatabase {
+             Function<String, List<List<String>>> rowsOf,
+             Map<com.legend.model.ConnectionDefinition.DatabaseType, Sessions.Opener> systemConnections) {
+         Session s = sessions.get(engine);
++        System.err.println("[m4] sys-route engine=" + engine + " opened=" + (s != null));   // M4A-PROBE
+         if (s == null) {
+             s = open(engine, dialect, store, rowsOf, systemConnections);
+             sessions.put(engine, s);
+@@ -188,6 +189,8 @@ public final class SystemDatabase {
+                 }
+             }
+         }
++        System.err.println("[m4] sys-open engine=" + engine + " inProcess=" + inProcess + " steps=" + steps.size()
++                + " key=" + com.legend.cache.Hash.ofUtf8(steps.toString()).hex().substring(0, 12));   // M4A-PROBE
+         // the session's engine is the target's database: the one fact the runner checks a session against
+         ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(engine),
+                 new ExecutionPlan.Servers.Every(), List.of(), List.of());
+diff --git a/core/src/main/java/com/legend/planner/PlanMaker.java b/core/src/main/java/com/legend/planner/PlanMaker.java
+index d5a2dc70..2df6cbbe 100644
+--- a/core/src/main/java/com/legend/planner/PlanMaker.java
++++ b/core/src/main/java/com/legend/planner/PlanMaker.java
+@@ -705,6 +705,13 @@ public final class PlanMaker {
+         if (tables.isEmpty()) {
+             return Metamodel.NONE;
+         }
++        String m4test = "?";   // M4A-PROBE
++        for (StackTraceElement e : Thread.currentThread().getStackTrace()) {   // M4A-PROBE
++            if (e.getClassName().endsWith("Test")) { m4test = e.getClassName() + "." + e.getMethodName(); break; }   // M4A-PROBE
++        }   // M4A-PROBE
++        System.err.println("[m4] prod-read dialect=" + dialect.getClass().getSimpleName() + " inProcess="
++                + dialect.inProcess() + " temp=" + dialect.temporaryTables() + " tables=" + tables.size() + " test="
++                + m4test);   // M4A-PROBE
+         com.legend.model.DatabaseDefinition store = l.ctx()
+                 .findDatabase(com.legend.builtin.SystemMetamodel.STORE_FQN)
+                 .orElseThrow(() -> new IllegalStateException("the system metamodel store is not in the model"));

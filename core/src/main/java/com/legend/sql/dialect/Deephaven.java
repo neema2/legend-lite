@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -207,6 +208,8 @@ public final class Deephaven extends AnsiSqlRenderer {
                     + " the renderer: the execution boundary resolves it first (id " + d.id() + ")");
             case SqlExpr.Tagged t -> throw new DialectCapability("a mixed selection's winner (a tag and its typed slots:"
                     + " a mixed max, min, greatest, least or mode) reached Deephaven: no shape yet");
+            case SqlExpr.TaggedList t -> throw new DialectCapability("a mixed list (a tagged list) reached Deephaven:"
+                    + " no shape yet");
             case SqlExpr.WindowCall w -> throw new DialectCapability("a window function (" + w.fn().fn()
                     + ") reached Deephaven: its updateBy shape is not built yet");
             case SqlExpr.Lambda l -> throw new DialectCapability("a lambda reached Deephaven: no list functions"
@@ -873,7 +876,7 @@ public final class Deephaven extends AnsiSqlRenderer {
             case REM -> writer.append("(").expr(a.get(0), 0).append(" % ").expr(a.get(1), 0).append(")");
             // K5: a whole-number quotient cut toward zero, and the platform's runtime error
             case INT_DIVIDE -> intDivide(writer, c);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrint(writer, c);
+            case FLOAT_PRINT -> floatPrint(writer, c);
             case ERROR -> raise(writer, c, c.type(), "a runtime error");
             case SUBSTRING -> substring(writer, c);
             case STRPOS -> strpos(writer, c);
@@ -911,8 +914,15 @@ public final class Deephaven extends AnsiSqlRenderer {
                  LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT, NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL,
                  STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF, ROUND_HALF_UP, FLOOR_RAW, TO_VARIANT,
                  BOOL_TO_TEXT, FLOAT_CANON, VARIANT_ELEMENTS, VARIANT_GET,
-                 JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY ->
+                 JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY, LIST_AT ->
                     throw new DialectCapability("function " + c.fn() + " reached Deephaven: no shape yet");
+            // main's merge (2026-11-14): a text's order by its code points -- Java's compareTo orders UTF-16 code units,
+            // which differ past the basic plane, and no Deephaven collation is measured -- and a Decimal's text, of a
+            // type no Deephaven column holds (DeephavenBatch's DDL refuses it): each refused by name, as SqlFn asks
+            case BINARY_COLLATE -> throw new DialectCapability("a text's binary order (BINARY_COLLATE) reached"
+                    + " Deephaven: its comparison orders UTF-16 code units, and no code-point order is measured there");
+            case DECIMAL_TO_TEXT -> throw new DialectCapability("a Decimal's text (DECIMAL_TO_TEXT) reached Deephaven:"
+                    + " no column there holds a Decimal");
         };
     }
 
@@ -1141,7 +1151,7 @@ public final class Deephaven extends AnsiSqlRenderer {
         return switch (s) {
             case DATE -> true;
             case TIMESTAMP -> false;
-            case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, TIMESTAMPTZ, TIME, JSON, LITERAL, TEMPORAL_TEXT,
+            case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, TIMESTAMPTZ, TIME, JSON, TEMPORAL_TEXT,
                  DECIMAL_TEXT -> throw new DialectCapability(what + " of a " + s + " reached Deephaven: no shape yet");
         };
     }
@@ -1419,9 +1429,6 @@ public final class Deephaven extends AnsiSqlRenderer {
         if (nullable(x)) {
             writer.append("isNull(").expr(x, 0).append(") ? (String) null : ");
         }
-        if (c.fn() == SqlFn.FLOAT_PRINT_ENGINE) {
-            return writer.append("(" + empty + " + ").expr(x, 0).append("))");
-        }
         writer.append("(" + empty + " + ").expr(x, 0).append(").indexOf(`E`) < 0 ? (" + empty + " + ").expr(x, 0)
                 .append(") : (").expr(x, 0).append(" == floor(").expr(x, 0).append(") && abs(").expr(x, 0)
                 .append(") < 1.0E38) ? (new java.math.BigDecimal(").expr(x, 0).append(").toPlainString() + `.0`) : (abs(")
@@ -1481,7 +1488,7 @@ public final class Deephaven extends AnsiSqlRenderer {
             case TIMESTAMP -> new String[] {"epochNanosToInstant(parseLong(", "))"};
             case DATE -> new String[] {"toLocalDate(epochNanosToInstant(parseLong(", ")), " + UTC + ")"};
             case TIME -> new String[] {"toLocalTime(epochNanosToInstant(parseLong(", ")), " + UTC + ")"};
-            case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
+            case HUGEINT, TIMESTAMPTZ, JSON, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
                     "a runtime error of type " + s + " reached Deephaven: no column holds it yet");
         };
         List<SqlExpr> a = c.args();
@@ -1727,7 +1734,7 @@ public final class Deephaven extends AnsiSqlRenderer {
             case DATE -> "java.time.LocalDate";
             case TIMESTAMP -> "java.time.Instant";
             case TIME -> "java.time.LocalTime";
-            case HUGEINT, TIMESTAMPTZ, JSON, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
+            case HUGEINT, TIMESTAMPTZ, JSON, TEMPORAL_TEXT, DECIMAL_TEXT -> throw new DialectCapability(
                     "a value of type " + s + " reached Deephaven: no column holds it yet");
         };
     }
@@ -1749,9 +1756,38 @@ public final class Deephaven extends AnsiSqlRenderer {
         throw new IllegalStateException("a SQL column type was asked of Deephaven, whose DDL is DeephavenBatch's");
     }
 
-    /** {@inheritDoc} A Deephaven server has no session-only table: a plan's metamodel rows are its own, inline. */
+    /** {@inheritDoc} 9: an Instant holds nanoseconds (DH16's kinds, measured on the pinned 42.7, 2026-10-27). */
     @Override
-    public boolean temporaryTables() {
-        return false;
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 9: an Instant column holds nanoseconds (DH16's kinds, measured on the pinned 42.7, 2026-10-27). */
+    @Override
+    public int timestampColumnDigits() {
+        return 9;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // a failed batch's answer carries the raise's text (raise: the formula's thrown error)
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // a Deephaven server has no setting a plan's rows depend on
+    }
+
+    /** {@inheritDoc} Refused by name: a Deephaven server reads no literal relation (DeephavenBatch's sources), so a
+     *  data payload has no place there -- a server's tables are made by its own program and the platform's ingests. */
+    @Override
+    public com.legend.sql.SqlSource deliver(SqlDialect.DataPayload payload) {
+        throw new DialectCapability("a data payload reached Deephaven: a server reads no rows a plan carries");
+    }
+
+    /** {@inheritDoc} Refused by name: a plan loads no file into a Deephaven server. */
+    @Override
+    public CsvLoad csvLoad(com.legend.sql.SqlDml.LoadCsv load) {
+        throw new DialectCapability("a CSV file's load reached Deephaven: a plan loads no file into a server");
     }
 }

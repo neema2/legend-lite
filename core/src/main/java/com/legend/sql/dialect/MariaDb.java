@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.DateFmt;
 import com.legend.sql.DatePart;
 import com.legend.sql.SqlAgg;
@@ -190,6 +192,57 @@ public class MariaDb extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached MariaDB, which has no translation of it");
     }
 
+    /** {@inheritDoc} 6: its {@code DATETIME(6)}, its finest (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11): no
+     *  statement but the query's. Its size is bounded by the connection's {@code max_allowed_packet}, a setting the
+     *  database enforces (its refusal reaches the caller). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here by {@code JSON_TABLE} (the JSON pass, 2026-11-11,
+     *  measured on MariaDB 11.4: 100,000 records in 121 ms, {@code 1.50} kept as written): each element its JSON, a
+     *  frame's record its place as the ordinality from 0 (the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.legend_element AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.legend_ord - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM JSON_TABLE(");
+        return bindPayload(writer, u).append(", '$[*]' COLUMNS (legend_ord FOR ORDINALITY,"
+                + " legend_element JSON PATH '$')) AS legend_payload");
+    }
+
+    /** {@inheritDoc} 6: its date-time column is a {@code DATETIME(6)} (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    /** The raise {@link #raise} keeps in {@code @legend_raise}, read back and cleared after a failure (C2, 2026-11-12: the
+     *  plan's target declares them, exec sends them; MySQL's are the same). */
+    @Override
+    public RaiseReadBack raiseReadBack() {
+        return new RaiseReadBack("SELECT @legend_raise", "SET @legend_raise = NULL");
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -198,7 +251,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case BOOLEAN, INTEGER, BIGINT -> "SIGNED";
             case HUGEINT -> "DECIMAL(38,0)";
             case DOUBLE -> "DOUBLE";
-            case VARCHAR, JSON, LITERAL, TEMPORAL_TEXT -> "CHAR";
+            case VARCHAR, JSON, TEMPORAL_TEXT -> "CHAR";
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
@@ -526,7 +579,9 @@ public class MariaDb extends AnsiSqlRenderer {
         }
         SqlSelect countedRows = new SqlSelect(ps, false, from, null, List.of(), null, null, List.of(), null, null,
                 List.of());
-        return s.withFrom(new SqlSource.Subselect(countedRows, alias, null));
+        // a star of the select reads the source as it was, its own columns, never the counts beside them
+        return s.withProjections(starsAsSourceColumns(s, from, alias, product()))
+                .withFrom(new SqlSource.Subselect(countedRows, alias, null));
     }
 
     /** Each MODE under {@code e} to count: a grouped reducer with the select's keys (where {@link #groupedModesCounted}),
@@ -1114,7 +1169,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
             case JSON -> "JSON";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
+            case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> "LONGTEXT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin";
         };
     }
 
@@ -1139,7 +1194,7 @@ public class MariaDb extends AnsiSqlRenderer {
                     + " FALSE WHEN 'false' THEN FALSE END)");
         }
         if (t instanceof SqlType.Decimal || t instanceof SqlType.Scalar s && s != SqlType.Scalar.VARCHAR
-                && s != SqlType.Scalar.LITERAL && s != SqlType.Scalar.TEMPORAL_TEXT
+                && s != SqlType.Scalar.TEMPORAL_TEXT
                 && s != SqlType.Scalar.DECIMAL_TEXT) {
             String type = t instanceof SqlType.Decimal d ? columnType(d) : switch ((SqlType.Scalar) t) {
                 case INTEGER, BIGINT -> "SIGNED";
@@ -1148,7 +1203,7 @@ public class MariaDb extends AnsiSqlRenderer {
                 case DATE -> "DATE";
                 case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
                 case TIME -> "TIME(6)";
-                case BOOLEAN, JSON, VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
+                case BOOLEAN, JSON, VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT -> "CHAR";
             };
             return w -> w.append("CAST(").piece(text).append(" AS " + type + ")");
         }
@@ -1158,6 +1213,14 @@ public class MariaDb extends AnsiSqlRenderer {
     /** The element of {@code xs} at a 0-based {@code index} (NULL past either end). */
     private SqlWriter.Piece elementAt(SqlExpr xs, SqlWriter.Piece index) {
         return valueAt(w -> w.expr(xs, 0), indexPath(index), listElement(xs));
+    }
+
+    /** The element at a 0-based index the list holds (LIST_AT's position, a positive literal LIST_GET's): its path
+     *  {@code $[index]} with the index written once -- where {@link #indexPath} may write it again for a negative one
+     *  (MySQL's {@code $[last-n]}), which nested positions multiplied (2026-11-03, the tagged list's statements). */
+    private SqlWriter.Piece elementAtPosition(SqlExpr xs, SqlWriter.Piece index) {
+        return valueAt(w -> w.expr(xs, 0), w -> w.append("CONCAT('$[', ").piece(index).append(", ']')"),
+                listElement(xs));
     }
 
     // ==================================================================
@@ -1655,11 +1718,7 @@ public class MariaDb extends AnsiSqlRenderer {
         }
         if (target instanceof SqlType.Array arr) {
             SqlType from = listElement(v);
-            // a text element as LITERAL is the text itself, as the scalar cast below writes it (LITERAL is VARCHAR
-            // physically): the mixed sort's ordered ids (2026-10-13, PR #34's review: element-wise, it wrote the
-            // aggregate twice)
-            if (from == null || from.equals(arr.element())
-                    || from == SqlType.Scalar.VARCHAR && arr.element() == SqlType.Scalar.LITERAL) {
+            if (from == null || from.equals(arr.element())) {
                 return writer.expr(v, 0);
             }
             // element-wise
@@ -1669,7 +1728,7 @@ public class MariaDb extends AnsiSqlRenderer {
         if (target instanceof SqlType.Struct || target instanceof SqlType.Map) {
             return writer.expr(v, 0);
         }
-        if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+        if (target == SqlType.Scalar.VARCHAR) {
             return writer.piece(asText(v));
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
@@ -1681,10 +1740,10 @@ public class MariaDb extends AnsiSqlRenderer {
         // a member read as text is its scalar text (a string unquoted); a whole value as text is its JSON (DuckDB's
         // CAST(json AS VARCHAR) keeps a string's quotes)
         boolean member = v instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET;
-        if ((to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) && !member) {
+        if (to == SqlType.Scalar.VARCHAR && !member) {
             return jsonAsText(w -> w.expr(v, 0));
         }
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return w -> w.append("(CASE WHEN JSON_TYPE(").expr(v, 0).append(") = 'STRING' THEN JSON_UNQUOTE(")
                     .expr(v, 0).append(") ELSE ").piece(jsonAsText(x -> x.expr(v, 0))).append(" END)");
         }
@@ -1720,7 +1779,7 @@ public class MariaDb extends AnsiSqlRenderer {
             return value;
         }
         return switch (s) {
-            case VARCHAR, LITERAL -> textOf(value, from);
+            case VARCHAR -> textOf(value, from);
             case BOOLEAN -> from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
                     ? w -> w.append("(CASE lower(").piece(value).append(") WHEN 'true' THEN TRUE WHEN 'false' THEN FALSE")
                             .append(" END)")
@@ -1837,6 +1896,9 @@ public class MariaDb extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation (the B2d.3 audit's M4, 2026-11-12): not measured on MariaDB, so refused by name
+            case BINARY_COLLATE -> throw new com.legend.sql.DialectCapability("a binary collation (texts ordered by their"
+                    + " code points) reached MariaDB, whose binary collation is not measured");
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1916,12 +1978,13 @@ public class MariaDb extends AnsiSqlRenderer {
                     .append("), 1.0E0 / 3) ELSE POW(").expr(a.get(0), 0).append(", 1.0E0 / 3) END)");
             case BIT_NOT -> writer.append("CAST(~ ").expr(a.get(0), 7).append(" AS SIGNED)");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // a Float's literal spelling, the value read once ({@link #floatLayout}): the portable decomposition reads
             // the text some fifty times, each read this dialect's long text of a double (545 KB for a five-element
             // mixed list, measured 2026-10-11)
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
             case LEAST -> writer.piece(nullSkipping("LEAST", a));
@@ -2013,7 +2076,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case STRPTIME -> throw wall(c.fn(), "a date parsed by a DuckDB format has no measured " + product() + " spelling");
 
             // ---- lists (JSON arrays; lambdas as correlated subqueries)
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
                  LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_BOOL_AND, LIST_BOOL_OR,
                  LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_SLICE, LIST_REVERSE, LIST_FLATTEN, LIST_ZIP,
                  LIST_PRODUCT, LIST_REDUCE, RANGE_FN, REPEAT_VALUE, TYPEOF -> lists(writer, c);
@@ -2038,7 +2101,10 @@ public class MariaDb extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
                 .append("(").expr(a.get(0), 0).append("), ")
-                .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]")),
+                // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
+                // engine's answer), and says so -- not DuckDB's words
+                .piece(raise(List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
+                        + " of a value outside [-1, 1] is NaN, which this database cannot hold")),
                         SqlType.Scalar.DOUBLE))
                 .append(") END)");
     }
@@ -2106,7 +2172,8 @@ public class MariaDb extends AnsiSqlRenderer {
      *  and any other is refused, measured), branch taken or not. So the message is kept in the session's user
      *  variable {@code @legend_raise} and a run-time error follows, raised only when evaluated (a CASE branch not
      *  taken raises nothing, measured): a scalar subquery of two rows, "Subquery returns more than 1 row". The
-     *  platform reads the message back from the session it failed on ({@code exec.MariaDbConnector.raisedMessage}). */
+     *  platform reads the message back from the session it failed on by the two statements this dialect declares
+     *  ({@link #raiseReadBack}, carried by the plan's target: C2), the seam's read ({@code exec.JdbcStatements.held}). */
     private SqlWriter.Piece raise(List<SqlExpr> a) {
         return raise(a, null);
     }
@@ -2134,7 +2201,7 @@ public class MariaDb extends AnsiSqlRenderer {
             case DATE -> "DATE";
             case TIMESTAMP, TIMESTAMPTZ -> "DATETIME(6)";
             case TIME -> "TIME(6)";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
+            case VARCHAR, TEMPORAL_TEXT, DECIMAL_TEXT, JSON -> "CHAR";
         };
     }
 
@@ -2475,6 +2542,13 @@ public class MariaDb extends AnsiSqlRenderer {
             }
             // 1-based, negative from the end, 0 and out of range NULL (DuckDB's list_extract)
             case LIST_GET -> {
+                if (a.get(1) instanceof SqlExpr.IntLit n && n.value() > 0) {
+                    // a positive literal index: the element at its path, nothing more to test
+                    SqlWriter.Piece at = elementAtPosition(a.get(0), w -> w.append(String.valueOf(n.value() - 1)));
+                    String type = listElement(a.get(0)) == null ? castTarget(typeOf(c)) : null;
+                    yield type == null ? writer.piece(at)
+                            : writer.append("CAST(").piece(at).append(" AS " + type + ")");
+                }
                 SqlWriter.Piece at = elementAt(a.get(0), w -> w.append("CASE WHEN ").expr(a.get(1), 4)
                         .append(" < 0 THEN ").expr(a.get(1), 0).append(" ELSE ").expr(a.get(1), 6).append(" - 1 END"));
                 // a list whose elements claim no type (an empty list's NULL): JSON_VALUE of a NULL is binary, so
@@ -2487,6 +2561,13 @@ public class MariaDb extends AnsiSqlRenderer {
                     writer.append("CAST(").piece(at).append(" AS " + type + ")");
                 }
                 yield writer.append(" END)");
+            }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> {
+                SqlWriter.Piece at = elementAtPosition(a.get(0), w -> w.expr(a.get(1), 6).append(" - 1"));
+                // a list whose elements claim no type: cast to the call's own type, as LIST_GET
+                String type = listElement(a.get(0)) == null ? castTarget(typeOf(c)) : null;
+                yield type == null ? writer.piece(at) : writer.append("CAST(").piece(at).append(" AS " + type + ")");
             }
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS
             case LIST_POSITION -> writer.append("(SELECT min(" + o + ") FROM ")
@@ -3370,12 +3451,21 @@ public class MariaDb extends AnsiSqlRenderer {
 
     private String frameBound(SqlExpr.WindowCall.Frame.Bound b, boolean days) {
         return switch (b) {
+            // measured 2026-10-31 (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a): MariaDB and MySQL take a
+            // frame offset only as a literal or a bare parameter, no expression
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw computedOffset();
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw computedOffset();
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> intervalDays(p.n(), p.unit(), days)
                     + " PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> intervalDays(fo.n(), fo.unit(), days)
                     + " FOLLOWING";
             default -> bound(b);
         };
+    }
+
+    private DialectCapability computedOffset() {
+        return new DialectCapability("a window frame offset the database computes reached " + product()
+                + ", which takes a frame offset only as a literal or a bare parameter (measured 2026-10-31)");
     }
 
     private String intervalDays(long n, String unit, boolean days) {
@@ -3424,34 +3514,19 @@ public class MariaDb extends AnsiSqlRenderer {
     // Plan parameters
     // ==================================================================
 
+    /** A Date and a DateTime parameter are a {@code DATETIME(6)}, MariaDB's finest, a value of a finer digit refused by
+     *  the statement's own raise, never sent for the database to round (S181, A7; D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("DATE", RenderedStatement.Digits.NONE);
-            case DATE_TIME, DATE_TIME_NANOS ->
-                    new RenderedStatement.TypeSpelling("DATETIME(6)", RenderedStatement.Digits.NONE);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("DATETIME(6)", new RenderedStatement.AsText(6));
         };
     }
 
     // ==================================================================
     // Values: what the driver hands back
     // ==================================================================
-
-    /** A boolean arrives as 1 or 0 (a comparison is an integer here); a struct or a map as its JSON text, decoded to
-     *  the platform's map of its fields. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (type == SqlType.Scalar.BOOLEAN && jdbcValue instanceof Number n) {
-            return n.longValue() != 0;
-        }
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        return jdbcValue;
-    }
 
     // ==================================================================
     // DDL (test fixtures)

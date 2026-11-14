@@ -1,0 +1,257 @@
+import re, sys, json, collections, pathlib
+sys.path.insert(0, '/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad')
+from purescan import *
+
+QUERY_KW = {'SELECT', 'WITH', 'VALUES', 'TABLE', 'SHOW', 'DESCRIBE'}
+EFFECT_NATIVES = ['executeInDb', 'dropAndCreateTableInDb', 'dropAndCreateSchemaInDb', 'loadCsvToDbTable', 'createTempTable', 'dropTempTable']
+PRINT_NATIVES = ['print', 'println']
+FRAME_NATIVES = {'execute', 'executeLegendQuery'}   # meta::pure::router::execute, meta::pure::executionPlan::execute, meta::legend::executeLegendQuery
+TDG_NATIVES = ['generateTestData', 'generateSeedDataString', 'getRelationalCSVDataFromQuery', 'planTestDataGeneration']
+ASSERT_RE = re.compile(r'^assert\w*$')
+HEAD_RE = re.compile(r'^\s*((?:[A-Za-z_]\w*::)*)([A-Za-z_]\w*)\s*\(')
+LET_RE = re.compile(r'^let\s+([A-Za-z_]\w*)\s*=\s*(.*)$', re.S)
+CALL_RE = re.compile(r'(?<![\w$:])((?:[A-Za-z_]\w*::)*)([A-Za-z_]\w*)\s*\(')
+ARROW_CALL_RE = re.compile(r'->\s*((?:[A-Za-z_]\w*::)*)([A-Za-z_]\w*)\s*\(')
+ALL_RE = re.compile(r'(?<![\w$])((?:[A-Za-z_]\w*::)*)([A-Z]\w*)\s*\.\s*all\s*\(\s*\)')
+PIVOT = '->pivot('
+CAST = '->cast(@'
+
+def first_arg(s, i):
+    """s[i] == '(' ; returns the first argument's text."""
+    e = match_balanced(s, i, '(', ')')
+    return split_top(s[i+1:e-1], ',')[0].strip(), s[i+1:e-1], e
+
+def literal_single_query(arg):
+    a = arg.strip()
+    if not (a.startswith("'") and a.endswith("'") and a.count("'") - a.count("\\'") == 2):
+        return None  # not one literal
+    sql = a[1:-1]
+    stmts = [x for x in re.split(r';', sql) if x.strip()]
+    if len(stmts) != 1:
+        return False
+    s = stmts[0].strip()
+    s = re.sub(r'^(--[^\n]*\n|\s)+', '', s)
+    m = re.match(r'[A-Za-z]+', s)
+    return bool(m) and m.group(0).upper() in QUERY_KW
+
+def executeInDb_calls(text):
+    """Every executeInDb( / executeInDbToTDS( call in text: (pos, name, first-arg, kind)"""
+    out = []
+    for m in re.finditer(r'(?<![\w$])(executeInDb(?:ToTDS)?)\s*\(', text):
+        name = m.group(1)
+        i = m.end() - 1
+        arg, args, end = first_arg(text, i)
+        q = literal_single_query(arg)
+        kind = 'grid' if q else ('effect:non-literal-sql' if q is None else 'effect:non-query-literal')
+        out.append({'pos': m.start(), 'name': name, 'arg': arg, 'kind': kind, 'end': end})
+    return out
+
+def head(s):
+    m = HEAD_RE.match(s)
+    return (m.group(1), m.group(2)) if m else (None, None)
+
+def classify(stmts, helpers_effect, caller=None):
+    """Per statement: kind + flags; the driver's precedence (effect, let, assert, value)."""
+    res = []
+    n = len(stmts)
+    for i, s in enumerate(stmts):
+        last = i == n - 1
+        calls = executeInDb_calls(s)
+        direct_effect = any(c['kind'] != 'grid' for c in calls) or any(re.search(r'(?<![\w$])' + e + r'\s*\(', s) for e in EFFECT_NATIVES[1:])
+        prints = bool(re.search(r'(?<![\w$>])(println|print)\s*\(', s))
+        helper_effect = None
+        if callable(helpers_effect):
+            for pm in CALL_RE.finditer(s):
+                r = helpers_effect(pm.group(2), caller)
+                if r: helper_effect = r; break
+        flags = set()
+        if PIVOT in s:
+            tail = s[s.rfind(PIVOT):]
+            flags.add('pivot-uncast' if CAST not in tail else 'pivot-cast')
+        if ALL_RE.search(s): flags.add('all()')
+        if re.search(r'(?<![\w$])getAll\s*\(', s): flags.add('getAll(')
+        if any(re.search(r'(?<![\w$])' + t + r'\s*\(', s) for t in TDG_NATIVES): flags.add('tdg')
+        if re.search(r'->\s*stage\s*\(', s): flags.add('stage')
+        kind = None; sub = None; letname = None; rhs = None
+        lm = LET_RE.match(s)
+        if direct_effect:
+            kind = 'effect'; sub = 'direct'
+        elif helper_effect:
+            kind = 'effect'; sub = 'via-helper'; flags.add('via:' + '>'.join(x.split('::')[-1] for x in helper_effect))
+        elif prints and not lm:
+            kind = 'effect'; sub = 'print'
+        elif lm and not last:
+            letname, rhs = lm.group(1), lm.group(2).strip()
+            if re.fullmatch(r'\$[A-Za-z_]\w*', rhs):
+                kind = 'let:alias'
+            elif 'stage' in flags:
+                kind = 'let:staged'
+            else:
+                pk, hn = head(rhs)
+                if hn in FRAME_NATIVES:
+                    kind = 'let:frame'
+                elif hn in ('executeInDb', 'executeInDbToTDS') and calls and calls[0]['kind'] == 'grid' and calls[0]['pos'] <= len(s) - len(rhs) + 2:
+                    kind = 'let:raw-grid'
+                elif hn is not None and hn.startswith('execute'):
+                    kind = 'let:value'; sub = 'helper-execute*:' + hn
+                else:
+                    kind = 'let:value'
+        elif lm and last:
+            kind = 'value'; sub = 'trailing-let'
+        else:
+            pk, hn = head(s)
+            if hn and ASSERT_RE.match(hn):
+                kind = 'assert'; sub = hn
+            elif any(ASSERT_RE.match(c.group(2)) for c in CALL_RE.finditer(s)) or any(ASSERT_RE.match(c.group(2)) for c in ARROW_CALL_RE.finditer(s)):
+                kind = 'assert'; sub = 'nested:' + (hn or s[:12])
+            else:
+                kind = 'value'
+        res.append({'i': i, 'last': last, 'kind': kind, 'sub': sub, 'flags': sorted(flags), 'let': letname, 'text': s})
+    return res
+
+PLATFORM = set(open('/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/native_fqns.txt').read().split()) | set(open('/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/nativefn_fqns.txt').read().split())
+def platform_owned(fqn):
+    return fqn in PLATFORM or fqn.startswith('meta::pure::functions::')
+SUBSUMED = {'meta::relational::extension::relationalExtensions', 'meta::relational::functions::sqlQueryToString::createDbConfig'}
+def helper_index(funcs):
+    """A resolver: reaches(simple name, caller) -> (bool, path). Definitions keyed by simple name; a call is resolved to the
+    definitions in the caller's own package or its file's imports (else any definition of that name: a flagged fallback).
+    Platform-owned twins (the catalog's natives, meta::pure::functions::*) and the two Subsumed FQNs are excluded."""
+    by = collections.defaultdict(list)
+    for f in funcs:
+        if platform_owned(f['name']) or f['name'] in SUBSUMED:
+            continue
+        by[f['name'].split('::')[-1]].append(f)
+    memo = {}
+    def candidates(name, caller):
+        defs = by.get(name, [])
+        scoped = [d for d in defs if d['pkg'] == caller['pkg'] or d['pkg'] in caller['imports']]
+        return scoped if scoped else defs
+    def direct(body):
+        calls = executeInDb_calls(body)
+        return any(c['kind'] != 'grid' for c in calls) or any(re.search(r'(?<![\w$])' + e + r'\s*\(', body) for e in EFFECT_NATIVES[1:])
+    def reaches_def(d, stack):
+        key = d['name'] + '@' + str(d['line'])
+        if key in memo: return memo[key]
+        if key in stack: return None
+        stack.add(key)
+        r = None
+        if direct(d['body']): r = [d['name']]
+        else:
+            for m in CALL_RE.finditer(d['body']):
+                nm = m.group(2)
+                if nm == d['name'].split('::')[-1]: continue
+                for c in candidates(nm, d):
+                    sub = reaches_def(c, stack)
+                    if sub: r = [d['name']] + sub; break
+                if r: break
+        stack.discard(key); memo[key] = r; return r
+    def reaches(name, caller):
+        for c in candidates(name, caller):
+            r = reaches_def(c, set())
+            if r: return r
+        return None
+    reaches.by = by
+    return reaches
+
+def frame_reads_before_end(cl):
+    out = []
+    n = len(cl)
+    for st in cl:
+        if st['kind'] == 'let:frame':
+            v = '$' + st['let']
+            readers = [t['i'] for t in cl if t['i'] > st['i'] and not t['last'] and re.search(re.escape(v) + r'(?![\w])', t['text'])]
+            if readers: out.append((st['let'], st['i'] + 1, [r + 1 for r in readers]))
+    return out
+
+def census(label, bodies, helpers_effect):
+    kinds_b = collections.Counter(); kinds_s = collections.Counter(); asserts = collections.Counter()
+    flags_b = collections.Counter(); flags_s = collections.Counter(); subs = collections.Counter()
+    h6 = []; h1 = []; framereads = []; stmts_total = 0; lets_helper = collections.Counter()
+    uncast_any = []; pivot_bodies = []
+    percls = {}
+    for b in bodies:
+        stmts = split_statements(b['body'])
+        cl = classify(stmts, helpers_effect, b)
+        percls[b['name']] = cl
+        stmts_total += len(cl)
+        seen = set(); fseen = set()
+        for st in cl:
+            kinds_s[st['kind']] += 1; seen.add(st['kind'])
+            if st['kind'] == 'assert': asserts[st['sub'] if not st['sub'].startswith('nested') else st['sub']] += 1
+            if st['sub'] and st['sub'].startswith('helper-execute'): lets_helper[st['sub']] += 1
+            if st['kind'] == 'effect': subs['effect:' + st['sub']] += 1
+            for f in st['flags']:
+                if f.startswith('via:'): continue
+                flags_s[f] += 1; fseen.add(f)
+            if 'pivot-uncast' in st['flags'] and not st['last']:
+                h6.append((b['name'], st['i'] + 1, len(cl)))
+            if 'pivot-uncast' in st['flags']:
+                tail = st['text'][st['text'].rfind(PIVOT):]
+                if re.search(r'(->\s*)?(toString|toCSV|toJSON)\s*\(', tail):
+                    h1.append((b['name'], st['i'] + 1, len(cl)))
+        for k in seen: kinds_b[k] += 1
+        for f in fseen: flags_b[f] += 1
+        fr = frame_reads_before_end(cl)
+        if fr: framereads.append((b['name'], fr))
+        if any('pivot-uncast' in st['flags'] or 'pivot-cast' in st['flags'] for st in cl): pivot_bodies.append(b['name'])
+    return {'label': label, 'bodies': len(bodies), 'statements': stmts_total, 'kinds_by_bodies': kinds_b, 'kinds_by_statements': kinds_s,
+            'asserts': asserts, 'flags_by_bodies': flags_b, 'flags_by_statements': flags_s, 'effect_subs': subs, 'lets_helper_execute': lets_helper,
+            'h6': h6, 'h1': h1, 'framereads': framereads, 'pivot_bodies': pivot_bodies, 'percls': percls}
+
+if __name__ == '__main__':
+    cf = corpus_files()
+    allf = [fn for f in cf for fn in functions(f)]
+    tests = [f for f in allf if is_corpus_test(f)]
+    eff_helpers = helper_index(allf)
+    corp = census('corpus', tests, eff_helpers)
+    chb_all = []
+    chb = {}
+    for suite in CHB:
+        fn = [x for f in chb_files(suite) for x in functions(f)]
+        pct = [x for x in fn if is_pct_test(x) and x['nparams'] == 1]
+        chb[suite] = census('channelB:' + suite, pct, helper_index(fn))
+        chb_all += pct
+    chball = census('channelB', chb_all, None)
+    def show(c):
+        print('=====', c['label'], 'bodies', c['bodies'], 'statements', c['statements'])
+        print('kinds by bodies   :', c['kinds_by_bodies'].most_common())
+        print('kinds by statements:', c['kinds_by_statements'].most_common())
+        print('effect subs       :', c['effect_subs'].most_common())
+        print('asserts           :', c['asserts'].most_common())
+        print('flags by bodies   :', c['flags_by_bodies'].most_common())
+        print('flags by statements:', c['flags_by_statements'].most_common())
+        print('lets helper execute*:', c['lets_helper_execute'].most_common())
+        print('H6 uncast pivot non-last (body, stmt#, n):', len(c['h6']), c['h6'])
+        print('H1 static uncast pivot then toString/toCSV/toJSON:', len(c['h1']), c['h1'])
+        print('frame lets read before the end:', len(c['framereads']), c['framereads'])
+        print('bodies with any pivot:', len(c['pivot_bodies']))
+    show(corp)
+    for s in chb: show(chb[s])
+    show(chball)
+    json.dump({'corpus': {k: v for k, v in corp.items() if k != 'percls'}, 'chb': {s: {k: v for k, v in c.items() if k != 'percls'} for s, c in chb.items()}},
+              open('/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/h_static.json', 'w'), default=list, indent=1)
+    # per-body classification dump for inspection
+    with open('/tmp/claude-0/-home-user-legend-lite/aee5dfb7-5bf4-5321-839f-0e3f75cdcca9/scratchpad/h4_corpus_bodies.txt', 'w') as w:
+        for name, cl in corp['percls'].items():
+            w.write(name + '\n')
+            for st in cl:
+                w.write('   %2d %-14s %-30s %s | %s\n' % (st['i'] + 1, st['kind'], (st['sub'] or '')[:30], ','.join(st['flags']), st['text'][:110].replace('\n', ' ')))
+    print('platform-owned corpus twins excluded from the helper index:', sum(1 for f in allf if platform_owned(f['name'])), 'of', len(allf))
+    # H5 static: tdg bodies, getAll bodies, all() receivers
+    tdg = sorted({n for n, cl in corp['percls'].items() if any('tdg' in st['flags'] for st in cl)})
+    print('H5-static tdg bodies', len(tdg)); print('\n'.join('  ' + x for x in tdg))
+    ga = sorted({n for n, cl in corp['percls'].items() if any('getAll(' in st['flags'] for st in cl)})
+    print('H5-static getAll( bodies', ga)
+    rc = collections.Counter()
+    for n, cl in corp['percls'].items():
+        for st in cl:
+            for m in ALL_RE.finditer(st['text']): rc[m.group(1) + m.group(2)] += 1
+    print('all() receivers (all 83, with package prefix if written):', sorted(rc))
+    # effect:direct and effect:print statements, and frame lets, named
+    for kind, sub in (('effect', 'direct'), ('effect', 'print'), ('let:frame', None), ('let:raw-grid', None), ('value', 'trailing-let')):
+        rows = [(n, st['i'] + 1, len(cl), st['text'][:100].replace('\n', ' ')) for n, cl in corp['percls'].items() for st in cl if st['kind'] == kind and (sub is None or st['sub'] == sub)]
+        print('corpus statements kind=%s sub=%s: %d in %d bodies' % (kind, sub, len(rows), len({r[0] for r in rows})))
+        for r in rows[:60]: print('   ', r)
+    hc = collections.Counter(f[4:] for n, cl in corp['percls'].items() for st in cl for f in st['flags'] if f.startswith('via:'))
+    print('via-helper effect carriers (helper name: statements):', hc.most_common(40))

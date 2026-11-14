@@ -558,13 +558,17 @@ final class GraphEmission {
                 ? node.leaves() : List.of();
         List<TypedSerializeGraph.Child> cNested =
                 node.subTypePatches().isEmpty() ? node.nested() : List.of();
+        // every other component carries over (the engine-execute
+        // cardinality mark among them: TypedSerializeGraph's own javadoc)
         return new TypedSerializeGraph(node.source(), node.rowVar(),
                 cLeaves, cNested, node.arrayWrap(),
                 node.bareValue(), node.classFqn(), node.info(),
                 node.inlineChild(), node.subTypePatches(), node.orderKeys(),
                 node.typeKeyName(), node.fqTypePath(),
                 checkedConstraints(cs, slotPrefixes, stripped, rowVar,
-                        rowType, context, toRow));
+                        rowType, context, toRow),
+                node.removeNullKeys(), node.removeEmptySets(),
+                node.objectRefPrefix(), node.engineExecuteCardinality());
     }
 
     /** The CHECKED envelope's constraint set — the class hierarchy's
@@ -1829,6 +1833,7 @@ final class GraphEmission {
                             strat != MilestoningStrategy.PROCESSING);
             if (d instanceof com.legend.compiler.spec.typed.TypedCDate cd) {
                 String iso = cd.value().toEngineString();
+                // the zone with any time of day (register S121, pending: legend-pure writes +0000 from the minute)
                 return node.property() + "(" + iso
                         + (iso.indexOf('T') >= 0 ? "+0000" : "") + ")";
             }
@@ -3177,7 +3182,7 @@ final class GraphEmission {
                         .toList(),
                 g.orderKeys(), c.typeKey(), c.fq(),
                 g.checkedConstraints(), c.removeNull(), c.removeEmpty(),
-                objectRefPrefix);
+                objectRefPrefix, g.engineExecuteCardinality());
     }
 
     /** The ASOR objectReference STATIC prefix (engine store-object-

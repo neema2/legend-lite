@@ -14,7 +14,8 @@ file) with the same settings, so no target sets them on its own:
     `resources:memory:<n>` tag and the JVM's -Xmx<n>m, so Bazel packs tests by what
     each JVM may actually use, and CI and the desk run the same command line (and
     share cache keys). Set from a measured peak plus headroom: each run prints its
-    live heap ("[bazel] heap: live peak ..."). The rule: the live peak plus half again, at least
+    live heap ("[bazel] heap: live peak ...", in use after a FULL collection since 2026-11-10: until then after any,
+    which under G1 counted the old generation's garbage). The rule: the live peak plus half again, at least
     512 MB, rounded up to 256 MB; a lane sized otherwise says why beside it.
 
 `select` is selectors in the JUnit console launcher's vocabulary, e.g.
@@ -52,9 +53,15 @@ def junit_test(
         "-Duser.language=en",
         "-Duser.country=US",
         "-Dfile.encoding=UTF-8",
+        # G11 (the goals of record, 2026-11-07): every plan the product door makes survives its JSON (Execution.roundTrip)
+        "-Dlegend.plan.roundtrip=true",
         "-Xmx%dm" % memory_mb,
     ] + jvm_flags
     inputs = list(data)
+    # the replay referee's H2, legend-engine's own (2.1.214), by path and never on the classpath: every test JVM can
+    # open the referee (testbackend/EngineH2Referee; the user, 2026-11-05)
+    inputs.append("@h2_engine//jar:file")
+    flags.append("-Dlegend.referee.h2.rlocation=$(rlocationpath @h2_engine//jar:file)")
     if upstream:
         # each tree by the runfiles path of its root's pom.xml; Upstream resolves it through the runfiles
         # library and takes its directory (Bazel workplan P1-04)

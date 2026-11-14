@@ -2,6 +2,8 @@
 
 package com.legend;
 
+import com.legend.testplan.BodyDriver;
+
 import com.legend.compiler.element.type.PlatformTypes;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -29,7 +31,7 @@ class NativeRegistryGovernanceTest {
     @DisplayName("EFFECT rows == registered effect arms")
     void effectRegistryCoversCatalog() {
         assertEquals(rows(java.util.List.of(com.legend.builtin.NativeFn.Effect.values())),
-                StatementExecutor.registeredEffectKeys(),
+                BodyDriver.registeredEffectKeys(),
                 "EFFECT rows and registered arms drifted");
     }
 
@@ -37,7 +39,7 @@ class NativeRegistryGovernanceTest {
     @DisplayName("JAVA_ROUTINE rows == registered staged routines")
     void routineRegistryCoversCatalog() {
         assertEquals(rows(java.util.List.of(com.legend.builtin.NativeFn.JavaRoutine.values())),
-                StatementExecutor.registeredRoutineKeys(),
+                BodyDriver.registeredRoutineKeys(),
                 "JAVA_ROUTINE rows and staged routines drifted");
     }
 }

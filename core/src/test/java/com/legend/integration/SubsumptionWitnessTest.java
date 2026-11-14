@@ -3,6 +3,7 @@
 
 package com.legend.integration;
 
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -44,10 +45,7 @@ public class SubsumptionWitnessTest extends AbstractDatabaseTest {
                 // delivers CAST(ADD_INTERVAL(…) AS DATE). The round trip
                 // must yield the DAY-precision pure value — never a
                 // midnight timestamp the label alone would suggest.
-                var result = queryService.execute(
-                                getCompletePureModelWithRuntime(),
-                                "|%2024-03-05->adjust(1, meta::pure::functions::date::DurationUnit.YEARS)",
-                                "test::TestRuntime", connection);
+                var result = Lean.run(getCompletePureModelWithRuntime(), "|%2024-03-05->adjust(1, meta::pure::functions::date::DurationUnit.YEARS)", "test::TestRuntime", connection);
                 assertEquals(com.legend.values.PureDateLiteral.parse("2025-03-05"),
                                 result.rows().get(0).get(0));
         }
@@ -58,10 +56,7 @@ public class SubsumptionWitnessTest extends AbstractDatabaseTest {
                 // erasure label (38,1) while the wire delivers the
                 // literal's own (2,1). Exact BigDecimal equality (value
                 // AND scale) is the losslessness proof.
-                var result = queryService.execute(
-                                getCompletePureModelWithRuntime(),
-                                "|abs(-1.5D)",
-                                "test::TestRuntime", connection);
+                var result = Lean.run(getCompletePureModelWithRuntime(), "|abs(-1.5D)", "test::TestRuntime", connection);
                 assertEquals(new BigDecimal("1.5"),
                                 result.rows().get(0).get(0));
         }

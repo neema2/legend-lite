@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.DateFmt;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -41,7 +43,7 @@ import java.util.Set;
  *       date-time are their ISO text ({@code 'YYYY-MM-DD'}, {@code 'YYYY-MM-DD HH:MM:SS[.f]'}), and a CAST to a type
  *       name casts by its affinity only ({@code CAST('2024-01-01' AS DATE)} is 2024): every cast is decided here;</li>
  *   <li>there is no exact decimal: a decimal is a REAL, and a root decimal column is its text at its scale
- *       ({@code printf('%.2f', x)}), read back exact ({@link #normalize});</li>
+ *       ({@code printf('%.2f', x)}), read back exact by the typed reader;</li>
  *   <li>a list, a struct, a map and a Variant are JSON text (JSON1): {@code json_array}, {@code json_object}; a list
  *       operation is a correlated subquery over {@code json_each(xs)} (its {@code key} the 0-based position), a fold a
  *       correlated {@code WITH RECURSIVE} (both measured to correlate inside a scalar subquery); a value that leaves
@@ -66,6 +68,12 @@ import java.util.Set;
  * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
 public final class SQLite extends AnsiSqlRenderer {
+
+    /** {@inheritDoc} -- SQLite: half its SQLITE_MAX_SQL_LENGTH (1,000,000 bytes), a margin for multi-byte text. */
+    @Override
+    public int fusedStatementBudget() {
+        return 500_000;
+    }
 
     /**
      * SQLite (<a href="https://sqlite.org/lang_keywords.html">lang_keywords</a>)
@@ -123,6 +131,59 @@ public final class SQLite extends AnsiSqlRenderer {
         throw new DialectCapability("the engine's H2 text reached SQLite, which has no translation of it");
     }
 
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
+     *  a session table in its {@code temp} schema its load made and its release dropped). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 3.47: 100,000
+     *  records in 45 ms): each element its JSON text, a frame's record its place as the array's key (from 0, the
+     *  payload's order); an empty array no row. {@code json_each} answers an atom as its SQL value -- a string unquoted,
+     *  a JSON null SQL's NULL, true 1 -- so each is put back as its JSON text (a string quoted, {@code null},
+     *  {@code true}, {@code false}; a number its text, a real as SQLite prints it: {@code 1.50} reads {@code 1.5},
+     *  measured; the element's own text is reachable only by a path lookup per element, quadratic: 19 s at 100,000),
+     *  with no JSON subtype, as a column of JSON text holds it (measured: a {@code CASE} carries none). */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT CASE legend_payload.type WHEN 'text' THEN json_quote(legend_payload.value)"
+                + " WHEN 'null' THEN 'null' WHEN 'true' THEN 'true' WHEN 'false' THEN 'false'"
+                + " ELSE CAST(legend_payload.value AS TEXT) END AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.key AS ").append(castTypeName(place.type())).append(") AS ")
+                    .append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM json_each(");
+        return bindPayload(writer, u).append(") AS legend_payload");
+    }
+
+    /** {@inheritDoc} 9: a date-time is its text, every digit kept (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 9: a date-time column is TEXT, every digit kept (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 9;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -130,7 +191,7 @@ public final class SQLite extends AnsiSqlRenderer {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT -> "INTEGER";
             case DOUBLE -> "REAL";
-            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, LITERAL, TEMPORAL_TEXT -> "TEXT";
+            case VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON, TEMPORAL_TEXT -> "TEXT";
             case DECIMAL_TEXT -> 
                     throw new IllegalStateException(s + " cast reached a dialect without " + s + " support");
         };
@@ -190,7 +251,10 @@ public final class SQLite extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new WholePartitionOrderedSets(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new QualifyToSubselect(true), new ConstantKeysAsExpressions(), new CommonSubexpressions());
+                // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
+                // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
+                new QualifyToSubselect(true), new SelectMerge(java.util.function.UnaryOperator.identity()), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(),
+                new CommonSubexpressions());
     }
 
     @Override
@@ -388,7 +452,11 @@ public final class SQLite extends AnsiSqlRenderer {
             return e;
         }
         if (label instanceof SqlType.Decimal d) {
-            return SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e);
+            // printf reads a NULL as 0 and writes '0.00' (measured 2026-10-11 for the Float text, and 2026-10-27 here:
+            // a NULL decimal cell read back as 0.00 on the typed plan): a NULL stays NULL
+            return new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.IS_NULL, e),
+                    new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.DOUBLE))),
+                    SqlExpr.Call.of(SqlFn.FORMAT, new SqlExpr.StringLit("%." + d.scale() + "f"), e));
         }
         if (label == SqlType.Scalar.DOUBLE) {
             return new SqlExpr.Cast(e, SqlType.Scalar.DOUBLE);
@@ -867,11 +935,26 @@ public final class SQLite extends AnsiSqlRenderer {
         };
     }
 
-    /** {@code body}, or NULL for a NULL list (DuckDB's list functions answer NULL there; an aggregate over its no rows
-     *  would be the empty array). */
-    private static SqlWriter.Piece unlessNull(SqlExpr xs, SqlWriter.Piece body) {
-        return w -> w.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ").piece(body).append(" END)");
+    /** {@code body} over the list, or NULL for a NULL list (DuckDB's list functions answer NULL there; an aggregate over
+     *  its no rows would be the empty array). The list is written ONCE, bound in a one-row derived table the body reads
+     *  by name (its type the list's own): tested and then read, it was written twice, and a list built from another's
+     *  elements doubled the statement at every level (PCT round 21, 2026-11-05: exists::testExistsInSelect's verdict
+     *  statement, the database judge's canon over a firm's employees, 264K characters here and past SQLite's limit on
+     *  the lane, where DuckDB's list_transform writes it once in 4.7K). A nested binding shadows this one only inside
+     *  its own subquery, which reads its own list. */
+    private SqlWriter.Piece unlessNull(SqlExpr xs, java.util.function.Function<SqlExpr, SqlWriter.Piece> body) {
+        SqlExpr bound = xs.type() instanceof com.legend.sql.TypeFact.Typed t
+                ? SqlExpr.Column.of(BOUND_LIST, BOUND_VALUE, t.type(), t.nullable(),
+                        com.legend.sql.OutputCol.Origin.DERIVED)
+                : SqlExpr.Column.derived(BOUND_LIST, BOUND_VALUE);
+        return w -> w.append("(SELECT CASE WHEN ").expr(bound, 4).append(" IS NULL THEN NULL ELSE ")
+                .piece(body.apply(bound)).append(" END FROM (SELECT ").expr(xs, 0).append(" AS ")
+                .append(param(BOUND_VALUE)).append(") AS ").append(aliasIdent(BOUND_LIST)).append(")");
     }
+
+    /** The one-row derived table a list is bound in ({@link #unlessNull}), and its one column. */
+    private static final String BOUND_LIST = "__l";
+    private static final String BOUND_VALUE = "__xs";
 
     private static SqlExpr.Lambda lambdaOf(SqlExpr e, SqlFn fn) {
         if (e instanceof SqlExpr.Lambda l && !l.params().isEmpty()) {
@@ -924,9 +1007,9 @@ public final class SQLite extends AnsiSqlRenderer {
      *  elements kept in list order. */
     private SqlWriter.Piece overElements(SqlExpr xs, String e, String o, @com.legend.base.Nullable String i,
             SqlWriter.Piece select, SqlWriter.@com.legend.base.Nullable Piece where) {
-        return unlessNull(xs, w -> {
+        return unlessNull(xs, b -> w -> {
             w.append("(SELECT json_group_array(").piece(select).append(" ORDER BY ").append(param(o)).append(") FROM ")
-                    .piece(elements(xs, e, o, i));
+                    .piece(elements(b, e, o, i));
             if (where != null) {
                 w.append(" WHERE ").piece(where);
             }
@@ -1039,10 +1122,10 @@ public final class SQLite extends AnsiSqlRenderer {
         String e = param("__e");
         SqlWriter.Piece needle = nested(el) ? w -> w.append("json(").expr(m.needle(), 0).append(")")
                 : w -> w.expr(m.needle(), 5);
-        return writer.append("(CASE WHEN ").expr(m.collection(), 4).append(" IS NULL OR ").expr(m.needle(), 4)
-                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ").piece(elements(m.collection(), "__e", "__eo",
-                        null)).append(" WHERE " + (nested(el) ? "json(" + e + ")" : e) + " = ").piece(needle)
-                .append(") END)");
+        // the collection bound once (unlessNull), NULL for a NULL collection or needle
+        return writer.piece(unlessNull(m.collection(), b -> w -> w.append("(CASE WHEN ").expr(m.needle(), 4)
+                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ").piece(elements(b, "__e", "__eo", null))
+                .append(" WHERE " + (nested(el) ? "json(" + e + ")" : e) + " = ").piece(needle).append(") END)")));
     }
 
     @Override
@@ -1205,11 +1288,7 @@ public final class SQLite extends AnsiSqlRenderer {
         }
         if (target instanceof SqlType.Array arr) {
             SqlType from = listElement(v);
-            // a text element as LITERAL is the text itself, as the scalar cast below writes it (LITERAL is VARCHAR
-            // physically): the mixed sort's ordered ids (2026-10-13, PR #34's review: element-wise, it wrote the
-            // aggregate twice)
-            if (from == null || from.equals(arr.element())
-                    || from == SqlType.Scalar.VARCHAR && arr.element() == SqlType.Scalar.LITERAL) {
+            if (from == null || from.equals(arr.element())) {
                 return writer.expr(v, 0);
             }
             // element-wise
@@ -1220,7 +1299,7 @@ public final class SQLite extends AnsiSqlRenderer {
         if (target instanceof SqlType.Struct || target instanceof SqlType.Map) {
             return writer.expr(v, 0);
         }
-        if (target == SqlType.Scalar.VARCHAR || target == SqlType.Scalar.LITERAL) {
+        if (target == SqlType.Scalar.VARCHAR) {
             // a big integer's text raises past 64 bits, as its root column does (deliveredValue): the plan route's
             // root is the TDS text, which spells the value through this cast (step 9, 2026-10-19: the overflow's
             // REAL had crossed as '9.22337203685478e+18')
@@ -1236,10 +1315,10 @@ public final class SQLite extends AnsiSqlRenderer {
         // a member read as text is its scalar text (a string unquoted); a whole value as text is its JSON (DuckDB's
         // CAST(json AS VARCHAR) keeps a string's quotes)
         boolean member = v instanceof SqlExpr.Call call && call.fn() == SqlFn.VARIANT_GET;
-        if ((to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) && !member) {
+        if (to == SqlType.Scalar.VARCHAR && !member) {
             return w -> w.expr(v, 0);
         }
-        if (to == SqlType.Scalar.VARCHAR || to == SqlType.Scalar.LITERAL) {
+        if (to == SqlType.Scalar.VARCHAR) {
             return w -> w.append("(CASE WHEN json_type(").expr(v, 0).append(") = 'text' THEN (").expr(v, 9)
                     .append(" ->> '$') ELSE ").expr(v, 0).append(" END)");
         }
@@ -1275,7 +1354,7 @@ public final class SQLite extends AnsiSqlRenderer {
             return value;
         }
         return switch (s) {
-            case VARCHAR, LITERAL -> textOf(value, from);
+            case VARCHAR -> textOf(value, from);
             case BOOLEAN -> from == SqlType.Scalar.VARCHAR || from == SqlType.Scalar.JSON
                     ? w -> w.append("(CASE lower(").piece(value).append(") WHEN 'true' THEN 1 WHEN 'false' THEN 0 END)")
                     : w -> w.append("(").piece(value).append(" <> 0)");
@@ -1362,7 +1441,7 @@ public final class SQLite extends AnsiSqlRenderer {
     private static final Set<SqlFn> REPEATING = Set.of(SqlFn.LPAD, SqlFn.RPAD, SqlFn.LEFT, SqlFn.RIGHT,
             SqlFn.STARTS_WITH, SqlFn.ENDS_WITH, SqlFn.SPLIT, SqlFn.SPLIT_PART, SqlFn.PURE_SPLIT_PART, SqlFn.PARSE_INT,
             SqlFn.ROUND, SqlFn.ROUND_HALF_UP, SqlFn.GREATEST, SqlFn.LEAST, SqlFn.MOD, SqlFn.REM, SqlFn.CBRT,
-            SqlFn.ASCII_CODE, SqlFn.ACOS, SqlFn.ASIN, SqlFn.BOOL_TO_TEXT, SqlFn.LIST_GET, SqlFn.LIST_SLICE,
+            SqlFn.ASCII_CODE, SqlFn.ACOS, SqlFn.ASIN, SqlFn.BOOL_TO_TEXT, SqlFn.LIST_GET, SqlFn.LIST_AT, SqlFn.LIST_SLICE,
             SqlFn.LIST_INIT, SqlFn.LIST_TAIL, SqlFn.LIST_DISTINCT, SqlFn.LIST_SORT, SqlFn.LIST_SORT_DESC,
             SqlFn.LIST_REVERSE, SqlFn.LIST_FLATTEN, SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM, SqlFn.LIST_REDUCE,
             SqlFn.MAP_KEYS, SqlFn.MAP_VALUES, SqlFn.MAP_EXTRACT, SqlFn.EPOCH_SECONDS, SqlFn.EPOCH_MS,
@@ -1462,12 +1541,14 @@ public final class SQLite extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation: BINARY, whatever the column's own (the B2d.3 audit's M4)
+            case BINARY_COLLATE -> writer.append("(").expr(c.args().get(0), 0).append(" COLLATE BINARY)");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
             case SIGN -> bigintOf(writer, "sign", c.args());
             case PI -> writer.append("pi()");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -1537,6 +1618,7 @@ public final class SQLite extends AnsiSqlRenderer {
                     .append("), 1.0 / 3) ELSE pow(").expr(a.get(0), 0).append(", 1.0 / 3) END)");
             case BIT_NOT -> writer.append("(~ ").expr(a.get(0), 7).append(")");
             case PARSE_INT -> writer.piece(parseInt(a.get(0)));
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.piece(textOf(w -> w.expr(a.get(0), 0), SqlType.Scalar.BOOLEAN));
             // NULL-skipping, as DuckDB's (SQLite's max/min of several are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("max", a));
@@ -1621,7 +1703,7 @@ public final class SQLite extends AnsiSqlRenderer {
             case STRPTIME -> throw wall(c.fn(), "SQLite parses ISO text only");
 
             // ---- lists (JSON arrays; lambdas as correlated subqueries)
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_DISTINCT, LIST_APPEND,
                  LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_BOOL_AND, LIST_BOOL_OR,
                  LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_SLICE, LIST_REVERSE, LIST_FLATTEN, LIST_ZIP,
                  LIST_PRODUCT, LIST_REDUCE, RANGE_FN, REPEAT_VALUE, TYPEOF -> lists(writer, c);
@@ -1646,7 +1728,10 @@ public final class SQLite extends AnsiSqlRenderer {
         List<SqlExpr> a = c.args();
         return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
                 .append("(").expr(a.get(0), 0).append("), ")
-                .piece(raise(List.of(new SqlExpr.StringLit(c.fn() + " is undefined outside [-1,1]"))))
+                // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
+                // engine's answer), and says so -- not DuckDB's words
+                .piece(raise(List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
+                        + " of a value outside [-1, 1] is NaN, which this database cannot hold"))))
                 .append(") END)");
     }
 
@@ -2018,15 +2103,17 @@ public final class SQLite extends AnsiSqlRenderer {
                     .piece(elementAt(a.get(0), w -> w.append("CASE WHEN ").expr(a.get(1), 4).append(" < 0 THEN '#' || ")
                             .expr(a.get(1), 6).append(" ELSE ").expr(a.get(1), 6).append(" - 1 END")))
                     .append(" END)");
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> writer.piece(elementAt(a.get(0), w -> w.expr(a.get(1), 6).append(" - 1")));
             // DuckDB's list_position: 1-based, NULL when absent, a NULL needle found by IS
             case LIST_POSITION -> writer.append("(SELECT min(" + o + ") + 1 FROM ")
                     .piece(elements(a.get(0), "__e", "__o", null)).append(" WHERE " + e + " IS ").expr(a.get(1), 5)
                     .append(")");
             // DuckDB's list_distinct drops NULLs; the first occurrence's order
-            case LIST_DISTINCT -> writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
-                    .piece(jsonOf(v -> v.append(e), listElement(a.get(0)))).append(" ORDER BY " + o + ") FROM (SELECT "
+            case LIST_DISTINCT -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
+                    .piece(jsonOf(v -> v.append(e), listElement(b))).append(" ORDER BY " + o + ") FROM (SELECT "
                             + e + ", min(" + o + ") AS " + o + " FROM ")
-                    .piece(elements(a.get(0), "__e", "__o", null)).append(" WHERE " + e + " IS NOT NULL GROUP BY " + e
+                    .piece(elements(b, "__e", "__o", null)).append(" WHERE " + e + " IS NOT NULL GROUP BY " + e
                             + "))")));
             // list_append(NULL, v) is [v]
             case LIST_APPEND -> writer.append("json_insert(coalesce(").expr(a.get(0), 0).append(", json_array()),"
@@ -2044,13 +2131,13 @@ public final class SQLite extends AnsiSqlRenderer {
             case LIST_SORT, LIST_SORT_DESC -> {
                 String dir = c.fn() == SqlFn.LIST_SORT ? " ASC NULLS LAST" : " DESC NULLS LAST";
                 SqlType el = listElement(a.get(0));
-                yield writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
+                yield writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
                         .piece(jsonOf(v -> v.append(e), el)).append(" ORDER BY ").append(elementSort(e, el, dir))
-                        .append(") FROM ").piece(elements(a.get(0), "__e", "__o", null)).append(")")));
+                        .append(") FROM ").piece(elements(b, "__e", "__o", null)).append(")")));
             }
-            case LIST_REVERSE -> writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
-                    .piece(jsonOf(v -> v.append(e), listElement(a.get(0)))).append(" ORDER BY " + o + " DESC) FROM ")
-                    .piece(elements(a.get(0), "__e", "__o", null)).append(")")));
+            case LIST_REVERSE -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
+                    .piece(jsonOf(v -> v.append(e), listElement(b))).append(" ORDER BY " + o + " DESC) FROM ")
+                    .piece(elements(b, "__e", "__o", null)).append(")")));
             case LIST_TAIL -> writer.piece(overElements(a.get(0), "__e", "__o", null,
                     jsonOf(w -> w.append(e), listElement(a.get(0))), w -> w.append(o + " > 0")));
             case LIST_INIT -> writer.piece(overElements(a.get(0), "__e", "__o", null,
@@ -2063,9 +2150,9 @@ public final class SQLite extends AnsiSqlRenderer {
                             .piece(sliceEnd(a.get(0), a.get(2)))));
             case LIST_FLATTEN -> {
                 SqlType inner = listElement(a.get(0)) instanceof SqlType.Array arr ? arr.element() : null;
-                yield writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
+                yield writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
                         .piece(jsonOf(v -> v.append(elementRead(inner, "__fi")), inner))
-                        .append(" ORDER BY __fo.key, __fi.key) FROM json_each(").expr(a.get(0), 0)
+                        .append(" ORDER BY __fo.key, __fi.key) FROM json_each(").expr(b, 0)
                         .append(") AS __fo, json_each(__fo.value) AS __fi)")));
             }
             case LIST_ZIP -> writer.piece(zip(a, c));
@@ -2188,11 +2275,11 @@ public final class SQLite extends AnsiSqlRenderer {
                     .append("SELECT json_array(").piece(jsonOf(w -> w.append(elementRead(value)), value))
                     .append(") FROM json_each(").expr(a.get(0), 0).append(") WHERE key = ").expr(a.get(1), 5)
                     .append("), json_array()) END)");
-            case MAP_KEYS -> writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(key ORDER BY id)"
-                    + " FROM json_each(").expr(a.get(0), 0).append("))")));
-            case MAP_VALUES -> writer.piece(unlessNull(a.get(0), w -> w.append("(SELECT json_group_array(")
+            case MAP_KEYS -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(key ORDER BY"
+                    + " id) FROM json_each(").expr(b, 0).append("))")));
+            case MAP_VALUES -> writer.piece(unlessNull(a.get(0), b -> w -> w.append("(SELECT json_group_array(")
                     .piece(jsonOf(v -> v.append(elementRead(value)), value)).append(" ORDER BY id) FROM json_each(")
-                    .expr(a.get(0), 0).append("))")));
+                    .expr(b, 0).append("))")));
             // the later map's keys win, as DuckDB's map_concat
             case MAP_CONCAT -> writer.append("(SELECT json_group_object(__m.__k, ")
                     .piece(jsonOf(w -> w.append("__m.__v"), value))
@@ -2713,9 +2800,14 @@ public final class SQLite extends AnsiSqlRenderer {
             case MAX -> aggregate(writer, "MAX", r);
             // any non-NULL value: the least (SQLite has no any_value)
             case ANY_VALUE -> writer.append("min(").piece(aggregateArgs(r)).append(")");
-            // the driver's statistics extension: stdev and variance are the sample ones
-            case STDDEV_SAMP, STDDEV -> writer.append("stdev(").piece(aggregateArgs(r)).append(")");
-            case VAR_SAMP, VARIANCE -> writer.append("variance(").piece(aggregateArgs(r)).append(")");
+            // the driver's statistics extension: stdev and variance are the sample ones -- each of one value 0 there,
+            // where the sample statistic of one value is none (DuckDB's, Postgres's, and the windowed moments' own
+            // n > 1 below), so none where fewer than two values are read (W10, 2026-11-06, measured: a calendar
+            // window's deviation of its first day, 0.0 by the join, none by the frame and in Java)
+            case STDDEV_SAMP, STDDEV -> writer.append("(CASE WHEN count(").piece(aggregateArgs(r))
+                    .append(") > 1 THEN stdev(").piece(aggregateArgs(r)).append(") END)");
+            case VAR_SAMP, VARIANCE -> writer.append("(CASE WHEN count(").piece(aggregateArgs(r))
+                    .append(") > 1 THEN variance(").piece(aggregateArgs(r)).append(") END)");
             case VAR_POP -> writer.piece(populationVariance(r));
             case STDDEV_POP -> writer.append("sqrt(").piece(populationVariance(r)).append(")");
             case COVAR_POP, COVAR_SAMP, CORR -> writer.piece(moments(r));
@@ -2978,10 +3070,19 @@ public final class SQLite extends AnsiSqlRenderer {
         }
         if (f != null) {
             boolean inDays = days;
-            writer.append(any ? " " : "").append(f.kind().toString()).append(" BETWEEN ")
-                    .append(frameBound(f.from(), inDays)).append(" AND ").append(frameBound(f.to(), inDays));
+            writer.append(any ? " " : "").append(f.kind().toString()).append(" BETWEEN ");
+            frameBound(writer, f.from(), inDays).append(" AND ");
+            frameBound(writer, f.to(), inDays);
         }
         return writer.append(")");
+    }
+
+    /** A frame bound into the writer: an offset the database computes as its expression (writeBound; measured
+     *  2026-10-31: SQLite takes an expression and a parameter, refuses a negative offset), any other as its text. */
+    private SqlWriter frameBound(SqlWriter writer, SqlExpr.WindowCall.Frame.Bound b, boolean days) {
+        return b instanceof SqlExpr.WindowCall.Frame.Bound.ComputedPreceding
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.ComputedFollowing
+                ? writeBound(writer, b) : writer.append(frameBound(b, days));
     }
 
     private static boolean intervalBound(SqlExpr.WindowCall.Frame.Bound b) {
@@ -3046,36 +3147,13 @@ public final class SQLite extends AnsiSqlRenderer {
     // Plan parameters: a date or date-time is bound as its text
     // ==================================================================
 
+    /** A Date and a DateTime parameter are bound as their text (SQLite keeps a date as text; D1, P4). */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
         return switch (kind) {
-            case DATE -> new RenderedStatement.TypeSpelling("TEXT", RenderedStatement.Digits.NONE);
-            case DATE_TIME, DATE_TIME_NANOS ->
-                    new RenderedStatement.TypeSpelling("TEXT", RenderedStatement.Digits.NONE);
-            case INTEGER, DECIMAL, FLOATING -> super.holeType(kind);
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TEXT", new RenderedStatement.AsText(null));
         };
-    }
-
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A boolean arrives as 1 or 0; a struct or a map as its JSON text, decoded to the platform's map of its fields; a
-     *  root decimal as its text at its scale ({@link #delivered}), read exact. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (type == SqlType.Scalar.BOOLEAN && jdbcValue instanceof Number n) {
-            return n.longValue() != 0;
-        }
-        if (jdbcValue instanceof String s && (type instanceof SqlType.Struct || type instanceof SqlType.Map)
-                && s.startsWith("{")) {
-            return com.legend.sql.Json.parse(s);
-        }
-        if (jdbcValue instanceof String s && type instanceof SqlType.Decimal) {
-            return new java.math.BigDecimal(s);
-        }
-        return jdbcValue;
     }
 
     // ==================================================================
@@ -3103,6 +3181,7 @@ public final class SQLite extends AnsiSqlRenderer {
     /** A schema names no object of its own ({@link #tableName}): its creation and its drop are no statement. */
     @Override
     public String render(com.legend.sql.SqlDdl ddl) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (ddl) {
             case com.legend.sql.SqlDdl.CreateSchema cs -> "SELECT 1;";
             case com.legend.sql.SqlDdl.DropSchema ds -> "SELECT 1;";
@@ -3132,6 +3211,7 @@ public final class SQLite extends AnsiSqlRenderer {
     /** Rows in and out of a table, named as {@link #tableName} names it. */
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> {
                 SqlWriter writer = newWriter().append("INSERT INTO ").append(qualified(iv.schema(), iv.table(), iv.quoting()))
@@ -3150,11 +3230,15 @@ public final class SQLite extends AnsiSqlRenderer {
                     + columns(it.columns(), it.quotedColumns()) + " SELECT * FROM " + ident(it.source()) + ";";
             case com.legend.sql.SqlDml.DeleteAll da -> "DELETE FROM " + qualified(da.schema(), da.table(), da.quoting()) + ";";
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> tempTableAs(ct).text();
+            // (a host's copy: refused by the base, every host copying into its own DuckDB)
+            case com.legend.sql.SqlDml.CreateTableAs ct -> super.render(ct);
             // (the store writes: refused by the base until SQLite's spelling is measured)
             case com.legend.sql.SqlDml.InsertSelect is -> super.render(is);
             case com.legend.sql.SqlDml.Update u -> super.render(u);
             case com.legend.sql.SqlDml.DeleteWhere dw -> super.render(dw);
             case com.legend.sql.SqlDml.Merge m -> super.render(m);
+            // (a CSV file's load: the base's statement, its reader refused until SQLite's is designed)
+            case com.legend.sql.SqlDml.LoadCsv lc -> super.render(lc);
         };
     }
 

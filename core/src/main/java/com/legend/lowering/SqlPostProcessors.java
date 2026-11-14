@@ -249,6 +249,7 @@ public final class SqlPostProcessors {
                     j.on() == null ? null : expr(j.on(), m));
             case SqlSource.VarSetPlaceholder vp -> vp;
             case SqlSource.RawSql raw -> raw;   // carried text: opaque to rewrites
+            case SqlSource.GridReport g -> g;   // a leaf
             case SqlSource.Catalog c -> c;   // a leaf
             case SqlSource.Subselect sub -> new SqlSource.Subselect(
                     apply(sub.inner(), m), sub.alias(), sub.frameName());
@@ -266,7 +267,7 @@ public final class SqlPostProcessors {
             case SqlSource.Values v -> new SqlSource.Values(
                     v.rows().stream().map(r -> r.stream()
                             .map(x -> expr(x, m)).toList()).toList(),
-                    v.columns(), v.alias(), v.outputs());
+                    v.columns(), v.alias(), v.outputs(), v.payload());
             case SqlSource.SourceUrl u -> u;
             case SqlSource.Dual d -> d;
         };

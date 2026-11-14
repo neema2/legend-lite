@@ -1,0 +1,33 @@
+# The census of core's tests that still enter through the old door (Execution.execute*, QueryService's materialized
+# execute, ExecutionResult), each test method classified by what it asserts. Written 2026-10-28 for the core-twin
+# plan (docs/RESULT_BOUNDARY_START_HERE.md §5, track T); a heuristic over each @Test method's text, not a parser:
+# treat its counts as within a few percent. Run from the repository root: python3 -I <this file> > census.tsv
+import re, collections, subprocess
+files = subprocess.run(["grep", "-rlE",
+    r"Execution\.execute(Resolved)?\(|QueryService\(\)\.execute\(|queryService\.execute\(|ExecutionResult",
+    "--include=*.java", "core/src/test"], capture_output=True, text=True).stdout.split()
+VALUE = r'\.rows\(\)|rowCount\(\)|asScalar|asCollection|assertScalar|assertRows|PersonResult|executePureQuery|\.get\(0\)\.get\('
+print("file\ttests\tvalue\tvalue_model_free\tvalue_over_model\tvalue_query_elsewhere\tvalue_with_let\tcolumns_only\tsql_text\trefusal\tother\told_door_calls\textends_AbstractDatabaseTest")
+for f in sorted(files):
+    s = open(f).read()
+    parts = re.split(r'@(?:Test|ParameterizedTest|TestFactory)\b', s)[1:]
+    c = collections.Counter()
+    for p in parts:
+        body = p[:4000]
+        m = re.search(r'\n\s{0,8}(?:@Test|@ParameterizedTest|@TestFactory|//\s*====)', body)
+        body = body[:m.start()] if m else body
+        rows = bool(re.search(VALUE, body))
+        if re.search(r'assertThrows|Exception\.class|getMessage\(\)', body) and not rows: c['refusal'] += 1
+        elif rows:
+            c['value'] += 1
+            q = ' '.join(re.findall(r'"(\|[^"]*|[^"]*->[^"]*)"', body))
+            if re.search(r'\.all\(\)|#>\{|getAll|->from\(', q): c['model'] += 1
+            elif re.search(r'"\|', body): c['model_free'] += 1
+            else: c['elsewhere'] += 1   # the query is built by a helper or a text block the heuristic does not read
+            if re.search(r'\blet\s+\w+\s*=', q): c['let'] += 1
+        elif re.search(r'\.columns\(\)', body): c['columns'] += 1
+        elif re.search(r'generateSql|\bsql\b.*contains|assertSql|\.sql\(\)', body): c['sql'] += 1
+        else: c['other'] += 1
+    calls = len(re.findall(r'Execution\.execute(?:Resolved)?\(|QueryService\(\)\.execute\(|queryService\.execute\(', s))
+    print("\t".join(map(str, [f.replace("core/src/test/java/com/legend/", ""), len(parts), c['value'], c['model_free'], c['model'], c['elsewhere'],
+        c['let'], c['columns'], c['sql'], c['refusal'], c['other'], calls, 'extends AbstractDatabaseTest' in s])))

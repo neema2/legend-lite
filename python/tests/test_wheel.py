@@ -103,7 +103,7 @@ files = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(Quie
 threading.Thread(target=files.serve_forever, daemon=True).start()
 said = datacube._session.engine().answer("POST", "/remote.json", "", json.dumps(
     {"url": "http://127.0.0.1:%d/remote.parquet" % files.server_address[1], "name": "wheel_remote"}))
-duck = datacube._session.frames.connection
+duck = datacube._session.frames.connection._con
 remote = {"status": said.status, "answer": said.body.decode()[:300],
           "rows": duck.execute("SELECT count(*) FROM wheel_remote").fetchone()[0] if said.status == 200 else None,
           "httpfs": duck.execute("SELECT install_path FROM duckdb_extensions() WHERE extension_name = 'httpfs'").fetchone()[0]}

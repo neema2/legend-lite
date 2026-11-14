@@ -77,8 +77,8 @@ public final class UpstreamRelationType {
      * {@code pureTypeToDataTypeMap} (pureToRelational.pure:48-56) on the PLAIN type,
      * probed against 4.145.0's {@code generatePlan} 2026-09-27 (a precise
      * {@code Numeric} spells {@code FLOAT}, {@code TinyInt} {@code INTEGER},
-     * {@code Varchar} {@code VARCHAR(1024)} -- their plain parents'). An unprobed type
-     * is refused, never guessed.
+     * {@code Varchar} {@code VARCHAR(1024)} -- their plain parents'), and a Variant's 2026-10-28 (PARK-34). Any
+     * other type is refused, as the engine refuses it.
      */
     public static String relationalSpelling(Type t) {
         if (t instanceof Type.EnumType) {
@@ -94,9 +94,14 @@ public final class UpstreamRelationType {
             case "Boolean" -> "BIT";
             case "StrictDate" -> "DATE";
             case "DateTime", "Date" -> "TIMESTAMP";
+            // a Variant column, a SEMISTRUCTURED store column's and a computed toVariant()'s alike (measured,
+            // 4.145.0, 2026-10-28: PARK-34's probe, its execute on DuckDB and its plan on DuckDB and H2)
+            case com.legend.compiler.element.type.PlatformTypes.VARIANT -> "SEMISTRUCTURED";
+            // the engine spells no other (measured, 4.145.0, 2026-10-28: it refuses a StrictTime, a list and a
+            // VARBINARY column before it executes), so neither does lite
             default -> throw new com.legend.error.NotImplementedException(
-                    "plan: the relational spelling of " + typePath(t)
-                            + " is unprobed -- probe legend-engine, do not guess");
+                    "plan: legend-engine has no relational spelling of " + typePath(t)
+                            + " (it refuses such a column before it executes)");
         };
     }
 

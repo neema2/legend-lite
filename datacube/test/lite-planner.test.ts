@@ -39,23 +39,33 @@ function fakeExports(
   let next = 1;
   const over = (h: number, q: string, r: string): string =>
     (models.has(h) ? answer(models.get(h)!, q, r) : `ERR\n500\nno model is held under handle ${h}`);
+  const hold = (m: string): string => {
+    onWarm?.(m);
+    log.holds.push(m);
+    if (m === 'does not compile') return 'ERR\nCOMPILATION\nthe model does not compile';
+    const handle = next++;
+    models.set(handle, m);
+    return `OK\n${handle}`;
+  };
   return {
-    holdModelOrError: (m: string) => {
-      onWarm?.(m);
-      log.holds.push(m);
-      if (m === 'does not compile') return 'ERR\nCOMPILATION\nthe model does not compile';
-      const handle = next++;
-      models.set(handle, m);
-      return `OK\n${handle}`;
-    },
+    holdModelOrError: hold,
+    // a model over a library held as the one text, as the module holds it (HeldModels.hold(model, library))
+    holdModelOverOrError: (m: string, l: string) => hold(`${m}\n${l}`),
     releaseModelOrError: (h: number) => { log.releases.push(h); models.delete(h); return 'OK\n'; },
     planHeldOrError: over,
     planJsonHeldOrError: over,
+    executionPlanJsonHeldOrError: () => 'ERR\nfake\nnot in this fake',
     relationTypeHeldOrError: () => 'OK\n{"_type":"relationType","columns":[]}',
     tableModelOrError: () => 'ERR\nfake\nnot in this fake',
     catalogColumnsSqlOrError: () => 'ERR\nfake\nnot in this fake',
     pureV1OrError: () => 'ERR\nfake\nnot in this fake',
-    testDataSqlOrError: () => 'ERR\nfake\nnot in this fake',
+    fileLoadOrError: () => 'ERR\nfake\nnot in this fake',
+    remoteMountOrError: () => 'ERR\nfake\nnot in this fake',
+    snapStreamOrError: () => 'ERR\nfake\nnot in this fake',
+    snapCopyOrError: () => 'ERR\nfake\nnot in this fake',
+    outputPlanOrError: () => 'ERR\nfake\nnot in this fake',
+    synthesizeOrError: () => 'ERR\nfake\nnot in this fake',
+    authoredOrError: () => 'ERR\nfake\nnot in this fake',
     sessionSetupOrError: () => 'ERR\nfake\nnot in this fake',
     projectDataOrError: () => 'ERR\nfake\nnot in this fake',
     hostOperationsOrError: () => 'ERR\nfake\nnot in this fake',
@@ -394,6 +404,8 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     readonly exports = fakeExports((_m) => ok('SELECT 1'), undefined, { holds: [], releases: [] });
     readonly holds: string[] = [];
     readonly releases: number[] = [];
+    /** What it was told, in order: each release, and its end. */
+    readonly told: string[] = [];
     terminated = false;
     onmessage: ((e: { data: unknown }) => void) | null = null;
     onerror: ((e: { message: string }) => void) | null = null;
@@ -402,14 +414,18 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     }
     postMessage(msg: Record<string, unknown>): void {
       const x = this.exports;
-      const answer = msg['kind'] === 'hold' ? (this.holds.push(msg['model'] as string), x.holdModelOrError(msg['model'] as string))
-        : msg['kind'] === 'release' ? (this.releases.push(msg['handle'] as number), x.releaseModelOrError(msg['handle'] as number))
+      const answer = msg['kind'] === 'hold' && msg['library'] !== undefined
+        ? (this.holds.push(`${msg['model'] as string}\n${msg['library'] as string}`),
+          x.holdModelOverOrError(msg['model'] as string, msg['library'] as string))
+        : msg['kind'] === 'hold' ? (this.holds.push(msg['model'] as string), x.holdModelOrError(msg['model'] as string))
+        : msg['kind'] === 'release' ? (this.releases.push(msg['handle'] as number), this.told.push('release'), x.releaseModelOrError(msg['handle'] as number))
         : msg['kind'] === 'plan' ? x.planHeldOrError(msg['handle'] as number, msg['query'] as string, msg['runtime'] as string)
         : 'ERR\nfake\nnot in this fake';
       queueMicrotask(() => this.onmessage?.({ data: { id: msg['id'], ok: true, answer } }));
     }
     terminate(): void {
       this.terminated = true;
+      this.told.push('terminate');
     }
     die(): void {
       this.onerror?.({ message: 'gone' });
@@ -456,7 +472,19 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     assert.equal(FakeWorker.made.length, 1);
     assert.deepEqual(FakeWorker.made[0]!.holds, ['m'], 'its model held on the host\'s worker');
     p.dispose();
+    await new Promise((done) => setTimeout(done, 0));
     assert.equal(FakeWorker.made[0]!.terminated, true, 'and let go with the planner');
+  });
+
+  // the Phase 6 review's 3: a host's worker (Python's) keeps the models it holds in the host, not in itself -- a typer's
+  // hold of a 4 MB model outlived it, the release never sent once the worker was ended
+  it('dispose lets its model go on a host\'s worker before it ends the worker', async () => {
+    FakeWorker.made = [];
+    const p = new LitePlanner({ model: 'm', runtime: 'r', worker: () => new FakeWorker() as unknown as PlannerWorker, cache: false });
+    await p.planText('a');
+    p.dispose();
+    await new Promise((done) => setTimeout(done, 0));
+    assert.deepEqual(FakeWorker.made[0]!.told, ['release', 'terminate'], 'its model let go, then the worker ended');
   });
 });
 

@@ -3,14 +3,9 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
-import com.legend.model.ConnectionSpecification;
+import com.legend.executionplan.DatabaseType;
+import com.legend.executionplan.ConnectionSpecification;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 
 /** MariaDB's sessions: a server, reached by its coordinates through MariaDB Connector/J, which opens MySQL too
  *  (measured on MariaDB 11.4 and MySQL 8.4: one driver, one URL; {@link MySqlConnector}). */
@@ -33,7 +28,7 @@ class MariaDbConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         if (def.specification() instanceof ConnectionSpecification.StaticDatasource(String host, int port,
                 String database)) {
             return new Sessions.Opening.Url("jdbc:mariadb://" + host + ":" + port + "/" + database);
@@ -47,16 +42,16 @@ class MariaDbConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} A MariaDB statement cannot raise an error of its own text, so the dialect keeps the message in the
-     *  session's user variable {@code @legend_raise} before it fails ({@code sql.dialect.MariaDb}'s raise, and
-     *  MySQL's): one fixed read of the session's state, and its reset, never a query of the user's. */
+    /** {@inheritDoc} No: MariaDB and MySQL roll back the failed statement alone; the transaction goes on. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) throws SQLException {
-        try (Statement st = session.createStatement(); ResultSet rs = st.executeQuery("SELECT @legend_raise")) {
-            String held = rs.next() ? rs.getString(1) : null;
-            st.execute("SET @legend_raise = NULL");
-            return held;
-        }
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
     }
 
     @Override

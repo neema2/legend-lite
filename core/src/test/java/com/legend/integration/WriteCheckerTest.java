@@ -156,8 +156,8 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
                       ->project(~[name:p|$p.firstName, age:p|$p.age])
                       ->from(test::TestRuntime)""");
             assertEquals(1, result.rows().size(), "Only Bob (45)");
-            assertEquals("Bob", result.rows().get(0).values().get(0));
-            assertEquals(45, result.rows().get(0).values().get(1));
+            assertEquals("Bob", result.rows().get(0).get(0));
+            assertEquals(45L, result.rows().get(0).get(1));
         }
 
         @Test
@@ -194,12 +194,12 @@ public class WriteCheckerTest extends AbstractDatabaseTest {
             assertEquals("name", result.columns().get(1).name());
             assertEquals("score", result.columns().get(2).name());
             // Exact values
-            assertEquals(1, result.rows().get(0).values().get(0));
-            assertEquals("Alice", result.rows().get(0).values().get(1));
-            assertEquals(95, result.rows().get(0).values().get(2));
-            assertEquals(2, result.rows().get(1).values().get(0));
-            assertEquals("Bob", result.rows().get(1).values().get(1));
-            assertEquals(87, result.rows().get(1).values().get(2));
+            assertEquals(1L, result.rows().get(0).get(0));
+            assertEquals("Alice", result.rows().get(0).get(1));
+            assertEquals(95L, result.rows().get(0).get(2));
+            assertEquals(2L, result.rows().get(1).get(0));
+            assertEquals("Bob", result.rows().get(1).get(1));
+            assertEquals(87L, result.rows().get(1).get(2));
         }
     }
 }

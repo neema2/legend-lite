@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__github__pull_request_read",
+      "mcp__github__get_job_logs",
+      "mcp__github__actions_list",
+      "mcp__github__list_pull_requests",
+      "mcp__Claude_Docs__guide",
+      "mcp__github__actions_get",
+      "Bash(bazel query *)",
+      "Bash(bazel test *)",
+      "Bash(bazel build *)",
+      "Bash(bazel run //datacube:update_generated)",
+      "Bash(bazel run //python:update_generated)",
+      "Bash(bazel run //docs:update_ts_words)"
+    ]
+  }
+}

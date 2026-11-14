@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
 
 import com.legend.platform.CoreFn;
 import com.legend.compiler.spec.typed.TypedCollection;

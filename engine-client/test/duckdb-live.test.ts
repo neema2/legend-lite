@@ -14,6 +14,7 @@ import { startNodeDuckDb, type NodeDuckDb } from '../src/node-require.ts';
 import type { Plan } from '../src/relation-type.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { loadPlanner } from './planner.ts';
+import { unplanned } from './unplanned.ts';
 
 let db: NodeDuckDb;
 
@@ -79,7 +80,7 @@ function prints(from: number, n: number, symbol?: number): [number, LiveRows] {
   }];
 }
 
-const plan = (sql: string, ...columns: [string, string][]): Plan => ({ sql, columns: columns.map(([name, type]) => ({ name, type })) });
+const plan = (sql: string, ...columns: [string, string][]): Plan => ({ sql: unplanned(sql), columns: columns.map(([name, type]) => ({ name, type })) });
 const COUNT = plan('SELECT count(*) AS n FROM PRINTS', ['n', 'Integer']);
 const NEWS = plan('SELECT count(*) AS n FROM NEWS', ['n', 'Integer']);
 const value = (r: { columns: readonly { values: readonly unknown[] }[] }): unknown => {
@@ -251,7 +252,7 @@ describe('the live DuckDB', () => {
     afterSent = (sql) => {
       if (sql !== COUNT.sql) return;
       afterSent = null;
-      void elsewhere.query("INSERT INTO PRINTS VALUES ('NVDA', 99, 1.0)");
+      void elsewhere.query(unplanned("INSERT INTO PRINTS VALUES ('NVDA', 99, 1.0)"));
     };
     await live.emit();
     assert.equal(afterSent, null, 'the write landed among the emit\'s runs');

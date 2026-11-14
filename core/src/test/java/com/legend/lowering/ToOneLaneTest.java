@@ -3,18 +3,19 @@
 
 package com.legend.lowering;
 
+import com.legend.testing.Lean;
+
 import com.legend.database.Databases;
 import com.legend.testbackend.TestBackends;
-import com.legend.test.StorelessRuntime;
+import com.legend.testbackend.StorelessRuntime;
 
-import com.legend.Execution;
-import com.legend.exec.ExecutionResult;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.sql.Connection;
+
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -45,9 +46,8 @@ class ToOneLaneTest {
     }
 
     private static Object run(String query) throws Exception {
-        ExecutionResult r = Execution.execute(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
-        return r instanceof ExecutionResult.Scalar s ? s.value()
-                : r instanceof ExecutionResult.Collection c ? c.values() : r;
+        Lean.Result r = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), query, StorelessRuntime.RUNTIME, conn);
+        return r.value();
     }
 
     private static void assertSizeError(String query, int size) {

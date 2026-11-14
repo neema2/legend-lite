@@ -51,6 +51,21 @@ public final class SqlTyping {
         return new TypeFact.Typed(new SqlType.Tagged(slots), nullable);
     }
 
+    /** A tagged list's type ({@link SqlExpr.TaggedList}): an array of the tagged type of its channels' (kind, slot)
+     *  pairs, in channel order; never null (a list is a value). */
+    public static TypeFact taggedListType(List<SqlExpr.TaggedList.Channel> channels) {
+        List<SqlType.Tagged.Slot> slots = new java.util.ArrayList<>();
+        for (SqlExpr.TaggedList.Channel ch : channels) {
+            SqlType.Tagged.Slot slot = new SqlType.Tagged.Slot(ch.kind(), ch.slot());
+            if (slots.contains(slot)) {
+                throw new IllegalArgumentException("a tagged list's channels are distinct (kind, slot) pairs; "
+                        + slot + " twice");
+            }
+            slots.add(slot);
+        }
+        return new TypeFact.Typed(new SqlType.Array(new SqlType.Tagged(slots)), false);
+    }
+
     /** NUMERIC CHARTER Rule 1: the decimal a finite Float value {@code v} is written as -- its plain digits, a point
      *  always present ({@code 1.5}, {@code 100000000000000.0}, {@code 0.0000010}) -- so the database types it a DECIMAL
      *  of those digits; or null at an extreme magnitude (at least 1e15, or below 1e-6 and not zero), which is written
@@ -349,7 +364,7 @@ public final class SqlTyping {
             case COALESCE, GREATEST, LEAST -> allNullable(a);
             // probed: out-of-range list_extract and missing
             // list_position -> NULL
-            case LIST_GET, LIST_POSITION, PURE_SPLIT_PART -> true;  // NULL past the end
+            case LIST_GET, LIST_AT, LIST_POSITION, PURE_SPLIT_PART -> true;  // NULL past the end
             // §E3 slack fix 2 — ELEMENT PURITY (probed 1.5.0:
             // unnest(NULL) and unnest([]) yield ZERO rows, so UNNEST's
             // value nullability is exactly its ELEMENTS')
@@ -387,8 +402,8 @@ public final class SqlTyping {
                     REVERSE_STRING, UC_FIRST, LC_FIRST, SPLIT_PART, PURE_SPLIT_PART,
                     REGEXP_EXTRACT, REGEXP_REPLACE, CHR, ENCODE_BASE64,
                     DECODE_BASE64, MD5, SHA1, SHA256, GUID, DAYNAME,
-                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, FORMAT,
-                    JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR -> T_VARCHAR;
+                    MONTHNAME, STRFTIME, TYPEOF, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FORMAT,
+                    JSON_TYPE, JSON_PRETTY, CURRENT_USER_FN, REPEAT_STR, BINARY_COLLATE -> T_VARCHAR;
             case LENGTH, STRPOS, ASCII_CODE, LEVENSHTEIN, LIST_LENGTH,
                     LIST_POSITION, EXTRACT, DATE_DIFF, EPOCH_SECONDS,
                     EPOCH_MS, EPOCH_NS, PARSE_INT,
@@ -493,7 +508,7 @@ public final class SqlTyping {
                     LIST_INIT, LIST_SLICE, LIST_DISTINCT, LIST_REVERSE ->
                     a.isEmpty() ? UNKNOWN : arrayPass(a.get(0).type());
             case LIST_CONCAT -> uniform(a, BOTTOM);
-            case LIST_GET, UNNEST ->
+            case LIST_GET, LIST_AT, UNNEST ->
                     a.isEmpty() ? UNKNOWN : element(a.get(0).type());
             // PROBED DuckDB 1.5.0 (2026-08-25, pct-tail burn):
             // list_max/list_min are ELEMENT-PRESERVING (int->int,
@@ -1497,7 +1512,7 @@ public final class SqlTyping {
             // a RAISING member never yields a value — bottom-like in a
             // branch family: admissible anywhere, never the family's
             // type (witness: the checked-extract CASE, error-guard +
-            // LIST_GET over Array(LITERAL), types LITERAL). The fact
+            // LIST_GET over a typed array, types its element). The fact
             // rides the tree (TypeFact.Raises), not a structural match.
             if (v instanceof TypeFact.Raises) {
                 saw = true;

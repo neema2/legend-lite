@@ -1,12 +1,5 @@
 meta::external::store::relational::modelJoins::test::testPersonToFirmUsingProject
 meta::pure::executionPlan::tests::twoDBRenameColumns
-meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithQuotedColumns
-meta::relational::testDataGeneration::tests::alloy::testAlloyTestDatGenWithViewAsDriver
-meta::relational::testDataGeneration::tests::alloy::testTableToTDSSimple
-meta::relational::testDataGeneration::tests::alloy::testTableToTdsWithAppliedFunctions
-meta::relational::testDataGeneration::tests::alloy::testViewRootWithDefaultSeed_Alloy
-meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByChild_Alloy
-meta::relational::testDataGeneration::tests::alloy::testViewWithGroupByRoot_Alloy
 meta::relational::tests::advanced::failures::BuildCorrelatedSubQuery
 meta::relational::tests::advanced::failures::failMoveFilterOnTop
 meta::relational::tests::mapping::embedded::advanced::otherwiseTestQualifierPropertyConstantExpression

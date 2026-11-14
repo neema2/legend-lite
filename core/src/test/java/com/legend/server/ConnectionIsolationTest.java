@@ -5,7 +5,6 @@ package com.legend.server;
 
 import org.junit.jupiter.api.Test;
 
-import java.sql.SQLException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -82,7 +81,9 @@ class ConnectionIsolationTest {
         // the LEAK (pre-fix): a model with a DIFFERENT store
         // declaration but identical connection text saw model A's
         // tables — now it must get its own database
-        SQLException leak = assertThrows(SQLException.class,
+        // a DataError since D70 (2026-10-30): Seed.sql sends through the seam's statements, whose failure is the
+        // platform's data error (the exception seam of 2026-09-01), DuckDB's catalog error its message
+        com.legend.error.DataError leak = assertThrows(com.legend.error.DataError.class,
                 () -> Seed.sql(MODEL_B,
                         "SELECT * FROM LEAK_T", "test::RT"));
         assertTrue(String.valueOf(leak.getMessage()).contains("LEAK_T"),

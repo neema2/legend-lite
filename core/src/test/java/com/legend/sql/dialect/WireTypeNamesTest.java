@@ -4,7 +4,7 @@
 package com.legend.sql.dialect;
 
 import com.legend.compiler.element.type.Type;
-import com.legend.exec.Executor;
+import com.legend.exec.WireTypes;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -23,14 +23,22 @@ class WireTypeNamesTest {
 
     private static @com.legend.base.Nullable Type typed(SqlDialect dialect, String driverName) {
         String wire = dialect.typingWireName(driverName);
-        return wire == null ? null : Executor.pureOfSqlTypeOrNull(wire);
+        String name = wire == null ? null : WireTypes.pureTypeNameOrNull(wire);
+        // the wire table's name as the typer's primitive (the driver side's rebuild until WireProbe's deletion,
+        // the planner-driver seam program's S3c, 2026-10-30)
+        for (Type.Primitive p : Type.Primitive.values()) {
+            if (p.typeName().equals(name)) {
+                return p;
+            }
+        }
+        return null;
     }
 
     /** The three names the defect named: none has a type as the driver gives it, each has one through its dialect. */
     @Test
     void theDefectsThreeNamesAreTypedThroughTheirDialects() {
         for (String name : new String[] {"int8", "Nullable(Int64)", "INT64"}) {
-            assertNull(Executor.pureOfSqlTypeOrNull(name), name + " as the driver gives it");
+            assertNull(WireTypes.pureTypeNameOrNull(name), name + " as the driver gives it");
         }
         assertEquals(Type.Primitive.INTEGER, typed(new com.legend.sql.dialect.Postgres(), "int8"));
         assertEquals(Type.Primitive.INTEGER, typed(new com.legend.sql.dialect.ClickHouse(), "Nullable(Int64)"));
@@ -100,18 +108,10 @@ class WireTypeNamesTest {
     void aNameThatDoesNotSayItsTypeTypesNothing() {
         SqlDialect snowflake = new com.legend.sql.dialect.Snowflake();
         assertNull(snowflake.typingWireName("NUMBER"));
-        assertNull(Executor.pureOfSqlTypeOrNull("NUMBER"));
+        assertNull(WireTypes.pureTypeNameOrNull("NUMBER"));
         assertEquals("DECIMAL", snowflake.wireTypeName("NUMBER"));
         // no other database's driver gives the name, so the names every driver's reading folds do not hold it
         assertEquals("NUMBER", WireNames.fold("NUMBER"));
     }
 
-    /** A probed column its dialect does not type by name is absent from the probe's type names, and the lookup refuses
-     *  it: no fallback to the driver's own name (SQLite's NUMERIC would type Decimal) or to the probe's slot. */
-    @Test
-    void aProbedColumnWithNoTypeIsRefusedNotGuessed() {
-        var probe = new com.legend.sql.PlanProbe(java.util.List.of(), Map.of("a", "BIGINT"));
-        assertEquals("BIGINT", probe.typeName("a"));
-        org.junit.jupiter.api.Assertions.assertThrows(IllegalStateException.class, () -> probe.typeName("n"));
-    }
 }

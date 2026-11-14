@@ -69,9 +69,9 @@ class FrameQuotedColumnTest {
         PureTests.Discovery found = PureTests.discover(parsed.model(), Set.of());
         PureTests.TestCase test = found.tests().stream()
                 .filter(t -> t.fqn().equals("l::classLetManyReaders")).findFirst().orElseThrow();
-        try (PureTestRunner runner = new PureTestRunner(ctx, "l::RT", () -> fresh(backend),
+        try (PureTestRunner runner = new PureTestRunner(ctx, "l::RT", () -> com.legend.testbackend.TestSessions.owning(fresh(backend)),
                 List.of(), found.setupsByPackage(), TestObserver.NONE,
-                com.legend.ExecuteOptions.JudgeMode.DATABASE)) {
+                com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE))) {
             PureTestRunner.Result r = runner.run(test);
             assertEquals(PureTestRunner.Status.PASS, r.status(), r.reason());
         }

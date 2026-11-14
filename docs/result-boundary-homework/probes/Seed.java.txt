@@ -1,0 +1,8 @@
+import java.nio.file.*; import java.sql.*;
+public class Seed { public static void main(String[] a) throws Exception {
+  try (Connection c = DriverManager.getConnection("jdbc:duckdb:" + a[0]); Statement s = c.createStatement()) {
+    for (String q : Files.readString(Path.of(a[1])).split(";\n")) if (!q.isBlank()) s.execute(q);
+    try (ResultSet rs = s.executeQuery("SELECT ID, PAYLOAD, typeof(PAYLOAD), TS FROM P.T ORDER BY ID")) {
+      while (rs.next()) System.out.println(rs.getInt(1) + " | " + rs.getString(2) + " | " + rs.getString(3) + " | " + rs.getString(4));
+    }
+  } } }

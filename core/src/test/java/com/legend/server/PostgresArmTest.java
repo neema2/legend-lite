@@ -1,5 +1,7 @@
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -65,13 +67,34 @@ class PostgresArmTest {
         loginRole();
         String model = ARM_MODEL.formatted(POSTGRES.connectionBody());
 
-        try (ConnectionResolver.Lease lease = ConnectionResolver.lease(com.legend.Compiler.compileModel(model), "test::PgRuntime");
-                Statement s = lease.connection().createStatement();
-                ResultSet r = s.executeQuery("SELECT 41 + 1")) {
-            assertTrue(lease.connection().getMetaData().getURL().startsWith("jdbc:postgresql://127.0.0.1:"),
-                    lease.connection().getMetaData().getURL());
-            assertTrue(r.next());
-            assertEquals(42, r.getInt(1));
+        // the server's session for the runtime (D70: a session, no raw connection): on Postgres, as the resolver's
+        // check against the declared database proves, and on the arm's OWN server, as the port the session reports
+        // through the seam's statements proves (the URL read from the raw connection until D70)
+        try (com.legend.exec.Sessions.Session session =
+                com.legend.exec.PlanSessions.PROJECT_DATABASES.open(com.legend.planner.PlanMaker.runtimeTarget(
+                        com.legend.Compiler.compileModel(model), "test::PgRuntime"));
+                var run = com.legend.base.RunScope.enter()) {
+            // the session's check and its statements are a run's (THE WALL's rule 3, 2026-11-06)
+            com.legend.exec.Sessions.check(session, com.legend.planner.ConnectionPlans.type(POSTGRES.type()));
+            java.util.List<java.util.List<Object>> rows = new java.util.ArrayList<>();
+            // the statements check the session against a plan target before any typed read (the driver's facts
+            // are the database's)
+            com.legend.exec.Statements statements = session.statements();
+            statements.check(new com.legend.executionplan.ExecutionPlan.Target(
+                    new com.legend.executionplan.ExecutionPlan.Database.Platform(com.legend.planner.ConnectionPlans.type(POSTGRES.type()), null),
+                    java.util.List.of(),
+                    java.util.List.of(), null, null, null));
+            statements.rows(com.legend.testbackend.Unplanned.sql("SELECT inet_server_port() AS port, 41 + 1 AS answer"),
+                    java.util.List.of(),
+                    java.util.List.of(), java.util.List.of(
+                            new com.legend.executionplan.ExecutionPlan.Column("port", "Integer",
+                                    new com.legend.executionplan.ExecutionPlan.Multiplicity(1, 1), null, null, null),
+                            new com.legend.executionplan.ExecutionPlan.Column("answer", "Integer",
+                                    new com.legend.executionplan.ExecutionPlan.Multiplicity(1, 1), null, null, null)),
+                    rows::add);
+            assertEquals(1, rows.size());
+            assertEquals(java.util.List.of(String.valueOf(com.legend.testing.EmbeddedPostgres.shared().port()), "42"),
+                    rows.get(0).stream().map(String::valueOf).toList());
         }
     }
 
@@ -81,9 +104,9 @@ class PostgresArmTest {
         // the executor read a DATE through java.sql.Date, which drops a BC date's era: 44 BC came back as 44 AD
         // (2026-10-17, the #SQL{} island's regression-suite corpus); it re-fetches the cell as java.time
         loginRole();
-        var result = new QueryService().execute(ARM_MODEL.formatted(POSTGRES.connectionBody()),
+        var result = Lean.service(ARM_MODEL.formatted(POSTGRES.connectionBody()),
                 "#SQL{select make_date(-44, 3, 15) as d}#", "test::PgRuntime");
-        Object d = result.rows().get(0).values().get(0);
+        Object d = result.rows().get(0).get(0);
         assertTrue(d instanceof com.legend.values.PureDateLiteral.StrictDate date && date.year() == -43
                 && date.month() == 3 && date.day() == 15, String.valueOf(d));
     }
@@ -130,44 +153,67 @@ class PostgresArmTest {
             for (String query : java.util.List.of("|#>{s::DB.PLAN_T}#->select(~[ID, NAME, PRICE])->sort(~ID->ascending())",
                     "|s::Item.all()->project(~[name: i|$i.name, price: i|$i.price])->sort(~name->ascending())",
                     "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)->serialize(#{s::Item{id, name, price}}#)")) {
-                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
+                for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
                     boolean graph = query.contains("graphFetch");
-                    // a graph result has a JSON wire only: no CSV, no TDS text (PlanMakerTest pins both refusals;
-                    // the TDS text output of 2026-10-17 was not skipped here, measured 2026-10-18 in a root
-                    // container running the test as an unprivileged user)
-                    if (graph && (output == com.legend.TypedQuery.Output.CSV
-                            || output == com.legend.TypedQuery.Output.TDS_TEXT)) {
+                    // a graph result has no CSV (PlanMakerTest pins the refusal)
+                    if (graph && output == com.legend.testcases.PlanCases.Written.CSV) {
                         continue;
                     }
-                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, query)
-                            .executionPlan("s::RT", output);
-                    var target = ((com.legend.executionplan.ExecutionPlan.TextResult) plan.root()).sql().target();
-                    assertEquals(new com.legend.executionplan.ExecutionPlan.Servers.Every(), target.servers());
+                    com.legend.executionplan.ExecutionPlan plan = plan(ctx, query);
+                    var target = plan.answerSql().target();
                     assertEquals(java.util.List.of("SET TimeZone='UTC'"), target.session());
-                    assertEquals(java.util.List.of(), target.setup());
-                    if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
-                        com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, query, "s::RT", c, plan, c,
-                                java.util.Map.of(), output + " " + query);
-                        continue;
-                    }
-                    java.io.StringWriter today = new java.io.StringWriter();
-                    switch (output) {
-                        case CSV -> com.legend.Execution.executeWire(model, query, "s::RT", c,
-                                com.legend.lowering.WireRender.Format.CSV, today);
-                        case JSON -> com.legend.Execution.executeWire(model, query, "s::RT", c,
-                                com.legend.lowering.WireRender.Format.JSON, today);
-                        case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, query, "s::RT", c, today);
-                        case TDS_TEXT -> throw new IllegalStateException("judged above");
-                    }
-                    assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c), output + " " + query);
+                    assertEquals(java.util.List.of(), target.loads());
+                    assertEquals(com.legend.testcases.PlanCases.today(model, query, "s::RT", c, output),
+                            com.legend.testcases.PlanCases.write(plan, c, java.util.Map.of(), output::writer),
+                            output + " " + query);
                 }
             }
             // a query's scalar parameters: bound where they are written, answering as the query with their values does
-            // (Postgres types a bare placeholder by the bound value, every type but a date-time, which is cast to the
-            // type of its literal and passed as its text, cut to six digits as the literal is)
+            // (Postgres types a bare placeholder by the bound value, every type but a date or date-time, which is cast to
+            // its declared type's TIMESTAMP and passed as its text, every digit, a value finer than the six it keeps
+            // raised by the statement as the literal is refused at planning: S181, A7; D1, P4) -- but a
+            // Date parameter given a StrictDate value, which answers a midnight date-time as upstream's TIMESTAMP'${d}'
+            // does, where the StrictDate literal answers the date (both paths upstream's: the total wall's M2, R3)
             for (com.legend.testcases.PlanCases.Parameterised q : com.legend.testcases.PlanCases.scalars("PLAN_T")) {
+                // (a Date parameter only compared, never answered, answers as its query does: the calendar's end)
+                if (q.parameters().equals("d: Date[1]") && q.values().get("d") instanceof java.time.LocalDate
+                        && q.body().contains("~d: r|$d")) {
+                    for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
+                        String written = com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),
+                                output::writer);
+                        assertTrue(written.contains("2024-01-02T00:00:00"), output + ": " + written);
+                    }
+                    continue;
+                }
+                // a value finer than the microsecond: its literal refused at planning, the parameter by the statement's
+                // own raise -- never cut, never rounded (S181, the user's ruling of 2026-11-10, A7)
+                if (q.values().get("t") instanceof java.time.LocalDateTime t && t.getNano() % 1000 != 0) {
+                    var literal = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                            () -> plan(ctx, q.withLets()));
+                    assertTrue(String.valueOf(literal.getMessage()).contains("fraction digits; Postgres keeps 6"),
+                            literal.getMessage());
+                    var parameter = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                            () -> com.legend.testcases.PlanCases.write(plan(ctx, q.withParameters()), c, q.values(),
+                                    com.legend.testcases.PlanCases.Written.JSON::writer));
+                    assertTrue(String.valueOf(parameter.getMessage()).contains("the DateTime parameter 't' has more"
+                            + " fraction digits than Postgres keeps (6): refused, never cut (S181)"),
+                            parameter.getMessage());
+                    continue;
+                }
                 assertPlanAnswersAsToday(model, ctx, q, c);
             }
+            // the guard's ends: the last microsecond of a day answers on its own day; a half-microsecond past it, which
+            // Postgres would round to the next day, is refused (S181, A7)
+            String dt = "{t: DateTime[1]|#>{s::DB.PLAN_T}#->filter(r|$r.ID == 1)->extend(~t: r|$t)->select(~t)}";
+            String last = com.legend.testcases.PlanCases.write(plan(ctx, dt), c, java.util.Map.of("t",
+                    java.time.LocalDateTime.parse("2024-01-02T23:59:59.999999")),
+                    com.legend.testcases.PlanCases.Written.JSON::writer);
+            assertTrue(last.contains("2024-01-02T23:59:59.999999"), last);
+            var rounded = org.junit.jupiter.api.Assertions.assertThrows(RuntimeException.class,
+                    () -> com.legend.testcases.PlanCases.write(plan(ctx, dt), c, java.util.Map.of("t",
+                            java.time.LocalDateTime.parse("2024-01-02T23:59:59.9999995")),
+                            com.legend.testcases.PlanCases.Written.JSON::writer));
+            assertTrue(String.valueOf(rounded.getMessage()).contains("refused, never cut (S181)"), rounded.getMessage());
             // an enumeration parameter, compared through a value table of the column's codes
             String enums = com.legend.testcases.PlanCases.enumModel(POSTGRES.connectionBody(), "PLAN_E");
             var enumCtx = com.legend.Compiler.compileModel(enums);
@@ -189,30 +235,14 @@ class PostgresArmTest {
                             + "->sort(~id->ascending())", java.util.Map.of("sts", java.util.List.of("ACTIVE"))), c);
             // an optional parameter: with its value as the query with a let of it, with none as the query written []
             for (com.legend.testcases.PlanCases.OptionalCase q : com.legend.testcases.PlanCases.optionals("PLAN_T")) {
-                for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
-                    com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameter())
-                            .executionPlan("s::RT", output);
+                for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
+                    com.legend.executionplan.ExecutionPlan plan = plan(ctx, q.withParameter());
                     for (boolean present : new boolean[]{true, false}) {
                         String query = present ? q.withValue() : q.withNone();
-                        if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
-                            com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, query, "s::RT", c, plan,
-                                    c, java.util.Collections.singletonMap("x", present ? q.value() : null),
-                                    output + " " + query);
-                            continue;
-                        }
-                        java.io.StringWriter today = new java.io.StringWriter();
-                        switch (output) {
-                            case CSV -> com.legend.Execution.executeWire(model, query, "s::RT", c,
-                                    com.legend.lowering.WireRender.Format.CSV, today);
-                            case JSON -> com.legend.Execution.executeWire(model, query, "s::RT", c,
-                                    com.legend.lowering.WireRender.Format.JSON, today);
-                            case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, query, "s::RT", c,
-                                    today);
-                            case TDS_TEXT -> throw new IllegalStateException("judged above");
-                        }
-                        assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c,
-                                java.util.Collections.singletonMap("x", present ? q.value() : null)),
-                                output + " " + query);
+                        assertEquals(com.legend.testcases.PlanCases.today(model, query, "s::RT", c, output),
+                                com.legend.testcases.PlanCases.write(plan, c,
+                                        java.util.Collections.singletonMap("x", present ? q.value() : null),
+                                        output::writer), output + " " + query);
                     }
                 }
             }
@@ -223,25 +253,88 @@ class PostgresArmTest {
      *  every output. */
     private static void assertPlanAnswersAsToday(String model, com.legend.compiler.element.ModelContext ctx,
             com.legend.testcases.PlanCases.Parameterised q, Connection c) throws Exception {
-        for (com.legend.TypedQuery.Output output : com.legend.TypedQuery.Output.values()) {
-            com.legend.executionplan.ExecutionPlan plan = com.legend.Compiler.query(ctx, q.withParameters())
-                    .executionPlan("s::RT", output);
-            if (output == com.legend.TypedQuery.Output.TDS_TEXT) {
-                com.legend.testcases.PlanCases.assertTdsTextAnswersAsToday(model, q.withLets(), "s::RT", c, plan, c,
-                        q.values(), output + " " + q.withParameters());
-                continue;
-            }
-            java.io.StringWriter today = new java.io.StringWriter();
-            switch (output) {
-                case CSV -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
-                        com.legend.lowering.WireRender.Format.CSV, today);
-                case JSON -> com.legend.Execution.executeWire(model, q.withLets(), "s::RT", c,
-                        com.legend.lowering.WireRender.Format.JSON, today);
-                case STREAMED_JSON -> com.legend.Execution.executeStreaming(model, q.withLets(), "s::RT", c, today);
-                case TDS_TEXT -> throw new IllegalStateException("judged above");
-            }
-            assertEquals(today.toString(), com.legend.testcases.PlanCases.run(plan, c, q.values()),
+        for (com.legend.testcases.PlanCases.Written output : com.legend.testcases.PlanCases.Written.values()) {
+            com.legend.executionplan.ExecutionPlan plan = plan(ctx, q.withParameters());
+            assertEquals(com.legend.testcases.PlanCases.today(model, q.withLets(), "s::RT", c, output),
+                    com.legend.testcases.PlanCases.write(plan, c, q.values(), output::writer),
                     output + " " + q.withParameters());
         }
+    }
+
+    /** {@code query}'s typed plan over {@code ctx}. */
+    private static com.legend.executionplan.ExecutionPlan plan(com.legend.compiler.element.ModelContext ctx,
+            String query) {
+        return com.legend.Compiler.query(ctx, query).executionPlan("s::RT");
+    }
+
+    /** The test-data generator's seed over a text key, on Postgres (the B2d.3 audit's M4). */
+    private static final String SEED = """
+            Class seed::Code { n: Integer[0..1]; }
+            ###Relational
+            Database seed::DB ( Table SEED_CODES ( CODE VARCHAR(20) PRIMARY KEY, N INTEGER ) )
+            ###Mapping
+            Mapping seed::M ( seed::Code: Relational { ~mainTable [seed::DB] SEED_CODES n: [seed::DB] SEED_CODES.N } )
+            ###Connection
+            RelationalDatabaseConnection seed::Conn { store: seed::DB; %s }
+            ###Runtime
+            Runtime seed::RT { mappings: [seed::M]; connections: [ seed::DB: [ c1: seed::Conn ] ]; }
+            """;
+
+    /**
+     * The seed's text keys in code-point order on Postgres whatever the column's collation (the B2d.3 audit's M4,
+     * 2026-11-12; the design's §3.1, ruled with R4; register S198's note): the keys of a column collated by ICU's root
+     * order ({@code "und-x-icu"}, which sorts {@code a b B Z}) are chosen, written in the seed string and answered by
+     * the seed route as {@code B, Z, a, b} -- the dialect's {@code COLLATE "C"}. This server's initdb runs
+     * {@code --no-locale}, so its default collation is binary already: only a column's own collation shows the
+     * difference, which this table declares.
+     */
+    @Test
+    @DisplayName("the test-data generator's seed orders a text key by its code points on Postgres (COLLATE \"C\")")
+    void theSeedOrdersATextKeyByItsCodePoints() throws Exception {
+        var ctx = com.legend.Compiler.compileModel(SEED.formatted(POSTGRES.connectionBody()));
+        try (Connection c = POSTGRES.open()) {
+            try (Statement s = c.createStatement()) {
+                for (String sql : com.legend.setup.CsvSeed.sqls("default\nSEED_CODES\nCODE,N\nb,1\nB,2\na,3\nZ,4\n",
+                        "seed::DB", ctx, POSTGRES.dialect())) {
+                    s.execute(sql);
+                }
+                // the one statement no model or CSV can say: the column's own collation
+                s.execute("ALTER TABLE SEED_CODES ALTER COLUMN CODE TYPE VARCHAR(20) COLLATE \"und-x-icu\"");
+            }
+            java.util.List<String> binary = java.util.List.of("B", "Z", "a", "b");
+            // the premise: the column's own order is not the code points'
+            org.junit.jupiter.api.Assertions.assertNotEquals(binary, column(c, "SELECT CODE FROM SEED_CODES ORDER BY CODE"));
+            com.legend.protocol.spec.LambdaFunction query = (com.legend.protocol.spec.LambdaFunction)
+                    com.legend.compiler.NameResolver.resolveQuery(com.legend.Compiler.parseQuery(
+                            "|seed::Code.all()->project([x|$x.n], ['n'])"));
+            com.legend.testdatagen.TestDataPlanner.Seed seed = com.legend.testdatagen.TestDataPlanner.seed(ctx, query,
+                    "seed::M", false, q -> com.legend.Compiler.query(ctx, com.legend.testdatagen.TestDataPlanner
+                            .underMapping(q, "seed::M", "seed::RT", com.legend.Compiler::parseQuery)).lower("seed::RT", false)
+                    .plan());
+            assertEquals(binary, column(c, POSTGRES.dialect().render(seed.rows())));
+            String line = "       meta::relational::testDataGeneration::createRowIdentifier(['CODE'], ['%s'])";
+            assertEquals(java.util.List.of("\nmeta::relational::testDataGeneration::createTableRowIdentifiers(seed::DB,"
+                    + " 'default', 'SEED_CODES', [\n" + String.join(",\n", line.formatted("B"), line.formatted("Z"),
+                            line.formatted("a"), line.formatted("b")) + "\n  ])\n"), column(c, POSTGRES.dialect().render(
+                                    com.legend.testdatagen.TestDataPlanner.seedString(ctx, seed))));
+            String json = column(c, POSTGRES.dialect().render(com.legend.testdatagen.TestDataPlanner.seedJson(ctx, seed)))
+                    .get(0);
+            assertTrue(json.replace(" ", "").endsWith("\"rowIdentifiers\":["
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"B\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"Z\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"a\"}]},"
+                    + "{\"columnValuePairs\":[{\"name\":\"CODE\",\"value\":\"b\"}]}]}"), json);
+        }
+    }
+
+    /** {@code sql}'s first column, each row's text. */
+    private static java.util.List<String> column(Connection c, String sql) throws Exception {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) {
+            while (r.next()) {
+                out.add(r.getString(1));
+            }
+        }
+        return out;
     }
 }

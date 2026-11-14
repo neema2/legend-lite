@@ -10,6 +10,7 @@ import { byPosition, deephavenRows } from '../../../engine-client/src/deephaven-
 import { relationColumns, type Plan } from '../../../engine-client/src/relation-type.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
 import { load } from './wasm-gc-module-runtime.js';
+import { unplanned } from '../../../engine-client/test/unplanned.ts';
 
 interface Case {
   readonly id: string;
@@ -53,7 +54,7 @@ try {
     let release: (() => void) | undefined;
     try {
       // a column of a type the tab reads no value of is refused here, as the tab refuses it: the case's answer
-      const plan: Plan = { sql: c.sql!, columns: relationColumns(c.type as never, undefined, new Set(c.enumerations ?? [])) };
+      const plan: Plan = { sql: unplanned(c.sql!), columns: relationColumns(c.type as never, undefined, new Set(c.enumerations ?? [])) };
       const rows = await withTimeout((async () => {
         const kept = await session.keepAlive(plan.sql);
         release = () => kept.release();

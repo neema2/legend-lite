@@ -630,7 +630,11 @@ describe('a cube alone with a timeseries tile of a grid it added', () => {
   it('its page file reads back, the tile left out with its grid; the grid removed, the tile still changed', async () => {
     const box = dom.window.document.createElement('div');
     dom.window.document.body.append(box);
-    const own = new CubeApp(box, PRICES, { engine: new PricesGate(), planner: new StubPlanner(), cubeSource: file, sourceLabel: 'prices.csv' });
+    // its tile's one series is the text the tile wrote (close), whose reading is held: core is asked nothing
+    const readText = (): never => assert.fail('the tile\'s own written text is read without asking');
+    const own = new CubeApp(box, PRICES, {
+      engine: new PricesGate(), planner: new StubPlanner(), cubeSource: file, sourceLabel: 'prices.csv', readText,
+    });
     try {
       await own.open();
       await settle();

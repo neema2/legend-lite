@@ -3,7 +3,7 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
+import com.legend.testing.Lean;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -21,7 +21,7 @@ final class CheckerResults {
     private CheckerResults() {
     }
 
-    static <K> Map<K, Object> collect(ExecutionResult result,
+    static <K> Map<K, Object> collect(Lean.Result result,
             String keyCol, String valCol) {
         int keyIdx = columnIndex(result, keyCol);
         int valIdx = columnIndex(result, valCol);
@@ -42,7 +42,7 @@ final class CheckerResults {
         return map;
     }
 
-    static int columnIndex(ExecutionResult result, String name) {
+    static int columnIndex(Lean.Result result, String name) {
         for (int i = 0; i < result.columns().size(); i++) {
             if (name.equals(result.columns().get(i).name())) {
                 return i;

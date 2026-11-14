@@ -4,7 +4,9 @@
     "kind": "warehouse",
     "url": "http://127.0.0.1:9090",
     "seed": [
-      "./models/trading-seed.sql"
+      "./models/trading.pure",
+      "./models/runtime-duckdb.pure",
+      "./models/trading-data.pure"
     ]
   },
   "planner": {

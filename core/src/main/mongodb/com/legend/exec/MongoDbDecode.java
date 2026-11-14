@@ -5,7 +5,6 @@ package com.legend.exec;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
-import com.legend.values.LiteralText;
 import com.legend.values.PureDateLiteral;
 import com.legend.values.PureTimeLiteral;
 import org.bson.BsonDocument;
@@ -24,7 +23,7 @@ import java.util.List;
 /**
  * THE DOCUMENT DECODE (the plan path program's step 7, docs/PLAN_AND_RESULT_MODEL_2026_10_18.md §3 and §7,
  * 2026-10-18): a typed row's cells read from a MongoDB document by the plan's columns -- each field by its column's
- * name, each value by the slot first and the Pure type then, the rules of {@link RowDecode} and {@link JdbcDecode}
+ * name, each value by the slot first and the Pure type then, the rules of {@link com.legend.result.RowDecode} and {@link JdbcDecode}
  * over BSON's own kinds: an int32 or an int64 an integral, a double a double, a decimal128 an exact decimal, a date
  * a date-time in UTC (a day under a DATE slot), a string a text (the column's own text under a numeric slot unless
  * the Pure type is numeric), a boolean a boolean, a document or an array its JSON read as a document's cell. Nothing
@@ -39,18 +38,52 @@ final class MongoDbDecode {
     private MongoDbDecode() {
     }
 
-    /** The document's cells, one per column of {@code columns}, each from the field of the column's name. */
+    /** The document's cells, one per column of {@code columns}, each from the field of the column's name; a tagged
+     *  column's (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a) from the slot field its tag names, as
+     *  {@link com.legend.result.RowDecode#cells} reads a JSON row's. */
     static List<Object> row(BsonDocument doc, List<ExecutionPlan.Column> columns) {
         List<Object> out = new ArrayList<>(columns.size());
         for (ExecutionPlan.Column c : columns) {
-            BsonValue v = doc.get(c.name());
+            BsonValue v = field(doc, c);
             if (v == null) {
-                throw new IllegalStateException("the document has no field for the plan's column '" + c.name()
-                        + "' (it has " + doc.keySet() + "): the pipeline does not write the plan's columns");
+                out.add(null);
+                continue;
+            }
+            if (com.legend.result.RowDecode.slotWord(c.slot()).equals("TAGGED")) {
+                Object tag = cell(v, com.legend.result.RowDecode.tagOf(c));
+                if (tag == null) {
+                    out.add(null);
+                    continue;
+                }
+                int index = ((Number) tag).intValue();
+                ExecutionPlan.Column slot = com.legend.result.RowDecode.taggedSlot(c, index);
+                BsonValue held = field(doc, slot);
+                Object value = held == null ? null : cell(held, slot);
+                if (value == null) {
+                    throw new IllegalStateException("the document's tagged column '" + c.name() + "' names slot "
+                            + slot.name() + ", and that slot's field is null or absent");
+                }
+                // the tag rides into the batch beside the carrier (TaggedCell; track F, 2026-10-29)
+                out.add(new com.legend.result.TaggedCell(index, java.util.Objects.requireNonNull(
+                        com.legend.result.RowDecode.presented(value, slot))));
+                continue;
             }
             out.add(cell(v, c));
         }
         return out;
+    }
+
+    /** The field of {@code c}'s name, or null where the column may be empty and the document has none: a stage that
+     *  writes a field an expression evaluates to MISSING writes no field (MongoDB's own null for a computed value,
+     *  which {@code $arrayElemAt} past an array's end and a window's absent row answer). A column that may not be
+     *  empty and has no field is the pipeline's defect, refused by name. */
+    private static @com.legend.base.Nullable BsonValue field(BsonDocument doc, ExecutionPlan.Column c) {
+        BsonValue v = doc.get(c.name());
+        if (v == null && c.multiplicity().lower() > 0) {
+            throw new IllegalStateException("the document has no field for the plan's column '" + c.name()
+                    + "' (it has " + doc.keySet() + "): the pipeline does not write the plan's columns");
+        }
+        return v;
     }
 
     static @com.legend.base.Nullable Object cell(BsonValue v, ExecutionPlan.Column c) {
@@ -58,12 +91,11 @@ final class MongoDbDecode {
             return null;
         }
         String type = c.type();
-        switch (RowDecode.slotWord(c.slot())) {
-            case "LITERAL" -> {
-                return LiteralText.parse(text(v, c));
-            }
+        switch (com.legend.result.RowDecode.slotWord(c.slot())) {
+            // (the LITERAL spelling carrier's arm left with track L's L2, 2026-10-29: a mixed value is a tagged
+            // value, read in its slot)
             case "DECIMAL_TEXT" -> {
-                return RowDecode.decimalText(text(v, c));
+                return com.legend.result.RowDecode.decimalText(text(v, c));
             }
             case "TEMPORAL_TEXT" -> {
                 return PureDateLiteral.parse(text(v, c).trim().replace(' ', 'T'));
@@ -81,13 +113,13 @@ final class MongoDbDecode {
                 return PureTimeLiteral.parse(text(v, c).trim());
             }
             case "INTEGER", "BIGINT", "SMALLINT", "TINYINT", "HUGEINT" -> {
-                return v.isString() && !RowDecode.numericPure(type) ? v.asString().getValue() : integral(v, c);
+                return v.isString() && !com.legend.result.RowDecode.numericPure(type) ? v.asString().getValue() : integral(v, c);
             }
             case "DOUBLE", "FLOAT", "REAL" -> {
-                return v.isString() && !RowDecode.numericPure(type) ? v.asString().getValue() : floating(v, c);
+                return v.isString() && !com.legend.result.RowDecode.numericPure(type) ? v.asString().getValue() : floating(v, c);
             }
             case "DECIMAL", "NUMERIC" -> {
-                return v.isString() && !RowDecode.numericPure(type) ? v.asString().getValue() : decimal(v, c);
+                return v.isString() && !com.legend.result.RowDecode.numericPure(type) ? v.asString().getValue() : decimal(v, c);
             }
             case "BOOLEAN" -> {
                 if (v.isBoolean()) {
@@ -99,7 +131,7 @@ final class MongoDbDecode {
                 return text(v, c);
             }
             case "JSON", "ARRAY", "STRUCT", "MAP" -> {
-                return RowDecode.cell(json(v), c);
+                return com.legend.result.RowDecode.cell(json(v), c);
             }
             default -> {
                 // no slot: the Pure type decides
@@ -143,7 +175,7 @@ final class MongoDbDecode {
             return PureTimeLiteral.parse(text(v, c).trim());
         }
         // a class instance, an enumeration's value, Any: the document's own kind, read as a document's cell
-        return RowDecode.cell(json(v), c);
+        return com.legend.result.RowDecode.cell(json(v), c);
     }
 
     /** A BSON date under a timestamp: nine digits, as a database timestamp is read everywhere
@@ -159,8 +191,23 @@ final class MongoDbDecode {
         return LocalDateTime.ofInstant(Instant.ofEpochMilli(v.asDateTime().getValue()), ZoneOffset.UTC);
     }
 
+    /** A decimal128's exact value: its negative zero is zero (an exact decimal has one zero; BSON's
+     *  {@code bigDecimalValue} refuses the negative one), its NaN and infinities refused by name. */
+    private static BigDecimal exact(BsonValue v) {
+        org.bson.types.Decimal128 d = v.asDecimal128().getValue();
+        if (d.isNaN() || d.isInfinite()) {
+            throw new IllegalStateException("the document holds the decimal128 " + d + ", which no exact decimal is");
+        }
+        if (d.isNegative()) {
+            BigDecimal magnitude = org.bson.types.Decimal128.fromIEEE754BIDEncoding(d.getHigh() & Long.MAX_VALUE,
+                    d.getLow()).bigDecimalValue();
+            return magnitude.negate();
+        }
+        return d.bigDecimalValue();
+    }
+
     private static int scale(BsonValue v) {
-        return v.asDecimal128().getValue().bigDecimalValue().stripTrailingZeros().scale();
+        return exact(v).stripTrailingZeros().scale();
     }
 
     private static Object integral(BsonValue v, ExecutionPlan.Column c) {
@@ -170,7 +217,7 @@ final class MongoDbDecode {
         } else if (v.isInt64()) {
             return v.asInt64().getValue();
         } else if (v.isDecimal128() && scale(v) <= 0) {
-            whole = v.asDecimal128().getValue().bigDecimalValue().toBigIntegerExact();
+            whole = exact(v).toBigIntegerExact();
         } else if (v.isDouble() && BigDecimal.valueOf(v.asDouble().getValue()).stripTrailingZeros().scale() <= 0) {
             // a whole value the server computed as a double (the JSON decode reads such a token the same way)
             whole = BigDecimal.valueOf(v.asDouble().getValue()).toBigIntegerExact();
@@ -190,7 +237,7 @@ final class MongoDbDecode {
             return (double) v.asNumber().longValue();
         }
         if (v.isDecimal128()) {
-            return v.asDecimal128().getValue().bigDecimalValue().doubleValue();
+            return exact(v).doubleValue();
         }
         if (v.isString()) {
             return Double.valueOf(v.asString().getValue().trim());
@@ -200,7 +247,7 @@ final class MongoDbDecode {
 
     private static BigDecimal decimal(BsonValue v, ExecutionPlan.Column c) {
         if (v.isDecimal128()) {
-            return v.asDecimal128().getValue().bigDecimalValue();
+            return exact(v);
         }
         if (v.isInt32() || v.isInt64()) {
             return BigDecimal.valueOf(v.asNumber().longValue());
@@ -223,7 +270,7 @@ final class MongoDbDecode {
             return Long.toString(v.asNumber().longValue());
         }
         if (v.isDecimal128()) {
-            return v.asDecimal128().getValue().bigDecimalValue().toPlainString();
+            return exact(v).toPlainString();
         }
         if (v.isDouble()) {
             return Double.toString(v.asDouble().getValue());

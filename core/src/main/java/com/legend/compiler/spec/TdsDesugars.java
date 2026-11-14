@@ -1,5 +1,9 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.SchemaInvariantException;
+
+import com.legend.error.TypeInferenceException;
+
 import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.builtin.Pure;
@@ -679,6 +683,8 @@ final class TdsDesugars {
             "at", "meta::pure::functions::collection::at");
     private static final java.util.Set<String> ROW_CELL_SIZE_FNS = java.util.Set.of(
             "size", "meta::pure::functions::collection::size");
+    private static final java.util.Set<String> ROW_CELL_SORT_FNS = java.util.Set.of(
+            "sort", "meta::pure::functions::collection::sort");
 
     /** TDSRow cells by INDEX: {@code rows->at(i).values->at(k)} is CELL k
      * of the picked row — the k-th COLUMN read (engine tds.pure TDSRow
@@ -689,7 +695,8 @@ final class TdsDesugars {
     @com.legend.base.Nullable TypedSpec tdsRowCellIndexRead(
             AppliedFunction af, Env env) {
         boolean isAt = ROW_CELL_AT_FNS.contains(af.function());
-        if ((!isAt && !ROW_CELL_SIZE_FNS.contains(af.function()))
+        boolean isSort = ROW_CELL_SORT_FNS.contains(af.function());
+        if ((!isAt && !isSort && !ROW_CELL_SIZE_FNS.contains(af.function()))
                 || af.parameters().size() != (isAt ? 2 : 1)
                 || !(af.parameters().get(0) instanceof AppliedProperty vp)
                 || !vp.property().equals("values")) {
@@ -721,10 +728,48 @@ final class TdsDesugars {
                         env);
             }
         }
+        if (isSort && pick instanceof com.legend.compiler.spec.typed.TypedPropertyAccess cells
+                && cells.property().equals(com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER)
+                && Type.schemaView(pick.info().type()) instanceof Type.RelationType cellsRt
+                && cellsRt.columns().size() > 1) {
+            // $tds.rows.values->sort(): every cell of every row (engine tds.pure TDSRow.values: Any[*]), sorted --
+            // typed as the cells it sorts, the columns' least upper bound, many: the bare .values flatten keeps the
+            // rows' identity, so the sort inherited the RELATION's type and its root was planned as one, a sort the
+            // relation pipeline has no rule for (2026-11-03: the corpus's strictdate::testProject, the host judge's
+            // cell pool -- which had planned the relation instead -- deleted by the user's ruling)
+            Type lub = cellsRt.columns().get(0).type();
+            for (var c : cellsRt.columns().subList(1, cellsRt.columns().size())) {
+                lub = t.kernel().commonSupertype(lub, c.type());
+            }
+            TypedSpec sorted = nativeCall(Pure.SORT__T_m.qualifiedName(), List.of(pick));
+            if (!(sorted instanceof com.legend.compiler.spec.typed.TypedNativeCall sc)) {
+                throw new IllegalStateException("collection sort resolved to " + sorted.getClass().getSimpleName());
+            }
+            return new com.legend.compiler.spec.typed.TypedNativeCall(sc.callee(), sc.args(),
+                    new ExprType(lub, Multiplicity.Bounded.ZERO_MANY), sc.pos());
+        }
+        if (!isAt && !isSort && pick instanceof com.legend.compiler.spec.typed.TypedPropertyAccess whole
+                && whole.property().equals(com.legend.compiler.element.type.PlatformTypes.ROWS_MARKER)
+                && Type.schemaView(pick.info().type()) instanceof Type.RelationType wholeRt
+                && !wholeRt.columns().isEmpty()) {
+            // $tds.rows.values->size(): every cell of every row, the row count times the column count (the bare
+            // .values flatten keeps the rows' identity below, so size answered the row count: the L2 audit's fold,
+            // 2026-10-29, found by the typed cells' gate) -- typed nodes by declaration, an operator run as the
+            // parser's
+            ExprType intOne = ExprType.one(Type.Primitive.INTEGER);
+            TypedSpec rows = nativeCall(Pure.SIZE__ANY_MANY.qualifiedName(), List.of(pick));
+            TypedSpec cols = new TypedCInteger((long) wholeRt.columns().size(), intOne);
+            return nativeCall(Pure.TIMES__INTEGER_MANY.qualifiedName(), List.of(new TypedCollection(
+                    List.of(rows, cols), new ExprType(Type.Primitive.INTEGER, new Multiplicity.Bounded(2, 2)),
+                    false, true)));
+        }
         if (!(Type.schemaView(pick.info().type()) instanceof Type.RelationType prt)
                 || !(pick instanceof TypedNativeCall pc)
                 || !ROW_PICK_FQNS.contains(pc.callee().qualifiedName())) {
             return null;
+        }
+        if (isSort) {
+            return null;    // one row's cells sorted: the ordinary typing serves it (the whole relation's is above)
         }
         if (!isAt) {
             return new TypedCInteger((long) prt.columns().size(),

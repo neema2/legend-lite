@@ -155,7 +155,13 @@ class FixtureAdjudicationTest {
                     // ###Lakehouse, its grammar closed, read by lite's own
                     // (OWN_CORPUS_DECISIONS §16) -- the engine's public parser
                     // has no section parser for it
-                    "'X' is not a known section parser");
+                    "'X' is not a known section parser",
+                    // the TIMESTAMP_NS column type, 2026-11-13 (REVIEWED, the
+                    // final audit's item 2; docs/SEMANTICS_REGISTER.md S64):
+                    // a declared lite ###Relational grammar extension the
+                    // engine's column types lack (1: TestDataRoutesTest's
+                    // nanosecond key)
+                    "Unsupported column data type 'X'");
 
     /** F3.7: over-strictness rows pinned per HOST FILE (fixture ids are
      *  line-positional, so exact ids would tax unrelated edits). */

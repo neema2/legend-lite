@@ -70,10 +70,19 @@ public final class RaisedErrors {
         return sep >= 0 ? inner.substring(sep + 1) : inner;
     }
 
+    /** A failure that IS a raise (pure's own error, its text the platform's: the sentinel envelope unwrapped), told by
+     *  its type wherever a caller asks whether a failure was raised (the B checkpoint's tenets audit, LOW 4,
+     *  2026-11-11: until then the seam compared a failure's message with its database's to tell). */
+    public static class Raised extends java.sql.SQLException {
+        Raised(String message, @com.legend.base.Nullable String sqlState, java.sql.SQLException cause) {
+            super(message, sqlState, cause);
+        }
+    }
+
     /** A raised error whose emission carried its pure source position
      * (the raising call's name-token span — {@code PureSql.raise}) —
      * assertError's position channel. Message is the CLEAN text. */
-    public static final class Positioned extends java.sql.SQLException {
+    public static final class Positioned extends Raised {
         private final int line;
         private final int column;
 
@@ -93,16 +102,18 @@ public final class RaisedErrors {
         }
     }
 
-    /** {@link #unwrapped(java.sql.SQLException)}, or, for a failure whose text carries no raise, the raise the session
-     *  it failed on holds ({@link Sessions#raisedMessage}: a database whose errors cannot carry a raise's text keeps it
-     *  in the session), unwrapped. */
-    public static java.sql.SQLException unwrapped(java.sql.SQLException e, java.sql.Connection session) {
+    /** {@link #unwrapped(java.sql.SQLException)}, or, for a failure whose text carries no raise, what {@code held}
+     *  reads back then -- the raise the session it failed on held ({@link JdbcStatements#held}: a database whose errors
+     *  cannot carry a raise's text keeps it in the session), unwrapped; the error as it is where that is null. The
+     *  session is asked only then: a failure whose text carries its raise costs no read. */
+    public static java.sql.SQLException unwrapped(java.sql.SQLException e,
+            java.util.function.Supplier<@com.legend.base.Nullable String> held) {
         java.sql.SQLException un = unwrapped(e);
         if (un != e) {
             return un;
         }
-        String held = Sessions.raisedMessage(session);
-        return held == null ? e : unwrapped(new java.sql.SQLException(held, e.getSQLState(), e));
+        String text = held.get();
+        return text == null ? e : unwrapped(new java.sql.SQLException(text, e.getSQLState(), e));
     }
 
     /** Funnel rethrow: a raised-message SQLException re-surfaces with
@@ -122,7 +133,7 @@ public final class RaisedErrors {
         String inner = msg.substring(first + 1, last).replace(QUOTE_MARK, '\'');
         int sep = inner.indexOf(POSITION_SEP);
         if (sep < 0) {
-            return new java.sql.SQLException(inner, e.getSQLState(), e);
+            return new Raised(inner, e.getSQLState(), e);
         }
         String pos = inner.substring(0, sep);
         String clean = inner.substring(sep + 1);
@@ -136,6 +147,22 @@ public final class RaisedErrors {
                 // a malformed prefix falls through to the plain strip
             }
         }
-        return new java.sql.SQLException(clean, e.getSQLState(), e);
+        return new Raised(clean, e.getSQLState(), e);
+    }
+
+    /** A failed statement's or open's error as the {@link com.legend.error.DataError} the platform tells: its raise
+     *  unwrapped ({@link #unwrapped(java.sql.SQLException)}). Here since D70 (2026-10-30; the plan sessions' until
+     *  then): the one class that constructs from a {@code SQLException}. */
+    static com.legend.error.DataError dataError(java.sql.SQLException e) {
+        java.sql.SQLException un = unwrapped(e);
+        return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
+    }
+
+    /** {@link #dataError(java.sql.SQLException)} with the raise the session holds read back where the error carries
+     *  none ({@link #unwrapped(java.sql.SQLException, java.util.function.Supplier)}). */
+    static com.legend.error.DataError dataError(java.sql.SQLException e,
+            java.util.function.Supplier<@com.legend.base.Nullable String> held) {
+        java.sql.SQLException un = unwrapped(e, held);
+        return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
     }
 }

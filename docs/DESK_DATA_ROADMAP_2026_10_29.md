@@ -114,7 +114,7 @@ real Kafka) is later work.
 
 **A1. Ingests in lite's compiler.** *Built 2026-10-29:* `###Lakehouse` and `include Ingest`
 (`LakehouseSectionGrammar`, `Protocol.PIngest`, `IngestDefinition`, the JSON reader and writer, the printer),
-`parser/LakehouseIngestTest`; SEMANTICS_REGISTER S113-S117, OWN_CORPUS_DECISIONS §16.
+`parser/LakehouseIngestTest`; SEMANTICS_REGISTER S401-S405, OWN_CORPUS_DECISIONS §16.
 
 - **Build:**
   - The `###Lakehouse` `Ingest` element, parsed:

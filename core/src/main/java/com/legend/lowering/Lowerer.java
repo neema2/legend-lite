@@ -187,6 +187,13 @@ public final class Lowerer {
      *  would fail the INNER pass, whose isolation cannot change an outer row's expression. */
     private int correlatedReads;
 
+    /** The raw grids whose rows the statement reads as their cells ({@link #cellGrids(List)}: each by its authored
+     *  text and language), computed once over the whole body before any of it is lowered; null before. */
+    private java.util.@com.legend.base.Nullable Set<String> cellGrids;
+
+    /** How deep the lowering is inside a raw grid report's input ({@link #gridReport}): that grid is read as itself. */
+    private int reportInputs;
+
     /** The connection's time zone DateTime literals spell in (engine
      * convertDateToSqlString: the dbTimeZone, default GMT) — batch 86. */
     private @com.legend.base.Nullable String dbTimeZone;
@@ -212,6 +219,14 @@ public final class Lowerer {
     private java.util.Set<com.legend.platform.Feature> features = java.util.Set.of();
     private boolean legacyNullUnsafeEquals;
 
+    /** Lite's own planning options (PlanOption): DETERMINISTIC_AS_OF keeps one right row per as-of match. */
+    private boolean deterministicAsOf;
+
+    public Lowerer withOptions(java.util.Set<com.legend.platform.PlanOption> options) {
+        this.deterministicAsOf = options.contains(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF);
+        return this;
+    }
+
     public Lowerer withFeatures(java.util.Set<com.legend.platform.Feature> features) {
         FeatureRules.requireConsumed(features);
         this.features = features.isEmpty() ? java.util.Set.of() : java.util.EnumSet.copyOf(features);
@@ -223,6 +238,51 @@ public final class Lowerer {
     public Lowerer withEngineText() {
         this.engineText = true;
         return this;
+    }
+
+    /** A RELATION READ MORE THAN ONCE IS WRITTEN ONCE (2026-11-04, {@link SharedRelations}): a let's value is one node
+     *  of the statement's tree wherever its name is read, and it lowers once, a common table expression ({@code
+     *  __let<n>}) at the statement's head that each read names. Off in engine-text mode (legend-engine's own SQL, which
+     *  pastes it) and where the frame extracts the statement's subqueries as its own expressions (the engine's
+     *  cteExtractionPostProcessor: {@link #sharingRelations}). */
+    private boolean shareRelations = true;
+    /** While a statement lowers ({@link #lower(List)}): its shared relations; null between statements. */
+    private @com.legend.base.Nullable SharedRelations.Frame sharing;
+
+    /** Whether a relation the statement reads more than once is written once ({@code on}), or at each read as
+     *  legend-engine writes it: a frame whose post-processor extracts the statement's subqueries as common table
+     *  expressions of its own spelling. */
+    public Lowerer sharingRelations(boolean on) {
+        this.shareRelations = on;
+        return this;
+    }
+
+    /** {@code spec}, a relation the statement reads more than once: lowered the first time it is read, its rows a
+     *  common table expression of the statement's head; each read the expression by name. Written where it stands at
+     *  each read instead: a relation whose order the statement keeps (an ORDER BY at its top: a sort before a
+     *  positional read; a union's members, which a graph envelope serializes in their order, {@link
+     *  UnionSerialOrder}; a common table expression carries no order), and a bare read of one source (a raw grid, a
+     *  table: no larger than a reference to it, and a raw grid's report reads the grid as it is written). */
+    private SqlSelect sharedRead(SharedRelations.Frame frame, TypedSpec spec) {
+        SqlSource.Cte cte = frame.read.get(spec);
+        if (cte == null) {
+            SqlSelect body;
+            frame.lowering.add(spec);
+            try {
+                body = relation(spec);
+            } finally {
+                frame.lowering.remove(spec);
+            }
+            if (!body.orderBy().isEmpty() || UnionSerialOrder.surfaces(body) || SharedRelations.bare(body)) {
+                frame.nodes.remove(spec);
+                return body;
+            }
+            String name = SqlWith.SHARED_PREFIX + frame.written.size();
+            frame.written.add(new SqlWith.Cte(name, body));
+            cte = new SqlSource.Cte(name, name, body.outputs());
+            frame.read.put(spec, cte);
+        }
+        return SqlSelect.starOf(new SqlSource.Cte(cte.name(), nextAlias(), cte.outputs()));
     }
 
     /** Engine-parity join-distinct exists (ExistsJoinForm) — DRIVER
@@ -345,7 +405,7 @@ public final class Lowerer {
     }
 
     /** Every object carries its identity: its id, minted by {@code ids} from its site (docs/OBJECT_IDENTITY_2026_10_20.md
-     *  §3.2): one query's {@link ObjectSites}, or the statement executor's ids shared by every statement of a body. */
+     *  §3.2): the program's {@link ObjectSites}, one per program and shared by every statement of it (B9). */
     public Lowerer withObjectIdentity(Function<Object, String> ids) {
         this.instanceIdOf = ids;
         this.objectIdentity = true;
@@ -370,14 +430,61 @@ public final class Lowerer {
     }
 
     /**
+     * {@code bound}, a DateTime parameter read on a connection with a time zone, as that zone's wall time: upstream's
+     * {@code processDatePlaceHolder} wraps such a placeholder in {@code GMTtoTZ} (dbExtension.pure, a value converted
+     * from GMT to the connection's zone, as a literal is: {@link MatchFold#dateLit}) -- here the database converts it
+     * ({@code TIMEZONE(zone, TIMEZONE('UTC', p))}, the local-in rule), planned once (the re-audit's B-2, 2026-11-09). A
+     * Date parameter there is refused by name: upstream converts a date-time value and leaves a date-only one
+     * ({@code PlanDateParameterDateFormat}: the value's shape decides), which one placeholder of a declared type cannot
+     * tell apart. Any other expression, and every parameter on a GMT or UTC connection, as it is.
+     */
+    private @com.legend.base.Nullable SqlExpr zoned(@com.legend.base.Nullable SqlExpr bound) {
+        String zone = dbTimeZone;
+        if (!(bound instanceof SqlExpr.PlanParam p) || p.declared() == null || zone == null || zone.equals("GMT")
+                || zone.equals("UTC")) {
+            return bound;
+        }
+        return switch (p.declared()) {
+            case FLOAT, DECIMAL, NUMBER -> bound;
+            case DATE -> throw new com.legend.error.NotImplementedException("the Date parameter '" + p.name()
+                    + "' on a connection whose time zone is " + zone + ": upstream converts a date-time value to it and"
+                    + " leaves a date-only one, which a placeholder of the declared type cannot tell apart");
+            case DATE_TIME -> new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit(zone),
+                    new SqlExpr.Call(SqlFn.TIMEZONE, List.of(new SqlExpr.StringLit("UTC"), bound))));
+        };
+    }
+
+    /**
      * Lower a typed QUERY BODY: leading {@code let} statements bind their
      * lowered values into query scope (substitution — the lean output has no
      * trace of the lets); the final statement is the query.
      */
     public SqlQuery lower(List<TypedSpec> body) {
+        com.legend.base.RunScope.planning("lower a spec");
+        if (cellGrids == null) {
+            cellGrids = cellGrids(body);   // before the lets are lowered (withQueryLets)
+        }
+        TypedSpec root = withQueryLets(body);
+        SqlQuery q;
+        if (sharing == null && shareRelations && !engineText) {
+            // a relation read more than once, written once (SharedRelations): the statement's own names are its
+            // query lets and plan parameters, which its head reads as every part of it does
+            SharedRelations.Frame frame =
+                    new SharedRelations.Frame(SharedRelations.of(root, new java.util.HashSet<>(letBindings.keySet())));
+            sharing = frame;
+            try {
+                SqlQuery reads = lower(root);   // first: the reads write the expressions
+                q = SqlWith.prepend(List.copyOf(frame.written), reads);
+            } finally {
+                sharing = null;
+            }
+        } else {
+            q = lower(root);
+        }
         // J-tail: demand-driven subselect column pruning (engine parity —
         // isolated composites enumerate only consumed columns)
-        return SubselectPrune.prune(lower(withQueryLets(body)));
+        // a count of rows a declared key makes one is 1 (KeyedCounts: the time model's D2), then the unread pruned
+        return SubselectPrune.prune(engineText ? q : KeyedCounts.fold(q, tableKeys), !engineText);
     }
 
     /**
@@ -390,6 +497,7 @@ public final class Lowerer {
      * ({@link com.legend.sql.SqlDml.Merge}). The statement's count is the database's (the executor's update count).
      */
     public com.legend.sql.SqlDml lowerStoreWrite(List<TypedSpec> body) {
+        com.legend.base.RunScope.planning("lower a spec");
         TypedSpec root = withQueryLets(body);
         return switch (root) {
             case TypedWrite w when w.destination().isPresent()
@@ -424,14 +532,14 @@ public final class Lowerer {
                         overRow(scan, u.where(), "update", "its predicate"));
             }
             default -> throw new IllegalStateException("not a store write: " + root.getClass().getSimpleName()
-                    + " (StatementExecutor dispatches only a write into a store table here)");
+                    + " (BodyDriver dispatches only a write into a store table here)");
         };
     }
 
     /** The rows a write or a merge writes: {@code source} lowered, each of its columns one of {@code t}'s (the checker
      *  types them so, by name: WriteChecker). */
     private SqlQuery writtenRows(TypedSpec source, TypedTableReference t, String op) {
-        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source)));
+        SqlQuery rows = namedColumns(SubselectPrune.prune(lower(source), !engineText));
         java.util.Set<String> declared = new java.util.LinkedHashSet<>();
         java.util.Objects.requireNonNull(Type.schemaView(t.info().type()), "a store table's type is a relation")
                 .columns().forEach(c -> declared.add(c.name()));
@@ -451,6 +559,7 @@ public final class Lowerer {
      *  not be (PR #67's review, 2026-10-22: Postgres staged a table declared {@code (ID, NAME)} and made
      *  {@code (NAME, ID)} with each value under the other's name). */
     public SqlQuery namedColumns(SqlQuery rows) {
+        com.legend.base.RunScope.planning("lower a spec");
         if (!(rows instanceof SqlSelect s) || !s.projections().isEmpty()) {
             return rows;
         }
@@ -485,6 +594,61 @@ public final class Lowerer {
         }
         throw new IllegalStateException(op + ": the table's scan reads " + scan.from().getClass().getSimpleName()
                 + ", not the table");
+    }
+
+    /** The read-only reload's swap being lowered (B2d.2), at most one: its source's tables read from the slice. */
+    private final ArrayDeque<com.legend.compiler.spec.typed.TypedTableSwap> swaps = new ArrayDeque<>();
+
+    /** The swap's scans, by alias: the rows each is read from. */
+    private final Map<String, SqlQuery> swappedScans = new HashMap<>();
+
+    /** {@code ts}'s source lowered with each table it reads by its typed reference swapped ({@link TableSwaps}). */
+    private SqlSelect overSlice(com.legend.compiler.spec.typed.TypedTableSwap ts) {
+        if (!swaps.isEmpty()) {
+            throw TableSwaps.refused("another reloaded slice");
+        }
+        swaps.push(ts);
+        try {
+            return TableSwaps.swapped(relation(ts.source()), ts, swappedScans);
+        } finally {
+            swaps.pop();
+            swappedScans.clear();
+        }
+    }
+
+    /** {@code source}, a read the reloaded slice cannot answer ({@code what}): itself, or refused by name under a
+     *  swap. */
+    private <T> T unswapped(T source, String what) {
+        if (!swaps.isEmpty()) {
+            throw TableSwaps.refused(what + (source instanceof String url ? url : ""));
+        }
+        return source;
+    }
+
+    /** The scan of the typed table {@code t}: a planned frame's CTE where its rows are a frame's (rung 12: the CTE's
+     *  columns keep the table's declared spelling, a quoted one quoted at every reader), else the table; under a
+     *  reloaded slice's swap, the slice's rows for it ({@link TableSwaps#read}). */
+    private SqlSelect tableRead(TypedTableReference t) {
+        if (t.frame() != null) {
+            unswapped(t, "a planned frame");
+            return SqlSelect.starOf(new SqlSource.Cte(t.frame(),
+                    com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
+                    OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())));
+        }
+        if (t.call()) {
+            unswapped(t, "the tabular function " + t.table());
+        }
+        // its declared key noted under its alias (keyed: KeyedCounts, PR #81's final review, 2026-11-09)
+        SqlSource.Table table = keyed(t, new SqlSource.Table(t.table(), nextAlias(),
+                OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
+                t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable())));
+        if (!swaps.isEmpty()) {
+            SqlQuery rows = TableSwaps.rows(t, swaps.peek());
+            if (rows != null) {
+                swappedScans.put(table.alias(), rows);
+            }
+        }
+        return SqlSelect.starOf(table);
     }
 
     private static @com.legend.base.Nullable String schemaOf(TypedTableReference t) {
@@ -548,8 +712,21 @@ public final class Lowerer {
         return lower(List.of(new TypedVariable(name, type)));
     }
 
+    /** Whether {@code spec} is a USER {@code toOne()} over a relation (never the conformance {@code trustOne}). */
+    private static boolean checkedToOne(TypedSpec spec) {
+        return spec instanceof com.legend.compiler.spec.typed.TypedNativeCall tc
+                && Pure.isToOneCall(tc.callee().qualifiedName())
+                && !Pure.Lite.TRUST_ONE.equals(tc.callee().qualifiedName())
+                && tc.args().size() == 1
+                && Type.isRelation(tc.args().get(0).info().type());
+    }
+
     /** Lower a typed query to SQL: relation pipelines and scalar roots. */
     public SqlQuery lower(TypedSpec spec) {
+        com.legend.base.RunScope.planning("lower a spec");
+        if (cellGrids == null) {
+            cellGrids = cellGrids(List.of(spec));
+        }
         // from() is execution-context metadata, fully consumed by Phase H —
         // the SQL is its source's. (Relation-typed from-roots take the
         // relation() arm below; a GRAPH-typed root needs the unwrap here.)
@@ -559,6 +736,17 @@ public final class Lowerer {
         // The resolved GRAPH envelope keeps its CLASS-typed info (the
         // result-shape contract) but lowers as a relation.
         if (spec instanceof TypedSerializeGraph g) {
+            // the value of an engine execute(...) (the splice's mark): the
+            // engine JsonBuilder's cardinality rule, exactly one object bare
+            // and zero or several as the array -- the scalar position's fold
+            // (SnapshotEnvelope). COMPATIBILITY ONLY (the user, 2026-11-03:
+            // "the right clean thing in lite, the backward-compatible thing
+            // in compatibility mode"): lite's own root stays the array, and
+            // the streaming root (one object per row) never folds
+            if (g.engineExecuteCardinality() && !streamingGraphRoot) {
+                return conformJsonEgress(SnapshotEnvelope.fold(
+                        serializeGraph(g.asArrayWrapped(), false)));
+            }
             return conformJsonEgress(serializeGraph(g, streamingGraphRoot));
         }
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
@@ -570,8 +758,11 @@ public final class Lowerer {
         // lowers through the relation pipeline; a COLLECTION-shaped root
         // filters empty cells at egress (Fold#collectionRootEgress).
         if (Type.schemaView(spec.info().type()) instanceof Type.RelationType rrt) {
-            return Fold.collectionRootEgress(relation(spec), rrt,
+            SqlQuery rows = Fold.collectionRootEgress(relation(spec), rrt,
                     Stamps.isMany(spec), this::nextAlias);
+            // a relation's toOne() at the statement's ROOT: the database checks it is exactly one row (D2, the user,
+            // 2026-11-07: "sql guard is good"); a toOne nested in a pipeline keeps upstream's look-through
+            return checkedToOne(spec) ? ToOneGuard.exactlyOne(rows, this::nextAlias) : rows;
         }
         // relation->map(row|scalar) at the ROOT is the single-column
         // projection (pure: a VALUE collection derived from rows; the
@@ -648,26 +839,28 @@ public final class Lowerer {
             rootType = MixedEncoding.declaredType(rootType);
         }
         boolean anyStamp = rootType == SqlType.Scalar.JSON;
-        // read unconditionally: a LITERAL-carried product under ANY
-        // stamp (generic/TypeVar dedup results included) must label
-        // truthfully — the TREE carries the carrier through
-        // element-preserving ops (F10 3b; M3 flip: the stored type IS
-        // the authority, the judge is gone from this site)
+        // read unconditionally: a product under ANY stamp (generic/TypeVar dedup results included) must label
+        // truthfully -- the TREE carries the carrier through element-preserving ops (the stored type IS the
+        // authority, the judge is gone from this site)
         com.legend.sql.TypeFact rootJudge = e.type();
         if (anyStamp && !Stamps.isMany(spec)
                 && rootJudge instanceof com.legend.sql.TypeFact.Typed t
-                && t.type() != SqlType.Scalar.JSON
-                && t.type() != SqlType.Scalar.LITERAL) {
+                && t.type() != SqlType.Scalar.JSON) {
             e = SqlExpr.Call.of(SqlFn.TO_VARIANT, e);
         }
-        // F10 slice 2 — the KIND-FAITHFUL CARRIER at a mixed root: a
-        // literal collection of >=2 distinct numeric kinds rebuilds as
-        // pure-literal spellings (the DOUBLE-promoted array erased
-        // Integer 1 into 1.0 here), returning its own Array(LITERAL)
-        // construction-site mark.
-        SqlExpr mixedLits = LiteralSpelling.mixedNumericArray(spec, e);
-        if (mixedLits != null) {
-            e = mixedLits;
+        // a Number-LUB literal mix at a root ([25.0, 1]) is read as its kinds: a tagged list (the DOUBLE-promoted
+        // array erased Integer 1 into 1.0 here)
+        SqlExpr.TaggedList mixedNumbers = MixedEncoding.mixedNumericLiteral(spec, e);
+        if (mixedNumbers != null) {
+            e = mixedNumbers;
+        }
+        // a mixed list (§5a's step B, track L, 2026-10-29): the root is its rows, each a tagged value -- the plan's
+        // one column TAGGED<...> with the list's multiplicity
+        if (e instanceof SqlExpr.TaggedList tl) {
+            if (!Stamps.isMany(spec)) {
+                throw new IllegalStateException("a tagged list at a to-one root: " + spec.info());
+            }
+            return TaggedLists.root(tl, spec, nextAlias());
         }
         // a mixed selection's winner (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a, 2026-10-23): the root projects
         // its tag and one column per slot; a collection of them is step B's
@@ -678,31 +871,18 @@ public final class Lowerer {
             }
             return taggedRoot(tg, spec);
         }
-        // THE ONE LITERAL-LABEL ARM (§4.3, redundant half deleted
-        // 2026-08-24): the TREE says whether the finished root carries
-        // spellings — every producer marks at construction (the sort
-        // arm's cast, mixedNumericArray's mark, LIST_GET/UNNEST
-        // flowing the element) and a cast TYPES as its target, so the
-        // former cast-mark and mixed-array label arms re-derived what
-        // e.type() states. This arm's residual content is the label
-        // SPELLING (scalar LITERAL for the element contract) — it
-        // retires at M4 with the carrier rule.
+        // the root's label: the pure type's SQL mapping, or an unrefined Number's own numeric slot (the LITERAL
+        // spelling label stood here until track L's L2, 2026-10-29: a mixed value is a tagged value now)
         com.legend.sql.SqlType label = rootType;
-        if (e.type() instanceof com.legend.sql.TypeFact.Typed jt
-                && (jt.type() == SqlType.Scalar.LITERAL
-                        || (jt.type() instanceof com.legend.sql.SqlType.Array ja
-                                && ja.element() == SqlType.Scalar.LITERAL))) {
-            label = SqlType.Scalar.LITERAL;
-        } else if (spec.info().type() == Type.Primitive.NUMBER
+        if (spec.info().type() == Type.Primitive.NUMBER
                 && e.type() instanceof com.legend.sql.TypeFact.Typed nt
                 && (nt.type() instanceof com.legend.sql.SqlType.Decimal || nt.type() == SqlType.Scalar.DOUBLE
                         || nt.type() == SqlType.Scalar.BIGINT || nt.type() == SqlType.Scalar.INTEGER
                         || nt.type() == SqlType.Scalar.HUGEINT)) {
             // an unrefined NUMBER root labelled by its cell's own numeric slot, the kind the database answers
             // (the engine reads a Number by its result-set type; the judges refine a Number side by the slot): a
-            // Decimal cell is a Decimal to every reader, and the value lane's text spells its D
-            // (Render.tdsTextCell; min([1.0d]) is 1.0D -- the DuckDB PCT lane on the plan route, step 9,
-            // 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
+            // Decimal cell is a Decimal to every reader (min([1.0d]) is 1.0D -- the DuckDB PCT lane on the plan
+            // route, step 9, 2026-10-18); until then the Number's DOUBLE, which read the cell as a Float
             label = nt.type();
         }
         // COLLECTION roots explode to N rows (the result-shape contract:
@@ -913,7 +1093,23 @@ public final class Lowerer {
     // Relation ops
     // ==================================================================
 
+    /** Each table read's declared primary key, by the alias it is read under ({@link KeyedCounts}). */
+    private final java.util.Map<String, List<String>> tableKeys = new java.util.HashMap<>();
+
+    /** {@code table}, its key noted under its alias ({@link #tableKeys}). */
+    private SqlSource.Table keyed(TypedTableReference t, SqlSource.Table table) {
+        if (!t.key().isEmpty()) {
+            tableKeys.put(table.alias(), t.key());
+        }
+        return table;
+    }
+
     SqlSelect relation(TypedSpec spec) {
+        // a relation the statement reads more than once: written once, read by name (SharedRelations)
+        SharedRelations.Frame frame = sharing;
+        if (frame != null && frame.nodes.contains(spec) && !frame.lowering.contains(spec)) {
+            return sharedRead(frame, spec);
+        }
         // POSITIONAL reads over a relation: at(n) IS slice(n, n+1);
         // first()/head() IS limit 1 — row selection, not value extraction
         if (spec instanceof TypedNativeCall pc
@@ -946,18 +1142,10 @@ public final class Lowerer {
         }
         return switch (spec) {
             case TypedSourceUrl su -> SqlSelect.starOf(
-                    new SqlSource.SourceUrl(su.url(), nextAlias(), outputsOf(su.info(), OutputCol.Origin.PHYSICAL)));
-            case TypedTableReference t -> t.frame() != null
-                    // rung 12: the class extent's rows are a planned frame's CTE
-                    // (its body reads the table, so the CTE's columns keep the table's
-                    // declared spelling: a quoted one stays quoted at every reader)
-                    ? SqlSelect.starOf(new SqlSource.Cte(t.frame(),
-                            com.legend.sql.AliasPrefix.frameReader(t.frame(), nextAlias()),
-                            OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns())))
-                    : SqlSelect.starOf(
-                    new SqlSource.Table(t.table(), nextAlias(),
-                            OutputCol.declaredQuoted(outputsOf(t.info(), OutputCol.Origin.PHYSICAL), t.quotedColumns()), t.call(),
-                            t.storedTypes(), new com.legend.sql.NameQuoting(t.quotedSchema(), t.quotedTable())));
+                    new SqlSource.SourceUrl(unswapped(su.url(), "the source URL "), nextAlias(),
+                            outputsOf(su.info(), OutputCol.Origin.PHYSICAL),
+                            su.records() ? SqlSource.SourceUrl.Form.RECORDS : SqlSource.SourceUrl.Form.ELEMENTS));
+            case TypedTableReference t -> tableRead(t);
 
             case TypedTds tds -> tdsLiteral(tds);
             // a VIEW at relation position: the engine plans it as an inline
@@ -968,11 +1156,14 @@ public final class Lowerer {
                     ? SqlSelect.starOf(new SqlSource.Subselect(relation(v.body()), nextAlias(), v.view()))
                     : relation(v.body());
 
-            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(raw);   // Phase 1c
-            case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(g);
+            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> rawGrid(unswapped(raw, "a raw SQL relation"));
+            case com.legend.compiler.spec.typed.TypedCatalogGrid g -> catalogGrid(unswapped(g, "a catalog grid"));
 
             // leg 3.4 step 2: a planned frame, referenced by name (FrameRefs)
-            case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this, fr);
+            case com.legend.compiler.spec.typed.TypedFrameRef fr -> FrameRefs.reference(this,
+                    unswapped(fr, "a planned frame"));
+            // a relation read over a reloaded slice's rows (B2d.2): each table it reads by its typed reference swapped
+            case com.legend.compiler.spec.typed.TypedTableSwap ts -> overSlice(ts);
 
             case TypedFilter f -> filter(f);
 
@@ -1556,6 +1747,11 @@ public final class Lowerer {
                     a.order()));
             return CastPolicy.castByPolicy(inner, rc.source().info().type(), rc.target(), rc.wire());
         }
+        // A CONDITION OVER REDUCERS (y|if($y->count() < 21, |[], |$y->average()): a figure given once its window holds
+        // enough values, the DataCube timeseries library's ramp, 2026-10-26) -- each reducer the aggregate it is
+        if (reduceBody instanceof TypedIf) {
+            return overReducers(base, a, reduceBody);
+        }
         if (!(reduceBody instanceof TypedNativeCall call)) {
             throw new IllegalStateException("aggregate reduce must be a native reducer call, got "
                     + reduceBody.getClass().getSimpleName());
@@ -1565,6 +1761,12 @@ public final class Lowerer {
         SqlExpr around = aroundReducer(base, a, call);
         if (around != null) {
             return around;
+        }
+        // A SCALAR OVER SEVERAL REDUCERS, no condition (y|$y->max()->toOne() - $y->min()->toOne(): a range, the DataCube
+        // timeseries library's overPeriod, 2026-10-27) -- each reducer the aggregate it is, the arithmetic around them
+        // the scalar's, as under a condition
+        if (Aggregates.reducerOrNull(call.callee()) == null) {
+            return overReducers(base, a, reduceBody);
         }
         SqlAgg.Fn fn = Aggregates.reducerFor(call.callee());
         TypedSpec mapBody = aggSelectorBody(a);
@@ -1610,6 +1812,10 @@ public final class Lowerer {
                             && (neg.args().get(0) instanceof TypedCInteger
                                     || neg.args().get(0) instanceof TypedCFloat
                                     || neg.args().get(0) instanceof TypedCDecimal)) {
+                extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
+            } else if (argSpec instanceof TypedNativeCall && rowFree(argSpec)) {
+                // a constant the database computes (a library word's parameter made into one, 90 / 100: the frame
+                // offset's rule, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md C1) -- it reads no row
                 extra.add(scalar(argSpec, (v, name) -> resolveOrThrow(base, name)));
             } else if (argSpec instanceof TypedCast vc
                     && vc.source() instanceof TypedVariable) {
@@ -1916,6 +2122,12 @@ public final class Lowerer {
                 }
             }
         }
+        // the copies the columns write, their rules' included (Fold.overCopied): past the budget, and where the base
+        // isolated reads as it did, the retry over the isolated base reads the projection by name (no miss to report:
+        // the retry's reads are a subselect's columns)
+        if (Fold.overCopied(base, ps) != null) {
+            return null;
+        }
         return target.withProjections(ps);
     }
 
@@ -2034,6 +2246,33 @@ public final class Lowerer {
             }
             default -> throw new IllegalStateException("a reducer under " + e.getClass().getSimpleName()
                     + " in an aggregate's reduce has no lowering");
+        };
+    }
+
+    /** A reduce body of SEVERAL REDUCERS under a condition: each reducer of the reduce's collection lowers as the
+     *  aggregate it is (one reducer's agg column, {@link #aggValue}), the condition, its arms and the arithmetic around
+     *  them by the scalar's rule -- one CASE, which {@link Windows#windowize} windows reducer by reducer. A read of the
+     *  collection other than a reducer's is the scalar rule's error (no row scope). */
+    private SqlExpr overReducers(SqlSelect base, TypedAggCol a, TypedSpec e) {
+        return switch (e) {
+            case TypedNativeCall c when Aggregates.reducerOrNull(c.callee()) != null -> aggValue(base,
+                    new TypedAggCol(a.name(), a.map(), new TypedLambda(a.reduce().parameters(), List.of(c), a.reduce().info()),
+                            a.order()));
+            case TypedIf i -> {
+                TypedSpec thenB = PureSql.thunkBody(i.thenBranch());
+                TypedSpec elseB = i.elseBranch().map(PureSql::thunkBody).orElse(null);
+                yield MixedEncoding.lubCase(i.info().type(), thenB, elseB, overReducers(base, a, i.condition()),
+                        overReducers(base, a, thenB), elseB == null ? new SqlExpr.NullLit() : overReducers(base, a, elseB));
+            }
+            case TypedNativeCall c -> {
+                List<SqlExpr> args = new ArrayList<>();
+                for (TypedSpec arg : c.args()) {
+                    args.add(arg instanceof TypedCollection run && !run.elements().isEmpty()
+                            ? listLiteral(run, x -> overReducers(base, a, x)) : overReducers(base, a, arg));
+                }
+                yield NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(c, args, features, implementations));
+            }
+            default -> scalar(e, noScope());
         };
     }
 
@@ -2391,10 +2630,148 @@ public final class Lowerer {
         return base.withProjections(ps);
     }
 
-    /** An authored raw read's rows: its text, in the language its connection declares (decision D2). */
+    /** A raw grid's {@code columnNames} (its report's names, in the result's order) or {@code values} (its cells,
+     *  row-major, each the database's JSON of the cell) as one list, aggregated in the report's order. */
+    private SqlExpr gridReport(TypedPropertyAccess pa) {
+        boolean names = "columnNames".equals(pa.property());
+        String alias = nextAlias();
+        SqlSelect grid;
+        reportInputs++;
+        try {
+            grid = relation(pa.source());
+        } finally {
+            reportInputs--;
+        }
+        SqlSource.GridReport report = new SqlSource.GridReport(grid,
+                names ? SqlSource.GridReport.Part.COLUMNS : SqlSource.GridReport.Part.CELLS, alias);
+        List<SqlSelect.SortKey> order = new java.util.ArrayList<>();
+        if (!names) {
+            order.add(new SqlSelect.SortKey(SqlExpr.Column.of(alias, report.outputs(), SqlSource.GridReport.ROW),
+                    true, null, null));
+        }
+        order.add(new SqlSelect.SortKey(SqlExpr.Column.of(alias, report.outputs(), SqlSource.GridReport.ORD), true,
+                null, null));
+        SqlExpr value = SqlExpr.Column.of(alias, report.outputs(), SqlSource.GridReport.VALUE);
+        SqlSelect listed = SqlSelect.starOf(report).withProjections(List.of(new SqlSelect.Projection(
+                new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(value), false, order), null,
+                new OutputCol(SqlSource.GridReport.VALUE, new SqlType.Array(names ? SqlType.Scalar.VARCHAR
+                        : SqlType.Scalar.JSON), true))));
+        return new SqlExpr.ScalarSubquery(listed);
+    }
+
+    /** An authored raw read's rows: its text, in the language its connection declares (decision D2). Where the
+     *  statement reads THIS grid's rows as their cells ({@code $r.values}, {@link #cellGrids(List)}) and it is not a
+     *  report's input, each row is the list of its cells, the row's one column {@code values}
+     *  ({@link SqlSource.GridReport.Part#ROWS}: the grid's report, so the plan is keyed on its reported columns), which
+     *  any operation over the rows reads by name as it reads any column. */
     private SqlSelect rawGrid(com.legend.compiler.spec.typed.TypedRawSqlRelation raw) {
-        return SqlSelect.starOf(new SqlSource.RawSql(raw.sql(), nextAlias(), gridOutputs(raw.info()),
+        SqlSelect grid = SqlSelect.starOf(new SqlSource.RawSql(raw.sql(), nextAlias(), gridOutputs(raw.info()),
                 raw.writtenFor()));
+        if (reportInputs > 0 || cellGrids == null || !cellGrids.contains(gridKey(raw))) {
+            return grid;
+        }
+        return SqlSelect.starOf(new SqlSource.GridReport(grid, SqlSource.GridReport.Part.ROWS, nextAlias()));
+    }
+
+    /** A raw grid's identity: its authored text and the language it is written in (the same text is the same grid). */
+    private static String gridKey(com.legend.compiler.spec.typed.TypedRawSqlRelation raw) {
+        return raw.writtenFor() + "\u0000" + raw.sql();
+    }
+
+    /** The raw grids whose rows {@code body} reads as their cells (the planner-driver seam program's S3c audit,
+     *  2026-10-31): a row read as {@code .values} -- a lambda's row ({@code $r.values}: its grids are its operation's
+     *  source's, the operation's first child) or a picked one ({@code ->at(0).values}: its grids are its own
+     *  expression's) -- names the grids it ranges over, a let followed to its value. A grid whose rows are also read by
+     *  a column's name is refused by name: a row read as its cells is the list of them, with no column of its own. */
+    private static java.util.Set<String> cellGrids(List<TypedSpec> body) {
+        Map<String, TypedSpec> lets = new HashMap<>();
+        for (TypedSpec st : body) {
+            if (st instanceof TypedLet let) {
+                lets.put(let.name(), let.value());
+            }
+        }
+        java.util.Set<String> cells = new java.util.HashSet<>();
+        Map<String, String> byName = new HashMap<>();
+        for (TypedSpec st : body) {
+            scanRowReads(st, null, lets, cells, byName);
+        }
+        for (String grid : cells) {
+            if (byName.containsKey(grid)) {
+                throw new com.legend.error.NotImplementedException("a raw grid's row read both as its cells ($r.values)"
+                        + " and by a column's name ($r." + byName.get(grid) + "): a row read as its cells is the list"
+                        + " of them, with no column of its own");
+            }
+        }
+        return cells;
+    }
+
+    private static void scanRowReads(TypedSpec n, @com.legend.base.Nullable TypedSpec parent,
+            Map<String, TypedSpec> lets, java.util.Set<String> cells, Map<String, String> byName) {
+        if (n instanceof TypedLambda lambda && parent != null && !parent.children().isEmpty()
+                && parent.children().get(0) != n) {
+            // a lambda over its operation's rows: its parameters range over the operation's source
+            for (String param : lambda.parameters()) {
+                for (TypedSpec b : lambda.body()) {
+                    rowReads(b, param, gridsOf(parent.children().get(0), lets), cells, byName);
+                }
+            }
+        }
+        if (n instanceof TypedPropertyAccess pa && !(pa.source() instanceof TypedVariable)
+                && lateBoundRow(pa.source())) {
+            for (String grid : gridsOf(pa.source(), lets)) {
+                if ("values".equals(pa.property())) {
+                    cells.add(grid);
+                } else {
+                    byName.putIfAbsent(grid, pa.property());
+                }
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            scanRowReads(c, n, lets, cells, byName);
+        }
+    }
+
+    /** The reads of row {@code param} in {@code n}: {@code values} marks {@code grids} read as cells, any other
+     *  property marks them read by name. */
+    private static void rowReads(TypedSpec n, String param, java.util.Set<String> grids, java.util.Set<String> cells,
+            Map<String, String> byName) {
+        if (n instanceof TypedPropertyAccess pa && pa.source() instanceof TypedVariable v && v.name().equals(param)
+                && lateBoundRow(v)) {
+            for (String grid : grids) {
+                if ("values".equals(pa.property())) {
+                    cells.add(grid);
+                } else {
+                    byName.putIfAbsent(grid, pa.property());
+                }
+            }
+        }
+        for (TypedSpec c : n.children()) {
+            rowReads(c, param, grids, cells, byName);
+        }
+    }
+
+    /** Whether {@code spec} is ONE row of a raw grid (not a relation of them, not an erased row). */
+    private static boolean lateBoundRow(TypedSpec spec) {
+        return Type.schemaView(spec.info().type()) instanceof Type.RelationType rt && rt.isLateBound()
+                && !rt.isErasedRow() && !Type.relationValued(spec.info());
+    }
+
+    /** The raw grids {@code spec} reads (a let followed to its value; a lambda's body is not its rows' source). */
+    private static java.util.Set<String> gridsOf(TypedSpec spec, Map<String, TypedSpec> lets) {
+        java.util.Set<String> out = new java.util.HashSet<>();
+        gridsOf(spec, lets, out, new java.util.HashSet<>());
+        return out;
+    }
+
+    private static void gridsOf(TypedSpec n, Map<String, TypedSpec> lets, java.util.Set<String> out,
+            java.util.Set<String> followed) {
+        switch (n) {
+            case com.legend.compiler.spec.typed.TypedRawSqlRelation raw -> out.add(gridKey(raw));
+            case TypedVariable v when lets.containsKey(v.name()) && followed.add(v.name()) ->
+                    gridsOf(lets.get(v.name()), lets, out, followed);
+            case TypedLambda ignored -> { }
+            default -> n.children().forEach(c -> gridsOf(c, lets, out, followed));
+        }
     }
 
     /** A catalog grid: which grid and its patterns; the dialect reads its database's catalog. */
@@ -2429,9 +2806,21 @@ public final class Lowerer {
                     new SqlExpr.IntLit(1), new SqlExpr.IntLit(0)));
         }
         List<List<SqlExpr>> rows = new ArrayList<>(tds.rows().size());
-        for (List<String> row : tds.rows()) {
+        for (int r = 0; r < tds.rows().size(); r++) {
+            List<String> row = tds.rows().get(r);
             List<SqlExpr> cells = new ArrayList<>(row.size());
             for (int i = 0; i < row.size(); i++) {
+                String parameter = tds.parameterAt(r, i);
+                if (parameter != null) {
+                    // a cell bound when the plan runs (an activity's trace stamp, M3f): the statement's own parameter
+                    SqlExpr bound = zoned(letBindings.get(parameter));
+                    if (bound == null) {
+                        throw new IllegalStateException("a TDS cell is the plan parameter '" + parameter + "', which"
+                                + " the statement's lowering does not bind (bindPlanParam)");
+                    }
+                    cells.add(bound);
+                    continue;
+                }
                 cells.add(Scalars.tdsCell(row.get(i), schema.columns().get(i).type()));
             }
             rows.add(cells);
@@ -2577,10 +2966,145 @@ public final class Lowerer {
         if (aj.condition().isPresent()) {
             on = SqlExpr.Call.of(SqlFn.AND, sideCondition(aj.condition().get(), left, right), on);
         }
+        if (deterministicAsOf) {
+            right = oneRowPerMatch(right, on);
+        }
         Set<String> leftNames = new HashSet<>();
         Type.requireRelationSchema(aj.left().info().type()).columns().forEach(c -> leftNames.add(c.name()));
         return joined(new SqlSource.Join(left, right, SqlSource.Join.Kind.ASOF_LEFT, on),
                 aj.prefix(), aj.right(), aj.info(), null, leftNames::contains);
+    }
+
+    /**
+     * AS-OF, DETERMINISTIC, AN OPTION (PlanOption.DETERMINISTIC_AS_OF; the user, 2026-11-07: "Can we make as of
+     * deterministic?" -- "I would have option to not take this cost penalty by default but then our tests should use the
+     * option"; docs/SEMANTICS_REGISTER.md): an
+     * as-of join matches each left row with ONE right row, as every as-of join does (DuckDB's, Snowflake's, kdb+'s aj,
+     * pandas' merge_asof) -- but where right rows tie on the match (the same keys, the same as-of value), DuckDB and
+     * Snowflake answer any one of them and the emulation of a database without one answered every one. Here the right
+     * side keeps one row per match before the join -- by ROW_NUMBER over its own operands of the ON's equalities and
+     * inequality, the greatest row by its columns in order, descending, an absent value last ("the last", as kdb+ and
+     * pandas keep it) -- so every database answers the same row. The side keeps its alias, the ON reads it as before;
+     * an ON with no inequality between the sides, or a side that is no single source, is left as it is.
+     */
+    private SqlSource oneRowPerMatch(SqlSource right, SqlExpr on) {
+        if (right instanceof SqlSource.Join) {
+            return right;
+        }
+        String ra = right.alias();
+        List<SqlExpr> conjuncts = new ArrayList<>();
+        conjunctsOf(on, conjuncts);
+        List<SqlExpr> keys = new ArrayList<>();
+        // a conjunct of the right side alone (q.venue != 'DARK') filters its rows before the rank, so the row kept is
+        // one the ON takes; a conjunct of the left side alone chooses no right row; any other that reads both sides
+        // and is no equality or inequality of one side's operand with the other's (an OR, a function of both) leaves
+        // the side as it is -- the rank cannot keep the row it would take (the final review of PR #81, 2026-11-09: a
+        // tied row the ON then refused had been kept, its left row matching an older one or none)
+        List<SqlExpr> rightOnly = new ArrayList<>();
+        boolean inequality = false;
+        for (SqlExpr c : conjuncts) {
+            if (!reads(c, ra)) {
+                continue;
+            }
+            if (readsOnly(c, ra)) {
+                rightOnly.add(c);
+                continue;
+            }
+            if (!(c instanceof SqlExpr.Call call) || call.args().size() != 2) {
+                return right;
+            }
+            boolean equality = call.fn() == SqlFn.EQUAL || call.fn() == SqlFn.NULL_SAFE_EQUAL;
+            boolean ordering = call.fn() == SqlFn.GREATER || call.fn() == SqlFn.GREATER_EQUAL
+                    || call.fn() == SqlFn.LESS || call.fn() == SqlFn.LESS_EQUAL;
+            if (!equality && !ordering) {
+                return right;
+            }
+            SqlExpr a = call.args().get(0);
+            SqlExpr b = call.args().get(1);
+            SqlExpr own = readsOnly(a, ra) && !reads(b, ra) ? a : readsOnly(b, ra) && !reads(a, ra) ? b : null;
+            if (own == null) {
+                return right;
+            }
+            keys.add(own);
+            inequality |= ordering;
+        }
+        if (!inequality) {
+            return right;
+        }
+        List<SqlSelect.Projection> columns = new ArrayList<>();
+        List<SqlSelect.SortKey> greatest = new ArrayList<>();
+        for (OutputCol oc : right.outputs()) {
+            SqlExpr.Column col = SqlExpr.Column.of(ra, oc);
+            columns.add(new SqlSelect.Projection(col, oc.name(), oc));
+            // every column a database orders: a scalar's (not JSON's) and a decimal's -- two tied rows that differ in a
+            // price alone had kept the one the database chose (the tenet audit of PR #81, 2026-11-13)
+            if (oc.type() instanceof SqlType.Scalar sc && sc != SqlType.Scalar.JSON
+                    || oc.type() instanceof SqlType.Decimal) {
+                greatest.add(new SqlSelect.SortKey(col, false, SqlSelect.SortKey.NullOrder.NULLS_LAST, null));
+            }
+        }
+        OutputCol rankOut = new OutputCol("__asof_rank", SqlType.Scalar.BIGINT, false);
+        List<SqlSelect.Projection> ranked = new ArrayList<>(columns);
+        ranked.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), keys, greatest, null), rankOut.name(), rankOut));
+        String inner = nextAlias();
+        SqlSelect rankedSelect = SqlSelect.starOf(right).withProjections(ranked);
+        if (!rightOnly.isEmpty()) {
+            SqlExpr filter = rightOnly.get(0);
+            for (SqlExpr c : rightOnly.subList(1, rightOnly.size())) {
+                filter = SqlExpr.Call.of(SqlFn.AND, filter, c);
+            }
+            rankedSelect = rankedSelect.withWhere(filter);
+        }
+        SqlSource rankedSource = new SqlSource.Subselect(rankedSelect, inner, null);
+        List<SqlSelect.Projection> kept = new ArrayList<>();
+        for (OutputCol oc : right.outputs()) {
+            kept.add(new SqlSelect.Projection(SqlExpr.Column.of(inner, oc), oc.name(), oc));
+        }
+        SqlSelect one = SqlSelect.starOf(rankedSource).withProjections(kept).withWhere(
+                SqlExpr.Call.of(SqlFn.EQUAL, SqlExpr.Column.of(inner, rankOut), new SqlExpr.IntLit(1)));
+        return new SqlSource.Subselect(one, ra, null);
+    }
+
+    /** {@code e}'s conjuncts: an AND's, a parenthesized one's, else itself. */
+    private static void conjunctsOf(SqlExpr e, List<SqlExpr> out) {
+        if (e instanceof SqlExpr.Group g) {
+            conjunctsOf(g.inner(), out);
+        } else if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.AND) {
+            c.args().forEach(a -> conjunctsOf(a, out));
+        } else {
+            out.add(e);
+        }
+    }
+
+    /** Whether {@code e} reads a column of {@code alias}. */
+    private static boolean reads(SqlExpr e, String alias) {
+        if (e instanceof SqlExpr.Column c && alias.equals(c.table())) {
+            return true;
+        }
+        for (SqlExpr k : e.children()) {
+            if (reads(k, alias)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Whether {@code e} reads columns of {@code alias} and of no other source. */
+    private static boolean readsOnly(SqlExpr e, String alias) {
+        Set<String> tables = new HashSet<>();
+        tablesRead(e, tables);
+        return tables.equals(Set.of(alias));
+    }
+
+    /** The sources {@code e}'s columns are of ({@code "null"} for an unqualified one). */
+    private static void tablesRead(SqlExpr e, Set<String> out) {
+        if (e instanceof SqlExpr.Column c) {
+            out.add(String.valueOf(c.table()));
+        }
+        for (SqlExpr k : e.children()) {
+            tablesRead(k, out);
+        }
     }
 
     /**
@@ -2760,6 +3284,11 @@ public final class Lowerer {
                                 over.frame()),
                         a.name(), Fold.named(contract, a.name())));
             }
+            // the copies the window columns write (Fold.overCopied): past the budget, and where the base isolated reads as it
+            // did, isolated and read by name
+            if (Fold.overCopied(b, ps) instanceof String copied) {
+                throw new UnfoldableRef(copied);
+            }
             return b.withProjections(ps);
         });
         // a class-extent window closes its select (TypedExtendWindow
@@ -2778,6 +3307,9 @@ public final class Lowerer {
                 ps.add(new SqlSelect.Projection(
                         Windows.windowize(aggValue(b, a), List.of(), List.of(), null),
                         a.name(), Fold.named(contract, a.name())));
+            }
+            if (Fold.overCopied(b, ps) instanceof String copied) {
+                throw new UnfoldableRef(copied);
             }
             return b.withProjections(ps);
         });
@@ -2812,7 +3344,10 @@ public final class Lowerer {
                             : k.ascending() ? SqlSelect.SortKey.NullOrder.NULLS_LAST
                                     : SqlSelect.SortKey.NullOrder.NULLS_FIRST, null));
         }
-        return new Over(parts, keys, over.frame().map(Windows::sqlFrame).orElse(null));
+        // a bound the database computes (a parameter, arithmetic over one) lowered as any scalar: it reads no row
+        ColumnResolver none = scopedResolver(base, null);
+        return new Over(parts, keys, over.frame().map(f -> Windows.sqlFrame(f, v -> scalar(refusingFail(v), none)))
+                .orElse(null));
     }
 
     /**
@@ -2852,9 +3387,9 @@ public final class Lowerer {
                 // an ALIAS whose defining expression must substitute (a raw
                 // FROM-qualified ref binds to nothing).
                 args.add(resolveOrThrow(base, p.property()));
-                trailingIntArgs(call, args);
+                trailingIntArgs(call, args, base);
                 return new SqlExpr.WindowCall(new SqlAgg.ValueFn(fn.sqlName(), args),
-                        over.partitionBy(), over.orderBy(), over.frame());
+                        over.partitionBy(), over.orderBy(), fn.readsFrame() ? over.frame() : null);
             }
             // reduce(rel, w, row, map, agg): the WINDOWED map+reduce — the
             // agg-col machinery arriving as a native call (real reduce.pure).
@@ -2916,14 +3451,20 @@ public final class Lowerer {
                             + "' needs a property access naming its column");
                 }
                 List<SqlExpr> args = new ArrayList<>();
-                trailingIntArgs(call, args);
+                trailingIntArgs(call, args, base);
+                // a ranking reads the partition, never a frame (WindowFn.readsFrame)
                 return new SqlExpr.WindowCall(new SqlAgg.RankingFn(fn.sqlName(), args),
-                        over.partitionBy(), over.orderBy(), over.frame());
+                        over.partitionBy(), over.orderBy(), null);
             }
             case TypedNativeCall call -> {
                 List<SqlExpr> args = call.args().stream()
                         .map(a -> windowScalar(a, base, over)).toList();
                 return NullSemantics.verbatim(verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(call, args, features, implementations));
+            }
+            // The EMPTY collection is no run: none, the scalar rule's NULL (2026-10-26: an if's |[] arm in a window
+            // column, the DataCube library's returns, had been an empty array, which a CASE beside a number refuses)
+            case TypedCollection c when c.elements().isEmpty() -> {
+                return scalar(c, noScope());
             }
             // The n-ary arithmetic carrier ($r.AGE - $p->lag($r).AGE spells
             // minus([a, b]) — upstream's variadic natives, batch 5 leg 5):
@@ -2975,14 +3516,52 @@ public final class Lowerer {
         return e;
     }
 
+    /** {@code spec}, a value that reads no row (a frame's or a lag's offset), refused when planned where it fails
+     *  unconditionally -- a {@code fail(message)} outside any {@code if}'s branches (in its condition, or none), which
+     *  would raise on every row: its
+     *  message the refusal's (a library's word that tables its parameters, a decomposition's cycle of a SAMPLE BY's
+     *  period, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S1d). */
+    private static TypedSpec refusingFail(TypedSpec spec) {
+        if (spec instanceof TypedNativeCall nc
+                && com.legend.builtin.Pure.AT_ASSERTS_FAIL.contains(nc.callee().id())) {
+            String message = !nc.args().isEmpty() && nc.args().get(0) instanceof TypedCString m ? m.value() : "fail";
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.TYPE, message);
+        }
+        if (spec instanceof com.legend.compiler.spec.typed.TypedIf ti) {
+            // its condition is evaluated whatever it answers; its branches are not
+            refusingFail(ti.condition());
+        } else {
+            spec.children().forEach(Lowerer::refusingFail);
+        }
+        return spec;
+    }
+
+    /** Whether {@code spec} reads no row: literals, and functions of them (a lambda of no parameter among them, an
+     *  {@code if}'s branch) -- a value the database computes once for every row. */
+    private static boolean rowFree(TypedSpec spec) {
+        return switch (spec) {
+            case TypedVariable ignored -> false;
+            case com.legend.compiler.spec.typed.TypedLambda l -> l.parameters().isEmpty()
+                    && l.children().stream().allMatch(Lowerer::rowFree);
+            case com.legend.compiler.spec.typed.TypedPropertyAccess ignored -> false;
+            default -> spec.children().stream().allMatch(Lowerer::rowFree);
+        };
+    }
+
     /**
      * Literal Integer args (ntile n, lag/lead offset) ride along; variable
-     * refs are the window params; anything else is LOUD, never dropped.
+     * refs are the window params; a value that reads no row (a library word's
+     * parameter, arithmetic over one: the frame offset's rule,
+     * docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md C1, S1d) lowered as
+     * any scalar, the database's to compute; anything else is LOUD, never
+     * dropped.
      */
-    private static void trailingIntArgs(TypedNativeCall call, List<SqlExpr> args) {
+    private void trailingIntArgs(TypedNativeCall call, List<SqlExpr> args, SqlSelect base) {
         for (TypedSpec a : call.args()) {
             if (a instanceof TypedCInteger c) {
                 args.add(new SqlExpr.IntLit(c.value().longValue()));
+            } else if (a instanceof TypedNativeCall && rowFree(a)) {
+                args.add(scalar(refusingFail(a), scopedResolver(base, null)));
             } else if (!(a instanceof TypedVariable)) {
                 throw new IllegalStateException("window function argument of kind "
                         + a.getClass().getSimpleName() + " is not supported (literals only)");
@@ -3012,6 +3591,16 @@ public final class Lowerer {
 
     private SqlExpr scalarInner(TypedSpec spec, ColumnResolver columns) {
         return switch (spec) {
+            // a RAW GRID's column names or row-major cells (the planner-driver seam program's S3c, 2026-10-30): the
+            // grid's report, written per column its result reports (the keyed plan reads them first, D76); nothing
+            // is read at planning, no column is assumed -- first, so no arm reads either as a column
+            // (a ROW's cells are a row's, not a grid's -- the grid's rows as their cells, rawGrid: the report reads a
+            // relation's, the grid or its rows; until the S3c audit, 2026-10-31, "not a variable" stood for it)
+            case TypedPropertyAccess pa
+                    when ("columnNames".equals(pa.property()) || "values".equals(pa.property()))
+                    && Type.relationValued(pa.source().info())
+                    && Type.schemaView(pa.source().info().type()) instanceof Type.RelationType grt
+                    && grt.isLateBound() -> gridReport(pa);
             case TypedNativeCall g when RowGetters.isRowGetter(g) -> RowGetters.read(g, columns);
             // A literal BEYOND long (the parser kept it a BigInteger)
             // renders as a plain numeric literal — DuckDB reads HUGEINT.
@@ -3020,6 +3609,8 @@ public final class Lowerer {
                     : new SqlExpr.IntLit(c.value().longValue());
             case TypedCString c -> new SqlExpr.StringLit(c.value());
             case TypedCBoolean c -> new SqlExpr.BoolLit(c.value());
+            // a value a planned statement answers (B2d.2, 2026-11-11): its statement, read where the value stands
+            case com.legend.compiler.spec.typed.TypedPlannedValue v -> new SqlExpr.ScalarSubquery(v.statement());
             // B8: exact digits emit as DecimalLit under the Float label (see CFloat)
             case TypedCFloat c -> c.exact() != null
                     ? new SqlExpr.DecimalLit(c.exact())
@@ -3055,44 +3646,27 @@ public final class Lowerer {
                     && !PlatformTypes.isVariant(ct)
                     && !PlatformTypes.isNil(ct)
                     && classLayout.apply(ct).isEmpty() -> {
-                // THE HETERO-LITERAL CLAIM (F10 3b, M4 RE-LAND on the
-                // typed IR — zero compensations): a VALUE-LANE Any-LUB
-                // literal collection whose every element SPELLS rides
-                // the LITERAL carrier — six kinds disjoint BY GRAMMAR,
-                // so temporal/Decimal equality inside Any is byte-
-                // decidable (json erased exactly those kinds: to_json
-                // of a date and of its string print are the SAME bytes
-                // — witness AnyLiteralByteDecidabilityTest). The
-                // original parking blocker DISSOLVED with the carrier-
-                // rule reversal: rows.values rides the grid again, so
-                // grid-extraction asserts never meet this carrier (the
-                // lane gates: value-lane only, never a rowCells body).
-                // Enum/instance/computed elements decline per-element
-                // and the collection keeps the variant lane; Number-LUB
-                // mixes keep variant BY CONTRACT (arithmetic must type;
-                // the next arm — the §1R census receipt).
+                // a VALUE-LANE Any-LUB literal collection is a TAGGED LIST (track L, 2026-10-29; the LITERAL
+                // spelling carrier, six kinds disjoint by grammar, until L2 that day): each element in its own
+                // channel, so temporal/Decimal equality inside Any is decided by kind (json erased exactly those
+                // kinds: to_json of a date and of its string print are the SAME bytes -- witness
+                // AnyLiteralByteDecidabilityTest). Instance/computed elements decline per-element and the
+                // collection keeps the variant lane; Number-LUB mixes keep variant BY CONTRACT (arithmetic must
+                // type; the next arm), read as a tagged list at a root and under the list's operations.
                 boolean cellSlots = c.rowCells();
                 if (!cellSlots && CollectionLanes.valueLane(c)
                         && !c.elements().isEmpty()) {
-                    java.util.List<SqlExpr> spelled =
-                            new java.util.ArrayList<>(c.elements().size());
+                    // a value-lane Any-LUB literal collection whose every element is of a tagged kind is a TAGGED
+                    // LIST (track L, 2026-10-29: docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a's step B): each
+                    // element in its own channel, the kinds as types, nothing spelled; a one-element collection
+                    // the tagged value itself
+                    java.util.List<SqlExpr> lowered = new java.util.ArrayList<>(c.elements().size());
                     for (TypedSpec el : c.elements()) {
-                        SqlExpr s = MixedEncoding.elementLiteral(
-                                el, scalar(el, columns));
-                        if (s == null) {
-                            spelled = null;
-                            break;
-                        }
-                        spelled.add(s);
+                        lowered.add(scalar(el, columns));
                     }
-                    if (spelled != null) {
-                        yield ValueCollections.c1Singleton(c)
-                                ? new SqlExpr.Cast(spelled.get(0),
-                                        SqlType.Scalar.LITERAL)
-                                : new SqlExpr.Cast(
-                                        new SqlExpr.ArrayLit(spelled),
-                                        new SqlType.Array(
-                                                SqlType.Scalar.LITERAL));
+                    SqlExpr.TaggedList tl = MixedEncoding.taggedList(c, lowered);
+                    if (tl != null) {
+                        yield ValueCollections.c1Singleton(c) ? tl.element(new SqlExpr.IntLit(1)) : tl;
                     }
                 }
                 // instances meeting at a model class with no layout carry
@@ -3382,7 +3956,7 @@ public final class Lowerer {
             // A bare variable: a query-level let binding substitutes; else a
             // lambda variable (a list element inside exists/forAll etc.).
             case TypedVariable v -> {
-                SqlExpr bound = letBindings.get(v.name());
+                SqlExpr bound = zoned(letBindings.get(v.name()));
                 yield bound != null ? bound
                         : Objects.requireNonNull(columns.resolve(v.name(), null),
                                 () -> "unresolvable variable '$" + v.name() + "'");
@@ -3475,7 +4049,7 @@ public final class Lowerer {
             // Car): type VALUES travel as their PATHS (docs/PLAN_PATH_PROGRAM_2026_10_17.md §9,
             // 2026-10-20; a base primitive's is its name), as do a TDS's
             // column types and an instance's rawType, so equality compares
-            // paths and the text carrier's reader resolves a namesake; a
+            // paths and a reader resolves a namesake; a
             // printer takes the name (Scalars.pureToString)
             case com.legend.compiler.spec.typed.TypedTypeRef tr ->
                     new SqlExpr.StringLit(com.legend.compiler.element.type.PlatformTypes
@@ -3512,11 +4086,22 @@ public final class Lowerer {
             // COLLECTION-VALUED relation nodes in scalar position (the
             // list encodings; relation-typed sources take relation()).
             // C1: a scalar-stamped source conforms by EMISSION (asList).
-            case TypedFilter f when !Type.relationValued(f.source().info()) ->
-                    SqlExpr.Call.of(SqlFn.LIST_FILTER,
-                            PureSql.asList(scalar(f.source(), columns),
-                                    Stamps.isMany(f.source())),
-                            scalar(f.predicate(), columns));
+            case TypedFilter f when !Type.relationValued(f.source().info()) -> {
+                SqlExpr src = scalar(f.source(), columns);
+                SqlExpr.TaggedList mixed = Scalars.asTaggedList(f.source(), src);
+                if (mixed != null && f.predicate().parameters().size() == 1) {
+                    // a mixed list (track L; the L2 audit, 2026-10-29): the predicate over the element at each
+                    // position, its parameter the element there (LambdaBinding.mapElemResolver)
+                    String param = f.predicate().parameters().get(0);
+                    SqlExpr body = scalar(LambdaBinding.last(f.predicate()),
+                            LambdaBinding.mapElemResolver(param, mixed, false,
+                                    LambdaBinding.lambdaResolver(f.predicate().parameters(), columns)));
+                    yield TaggedLists.filter(mixed, new SqlExpr.Lambda(List.of(param), body));
+                }
+                yield SqlExpr.Call.of(SqlFn.LIST_FILTER,
+                        PureSql.asList(src, Stamps.isMany(f.source())),
+                        scalar(f.predicate(), columns));
+            }
             // slice(start, stop) — ListEncodings.slice owns the bounds
             // clamps and real pure's inverted-bounds error
             // slice/drop/take consume the LIST carrier — a to-one-stamped
@@ -3683,6 +4268,11 @@ public final class Lowerer {
                 yield ie;
             }
             case TypedNativeCall n when formatOverSlots(n) -> formatted(n, columns);
+            // isEmpty/isNotEmpty over read(row, ~[a, b]) (2026-11-02): the rule takes the read's cells, each column
+            // read as the row's column is, and tests them -- no list is made (Scalars.overCells)
+            case TypedNativeCall n when Scalars.overCells(n) -> NullSemantics.verbatim(
+                    verbatimEquality || legacyNullUnsafeEquals, Scalars.lower(n, n.args().get(0).children().stream()
+                            .map(c -> scalar(c, columns)).toList(), features, implementations));
             // arg lowering rides the unary-lambda binding convention
             // (LambdaBinding — M4's replacement for the parked branch's
             // LambdaWire ThreadLocal): a unary lambda param carries the
@@ -3760,9 +4350,12 @@ public final class Lowerer {
                 enclosing.push(enclosingOf(columns));
                 try {
                     if (rt.columns().size() > 1) {
-                        yield new SqlExpr.ScalarSubquery(
-                                ValueCollections.rowMajorCellList(
-                                        relation(rel), rt, nextAlias()));
+                        // a tagged list over the relation's cells (track L, 2026-10-29): each cell in its column's
+                        // kind; a column of a kind no channel holds keeps the variant lane
+                        SqlSelect flat = relation(rel);
+                        SqlExpr.TaggedList cells = ValueCollections.rowMajorTaggedList(flat, rt, this::nextAlias);
+                        yield cells != null ? cells
+                                : new SqlExpr.ScalarSubquery(ValueCollections.rowMajorCellList(flat, rt, nextAlias()));
                     }
                     // a RELATION-OP head (TDS distinct/restrict splice) is
                     // a VALUE COLLECTION whatever its stamp — [1] is the
@@ -3925,7 +4518,7 @@ public final class Lowerer {
      * by name.
      */
     private SqlSelect castOverDynamicPivot(SqlSelect base, Map<String, Type.Column> src, Type.RelationType tgtRow) {
-        List<SqlSource.Pivot> dynamic = TdsTextWrap.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
+        List<SqlSource.Pivot> dynamic = KeyedPivot.pivots(base).stream().filter(p -> p.in().isEmpty()).toList();
         if (dynamic.size() != 1) {
             throw new NotImplementedException("cast(@Relation<...>) over " + dynamic.size()
                     + " dynamic pivots: the generated columns' pivot is ambiguous");

@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 
@@ -31,6 +33,27 @@ public final class MySql extends MariaDb {
         super(MariaDb.LEXICON);
     }
 
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 8.4: 100,000
+     *  records in 342 ms, where MariaDB's {@code JSON PATH '$'} column took 586): the payload one derived row,
+     *  {@code JSON_TABLE} its elements' ordinals, each element extracted by its index -- its JSON, a frame's record its
+     *  place as the ordinality from 0 (the payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, com.legend.sql.SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT JSON_EXTRACT(legend_doc.legend_payload, CONCAT('$[', legend_rows.legend_ord - 1, ']'))"
+                + " AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_rows.legend_ord - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM (SELECT ");
+        return bindPayload(writer, u).append(" AS legend_payload) AS legend_doc, JSON_TABLE(legend_doc.legend_payload,"
+                + " '$[*]' COLUMNS (legend_ord FOR ORDINALITY)) AS legend_rows");
+    }
+
     /** MariaDB's passes, then each window call inside an expression computed in a select below
      *  ({@link WindowsComputedBelow}: MySQL evaluates a subquery of an expression over a window call on every row,
      *  measured, so a guard's raise fired where its CASE did not reach it). */
@@ -47,7 +70,7 @@ public final class MySql extends MariaDb {
     protected String scalarTypeName(com.legend.sql.SqlType.Scalar s) {
         return switch (s) {
             case BOOLEAN, INTEGER, BIGINT, HUGEINT, DOUBLE, VARCHAR, DATE, TIMESTAMP, TIMESTAMPTZ, TIME, JSON,
-                 LITERAL, TEMPORAL_TEXT, DECIMAL_TEXT ->
+                 TEMPORAL_TEXT, DECIMAL_TEXT ->
                     super.scalarTypeName(s);
         };
     }
@@ -79,14 +102,14 @@ public final class MySql extends MariaDb {
         return switch (c.fn()) {
             case AND, OR, NOT, EQUAL, NOT_EQUAL, LESS, LESS_EQUAL, GREATER, GREATER_EQUAL, PLUS, MINUS, TIMES,
                  DIVIDE, MOD, REM, NEGATE, ABS, IS_NULL, IS_NOT_NULL, IN, COALESCE, PARSE_INT, CONCAT, LENGTH, UPPER,
-                 LOWER, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET,
+                 LOWER, GREATEST, LEAST, CONCAT_JOIN, LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT,
                  LIST_POSITION, LIST_EXISTS, LIST_FOR_ALL, STRUCT_INSERT, UNNEST, LIST_FLATTEN, JSON_MERGE_PATCH,
                  SQRT, CBRT, EXP, LN, LOG10, POW, PI, SIN, COS, TAN, ASIN, ACOS, ATAN, ATAN2, SINH, COSH, TANH,
                  CEILING, FLOOR, ROUND, SIGN, XOR, BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT,
                  BIT_NOT, REGEXP_EXTRACT, REGEXP_EXTRACT_ALL, REGEXP_REPLACE, REGEXP_FULL_MATCH, MAP_FROM_LISTS,
                  MAP_FROM_ENTRIES, MAP_EMPTY, MAP_EXTRACT, MAP_KEYS, MAP_VALUES, MAP_CONCAT, SUBSTRING, STRPOS,
                  STARTS_WITH, ENDS_WITH, MATCHES, LEFT, RIGHT, LPAD, RPAD, TRIM, LTRIM, RTRIM, REPLACE, TRANSLATE, SPLIT,
-                 SPLIT_PART, PURE_SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST, ENCODE_BASE64,
+                 SPLIT_PART, PURE_SPLIT_PART, REVERSE_STRING, ASCII_CODE, CHR, UC_FIRST, LC_FIRST, BINARY_COLLATE, ENCODE_BASE64,
                  LEVENSHTEIN, GUID, RANDOM, FORMAT, HASH, MD5, SHA1, SHA256, EXTRACT, TODAY, NOW, DATE_TRUNC_DAY,
                  MAKE_DATE,
                  MAKE_TIMESTAMP, DATE_TRUNC, ADD_INTERVAL, DATE_DIFF, TIME_BUCKET, TIMEZONE, DATE_AT_TIME, ADD_INTERVAL_TEMPORAL,
@@ -96,7 +119,7 @@ public final class MySql extends MariaDb {
                  LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE,
                  LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
                  NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_PRINT_ENGINE, VARIANT_ELEMENTS,
+                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, VARIANT_ELEMENTS,
                  VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
         };
     }
@@ -178,27 +201,25 @@ public final class MySql extends MariaDb {
 
     /** {@code JSON_VALUE} takes only a literal path here and answers in another collation (utf8mb4_0900_bin, an
      *  "Illegal mix" with the session's) as VARCHAR(512) (measured): a value at a path is {@code JSON_EXTRACT}'s,
-     *  unquoted, a JSON null NULL. */
+     *  unquoted, a JSON null NULL -- the null compared as JSON with JSON's own null, so the document is written ONCE
+     *  (2026-11-03: the CASE form wrote it twice, so each level of nesting doubled the statement -- 7.3 MB on a nested
+     *  instance graph, which took the server down; measured by the MySQL lane). A JSON string "null" stays a string. */
     @Override
     protected SqlWriter.Piece jsonText(SqlWriter.Piece json, SqlWriter.Piece path) {
-        return w -> w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
-                .append(")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
-                .append(")) END)");
+        return w -> w.append("JSON_UNQUOTE(").piece(jsonMember(json, path)).append(")");
     }
 
-    /** A JSON null is JSON here, which a string compares unequal to: the null is read by its type, as
-     *  {@link #jsonText(SqlWriter.Piece, SqlWriter.Piece)} reads it. */
+    /** A JSON null is JSON here, which a string compares unequal to: the null is read as JSON's own null, the
+     *  document written once ({@link #jsonText(SqlWriter.Piece, SqlWriter.Piece)}). */
     @Override
     protected SqlWriter.Piece jsonMember(SqlWriter.Piece json, SqlWriter.Piece path) {
-        return w -> w.append("(CASE WHEN JSON_TYPE(JSON_EXTRACT(").piece(json).append(", ").piece(path)
-                .append(")) = 'NULL' THEN NULL ELSE JSON_EXTRACT(").piece(json).append(", ").piece(path)
-                .append(") END)");
+        return w -> w.append("NULLIF(JSON_EXTRACT(").piece(json).append(", ").piece(path)
+                .append("), CAST('null' AS JSON))");
     }
 
     @Override
     protected String jsonText(String json, String path) {
-        return "(CASE WHEN JSON_TYPE(JSON_EXTRACT(" + json + ", " + path + ")) = 'NULL' THEN NULL ELSE JSON_UNQUOTE("
-                + "JSON_EXTRACT(" + json + ", " + path + ")) END)";
+        return "JSON_UNQUOTE(NULLIF(JSON_EXTRACT(" + json + ", " + path + "), CAST('null' AS JSON)))";
     }
 
     /** A table function's argument may not assign a variable here ("Incorrect arguments to JSON_TABLE", measured): the

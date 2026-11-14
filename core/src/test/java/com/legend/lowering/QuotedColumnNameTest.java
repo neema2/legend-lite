@@ -3,7 +3,8 @@
 
 package com.legend.lowering;
 
-import com.legend.Execution;
+import com.legend.testing.Lean;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -69,7 +70,7 @@ class QuotedColumnNameTest {
             // the runtime declares the engine the session runs on
             String model = MODEL.replace("{ type: DuckDB; specification: DuckDB { }; auth: Test; }",
                     "{ " + backend.connectionBody() + " }");
-            var r = Execution.execute(model, query, "local::RT", c);
+            var r = Lean.run(model, query, "local::RT", c);
             return r.rows().stream().map(row -> {
                 StringBuilder sb = new StringBuilder();
                 for (int i = 0; i < r.columns().size(); i++) {

@@ -6,7 +6,7 @@
 // already used, built here once rather than at each use; the tab's entry hands in what only it knows (its plane, its
 // planner, its DuckDB, its configuration).
 
-import type { AsyncDuckDB } from '../../../engine-client/src/duckdb-wasm.ts';
+import type { TsItemAnswer } from '../lite-planner.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { ProjectDatabases, ProjectDataSource } from '../../../engine-client/src/project-data.ts';
 import type { WarehouseBinding } from '../../../engine-client/src/warehouse.ts';
@@ -20,7 +20,7 @@ import type { ModelOptions } from '../planner.ts';
 import { sourceWithDerived } from '../query.ts';
 import { PlanThenRun } from '../runner.ts';
 import type { ModelEngines, RuntimeEngines } from '../runtime-engines.ts';
-import { forgetUpload, ingestFile, mountRemoteView } from '../upload.ts';
+import { forgetUpload, ingestFile, mountRemoteView, type DuckDbFiles } from '../upload.ts';
 import { browserBasics, tabTitle } from './browser-basics.ts';
 import { browserPages } from './browser-pages.ts';
 import type {
@@ -49,6 +49,8 @@ export interface TabPlanner {
   readonly module: LitePlanner;
   /** legend-lite's planner for a project's own database (C5, engine-client's project-data.ts). */
   readonly projects: ProjectDataSource;
+  /** A timeseries series' #TS text, read by legend-lite's module (A3 step 3): the same module as `tables`. */
+  tsItem(text: string): Promise<TsItemAnswer>;
   readonly models: {
     another(model: string, runtime: string, how?: ModelOptions): Planner;
     elements(text: string): Promise<unknown[]>;
@@ -73,7 +75,7 @@ export interface BrowserServicesOptions {
   readonly plane: PlaneService;
   readonly planner: TabPlanner;
   /** This tab's DuckDB: its connection's engine, the database files are registered on, and its other connections. */
-  readonly duckdb: { readonly engine: DuckDbEngine; readonly db: AsyncDuckDB; connect(): Promise<DuckDbEngine> };
+  readonly duckdb: { readonly engine: DuckDbEngine; readonly db: DuckDbFiles; connect(): Promise<DuckDbEngine> };
   readonly config: TabConfig;
   /** Where the page is, for the links it makes (Studio on a project). */
   readonly location: { readonly href: string };
@@ -100,7 +102,11 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       plane: o.plane,
       label: o.planner.label,
       // the page's own planner reads a saved query and its project's model -- and with it what each runtime runs on
-      reading: { parse: (text) => o.planner.planner.parse(text), elements: (text) => engines.elements(text) },
+      reading: {
+        parse: (text) => o.planner.planner.parse(text), elements: (text) => engines.elements(text),
+        // a series' #TS text: legend-lite's module, beside whichever planner the page chose (the one reader, A3)
+        tsItem: (text) => o.planner.tsItem(text),
+      },
       rows: (model, runtime, how) => engines.rows(model, runtime, how),
       database: tabDatabase(o.duckdb, o.planner.tables),
       // the model actions: the tab's module writes (beside whichever planner the page chose), the tab's DuckDB answers
@@ -176,7 +182,9 @@ function tabEngines(o: BrowserServicesOptions): {
       }
       return latest.read;
     },
-    rows: (model, runtime, how) => known.get(model)?.(model, runtime)
+    // a model planned over DataCube's Pure library (sources.ts, ModelOptions.overLibrary) is read as its own text: what
+    // its runtimes run on is the model's, the library adding none
+    rows: (model, runtime, how) => known.get(how?.overLibrary?.model ?? model)?.(how?.overLibrary?.model ?? model, runtime)
       ?? { planner: o.planner.models.another(model, runtime, how), engine: o.duckdb.engine },
     live: {
       serve: (source) => {
@@ -193,7 +201,7 @@ function tabModelWriting(writer: ModelWriter, engine: DuckDbEngine): ModelWritin
 }
 
 /** DuckDB in this tab: every grid's rows, and where a file, a remote file or a Snap goes. */
-function tabDatabase(duck: { readonly engine: DuckDbEngine; readonly db: AsyncDuckDB }, tables: TableModels): DatabaseService {
+function tabDatabase(duck: { readonly engine: DuckDbEngine; readonly db: DuckDbFiles }, tables: TableModels): DatabaseService {
   const { engine, db } = duck;
   return {
     ingestFile: (file, options) => ingestFile(engine, db, file, tables, options),

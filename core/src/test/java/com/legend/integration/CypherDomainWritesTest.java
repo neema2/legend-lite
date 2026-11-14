@@ -3,9 +3,11 @@
 
 package com.legend.integration;
 
-import com.legend.server.QueryService;
+import com.legend.testing.LaneFloor;
+
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackend;
-import com.legend.testbackend.TestBackends;
 import com.legend.testcases.CypherAnswers;
 import com.legend.testcases.CypherGraph;
 import com.legend.testcases.SqlParity;
@@ -28,6 +30,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * anything. On the platform's engine here; each other database the writes are measured on runs {@link #writes} in a
  * test named for it (DatabaseOwners).
  */
+@org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class CypherDomainWritesTest {
 
     private static CypherAnswers.GraphNode node(int id, String label, String name) {
@@ -69,7 +72,7 @@ class CypherDomainWritesTest {
 
     private static void cypher(TestBackend backend, CypherGraph.Inferred inferred, Connection c, String statement)
             throws Exception {
-        new QueryService().execute(CypherGraph.model(inferred, backend.connectionBody()), "#Cypher{USE "
+        Lean.run(CypherGraph.model(inferred, backend.connectionBody()), "#Cypher{USE "
                 + CypherGraph.DATASPACE + " " + statement + "}#", CypherGraph.RUNTIME, c);
     }
 
@@ -88,6 +91,6 @@ class CypherDomainWritesTest {
 
     @Test
     void writesOnThePlatform() throws Exception {
-        writes(TestBackends.platform());
+        writes(LaneFloor.backend());
     }
 }

@@ -5,7 +5,6 @@ package com.legend.sql.dialect;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -22,15 +21,20 @@ import java.util.Set;
  * read_csv_auto and iceberg_scan for a remote file), `CREATE ... AS SELECT`, `SELECT * REPLACE`, its secrets, its
  * extensions' settings, and its catalog functions (duckdb_tables, duckdb_views, duckdb_schemas, the Iceberg extension's
  * metadata). A model's declared name is spelled as its seed made it ({@link DuckDb#physicalName}); every other name is
- * quoted; every value is a literal.
+ * quoted; every value is a literal but a secret's, every one of which is bound (B3, 2026-11-11).
  */
 final class DuckDbHostOperations implements HostOperations {
 
     static final DuckDbHostOperations INSTANCE = new DuckDbHostOperations();
 
-    private static final DuckDb DIALECT = new DuckDb();
+    /** A name as DuckDB stores it (one dialect per use, 2026-11-09: a dialect keeps state while it writes, so none is
+     *  shared statically). */
+    private static String physicalName(String name) {
+        return new DuckDb().physicalName(name);
+    }
 
-    /** S3 credentials' names as a secret takes them; USE_SSL a boolean, every other a string. */
+    /** S3 credentials' names as a secret takes them (each bound: USE_SSL as a boolean or its text, every other a
+     *  string). */
     private static final Set<String> CREDENTIALS = Set.of("KEY_ID", "SECRET", "SESSION_TOKEN", "REGION", "ENDPOINT",
             "URL_STYLE", "USE_SSL");
 
@@ -53,21 +57,36 @@ final class DuckDbHostOperations implements HostOperations {
     }
 
     @Override
+    public TransactionStatements transaction() {
+        return new TransactionStatements(statements(new HostOperation.Transaction(HostOperation.Transaction.Step.BEGIN)),
+                statements(new HostOperation.Transaction(HostOperation.Transaction.Step.COMMIT)),
+                statements(new HostOperation.Transaction(HostOperation.Transaction.Step.ROLLBACK)));
+    }
+
+    @Override
     public List<String> statements(HostOperation operation) {
         return switch (operation) {
             case HostOperation.MakeRelation m -> List.of("CREATE " + (m.replace() ? "OR REPLACE " : "") + kind(m.kind())
                     + " " + name(m.target()) + " AS SELECT " + columns(m) + " FROM " + source(m.from()));
             case HostOperation.Insert i -> List.of("INSERT INTO " + name(i.target()) + " ("
-                    + String.join(", ", i.columns().stream().map(c -> DIALECT.physicalName(c.target())).toList())
+                    + String.join(", ", i.columns().stream().map(c -> physicalName(c.target())).toList())
                     + ") SELECT " + String.join(", ", i.columns().stream().map(c -> quoted(c.from())).toList())
                     + " FROM " + source(i.from()));
             case HostOperation.Upsert u -> List.of(upsert(u));
             case HostOperation.Bound b -> List.of(bound(b));
+            // the database makes every row: range(count)'s i, each column its formula of i (SYNTHESIZE, register S303)
+            case HostOperation.Synthesize g -> List.of("INSERT INTO " + name(g.target()) + " ("
+                    + String.join(", ", g.columns().stream().map(f -> physicalName(f.column())).toList())
+                    + ") SELECT " + String.join(", ", g.columns().stream().map(DuckDbHostOperations::formula).toList())
+                    + " FROM range(" + g.count() + ") AS t(i)");
             case HostOperation.Drop d -> List.of("DROP " + kind(d.kind()) + " IF EXISTS " + name(d.target()));
             case HostOperation.MakeSchema m -> List.of("CREATE SCHEMA IF NOT EXISTS " + schema(m.database(), m.name()));
             case HostOperation.DropSchema d -> List.of("DROP SCHEMA IF EXISTS " + schema(d.database(), d.name()));
             case HostOperation.Count c -> List.of("SELECT count(*) AS n FROM " + source(c.from()));
             case HostOperation.Secret s -> secret(s);
+            case HostOperation.DropSecret d -> List.of("DROP TEMPORARY SECRET IF EXISTS " + quoted(d.name()));
+            case HostOperation.SetVariable v -> List.of("SET VARIABLE " + HostOperation.variable(v.held()) + " = ?");
+            case HostOperation.ResetVariable v -> List.of("RESET VARIABLE " + HostOperation.variable(v.held()));
             case HostOperation.Extensions e -> {
                 List<String> out = new ArrayList<>();
                 for (String name : e.names()) {
@@ -120,6 +139,45 @@ final class DuckDbHostOperations implements HostOperations {
         };
     }
 
+    /** A column's formula of the row's number {@code i} ({@link HostOperation.Formula}), in DuckDB's arithmetic: BIGINT
+     *  {@code %} and {@code *} (every product below 2^63 for fewer than 2^32 rows), a list indexed from 1, a date plus
+     *  days, a timestamp plus an interval of seconds. */
+    private static String formula(HostOperation.Formula f) {
+        return switch (f) {
+            case HostOperation.Formula.Cycle c -> "([" + String.join(", ", c.values().stream()
+                    .map(v -> v.number() ? v.text() : literal(v.text())).toList()) + "])[" + turn(c.every(),
+                    c.values().size()) + " + 1]";
+            case HostOperation.Formula.Numbered n -> literal(n.prefix()) + " || CAST(" + turn(n.every(), n.k())
+                    + " + 1 AS VARCHAR)";
+            case HostOperation.Formula.Spread r -> {
+                String step = java.math.BigDecimal.ONE.movePointLeft(r.scale()).toPlainString();
+                String lo = r.lo().toPlainString();
+                String n = "(CAST(round((" + r.hi().toPlainString() + " - " + lo + ") / " + step + ") AS BIGINT) + 1)";
+                yield "(" + lo + " + (" + spread(r.multiplier()) + " % " + n + ") * " + step + ")";
+            }
+            case HostOperation.Formula.Days d -> {
+                String days = "(DATE " + literal(d.to()) + " - DATE " + literal(d.from()) + " + 1)";
+                yield d.seconds()
+                        ? "(CAST(DATE " + literal(d.from()) + " AS TIMESTAMP) + to_seconds(" + spread(d.multiplier())
+                                + " % (" + days + " * 86400)))"
+                        : "(DATE " + literal(d.from()) + " + CAST(" + spread(d.multiplier()) + " % " + days
+                                + " AS INTEGER))";
+            }
+            case HostOperation.Formula.Alternate a -> "(" + turn(a.every(), 2) + " = 0)";
+        };
+    }
+
+    /** A turn column's index: the row number's digit of radix {@code k} worth {@code every}, {@code (i // every) % k}
+     *  ({@code //} DuckDB's integer division). */
+    private static String turn(long every, int k) {
+        return every == 1 ? "(i % " + k + ")" : "((i // " + every + ") % " + k + ")";
+    }
+
+    /** A spread column's offset before its range: the row number times its multiplier, modulo the prime. */
+    private static String spread(long multiplier) {
+        return "((i * " + multiplier + ") % " + HostOperation.Formula.MODULUS + ")";
+    }
+
     private static String kind(HostOperation.Kind kind) {
         return switch (kind) {
             case TABLE -> "TABLE";
@@ -127,56 +185,61 @@ final class DuckDbHostOperations implements HostOperations {
         };
     }
 
-    /** A relation made's columns: the planner's copy select list, every column with conversions in place, or all. */
+    /** A relation made's columns: every one, each its copy converts converted in place -- the conversions its columns'
+     *  catalog asks of a copy into DuckDB, DuckDB's select list ({@link DuckDb#copySelectList}); {@code *} when none. */
     private static String columns(HostOperation.MakeRelation m) {
-        if (m.selectList() != null) {
-            return m.selectList();
-        }
-        if (m.replacing().isEmpty()) {
-            return "*";
-        }
-        return "* REPLACE (" + String.join(", ",
-                m.replacing().stream().map(c -> c.sql() + " AS " + quoted(c.column())).toList()) + ")";
+        DuckDb duck = new DuckDb();
+        return duck.copySelectList(CatalogModel.copyConversions(m.convert(), duck));
     }
 
     private static String source(HostOperation.Source source) {
         return switch (source) {
             case HostOperation.Source.Relation r -> name(r.name());
-            case HostOperation.Source.File f -> switch (f.format()) {
+            // a host's own file, its ? bound by the host's runner to what DuckDB reads it by (B3: never written here)
+            case HostOperation.Source.HostFile f -> switch (f.format()) {
                 // the sniffer takes delimiter, quoting and types; upstream's DataCube asks for a header, as this does
-                case CSV -> "read_csv(" + literal(f.at()) + ", AUTO_DETECT=TRUE, HEADER=TRUE)";
+                case CSV -> "read_csv(?, AUTO_DETECT=TRUE, HEADER=TRUE)";
                 // a declared table's file: every column as text, each converted to its column's type as it goes in
-                case CSV_TEXT -> "read_csv(" + literal(f.at()) + ", header = true, all_varchar = true)";
-                case PARQUET -> "read_parquet(" + literal(f.at()) + ")";
+                case CSV_TEXT -> "read_csv(?, header = true, all_varchar = true)";
+                case PARQUET -> "read_parquet(?)";
                 // each record's top-level keys its columns; what is nested below them a STRUCT or a LIST, kept
-                case JSON -> "read_json(" + literal(f.at()) + ", auto_detect=true)";
+                case JSON -> "read_json(?, auto_detect=true)";
             };
-            case HostOperation.Source.Remote r -> switch (r.format()) {
-                case CSV -> "read_csv_auto(" + literal(r.url()) + ")";
-                case PARQUET -> "read_parquet(" + literal(r.url()) + ")";
-                case ICEBERG -> "iceberg_scan(" + literal(r.url()) + ")";
-            };
-            case HostOperation.Source.Query q -> "(" + q.sql() + ")";
+            case HostOperation.Source.Remote r -> {
+                // the address as it is, or the session variable a bearer URL is bound to (B3's Q3: measured on
+                // duckdb-python 1.5.5 and DuckDB-WASM, the view's text then holds the variable's name alone)
+                String at = switch (r.location()) {
+                    case HostOperation.Location.Url u -> literal(u.url());
+                    case HostOperation.Location.Variable v -> "getvariable(" + literal(HostOperation.variable(v.held())) + ")";
+                };
+                yield switch (r.format()) {
+                    case CSV -> "read_csv_auto(" + at + ")";
+                    case PARQUET -> "read_parquet(" + at + ")";
+                    case ICEBERG -> "iceberg_scan(" + at + ")";
+                };
+            }
         };
     }
 
-    /** A secret for S3, scoped to a source's own path; none when there are no credentials at all. */
+    /** A secret for S3, scoped to a source's own path, its values every one a bound {@code ?} in
+     *  {@link HostOperation.Secret#binds()}'s order -- each field's, then the scope -- so no value is in the statement
+     *  (B3, 2026-11-11: until then each a literal, the planned SQL holding the secret); none when it names no field.
+     *  TEMPORARY, as DuckDB's default already was: the database's session holds it, never a file. */
     private static List<String> secret(HostOperation.Secret s) {
-        List<String> parts = new ArrayList<>();
-        parts.add("TYPE S3");
-        for (Map.Entry<String, String> c : s.credentials().entrySet()) {
-            if (!CREDENTIALS.contains(c.getKey())) {
-                throw new IllegalArgumentException("a secret's credential is one of " + new java.util.TreeSet<>(CREDENTIALS)
-                        + ", not " + c.getKey());
-            }
-            parts.add(c.getKey() + " " + ("USE_SSL".equals(c.getKey())
-                    ? Boolean.toString(Boolean.parseBoolean(c.getValue())) : literal(c.getValue())));
-        }
-        if (parts.size() == 1) {
+        if (s.fields().isEmpty()) {
             return List.of();
         }
-        parts.add("SCOPE " + literal(s.scope()));
-        return List.of("CREATE OR REPLACE SECRET " + quoted(s.name()) + " (" + String.join(", ", parts) + ")");
+        List<String> parts = new ArrayList<>();
+        parts.add("TYPE S3");
+        for (String field : s.fields()) {
+            if (!CREDENTIALS.contains(field)) {
+                throw new IllegalArgumentException("a secret's credential is one of " + new java.util.TreeSet<>(CREDENTIALS)
+                        + ", not " + field);
+            }
+            parts.add(field + " ?");
+        }
+        parts.add(HostOperation.Secret.SCOPE + " ?");
+        return List.of("CREATE OR REPLACE TEMPORARY SECRET " + quoted(s.name()) + " (" + String.join(", ", parts) + ")");
     }
 
     /** An extension's name, as INSTALL takes it: a word, never text a host spliced in. */
@@ -195,7 +258,7 @@ final class DuckDbHostOperations implements HostOperations {
         List<String> by = u.key().stream().map(k -> quoted(u.columns().stream().filter(c -> c.target().equals(k))
                 .findFirst().orElseThrow().from())).toList();
         return "INSERT OR REPLACE INTO " + name(u.target()) + " ("
-                + String.join(", ", u.columns().stream().map(c -> DIALECT.physicalName(c.target())).toList())
+                + String.join(", ", u.columns().stream().map(c -> physicalName(c.target())).toList())
                 + ") SELECT " + String.join(", ", u.columns().stream().map(c -> quoted(c.from())).toList())
                 + " FROM (SELECT *, row_number() OVER (PARTITION BY " + String.join(", ", by)
                 + " ORDER BY rowid DESC) AS \"__latest\" FROM " + name(u.from().name()) + ") WHERE \"__latest\" = 1";
@@ -204,7 +267,7 @@ final class DuckDbHostOperations implements HostOperations {
     /** Every row older than the oldest a stream keeps: its latest rows' last, or its latest value less the span. */
     private static String bound(HostOperation.Bound b) {
         String table = name(b.target());
-        String column = b.target().declared() ? DIALECT.physicalName(b.column()) : quoted(b.column());
+        String column = b.target().declared() ? physicalName(b.column()) : quoted(b.column());
         String oldest = switch (b.keep()) {
             case HostOperation.Bound.Keep.Rows r -> "(SELECT " + column + " FROM " + table + " ORDER BY " + column
                     + " DESC LIMIT 1 OFFSET " + (r.rows() - 1) + ")";
@@ -220,8 +283,8 @@ final class DuckDbHostOperations implements HostOperations {
 
     /** A relation's name: a model's declared one as its seed spelled it, any other quoted; its database, schema too. */
     private static String name(HostOperation.Name n) {
-        String last = n.declared() ? DIALECT.physicalName(n.name()) : quoted(n.name());
-        String schema = n.schema() == null ? null : n.declared() ? DIALECT.physicalName(n.schema()) : quoted(n.schema());
+        String last = n.declared() ? physicalName(n.name()) : quoted(n.name());
+        String schema = n.schema() == null ? null : n.declared() ? physicalName(n.schema()) : quoted(n.schema());
         StringBuilder out = new StringBuilder();
         if (n.database() != null) {
             out.append(quoted(n.database())).append('.');

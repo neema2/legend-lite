@@ -13,6 +13,11 @@
 # [keywords]; [shapes], each a regular expression a literal's text may not begin with (Java's and Python's alike);
 # [kept], each `file | the literal's whole text, in double quotes (\" and \\ its escapes) | why it is not a statement
 # the host spells`.
+# [harnesses] (2026-11-12, the C final audit's H12: the census read .ts alone, and the JavaScript harnesses beside the
+# demos sent their own statements unseen; it reads .mjs, .cjs and .js too): each `file | why`, a harness script kept
+# whole -- a test in all but its folder, run by hand or as a browser test, whose statements build its own fixture
+# database or stand for a person typing; any other script spelling a statement is red, and one kept that spells none is
+# stale.
 
 [typescript]
 datacube/src
@@ -52,7 +57,18 @@ use\s+(?:"|[a-z_]+$)
 begin\s+transaction
 
 [kept]
+# (datacube/demo/remote-harness.ts | "SELECT region, sum(notional) AS m FROM " -- a test page's query over the mount
+# it checks: REMOVED 2026-11-12 by C3, the total wall's, 76590e57f -- the page asks the tab's planner for the query
+# over the demo's model, so no host spells it; the C checkpoint's code audit asked for this note)
 studio/src/ui/editor.ts | "SELECT * FROM \"PARTY\".\"PARTY\"" | the SQL editor's placeholder: an example of the person's own SQL, shown in the empty box, never run
-datacube/demo/remote-harness.ts | "SELECT region, sum(notional) AS m FROM " | a test page's query (verify-remote.mjs), standing in for the planner's over the mount it checks
 query/src/ui/results.ts | "SELECT " | the plan's SQL shown for reading (formatSql): its first keyword written upper case, never run
 datacube/demo/market-sim/measure/measure.ts | "SELECT sum(memory_usage_bytes) AS bytes FROM duckdb_memory()" | a measuring page's read of DuckDB's own memory (docs/DUCKDB_LIVE_2026_10_25.md §2, 2026-10-26): no host's statement, no model's rows
+datacube/src/timeseries-ts.ts | "WITH " | a #TS query the tile writes (the timeseries language, docs/TS_LANGUAGE_BUILD_2026_10_30.md P6), not SQL: core's TsToPure reads it into Pure and the planner writes the statements (kept 2026-11-01, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S5: red since P6, 2026-10-31)
+datacube/src/timeseries-ts.ts | "SELECT " | a #TS query the tile writes, as the line above
+
+[harnesses]
+datacube/demo/torture.mjs | builds its WEIRD fixture table in a DuckDB of its own (Node), the oracle the torture cases are judged against
+datacube/demo/verify-engine-differential.mjs | builds its TRADES fixture table in a DuckDB of its own (Node), the oracle the engine cases are compared with
+datacube/demo/verify-real-data.mjs | writes its Parquet fixture with a DuckDB of its own (Node) and asks it the totals the app's must equal
+datacube/demo/verify-remote.mjs | writes its Parquet fixture with a DuckDB of its own (Node) and asks it the totals the app's must equal
+studio/demo/verify.mjs | types a person's statement into the SQL playground's box: the person's own text, planned by the authored door

@@ -13,6 +13,7 @@ import java.net.http.HttpResponse;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -97,6 +98,22 @@ class PureV1HttpTest {
         Json.Obj o = Json.parseObject(r.body());
         assertEquals("error", o.getString("status"));
         assertTrue(o.getString("message").contains("noSuchProperty"), r.body());
+    }
+
+    @Test
+    @DisplayName("a runtime written out in the request is refused by name, never dropped for the query's own (S301)")
+    void aRuntimeWrittenOutIsRefusedByName() throws Exception {
+        HttpResponse<String> lambda = post("/grammar/grammarToJson/lambda",
+                "|#>{store::DB.T_PERSON}#->select(~[FIRST_NAME])->from(test::RT)");
+        assertEquals(200, lambda.statusCode(), lambda.body());
+        String input = "{\"clientVersion\":\"vX_X_X\",\"function\":" + lambda.body()
+                + ",\"model\":" + Json.toCompact(Map.of("_type", "text", "code", MODEL))
+                + ",\"runtime\":{\"_type\":\"engineRuntime\",\"mappings\":[],\"connections\":[],\"connectionStores\":[]}"
+                + ",\"context\":{\"_type\":\"BaseExecutionContext\"}}";
+        HttpResponse<String> r = post("/execution/generatePlan", input);
+        // until 2026-11-12 the written-out runtime was read as none, and the query's ->from(test::RT) planned instead
+        assertNotEquals(200, r.statusCode(), r.body());
+        assertTrue(r.body().contains("a runtime written out in the request (engineRuntime)"), r.body());
     }
 
     @Test

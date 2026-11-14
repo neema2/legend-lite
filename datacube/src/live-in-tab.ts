@@ -8,6 +8,7 @@
 // LAZY: a source served starts when a grid first reads its rows (or its own owner starts it): its model held, its tables
 // made, its writer begun. Until then it is a name and a way to start.
 
+import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 import type { DuckDbLiveReader } from '../../engine-client/src/duckdb-live.ts';
 import type { QueryEngine, RawTable } from '../../engine-client/src/engine.ts';
 import type { Plan } from '../../engine-client/src/relation-type.ts';
@@ -116,7 +117,7 @@ class Reading implements QueryEngine {
     return (await this.#reader()).stream(plan, epoch, onChunk, signal);
   }
 
-  async run(sql: string, epoch: number, signal?: AbortSignal): Promise<RawTable> {
+  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal): Promise<RawTable> {
     return (await this.#reader()).run(sql, epoch, signal);
   }
 

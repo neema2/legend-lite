@@ -3,19 +3,18 @@
 
 package com.legend.test;
 
+
 import com.legend.Compiler;
-import com.legend.Execution;
+import com.legend.TestExecution;
 import com.legend.ExecuteOptions;
-import com.legend.ProgramFacts;
+import com.legend.planner.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
-import com.legend.exec.AssertListener;
-import com.legend.exec.SqlReplayReferee;
+import com.legend.testexecutionplan.AssertListener;
+import com.legend.testexec.SqlReplayReferee;
 import com.legend.model.ImportScope;
 import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CBoolean;
 import com.legend.protocol.spec.ValueSpecification;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -45,7 +44,7 @@ import java.util.Set;
  *   <li>a body that seeds its own inline data runs on a PRIVATE workspace, not
  *       the session (the platform's {@link ProgramFacts#seedsInlineCsv});</li>
  *   <li>the body is resolved, typed and executed through the ONE production
- *       entry ({@link Compiler#executeResolved}); every assert the platform
+ *       entry ({@link Execution#runProgram}); every assert the platform
  *       adjudicates is a verdict; the first failed assert is the reason;</li>
  *   <li>a body that reaches NO verdict function is SKIPPED, with that said —
  *       it proves nothing and is never a pass; a body that calls a verdict
@@ -54,10 +53,12 @@ import java.util.Set;
  */
 public final class PureTestRunner implements AutoCloseable {
 
-    /** How a session's connection is opened (DuckDB in memory, H2, …). */
+    /** How a session is opened (DuckDB in memory, H2, …): a session the runner OWNS -- closing it closes what it
+     *  opened ({@code Sessions.owned}; a test backend's {@code openSession}). D68, 2026-10-30: until then a
+     *  connection, which the runner closed itself. */
     @FunctionalInterface
     public interface Sessions {
-        Connection open() throws SQLException;
+        com.legend.exec.Sessions.Session open();
     }
 
     public enum Status { PASS, FAIL, SKIPPED }
@@ -106,24 +107,18 @@ public final class PureTestRunner implements AutoCloseable {
     private final Map<String, List<String>> setupsByPackage;
     private final TestObserver observer;
 
-    private @com.legend.base.Nullable Connection sessionConn;
+    private com.legend.exec.Sessions.@com.legend.base.Nullable Session sessionConn;
     private @com.legend.base.Nullable String sessionPkg;
     private final Set<String> setupsDone = new LinkedHashSet<>();
     /** Each setup's resolved program (or {@link #INERT_SETUP}) — derived once. */
     private final Map<String, ValueSpecification> setupPrograms = new HashMap<>();
-    /** Fixture on demand: store FQN → the setups (every package's and the
-     * shared fixture's) whose program seeds it, from the platform's
-     * {@code ProgramFacts.seedsStores}; built once, at the first ask. */
-    private @com.legend.base.Nullable Map<String, List<String>> fixturesByStore;
-    /** setup → the stores its program seeds (the same fact, by setup). */
-    private final Map<String, Set<String>> setupStores = new HashMap<>();
     private final Set<String> inertSetups = new LinkedHashSet<>();
 
     /**
      * @param ctx            the compiled model the tests live in (with its execution overlay)
      * @param runtimeFqn     the runtime the bodies execute against: a test executes on its declared
-     *                       connection, as any query does (a storeless model's: {@link StorelessRuntime})
-     * @param sessions       how a package session's connection opens
+     *                       connection, as any query does (a storeless model's: the tests' {@code testbackend.StorelessRuntime})
+     * @param sessions       how a package session opens (a session the runner owns)
      * @param sharedSetups   zero-parameter functions every package's session runs first
      *                       (a corpus-wide fixture); may be empty
      * @param setupsByPackage {@code BeforePackage} functions by package ({@link PureTests.Discovery})
@@ -131,25 +126,24 @@ public final class PureTestRunner implements AutoCloseable {
      */
     public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer) {
-        this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer,
-                ExecuteOptions.JudgeMode.HOST);
+        this(ctx, runtimeFqn, sessions, sharedSetups, setupsByPackage, observer, ExecuteOptions.NONE);
     }
 
-    /** @param judgeMode the run's assert judge (one mode per run, on every
-     *                   test's options — {@link ExecuteOptions.JudgeMode}) */
+    /** @param judging the run's assert judge, as the door's options carry it: every test's own options take its judge
+     *                 mode (one mode per run; the runner names no planning type, B4: 2026-11-09) */
     public PureTestRunner(ModelContext ctx, String runtimeFqn, Sessions sessions,
             List<String> sharedSetups, Map<String, List<String>> setupsByPackage, TestObserver observer,
-            ExecuteOptions.JudgeMode judgeMode) {
+            ExecuteOptions judging) {
         this.ctx = ctx;
         this.runtimeFqn = runtimeFqn;
         this.sessions = sessions;
         this.sharedSetups = List.copyOf(sharedSetups);
         this.setupsByPackage = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(setupsByPackage));
         this.observer = observer;
-        this.judgeMode = judgeMode;
+        this.judging = judging;
     }
 
-    private final ExecuteOptions.JudgeMode judgeMode;
+    private final ExecuteOptions judging;
 
     /** The setups the platform derived as INERT (no statement effects) and
      *  so never ran — a caller pins the count: an effect analysis that wrongly
@@ -166,7 +160,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     // ---- SESSION + SEED ---------------------------------------------------
 
-    private void beginSession(String pkg) throws SQLException {
+    private void beginSession(String pkg) {
         endSession();
         sessionConn = sessions.open();
         observer.sessionBegan(pkg, sessionConn);
@@ -181,7 +175,7 @@ public final class PureTestRunner implements AutoCloseable {
         if (sessionConn != null) {
             try {
                 sessionConn.close();
-            } catch (SQLException ignored) {
+            } catch (com.legend.error.DataError ignored) {
                 // a session that fails to close cannot poison the next
             }
         }
@@ -229,144 +223,15 @@ public final class PureTestRunner implements AutoCloseable {
         });
     }
 
-    // ---- FIXTURE ON DEMAND --------------------------------------------------
-
-    /** Every setup the corpus declares — the shared fixture's and every
-     * package's BeforePackage — indexed by the stores its program seeds
-     * (the platform's fact, {@code ProgramFacts.seedsStores}). */
-    private Map<String, List<String>> fixturesByStore() {
-        Map<String, List<String>> index = fixturesByStore;
-        if (index == null) {
-            index = new HashMap<>();
-            Set<String> all = new LinkedHashSet<>(sharedSetups);
-            setupsByPackage.values().forEach(all::addAll);
-            for (String fqn : all) {
-                ValueSpecification program = deriveSetup(fqn);
-                if (program == INERT_SETUP) {
-                    continue;
-                }
-                Set<String> stores = Compiler.programFacts(program, ctx).seedsStores();
-                setupStores.put(fqn, stores);
-                for (String store : stores) {
-                    index.computeIfAbsent(store, s -> new ArrayList<>()).add(fqn);
-                }
-            }
-            fixturesByStore = index;
-        }
-        return index;
+    /** The setup {@code call} run on {@code target} as a fixture (track C, 2026-10-29: the setup's body typed once):
+     *  planned whole, then run with its statements counted as seeding (slice 5, 2026-11-09: the run's origin is passed,
+     *  where a thread-scoped SEED mark around the program counted them until then). */
+    private void runSetup(ValueSpecification call, com.legend.exec.Sessions.Session target, ExecuteOptions options) {
+        TestExecution.runFixture(TestExecution.planBody(Compiler.queryResolved(ctx, call), runtimeFqn, options), target,
+                options);
     }
 
-    /** The physical tables a store declares, schema-qualified and
-     * case-folded, includes followed — the never-overlay check's
-     * vocabulary (the Database model, not DDL text). */
-    private Set<String> tablesOf(String storeFqn, Set<String> visited) {
-        Set<String> out = new LinkedHashSet<>();
-        if (!visited.add(storeFqn)) {
-            return out;
-        }
-        ctx.findDatabase(storeFqn).ifPresent(db -> {
-            db.tables().forEach(t -> out.add("DEFAULT." + t.name().toUpperCase(java.util.Locale.ROOT)));
-            for (var s : db.schemas()) {
-                s.tables().forEach(t -> out.add(s.name().toUpperCase(java.util.Locale.ROOT)
-                        + "." + t.name().toUpperCase(java.util.Locale.ROOT)));
-            }
-            for (String inc : db.includes()) {
-                out.addAll(tablesOf(inc, visited));
-            }
-        });
-        return out;
-    }
-
-    /** {@link AssertListener#provideStore}: run, in this session, THE
-     * setup that seeds {@code storeFqn}. False when no setup seeds it, or
-     * when several do (the shared test database is seeded by many
-     * packages' fixtures with different contents — which one the golden
-     * meant is not a fact, and an order-dependent pick judged
-     * tdsWithEnumReturn on a stranger's rows), or when the store declares
-     * a table that a setup already run in this session ({@code ran})
-     * seeds — NEVER OVERLAY: a fixture dropping and refilling a table
-     * under the running package's tests lost query::filter::exists 8
-     * rows on the first measurement. A setup that fails raises: a fixture
-     * the platform named but could not seed is a fault of ours, never a
-     * quiet decline. */
-    private boolean provideFixture(String storeFqn, Connection conn,
-            java.util.Collection<String> ran, boolean shared, ExecuteOptions options) {
-        List<String> setups = fixturesByStore().getOrDefault(storeFqn, List.of());
-        if (setups.size() != 1) {
-            return false;
-        }
-        String fqn = setups.get(0);
-        if (ran.contains(fqn)) {
-            return false;
-        }
-        // a fixture whose DECLARED footprint clashes with a seeded store is
-        // refused (the engine judges such goldens by text too); the ones
-        // that pass this check still run in an aside, because the
-        // footprint a fixture reaches through a runtime's connection value
-        // is not a static fact (objectReferenceIn::setUp, 2026-09-17)
-        Set<String> mine = tablesOf(storeFqn, new LinkedHashSet<>());
-        for (String done : ran) {
-            for (String store : setupStores.getOrDefault(done, Set.of())) {
-                if (!Collections.disjoint(mine, tablesOf(store, new LinkedHashSet<>()))) {
-                    return false;
-                }
-            }
-        }
-        if (!runFixture(fqn, deriveSetup(fqn), conn, options, true)) {
-            return false;   // a clashing fixture the caller cannot isolate
-        }
-        if (shared) {
-            setupsDone.add(fqn);
-        }
-        observer.fixtureProvided(storeFqn, fqn);
-        return true;
-    }
-
-    /** Run one fixture on {@code conn}. THE MID-SESSION RULE: a fixture
-     *  provided ON DEMAND (a test's rows leg needs a store the session's
-     *  own setups did not seed) runs in an ASIDE the caller gives it
-     *  ({@link TestObserver#isolateFixture}) — every name stays as
-     *  written, the session's own tables keep winning, the fixture's
-     *  tables resolve last. The target folds identifiers, so a fixture
-     *  seeding a same-named table would otherwise overwrite one the
-     *  session's tests hold (witness 2026-09-17: objectReferenceIn::setUp
-     *  also seeds the milestoning store, whose {@code OrderTable}
-     *  replaced the session's {@code orderTable}); which tables a fixture
-     *  will create is not a static fact when it reaches its store through
-     *  a runtime's connection value, so EVERY on-demand fixture is
-     *  isolated. Without the primitive (an H2 session) the fixture runs in
-     *  the session as before. Package-start fixtures keep the engine's own
-     *  rule — the later one wins the name. */
-    private boolean runFixture(String fqn, ValueSpecification call, Connection conn,
-            ExecuteOptions options, boolean onDemand) {
-        Connection target = conn;
-        boolean isolated = false;
-        if (onDemand) {
-            Connection aside;
-            try {
-                aside = observer.isolateFixture(conn, fqn);
-            } catch (SQLException e) {
-                throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
-            }
-            if (aside != null) {
-                target = aside;
-                isolated = true;
-            }
-            // no primitive (an H2 session): the fixture runs in the session
-            // as it always did — the declared-footprint guard above still
-            // refuses the known clashes
-        }
-        try (var __o = com.legend.exec.StatementOrigin.enter(com.legend.exec.StatementOrigin.SEED)) {
-            Execution.executeResolved(call, ctx, runtimeFqn, target, null, null, options);
-        } finally {
-            if (isolated) {
-                observer.fixtureIsolated(conn);
-            }
-        }
-        return true;
-    }
-
-    private List<String> runSetups(PureTests.TestCase t, Connection conn, boolean shared,
+    private List<String> runSetups(PureTests.TestCase t, com.legend.exec.Sessions.Session conn, boolean shared,
             ExecuteOptions options) {
         List<String> failures = new ArrayList<>();
         for (String fqn : setupCandidates(t.pkg())) {
@@ -379,11 +244,9 @@ public final class PureTestRunner implements AutoCloseable {
                 continue;
             }
             try {
-                if (!runFixture(fqn, call, conn, options, false)) {
-                    failures.add("setup " + fqn + "() => clashes with tables the"
-                            + " session already holds and cannot be isolated");
-                    continue;
-                }
+                // the fixture's statements counted under SEED: the program's own mark (TestExecution.runFixture's
+                // origin); a package-start fixture keeps the engine's own rule -- the later one wins the name
+                runSetup(call, conn, options);
                 if (shared) {
                     setupsDone.add(fqn);
                 }
@@ -406,7 +269,7 @@ public final class PureTestRunner implements AutoCloseable {
 
     /** Run one test: its package session (opened on demand), its setups once,
      *  its body through the platform, one result. */
-    public Result run(PureTests.TestCase t) throws SQLException {
+    public Result run(PureTests.TestCase t) {
         observer.testStarted(t);
         if (!t.pkg().equals(sessionPkg)) {
             beginSession(t.pkg());
@@ -432,8 +295,8 @@ public final class PureTestRunner implements AutoCloseable {
         bodyShapes.put(t.fqn(), facts.shape());
         boolean shared = !facts.seedsInlineCsv();
         observer.privateWorkspace(!shared);
-        Connection conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
-        ExecuteOptions options = observer.options(t, shared).withJudgeMode(judgeMode);
+        com.legend.exec.Sessions.Session conn = shared ? java.util.Objects.requireNonNull(sessionConn, "session") : sessions.open();
+        ExecuteOptions options = observer.options(t, shared).judgedAs(judging);
         SqlReplayReferee referee = observer.referee(t);
         try {
             // a setup that fails FAILS every test depending on it: the engine's
@@ -452,7 +315,7 @@ public final class PureTestRunner implements AutoCloseable {
             if (!shared) {
                 try {
                     conn.close();
-                } catch (SQLException ignored) {
+                } catch (com.legend.error.DataError ignored) {
                     // private workspace; nothing depends on it after this
                 }
             }
@@ -460,8 +323,7 @@ public final class PureTestRunner implements AutoCloseable {
     }
 
     private Result judge(PureTests.TestCase t, ValueSpecification resolved, ProgramFacts facts,
-            Connection conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayReferee referee)
-            throws SQLException {
+            com.legend.exec.Sessions.Session conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayReferee referee) {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
         List<String> failedAsserts = new ArrayList<>();
@@ -476,7 +338,12 @@ public final class PureTestRunner implements AutoCloseable {
         try {
             String failure = null;
             try {
-                Execution.executeResolved(resolved, ctx, runtimeFqn, conn,
+                // the body planned whole, nothing told to anyone; then run, its listener told each verdict at its
+                // turn (2026-11-10: no fixture is provided between the halves -- the corpus's and the stress lanes'
+                // verdicts measured unmoved without one, census M9)
+                com.legend.testexecutionplan.TestPlan planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved),
+                        runtimeFqn, options);
+                TestExecution.runBody(planned, conn,
                         new AssertListener() {
                             @Override
                             public void verdict(String name, boolean pass, @com.legend.base.Nullable String detail) {
@@ -511,17 +378,8 @@ public final class PureTestRunner implements AutoCloseable {
                                 observer.refereed(name, outcome);
                             }
 
-                            @Override
-                            public boolean provideStore(String storeFqn) {
-                                boolean shared = !facts.seedsInlineCsv();
-                                // a private workspace ran every candidate
-                                // of its package fresh (runSetups)
-                                return provideFixture(storeFqn, conn,
-                                        shared ? setupsDone : setupCandidates(t.pkg()),
-                                        shared, options);
-                            }
                         },
-                        referee, options);
+                        referee, options, null);
             } catch (RuntimeException e) {
                 if (System.getenv("LEGEND_LITE_STACKS") != null) {
                     e.printStackTrace();

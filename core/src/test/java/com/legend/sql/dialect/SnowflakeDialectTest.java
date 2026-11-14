@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
@@ -89,7 +90,7 @@ class SnowflakeDialectTest {
     @Test
     void aFloatsPrintFormsAreSpelledHere_theValueReadOnce() {
         SqlExpr x = SqlExpr.Column.of("t", "x", SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
-        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT, SqlFn.FLOAT_PRINT_ENGINE)) {
+        for (SqlFn fn : List.of(SqlFn.FLOAT_PRINT)) {
             String sql = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
                     SqlExpr.Call.of(fn, x), "p", null)), false, new SqlSource.Table("t", "t",
                     List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
@@ -98,14 +99,9 @@ class SnowflakeDialectTest {
             assertTrue(sql.split("AS NUMBER\\(38, 28\\)", -1).length - 1 == 1, fn + ": " + sql);
             assertTrue(sql.length() < 8_000, fn + ": " + sql.length() + " characters: " + sql);
             assertFalse(sql.contains("(SELECT"), fn + ": " + sql);
-            if (fn == SqlFn.FLOAT_PRINT) {
-                assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
-                assertTrue(sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"), sql);
-                assertTrue(sql.contains("AS NUMBER(38, 18)) AS VARCHAR), '0')"), sql);
-            } else {
-                assertTrue(sql.contains(" BETWEEN -3 AND 6 THEN "), sql);
-                assertTrue(sql.contains(" || 'E' || TO_VARCHAR("), sql);
-            }
+            assertTrue(sql.contains(" BETWEEN -4 AND 15 THEN "), sql);
+            assertTrue(sql.contains("AS NUMBER(38, 0)) AS VARCHAR) || '.0'"), sql);
+            assertTrue(sql.contains("AS NUMBER(38, 18)) AS VARCHAR), '0')"), sql);
             assertTrue(sql.contains("THEN 'NaN' WHEN "), sql);
         }
         String literal = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
@@ -187,5 +183,123 @@ class SnowflakeDialectTest {
                 sql);
         assertTrue(sql.contains(" - FLOOR("), sql);
         assertFalse(sql.contains("PERCENTILE_CONT"), sql);
+    }
+
+    private static SqlSource.Table table(String name, String... doubles) {
+        List<OutputCol> cols = new java.util.ArrayList<>();
+        for (String c : doubles) {
+            cols.add(new OutputCol(c, SqlType.Scalar.DOUBLE, true));
+        }
+        return new SqlSource.Table(name, name, cols, false, Map.of(), com.legend.sql.NameQuoting.BARE);
+    }
+
+    private static SqlExpr col(String table, String name) {
+        return SqlExpr.Column.of(table, name, SqlType.Scalar.DOUBLE, true, OutputCol.Origin.PHYSICAL);
+    }
+
+    private static String rendered(SqlSource from, SqlExpr projection, List<SqlExpr> groupBy) {
+        return new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(projection, "p", null)), false,
+                from, null, groupBy, null, null, List.of(), null, null, List.of()));
+    }
+
+    /**
+     * An as-of join's condition parenthesized, with a condition that reads its right side only (the #TS library's
+     * lag, {@code u IS NOT NULL AND t >= u}, 2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 10): the inequality is
+     * the MATCH_CONDITION, the equality the ON, and the right side's own condition filters it before the join (the
+     * ON of Snowflake's ASOF JOIN takes equalities alone).
+     */
+    @Test
+    void anAsOfJoinsRightSidesOwnConditionFiltersIt() {
+        SqlExpr match = new SqlExpr.Group(SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.IS_NOT_NULL, col("r", "u")),
+                SqlExpr.Call.of(SqlFn.GREATER_EQUAL, col("l", "t"), col("r", "u"))));
+        SqlExpr on = SqlExpr.Call.of(SqlFn.AND, SqlExpr.Call.of(SqlFn.EQUAL, col("l", "k"), col("r", "k")), match);
+        String sql = rendered(new SqlSource.Join(table("l", "k", "t"), table("r", "k", "u"),
+                SqlSource.Join.Kind.ASOF_LEFT, on), new SqlExpr.IntLit(1), List.of());
+        assertTrue(sql.contains("MATCH_CONDITION (\"l\".\"t\" >= \"r\".\"u\") ON (\"l\".\"k\" = \"r\".\"k\")"), sql);
+        assertTrue(sql.contains("WHERE \"r\".\"u\" IS NOT NULL"), sql);
+    }
+
+    /**
+     * CORR and the covariances under an ordered window are their frame's sums (2026-11-07, item 10): Snowflake takes
+     * them over a whole partition alone ("Sliding window frame unsupported for function CORR", measured); over a whole
+     * partition they are its own.
+     */
+    @Test
+    void aPairsMomentsUnderAnOrderedWindowAreTheirFramesSums() {
+        SqlExpr a = col("t", "a");
+        SqlExpr b = col("t", "b");
+        SqlExpr k = col("t", "k");
+        List<SqlSelect.SortKey> order = List.of(new SqlSelect.SortKey(col("t", "o"), true, null, null));
+        SqlExpr.WindowCall.Frame three = new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
+                SqlExpr.WindowCall.Frame.Bound.Preceding.of(2), new SqlExpr.WindowCall.Frame.Bound.CurrentRow());
+        String corr = rendered(table("t", "a", "b", "k", "o"), new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(
+                com.legend.sql.SqlAgg.Fn.CORR, List.of(a, b), false, List.of()), List.of(k), order, three), List.of());
+        assertFalse(corr.contains("CORR("), corr);
+        assertTrue(corr.contains("ROWS BETWEEN 2 PRECEDING AND CURRENT ROW"), corr);
+        assertTrue(corr.contains("/ NULLIF(SQRT(GREATEST("), corr);
+        String covar = rendered(table("t", "a", "b", "k", "o"), new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(
+                com.legend.sql.SqlAgg.Fn.COVAR_SAMP, List.of(a, b), false, List.of()), List.of(k), order, null), List.of());
+        assertFalse(covar.contains("COVAR_SAMP("), covar);
+        assertTrue(covar.contains(" < 2 THEN NULL ELSE ("), covar);
+        String whole = rendered(table("t", "a", "b", "k", "o"), new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(
+                com.legend.sql.SqlAgg.Fn.CORR, List.of(a, b), false, List.of()), List.of(k), List.of(), null), List.of());
+        assertTrue(whole.contains("CORR(\"t\".\"a\", \"t\".\"b\") OVER (PARTITION BY \"t\".\"k\")"), whole);
+    }
+
+    /**
+     * A group's continuous percentile of a level that is no literal (the #TS library's {@code n / 100}) is the
+     * group's values sorted and interpolated, as a window's is: Snowflake's PERCENTILE_CONT takes a constant
+     * ("argument 0 to function PERCENTILE_CONT needs to be constant", measured 2026-11-07, item 10); a literal level
+     * keeps it.
+     */
+    @Test
+    void aGroupsPercentileOfALevelThatIsNoLiteralIsInterpolated() {
+        SqlExpr v = col("t", "v");
+        SqlExpr level = SqlExpr.Call.of(SqlFn.DIVIDE, new SqlExpr.FloatLit(50.0), new SqlExpr.IntLit(100));
+        String sql = rendered(table("t", "v", "k"), new com.legend.sql.SqlAgg.Reducer(
+                com.legend.sql.SqlAgg.Fn.QUANTILE_CONT, List.of(v, level), false, List.of()), List.of(col("t", "k")));
+        assertFalse(sql.contains("PERCENTILE_CONT"), sql);
+        assertTrue(sql.contains("ARRAY_SORT(ARRAY_COMPACT(ARRAY_AGG(\"t\".\"v\")), TRUE)"), sql);
+        String literal = rendered(table("t", "v", "k"), new com.legend.sql.SqlAgg.Reducer(
+                com.legend.sql.SqlAgg.Fn.QUANTILE_CONT, List.of(v, new SqlExpr.FloatLit(0.5)), false, List.of()),
+                List.of(col("t", "k")));
+        assertTrue(literal.contains("PERCENTILE_CONT("), literal);
+    }
+
+    /**
+     * A window of a ROWS frame past Snowflake's 1000 rows is a RANGE frame over its rows' numbers, numbered below the
+     * select after its WHERE (2026-11-07, item 10: "window frame size of 250000 rows exceeds limit (1000 rows)"; RANGE
+     * over a row number has no limit, measured); an aggregate not measured so is refused by name, and a frame within
+     * the limit is written as it is.
+     */
+    @Test
+    void aWindowOfRowsPastTheLimitIsARangeOverTheRowsNumbers() {
+        SqlExpr v = col("t", "v");
+        SqlExpr k = col("t", "k");
+        List<SqlSelect.SortKey> order = List.of(new SqlSelect.SortKey(col("t", "o"), true, null, null));
+        java.util.function.Function<Integer, SqlExpr.WindowCall.Frame> back = n -> new SqlExpr.WindowCall.Frame(
+                SqlExpr.WindowCall.Frame.Kind.ROWS, SqlExpr.WindowCall.Frame.Bound.Preceding.of(n),
+                new SqlExpr.WindowCall.Frame.Bound.CurrentRow());
+        SqlSelect filtered = new SqlSelect(List.of(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                new com.legend.sql.SqlAgg.Reducer(com.legend.sql.SqlAgg.Fn.AVG, List.of(v), false, List.of()),
+                List.of(k), order, back.apply(249_999)), "p", null)), false, table("t", "v", "k", "o"),
+                SqlExpr.Call.of(SqlFn.IS_NOT_NULL, v), List.of(), null, null, List.of(), null, null, List.of());
+        String sql = new Snowflake().render(filtered);
+        assertTrue(sql.contains("ROW_NUMBER() OVER (PARTITION BY \"t\".\"k\" ORDER BY \"t\".\"o\""), sql);
+        assertTrue(sql.contains("RANGE BETWEEN 249999 PRECEDING AND CURRENT ROW"), sql);
+        assertFalse(sql.contains("ROWS BETWEEN 249999"), sql);
+        // the WHERE below the numbers: a row it drops is never numbered
+        assertTrue(sql.indexOf("IS NOT NULL") > sql.indexOf("ROW_NUMBER()"), sql);
+        String within = rendered(table("t", "v", "k", "o"), new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(
+                com.legend.sql.SqlAgg.Fn.AVG, List.of(v), false, List.of()), List.of(k), order, back.apply(999)),
+                List.of());
+        assertTrue(within.contains("ROWS BETWEEN 999 PRECEDING AND CURRENT ROW"), within);
+        assertFalse(within.contains("ROW_NUMBER()"), within);
+        DialectCapability refused = org.junit.jupiter.api.Assertions.assertThrows(DialectCapability.class,
+                () -> rendered(table("t", "v", "k", "o"), new SqlExpr.WindowCall(new com.legend.sql.SqlAgg.Reducer(
+                        com.legend.sql.SqlAgg.Fn.MEDIAN, List.of(v), false, List.of()), List.of(k), order,
+                        back.apply(2000)), List.of()));
+        assertTrue(refused.getMessage().contains("MEDIAN over a ROWS frame of more than 1000 rows"),
+                refused.getMessage());
     }
 }

@@ -3,6 +3,9 @@
 
 package com.legend.sql.dialect;
 
+
+import com.legend.sql.DialectCapability;
+
 import com.legend.base.Nullable;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
@@ -100,10 +103,16 @@ final class MongoDbPipeline {
                     + ") reached an executable dialect: plan-text vocabulary only");
             case SqlSource.RawSql r -> throw new DialectCapability("a raw statement as a relation reached MongoDb:"
                     + " a user's own pipeline as a source is not run yet");
+            case SqlSource.GridReport g -> throw new DialectCapability("a raw grid's report reached MongoDb: a raw grid is"
+                    + " an authored SQL text");
             case SqlSource.Catalog c -> throw new DialectCapability("a catalog grid reached MongoDb: its catalog"
                     + " (listCollections) is not read as a grid yet");
-            case SqlSource.SourceUrl u -> throw new DialectCapability("sourceUrl reached MongoDb: no external"
-                    + " source encoding");
+            case SqlSource.SourceUrl u -> {
+                // an unread data: source is a planner defect, refused as every renderer refuses it (the second
+                // audit's S8, 2026-11-11: MongoDB raised a capability where the others raise the defect)
+                AnsiSqlRenderer.refuseUnread(u.url());
+                throw new DialectCapability("sourceUrl reached MongoDb: no external source encoding");
+            }
             case SqlSource.Pivot p -> baseOf(p.source());
         };
     }
@@ -205,6 +214,8 @@ final class MongoDbPipeline {
             }
             w.append("]}");
         }
+        // a count, the select's own Long: never a parameter, which MongoDB would not read here (a $skip or $limit
+        // takes a number, not an expression)
         if (s.offset() != null) {
             st.begin(w).append("{\"$skip\": ").append(s.offset()).append("}");
         }
@@ -363,7 +374,14 @@ final class MongoDbPipeline {
             case SqlSource.Values v -> values(w, v, st, shape);
             case SqlSource.Dual d -> st.begin(w).append("{\"$documents\": [{}]}");
             case SqlSource.Subselect sub -> {
-                query(w, sub.inner(), st);
+                boolean scoped = dialect.enterSubselect();
+                try {
+                    query(w, sub.inner(), st);
+                } finally {
+                    if (scoped) {
+                        dialect.popScope();
+                    }
+                }
                 if (shape == Shape.WRAPPED) {
                     st.begin(w).append("{\"$replaceWith\": {").append(MongoJson.key(sub.alias()))
                             .append(": \"$$ROOT\"}}");
@@ -381,10 +399,16 @@ final class MongoDbPipeline {
                     + ") reached an executable dialect: plan-text vocabulary only");
             case SqlSource.RawSql r -> throw new DialectCapability("a raw statement as a relation reached MongoDb:"
                     + " a user's own pipeline as a source is not run yet");
+            case SqlSource.GridReport g -> throw new DialectCapability("a raw grid's report reached MongoDb: a raw grid is"
+                    + " an authored SQL text");
             case SqlSource.Catalog c -> throw new DialectCapability("a catalog grid reached MongoDb: its catalog"
                     + " (listCollections) is not read as a grid yet");
-            case SqlSource.SourceUrl u -> throw new DialectCapability("sourceUrl reached MongoDb: no external"
-                    + " source encoding");
+            case SqlSource.SourceUrl u -> {
+                // an unread data: source is a planner defect, refused as every renderer refuses it (the second
+                // audit's S8, 2026-11-11: MongoDB raised a capability where the others raise the defect)
+                AnsiSqlRenderer.refuseUnread(u.url());
+                throw new DialectCapability("sourceUrl reached MongoDb: no external source encoding");
+            }
             case SqlSource.Pivot p -> pivot(w, p, st, shape);
         }
     }
@@ -1219,6 +1243,11 @@ final class MongoDbPipeline {
             case SqlExpr.WindowCall.Frame.Bound.Following fo -> String.valueOf(fo.n());
             case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> "-" + p.n();
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing fo -> String.valueOf(fo.n());
+            // a $setWindowFields window's bounds are numbers in the stage itself
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached MongoDB, whose window bounds are numbers");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new DialectCapability(
+                    "a window frame offset the database computes reached MongoDB, whose window bounds are numbers");
         };
     }
 

@@ -838,8 +838,20 @@ public final class FromProtocol {
         // quoteIdentifiers rides the PROTOCOL record only (wire parity);
         // lite's SQL renderers decide quoting themselves, so the model
         // deliberately does not carry it
+        // the post-processors that MAP the connection's tables (a mapper's table and schema renames, a relational
+        // mapper's), which change the rows a query reads -- named, so a query on the connection is refused until
+        // they are applied (Compiler.executesOn; the third review, 2026-11-07); CTE extraction spells the SQL only
+        List<String> rowMappers = new java.util.ArrayList<>();
+        for (Protocol.PPostProcessor pp : r.postProcessors()) {
+            switch (pp) {
+                case Protocol.PMapperPostProcessor m -> rowMappers.add("mapper");
+                case Protocol.PRelationalMapperPostProcessor m -> rowMappers.add("relationalMapper");
+                case Protocol.PExtractSubQueriesAsCtesPostProcessor x -> {
+                }
+            }
+        }
         return new ConnectionDefinition(qualifiedName, r.element(), type, spec,
-                auth);
+                auth, rowMappers);
     }
 
     /** A Deephaven server's port, which is a TCP port; any other number refused by name. */

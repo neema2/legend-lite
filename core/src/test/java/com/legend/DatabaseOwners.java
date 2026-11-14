@@ -134,7 +134,13 @@ final class DatabaseOwners {
             MAIN + "model/",
             // 2026-10-16, the dialect program's Phase 6: the vocabulary's own tests, which read and write every
             // database's name and connection as the vocabulary does ({@code protocol/sql/}'s tests excepted, as above)
-            TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/");
+            TEST + "lexer/", TEST + "parser/", TEST + "protocol/", TEST + "model/",
+            // 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 2.6, the plan-as-data design's step 7): the plan's own FAITHFUL
+            // copy of the model's connection description -- the same variants under the same names -- its plan format
+            // codec, and the planner's copy from the model's, which name every database as the model's vocabulary does
+            MAIN + "executionplan/DatabaseType.java", MAIN + "executionplan/ConnectionSpecification.java",
+            MAIN + "executionplan/AuthenticationSpec.java", MAIN + "executionplan/ConnectionWire.java",
+            MAIN + "planner/ConnectionPlans.java");
 
     /** The warehouse's sources (D4): a host, whose engine is DuckDB. */
     private static final String WAREHOUSE = "warehouse/src/";
@@ -147,9 +153,11 @@ final class DatabaseOwners {
             MAIN + "database/Databases.java",
             // 2026-10-16, the dialect program's Phase 3: the engine-text registry, Databases' counterpart for
             // legend-engine's golden text (which engine-style dialect a declared type gets, and the engine's test
-            // database), the census's SEAM; it stays in the root package, where the engine-style dialects are
-            // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer)
-            MAIN + "EngineText.java",
+            // database), the census's SEAM; it stays in the root layer, where the engine-style dialects are
+            // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer) -- the layer's execution
+            // side, com.legend.driver, since step C (D73, 2026-10-30); the planner since the seam program's S2g
+            // (2026-10-31: the engine's plan text is planning work; the quarantine names it alone of the planner)
+            MAIN + "planner/EngineText.java",
             // 2026-10-16, the dialect program's Phase 5: the connector registry, Databases' counterpart on the
             // execution side (a declared type to the connector that opens its sessions)
             MAIN + "exec/Connectors.java",
@@ -164,6 +172,50 @@ final class DatabaseOwners {
             // 2026-10-16, the dialect program's Phase 5 (the audit of the branch): the connectors' table test, which
             // compares every database's sessions by design, as the dialect package's tests compare their SQL
             "core/src/test/java/com/legend/exec/ConnectorsTest.java",
+            // 2026-10-29 (D65, the three routings): the raise recovery's test, which compares every connector's
+            // declared recovery by design (MariaDB's and MySQL's the two statements, every other none) and measures
+            // the seam's read on H2's own session variables -- RaiseReadBackTest since C2 (2026-11-12): every
+            // DIALECT's declared read-back, a MariaDB and a MySQL plan's target carrying it, the seam's sends on H2
+            "core/src/test/java/com/legend/exec/RaiseReadBackTest.java",
+            // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A1: the data delivery matrix, which runs every door and
+            // data kind on each in-process database (and its Postgres leg) by design, its expectations each database's
+            // reading of a file or a payload, as ConnectorsTest compares their connectors
+            "core/src/test/java/com/legend/integration/DataDeliveryMatrixTest.java",
+            // 2026-11-10, the A checkpoint's tenets audit (6): the text plan's refusal of a live source (S188), on the
+            // database whose dialect reads a data: and a file: source
+            "core/src/test/java/com/legend/integration/TextPlanSourceTest.java",
+            // 2026-11-10, the A checkpoint's audits (T9, C1): a float's and a bit's cell of model data on H2, the
+            // database upstream's test data is written for
+            "core/src/test/java/com/legend/setup/RowLoadCellsTest.java",
+            // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A4 (rule 3): the catalog turn's failure, which compares
+            // a database that aborts its transaction on an error (DuckDB) with one that rolls back the statement alone
+            // (H2) by design, as RaiseReadBackTest compares the dialects' read-backs
+            "core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java",
+            // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A6 (the correctness audit's S3, the tenets audit's M-6):
+            // a zoned connection's DateTime parameter and a Decimal's text, each answered alike on DuckDB and H2 by design
+            "core/src/test/java/com/legend/planner/ZonedDateTimeParameterTest.java",
+            "core/src/test/java/com/legend/planner/DecimalTextTest.java",
+            // 2026-11-10, docs/DATA_DELIVERY_DESIGN_2026_11_10.md A7 (S181, ruled): each database's kept digits of a second,
+            // a literal's, a column's and a parameter's slot's, by design
+            "core/src/test/java/com/legend/planner/DateTimeFractionTest.java",
+            // 2026-11-11 (the user: JSON on every database): a data: source on each embedded server, by the delivery
+            // each dialect declares, by design
+            "core/src/test/java/com/legend/exec/DataSourceServersTest.java",
+            // 2026-11-11 (the lanes' probes, relayed): Snowflake's, BigQuery's and Databricks' forms of a data: payload and
+            // the empty payload on every database that writes it as rows, each named, by design
+            "core/src/test/java/com/legend/planner/DataSourcesDeliveryTest.java",
+            // 2026-11-11 (the second audit's S11 and S12): a writing query's data: tables released after its rollback, on
+            // DuckDB and H2 by design, each table counted in its database's own catalog
+            "core/src/test/java/com/legend/integration/DataReleaseTest.java",
+            // 2026-11-11 (the total wall's item 5d, the user's question): a CSV's JSON column read by path on each
+            // in-process database and Postgres, by design
+            "core/src/test/java/com/legend/integration/CsvJsonColumnTest.java",
+            // 2026-11-12 (the total wall's B, the orchestrator's ruling (a) on the demo's start): a result's labels over a
+            // table lite's DDL stores upper case, on the two databases whose DDL folds a bare name, DuckDB and H2, by design
+            "core/src/test/java/com/legend/planner/ResultLabelsTest.java",
+            // 2026-11-12 (the user's ruling "Yes do 5 and 6", Studio's SQL playground through the planner): a person's
+            // statement planned for the tab's own database, DuckDB, the playground's
+            "core/src/test/java/com/legend/planner/AuthoredTest.java",
             "core/src/test/java/com/legend/DialectBoundaryTest.java",
             // 2026-10-16, the dialect program's Phase 6: the layer guard, whose rules name the dialects they hold
             // apart (the engine-style dialects' quarantine), as the census's guards name the databases they count

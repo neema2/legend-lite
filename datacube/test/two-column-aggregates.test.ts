@@ -14,6 +14,7 @@ import { applyGridCommands, type GridCommand } from '../src/grid-commands.ts';
 import { levelLambda, sourceWithDerived } from '../src/query.ts';
 import type { CubeSnapshot, DerivedColumn } from '../src/snapshot.ts';
 import { plannerFor } from './catalog-builder.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 const MODEL = `
 ###Relational
@@ -36,7 +37,7 @@ const planner = plannerFor(MODEL, 't::Runtime');
 before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
-  for (const sql of SEED) await engine.run(sql, 0);
+  for (const sql of SEED) await engine.run(unplanned(sql), 0);
 });
 
 after(async () => {

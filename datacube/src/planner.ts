@@ -13,6 +13,8 @@ import { PureV1Client, type PrintStyle, type PureV1Options } from '../../engine-
 import { relationColumns, tdsColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
+import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
+import { fromPlan } from '../../engine-client/src/planned-sql.ts';
 
 export interface UpstreamPlannerOptions extends PureV1Options {
   /**
@@ -38,6 +40,14 @@ export interface ModelOptions {
    * a project's through its project databases, by the source it opens.
    */
   readonly project?: true;
+  /**
+   * Its model held over DataCube's Pure library from the start (docs/TS_DECISIONS_2026_11_07.md item 8b, 2026-11-07):
+   * the text this planner is given is `withLibrary(model, library)`, the module holds the two apart (A5) under that
+   * text, and a query calling the library plans on it -- a project's model compiled once where a timeseries tile reads
+   * its grid, not again under the library (the trading model, 1.4-1.6 s in the tab). A planner that holds nothing (the
+   * server's, Python's) plans over `model` alone and adds the library as before.
+   */
+  readonly overLibrary?: { readonly model: string; readonly library: string };
 }
 
 export class PlanError extends Error {
@@ -66,9 +76,17 @@ export class UpstreamPlanner implements Planner {
   #enumerations: ReadonlySet<string> = new Set();
 
   readonly #options: UpstreamPlannerOptions;
+  /** The model it plans against now, its runtime and what it says beside its text (useModel's). */
+  #now: { readonly model: string; readonly runtime: string; readonly how: ModelOptions };
+  /** A planner over its model with DataCube's Pure library after it (pure-library.ts), made when a query first calls
+   *  the library: legend-lite's server plans such a query; legend-engine's refuses its functions' type parameters. */
+  #library: Promise<UpstreamPlanner> | undefined;
+  /** It is that planner: its model has the library already. */
+  #ofLibrary = false;
 
   constructor(options: UpstreamPlannerOptions) {
     this.#options = options;
+    this.#now = { model: options.model, runtime: options.runtime, how: {} };
     this.#useCache = options.cache !== false;
     this.#client = new PureV1Client(options, (m, subject) => new PlanError(m, subject));
   }
@@ -83,8 +101,10 @@ export class UpstreamPlanner implements Planner {
    * of its own. Every request carries its model, so the server holds nothing for either.
    */
   withModel(model: string, runtime: string, how: ModelOptions = {}): UpstreamPlanner {
-    const other = new UpstreamPlanner({ ...this.#options, model, runtime });
-    other.useModel(model, runtime, how);
+    // the server holds no model: over its model alone, the library added where a query calls it (#over)
+    const own = how.overLibrary?.model ?? model;
+    const other = new UpstreamPlanner({ ...this.#options, model: own, runtime });
+    other.useModel(own, runtime, how);
     return other;
   }
 
@@ -94,13 +114,35 @@ export class UpstreamPlanner implements Planner {
    */
   useModel(model: string, runtime: string, how: ModelOptions = {}): void {
     this.#client.useModel(model, runtime, how.mapping);
+    this.#now = { model, runtime, how };
+    this.#library = undefined;
     this.#bitColumns = new Set(how.bitColumns ?? []);
     this.#enumerations = new Set(how.enumerations ?? []);
     this.#cache.clear();
     this.#types.clear();
   }
 
+  /** The planner of `query`: this one, or -- a query calling DataCube's Pure library -- one over its model with the
+   *  library after it (its text a chunk of its own, fetched the first time a query calls it). */
+  async #over(query: Lambda): Promise<UpstreamPlanner> {
+    if (this.#ofLibrary || !callsLibrary(query)) return this;
+    if (this.#library === undefined) {
+      const now = this.#now;
+      const made = loadLibrary().then((library) => {
+        const over = this.withModel(withLibrary(now.model, library), now.runtime, now.how);
+        over.#ofLibrary = true;
+        return over;
+      });
+      this.#library = made;
+      // a fetch of its text that failed is told to the query that asked, and asked again by the next
+      made.catch(() => { if (this.#library === made) this.#library = undefined; });
+    }
+    return this.#library;
+  }
+
   async plan(query: Lambda, signal?: AbortSignal): Promise<Plan> {
+    const over = await this.#over(query);
+    if (over !== this) return over.plan(query, signal);
     const key = toJson(query);
     const hit = this.#useCache ? this.#cache.get(key) : undefined;
     if (hit !== undefined) return hit;
@@ -111,6 +153,8 @@ export class UpstreamPlanner implements Planner {
 
   /** E5 `lambdaRelationType`, cached by the query's JSON. */
   async relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]> {
+    const over = await this.#over(query);
+    if (over !== this) return over.relationType(query, signal);
     const key = toJson(query);
     const hit = this.#useCache ? this.#types.get(key) : undefined;
     if (hit !== undefined) return hit;
@@ -150,7 +194,7 @@ export class UpstreamPlanner implements Planner {
  */
 export function serverPlan(body: unknown, query: Lambda, bitColumns: ReadonlySet<string> = new Set(),
   database = 'DuckDB'): Plan {
-  return { sql: sqlNode(body, query, database), columns: tdsColumns(body, bitColumns) };
+  return { sql: fromPlan(sqlNode(body, query, database)), columns: tdsColumns(body, bitColumns) };
 }
 
 interface PlanNode {

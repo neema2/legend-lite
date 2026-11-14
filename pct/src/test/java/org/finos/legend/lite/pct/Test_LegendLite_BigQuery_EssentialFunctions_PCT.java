@@ -51,7 +51,10 @@ public class Test_LegendLite_BigQuery_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::date::tests::testNewDateError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 29\""),
             one("meta::pure::functions::date::tests::testSecondError_Function_1__Boolean_1_", "\"Execution error column mismatch. Actual: 23 where expected: 36\""),
             one("meta::pure::functions::lang::tests::match::testMatchWithMixedReturnType_Function_1__Boolean_1_", "scalar lowering not yet implemented for TypedDeactivate"),
-            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456784.0\""),
+            // 2026-10-27, the result boundary program (the PCT reads typed rows; measured on this lane by its own session):
+            // testBigFloatAbs prints a double's shortest digits
+            // a Float literal's twenty digits: the interpreter holds a BigDecimal, lite a double (register S120, outcome)
+            one("meta::pure::functions::math::tests::abs::testBigFloatAbs_Function_1__Boolean_1_", "\"\nexpected: 123456789123456789.99\nactual:   123456789123456780.0\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcCosineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"BigQueryException during runQuery\nFloating point error in function: ACOS(2)\"\nwhere the expected message was:\"Unable to compute acos of 2.0\"\""),
             one("meta::pure::functions::math::tests::trigonometry::testArcSineError_Function_1__Boolean_1_", "\"Execution error message mismatch.\nThe actual message was \"BigQueryException during runQuery\nFloating point error in function: ASIN(2)\"\nwhere the expected message was:\"Unable to compute asin of 2.0\"\""),
             one("meta::pure::functions::string::tests::indexOf::testFromIndex_Function_1__Boolean_1_", "\"\nexpected: 1\nactual:   2\""),
@@ -62,13 +65,21 @@ public class Test_LegendLite_BigQuery_EssentialFunctions_PCT extends PCTReportCo
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesEmptyListExplicit_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveNonStandardFunction_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
             one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionExplicit_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
+            // 2026-11-03 (round 19, the BigQuery lane at 79d07cde): the mixed-kind dedup reduces into one too since Track L
+            // (63ddd3f4, on main since 2026-10-29: its tagged list's positions through the same kept-list reduce); main's
+            // code fails it the same way -- this list was last measured on BigQuery on 2026-10-27, before Track L
+            one("meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes_Function_1__Boolean_1_", "a list of lists reached BigQuery"),
             // BIGQUERY'S OWN LIMIT: a date-time past BigQuery's range (years 1 to 9999) is refused
-            one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInterval field nanoseconds '740740734720000000000' is out of range -316224000000000000000 to 316224000000000000000; error in INTERVAL expression\"")
+            one("meta::pure::functions::date::tests::testAdjustByMinutesBigNumber_Function_1__Boolean_1_", "\"BigQueryException during runQuery\nInterval field nanoseconds '740740734720000000000' is out of range -316224000000000000000 to 316224000000000000000; error in INTERVAL expression\""),
             // NOTE 2026-10-21 (the plan route on BigQuery, measured by the BigQuery lane session at 6c8de4e and
             // edb7e12b against the merge-base 59b547a5e, where every pin here held): the three folds pass (object
             // identity), their pins removed; testBigFloatAbs prints the double's own digits and
             // testComplexClassToString the object's id, each as on every lane. testNewDateError keeps its pin: the
             // raise in its column's type ("cast_datetime_to_datetime" on the lane) is being measured
+            // 2026-11-11, the user's ruling on round 34 ("I guess refuse for now and put this on feature list for after
+            // total separation complete"): refused, never cut (S181): BigQuery keeps 6; pending the nanosecond type (design
+            // §9). The test's date-time literal has 7 to 9 digits of a second
+            one("meta::pure::functions::date::tests::testDatePart_Function_1__Boolean_1_", "fraction digits; BigQuery keeps 6: refused, never cut (S181)")
     );
 
     public static Test suite() {

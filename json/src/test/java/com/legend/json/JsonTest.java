@@ -465,6 +465,16 @@ class JsonTest {
             assertEquals(-17L, n.longValue());
         }
 
+        /** A float token's double is the token's own: a BigDecimal has no negative zero, and "-0.0" is one
+         *  (2026-10-29: the Cypher parity lanes read Neo4j's -0.0 back as 0.0 through this parser). */
+        @Test void parseNegativeZeroKeepsItsSign() {
+            Json.Num n = (Json.Num) Json.parse("-0.0");
+            assertEquals(0, Double.compare(-0.0, n.doubleValue()), "the sign of zero");
+            assertEquals("-0.0", n.token());
+            assertEquals(0, Double.compare(-0.0, ((Json.Num) Json.parse("-0e5")).doubleValue()));
+            assertEquals(0, Double.compare(0.0, ((Json.Num) Json.parse("0.0")).doubleValue()));
+        }
+
         @Test void parseZero() {
             Json.Num n = (Json.Num) Json.parse("0");
             assertEquals(0L, n.longValue());

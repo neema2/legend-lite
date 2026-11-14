@@ -3,19 +3,20 @@
 
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
+
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.protocol.SourceInfo;
+import com.legend.protocol.spec.IslandLanguage;
 import com.legend.protocol.spec.SqlIsland;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.sql.InputDialect;
 import com.legend.protocol.sql.InputLanguages;
 import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlTranslationException;
-import com.legend.protocol.sql.iq.IqDialect;
-import com.legend.protocol.sql.iq.IqProfile;
 
 import java.util.function.Function;
 
@@ -34,16 +35,24 @@ final class SqlIslands {
     private SqlIslands() {
     }
 
-    /** The relation expression {@code island} means, names resolved; {@code typeSource} types a resolved source.
-     *  IQ island, 2026-10-14 (M1e): {@code model}'s tables are the ones a dialect may name without a source function
-     *  (an IQ owner's), and {@code env}'s variables the ones it may read (IQ's host variables); Postgres's reads
-     *  neither. */
-    static ValueSpecification desugar(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
-            ModelContext model, Env env) {
-        if (island.language().equals(SqlIsland.CYPHER)) {
+    /** The relation expression {@code island} means, names resolved; {@code typer} types a resolved source in
+     *  {@code env}. IQ island, 2026-10-14 (M1e): {@code model}'s tables are the ones a dialect may name without a
+     *  source function (an IQ owner's), and {@code env}'s variables the ones it may read (IQ's host variables);
+     *  Postgres's reads neither. */
+    static ValueSpecification desugar(SqlIsland island, Typer typer, ModelContext model, Env env) {
+        return switch (island.language()) {
             // the Cypher island (docs/CYPHER_STUDY_2026_10_15.md §5.3): its own seam, over the class model
-            return CypherIslands.desugar(island, model);
-        }
+            case CYPHER -> CypherIslands.desugar(island, model);
+            // the timeseries language (docs/TS_LANGUAGE_BUILD_2026_10_30.md): its own builder, the library's calls
+            case TS -> TsIslands.desugar(island, typer, model, env);
+            // SQL read through its language's dialect: Postgres's, IQ's under the island's profile
+            case SQL, IQ -> translated(island, source -> typer.synth(source, env), model, env);
+        };
+    }
+
+    /** {@code island}, a SQL island, as the relation expression the translator reads it to mean. */
+    private static ValueSpecification translated(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
+            ModelContext model, Env env) {
         java.util.Set<String> read = new java.util.TreeSet<>();
         SqlToPure.Sources sources = sources(island, typeSource, model, env, read);
         try {
@@ -64,7 +73,7 @@ final class SqlIslands {
      *  with RETURNING, the writes design's leg 4, 2026-10-20; an ON CONFLICT DO UPDATE, PR #67's second review,
      *  2026-10-24): a program of statements ({@link #statements}), as a Cypher statement that updates the graph is. */
     static boolean isProgram(SqlIsland island) {
-        return island.language().equals(SqlIsland.SQL) && island.profile() == null
+        return island.language() == IslandLanguage.SQL
                 && SqlToPure.isProgram(island.sql(), dialect(island));
     }
 
@@ -84,7 +93,7 @@ final class SqlIslands {
 
     /** What the translator asks of the model for {@code island}: a source's columns, the model's tables, a table's
      *  primary key, the variables of {@code env} (each one read added to {@code read}), the inline-view marker. */
-    private static SqlToPure.Sources sources(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
+    static SqlToPure.Sources sources(SqlIsland island, Function<ValueSpecification, TypedSpec> typeSource,
             ModelContext model, Env env, java.util.Set<String> read) {
         return new SqlToPure.Sources() {
             @Override
@@ -95,6 +104,11 @@ final class SqlIslands {
             @Override
             public void tables(SqlToPure.Table table) {
                 model.derived(Catalog.class, Catalog::of).tables().forEach(t -> table.table(t[0], t[1], t[2]));
+            }
+
+            @Override
+            public boolean isEnumeration(String type) {
+                return model.findEnum(type).isPresent();
             }
 
             @Override
@@ -229,28 +243,25 @@ final class SqlIslands {
         return true;
     }
 
-    /** The island's dialect: its language's ({@link InputLanguages}), IQ under the island's profile for
-     *  {@code #IQ{}}. */
+    /** The island's dialect: its language's ({@link InputLanguages}), under the island's profile for one that takes
+     *  one; a profile outside the language's closed set refused by name. */
     private static InputDialect dialect(SqlIsland island) {
-        InputDialect plain = island.profile() == null ? InputLanguages.plain(island.language()) : null;
-        if (plain != null) {
-            return plain;
+        String profile = island.profile();
+        String unknown = profile == null ? null : island.language().unknownProfile(profile);
+        if (unknown != null) {
+            throw new TypeInferenceException(unknown);
         }
-        if (!island.language().equals(SqlIsland.IQ)) {
-            throw new TypeInferenceException("an island of language " + island.language() + (island.profile() == null
-                    ? "" : " and profile " + island.profile()) + " has no SQL dialect");
+        InputDialect dialect = InputLanguages.of(island.language(), profile);
+        if (dialect == null) {
+            throw new TypeInferenceException("an island of language " + island.language().opener() + " has no SQL"
+                    + " dialect");
         }
-        String named = island.profile();
-        IqProfile profile = named == null ? IqProfile.DEFAULT : IqProfile.named(named);
-        if (profile == null) {
-            throw new TypeInferenceException(IqProfile.unknown(java.util.Objects.requireNonNull(named)));
-        }
-        return IqDialect.of(profile.settings());
+        return dialect;
     }
 
     /** A FROM source's columns, as the translator reads them: each column's name, its type's name, whether it may hold
      *  no value, and, when the source is a table, its declared store type, spelled as the store spells it. */
-    private static void columns(TypedSpec source, SqlIsland island, SqlToPure.Column column) {
+    static void columns(TypedSpec source, SqlIsland island, SqlToPure.Column column) {
         Type.RelationType schema = Type.relationSchema(source.info().type());
         if (schema == null || !schema.dynamicColumns().isEmpty()) {
             throw new TypeInferenceException(island.opening() + "...}# at " + position(island, 1, 1) + ": a FROM"

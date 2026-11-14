@@ -103,6 +103,14 @@ class OwnCorpusConformanceTest {
             // connection type the engine's DatabaseType enum lacks
             return "LITE-DESIGN-sqlite-backend";
         }
+        if (msg.contains("Unsupported column data type 'TIMESTAMP_NS'")) {
+            // the TIMESTAMP_NS column type (2026-11-13, REVIEWED, the final
+            // audit's item 2; docs/SEMANTICS_REGISTER.md S64): a lite
+            // ###Relational grammar extension the engine's column types
+            // lack -- a nanosecond key's test needs one
+            // (TestDataRoutesTest.aNanosecondKeyFindsItsOwnRow)
+            return "LITE-DESIGN-timestamp-ns";
+        }
         // mappings-as-functions (the standing design exception): a
         // CLEAN-SHEET mapping body parses to MappingDefinition (function
         // form) — the engine's grammar has no arm for it. Also covers the
@@ -259,14 +267,28 @@ class OwnCorpusConformanceTest {
                 // RunsTheFunction): a FunctionDefinition<{->Integer[*]}> parameter
                 // is the only way to write "a function value meets from(...)",
                 // the overload rank the fix corrects
-                Map.entry("PURE-DIALECT-function-types", 19),
+                // 19 -> 20 (2026-10-28, REVIEWED, the enumeration round's second review): UserFunctionIntegrationTest
+                // $FoldOfABody.aFunctionPassedOnWhole, test::applyTo(s, f: Function<{String[1]->String[1]}>[1]) -- a
+                // function a helper is given and evaluates whole, the static fold's write-back of a function reference,
+                // cannot be written without a function-typed parameter (its other tests are in the reference dialect)
+                Map.entry("PURE-DIALECT-function-types", 20),
                 // 7 -> 6 (batch 115, 2026-09-06): one generics row rode a
                 // test file deleted with the old corpus harness
                 // 6 -> 7 (2026-10-21, REVIEWED, the reference checks): ReferenceIntegrityTest's generic class, the
                 // wrong-arity cases' subject -- legend-pure's arity rule, which only lite's dialect (generics, a
                 // declared extension) can reach; the engine's grammar has no class type parameters
                 // 7 -> 8 (the same day, the independent audit): its `Class a::B<T> extends T`, the crash it guards
-                Map.entry("PURE-DIALECT-generics", 8),
+                // 8 -> 9 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112, the user's "Still A"): functions
+                // generic over relations, which only lite's dialect admits (legend-engine refuses a user function's
+                // type parameters) -- UserFunctionIntegrationTest$RelationGeneric's recursion witness (test::loop<T>);
+                // its columns-by-name library reads ⊆, so it is a signatures row (below)
+                // 9 -> 10 (2026-10-27, REVIEWED, S112's return check, the A4 review's 3): test::notATable<T>, a
+                // function declared to answer a table whose body answers a number, refused by name
+                // (UserFunctionIntegrationTest.aBodyOfNoTableIsRefused)
+                // 10 -> 12 (2026-11-03, REVIEWED, docs/SEMANTICS_REGISTER.md S146, the user's 2a: overloads by a relation's
+                // column type, lite's dialect, ruled): RelationGeneric's aColumnsTypePicksTheOverload (test::pick<K> beside
+                // test::pick of key:All) and SignatureMangleTest's fixture of the same two
+                Map.entry("PURE-DIALECT-generics", 12),
                 Map.entry("DIALECT-milestoning-range", 1),
                 Map.entry("ENGINE-TEST-SCOPED-section", 1),
                 Map.entry("LITE-DESIGN-inline-association", 2),
@@ -287,8 +309,34 @@ class OwnCorpusConformanceTest {
                 // routed-navigate witness is a function-form mapping by design
                 Map.entry("LITE-DESIGN-mapping-as-function", 21),
                 Map.entry("LITE-DESIGN-sqlite-backend", 2),
+                // 0 -> 1 (2026-11-13, REVIEWED, the final audit's item 2; S64): the TIMESTAMP_NS column of
+                // TestDataRoutesTest.aNanosecondKeyFindsItsOwnRow, lite's grammar extension
+                Map.entry("LITE-DESIGN-timestamp-ns", 1),
                 Map.entry("PURE-DIALECT-diagram", 1),
-                Map.entry("PURE-DIALECT-signatures", 16),
+                // 16 -> 17 (2026-10-26, REVIEWED, docs/SEMANTICS_REGISTER.md S112): UserFunctionIntegrationTest
+                // $RelationGeneric's columns-by-name library (test::mean<T,X,Z,V,O>, ColSpec<X⊆T>: DataCube's
+                // timeseries form), a function generic over relations
+                // 17 -> 18 (2026-10-27, REVIEWED, docs/SEMANTICS_REGISTER.md S113): RelationGeneric's
+                // dropsItsWorkingColumns (test::fromMean<T,X,V,O>, ColSpec<X⊆T>), a generic function that drops the
+                // working column it made with without
+                // 18 -> 19 (2026-10-27, REVIEWED, S112's hygiene, the user's "yes take all your suggestions"):
+                // RelationGeneric's aDeclaredColumnKeepsItsName (test::counted<T>, Relation<T+(n:Integer)>), a declared
+                // literal column leaving under its own name
+                // 19 -> 20 (2026-10-27, REVIEWED, S114): RelationGeneric's aWholeWindowAndARead (test::meanOf<T,V,O>,
+                // ColSpec<V⊆T>, its window whole and its column read with read)
+                // 20 -> 21 (2026-10-27, REVIEWED, S112's hygiene of a nested call): RelationGeneric's
+                // aNestedCallsColumnIsTheBodys (test::offItsMean<T,L,V,O> over test::meanOf), the column a body has
+                // another generic function write for it renamed as the body's own
+                // 21 -> 23 (2026-10-28, REVIEWED, the user's "compile time checks the parameters", docs/TIMESERIES_REVIEW_2026_10_25.md
+                // §20): RelationGeneric's anOptionAnEnumeration (test::statOf<T,V,O>, an option typed by an enumeration,
+                // the if on it folded) and anEnumerationPassedOnWhole (test::digestsOf<T,O,P>, the enumeration's value a
+                // helper and an unrolled map pass on whole -- the corpus's testExtendDigest_Relational regression)
+                // 23 -> 24 (2026-10-28, REVIEWED, the user's "enums that have mappings like in the database its 'A'"):
+                // RelationGeneric's anEnumerationMappedToTheDatabasesCodes (test::ofFamily<T,F>, ColSpec<F⊆T>), an
+                // enumeration's value a generic body compares a mapped column to, read as the database's code
+                // 24 -> 25 (2026-11-03, REVIEWED, S146, the user's 2a): RelationGeneric's
+                // aColumnSpecificationsColumnTypePicksTheOverload (ColSpec<(?:All)⊆T> beside ColSpec<L⊆T>)
+                Map.entry("PURE-DIALECT-signatures", 25),
                 Map.entry("PURE-DIALECT-xstore-tolerance", 1),
                 Map.entry("TEST-MACHINERY-fixture", 1)));
         // F3.7: EXACT accounting, both directions (the FixtureCorpusParity

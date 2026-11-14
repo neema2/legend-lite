@@ -140,9 +140,11 @@ final class CollectionLanes {
             case TypedSort s -> valueLane(s.source());
             case TypedSortBy s -> valueLane(s.source());
             // census carrier: folded to instance literals BEFORE lowering
-            // (StatementExecutor); its result is a VALUE — defensive true
+            // (BodyDriver); its result is a VALUE — defensive true
             case com.legend.compiler.spec.typed.TypedCsvCensus c -> true;
             case com.legend.compiler.spec.typed.TypedTestDataGen g -> true;
+            // a planned statement's one cell (B2d.2): a scalar value
+            case com.legend.compiler.spec.typed.TypedPlannedValue v -> true;
             case TypedDistinct d -> valueLane(d.source());
             case TypedDrop d -> valueLane(d.source());
             // take()/limit() — the DEEP_AUDIT catch: the whitelist had
@@ -175,6 +177,8 @@ final class CollectionLanes {
             case TypedRawSqlRelation ignored -> false;
             case com.legend.compiler.spec.typed.TypedCatalogGrid ignored -> false;
             case com.legend.compiler.spec.typed.TypedFrameRef ignored -> false;
+            // a relation read over a reloaded slice's rows (B2d.2): its source's lane
+            case com.legend.compiler.spec.typed.TypedTableSwap t -> valueLane(t.source());
             case TypedCollectionRelation ignored -> false;
             case TypedTds ignored -> false;
             case TypedProject ignored -> false;

@@ -1,56 +1,91 @@
-// The demo's sample trades (demo/boot.ts, a page that opens with no source): rows made in the tab as Arrow data, the
-// table the demo's model reads (demo/trades.pure's TRADES), put in by DuckDB's Arrow reader -- no SQL statement makes
-// them (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md D5). Row i's values are those DuckDB's own `range()` made of it before,
-// value for value (test/sample-trades.test.ts holds them to that statement).
+// The demo's sample trades (demo/boot.ts, a page that opens with no source): rows the tab's DuckDB MAKES into the table
+// the demo's model declares (demo/trades.pure's TRADES), by a plan -- legend-lite's SYNTHESIZE (register S303: the
+// table made as declared, then ONE statement over range(N), each column a formula of the row's number; the user's
+// rulings of 2026-11-12, "Demo has to go through platform" and the simple synthesize). No row is in the plan:
+// SAMPLE_KNOBS says what each column takes, the planner writes how, the database computes every value.
 //
 // The same rows as a CSV file are the sample a page saved over them reopens (samples.ts DESK_TRADES): the start's grid
 // is written down as that file (DESK_TRADES_FILE), so the page it starts can be saved, shared and joined as any
-// example's can (the user, 2026-10-23: the start page could not be saved, and its Join… refused).
+// example's can (the user, 2026-10-23: the start page could not be saved, and its Join… refused). That file is written
+// here, by sampleTradesCsv, with the formulas the planner writes for SAMPLE_KNOBS (HostOperation.Formula), row for row:
+// test/sample-trades.test.ts holds the file to the table the plan made.
 
-import { arrowIpcStream, type MadeColumn } from '../../engine-client/src/arrow-ipc.ts';
+import type { SynthesizeKnob, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 
 /** How many trades the demo makes. */
 export const SAMPLE_TRADES = 200_000;
 
 const REGIONS = ['EMEA', 'AMER', 'APAC'];
 const DESKS = ['Rates', 'Credit', 'FX', 'Equity', 'Commodities'];
+const QTRS = ['Q1', 'Q2', 'Q3', 'Q4'];
+const BOOKS = ['Book 1', 'Book 2', 'Book 3', 'Book 4'];
 
-/** Each column, in order, as row i makes it: the Arrow data and the CSV file alike. */
-const COLUMNS: Readonly<Record<string, MadeColumn>> = {
-  region: { text: REGIONS, pick: (i) => i % 3 },
-  desk: { text: DESKS, pick: (i) => Math.floor(i / 3) % 5 },
-  year: { integers: (i) => 2021 + (Math.floor(i / 15) % 5) },
-  qtr: { text: ['Q1', 'Q2', 'Q3', 'Q4'], pick: (i) => Math.floor(i / 75) % 4 },
-  book: { text: ['Book 1', 'Book 2', 'Book 3', 'Book 4'], pick: (i) => Math.floor(i / 300) % 4 },
-  notional: { doubles: (i) => ((i * 7919) % 1000000) / 100.0 },
-  pnl: { doubles: (i) => ((i * 104729) % 200000) / 100.0 - 1000.0 },
-  qty: { integers: (i) => ((i * 31) % 97) + 1 },
+/** What each column of TRADES takes (the synthesize request's knobs): its values in turn, or a range at a scale. */
+export const SAMPLE_KNOBS: Readonly<Record<string, SynthesizeKnob>> = {
+  region: { values: REGIONS },
+  desk: { values: DESKS },
+  year: { range: [2021, 2025] },
+  qtr: { values: QTRS },
+  book: { values: BOOKS },
+  notional: { range: [0, 9999.99], scale: 2 },
+  pnl: { range: [-1000, 999.99], scale: 2 },
+  qty: { range: [1, 97] },
 };
 
-/** `rows` sample trades as one Arrow IPC stream: region, desk, year, qtr, book, notional, pnl, qty. */
-export function sampleTrades(rows = SAMPLE_TRADES): Uint8Array {
-  return arrowIpcStream(rows, COLUMNS);
+/** The demo's request for its trades: TRADES of its model, SAMPLE_TRADES rows, the knobs above, on `databaseType`. */
+export function sampleTradesRequest(model: string, databaseType: string, count = SAMPLE_TRADES): SynthesizeRequest {
+  return { databaseType, model, database: 'trades::DB', schema: 'default', table: 'TRADES', count, columns: SAMPLE_KNOBS };
 }
 
-/** `rows` sample trades as a CSV file's text: the same rows, a header first (no value needs quoting). */
+/** The prime 2^31 - 1 a range's offset is taken modulo (HostOperation.Formula.MODULUS). */
+const MODULUS = 2_147_483_647n;
+/** The primitive root whose powers are the ranges' multipliers (Synthesize's ROOT). */
+const ROOT = 742_938_285n;
+
+/** The multiplier of the range at `position` among the table's ranges, in its declaration order (Synthesize.multiplier):
+ *  ROOT to the power position + 1, modulo MODULUS. */
+function multiplier(position: number): number {
+  let out = 1n;
+  for (let p = 0; p <= position; p++) out = (out * ROOT) % MODULUS;
+  return Number(out);
+}
+
+/** A list's value of row i (HostOperation.Formula.Cycle): its digit of the row number in mixed radix, worth `every` --
+ *  the product of the sizes of the lists the model declares before it. */
+const turn = (values: readonly string[], every: number) => (i: number): string =>
+  values[Math.floor(i / every) % values.length]!;
+
+/** A range's value of row i (HostOperation.Formula.Spread): lo + (((i * m) mod MODULUS) mod n) steps of 10^-scale, n the
+ *  range's values, m its own multiplier. Exact for the rows here (i * m below 2^53), each a decimal's nearest double, as
+ *  DuckDB casts it. */
+const spread = (position: number, lo: number, hi: number, scale = 0) => {
+  const m = multiplier(position);
+  const unit = 10 ** scale;
+  const n = Math.round((hi - lo) * unit) + 1;
+  return (i: number): number => (Math.round(lo * unit) + ((i * m) % Number(MODULUS)) % n) / unit;
+};
+
+/** Each column of the CSV file, in order, as the planner's formula makes row i's value. The model declares TRADES as
+ *  region, desk, book, year, qtr, notional, pnl, qty: the lists are digits in that order (region the lowest, then desk,
+ *  book and qtr), the ranges take the multipliers in that order (year, notional, pnl, qty). */
+const COLUMNS: readonly (readonly [string, (i: number) => string | number])[] = [
+  ['region', turn(REGIONS, 1)],
+  ['desk', turn(DESKS, REGIONS.length)],
+  ['year', spread(0, 2021, 2025)],
+  ['qtr', turn(QTRS, REGIONS.length * DESKS.length * BOOKS.length)],
+  ['book', turn(BOOKS, REGIONS.length * DESKS.length)],
+  ['notional', spread(1, 0, 9999.99, 2)],
+  ['pnl', spread(2, -1000, 999.99, 2)],
+  ['qty', spread(3, 1, 97)],
+];
+
+/** `rows` sample trades as a CSV file's text: the rows the plan makes, a header first (no value needs quoting). */
 export function sampleTradesCsv(rows = SAMPLE_TRADES): string {
-  const columns = Object.values(COLUMNS);
-  const out = [Object.keys(COLUMNS).join(',')];
+  const out = [COLUMNS.map(([name]) => name).join(',')];
   for (let i = 0; i < rows; i++) {
-    out.push(columns.map((c) => csvValue(c, i)).join(','));
+    out.push(COLUMNS.map(([, value]) => String(value(i))).join(','));
   }
   return `${out.join('\n')}\n`;
-}
-
-/** A made column's value in row `i`, as a CSV cell (a null, none). */
-function csvValue(c: MadeColumn, i: number): string {
-  const v = 'text' in c ? c.pick(i) : 'doubles' in c ? c.doubles(i) : 'integers' in c ? c.integers(i)
-    : 'instants' in c ? c.instants(i) : 'days' in c ? c.days(i) : c.truths(i);
-  if (v === null) return '';
-  if ('text' in c) return c.text[v as number]!;
-  if ('instants' in c) return new Date(v as number).toISOString();
-  if ('days' in c) return new Date((v as number) * 86_400_000).toISOString().slice(0, 10);
-  return String(v);
 }
 
 /** The sample these trades are as a file (samples.ts): what a page saved over the start's grid rebuilds. */
@@ -63,6 +98,6 @@ export const DESK_TRADES = 'desk-trades';
  */
 export const DESK_TRADES_FILE = {
   name: `sample-${DESK_TRADES}.csv`,
-  size: 10_217_418,
-  sha256: '5a06fa298e750ba41c133ac854eecd1d5c6f59d27a48992055ff8d0c8e97712a',
+  size: 8_989_263,
+  sha256: '0f8d84b5b4c793c1763acfdddee3cfef070661da62f0f4eb5853327642edaa27',
 } as const;

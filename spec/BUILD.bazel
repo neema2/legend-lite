@@ -121,6 +121,8 @@ legend_java_library(
         ":imports_generator",
         ":source_tree",
         "//core",
+        # the compatibility edge the corpus's runs are handed (the plan-as-data design's step 8, 2026-11-08)
+        "//core:edge",
         # the corpus lanes' databases: each lane's workspaces, fixture asides and the replay referee's sessions
         "//core:test_backends",
         "//testing",
@@ -179,6 +181,10 @@ corpus_lane(
     name = "corpus_duckdb",
     memory_mb = 1024,
     data = _CORPUS_INPUTS,
+    # guard 3, hard (docs/PLAN_AS_DATA_2026_11_07.md 2.10, the plan-as-data design's step 9, 2026-11-08): every body runs
+    # the test plan READ BACK from its JSON, never the planner's objects -- a run that reads anything but the plan's data
+    # shows here as a verdict that moves, against the committed rosters
+    jvm_flags = ["-Dlegend.diagnostics=decoded-plan"],
     rosters = "duckdb",
     runtime_deps = [":spec_tests_lib"],
 )
@@ -231,9 +237,11 @@ corpus_lane(
 legend_java_binary(
     name = "corpus_one",
     testonly = True,
-    data = _INPUTS + UPSTREAM_TREES + ["src/test/resources/rcorpus/duckdb-fail-roster.txt"],
+    data = _INPUTS + UPSTREAM_TREES + ["src/test/resources/rcorpus/duckdb-fail-roster.txt", "@h2_engine//jar:file"],
     jvm_flags = [
         "--enable-native-access=ALL-UNNAMED",
+        # the replay referee's H2, legend-engine's own (2.1.214), by path (testbackend/EngineH2Referee; 2026-11-05)
+        "-Dlegend.referee.h2.rlocation=$(rlocationpath @h2_engine//jar:file)",
         "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
         "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
         # the committed rosters, by one of them (MinimalCorpusTest.readRoster)
@@ -246,6 +254,28 @@ legend_java_binary(
         "-Xmx4096m",
     ],
     main_class = "com.legend.rcorpus.CorpusOne",
+    tags = ["manual"],
+    runtime_deps = [":spec_tests_lib"],
+)
+
+# A MEASUREMENT of the element-consumption analysis over named corpus bodies (M10c item 7b/7c; ConsumptionProbe):
+#   bazel run //spec:consumption_probe -- <test fqn>...
+legend_java_binary(
+    name = "consumption_probe",
+    testonly = True,
+    data = _INPUTS + UPSTREAM_TREES + ["src/test/resources/rcorpus/duckdb-fail-roster.txt"],
+    jvm_flags = [
+        "--enable-native-access=ALL-UNNAMED",
+        "-Dlegend.engine.root.rlocation=$(rlocationpath @legend_engine_src//:pom.xml)",
+        "-Dlegend.pure.root.rlocation=$(rlocationpath @legend_pure_src//:pom.xml)",
+        "-Drcorpus.committed.rlocation=$(rlocationpath src/test/resources/rcorpus/duckdb-fail-roster.txt)",
+        "-Duser.timezone=GMT",
+        "-Duser.language=en",
+        "-Duser.country=US",
+        "-Dfile.encoding=UTF-8",
+        "-Xmx4096m",
+    ],
+    main_class = "com.legend.testplan.ConsumptionProbe",
     tags = ["manual"],
     runtime_deps = [":spec_tests_lib"],
 )

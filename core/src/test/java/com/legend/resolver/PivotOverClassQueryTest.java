@@ -3,9 +3,9 @@
 
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
-import com.legend.exec.Column;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -45,7 +45,7 @@ class PivotOverClassQueryTest {
                 st.execute("INSERT INTO SALES VALUES (1,'EU',2023,10), (2,'EU',2023,5), (3,'EU',2024,7),"
                         + " (4,'US',2023,1), (5,'US',2024,2), (6,'US',2024,3)");
             }
-            var r = Execution.execute(MODEL, "|x::Sale.all()"
+            var r = Lean.run(MODEL, "|x::Sale.all()"
                     + "->project(~[region: s|$s.region, year: s|$s.year, amount: s|$s.amount])"
                     + "->pivot(~[year], ~[total: x|$x.amount: y|$y->plus()])"
                     + "->sort(~region->ascending())", "x::RT", c);
@@ -53,7 +53,7 @@ class PivotOverClassQueryTest {
             // presents it (pureToSQLQuery.pure mayQuotePivotColNames); the SQL
             // column underneath stays bare
             assertEquals(List.of("region", "'2023__|__total'", "'2024__|__total'"),
-                    r.columns().stream().map(Column::name).toList());
+                    r.columns().stream().map(Lean.Column::name).toList());
             assertEquals(List.of("EU|15|7", "US|1|5"), r.rows().stream()
                     .map(row -> row.get(0) + "|" + row.get(1) + "|" + row.get(2)).toList());
         }

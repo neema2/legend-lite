@@ -3,6 +3,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
@@ -87,7 +89,7 @@ class CatalogGridTest {
     void theInformationSchemaDialectsWriteTheTextTheCompilerWrote() {
         List<String[]> before = WRITTEN_BEFORE.lines().map(l -> l.split("\t", 2)).toList();
         assertEquals(6, before.size());
-        for (SqlDialect d : List.<SqlDialect>of(new DuckDb(), new H2(), new H2Modern())) {
+        for (SqlDialect d : List.<SqlDialect>of(new DuckDb(), new H2())) {
             for (int i = 0; i < before.size(); i++) {
                 SqlSource.Catalog.Grid g = SqlSource.Catalog.Grid.valueOf(before.get(i)[0]);
                 String sql = d.render(i % 2 == 0 ? grid(g, null, null, null) : patterned(g));

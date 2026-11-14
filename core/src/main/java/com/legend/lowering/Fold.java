@@ -1,5 +1,6 @@
 package com.legend.lowering;
 
+
 import com.legend.compiler.element.type.Type;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlExpr;
@@ -256,7 +257,8 @@ final class Fold {
 
     /**
      * A filter always has a slot in an UNTRUNCATED select: WHERE normally,
-     * HAVING over GROUP BY, QUALIFY over window columns (filtering commutes
+     * HAVING over GROUP BY, QUALIFY over window columns or beside a QUALIFY
+     * (filtering commutes
      * with sorting, so ORDER BY does not force isolation &mdash; but LIMIT/OFFSET
      * truncate, and filtering does not commute with truncation). DISTINCT is
      * also a boundary: filtering after dedup can only be expressed after the
@@ -268,6 +270,15 @@ final class Fold {
             return FilterSlot.ISOLATE;
         }
         if (referencesWindowColumn) {
+            return FilterSlot.QUALIFY;
+        }
+        // a filter after a QUALIFY is after the select's windows, as legend-engine's is (it wraps the window's filter
+        // and filters outside): beside the QUALIFY, never a WHERE, which runs before the windows and shrank the rows
+        // they read -- extend(over(~k, ~d), ~rn: rowNumber)->filter(rn > 3)->filter(v->isNotEmpty()) numbered the
+        // rows the later filter kept (2026-11-01, the timeseries ramp: a mean over 3 rows began 3 rows late, not 1).
+        // A filter after a window COLUMN alone keeps legend-engine's fold, a WHERE under the window (PCT
+        // testExtendFilterOutNull; RelationMappingWindowSeamTest)
+        if (s.qualify() != null) {
             return FilterSlot.QUALIFY;
         }
         if (!s.groupBy().isEmpty()) {
@@ -416,11 +427,15 @@ final class Fold {
     /**
      * A window column computes over the CURRENT select's row set: WHERE is fine
      * (windows evaluate after it), ORDER BY is fine (independent orderings) —
-     * but truncation, dedup, and grouping all change the row set the window
-     * must see, so each forces isolation.
+     * but truncation, dedup, grouping and a QUALIFY all change the row set the
+     * window must see, so each forces isolation. A QUALIFY filters after the
+     * select's windows: a window folded beside it read the rows it dropped
+     * ({@code extend(over)->filter(<a window's>)->extend(over(lag))} lagged
+     * onto a dropped row, 2026-10-26, the timeseries Phase 1 review's splice),
+     * where legend-engine's nested filter has it read the rows kept.
      */
     static boolean windowFolds(SqlSelect s) {
-        return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty();
+        return !s.distinct() && s.limit() == null && s.offset() == null && s.groupBy().isEmpty() && s.qualify() == null;
     }
 
     /** PURE-semantics null placement for a sort key (the
@@ -623,6 +638,80 @@ final class Fold {
         }
     }
 
+    /** THE COPIES A PASS WRITES (2026-10-30, //datacube:timeseries_sql_measure). {@link Budget#spend} charges a read
+     * once, but a rule may write its argument more than once: sqrt's domain guard writes it some 27 times (its
+     * message spells the value, {@code Scalars.floatRepr}), so a computed projection read once under a sqrt is
+     * written 27 times, and the budget never sees 26 of them -- a 63-day volatility wrote its periods-a-year
+     * projection 59 times, 74% of 25 KB of SQL. So the pass's columns are counted as written: each copy of one of
+     * {@code base}'s computed projections (found by identity: a read writes the projection's own expression, and a
+     * rule its argument as it was given) past the free ones -- each written whole as a column of its own, an extend's
+     * kept projection among them, and at least the first -- costs its nodes less the read it replaces, against the
+     * same {@link Budget#BLOAT}. Over it, the name of the projection whose copies cost most, and the pass is
+     * unfoldable: its base isolated, the reads are reads of the subselect's column, as for every unfoldable read.
+     * What a dialect writes more than once from one node is counted once: the message's {@code FLOAT_PRINT} is one
+     * call here and some 23 copies in DuckDB's text, a spelling the lowering may not know (invariant 3), so a sqrt
+     * costs three copies of its argument here, not 27. */
+    static @com.legend.base.Nullable String overCopied(SqlSelect base, List<SqlSelect.Projection> written) {
+        if (!isolatesAsItReads(base)) {
+            return null;
+        }
+        java.util.Map<SqlExpr, String> computed = new java.util.IdentityHashMap<>();
+        for (SqlSelect.Projection p : base.projections()) {
+            if (!(p.expr() instanceof SqlExpr.Column) && p.outputName() != null) {
+                computed.put(p.expr(), p.outputName());
+            }
+        }
+        if (computed.isEmpty()) {
+            return null;
+        }
+        java.util.Map<SqlExpr, Integer> copies = new java.util.IdentityHashMap<>();
+        // the writes that cost nothing: each projection written whole as a column of its own (an extend's kept
+        // projection, or a read that moves one), and at least the first write
+        java.util.Map<SqlExpr, Integer> free = new java.util.IdentityHashMap<>();
+        for (SqlSelect.Projection p : written) {
+            countCopies(p.expr(), computed, copies);
+            if (computed.containsKey(p.expr())) {
+                free.merge(p.expr(), 1, Integer::sum);
+            }
+        }
+        int growth = 0;
+        int most = 0;
+        String worst = null;
+        for (java.util.Map.Entry<SqlExpr, Integer> c : copies.entrySet()) {
+            int g = Math.max(0, c.getValue() - free.getOrDefault(c.getKey(), 1)) * (nodes(c.getKey()) - 1);
+            growth += g;
+            if (g > most) {
+                most = g;
+                worst = computed.get(c.getKey());
+            }
+        }
+        return growth > Budget.BLOAT ? worst : null;
+    }
+
+    /** Whether {@code s} isolated reads as it did (PR #81's review, 2026-10-30): {@link #overCopied} refuses a fold only
+     *  then, the copies left written where an isolation would change an answer -- a select with an order (a window or
+     *  an aggregate over the isolated select computes outside it, and its order is the subselect's alone), a limit, an
+     *  offset or DISTINCT (which an extend's isolation keeps by {@code Lowerer.extendOver}'s own rules, not the
+     *  plain isolation a refused fold retries over), or two names alike without regard to case (DuckDB binds a read
+     *  of either to the first: {@link #namesApartWithoutCase}). */
+    static boolean isolatesAsItReads(SqlSelect s) {
+        return s.orderBy().isEmpty() && s.limit() == null && s.offset() == null && !s.distinct()
+                && namesApartWithoutCase(s);
+    }
+
+    /** Counts into {@code copies} each of {@code computed}'s expressions written in {@code e}, not looking inside one:
+     *  a copy of a projection that holds another is one copy, its nodes the other's too. */
+    private static void countCopies(SqlExpr e, java.util.Map<SqlExpr, String> computed,
+            java.util.Map<SqlExpr, Integer> copies) {
+        if (computed.containsKey(e)) {
+            copies.merge(e, 1, Integer::sum);
+            return;
+        }
+        for (SqlExpr ch : e.children()) {
+            countCopies(ch, computed, copies);
+        }
+    }
+
     /** An expression's size as the budget counts it: its nodes. */
     static int nodes(SqlExpr e) {
         int n = 1;
@@ -747,6 +836,7 @@ final class Fold {
                     || physicallyRenderable(j.right(), c);
             case SqlSource.VarSetPlaceholder vp -> false;
             case SqlSource.RawSql raw -> false;
+            case SqlSource.GridReport g -> false;
             case SqlSource.Catalog cat -> false;
             case SqlSource.Values v -> v.alias().equals(c.table())
                     && v.columns().contains(c.name());
@@ -908,7 +998,7 @@ final class Fold {
      *  RETURN r = r} is true, 2026-10-17; the statement clocks, {@link SqlFn#NOW} and {@link SqlFn#TODAY}, are one
      *  value per statement on every database and substitute freely). */
     static boolean nondeterministic(SqlExpr e) {
-        return e instanceof SqlExpr.Call c && (c.fn() == SqlFn.RANDOM || c.fn() == SqlFn.GUID);
+        return e instanceof SqlExpr.Call c && c.fn().drawsAfresh();
     }
 
     /** A per-row cell that CAN be empty: {@code [0..1]} stamped. */
@@ -1097,6 +1187,7 @@ final class Fold {
             case SqlSource.RawSql raw -> raw.outputs().isEmpty()
                     ? SqlExpr.Column.physical(raw.alias(), column) : null;
             // a catalog grid's schema is declared: it never claims, as a stamped grid
+            case SqlSource.GridReport g -> null;
             case SqlSource.Catalog cat -> null;
             case SqlSource.Subselect sub -> lateBoundGrid(sub)
                     ? SqlExpr.Column.derived(sub.alias(), column)
@@ -1229,8 +1320,8 @@ final class Fold {
                 // stored promotion fact (SUM widens to HUGEINT,
                 // decimal SUM to Decimal(38,s) — exactly what grouped
                 // aggregates deliver, lane-green on both backends).
-                // Using.type stays the MODEL channel (TdsTextWrap's TDS
-                // headers); stamping it here instead re-ran the
+                // Using.type stays the MODEL channel (the keyed plan's
+                // per-key columns); stamping it here instead re-ran the
                 // CEILING rule-vs-emission mistake: 3 wire rows
                 // diverged DOUBLE <> DECIMAL(38,2) on first measure.
                 if (u.agg().type() instanceof
@@ -1507,6 +1598,11 @@ final class Fold {
             SqlExpr v) {
         if (t == com.legend.compiler.element.type.Type.Primitive.BOOLEAN) {
             return SqlExpr.Call.of(SqlFn.BOOL_TO_TEXT, v);
+        }
+        // a Decimal's or a Number's cell: its plain digits, the semantic node pureToString writes (A6, M-6)
+        if (t == com.legend.compiler.element.type.Type.Primitive.DECIMAL
+                || t == com.legend.compiler.element.type.Type.Primitive.NUMBER) {
+            return SqlExpr.Call.of(SqlFn.DECIMAL_TO_TEXT, v);
         }
         // NUMERIC CHARTER Rule 2: a Float-declared cell converts to DOUBLE
         // once before it is spelled (a Float computed in an integer or

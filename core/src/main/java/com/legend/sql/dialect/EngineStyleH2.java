@@ -2,6 +2,8 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlSelect;
@@ -26,6 +28,42 @@ import java.util.Set;
  */
 public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect {
 
+    /** {@inheritDoc} 9: H2's {@code TIMESTAMP '...'} literal keeps the digits it is written with, nine at most (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 9;
+    }
+
+    /** {@inheritDoc} 6: H2's {@code TIMESTAMP}'s default precision (measured on 2.5.252: a finer digit is rounded) (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    /** {@inheritDoc} H2's ({@code H2.SESSION_SETUP}): a plan this text is written into runs on the same H2. */
+    @Override
+    public java.util.List<String> sessionSetup() {
+        return H2.SESSION_SETUP;
+    }
+
+    /** {@inheritDoc} H2's ({@code H2.DATABASE_SETTINGS}): the engine's H2 session, the same database. */
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return H2.DATABASE_SETTINGS;
+    }
+
+    /** None: this text is the engine's goldens', which no database executes, so no {@code data:} payload is delivered
+     *  through it: refused by name, never a delivery borrowed from H2's. */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        throw new DialectCapability("a data: source reached the engine's H2 text, which no database executes");
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -36,7 +74,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case BIGINT -> "BIGINT";
             case HUGEINT -> "HUGEINT";
             case DOUBLE -> "DOUBLE PRECISION";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
@@ -418,16 +456,19 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      *  {@code setup/Ddl} wrote this text). Every other statement is the base's. */
     @Override
     public String render(com.legend.sql.SqlDml dml) {
+        com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             case com.legend.sql.SqlDml.InsertValues iv -> seedRow(iv);
             case com.legend.sql.SqlDml.InsertFromTable it -> super.render(it);
             case com.legend.sql.SqlDml.DeleteAll da -> super.render(da);
             case com.legend.sql.SqlDml.CreateTempTableAs ct -> super.render(ct);
-            // (the store writes: legend-engine's text has none; the base refuses)
+            // (a host's copy, and the store writes: legend-engine's text has none; the base refuses)
+            case com.legend.sql.SqlDml.CreateTableAs ct -> super.render(ct);
             case com.legend.sql.SqlDml.InsertSelect is -> super.render(is);
             case com.legend.sql.SqlDml.Update u -> super.render(u);
             case com.legend.sql.SqlDml.DeleteWhere dw -> super.render(dw);
             case com.legend.sql.SqlDml.Merge m -> super.render(m);
+            case com.legend.sql.SqlDml.LoadCsv lc -> super.render(lc);
         };
     }
 
@@ -524,6 +565,13 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     private final Map<String, String> renames = new LinkedHashMap<>();
     private final Map<String, SqlSource.Subselect> subselects =
             new LinkedHashMap<>();
+
+    /** legend-engine's own text labels its columns by its own rule (every projection {@code as "name"}): the result
+     *  labels of AnsiSqlRenderer#labeled are an execution dialect's (2026-11-12). */
+    @Override
+    protected boolean labelsResults() {
+        return false;
+    }
 
     @Override
     public String render(SqlQuery query) {
@@ -1788,6 +1836,11 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
      * by ... order by ...)} (the window-col goldens' spelling). */
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
+        if (w.frame() != null && w.frame().computed()) {
+            // legend-engine's text holds the number its planning computed; this printer computes none
+            throw new DialectCapability("a window frame offset the database computes reached legend-engine's text,"
+                    + " which holds the number its planning computed");
+        }
         // an ordered string aggregate over a window: legend-engine writes its WITHIN GROUP after the window
         // (withinGroupFunctionProcessor appends it after the OVER clause; 4.145.0 measured)
         if (w.fn() instanceof com.legend.sql.SqlAgg.Reducer r && r.fn() == com.legend.sql.SqlAgg.Fn.STRING_AGG
@@ -2010,6 +2063,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             // dialects keep the 64-bit BIGINT cast
             case PARSE_INT -> writer.append("cast(").expr(a.get(0), 0).append(" as integer)");
             // bool text keeps the golden cast spelling byte-for-byte
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> writer.append("cast(").expr(a.get(0), 0).append(" as varchar)");
             case CHR -> writer.append("char(").expr(a.get(0), 0).append(")");
             case LENGTH -> writer.append("char_length(").expr(a.get(0), 0).append(")");
@@ -2068,6 +2122,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            // the binary collation: this database compares texts by their code points already (measured 2026-11-12,
+            // the B2d.3 audit's M4), so the order key is the text as it is
+            case BINARY_COLLATE -> writer.expr(c.args().get(0), parentPrec);
             // generateGuid's contract is text: the uuid as VARCHAR
             case GUID -> writer.append("CAST(uuid() AS VARCHAR)");
             case RANDOM -> writer.append("rand()");
@@ -2078,9 +2135,9 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             // Pure's divide-with-scale is HALF_UP: plain ROUND (half away from zero)
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             // the hooks: this dialect's own (or the base's refusal)
-            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
+            case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
                  LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE, LIST_SLICE, REPEAT_VALUE,
                  LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE, TYPEOF -> listCall(writer, c.fn(), c.args());
@@ -2314,15 +2371,10 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         if (c.conform()) {
             return writer.expr(c.value(), 0);
         }
-        // The F10 LITERAL marker cast is a LABEL device (the
-        // construction-site carrier declaration scalarRoot reads) —
-        // never engine text: goldens pin the engine's own spelling
-        // (testGreatestLeast caught cast(greatest(...) as varchar)).
-        if (c.target() == com.legend.sql.SqlType.Scalar.LITERAL
-                || c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT
-                || (c.target() instanceof com.legend.sql.SqlType.Array la
-                        && la.element()
-                                == com.legend.sql.SqlType.Scalar.LITERAL)) {
+        // The temporal-text marker cast is a LABEL device (the construction-site carrier declaration the root
+        // reads) -- never engine text: goldens pin the engine's own spelling (testGreatestLeast caught
+        // cast(greatest(...) as varchar)). (The LITERAL spelling carrier's marker left with it, track L, 2026-10-29.)
+        if (c.target() == com.legend.sql.SqlType.Scalar.TEMPORAL_TEXT) {
             return writer.expr(c.value(), 0);
         }
         String t = castTypeName(c.target()).toLowerCase(Locale.ROOT);
@@ -2402,14 +2454,4 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached the engine text");
     }
 
-    /** {@inheritDoc} A JSON-carried list's text, which H2's driver hands back as its UTF-8 bytes. Until 2026-10-15
-     *  the executor read those bytes for every dialect; the dialect program's Phase 4 moved the reading into
-     *  {@link H2#normalize}, and its audit found that this dialect, which runs on H2 and is not H2's subclass, had
-     *  lost it. */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            com.legend.sql.@com.legend.base.Nullable SqlType type) {
-        return jdbcValue instanceof byte[] b && type instanceof com.legend.sql.SqlType.Array
-                ? new String(b, java.nio.charset.StandardCharsets.UTF_8) : jdbcValue;
-    }
 }

@@ -19,6 +19,7 @@ import {
   type Clock,
   type WarehouseSession,
 } from '../src/warehouse.ts';
+import { unplanned } from './unplanned.ts';
 
 interface Exchange {
   readonly op: string;
@@ -81,7 +82,7 @@ async function act(s: Scenario): Promise<Record<string, unknown>> {
       case 'run': {
         const chunks: string[] = [];
         let receipt: { statementId?: string; serverRows?: number } = {};
-        for await (const bytes of engine().arrowChunks(String(a.sql), undefined, (r) => { receipt = r; })) {
+        for await (const bytes of engine().arrowChunks(unplanned(String(a.sql)), undefined, (r) => { receipt = r; })) {
           chunks.push(Buffer.from(bytes).toString('base64'));
         }
         return { chunks, statementId: receipt.statementId, rowCount: receipt.serverRows };
@@ -89,7 +90,7 @@ async function act(s: Scenario): Promise<Record<string, unknown>> {
       case 'firstChunk': {
         const chunks: string[] = [];
         // the read stops after its first chunk: the driver closes what it leaves
-        for await (const bytes of engine().arrowChunks(String(a.sql))) {
+        for await (const bytes of engine().arrowChunks(unplanned(String(a.sql)))) {
           chunks.push(Buffer.from(bytes).toString('base64'));
           break;
         }

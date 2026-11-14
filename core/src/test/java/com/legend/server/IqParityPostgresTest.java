@@ -3,6 +3,8 @@
 
 package com.legend.server;
 
+import com.legend.testing.Lean;
+
 import com.legend.model.ConnectionDefinition.DatabaseType;
 import com.legend.testbackend.TestBackends;
 import com.legend.testcases.IqAnswers;
@@ -55,7 +57,6 @@ class IqParityPostgresTest {
             grantToThisAccount(admin, tables);
             String model = IqParity.model(tables, String.format(Locale.ROOT, "type: Postgres;\n    specification:"
                     + " Static { host: '127.0.0.1'; port: %d; name: 'postgres'; };\n    auth: Test;", pg.port()));
-            QueryService service = new QueryService();
             Map<String, SqlParity.Outcome> outcomes = new LinkedHashMap<>();
             for (IqParity.Run r : runs) {
                 String mismatch = IqParity.engineMismatch(r, names);
@@ -63,7 +64,7 @@ class IqParityPostgresTest {
                     problems.add(mismatch);
                 }
                 SqlParity.Outcome outcome = IqParity.outcome(r, answers.get(r.key()), tables, names,
-                        island -> service.execute(model, island, IqParity.RUNTIME, admin));
+                        island -> Lean.run(model, island, IqParity.RUNTIME, admin));
                 outcomes.put(r.key(), outcome);
                 // IQ island, 2026-10-14 (review 7, the user's ruling on B1): no case pins one plan's choice
                 String nondeterministic = IqParity.determinism(r, tables, outcome.status());

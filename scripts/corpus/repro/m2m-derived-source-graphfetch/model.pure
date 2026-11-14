@@ -1,0 +1,233 @@
+// F84: an M2M graph fetch over a ModelChainConnection reads the source class's derived properties as absent.
+//
+//   bazel run //tools/engine-runner:testable -- scripts/corpus/repro/m2m-derived-source-graphfetch/model.pure \
+//       --testable=demo::DerivedTds --testable=demo::InlineGraph --testable=demo::DerivedGraph \
+//       --testable=demo::DerivedGraphInteger
+//
+// The source class demo::src::Person is mapped relationally and reached through a ModelChainConnection; the M2M
+// mapping reads two of its DERIVED properties, `shout` (a String) and `age` (an Integer). legend-engine 4.145.0:
+//   DerivedTds           the same transform projected (a TDS: the chain inlines it into the source's SQL): passes
+//   InlineGraph          the derived property's body written in the transform, fetched as a graph: passes
+//   DerivedGraph         `shout: $src.shout`, fetched as a graph: every row's shout comes back null
+//   DerivedGraphInteger  `age: $src.age`, fetched: fails, "Error instantiating property 'age' ... Cannot invoke
+//                        java.lang.Long.longValue() because the return value of java.util.Map.get(Object) is null"
+// The source graph is fetched without the derived properties' values (the relational graph fetch keys a derived
+// property `shout()`), and the in-memory transform then reads nothing: a String reads as absent, a primitive fails.
+###Pure
+Class demo::src::Person
+{
+  id: String[1];
+  first: String[1];
+  born: Integer[1];
+  shout() { $this.first->toUpper() }: String[1];
+  age() { 2026 - $this.born }: Integer[1];
+}
+
+Class demo::Shouted
+{
+  id: String[1];
+  shout: String[0..1];
+}
+
+Class demo::Inline
+{
+  id: String[1];
+  shout: String[0..1];
+}
+
+Class demo::Aged
+{
+  id: String[1];
+  age: Integer[0..1];
+}
+
+###Relational
+Database demo::DB
+(
+  Table PERSON (ID VARCHAR(8) PRIMARY KEY, FIRST VARCHAR(32), BORN INTEGER)
+)
+
+###Mapping
+Mapping demo::SrcMapping
+(
+  demo::src::Person: Relational
+  {
+    ~mainTable [demo::DB]PERSON
+    id: [demo::DB]PERSON.ID,
+    first: [demo::DB]PERSON.FIRST,
+    born: [demo::DB]PERSON.BORN
+  }
+)
+
+Mapping demo::M
+(
+  *demo::Shouted: Pure
+  {
+    ~src demo::src::Person
+    id: $src.id,
+    shout: $src.shout
+  }
+  *demo::Inline: Pure
+  {
+    ~src demo::src::Person
+    id: $src.id,
+    shout: $src.first->toUpper()
+  }
+  *demo::Aged: Pure
+  {
+    ~src demo::src::Person
+    id: $src.id,
+    age: $src.age
+  }
+)
+
+###Connection
+RelationalDatabaseConnection demo::Conn
+{
+  store: demo::DB;
+  type: H2;
+  specification: LocalH2 { };
+  auth: DefaultH2;
+}
+
+ModelChainConnection demo::Chain
+{
+  mappings: [ demo::SrcMapping ];
+}
+
+###Runtime
+Runtime demo::RT
+{
+  mappings: [ demo::M ];
+  connections: [ ModelStore: [ chain: demo::Chain ], demo::DB: [ env: demo::Conn ] ];
+}
+
+###Data
+Data demo::Seed
+{
+  Relational
+  #{
+    default.PERSON:
+      'ID,FIRST,BORN\n' +
+      'P1,Ann,1975\n' +
+      'P2,Bob,1990\n';
+  }#
+}
+
+###Service
+Service demo::DerivedTds
+{
+  pattern: '/derivedTds';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Shouted.all()->project([x|$x.id, x|$x.shout], ['id', 'shout']);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          serializationFormat: PURE_TDSOBJECT;
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '[{"id":"P1","shout":"ANN"},{"id":"P2","shout":"BOB"}]'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::InlineGraph
+{
+  pattern: '/inlineGraph';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Inline.all()->graphFetch(#{demo::Inline{id,shout}}#)->serialize(#{demo::Inline{id,shout}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"id":"P1","shout":"ANN"},{"id":"P2","shout":"BOB"}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::DerivedGraph
+{
+  pattern: '/derivedGraph';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Shouted.all()->graphFetch(#{demo::Shouted{id,shout}}#)->serialize(#{demo::Shouted{id,shout}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"id":"P1","shout":"ANN"},{"id":"P2","shout":"BOB"}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}
+
+Service demo::DerivedGraphInteger
+{
+  pattern: '/derivedGraphInteger';
+  documentation: '';
+  execution: Single
+  {
+    query: |demo::Aged.all()->graphFetch(#{demo::Aged{id,age}}#)->serialize(#{demo::Aged{id,age}}#);
+    mapping: demo::M;
+    runtime: demo::RT;
+  }
+  testSuites:
+  [
+    s:
+    {
+      data: [ connections: [ env: Reference #{ demo::Seed }# ] ]
+      tests:
+      [
+        t:
+        {
+          asserts:
+          [
+            a: EqualToJson #{ expected: ExternalFormat #{ contentType: 'application/json'; data: '{"builder":{"_type":"json"},"values":[{"id":"P1","age":51},{"id":"P2","age":36}]}'; }#; }#
+          ]
+        }
+      ]
+    }
+  ]
+}

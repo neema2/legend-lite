@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""Track T, T-b2: the other packages' direct callers of the old door on the twin. Mechanical; the compiler and the
+tests name what is left. Usage: t-b2-code.py <package-dir-relative-to-core/src/test/java/com/legend> [...]
+A file named in PROGRAM (a test OF the body driver's judging: assert arms, verdicts, instance identity, the
+executeInDb natives, a router::execute let) goes to Program.last; every other file to Lean.run."""
+import glob
+import os
+import re
+import sys
+
+ROOT = os.environ.get("TB2_ROOT", "/home/user/legend-lite") + "/core/src/test/java/com/legend/"
+PROGRAM = set(os.environ.get("PROGRAM", "").split())
+SKIP = set(os.environ.get("SKIP", "").split())
+FORCE = set(os.environ.get("FORCE", "").split())  # files rewritten though PAT misses them (the service by another name)
+PAT = re.compile(r"Execution\.execute\(|Execution\.executeResolved\(|ExecutionResult")
+
+
+def split_args(s, start):
+    depth = 0
+    i = start
+    args = []
+    cur = []
+    in_str = None
+    while i < len(s):
+        ch = s[i]
+        if in_str:
+            cur.append(ch)
+            if ch == "\\":
+                cur.append(s[i + 1])
+                i += 2
+                continue
+            if ch == in_str:
+                in_str = None
+            i += 1
+            continue
+        if ch in "\"'":
+            in_str = ch
+            cur.append(ch)
+        elif ch == "(":
+            depth += 1
+            if depth > 1:
+                cur.append(ch)
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                args.append("".join(cur))
+                return args, i + 1
+            cur.append(ch)
+        elif ch == "," and depth == 1:
+            args.append("".join(cur))
+            cur = []
+        else:
+            cur.append(ch)
+        i += 1
+    raise SystemExit("unbalanced call")
+
+
+def rewrite_calls(s, name, entry):
+    out = []
+    i = 0
+    while True:
+        j = s.find(name + "(", i)
+        if j < 0:
+            out.append(s[i:])
+            break
+        k = j
+        while k > 0 and (s[k - 1].isalnum() or s[k - 1] in "._"):
+            k -= 1
+        args, end = split_args(s, j + len(name))
+        out.append(s[i:k])
+        if len(args) == 4:
+            out.append(entry + "(" + ",".join(args) + ")")
+        elif len(args) == 3:
+            out.append(entry + "(" + ",".join(args[:2]) + ", null," + args[2] + ")")
+        else:
+            out.append(s[k:end])
+        i = end
+    return "".join(out)
+
+
+def balanced_end(s, start):
+    """s[start] == '(' ; the index after its matching ')'."""
+    depth = 0
+    i = start
+    in_str = None
+    while i < len(s):
+        ch = s[i]
+        if in_str:
+            if ch == "\\":
+                i += 2
+                continue
+            if ch == in_str:
+                in_str = None
+        elif ch in "\"'":
+            in_str = ch
+        elif ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    raise SystemExit("unbalanced")
+
+
+def rewrite_casts(s):
+    """((ExecutionResult.Scalar) EXPR).value() -> EXPR.one(); ((ExecutionResult.Collection) EXPR).values() ->
+    EXPR.values(); ((ExecutionResult.Tabular) EXPR) -> (EXPR). EXPR may span lines and nest parentheses."""
+    pat = re.compile(r"\(\((?:com\.legend\.exec\.)?ExecutionResult\.(Scalar|Collection|Tabular)\)\s*")
+    while True:
+        m = pat.search(s)
+        if not m:
+            return s
+        # the outer '(' is at m.start(); its match closes the cast expression
+        end = balanced_end(s, m.start())
+        expr = s[m.end():end - 1].strip()
+        kind = m.group(1)
+        rest = s[end:]
+        if kind == "Scalar" and rest.startswith(".value()"):
+            rep = "(" + expr + ").one()" if not re.fullmatch(r"[\w.]+(\([^()]*\))?", expr, re.S) else expr + ".one()"
+            s = s[:m.start()] + rep + s[end + len(".value()"):]
+        elif kind == "Collection" and rest.startswith(".values()"):
+            rep = "(" + expr + ").values()" if not re.fullmatch(r"[\w.]+(\([^()]*\))?", expr, re.S) else expr + ".values()"
+            s = s[:m.start()] + rep + s[end + len(".values()"):]
+        else:
+            s = s[:m.start()] + "(" + expr + ")" + s[end:]
+
+
+for d in sys.argv[1:]:
+    files = sorted(glob.glob(ROOT + d + "/*.java")) if d != "." else sorted(glob.glob(ROOT + "*.java"))
+    for f in files:
+        base = os.path.basename(f)
+        if base in SKIP:
+            continue
+        s = open(f).read()
+        if not PAT.search(s) and base not in FORCE:
+            continue
+        o = s
+        entry = "Program.last" if base in PROGRAM else "Lean.run"
+        for name in ("Execution.execute", "queryService.execute", "qs.execute", "new QueryService().execute"):
+            s = rewrite_calls(s, name, entry)
+        s = rewrite_casts(s)
+        s = s.replace(".asCollection().values()", ".values()").replace(".asGraph().json()", ".json()")
+        s = s.replace(".returnType().typeName()", ".columns().get(0).type()")
+        s = s.replace(".pureType().typeName()", ".type()")
+        s = re.sub(r"\.rows\(\)\.get\(([^()]*)\)\.values\(\)", r".rows().get(\1)", s)
+        s = re.sub(r"\.rows\(\)\.(getFirst|getLast)\(\)\.values\(\)", r".rows().\1()", s)
+        s = re.sub(r"\b(r|row|rw|secondRow|firstRow|lastRow|first|second|third)\.values\(\)", r"\1", s)
+        s = re.sub(r"\bExecutionResult\.(Scalar|Collection|Tabular|Graph)\b(?!\.class)", "Lean.Result", s)
+        s = re.sub(r"\bcom\.legend\.exec\.ExecutionResult\b", "Lean.Result", s)
+        s = re.sub(r"\bExecutionResult\b", "Lean.Result", s)
+        s = re.sub(r"\bRow\b(?=\s+\w+\s*[,):])", "List<Object>", s)
+        s = s.replace("import com.legend.exec.Row;\n", "")
+        s = s.replace("import com.legend.exec.Lean.Result;\n", "").replace("import Lean.Result;\n", "")
+        if s != o:
+            pkg = re.search(r"package ([\w.]+);\n", s).group(0)
+            imp = "import com.legend.testing.Lean;"
+            if imp not in s:
+                s = s.replace(pkg, pkg + "\n" + imp + "\n", 1)
+            if entry.startswith("Program") and "import com.legend.testing.Program;" not in s:
+                s = s.replace(imp, imp + "\nimport com.legend.testing.Program;", 1)
+            if "List<Object>" in s and "import java.util.List;" not in s and "import java.util.*;" not in s:
+                s = s.replace(imp, imp + "\nimport java.util.List;", 1)
+            if "queryService." not in s and "qs." not in s and "new QueryService()" not in s:
+                s = s.replace("import com.legend.server.QueryService;\n", "")
+                s = re.sub(r"\n\s*private (final )?QueryService \w+ = new QueryService\(\);\n", "\n", s)
+                s = re.sub(r"\n\s*protected QueryService \w+ = new QueryService\(\);\n", "\n", s)
+            if "Execution." not in s:
+                s = s.replace("import com.legend.Execution;\n", "")
+            open(f, "w").write(s)
+            print("T-b2", entry, d + "/" + base)
+print("T-b2 applied")

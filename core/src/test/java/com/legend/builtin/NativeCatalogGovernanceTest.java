@@ -200,7 +200,17 @@ class NativeCatalogGovernanceTest {
         // window's average over a frame (the simple one), so no upstream name to adopt; the user chose a name of its
         // own over an overload of average (whose signature is upstream's, verbatim).
         // 2026-10-27, the merge of main (PR #78) into the Deephaven branch: both landed apart (7 on main, 5 here), 8 now.
-        assertTrue(Pure.LITE_SURFACE.size() <= 8,
+        // +1 2026-10-27 (the user's "do the without/except function", docs/PURE_LIBRARY_SPIKE_2026_10_27.md GAP 1,
+        // docs/SEMANTICS_REGISTER.md S113): without -- the relation less the named columns (T-Z), typed as the select
+        // of the rest; legend-pure 5.99.0 and legend-engine 4.145.0 drop rows but never columns (rename's T-Z+V is
+        // upstream's only column-subtracting signature), and a function generic over any table cannot name the
+        // caller's columns to select them
+        // +1 2026-10-27 (the user's "look at legend-pure first but yeah lets def build some primitive like that",
+        // docs/SEMANTICS_REGISTER.md S114): read -- a row's column through a column spec, typed as $r.col; upstream's
+        // ColSpec is a name alone and a column is read only as a reflected Column evaluated on a row (typed Any)
+        // 2026-11-14, the merge of main (PRs #77-#98) into the Deephaven branch: both landed apart (9 on main, 8 here),
+        // 10 now.
+        assertTrue(Pure.LITE_SURFACE.size() <= 10,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 

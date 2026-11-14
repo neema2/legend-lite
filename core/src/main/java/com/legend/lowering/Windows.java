@@ -21,9 +21,20 @@ final class Windows {
     enum Kind { RANKING, VALUE }
 
     record WindowFn(com.legend.sql.SqlAgg.Fn sqlName, Kind kind) {
+
+        /**
+         * Whether it reads its window's frame: an aggregate's and FIRST_VALUE's, LAST_VALUE's and NTH_VALUE's do; a
+         * ranking's and LAG's and LEAD's read the whole partition (SQL's, and Pure's: {@code $p->lag($r)} is the
+         * partition's), so a frame given them is no part of them and is never written -- SAP IQ and H2 refuse one
+         * (2026-10-27, the DataCube library review: a Dickey-Fuller's lag over its framed window).
+         */
+        boolean readsFrame() {
+            return kind == Kind.VALUE && sqlName != com.legend.sql.SqlAgg.Fn.LAG && sqlName != com.legend.sql.SqlAgg.Fn.LEAD;
+        }
     }
 
-    private static final Map<com.legend.model.FunctionId, WindowFn> FNS = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<com.legend.model.FunctionId, WindowFn> FNS =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     private Windows() {
     }
@@ -35,7 +46,8 @@ final class Windows {
     }
 
     /** SQL reducer names for the 4-arg colToAgg window aggregates. */
-    private static final Map<com.legend.model.FunctionId, com.legend.sql.SqlAgg.Fn> AGGREGATES = new HashMap<>();
+    private static final com.legend.base.Sealed.SealedMap<com.legend.model.FunctionId, com.legend.sql.SqlAgg.Fn> AGGREGATES =
+            com.legend.base.Sealed.map(new HashMap<>());
 
     /** The signature keys of the window functions — CLAIMS, kind WINDOW_FN
      *  ({@link com.legend.builtin.Claims}). */
@@ -199,6 +211,7 @@ final class Windows {
             case SqlExpr.CheckedOne co -> co;
             case SqlExpr.CompactList cl -> cl;
             case SqlExpr.Tagged tg -> tg;   // no reducer inside: a selection over literal candidates
+            case SqlExpr.TaggedList tl -> tl;   // no reducer of this select inside: literal channels, or its own subqueries
             case SqlExpr.DeferredTdsString dtds -> dtds;
             case SqlExpr.WindowCall w -> w;
             case SqlExpr.Lambda l -> l;
@@ -234,9 +247,14 @@ final class Windows {
     /** The checker-classified frame, mapped 1:1 to the SQL IR shape.
      * LITERAL bound validation lives HERE (moved from the checker —
      * the spec observes the error lazily at eval via assertError; a
-     * bad frame still never renders). */
+     * bad frame still never renders). A bound still an expression after
+     * inlining ({@code WindowFrame.Bound.Offset}) is the database's to
+     * compute: its size lowered by {@code offsets} as any scalar, its
+     * direction its shape's, its check written around the window by the
+     * dialect (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3a). */
     static SqlExpr.WindowCall.Frame sqlFrame(
-            com.legend.compiler.spec.typed.WindowFrame f) {
+            com.legend.compiler.spec.typed.WindowFrame f,
+            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlExpr> offsets) {
         Double from = numericOf(f.from());
         Double to = numericOf(f.to());
         if (from != null && to != null && from > to) {
@@ -247,11 +265,40 @@ final class Windows {
                             + " frame cannot be greater than the upper"
                             + " bound!");
         }
+        SqlExpr.WindowCall.Frame.Bound lo = sqlBound(f.from(), offsets);
+        SqlExpr.WindowCall.Frame.Bound hi = sqlBound(f.to(), offsets);
+        // a computed bound's direction is its shape's: a start written after the current row with an end at or before
+        // it (or an end written before it with a start at or after it) is no frame SQL can write, whatever the value
+        if (lo instanceof SqlExpr.WindowCall.Frame.Bound.ComputedFollowing && !following(hi)
+                || hi instanceof SqlExpr.WindowCall.Frame.Bound.ComputedPreceding && !preceding(lo)) {
+            throw new com.legend.error.ModelException(
+                    com.legend.error.LegendCompileException.Phase.TYPE,
+                    "Invalid window frame boundary - a computed bound's direction is read from how it is written"
+                            + " (-(n) is n before the current row, any other n after it), and this frame then"
+                            + " starts after where it ends: write the bound before the current row as -(n)"
+                            + " (docs/SEMANTICS_REGISTER.md S170)");
+        }
         return new SqlExpr.WindowCall.Frame(
                 f.kind() == com.legend.compiler.spec.typed.WindowFrame.Kind.ROWS
                         ? SqlExpr.WindowCall.Frame.Kind.ROWS
                         : SqlExpr.WindowCall.Frame.Kind.RANGE,
-                sqlBound(f.from()), sqlBound(f.to()));
+                lo, hi);
+    }
+
+    /** Whether {@code b} lies after the current row. */
+    private static boolean following(SqlExpr.WindowCall.Frame.Bound b) {
+        return b instanceof SqlExpr.WindowCall.Frame.Bound.Following
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.ComputedFollowing
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.IntervalFollowing;
+    }
+
+    /** Whether {@code b} lies before the current row. */
+    private static boolean preceding(SqlExpr.WindowCall.Frame.Bound b) {
+        return b instanceof SqlExpr.WindowCall.Frame.Bound.Preceding
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.ComputedPreceding
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.IntervalPreceding;
     }
 
     /** The bound's SIGNED numeric offset (Preceding negative,
@@ -270,16 +317,20 @@ final class Windows {
     }
 
     static SqlExpr.WindowCall.Frame.Bound sqlBound(
-            com.legend.compiler.spec.typed.WindowFrame.Bound b) {
+            com.legend.compiler.spec.typed.WindowFrame.Bound b,
+            java.util.function.Function<com.legend.compiler.spec.typed.TypedSpec, SqlExpr> offsets) {
         return switch (b) {
+            case com.legend.compiler.spec.typed.WindowFrame.Bound.Offset o -> o.preceding()
+                    ? new SqlExpr.WindowCall.Frame.Bound.ComputedPreceding(offsets.apply(o.magnitude()))
+                    : new SqlExpr.WindowCall.Frame.Bound.ComputedFollowing(offsets.apply(o.magnitude()));
             case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedPreceding ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.Preceding p ->
-                    new SqlExpr.WindowCall.Frame.Bound.Preceding(p.n());
+                    SqlExpr.WindowCall.Frame.Bound.Preceding.of(p.n());
             case com.legend.compiler.spec.typed.WindowFrame.Bound.CurrentRow ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.Following fo ->
-                    new SqlExpr.WindowCall.Frame.Bound.Following(fo.n());
+                    SqlExpr.WindowCall.Frame.Bound.Following.of(fo.n());
             case com.legend.compiler.spec.typed.WindowFrame.Bound.UnboundedFollowing ignored ->
                     new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
             case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalPreceding ip ->
@@ -287,5 +338,11 @@ final class Windows {
             case com.legend.compiler.spec.typed.WindowFrame.Bound.IntervalFollowing ifo ->
                     new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(ifo.n(), ifo.unit());
         };
+    }
+
+    // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
+    static {
+        FNS.seal();
+        AGGREGATES.seal();
     }
 }

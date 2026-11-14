@@ -3,10 +3,11 @@
 
 package com.legend.integration;
 
-import com.legend.error.LegendCompileException;
-import com.legend.server.QueryService;
-import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
+
+import com.legend.testing.Lean;
+import com.legend.error.LegendCompileException;
+import com.legend.testbackend.TestBackend;
 import com.legend.testcases.SqlIslandCases;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
@@ -55,15 +56,15 @@ class SqlIslandIntegrationTest {
         session.close();
     }
 
-    private static com.legend.exec.ExecutionResult run(String query) throws SQLException {
-        return new QueryService().execute(MODEL, query, SqlIslandCases.RUNTIME, session);
+    private static Lean.Result run(String query) throws SQLException {
+        return Lean.run(MODEL, query, SqlIslandCases.RUNTIME, session);
     }
 
-    private static List<List<String>> rows(com.legend.exec.ExecutionResult result) {
+    private static List<List<String>> rows(Lean.Result result) {
         List<List<String>> rows = new ArrayList<>();
         for (var row : result.rows()) {
             List<String> cells = new ArrayList<>();
-            for (Object value : row.values()) {
+            for (Object value : row) {
                 cells.add(SqlIslandCases.cell(value));
             }
             rows.add(cells);
@@ -78,7 +79,7 @@ class SqlIslandIntegrationTest {
     @ParameterizedTest(name = "{0}")
     @MethodSource("cases")
     void returnsTheRecordedAnswer(String sql, SqlIslandCases.Case c) throws SQLException {
-        com.legend.exec.ExecutionResult result = run(c.island());
+        Lean.Result result = run(c.island());
         assertEquals(c.columns(), result.columns().stream().map(col -> col.name()).toList(), sql);
         List<List<String>> actual = rows(result);
         if (c.ordered()) {
@@ -95,7 +96,7 @@ class SqlIslandIntegrationTest {
     @Test
     void anUnquotedNameMatchesTheModelsNameIgnoringCase() throws SQLException {
         // Postgres would fold FIRSTNAME to firstname and find nothing; the study's rule then matches firstName
-        com.legend.exec.ExecutionResult result =
+        Lean.Result result =
                 run("#SQL{select FIRSTNAME, last_name from tb('store::HR.EMP') where id = 1}#");
         assertEquals(List.of("firstName", "LAST_NAME"), result.columns().stream().map(col -> col.name()).toList());
         assertEquals(List.of(List.of("Ann", "Lee")), rows(result));
@@ -103,7 +104,7 @@ class SqlIslandIntegrationTest {
 
     @Test
     void theIslandComposesWithPure() throws SQLException {
-        com.legend.exec.ExecutionResult result = run("#SQL{select dept, count(*) as n from tb('store::HR.EMP')"
+        Lean.Result result = run("#SQL{select dept, count(*) as n from tb('store::HR.EMP')"
                 + " where dept is not null group by dept}#->filter(x|$x.n > 2)->select(~[dept])");
         assertEquals(List.of(List.of("eng")), rows(result));
     }
@@ -112,7 +113,7 @@ class SqlIslandIntegrationTest {
     void theIslandsOwnWindowsAreComputedBeforeAPureFilterAfterIt() throws SQLException {
         // 2026-10-16 (the IQ landing's review): the island's result is an inline view; the filter after it once folded
         // under its window, which then numbered the filtered rows (1, 2, 3)
-        com.legend.exec.ExecutionResult result = run("#SQL{select id, row_number() over (order by id) as rn"
+        Lean.Result result = run("#SQL{select id, row_number() over (order by id) as rn"
                 + " from tb('store::HR.EMP')}#->filter(x|$x.ID > 3)->sort(~ID->ascending())");
         assertEquals(List.of(List.of("4", "4"), List.of("5", "5"), List.of("6", "6")), rows(result));
     }
@@ -122,7 +123,7 @@ class SqlIslandIntegrationTest {
         // 2026-10-16 (the IQ landing's review): "Id" beside ID; DuckDB reads names without regard to case, even quoted,
         // so a select over a subselect showing both read the first. An extend after the island's limit keeps the
         // names apart (it folds where they are not)
-        com.legend.exec.ExecutionResult result = run("#SQL{select id, age as \"Id\" from tb('store::HR.EMP')"
+        Lean.Result result = run("#SQL{select id, age as \"Id\" from tb('store::HR.EMP')"
                 + " order by \"ID\" limit 3}#->extend(~z: x|$x.Id->toOne() + 1)");
         assertEquals(List.of(List.of("1", "30", "31"), List.of("2", "40", "41"), List.of("3", "25", "26")),
                 rows(result));
@@ -170,7 +171,7 @@ class SqlIslandIntegrationTest {
     void anAverageIsAFloatWhereTheSpecGivesANumeric() throws SQLException {
         // A KNOWN DIFFERENCE (docs/LEGEND_SQL_STUDY_2026_10_11.md §3.4): Pure's average is a Float, so avg over
         // integers is 33.333333333333336 here where Postgres's numeric gives 33.3333333333333333
-        com.legend.exec.ExecutionResult result = run("#SQL{select avg(age) as a from tb('store::HR.EMP')"
+        Lean.Result result = run("#SQL{select avg(age) as a from tb('store::HR.EMP')"
                 + " where dept = 'eng'}#");
         assertEquals(List.of(List.of("33.333333333333336")), rows(result));
     }

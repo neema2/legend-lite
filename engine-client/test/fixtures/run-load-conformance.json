@@ -1,0 +1,26 @@
+{
+  "_about": "THE LOAD RUNNERS' CONFORMANCE (B3, 2026-11-11, the orchestrator's ask): engine-client's runLoad (plan-runner.ts: the tab, DataCube headless) and Python's projects.run_load run the same plan -- the planner's projectData load of this model -- and must give the same rows and refuse the same tampered blob in the same words. Run by //engine-client:plan_runner_test and //python:engine_test.",
+  "model": "Class demo::party::Party\n{\n  id: Integer[1];\n  name: String[1];\n}\n\n###Relational\nDatabase demo::party::PartyDB\n(\n  Schema PARTY\n  (\n    Table PARTY (ID INTEGER PRIMARY KEY, NAME VARCHAR(200))\n  )\n)\n\n###Mapping\nMapping demo::party::PartyMapping\n(\n  *demo::party::Party: Relational\n  {\n    ~primaryKey ([demo::party::PartyDB] PARTY.PARTY.ID)\n    ~mainTable [demo::party::PartyDB] PARTY.PARTY\n    id: [demo::party::PartyDB] PARTY.PARTY.ID,\n    name: [demo::party::PartyDB] PARTY.PARTY.NAME\n  }\n)\n\n###Connection\nRelationalDatabaseConnection demo::party::Connection\n{\n  store: demo::party::PartyDB;\n  type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;\n}\n\n###Runtime\nRuntime demo::party::Runtime\n{\n  mappings: [demo::party::PartyMapping];\n  connections: [demo::party::PartyDB: [db: demo::party::Connection]];\n}\n\n###Data\nData demo::party::PartyData\n{\n  Relational\n  #{\n    PARTY.PARTY:\n      'ID,NAME\\n1,Meridian Capital\\n2,Halberd Securities\\n';\n  }#\n}\n",
+  "databaseType": "DuckDB",
+  "check": "SELECT ID, NAME FROM PARTY.PARTY ORDER BY ID",
+  "rows": [
+    [
+      1,
+      "Meridian Capital"
+    ],
+    [
+      2,
+      "Halberd Securities"
+    ]
+  ],
+  "tamper": {
+    "from": "Meridian",
+    "to": "Kestrel!"
+  },
+  "refused": "the data of the table PARTY.PARTY is not the data it was planned against: 97 bytes of digest ce87ac7f57b84e12d09122fa8ff3d83c1ac57f224f72df8ad7138b6b68e9f4e3, where the plan names 97 bytes of digest a5e8b8835e3251961586f69001e6851bf891a805a15100a3999ac30a4934b245",
+  "_aboutVersion": "the same plan stamped with another format version, refused in the same words before anything runs (the B checkpoint's tenets audit, LOW 1, 2026-11-11): {VERSION} is the version the planner writes, read from the fresh plan",
+  "version": {
+    "given": 0,
+    "refused": "not a legend-lite execution plan of version {VERSION}: {\"format\":\"legend-lite-plan\",\"version\":0}"
+  }
+}

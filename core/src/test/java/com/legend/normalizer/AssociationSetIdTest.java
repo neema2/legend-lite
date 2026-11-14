@@ -3,8 +3,9 @@
 
 package com.legend.normalizer;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
-import com.legend.Execution;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -61,7 +62,7 @@ class AssociationSetIdTest {
                 st.execute("INSERT INTO TB1 VALUES (100, 1), (200, 2)");
                 st.execute("INSERT INTO TB2 VALUES (10, 1), (11, 1), (12, 2)");
             }
-            var r = Execution.execute(MODEL,
+            var r = Lean.run(MODEL,
                     "|model::A.all()->project(~[aid: a|$a.id, bid: a|$a.b.bid])"
                             + "->sort([~aid->ascending(), ~bid->ascending()])",
                     "my::RT", c);

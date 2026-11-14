@@ -1,7 +1,6 @@
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.*;
 
 import java.sql.*;
@@ -24,7 +23,6 @@ import static org.junit.jupiter.api.Assertions.*;
 @DisplayName("DynaFunction Property Mapping Integration Tests")
 class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
 
-    private final QueryService qs = new QueryService();
 
 
     @BeforeEach
@@ -54,8 +52,8 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
                 """.formatted(mappingName, dbName);
     }
 
-    private ExecutionResult exec(String model, String query) throws SQLException {
-        return qs.execute(model, query, "test::RT", connection);
+    private Lean.Result exec(String model, String query) throws SQLException {
+        return Lean.run(model, query, "test::RT", connection);
     }
 
     private void sql(String... statements) throws SQLException {
@@ -64,22 +62,22 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
         }
     }
 
-    private List<String> colStr(ExecutionResult r, int idx) {
+    private List<String> colStr(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? row.get(idx).toString() : null)
                 .collect(Collectors.toList());
     }
 
-    private List<Integer> colInt(ExecutionResult r, int idx) {
+    private List<Integer> colInt(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? ((Number) row.get(idx)).intValue() : null)
                 .collect(Collectors.toList());
     }
 
-    private List<Boolean> colBool(ExecutionResult r, int idx) {
+    private List<Boolean> colBool(Lean.Result r, int idx) {
         return r.rows().stream().map(row -> row.get(idx) != null ? (Boolean) row.get(idx) : null)
                 .collect(Collectors.toList());
     }
 
-    private Object scalar(ExecutionResult r) {
+    private Object scalar(Lean.Result r) {
         return r.rows().get(0).get(0);
     }
 
@@ -820,6 +818,43 @@ class DynaFunctionIntegrationTest extends AbstractDatabaseTest {
             var labels = colStr(result, 0);
             assertTrue(labels.contains("Alice - Engineering"));
             assertTrue(labels.contains("Bob - Sales"));
+        }
+
+        @Test
+        @DisplayName("substring() over a joined column: its [0..1] operand is trusted to one, and an absent join stays absent")
+        void testSubstringThroughJoin() throws SQLException {
+            // a column reached through a join reads [0..1], and pure's substring is strict String[1]: the dyna lane
+            // wraps every non-collection operand in the 'position' toOne idiom, as the generic dyna path does (the
+            // stress corpus's combination cells, 2026-10-29; the PR #87 review's finding 8). A mapping's substring is
+            // SQL's: one-based, its third argument a length.
+            sql("CREATE TABLE DEPT (ID INT, DEPT_NAME VARCHAR(50))",
+                "INSERT INTO DEPT VALUES (1, 'Engineering'), (2, 'Sales')",
+                "CREATE TABLE EMP (ID INT, NAME VARCHAR(50), DEPT_ID INT)",
+                "INSERT INTO EMP VALUES (1, 'Alice', 1), (2, 'Bob', 2), (3, 'Carol', NULL)");
+            String model = withRuntime("""
+                    ###Pure
+                    import model::*;
+                    import store::*;
+
+                    Class model::E { name: String[1]; deptCode: String[0..1]; }
+                    ###Relational
+                    Database store::DB (
+                        Table EMP ( ID INTEGER, NAME VARCHAR(50), DEPT_ID INTEGER )
+                        Table DEPT ( ID INTEGER, DEPT_NAME VARCHAR(50) )
+                        Join EmpDept(EMP.DEPT_ID = DEPT.ID)
+                    )
+                    ###Mapping
+                    import model::*;
+                    import store::*;
+                    Mapping model::M ( E: Relational { ~mainTable [store::DB] EMP
+                        name: [store::DB] EMP.NAME,
+                        deptCode: substring(@EmpDept | [store::DB] DEPT.DEPT_NAME, 1, 3)
+                    } )
+                    """, "store::DB", "model::M");
+            var result = exec(model,
+                    "model::E.all()->project([x|$x.name, x|$x.deptCode], ['name', 'deptCode'])->sort('name')");
+            assertEquals(List.of("Alice", "Bob", "Carol"), colStr(result, 0));
+            assertEquals(Arrays.asList("Eng", "Sal", null), colStr(result, 1));
         }
 
         @Test

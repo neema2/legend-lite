@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
 import com.legend.Compiler;
 import com.legend.sql.SqlDdl;
 import com.legend.sql.SqlQuery;

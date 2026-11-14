@@ -70,6 +70,35 @@ esbuild_bundle(
     ],
 )
 
+# the load runners' shared conformance fixture (B3, 2026-11-11): the tab's runLoad and Python's run_load run it alike
+exports_files(
+    ["test/fixtures/run-load-conformance.json"],
+    visibility = ["//python:__pkg__"],
+)
+
+# the keyed expansion's one fixture (the C final audit's H8, 2026-11-12): Java's PlanRunner.expand, the tab's
+# expandKeyed and Python's _keyed_text each read it
+exports_files(
+    ["test/fixtures/keyed-expansion.json"],
+    visibility = ["//core:__pkg__", "//python:__pkg__"],
+)
+
+# The host's plan runner as a source the census reads (P7 of docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09: its plan
+# version equals the Java planner's, PlanVersionsAgreeTest)
+filegroup(
+    name = "plan_runner_src",
+    srcs = ["src/plan-runner.ts"],
+    visibility = ["//core:__pkg__"],
+)
+
+# the host sources the data mechanism census reads (DataMechanismCensusTest: a deleted mechanism's host spellings read
+# zero here too -- the B checkpoint's tenets audit, M4, 2026-11-11)
+filegroup(
+    name = "census_src",
+    srcs = glob(["src/**/*.ts"]),
+    visibility = ["//core:__pkg__"],
+)
+
 # THE BUNDLES ENGINE-CLIENT SHIPS (//:web; docs/BUILD_REBUILD_DESIGN_2026_10_05.md, D10): the planner's worker, which
 # Query and Studio copy into their sites
 filegroup(
@@ -139,6 +168,7 @@ node_test(
     # 7.5 s measured on a desk, the planner loaded (2026-10-08)
     size = "small",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/planner.ts",
@@ -153,6 +183,7 @@ node_test(
     name = "arrow_ipc_test",
     size = "small",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
     ],
@@ -206,11 +237,56 @@ node_test(
     # 2 s measured on a desk (2026-10-07); the planner loaded since D5 (it writes the copy's statements)
     size = "small",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/@duckdb/duckdb-wasm",
         "test/planner.ts",
     ],
     entry_point = "test/snap.test.ts",
+    wasm = True,
+)
+
+# A HOST SENDS ONLY A PLAN'S STATEMENT (the total wall's C3, 2026-11-12): src/planned-sql.ts's PlannedSql, which a
+# hand-written string is not -- the test's `@ts-expect-error` sends are the proof, checked by //datacube:typecheck_test --
+# and the mints themselves (where they are made: //tools/guards:planned_sql_test)
+node_test(
+    name = "planned_sql_test",
+    size = "small",
+    data = [
+        ":engine_client",
+        "test/unplanned.ts",
+    ],
+    entry_point = "test/planned-sql.test.ts",
+)
+
+# A TEST'S OWN STATEMENT, typed as a plan's by name (test/unplanned.ts): DataCube's tests and pages send their fixtures'
+# SQL through it; no product source imports it (//tools/guards:planned_sql_test)
+js_library(
+    name = "unplanned",
+    testonly = True,
+    srcs = ["test/unplanned.ts"],
+    visibility = ["//datacube:__pkg__"],
+)
+
+# A write's execution plan (the planner's executionPlan) run by the host's plan runner on DuckDB-WASM, in one
+# transaction (plan-runner.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6)
+node_test(
+    name = "plan_runner_test",
+    size = "small",
+    data = [
+        "test/unplanned.ts",
+        ":engine_client",
+        ":node_modules/@duckdb/duckdb-wasm",
+        "test/fixtures/run-load-conformance.json",
+        "test/fixtures/keyed-expansion.json",
+        "test/planner.ts",
+    ],
+    entry_point = "test/plan-runner.test.ts",
+    # the load runners' shared conformance fixture (B3): Python's engine test runs it too
+    env = {
+        "RUN_LOAD_FIXTURE": "$(rlocationpath test/fixtures/run-load-conformance.json)",
+        "KEYED_FIXTURE": "$(rlocationpath test/fixtures/keyed-expansion.json)",
+    },
     wasm = True,
 )
 
@@ -221,6 +297,7 @@ node_test(
     # medium: it loads the binding's module (WebAssembly), as //query-store:wasm_test does
     size = "medium",
     data = [
+        "test/unplanned.ts",
         ":engine_client",
         ":node_modules/apache-arrow",
         "//warehouse:sqlapi_corpus",
@@ -287,6 +364,8 @@ test_suite(
         ":duckdb_live_test",
         ":model_data_test",
         ":node_duckdb_test",
+        ":plan_runner_test",
+        ":planned_sql_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",

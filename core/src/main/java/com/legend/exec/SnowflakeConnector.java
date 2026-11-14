@@ -3,10 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
-import java.sql.Connection;
 
 /** Snowflake's sessions: the platform opens no declared connection to it yet (its sessions are the test harnesses');
  *  a session handed to execution is checked against its driver's product name. */
@@ -28,7 +26,7 @@ final class SnowflakeConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         return DatabaseConnector.notOpened(def);
     }
 
@@ -38,9 +36,25 @@ final class SnowflakeConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code Snowflake}'s errors carry their raise. */
+    /** {@inheritDoc} No: Snowflake rolls back the failed statement alone; its transaction goes on. */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} Yes: its driver takes autocommit off, a commit and a rollback. */
+    @Override
+    public boolean takesTransactions() {
+        return true;
+    }
+
+    /** {@inheritDoc} The dialect's {@code refetchesTimestampAsJavaTime} until D72 (2026-10-30), carried: No java.time re-fetch (measured 2026-10-11): its driver refuses getObject(int, LocalDateTime.class),
+     *  "Type passed to getObject(int, Class) is unsupported". A timestamp cell keeps the driver's Timestamp;
+     *  a BC date-time is designed, not built (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §15). Nor does it bind one
+     *  (measured 2026-11-07, the #TS island's Snowflake lane: setObject of a LocalDate is refused), so a date and a
+     *  date-time parameter go as java.sql.Date and java.sql.Timestamp. */
+    @Override
+    public DatabaseConnector.Decoding decoding() {
+        return new DatabaseConnector.Decoding(false, false, false, false, false);
     }
 }

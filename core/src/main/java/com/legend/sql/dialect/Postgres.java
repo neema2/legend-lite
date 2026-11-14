@@ -3,9 +3,12 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
+
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
+import com.legend.sql.SqlSource;
 import com.legend.sql.SqlType;
 
 import java.util.List;
@@ -72,6 +75,28 @@ public final class Postgres extends AnsiSqlRenderer {
     // The catalog: a Postgres table's model, from Postgres's own catalog
     // ==================================================================
 
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds and ROUNDS a finer digit (59.9999999 becomes the next minute) (S181, A7, 2026-11-10). */
+    @Override
+    protected int literalFractionDigits() {
+        return 6;
+    }
+
+    /** {@inheritDoc} 6: its {@code TIMESTAMP} keeps microseconds and rounds a finer digit (S181, A7, 2026-11-10). */
+    @Override
+    public int timestampColumnDigits() {
+        return 6;
+    }
+
+    @Override
+    public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
+        return null;   // its errors carry a raise's text
+    }
+
+    @Override
+    public @com.legend.base.Nullable DatabaseSettings databaseSettings() {
+        return null;   // none the database must have that a session statement cannot set
+    }
+
     /** This database's name for each scalar type, a refusal where it has none (the dialect program's Phase 1,
      *  2026-10-13: an exhaustive switch, so a new scalar type asks this dialect too). */
     @Override
@@ -82,7 +107,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case BIGINT -> "BIGINT";
             case HUGEINT -> "NUMERIC(38)";
             case DOUBLE -> "DOUBLE PRECISION";
-            case VARCHAR, LITERAL, TEMPORAL_TEXT -> "VARCHAR";
+            case VARCHAR, TEMPORAL_TEXT -> "VARCHAR";
             case DATE -> "DATE";
             case TIMESTAMP -> "TIMESTAMP";
             case TIMESTAMPTZ -> "TIMESTAMPTZ";
@@ -198,10 +223,37 @@ public final class Postgres extends AnsiSqlRenderer {
         return "ROLLBACK";
     }
 
-    /** {@inheritDoc} Written beside this dialect ({@code PostgresHostOperations}). */
+    /** {@inheritDoc} None written: each refused by name. Its one, a planner's query counted (Snap's preflight on a
+     *  warehouse whose catalog is Postgres), went with {@code HostOperation.Source.Query} (the final audit, 2026-11-12,
+     *  the user's ruling): a count is a Pure query's plan, planned for the warehouse's own runtime. */
     @Override
     public HostOperations hostOperations() {
-        return PostgresHostOperations.INSTANCE;
+        return new HostOperations.Refused("Postgres");
+    }
+
+    /** {@inheritDoc} The payload bound as one parameter, split by the database (the JSON pass, 2026-11-11: until then
+     *  a session table in {@code pg_temp} its load made and its release dropped). */
+    @Override
+    public SqlSource deliver(SqlDialect.DataPayload payload) {
+        return payload.bound();
+    }
+
+    /** A {@code data:} payload bound as one parameter, split here (the JSON pass, 2026-11-11, measured on 16: 100,000
+     *  records in 259 ms): each element a {@code JSONB}, a frame's record its place as the ordinality from 0 (the
+     *  payload's order); an empty array no row. */
+    @Override
+    protected SqlWriter sourceUrl(SqlWriter writer, SqlSource.SourceUrl u) {
+        if (!u.url().startsWith("data:")) {
+            return super.sourceUrl(writer, u);
+        }
+        writer.append("SELECT legend_payload.value AS ").append(aliasIdent(payloadColumn(u).name()));
+        if (u.placed()) {
+            com.legend.sql.OutputCol place = placeColumn(u);
+            writer.append(", CAST(legend_payload.ordinality - 1 AS ").append(castTypeName(place.type()))
+                    .append(") AS ").append(aliasIdent(place.name()));
+        }
+        writer.append(" FROM jsonb_array_elements(CAST(");
+        return bindPayload(writer, u).append(" AS JSONB)) WITH ORDINALITY AS legend_payload(value, ordinality)");
     }
 
     /** The engine's H2 text in the flavor DuckDB shares, its column types Postgres's (2026-10-12,
@@ -224,6 +276,14 @@ public final class Postgres extends AnsiSqlRenderer {
     /** No native PIVOT: static pivots are emulated by the carrier pass; a dynamic
      * pivot needs a key-discovery round trip the browser planner cannot make. */
     // the probe plan's facts (2026-10-20): Postgres: "target lists can have at most 1664 entries" (MaxTupleAttributeNumber); REPEATABLE READ is its snapshot
+    /** Postgres aborts a transaction on a failing statement (every later statement is refused until a rollback), and
+     *  has savepoints: a fused verdict statement inside a transaction is guarded by one (F11). */
+    @Override
+    public VerdictSavepoint verdictSavepoint() {
+        return new VerdictSavepoint("SAVEPOINT legend_verdicts", "ROLLBACK TO SAVEPOINT legend_verdicts",
+                "RELEASE SAVEPOINT legend_verdicts");
+    }
+
     @Override
     public KeysSnapshot keysSnapshot() {
         return KeysSnapshot.REPEATABLE_READ;
@@ -256,6 +316,9 @@ public final class Postgres extends AnsiSqlRenderer {
                 new WholePartitionOrderedSets(),
                 new SubstringClamp(), new StringCountsAsInt(), new AggregatesDeliverDouble(DOUBLE_AGGREGATES),
                 new QualifyToSubselect(true),
+                // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
+                // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
+                new SelectMerge(n -> n.toLowerCase(java.util.Locale.ROOT)), new SelectLayers(n -> n.toLowerCase(java.util.Locale.ROOT)),
                 new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
@@ -416,7 +479,7 @@ public final class Postgres extends AnsiSqlRenderer {
     /** The calls over the empty collection whose answer is the empty collection (DuckDB's over a NULL list): a
      *  reduction, an element, or the list rearranged. */
     private static final java.util.Set<SqlFn> EMPTY_IN_EMPTY_OUT = java.util.Set.of(SqlFn.LIST_MIN, SqlFn.LIST_MAX,
-            SqlFn.LIST_SUM, SqlFn.LIST_AVG, SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_GET, SqlFn.LIST_SLICE,
+            SqlFn.LIST_SUM, SqlFn.LIST_AVG, SqlFn.LIST_MEDIAN, SqlFn.LIST_MODE, SqlFn.LIST_GET, SqlFn.LIST_AT, SqlFn.LIST_SLICE,
             SqlFn.LIST_TAIL, SqlFn.LIST_INIT, SqlFn.LIST_SORT, SqlFn.LIST_SORT_DESC, SqlFn.LIST_REVERSE,
             SqlFn.LIST_DISTINCT);
 
@@ -652,6 +715,11 @@ public final class Postgres extends AnsiSqlRenderer {
                 // an inner list is held as jsonb: read back as a list
                 yield writer.piece(rebuilt(first) ? decode(at, first, 0) : at);
             }
+            // LIST_AT: a position the list holds (1-based, positive): its element, the list and the position written once
+            case LIST_AT -> {
+                SqlWriter.Piece at = w -> w.append("(").piece(xs).append(")[").expr(args.get(1), 0).append("]");
+                yield writer.piece(rebuilt(first) ? decode(at, first, 0) : at);
+            }
             case LIST_POSITION -> writer.append("array_position(").piece(xs).append(", ").expr(args.get(1), 0)
                     .append(")");
             // DuckDB's list_distinct drops NULLs; first occurrence order
@@ -729,11 +797,13 @@ public final class Postgres extends AnsiSqlRenderer {
             case RPAD -> padWithSpaceToInteger(writer, "rpad", c.args());
             case UC_FIRST -> firstCharCased(writer, "upper", c.args(), parentPrec);
             case LC_FIRST -> firstCharCased(writer, "lower", c.args(), parentPrec);
+            case BINARY_COLLATE -> writer.append("(").expr(c.args().get(0), 0).append(" COLLATE \"C\")");
             case TODAY -> writer.append("current_date");
             case DATE_TRUNC_DAY -> castAs(writer, c.args().get(0), "DATE");
+            case DECIMAL_TO_TEXT -> writer.expr(varcharCast(c.args().get(0)), parentPrec);
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
-            case FLOAT_PRINT, FLOAT_PRINT_ENGINE -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
@@ -906,7 +976,7 @@ public final class Postgres extends AnsiSqlRenderer {
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "variant over jsonb is leg P4");
             // ---- lists: a list of scalars is a native array (listCall and its siblings below)
             // the hooks: this dialect's own (or the base's refusal)
-            case LIST_FILTER, LIST_GET, LIST_POSITION, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
+            case LIST_FILTER, LIST_GET, LIST_AT, LIST_POSITION, LIST_DISTINCT, LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX,
                  LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, LIST_SLICE,
                  LIST_BOOL_AND, LIST_BOOL_OR, LIST_REVERSE -> listCall(writer, c.fn(), c.args());
             case LIST_CONCAT -> listConcat(writer, c, parentPrec);
@@ -1379,31 +1449,14 @@ public final class Postgres extends AnsiSqlRenderer {
         return super.expr(writer, e, parentPrec);
     }
 
-    /** A date-time finer than a microsecond is a {@code TIMESTAMP} of its first six digits, the finer ones cut, as its
-     *  literal is ({@link #timestampLit}). */
+    /** A Date and a DateTime parameter are a {@code TIMESTAMP} of six digits of a second, a value of finer ones refused
+     *  by the statement's own raise, as its literal is at planning (S181, A7; D1, P4); a number is bound bare. */
     @Override
-    protected RenderedStatement.TypeSpelling holeType(com.legend.sql.ValueKind kind) {
-        return kind == com.legend.sql.ValueKind.DATE_TIME_NANOS
-                ? new RenderedStatement.TypeSpelling("TIMESTAMP", RenderedStatement.Digits.NONE, 6)
-                : super.holeType(kind);
-    }
-
-    /** Postgres keeps microseconds and ROUNDS finer digits (59.9999999 becomes the next
-     * minute; the 9999-12-31 23:59:59.999999999 sentinel would become year 10000):
-     * finer digits are TRUNCATED, as DuckDB's TIMESTAMP does. */
-    @Override
-    protected String timestampLit(String iso) {
-        int dot = iso.lastIndexOf('.');
-        if (dot >= 0) {
-            int end = dot + 1;
-            while (end < iso.length() && Character.isDigit(iso.charAt(end))) {
-                end++;
-            }
-            if (end - dot - 1 > 6) {
-                iso = iso.substring(0, dot + 7) + iso.substring(end);
-            }
-        }
-        return super.timestampLit(iso);
+    protected @com.legend.base.Nullable ParameterType parameterType(com.legend.sql.DeclaredKind kind) {
+        return switch (kind) {
+            case FLOAT, DECIMAL, NUMBER -> null;
+            case DATE, DATE_TIME -> new ParameterType("TIMESTAMP", new RenderedStatement.AsText(6));
+        };
     }
 
     /** Postgres text cannot hold NUL ({@code chr(0)} raises). */
@@ -1800,13 +1853,24 @@ public final class Postgres extends AnsiSqlRenderer {
                 ? w -> w.append("CAST(").piece(text).append(" AS ").append(castTypeName(slot)).append(")") : text;
     }
 
+    /** A condition, or an operand of AND or OR, that IS error() (a filter of fail(...): the timeseries library's
+     *  refusals) raised as a boolean,
+     *  as a CASE's raising branch takes its CASE's type: the raise is text here ({@link #raise}), and Postgres refuses
+     *  a condition of text ("argument of WHERE must be type boolean", measured on 16, B1 2026-11-06). */
+    @Override
+    protected SqlWriter booleanOperand(SqlWriter writer, SqlExpr e, int prec) {
+        return e instanceof SqlExpr.Call call && call.fn() == SqlFn.ERROR
+                ? writer.piece(raise(call.args(), SqlType.Scalar.BOOLEAN)) : super.booleanOperand(writer, e, prec);
+    }
+
     /** The base CASE, with a branch that IS error() raised in the CASE's own type. */
     @Override
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
         SqlType slot = c.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot));
+            writer.append(" WHEN ");
+            condition(writer, w.condition()).append(" THEN ").piece(branch(w.then(), slot));
         }
         if (c.otherwise() != null) {
             writer.append(" ELSE ").piece(branch(c.otherwise(), slot));
@@ -2372,6 +2436,10 @@ public final class Postgres extends AnsiSqlRenderer {
                     frameInterval(p.n(), p.unit()) + " PRECEDING";
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     frameInterval(f.n(), f.unit()) + " FOLLOWING";
+            // an offset the database computes: written by writeBound (measured 2026-10-31: Postgres 16 takes an
+            // expression and a parameter, refuses a negative offset)
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 
@@ -2453,56 +2521,6 @@ public final class Postgres extends AnsiSqlRenderer {
             });
         }
         return out.toString();
-    }
-
-    // ==================================================================
-    // Values: what the driver hands back
-    // ==================================================================
-
-    /** A struct is jsonb here, and the driver hands a jsonb cell back as its own object, whose text is the JSON
-     *  (PGobject's toString): decoded to the platform's map, a struct's fields in its declared order (nested ones
-     *  too), a Float field a Double, a Decimal one a BigDecimal. A jsonb null (an absent optional instance read off
-     *  its owner, {@code x -> 'f'}) is NULL. (Still raw: a date-time field arrives as its text, and a map field as its
-     *  entries -- the executor's unwrap would type them, and sql/ cannot reach it: PR #34's review, 2026-10-13.) */
-    @Override
-    public @com.legend.base.Nullable Object normalize(@com.legend.base.Nullable Object jdbcValue,
-            @com.legend.base.Nullable SqlType type) {
-        if (jdbcValue != null && type instanceof SqlType.Struct st && !(jdbcValue instanceof java.util.Map)) {
-            String text = jdbcValue.toString();
-            if (text.startsWith("{")) {
-                return declared(com.legend.sql.Json.parse(text), st);
-            }
-            if (com.legend.sql.Json.parse(text) == null) {
-                return null;
-            }
-        }
-        return jdbcValue;
-    }
-
-    /** A parsed JSON value as the type declares it: a struct's fields in declared order, a list's elements, a Float a
-     *  Double; anything else as parsed. */
-    private static @com.legend.base.Nullable Object declared(@com.legend.base.Nullable Object v, SqlType t) {
-        if (t instanceof SqlType.Struct st && v instanceof java.util.Map<?, ?> m) {
-            java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
-            for (SqlType.Struct.Field f : st.fields()) {
-                out.put(f.name(), declared(m.get(f.name()), f.type()));
-            }
-            return out;
-        }
-        if (t instanceof SqlType.Array arr && v instanceof List<?> l) {
-            List<Object> out = new java.util.ArrayList<>(l.size());
-            for (Object e : l) {
-                out.add(declared(e, arr.element()));
-            }
-            return out;
-        }
-        if (t == SqlType.Scalar.DOUBLE && v instanceof Number n) {
-            return n.doubleValue();
-        }
-        if (t instanceof SqlType.Decimal && v instanceof Number n && !(v instanceof java.math.BigDecimal)) {
-            return new java.math.BigDecimal(n.toString());
-        }
-        return v;
     }
 
     // ==================================================================

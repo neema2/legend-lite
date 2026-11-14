@@ -19,8 +19,6 @@ import com.legend.sql.SqlType;
 import com.legend.sql.SqlUnion;
 import com.legend.sql.SqlWith;
 import com.legend.sql.TypeFact;
-import com.legend.sql.ValueKind;
-import com.legend.sql.ValueTyping;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
@@ -43,7 +41,7 @@ public final class MirJson {
 
     enum QueryTag { select, union, with }
 
-    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet }
+    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet, gridReport }
 
     enum ExprTag {
         rowOrder, storedRead, reduceCollection, membership, column, starExcept, star, stringLit, intLit, floatLit,
@@ -60,7 +58,7 @@ public final class MirJson {
     enum FactTag { typed, bottom, raises, unknown }
 
     enum BoundTag { unboundedPreceding, preceding, currentRow, following, unboundedFollowing, intervalPreceding,
-        intervalFollowing }
+        intervalFollowing, computedPreceding, computedFollowing }
 
     enum FmtTag { part, text }
 
@@ -219,6 +217,10 @@ public final class MirJson {
                 o.put("columns", new ArrayList<Object>(v.columns()));
                 o.put("alias", v.alias());
                 o.put("outputs", outputCols(v.outputs()));
+                SqlSource.SourceUrl named = v.payload();
+                if (named != null) {
+                    o.put("payload", source(named));
+                }
             }
             case SqlSource.Dual d -> o.put("_type", SourceTag.dual.name());
             case SqlSource.SourceUrl u -> {
@@ -226,6 +228,7 @@ public final class MirJson {
                 o.put("url", u.url());
                 o.put("alias", u.alias());
                 o.put("outputs", outputCols(u.outputs()));
+                o.put("form", u.form().name());
             }
             case SqlSource.RawSql r -> {
                 o.put("_type", SourceTag.rawSql.name());
@@ -233,6 +236,13 @@ public final class MirJson {
                 o.put("alias", r.alias());
                 o.put("outputs", outputCols(r.outputs()));
                 o.put("writtenFor", r.writtenFor());
+            }
+            case SqlSource.GridReport g -> {
+                o.put("_type", SourceTag.gridReport.name());
+                o.put("grid", query(g.grid()));
+                o.put("part", g.part().name());
+                o.put("alias", g.alias());
+                o.put("outputs", outputCols(g.outputs()));
             }
             case SqlSource.Catalog c -> {
                 o.put("_type", SourceTag.catalog.name());
@@ -420,6 +430,9 @@ public final class MirJson {
             }
             case SqlExpr.Tagged t -> throw new IllegalStateException("a tagged value (SqlExpr.Tagged) is resolved"
                     + " at its query's root before a plan is written: its tag and slots are the plan's columns");
+            case SqlExpr.TaggedList tl -> throw new IllegalStateException("a tagged list (SqlExpr.TaggedList) is"
+                    + " resolved at its query's root before a plan is written: its rows' tag and slots are the plan's"
+                    + " columns");
             case SqlExpr.DeferredTdsString d -> {
                 tag(o, ExprTag.deferredTdsString, d.type());
                 o.put("inner", query(d.inner()));
@@ -475,18 +488,7 @@ public final class MirJson {
         o.put("kind", p.kind().name());
         o.put("optional", p.optional());
         o.put("enumMapFn", p.enumMapFn());
-        if (p.byValue() == null) {
-            o.put("byValue", null);
-        } else {
-            Map<String, Object> v = new LinkedHashMap<>();
-            List<Object> kinds = new ArrayList<>();
-            for (ValueKind k : p.byValue().kinds()) {
-                kinds.add(k.name());
-            }
-            v.put("kinds", kinds);
-            v.put("absent", p.byValue().absent().name());
-            o.put("byValue", v);
-        }
+        o.put("declared", p.declared() == null ? null : p.declared().name());
     }
 
     private static void formatLit(Map<String, Object> o, SqlExpr.FormatLit f) {
@@ -563,6 +565,9 @@ public final class MirJson {
             fo.put("kind", w.frame().kind().name());
             fo.put("from", bound(w.frame().from()));
             fo.put("to", bound(w.frame().to()));
+            if (w.frame().checked()) {
+                fo.put("checked", true);   // a renderer's (FrameGuard): never a lowered plan's, kept if met
+            }
             o.put("frame", fo);
         }
     }
@@ -624,6 +629,14 @@ public final class MirJson {
                 o.put("_type", BoundTag.intervalFollowing.name());
                 o.put("n", f.n());
                 o.put("unit", f.unit());
+            }
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> {
+                o.put("_type", BoundTag.computedPreceding.name());
+                o.put("offset", expr(c.offset()));
+            }
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> {
+                o.put("_type", BoundTag.computedFollowing.name());
+                o.put("offset", expr(c.offset()));
             }
         }
         return o;
@@ -889,14 +902,20 @@ public final class MirJson {
                 for (Json.Node n : o.getArr("rows").items()) {
                     rows.add(readExprs((Json.Arr) n));
                 }
+                Json.Obj named = o.getObjOr("payload", null);
                 yield new SqlSource.Values(rows, strings(o.getArr("columns")), o.getString("alias"),
-                        readOutputCols(o.getArr("outputs")));
+                        readOutputCols(o.getArr("outputs")),
+                        named == null ? null : (SqlSource.SourceUrl) readSource(named));
             }
             case dual -> new SqlSource.Dual();
             case sourceUrl -> new SqlSource.SourceUrl(o.getString("url"), o.getString("alias"),
-                    readOutputCols(o.getArr("outputs")));
+                    readOutputCols(o.getArr("outputs")), named(SqlSource.SourceUrl.Form.class, o.getString("form"),
+                            "form"));
             case rawSql -> new SqlSource.RawSql(o.getString("sql"), o.getString("alias"),
                     readOutputCols(o.getArr("outputs")), o.getString("writtenFor"));
+            case gridReport -> new SqlSource.GridReport(readQuery(o.getObj("grid")),
+                    named(SqlSource.GridReport.Part.class, o.getString("part"), "part"), o.getString("alias"),
+                    readOutputCols(o.getArr("outputs")));
             case catalog -> new SqlSource.Catalog(named(SqlSource.Catalog.Grid.class, o.getString("grid"), "grid"),
                     o.getStringOr("schemaPattern", null), o.getStringOr("tablePattern", null),
                     o.getStringOr("columnPattern", null), o.getString("alias"), readOutputCols(o.getArr("outputs")));
@@ -943,18 +962,11 @@ public final class MirJson {
             case group -> new SqlExpr.Group(readExpr(o.getObj("inner")), type);
             case keyCell -> new SqlExpr.KeyCell(o.getInt("cell"), type);
             case planParam -> {
-                Json.Obj v = objOrNull(o, "byValue");
-                ValueTyping byValue = null;
-                if (v != null) {
-                    List<ValueKind> kinds = new ArrayList<>();
-                    for (String k : strings(v.getArr("kinds"))) {
-                        kinds.add(named(ValueKind.class, k, "value kind"));
-                    }
-                    byValue = new ValueTyping(kinds, named(ValueKind.class, v.getString("absent"), "value kind"));
-                }
+                String declared = o.getStringOr("declared", null);
                 yield new SqlExpr.PlanParam(o.getString("name"),
                         named(SqlExpr.PlanParam.Kind.class, o.getString("kind"), "parameter kind"),
-                        o.getBool("optional"), o.getStringOr("enumMapFn", null), type, byValue);
+                        o.getBool("optional"), o.getStringOr("enumMapFn", null), type,
+                        declared == null ? null : named(com.legend.sql.DeclaredKind.class, declared, "declared kind"));
             }
             case formatLit -> {
                 List<DateFmt> parts = new ArrayList<>();
@@ -1035,7 +1047,7 @@ public final class MirJson {
                 Json.Obj f = objOrNull(o, "frame");
                 SqlExpr.WindowCall.Frame frame = f == null ? null : new SqlExpr.WindowCall.Frame(
                         named(SqlExpr.WindowCall.Frame.Kind.class, f.getString("kind"), "frame kind"),
-                        readBound(f.getObj("from")), readBound(f.getObj("to")));
+                        readBound(f.getObj("from")), readBound(f.getObj("to")), f.getBoolOr("checked", false));
                 yield new SqlExpr.WindowCall(readAgg(o.getObj("fn")), readExprs(o.getArr("partitionBy")),
                         readSortKeys(o.getArr("orderBy")), frame, type);
             }
@@ -1067,14 +1079,18 @@ public final class MirJson {
     private static SqlExpr.WindowCall.Frame.Bound readBound(Json.Obj o) {
         return switch (tagOf(BoundTag.class, o, "window bound")) {
             case unboundedPreceding -> new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding();
-            case preceding -> new SqlExpr.WindowCall.Frame.Bound.Preceding(readNumber(o));
+            case preceding -> SqlExpr.WindowCall.Frame.Bound.Preceding.of(readNumber(o));
             case currentRow -> new SqlExpr.WindowCall.Frame.Bound.CurrentRow();
-            case following -> new SqlExpr.WindowCall.Frame.Bound.Following(readNumber(o));
+            case following -> SqlExpr.WindowCall.Frame.Bound.Following.of(readNumber(o));
             case unboundedFollowing -> new SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing();
             case intervalPreceding -> new SqlExpr.WindowCall.Frame.Bound.IntervalPreceding(o.getLong("n"),
                     o.getString("unit"));
             case intervalFollowing -> new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(o.getLong("n"),
                     o.getString("unit"));
+            case computedPreceding -> new SqlExpr.WindowCall.Frame.Bound.ComputedPreceding(
+                    readExpr(o.getObj("offset")));
+            case computedFollowing -> new SqlExpr.WindowCall.Frame.Bound.ComputedFollowing(
+                    readExpr(o.getObj("offset")));
         };
     }
 

@@ -5,36 +5,71 @@ package org.finos.legend.lite.pct.extension;
 
 import com.legend.Compiler;
 import com.legend.TypedQuery;
-import com.legend.exec.ExecutionResult;
+import com.legend.compiler.element.type.ExprType;
 import com.legend.exec.PlanRunner;
 import com.legend.executionplan.ExecutionPlan;
 
 import java.io.IOException;
-import java.io.StringWriter;
-import java.util.Map;
-import java.util.Set;
 
 /**
- * Channel A through the plan path (docs/MONGODB_PLAN_2026_10_16.md §6, 2026-10-17): the case's expression and its
- * injected model planned by the one compiler to Pure's TDS text ({@link TypedQuery.Output#TDS_TEXT}, under the PCT's
- * feature flags) and run by the plan runner on the session the lane's connector opens. ONE representation crosses:
- * a relation as its TDS text, a value as the one-column relation {@code value}, which the adapter unwraps in Pure by
- * the function's own return type. The lane whose database has no JDBC session ({@link PctBackend#throughThePlan})
- * runs here; the JDBC lanes keep the legacy route until the callers switch (the database owner's step 4).
+ * Channel A through THE PRODUCT DOOR (2026-11-03, the user's order of fixes, step 6: one planning door, one execution
+ * door): the case's expression and its injected model compiled by the one compiler and run by {@code Execution.run},
+ * exactly as a product query runs -- its session the lane's for its plan ({@link PctBackend#executionSource}: as the
+ * plan route's sessions chose it), its plan made for that session's server, its declared setup established, under the
+ * PCT's feature flag
+ * (CORRECT_SQL_SUBSTRING_INDEXING: the user's ruling of 2026-09-12, a written deviation from upstream's PCT adapter,
+ * which sets none -- the engine's testable runner sets it for relation tests). Its answer is the plan's TYPED rows, and, for a relation, the engine's JSON
+ * answer the server writes from them ({@code Output.Engine}, after the run, from the rows it collected), which the adapter reads as legend-engine's own
+ * PCT adapter reads it ({@link ValueBridge#engineTDS}); a value's elements cross as the reference's own instances
+ * ({@link ValueBridge}).
  */
 final class PctPlanRoute {
 
     private PctPlanRoute() {
     }
 
-    static ExecutionResult execute(String model, String expression) throws IOException {
-        // the plan for the server this lane's sessions are (H2's dialect spells by the version; step 9, 2026-10-19)
-        ExecutionPlan plan = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
-                .executionPlan(com.legend.test.StorelessRuntime.RUNTIME, TypedQuery.Output.TDS_TEXT,
-                        Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING), PctBackend.serverVersion());
-        StringWriter out = new StringWriter();
-        // the plan's own session for an in-process lane, the harness's for a server lane (PctBackend.planSessions)
-        PlanRunner.run(plan, Map.of(), PctBackend.planSessions(), out);
-        return new ExecutionResult.TdsText(out.toString(), com.legend.compiler.element.type.Type.Primitive.STRING);
+    /** A case's answer: what the plan answers ({@code shape}), its typed rows, the query's result type, which a
+     *  value's elements are built by, and for a relation the engine's JSON answer the server writes ({@code
+     *  engineJson}; null for a value). */
+    record Answer(ExecutionPlan.TdsResult.Shape shape, PlanRunner.Rows rows, ExprType resultType,
+            @com.legend.base.Nullable String engineJson) {
+    }
+
+    static Answer execute(String model, String expression) throws IOException {
+        // the tests' planning options: as-of joins answer the same row on every database (PlanOption, off by default;
+        // the user, 2026-11-07: "our tests should use the option")
+        TypedQuery query = Compiler.query(Compiler.compileModel(PctBackend.withStorelessRuntime(model)), expression)
+                .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF));
+        com.legend.result.Collector collector = new com.legend.result.Collector();
+        java.io.StringWriter json = new java.io.StringWriter();
+        java.util.Set<com.legend.platform.Feature> features =
+                java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING);
+        // the lane's session for the query, as its sessions choose it for the query's plan (PctBackend.executionSource):
+        // a lane holding a session (a cloud's) asks the plan's answering target first
+        ExecutionPlan plan = com.legend.Execution.run(query, com.legend.testbackend.StorelessRuntime.RUNTIME,
+                // the session for the target the plan answers on, handed to the source by the run (2026-11-09, the full
+                // audit's must-fix: a supplier here planned the query again inside the run)
+                PctBackend.executionSource(),
+                PctBackend.planSessions(), com.legend.exec.ProductRun.Establish.DECLARED_SETUP, features,
+                new com.legend.result.Output.Rows(collector), com.legend.result.Batcher.DEFAULT_CAPACITY);
+        com.legend.result.Collector.Collected c = collector.collected();
+        boolean relation = plan.answerShape() == ExecutionPlan.TdsResult.Shape.RELATION;
+        if (relation) {
+            // a relation crosses as legend-engine's PCT adapter reads one (the result boundary program's stage 1, step
+            // 3): the server's own writer of the engine's answer, written from the rows the run collected, after it
+            // (2026-11-09: a tee the run called back until then)
+            // made after the run for the execution that ran the SQL, its door's id as the run named it to the collector
+            com.legend.result.ResultSink engine = new com.legend.result.Output.Engine(json,
+                    com.legend.server.PureV1Api.facts(query)).writerFor(plan, collector.execution());
+            com.legend.result.Batcher batcher = new com.legend.result.Batcher(c.columns(), engine,
+                    com.legend.result.Batcher.DEFAULT_CAPACITY);
+            batcher.start();
+            for (java.util.List<Object> row : c.rows()) {
+                batcher.row(row);
+            }
+            batcher.end();
+        }
+        return new Answer(plan.answerShape(), new PlanRunner.Rows(c.columns(), c.rows()), query.resultType(),
+                relation ? json.toString() : null);
     }
 }

@@ -22,8 +22,22 @@ test_suite(
         # the probe and the planner it also reads are not its inputs (tools/metrics/README.md)
         "//tools/metrics:tools_build_test",
         "//core:core_tests",
-        "//core:duckdb_load_test",
+        # the judge matrix (the asserts-as-plan-nodes program, step 7, 2026-11-04): the packages that run bodies, under
+        # the database judge alone and under BOTH
+        "//core:core_tests_judges",
+        # the twin's lanes (track T, T-d, 2026-10-29): the integration tests on SQLite and H2, each held to its floor
+        "//core:core_tests_lanes",
+        # the Arrow writer's round-trip gate (track A, 2026-10-29): lite's Arrow stream against its JSON rows, read by
+        # pyarrow on the platforms that have its wheel
+        "//core:arrow_writer_test",
+        # R9: no Arrow library in any product closure
+        "//tools/deps:arrow_closure_test",
+        # //core:duckdb_load_test went with DuckDB's Appender (A2, 2026-11-10: the model's data is statements in the
+        # plan, docs/DATA_DELIVERY_DESIGN_2026_11_10.md)
         "//core:section_grammar_registry_test",
+        # the keyed expansion's one fixture, Java's reader (the C final audit's H8, 2026-11-12): the tab's and Python's
+        # read it in //engine-client:plan_runner_test and //python:planned_test
+        "//core:keyed_expansion_conformance_test",
         # the cross-engine differential over the stress corpus (P3-18): seconds
         "//core:corpus_differential_test",
         # the planner on java.base alone (P3-19): seconds
@@ -32,14 +46,36 @@ test_suite(
         # the #SQL{}# island's cases on the embedded Postgres 16: Postgres's own answers, and the islands through the
         # Postgres dialect
         "//core:sql_island_postgres_test",
-        # Snap's preflight count as Postgres's host operations write it, on the embedded Postgres 16 (D5)
-        "//core:host_operations_postgres_test",
-        # a clashing fixture set aside in a Postgres corpus workspace survives a failed body's rollback (defect 5)
-        "//core:fixture_aside_postgres_test",
+        # a CSV file's load on the embedded Postgres 16, its own reader or a refusal by name (A3, 2026-11-10)
+        "//core:data_loads_postgres_test",
+        # the data delivery matrix on the embedded Postgres 16, unprivileged: every door's data kinds and failure cells
+        # (A1, 2026-11-10; in no gate suite until the A checkpoint's tenets audit, 12)
+        "//core:data_delivery_matrix_postgres_test",
         # upstream's Postgres parity corpus (legend-engine 4.145.0's e2e cases) as #SQL{}# islands, on DuckDB and on
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",
         "//core:sql_parity_postgres_test",
+        # The timeseries library (projects/timeseries/model.pure, package timeseries::) on every in-process database: it compiles,
+        # and a person's Pure calling it answers as arithmetic (2026-10-28)
+        "//core:timeseries_library_test",
+        # the #TS{...}# island (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): its queries answer as the library's calls
+        "//core:ts_island_test",
+        # the adversarial markets fixture's traps on DuckDB, each case's status held by ts-adversarial/ledger.tsv; the
+        # fixture's naive SQL must bite (2026-11-07)
+        "//core:ts_adversarial_test",
+        # ... and its fixture's files held to their generator (generate.py --check)
+        "//projects:timeseries_adversarial_fixture_test",
+        # every example of the #TS spec and the guide for quants runs, or is listed with why (A9, 2026-11-03)
+        "//core:ts_documents_test",
+        # the #TS{...}# island's cases on the embedded Postgres 16 (docs/TS_V1_PROGRAM_2026_11_01.md B1)
+        "//core:ts_island_postgres_test",
+        # every example of the #TS documents on the embedded Postgres 16 against DuckDB (docs/TS_DECISIONS_2026_11_07.md
+        # item 9; found in no lane by CI's lane guard on #81, 2026-11-09)
+        "//core:ts_documents_postgres_test",
+        # every mapped word of #TS against gs-quant's own function at the oracle's pin (tools/gs-quant-oracle/pins.env),
+        # snapped by tools/gs-quant-oracle (2026-11-07),
+        # each case's verdict held by tools/gs-quant-oracle/ledger.tsv
+        "//core:ts_gsquant_parity_test",
         # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged
         # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
         "//core:iq_parity_test",
@@ -52,6 +88,7 @@ test_suite(
         "//core:cypher_parity_native_test",
         # the store writes on the embedded Postgres 16 (the writes design's leg 2)
         "//core:store_writes_postgres_test",
+        "//core:relation_to_one_postgres_test",
         # the #IQ{...}# island's syntax-case ratchet: the research's derived syntax cases through the island's reader,
         # held by iq-parity/syntax-pins.tsv
         "//core:iq_syntax_cases_test",
@@ -61,6 +98,9 @@ test_suite(
         "//third_party/teavm_classlib:tests",
         "//pure-protocol:twins_test",
         "//tools/engine-runner:smoke_test",
+        # the stress corpus's engine verdict (//scripts/corpus:run) and :changed compile: built beside the runner the
+        # smoke test builds anyway (docs/STRESS_CORPUS_PLAN_2026_10_19.md Phase 0)
+        "//scripts/corpus:tools_build_test",
     ],
 )
 
@@ -88,6 +128,10 @@ test_suite(
         # no SQL spelled by the tab's apps or Python's host, two halves of one rule (D5, tools/guards/host_sql.txt)
         "//tools/guards:host_sql_test",
         "//python:host_sql_test",
+        # a host sends only a plan's statement: where that type is made, pinned (the total wall's C3, 2026-11-12); its
+        # Python half read by Python's parser (2026-11-12, the C checkpoint's code audit SHOULD-FIX 2)
+        "//tools/guards:planned_sql_test",
+        "//python:planned_guard_test",
         "//tools/browser:revision_test",
         "//tools/browser:proxy_args_test",
         "//tools/bump:bump_test",
@@ -103,6 +147,9 @@ test_suite(
         "//scripts/corpus:stacking_gate",
         "//scripts/corpus:scoreboard_gate",
         "//scripts/corpus:functions_gate",
+        "//scripts/corpus:changed_test",
+        "//scripts/corpus:quarantine_test",
+        "//scripts/corpus:run_test",
         "//core:guardrails",
         "//core:census",
         "//pct:pct_discipline",
@@ -115,6 +162,9 @@ test_suite(
         "//tools/iq-oracle:tools_build_test",
         # the #Cypher{}# island's oracle (tools/neo4j-oracle/README.md): built here, run by hand where a Neo4j runs
         "//tools/neo4j-oracle:tools_build_test",
+        # the #TS{...}# island's gs-quant oracle (tools/gs-quant-oracle/README.md): built here, run by hand (snap.sh installs
+        # the pin, tools/gs-quant-oracle/pins.env)
+        "//tools/gs-quant-oracle:tools_build_test",
         "//tools/junit:tools_build_test",
     ],
 )
@@ -197,7 +247,14 @@ test_suite(
         # its Python bindings: the planner differential corpus, the bindings' own suite, the frames and the engine
         "//python:bindings_test",
         "//python:engine_test",
+        # the markets example over the trading model's classes on Python: its saved queries, tiles and marks (Phase 6, D6)
+        "//python:markets_test",
+        # #TS's Python builders: gs-quant's names over core's catalog, every Show Python fixture read back (item 13;
+        # found in no lane by CI's lane guard on #81, 2026-11-09)
+        "//python:ts_builder_test",
         "//python:frames_test",
+        # the one send: a statement no plan carries refused by name (the total wall's C3, 2026-11-12)
+        "//python:planned_test",
         # a page's grid run by DataCube's own code in V8: its view, its relation, its rows as pandas
         "//python:headless_test",
         # a notebook's cube: the widget's calls and version, show() in a kernel (legend_lite/notebook.py)
@@ -218,7 +275,7 @@ test_suite(
         # the tab's execute (its planner's plan, DuckDB-WASM's rows) against Python's over the same frame (C1)
         "//datacube:python_execute_test",
         # DataCube's own non-screen tests in V8 inside Python: the native library's planner, Python's DuckDB, no
-        # WebAssembly (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6; not in //gates:local: run it by name)
+        # WebAssembly (docs/DATACUBE_HEADLESS_PYTHON_DESIGN_2026_10_11.md §6; in //gates:local too since 2026-11-12)
         "//datacube:headless_test",
         # a notebook's cube in a real JupyterLab and a real marimo, legend-lite's wheel and the notebook installed as a
         # developer installs them (Linux and Apple-silicon Macs)
@@ -323,6 +380,33 @@ test_suite(
         "//spec:phase3b_probes",
         # the DataCube model design's measurement (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11, 2026-10-10): manual
         "//datacube:model_scale_measure",
+        # the timeseries SQL's measurement (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md, the SQL's size, 2026-10-30):
+        # manual, its numbers printed
+        "//datacube:timeseries_sql_measure",
+        "//datacube:ts_examples_measure",
+        # #TS at scale (docs/TS_DECISIONS_2026_11_07.md item 7, 2026-11-07): manual, its numbers printed
+        "//core:ts_scale_measure",
+        "//core:ts_scale_measure_postgres",
+        # the #TS island on Snowflake (docs/TS_DECISIONS_2026_11_07.md item 10, 2026-11-07): manual, a real account's
+        # credentials (LEGENDLITE_PCT_CLOUD_PROPERTIES) and its cost
+        "//core:ts_island_snowflake_test",
+        "//core:ts_replay_snowflake_test",
+        "//core:ts_documents_snowflake_test",
+        # #TS's replay and documents on the embedded ClickHouse against DuckDB (docs/TS_DECISIONS_2026_11_07.md item 9):
+        # manual until a per-push ClickHouse lane is the user's call, as //pct:pct_clickhouse is; found in no lane by
+        # CI's lane guard on #81 (2026-11-09)
+        "//core:ts_replay_clickhouse_test",
+        "//core:ts_documents_clickhouse_test",
+        # every gallery and markets series' Show #TS on the embedded Postgres 16 against DuckDB (item 9): manual until
+        # the Sharpe ratio's Postgres plan is fixed -- `sharpe A` and `B` take 53 s and 52 s each here (DuckDB 72 ms), and
+        # on CI's Windows runner sharpe A passed the replay's two-minute statement bound (run 42676077309, 2026-11-09);
+        # the core lane held it for one run
+        "//core:ts_replay_postgres_test",
+        # the library-defines-the-language spike and C1's frame-offset probe (2026-10-31,
+        # docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3 and §3a): manual evidence, run by hand; found in no lane
+        # by the lane guard on PR #86 (2026-11-01)
+        "//core:ts_line_spike_test",
+        "//core:frame_offset_probe_test",
         # the DataCube screenshot tour (docs/DATACUBE_TOUR.md, 2026-10-17): manual, run from time to time; its gallery
         # in the test's outputs
         "//datacube:tour_test",
@@ -331,6 +415,10 @@ test_suite(
         # hand at its two heaps, in no per-push lane
         "//core:seam_benchmark",
         "//core:seam_benchmark_small_heap",
+        # the stress corpus through legend-engine at the pinned release (2026-10-21, Bazel workplan P3-25 as
+        # docs/STRESS_CORPUS_PLAN_2026_10_19.md Phase 0): sharded, hours of CPU; run on a corpus or quarantine change
+        # and on a legend-engine bump
+        "//scripts/corpus:engine_stress",
         # the #IQ{...}# island's real-world corpus lane (2026-10-15; core/BUILD.bazel's iq_corpus_test): manual, it
         # names corpora kept out of the repository (-Diq.corpus.root) and fails without them
         "//core:iq_corpus_test",
@@ -362,6 +450,10 @@ test_suite(
         # regroup, a pivot and a filter send only their own operations, the source's kept alive; a tick re-runs it from
         # the live rows with nothing sent; it survives a Deephaven restart
         "//datacube:deephaven_cube_test",
+        # a data: source on every embedded server database, each by its declared delivery (2026-11-11, the user: "we
+        # need to make json work everywhere"; core/BUILD.bazel's data_source_servers_test): manual, its five servers'
+        # lane, as MongoDB's plan test is (the orchestrator's catch, 2026-11-11: the product job's lane guard)
+        "//core:data_source_servers_test",
         # the five PCT suites on the embedded MongoDB 8.0, channel A through the plan path (docs/MONGODB_PLAN_2026_10_16.md
         # §6, 2026-10-17)
         "//pct:pct_mongodb",
@@ -394,6 +486,20 @@ test_suite(
         ":datacube",
         ":ui",
         ":sdlc",
+        # 2026-11-12 (the total wall, the B3 worker's red lane): DataCube's own tests in Python's V8 went red unseen for
+        # two pushes -- the V8 bridge's statement check (e0a90d7c5) refused the tests' own setup SQL -- because this
+        # lane ran in the warehouse lane alone and a session's gate never ran it. It builds the compiler's native
+        # library (a few minutes, cached after); its test host is the lane's own (datacube/test/headless/run.py)
+        "//datacube:headless_test",
+        # 2026-11-12 (the C final audit's H6): the one send's own test -- a statement no plan carries refused by name, the
+        # bridge's answered set, a host operation's planner text typed -- ran in the warehouse lane alone, so a session's
+        # gate never saw it; it shares the native library the lane above builds
+        "//python:planned_test",
+        # 2026-11-12 (the orchestrator's item 3): a page's grid run by DataCube's own code in V8 on Python -- the product's
+        # bridge (the answered set, a hosted fetch's statement, a host operation's texts), the planner's kinds and the
+        # snapshot's pull -- ran in the warehouse lane alone; it shares the native library and the bundle the lanes
+        # above build
+        "//python:headless_test",
     ],
 )
 

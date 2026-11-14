@@ -1,6 +1,5 @@
 package com.legend.compiler.element.type;
 
-
 import java.util.Objects;
 
 /**

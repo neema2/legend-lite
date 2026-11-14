@@ -1,0 +1,71 @@
+import com.legend.Compiler;
+import com.legend.ExecuteOptions;
+import com.legend.Execution;
+import com.legend.TypedQuery;
+import com.legend.compiler.element.ModelContext;
+import com.legend.database.Databases;
+import com.legend.driver.BodyDriver;
+import com.legend.exec.Sessions;
+import com.legend.exec.StatementOrigin;
+import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.sql.dialect.RawSqlBoundary;
+import com.legend.testplan.BodyClass;
+import java.sql.*;
+import java.util.List;
+
+public class M5Probe4 {
+    static final String MODEL = """
+            ###Relational
+            Database c::DB (
+              Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(20), AGE INTEGER, FIRM_ID INTEGER)
+            )
+            ###Pure
+            Class c::Person { name: String[0..1]; age: Integer[0..1]; }
+            ###Mapping
+            Mapping c::M (
+              c::Person: Relational { ~mainTable [c::DB]PERSON name: [c::DB]PERSON.NAME, age: [c::DB]PERSON.AGE }
+            )
+            ###Connection
+            RelationalDatabaseConnection c::Conn {
+              store: c::DB;
+              type: DuckDB;
+              %s;
+            }
+            ###Runtime
+            Runtime c::RT { mappings: [ c::M ]; connections: [ c::DB: [ k: c::Conn ] ]; }
+            """;
+
+    public static void main(String[] a) throws Exception {
+        String model = MODEL.formatted(com.legend.exec.Connectors.of(DatabaseType.DuckDB).storelessDeclaration());
+        String body = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
+                + "meta::relational::metamodel::execute::executeInDb('CREATE TABLE PERSON (ID INTEGER PRIMARY KEY,"
+                + " NAME VARCHAR(20), AGE INTEGER, FIRM_ID INTEGER)', $c, 0, 1000);\n"
+                + "#TDS\nk, name\n1, a\n#->meta::legend::lite::writeInstances(c::Person, ~k);}";
+        for (boolean router : new boolean[] {false, true}) {
+            try (Connection c = DriverManager.getConnection("jdbc:duckdb:")) {
+                ModelContext ctx = Compiler.compileModel(model);
+                TypedQuery q = M5Probe.typed(ctx, body);
+                RawSqlBoundary.Recorder rec = new RawSqlBoundary.Recorder();
+                ExecuteOptions options = ExecuteOptions.recording(rec, null);
+                Sessions.Session s = Sessions.borrowed(c);
+                M5Probe.Capture cap = new M5Probe.Capture();
+                String outcome = "ok";
+                try {
+                    if (router) {
+                        Execution.runProgram(q, "c::RT", Execution.Source.given(s), null, null, options, sh -> cap);
+                    } else {
+                        BodyDriver.execute(q, "c::RT", Databases.dialect(DatabaseType.DuckDB).forServer(s.version()),
+                                s, null, null, options, sh -> cap);
+                    }
+                } catch (Throwable t) {
+                    outcome = t.getClass().getSimpleName() + ": " + t.getMessage();
+                }
+                System.out.println("== " + (router ? "ROUTER" : "WALK") + " class=" + BodyClass.of(q, "c::RT"));
+                System.out.println("   outcome: " + outcome);
+                System.out.println("   ledger : " + rec.entries());
+                System.out.println("   answer : " + cap.out);
+            }
+        }
+    }
+}

@@ -1,5 +1,6 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.TypeInferenceException;
 
 import com.legend.platform.WalledBodies;
 import com.legend.compiler.spec.typed.TypedAggCol;
@@ -193,6 +194,17 @@ public final class UserCallInliner {
     }
 
     public List<TypedSpec> inlineBody(List<TypedSpec> body) {
+        return inlineBody(body, null);
+    }
+
+    /** {@link #inlineBody(List)} for the statement at position {@code statement} of a PROGRAM whose statements are
+     *  inlined one by one, each after the lets before it (the test-is-the-product plan's B9, 2026-10-31): the
+     *  statement's own constructions are evaluated in it, so their sites are marked with its position (a mark no
+     *  instantiation number takes), and a call written in two statements is two evaluations, two objects. The lets
+     *  are reduced before the mark, exactly as in every statement's run, so a let's construction keeps one site
+     *  across the program's statements: one object. Null: a body that is the whole query, no mark. */
+    public List<TypedSpec> inlineBody(List<TypedSpec> body, @com.legend.base.Nullable Integer statement) {
+        com.legend.base.RunScope.planning("inline a body");
         // QUERY-level lets β-reduce exactly like callee lets — binders die
         // in the one substitution pass. A relation-typed let ($t = #TDS…#)
         // splices its pipeline into every use; downstream phases never see
@@ -217,9 +229,11 @@ public final class UserCallInliner {
             // (engine inScopeVars)
             queryLets.putAll(scope.terms);
             TypedSpec last = body.get(body.size() - 1);
-            TypedSpec result = last instanceof TypedLet let
+            java.util.function.Supplier<TypedSpec> reduction = () -> last instanceof TypedLet let
                     ? reduce(let.value(), scope)
                     : reduce(last, scope);
+            // a program's statement: its own evaluations under its mark, negative so no instantiation number is one
+            TypedSpec result = statement == null ? reduction.get() : instantiatedAs(-(statement + 1), reduction);
             readOnce(scope.terms, result);
             return List.of(finish(result, List.of(), List.of(), false));
         }
@@ -738,14 +752,13 @@ public final class UserCallInliner {
         return walked;
     }
 
-    private static final Bindings NONE = new Bindings();
-
     private static TypedSpec resolveStamps(TypedSpec n, InferenceKernel kernel, Bindings b) {
         TypedSpec walked = n.mapChildren(k -> resolveStamps(k, kernel, b));
         com.legend.compiler.element.type.Type t = walked.info().type();
         // a stamp with no type variable is the body's own truth; one the
         // application left partly open (a variable it never bound) stays too
-        if (!kernel.hasFreeTypeVars(t, NONE) || kernel.hasFreeTypeVars(t, b)) {
+        // (a fresh, empty binding set: a shared static one is mutable state -- 2026-11-09)
+        if (!kernel.hasFreeTypeVars(t, new Bindings()) || kernel.hasFreeTypeVars(t, b)) {
             return walked;
         }
         com.legend.compiler.element.type.Type r = kernel.resolve(t, b);

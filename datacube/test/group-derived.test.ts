@@ -15,6 +15,7 @@ import type { QuerySnapshot } from '../src/snapshot.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { row } from './lite-compiler.ts';
 import { printLevel } from './lite-compiler.ts';
+import { unplanned } from '../../engine-client/test/unplanned.ts';
 
 let engine: DuckDbEngine;
 
@@ -25,10 +26,10 @@ before(async () => {
   // One region, two deliberately lopsided rows: a tiny deal at a
   // great margin and a large deal at a poor one.
   await engine.run(
-    `CREATE TABLE deals AS SELECT * FROM (VALUES
+    unplanned(`CREATE TABLE deals AS SELECT * FROM (VALUES
        ('EMEA', 100.0, 90.0),
        ('EMEA', 9900.0, 990.0)
-     ) v(region, revenue, profit)`,
+     ) v(region, revenue, profit)`),
     0,
   );
 });
@@ -59,8 +60,8 @@ describe('the two extend stages are not interchangeable', () => {
   it('per-row margin then averaged gives the WRONG answer', async () => {
     // 90/100 = 0.9 and 990/9900 = 0.1, averaged = 0.5.
     const r = await engine.run(
-      `SELECT region, avg(profit / revenue) AS margin
-         FROM deals GROUP BY region`,
+      unplanned(`SELECT region, avg(profit / revenue) AS margin
+         FROM deals GROUP BY region`),
       1,
     );
     assert.equal(Number(r.columns[1]?.values[0]).toFixed(3), '0.500');
@@ -69,8 +70,8 @@ describe('the two extend stages are not interchangeable', () => {
   it('margin from the aggregates gives the RIGHT answer', async () => {
     // (90 + 990) / (100 + 9900) = 1080/10000 = 0.108.
     const r = await engine.run(
-      `SELECT region, sum(profit) / sum(revenue) AS margin
-         FROM deals GROUP BY region`,
+      unplanned(`SELECT region, sum(profit) / sum(revenue) AS margin
+         FROM deals GROUP BY region`),
       1,
     );
     assert.equal(Number(r.columns[1]?.values[0]).toFixed(3), '0.108');

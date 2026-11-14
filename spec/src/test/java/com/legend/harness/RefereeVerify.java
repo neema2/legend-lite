@@ -3,8 +3,8 @@
 
 package com.legend.harness;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.exec.Row;
+import com.legend.testexecutionplan.TypedSide;
+import com.legend.testexecutionplan.Row;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
@@ -259,15 +259,12 @@ public final class RefereeVerify {
      * replay rung). A column with NO derivable map keeps the counted
      * decline. Shared precheck of the {@link ReplayReferee} verify
      * entry points (Graph frames decode per-key instead). */
-    static void enumPrecheck(ExecutionResult ours,
+    /** An enumeration's column ({@code enumColumns}, read off the model where the referee is called) with no decode
+     *  table cannot be replayed: refused as unverifiable. */
+    static void enumPrecheck(java.util.Set<Integer> enumColumns,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode) {
-        if (ours instanceof ExecutionResult.Graph) {
-            return;
-        }
-        for (int i = 0; i < ours.columns().size(); i++) {
-            if (ours.columns().get(i).pureType()
-                    instanceof com.legend.compiler.element.type.Type.EnumType
-                    && !enumDecode.containsKey(i)) {
+        for (int i : enumColumns) {
+            if (!enumDecode.containsKey(i)) {
                 throw new Unverifiable(
                         "enum-decoded column (post-transform rows)", null);
             }
@@ -338,10 +335,10 @@ public final class RefereeVerify {
      * the Graph frame by label ({@link ReplayReferee}-called — the
      * comparison policy seam). */
     static @com.legend.base.Nullable String compareFrame(Statement st,
-            String goldenSql, ExecutionResult ours,
+            String goldenSql, TypedSide ours,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
             java.util.function.Function<String, java.util.Map<String, String>> graphEnumProp,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts)
+            com.legend.testexec.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
         if (facts.population() != null) {
             // a PAGED chain (batch 0.5b): the page's contents over ties or
@@ -392,7 +389,7 @@ public final class RefereeVerify {
                     "datediff-to-now golden: referee replay and our execution"
                     + " are two instants — row verdict non-reproducible", null);
         }
-        return ours instanceof ExecutionResult.Graph g
+        return ours instanceof TypedSide.Graph g
                 ? goldenGraphCompare(st, goldenSql, g, graphEnumProp, facts)
                 : goldenRowsCompare(st, goldenSql, ours, enumDecode, facts);
     }
@@ -441,17 +438,17 @@ public final class RefereeVerify {
      * codes) — throws {@link Unverifiable}: a COUNTED decline, never a
      * guessed compare. */
     private static @com.legend.base.Nullable String goldenGraphCompare(Statement st,
-            String goldenSql, ExecutionResult.Graph g,
+            String goldenSql, TypedSide.Graph g,
             java.util.function.Function<String,
                     java.util.Map<String, String>> enumProp,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts) {
+            com.legend.testexec.SqlReplayReferee.ReplayFacts facts) {
         java.util.TreeSet<String> keys = new java.util.TreeSet<>();
         List<java.util.Map<String, Object>> objs = flatObjects(g, keys);
         // the PAGE-MEMBERSHIP population (batch 0.5b): our unpaged frame,
         // flattened the same way; its keys are the page's keys
         List<java.util.Map<String, Object>> populationObjs = null;
         if (facts.population() != null) {
-            if (!(facts.population() instanceof ExecutionResult.Graph pg)) {
+            if (!(facts.population() instanceof TypedSide.Graph pg)) {
                 throw new Unverifiable("paginated graph golden: population is"
                         + " not a graph frame", null);
             }
@@ -485,7 +482,7 @@ public final class RefereeVerify {
         boolean hasPk = false;
         List<String> dataLabels = new ArrayList<>();
         java.util.Set<String> temporal = new java.util.HashSet<>();
-        com.legend.exec.StatementOrigin.count();
+        com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
         try (ResultSet rs = st.executeQuery(goldenSql)) {
             var md = rs.getMetaData();
             int n = md.getColumnCount();
@@ -687,9 +684,9 @@ public final class RefereeVerify {
      * as ORDER-INSENSITIVE multisets of normalized cells (shared by the
      * replay referee and the session-direct verify). */
     private static @com.legend.base.Nullable String goldenRowsCompare(Statement st,
-            String goldenSql, ExecutionResult tab,
+            String goldenSql, TypedSide tab,
             java.util.Map<Integer, java.util.Map<String, String>> enumDecode,
-            com.legend.exec.SqlReplayReferee.ReplayFacts facts)
+            com.legend.testexec.SqlReplayReferee.ReplayFacts facts)
             throws SQLException {
                 List<Cells> theirs = new ArrayList<>();
                 int[] theirsCols = {0};
@@ -705,7 +702,7 @@ public final class RefereeVerify {
                 // pipeline drops these in-DB (egress null-drop, Blocker
                 // 1), so a lane that wrongly KEEPS a null still fails.
                 boolean valueFrame =
-                        !(tab instanceof ExecutionResult.Tabular);
+                        !(tab instanceof TypedSide.Tabular);
                 // §7: an ORDERED query resolves its sort-key column
                 // INDEXES against the frame schema up front (positional
                 // arity with the golden is asserted below, so the same
@@ -717,7 +714,7 @@ public final class RefereeVerify {
                                 .map(c -> c.name()).toList(), facts.sortKeys())
                         : null;
                 List<Cells> theirKeys = new ArrayList<>();
-                com.legend.exec.StatementOrigin.count();
+                com.legend.exec.StatementOrigin.count(com.legend.exec.StatementOrigin.REFEREE_GOLDEN);
                 try (ResultSet rs = st.executeQuery(goldenSql)) {
                     int n = rs.getMetaData().getColumnCount();
                     theirsCols[0] = n;
@@ -936,7 +933,7 @@ public final class RefereeVerify {
         }
         try {
             // the ONE home of the rule (Equality, §5a)
-            return com.legend.exec.Equality.withinTwoUlp(Double.parseDouble(a), Double.parseDouble(b));
+            return com.legend.testexec.Equality.withinTwoUlp(Double.parseDouble(a), Double.parseDouble(b));
         } catch (NumberFormatException e) {
             return false;
         }
@@ -1025,7 +1022,7 @@ public final class RefereeVerify {
     /** A graph frame's objects, flattened one level ({@code keys} collects
      * every property name); nesting is a counted decline. */
     private static List<java.util.Map<String, Object>> flatObjects(
-            ExecutionResult.Graph g, java.util.TreeSet<String> keys) {
+            TypedSide.Graph g, java.util.TreeSet<String> keys) {
         Object parsed = com.legend.sql.Json.parse(g.json());
         if (!(parsed instanceof List<?> arr)) {
             throw new Unverifiable("graph frame is not a json array", null);
@@ -1261,10 +1258,10 @@ public final class RefereeVerify {
      * {@code <cols>} header row — column ORDER is not a fetch contract,
      * column IDENTITY is (a projection mismatch compares as unequal
      * header rows, never a garbled cell compare). */
-    static List<Cells> rawRows(Statement st, String sql)
+    static List<Cells> rawRows(Statement st, String sql, com.legend.exec.StatementOrigin origin)
             throws SQLException {
         List<Cells> out = new java.util.ArrayList<>();
-        com.legend.exec.StatementOrigin.count();
+        com.legend.exec.StatementOrigin.count(origin);
         try (ResultSet rs = st.executeQuery(sql)) {
             var md = rs.getMetaData();
             int n = md.getColumnCount();

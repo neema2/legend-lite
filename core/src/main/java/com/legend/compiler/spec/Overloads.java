@@ -1,5 +1,9 @@
 package com.legend.compiler.spec;
 
+import com.legend.error.SchemaInvariantException;
+
+import com.legend.error.TypeInferenceException;
+
 import com.legend.platform.CoreFn;
 import com.legend.compiler.element.type.ExprType;
 import com.legend.builtin.Pure;
@@ -123,7 +127,7 @@ final class Overloads {
         // yet, so the call keeps its signature typing (the engine types
         // a closure body by signatures too; it pastes nothing)
         if (requiresNormalization(a.chosen()) && storedLambdas.isEmpty()) {
-            return inlineNormalized(af, a.chosen(), env);
+            return inlineNormalized(af, a, env);
         }
         TypedSpec shadow = derivedShadow(af, a, env);
         if (shadow != null) {
@@ -256,7 +260,9 @@ final class Overloads {
         }
         boolean stereotyped = f.definition().stereotypes().stream()
                 .anyMatch(s -> s.stereotypeName().equals("NormalizeRequiredFunction"));
-        return stereotyped || f.parameters().stream()
+        // a function GENERIC OVER RELATIONS is expanded at its call too (RelationGenerics, docs/SEMANTICS_REGISTER.md
+        // S112): its body is typed over the call's own tables
+        return stereotyped || RelationGenerics.of(f) || f.parameters().stream()
                 .anyMatch(p -> isSchemaErased(p.type()))
                 || isSchemaErased(f.returnType());
     }
@@ -322,12 +328,21 @@ final class Overloads {
      * applied (Phase 5 batch 147, row 15). */
     private final java.util.ArrayDeque<LambdaFunction> storedLambdas = new java.util.ArrayDeque<>();
 
-    private TypedSpec inlineNormalized(AppliedFunction af, TypedFunction chosen, Env env) {
+    /** How deep one function may be expanded within itself: a call nested in another's argument (a mean of a mean)
+     *  is typed with the outer's arguments, before the outer expands, and its typing read in the outer's body -- never
+     *  an expansion within it (2026-10-28: a chain of any length of one function); a body that calls itself expands
+     *  without end, and is stopped here (the 2026-10-26 relation-generic library: the guard had been "the same function
+     *  anywhere on the stack", which refused a call nested in another's argument as recursion). */
+    private static final int MAX_NESTED_EXPANSIONS = 16;
+
+
+    private TypedSpec inlineNormalized(AppliedFunction af, Application a, Env env) {
+        TypedFunction chosen = a.chosen();
         com.legend.model.FunctionId key = chosen.id();
-        if (normalizing.contains(key)) {
+        if (java.util.Collections.frequency(normalizing, key) >= MAX_NESTED_EXPANSIONS) {
             throw new TypeInferenceException("recursive NormalizeRequired function '"
-                    + chosen.qualifiedName() + "' cannot be inlined ("
-                    + normalizing.stream().map(Object::toString).collect(java.util.stream.Collectors.joining(" -> ")) + " -> " + key + ")");
+                    + chosen.qualifiedName() + "' cannot be inlined: it expands within itself more than "
+                    + MAX_NESTED_EXPANSIONS + " deep (" + key + ")");
         }
         LambdaFunction folded = SourceSubst.inlineLets(
                 new LambdaFunction(List.of(),
@@ -337,22 +352,116 @@ final class Overloads {
                     + chosen.qualifiedName()
                     + "' has non-let intermediate statements — cannot inline");
         }
+        // each argument spliced in for its parameter -- a table the call typed already (the chain the call is on: a call
+        // of a generic function over the answer of another) typed once: the body's static fold keeps it as it is (its own
+        // calls folded where they were typed; a `.columns` the fold reads is its typing's) and the body's typing finds it
+        // by its node (Typer.withPretyped) -- else each call of a chain types the chain under it twice, its check and its
+        // body, and a chain of k calls planned in 2^k (the focused Pure audit, 2026-10-28: 16 calls of the library 13 s)
+        if (a.args().size() != chosen.parameters().size()) {
+            throw new IllegalStateException("typer bug: " + chosen.qualifiedName() + " typed with " + a.args().size()
+                    + " argument(s) for its " + chosen.parameters().size() + " parameter(s)");
+        }
         java.util.Map<String, ValueSpecification> subst = new java.util.LinkedHashMap<>();
+        java.util.IdentityHashMap<ValueSpecification, TypedSpec> typedArgs = new java.util.IdentityHashMap<>();
         for (int i = 0; i < chosen.parameters().size(); i++) {
-            subst.put(chosen.parameters().get(i).name(), af.parameters().get(i));
+            ValueSpecification arg = af.parameters().get(i);
+            TypedSpec typedArg = a.args().get(i);
+            subst.put(chosen.parameters().get(i).name(), arg);
+            if (!(arg instanceof LambdaFunction) && Type.schemaView(typedArg.info().type()) != null) {
+                typedArgs.put(arg, typedArg);
+            }
         }
         // α-hygiene (the UserCallInliner rule at source level): the body's
         // lambda binders rename to fresh _nr<N> — a caller variable spelled
         // like a body binder (corpus: `let r = execute(...)` vs the body's
         // `filter(r:TDSRow[1]|…)`) must never be captured by the splice.
-        ValueSpecification body = SourceSubst.substitute(
-                alpha.apply(folded.body().get(0)), subst);
+        // and a function generic over relations renames the columns its body makes for its own use, before the
+        // call's arguments are in it (ColumnHygiene; the user, 2026-10-27)
+        ValueSpecification own = alpha.apply(folded.body().get(0));
+        boolean generic = RelationGenerics.of(chosen);
+        ColumnHygiene.Renamed hygienic = generic
+                ? columns.apply(own, chosen.returnType(), takenColumns(af, a))
+                : new ColumnHygiene.Renamed(own, java.util.Map.of());
+        ValueSpecification body = SourceSubst.substitute(hygienic.body(), subst);
         normalizing.push(key);
         try {
-            return synth(new StaticFold(t, env).fold(body), env);
+            TypedSpec typed = t.withPretyped(typedArgs, () -> synth(new StaticFold(t, env).fold(body), env));
+            if (generic) {
+                holdToDeclared(chosen, a.out(), typed);
+            }
+            return typed;
+        } catch (TypeInferenceException e) {
+            String said = e.getMessage();
+            if (hygienic.written().isEmpty() || said == null) {
+                throw e;
+            }
+            throw new TypeInferenceException(hygienic.restore(said), e);
         } finally {
             normalizing.pop();
         }
+    }
+
+    /** Every column name a call's tables have and its arguments name: what an expansion's fresh names avoid. */
+    private static java.util.Set<String> takenColumns(AppliedFunction af, Application a) {
+        java.util.Set<String> taken = new java.util.HashSet<>();
+        for (TypedSpec arg : a.args()) {
+            Type.RelationType r = Type.schemaView(arg.info().type());
+            if (r != null) {
+                r.columns().forEach(c -> taken.add(c.name()));
+            }
+        }
+        af.parameters().forEach(p -> columnNamesIn(p, taken));
+        return taken;
+    }
+
+    private static void columnNamesIn(ValueSpecification v, java.util.Set<String> into) {
+        if (v instanceof com.legend.protocol.spec.ColSpec cs) {
+            into.add(cs.name());
+        }
+        for (ValueSpecification c : v.children()) {
+            columnNamesIn(c, into);
+        }
+    }
+
+    /**
+     * A function generic over relations (docs/SEMANTICS_REGISTER.md S112) is typed by its body at each call, so its
+     * declared return is held to that body here, under the call's own bindings ({@code declared}, the signature's
+     * return as the call resolved it): a declared table's every column is in the body's answer, of a type that
+     * conforms (the kernel's relation unify), and the answer has no column the declaration does not name -- a
+     * working column left in it is refused, naming the function (2026-10-27, docs/PURE_LIBRARY_SPIKE_2026_10_27.md
+     * GAP 3), as is a body that answers no table at all. A declaration that is not a resolved table
+     * ({@code Relation<Any>}) names no columns, and holds none.
+     */
+    private void holdToDeclared(TypedFunction chosen, ExprType declared, TypedSpec typed) {
+        Type.RelationType want = Type.relationSchema(declared.type());
+        Type.RelationType got = Type.schemaView(typed.info().type());
+        // a declared table whose body answers none (a number, a row) is refused, never typed as the body (the library
+        // review, 2026-10-27: it was silently let through)
+        if (got == null && declared.type() instanceof Type.GenericType g
+                && com.legend.compiler.element.type.PlatformTypes.RELATION_CARRIERS.contains(g.rawFqn())) {
+            throw new TypeInferenceException("the body of " + chosen.qualifiedName() + " answers "
+                    + typed.info().type().typeName() + " where its declared " + declared.type().typeName() + " is a table");
+        }
+        if (want == null || got == null) {
+            return;
+        }
+        String said = "the body of " + chosen.qualifiedName() + " answers " + columnNames(got)
+                + " where its declared " + declared.type().typeName() + " has " + columnNames(want);
+        try {
+            kernel.unify(want, got, new Bindings());
+        } catch (TypeInferenceException e) {
+            throw new TypeInferenceException(said + ": " + e.getMessage(), e);
+        }
+        List<String> extra = got.columns().stream().map(Type.Column::name)
+                .filter(n -> want.columns().stream().noneMatch(c -> InferenceKernel.sameColumn(c.name(), n)))
+                .toList();
+        if (!extra.isEmpty()) {
+            throw new TypeInferenceException(said + ": " + extra + " not declared");
+        }
+    }
+
+    private static List<String> columnNames(Type.RelationType r) {
+        return r.columns().stream().map(Type.Column::name).toList();
     }
 
     /** A helper CALL returning a function value over the schema-erasing TDS
@@ -440,11 +549,18 @@ final class Overloads {
     /** Fresh binder names for inlined bodies (one counter per typer). */
     private final AlphaRename alpha = new AlphaRename();
 
+    /** Fresh working-column names for expanded generic bodies (one counter per typer). */
+    private final ColumnHygiene columns = new ColumnHygiene(this::functionCandidates);
+
     /** α-hygiene for a body about to be spliced under caller scope (the
      * UserCallInliner rule at source level) — shared with StaticFold's
      * user-call inlining. */
     ValueSpecification alphaRename(ValueSpecification v) {
         return alpha.apply(v);
+    }
+
+    AlphaRename.Apart renameApart(List<String> parameters, ValueSpecification body) {
+        return alpha.apart(parameters, body);
     }
 
     /** The generic application rule without emitting a node — the CHECK

@@ -3,8 +3,7 @@
 
 package com.legend.integration;
 
-import com.legend.exec.ExecutionResult;
-import com.legend.server.QueryService;
+import com.legend.testing.Lean;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,7 +28,6 @@ import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 @DisplayName("RENDER toCSV Integration")
 class RenderCsvIntegrationTest extends AbstractDatabaseTest {
 
-    private final QueryService qs = new QueryService();
 
 
     @BeforeEach
@@ -39,8 +37,8 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
             st.execute("CREATE TABLE T_PERSON (ID INTEGER, NAME VARCHAR,"
                     + " NICK VARCHAR, DOB DATE)");
             st.execute("INSERT INTO T_PERSON VALUES"
-                    + " (1, 'Ann', 'The, Ann', DATE '2001-02-03'),"
-                    + " (2, 'Bob \"B\"', NULL, DATE '1999-12-31')");
+                    + " (1, 'Ann', 'The, Ann', '2001-02-03'),"
+                    + " (2, 'Bob \"B\"', NULL, '1999-12-31')");
         }
     }
 
@@ -70,9 +68,8 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
             """;
 
     private String csv(String query) throws SQLException {
-        ExecutionResult r = qs.execute(MODEL, query, "test::RT", connection);
-        return ((ExecutionResult.Scalar) assertInstanceOf(
-                ExecutionResult.Scalar.class, r)).value().toString();
+        Lean.Result r = Lean.run(MODEL, query, "test::RT", connection);
+        return r.one().toString();
     }
 
     @Test

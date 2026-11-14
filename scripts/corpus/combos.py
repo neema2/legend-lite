@@ -39,6 +39,9 @@ quietly absent.
 """
 from __future__ import annotations
 
+import math
+
+import emptiness
 import model
 from query import Proj, Spec
 
@@ -133,12 +136,12 @@ WRITTEN = ("plain", "scope")
 # generation with an error far from the mapping. `plus`/`minus`/`times` in particular are
 # binary here, which was a guess worth checking rather than assuming from Pure's list form.
 XFORM = {
-    # No `sub`: relational `substring` disagrees with the in-memory one (F37), and a matrix
-    # cell asserting either answer would be asserting a defect. It has its own pair of
-    # services in 77-substring-paths.pure, where the disagreement is the point rather than
-    # noise across sixteen classes.
+    # `sub` is the relational dynafunction, SQL's substring (one-based, a length), as `split` is SQL's
+    # split_part: a property mapping's, which the oracle reads so (the plan's D9, taken for substring by the
+    # user on 2026-10-29). It was left out from Phase 0 until then, while F37 counted a mapping's substring
+    # as a defect for not being Pure's.
     "string": ("none", "up", "low", "trim", "rev", "cat", "nest", "coal",
-               "lpad", "repl", "split", "left"),
+               "lpad", "repl", "split", "left", "sub"),
     "char": ("none", "up", "trim"),
     "int": ("none", "abs", "sign", "plus", "minus", "times", "mod", "band", "bxor"),
     "bigint": ("none", "plus", "abs", "shl"),
@@ -167,13 +170,25 @@ XFORM = {
 # The source column type a transform READS, where it differs from the cell's own type. A
 # boolean cell computed by `startsWith` reads a string; without this the generator would ask
 # for a BIT column and hand it to a string function.
+#
+# `cbrt` reads CUBE: a DOUBLE column whose every value is the cube of a power of two (seed_cubes),
+# so the true cube root is a double every measured C library returns exactly. Over the ordinary
+# float columns the oracle's correctly rounded root and the library's differed in the last
+# bit on Windows -- cbrt(325.0) came back one double up (F60) -- and the stress corpus plan's
+# D6 chose inputs with exact roots over per-platform verdicts. A whole-number root is not
+# enough: glibc's `cbrt` misses 83 of the integer roots 2 to 200 (cbrt(216.0) is
+# 6.000000000000001), which failed seven cells on Linux (2026-11-01, F60), while it and the
+# Windows CRT return every power of two exactly (2^1 to 2^29 measured). The cells still test
+# `cbrt`, though not its last bit. One column per nullability: `cbrt` takes one argument.
+CUBE = "cube"
 READS = {"not": "bool", "isnull": "string", "isnotnull": "string",
-         "starts": "string", "ends": "string", "has": "string", "alnum": "string"}
+         "starts": "string", "ends": "string", "has": "string", "alnum": "string",
+         "cbrt": CUBE}
 
 TYPE_SQL = {"string": "VARCHAR(200)", "char": "CHAR(12)", "int": "INTEGER",
             "bigint": "BIGINT", "smallint": "SMALLINT", "float": "DOUBLE",
             "decimal": "DECIMAL(18,4)", "bool": "BIT",
-            "date": "DATE", "timestamp": "TIMESTAMP"}
+            "date": "DATE", "timestamp": "TIMESTAMP", CUBE: "DOUBLE"}
 TYPE_PURE = {"string": "String", "char": "String", "int": "Integer",
              "bigint": "Integer", "smallint": "Integer", "float": "Float",
              "decimal": "Float", "bool": "Boolean",
@@ -184,11 +199,17 @@ TYPE_PURE = {"string": "String", "char": "String", "int": "Integer",
 _PREFIX = {ROOT: "R", HOP1: "H1", HOP2: "H2", ALT: "A", "COMBO_SUMMARY": "SM"}
 _SHORT = {"string": "S", "char": "C", "int": "I", "bigint": "BI",
           "smallint": "SI", "float": "F", "decimal": "DE",
-          "bool": "B", "date": "DT", "timestamp": "TS"}
+          "bool": "B", "date": "DT", "timestamp": "TS", CUBE: "CU"}
 
 
 def column(table: str, type_: str, nulls: str, which: int) -> str:
     return f"{_PREFIX[table]}_{_SHORT[type_]}_{'NN' if nulls == 'notnull' else 'NL'}{which}"
+
+
+def _cube_tables() -> list[str]:
+    """The tables a `cbrt` cell reads, in reach order: the ones that carry CUBE columns."""
+    return list(dict.fromkeys(_TABLE_FOR[axis(c, "reach")] for c in cells()
+                              if axis(c, "xform") == "cbrt"))
 
 
 # The join FORMS, as one-hop reaches onto COMBO_ALT. Crossed with type and nullability but
@@ -419,6 +440,15 @@ def check_data(c: model.Corpus, tables: dict[str, list[dict]]) -> list[str]:
                 if vals and not any(v is None for v in vals):
                     bad.append(f"{table}.{col} is a `nullable` source but carries no NULL, "
                                f"so every cell reading it tests the non-null case twice")
+    for table in _cube_tables():
+        for nulls in NULLS:
+            col = column(table, CUBE, nulls, 1)
+            vals = [r.get(col) for r in tables.get(table, [])]
+            if nulls == "nullable" and vals and not any(v is None for v in vals):
+                bad.append(f"{table}.{col} is a `nullable` source but carries no NULL")
+            # seed_cubes, not the expansion's generic floats, must have written these
+            bad += [f"{table}.{col}: {v!r} is not the cube of a power of two, so its cbrt is platform-dependent "
+                    f"(F60)" for v in vals if v is not None and not _power_of_two_cube(v)]
     return bad
 
 
@@ -500,6 +530,11 @@ def build_source() -> str:
                     sfx = "" if nulls == "nullable" else " NOT NULL"
                     out.append(f"      {column(table, type_, nulls, which)} "
                                f"{TYPE_SQL[type_]}{sfx},")
+        # After every typed column, so the expansion's NULLs (placed by column order) stay
+        # where they were.
+        if table in _cube_tables():
+            out += [f"      {column(table, CUBE, nulls, 1)} {TYPE_SQL[CUBE]}"
+                    f"{'' if nulls == 'nullable' else ' NOT NULL'}," for nulls in NULLS]
         if table in (ROOT, HOP1):
             out += [f"      {c} VARCHAR(200) NOT NULL," for c in OTW_COLS]
         if last:
@@ -1002,17 +1037,17 @@ def schema_spec(c: model.Corpus):
 def predicate_specs(c: model.Corpus) -> list[Spec]:
     """The three comparison operators against a NULL operand, side by side.
 
-    F28: the engine EXCLUDES a row whose operand is NULL for `==` and for `>`, and KEEPS it
-    for `!=`. Pinned as a trio rather than as one failing case, because the two that pass
-    are the evidence: they show the divergence is specific to `!=` rather than the oracle
-    being wrong about NULL comparison generally. A lone failing service would leave that
-    ambiguous, and the obvious "fix" -- teaching the oracle that NULL != x is true -- would
-    then have made all three disagree.
+    Pure compares an absent value as false and `!=` as its negation, true (oracle._cmp), so
+    `==` and `>` drop the row whose operand is NULL and `!=` keeps it. The trio was written
+    to pin the opposite claim -- F28, that keeping it was an engine defect, since SQL's
+    three-valued logic would drop it -- and the oracle then followed SQL. Both engines keep
+    the row, as legend-pure defines; F28 is withdrawn (2026-10-23, the improvement plan's
+    Phase 1) and the trio now pins Pure's rule. Kept as three because the pair that drops is
+    what makes the one that keeps legible.
 
     Deliberately here rather than on the dense services, which used to carry it. Thirty of
     them diverged at once when the seeder began nulling every nullable column, coupling
-    every deep-navigation test to an unrelated defect. Same split aggregates.py makes
-    around F6.
+    every deep-navigation test to one question. Same split aggregates.py makes around F6.
     """
     from query import Pred
 
@@ -1036,18 +1071,18 @@ def predicate_specs(c: model.Corpus) -> list[Spec]:
     if prop is None:
         raise SystemExit(
             "combination matrix carries no plain nullable string cell on an unfiltered "
-            "class, so F28 cannot be pinned -- the trio would vanish silently")
+            "class, so the NULL-comparison trio cannot be pinned -- it would vanish silently")
     out = []
     for name, op, value, note in (
             ("NotEqualsNull", "!=", " none",
-             "F28: the engine KEEPS the row whose operand is NULL. SQL three-valued logic "
-             "makes the comparison UNKNOWN, and a predicate that is not TRUE excludes."),
+             "The row whose operand is NULL is KEPT: Pure compares an absent value as "
+             "false, so `!=`, its negation, is true. SQL three-valued logic would drop it."),
             ("EqualsNull", "==", " none",
-             "The complement, which AGREES. Both readings exclude a NULL here, which is "
-             "why no `==` predicate in the corpus ever exposed F28."),
+             "The complement: an absent value is not equal, so the NULL row is dropped, as "
+             "SQL would drop it too."),
             ("GreaterNull", ">", " ",
-             "An ORDERED comparison against the same NULL, which also AGREES -- so the "
-             "engine excludes for `>` and keeps for `!=`, and those cannot both be right.")):
+             "An ORDERED comparison against the same NULL: never satisfied by an absent "
+             "value, so dropped -- while `!=` keeps it.")):
         spec = Spec(f"stress::CB_{name}", f"/stress/cb_{name.lower()}",
                     f"Comparison `{op}` against a column that is NULL in some rows. {note} "
                     f"Generated by scripts/corpus/combos.py.", cls)
@@ -1055,6 +1090,9 @@ def predicate_specs(c: model.Corpus) -> list[Spec]:
         spec.filters = [Pred([prop], op, value)]
         spec.sort = ("rootId", False)
         spec.mapping, spec.runtime = MAPPING, RUNTIME
+        if name == "EqualsNull":
+            # no row holds the comparand, and the absent one is not equal to it
+            spec.emptiness = emptiness.EXCLUDES_ALL
         spec.connection, spec.data_element = CONN_ID, DATA
         out.append(spec)
     return out
@@ -1065,9 +1103,10 @@ def derive_alt(c: model.Corpus, tables: dict[str, list[dict]]) -> None:
 
     Generated independently, none of these conditions matches anything: a multi-column
     equality needs both columns to agree, and `concat(a, b) = x` needs a column literally
-    holding that concatenation. The corpus's generated dense joins are in exactly that
-    state -- `dense_DynaOneSide` and `dense_DynaBothSides` pair ZERO rows with zero, which
-    is why declaring them was never the same as executing them.
+    holding that concatenation. The corpus's generated dense joins were in exactly that
+    state -- `dense_DynaOneSide` and `dense_DynaBothSides` paired ZERO rows with zero, which
+    is why declaring them was never the same as executing them (they were deleted on
+    2026-10-29, the improvement plan's Phase 7: these forms are executed here).
 
     So the far side is derived from the near side, in the open:
 
@@ -1114,6 +1153,24 @@ def derive_alt(c: model.Corpus, tables: dict[str, list[dict]]) -> None:
     sentinel[ALT_LOW] = 10 ** 6
     out.append(sentinel)
     tables[ALT] = out
+
+
+def _power_of_two_cube(v: float) -> bool:
+    """v is (2^k)^3 for a whole k >= 1: its cube root 2^k, which every measured cbrt returns exactly (F60)."""
+    mantissa, exponent = math.frexp(v)
+    return mantissa == 0.5 and (exponent - 1) % 3 == 0 and exponent - 1 >= 3
+
+
+def seed_cubes(tables: dict[str, list[dict]]) -> None:
+    """Overwrite the CUBE columns' generic floats with cubes of powers of two: roots 2^1 up on
+    COMBO_ROOT, and on each later table five powers past the one before, so a reach that lands
+    on the wrong table returns a different root. The expansion's NULL is kept."""
+    for t, table in enumerate(_cube_tables()):
+        for i, row in enumerate(tables.get(table) or []):
+            for nulls in NULLS:
+                col = column(table, CUBE, nulls, 1)
+                if row.get(col) is not None:
+                    row[col] = float((2 ** (1 + 5 * t + i)) ** 3)
 
 
 def runtime_text() -> str:

@@ -1,0 +1,41 @@
+import java.sql.*;
+import java.util.*;
+
+public class H2Schema {
+    static String q(Connection c, String sql) {
+        try (Statement s = c.createStatement()) {
+            if (s.execute(sql)) { try (ResultSet r = s.getResultSet()) { List<String> o = new ArrayList<>(); while (r.next()) o.add(String.valueOf(r.getObject(1))); return o.toString(); } }
+            return "ok";
+        } catch (SQLException e) { return "ERR " + e.getMessage().split("\n")[0].replaceAll("; SQL statement:.*", ""); }
+    }
+    public static void main(String[] a) throws Exception {
+        String url = "jdbc:h2:mem:s" + System.nanoTime() + ";DB_CLOSE_DELAY=-1";
+        try (Connection setup = DriverManager.getConnection(url, "sa", ""); Connection A = DriverManager.getConnection(url, "sa", "");
+             Connection B = DriverManager.getConnection(url, "sa", "")) {
+            System.out.println("H2 " + setup.getMetaData().getDatabaseProductVersion());
+            q(setup, "CREATE TABLE U (ID INT)"); q(setup, "CREATE TABLE T (ID INT)"); q(setup, "INSERT INTO T VALUES (42)");
+            A.setAutoCommit(false);
+            q(A, "INSERT INTO U VALUES (1)");
+            System.out.println("  CREATE SCHEMA IF NOT EXISTS (new) in a txn: " + q(A, "CREATE SCHEMA IF NOT EXISTS LEGEND_SESSION"));
+            q(A, "ROLLBACK");
+            System.out.println("    U after rollback (1 = committed): " + q(B, "SELECT COUNT(*) FROM U")); q(B, "DELETE FROM U");
+            q(A, "INSERT INTO U VALUES (1)");
+            System.out.println("  CREATE SCHEMA IF NOT EXISTS (existing) in a txn: " + q(A, "CREATE SCHEMA IF NOT EXISTS LEGEND_SESSION"));
+            q(A, "ROLLBACK");
+            System.out.println("    U after rollback: " + q(B, "SELECT COUNT(*) FROM U")); q(B, "DELETE FROM U");
+            q(A, "INSERT INTO U VALUES (1)");
+            System.out.println("  local temp in the schema: " + q(A, "CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS LEGEND_SESSION.T (data JSON) TRANSACTIONAL"));
+            System.out.println("  DELETE + INSERT: " + q(A, "DELETE FROM LEGEND_SESSION.T") + " " + q(A, "INSERT INTO LEGEND_SESSION.T VALUES (JSON '{\"ID\":1}')"));
+            q(A, "ROLLBACK");
+            System.out.println("    U after rollback (0 = the load's statements committed nothing): " + q(B, "SELECT COUNT(*) FROM U") + "; temp rows: " + q(A, "SELECT COUNT(*) FROM LEGEND_SESSION.T"));
+            q(A, "INSERT INTO LEGEND_SESSION.T VALUES (JSON '{\"ID\":1}')"); q(A, "COMMIT");
+            System.out.println("  B sees it: " + q(B, "SELECT COUNT(*) FROM LEGEND_SESSION.T") + "; A reads it: " + q(A, "SELECT CAST((t.data).\"ID\" AS VARCHAR) FROM LEGEND_SESSION.T AS t"));
+            System.out.println("  type: " + q(A, "SELECT TABLE_SCHEMA || '.' || TABLE_NAME || ':' || TABLE_TYPE FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 'T' ORDER BY 1"));
+            System.out.println("  a second session's own of the same name: " + q(B, "CREATE LOCAL TEMPORARY TABLE IF NOT EXISTS LEGEND_SESSION.T (data JSON) TRANSACTIONAL") + " " + q(B, "INSERT INTO LEGEND_SESSION.T VALUES (JSON '{\"ID\":9}')") + " B: " + q(B, "SELECT COUNT(*) FROM LEGEND_SESSION.T") + " A: " + q(A, "SELECT COUNT(*) FROM LEGEND_SESSION.T"));
+            A.setAutoCommit(true);
+            System.out.println("  release drop, qualified: " + q(A, "DROP TABLE IF EXISTS LEGEND_SESSION.T") + "; user's PUBLIC.T: " + q(setup, "SELECT COUNT(*) FROM PUBLIC.T") + "; B's own: " + q(B, "SELECT COUNT(*) FROM LEGEND_SESSION.T"));
+            System.out.println("  release drop again, A has none: " + q(A, "DROP TABLE IF EXISTS LEGEND_SESSION.T") + "; B's own: " + q(B, "SELECT COUNT(*) FROM LEGEND_SESSION.T") + "; user's PUBLIC.T: " + q(setup, "SELECT COUNT(*) FROM PUBLIC.T"));
+            System.out.println("  B closes; schema left: " + q(setup, "SELECT COUNT(*) FROM INFORMATION_SCHEMA.SCHEMATA WHERE SCHEMA_NAME = 'LEGEND_SESSION'"));
+        }
+    }
+}

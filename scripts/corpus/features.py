@@ -21,7 +21,7 @@ on the live tape); `joinStrings` per group (the concatenation's order is the dat
 from __future__ import annotations
 
 import query
-from query import AsOf, DateTimeArg, Pred, Proj, Spec, Window
+from query import AsOf, DateTimeArg, FramedWindow, Pred, Proj, Spec
 
 TRADE = "trading::Trade"
 PRINT = "marketdata::MarketTrade"
@@ -137,13 +137,13 @@ def windows() -> list[Spec]:
               "row): the running volume and notional, the trade's number, the prices before and after it, and the "
               "first price so far.", TRADE)
     s.projections = _trade_columns()
-    s.windows = [Window("cumQty", "sum", "quantity", **over_time),
-                 Window("cumNotional", "sum", "notional", **over_time),
-                 Window("tradeNo", "rowNumber", **over_time),
-                 Window("prevPrice", "lag", "price", **over_time),
-                 Window("nextPrice", "lead", "price", **over_time),
-                 Window("twoBack", "lag", "price", args=[2], **over_time),
-                 Window("openPrice", "first", "price", **over_time)]
+    s.windows = [FramedWindow("cumQty", "sum", "quantity", **over_time),
+                 FramedWindow("cumNotional", "sum", "notional", **over_time),
+                 FramedWindow("tradeNo", "rowNumber", **over_time),
+                 FramedWindow("prevPrice", "lag", "price", **over_time),
+                 FramedWindow("nextPrice", "lead", "price", **over_time),
+                 FramedWindow("twoBack", "lag", "price", args=[2], **over_time),
+                 FramedWindow("openPrice", "first", "price", **over_time)]
     s.sort = ("tradeId", False)
     out.append(s)
 
@@ -151,11 +151,11 @@ def windows() -> list[Spec]:
               "Moving figures over each name's last three trades (rows(-2, 0)) and a centred volume (rows(-1, 1)).",
               TRADE)
     m.projections = _trade_columns()
-    m.windows = [Window("ma3", "average", "price", frame=("rows", -2, 0), **over_time),
-                 Window("hi3", "max", "price", frame=("rows", -2, 0), **over_time),
-                 Window("lo3", "min", "price", frame=("rows", -2, 0), **over_time),
-                 Window("n3", "count", "price", frame=("rows", -2, 0), **over_time),
-                 Window("qtyAround", "sum", "quantity", frame=("rows", -1, 1), **over_time)]
+    m.windows = [FramedWindow("ma3", "average", "price", frame=("rows", -2, 0), **over_time),
+                 FramedWindow("hi3", "max", "price", frame=("rows", -2, 0), **over_time),
+                 FramedWindow("lo3", "min", "price", frame=("rows", -2, 0), **over_time),
+                 FramedWindow("n3", "count", "price", frame=("rows", -2, 0), **over_time),
+                 FramedWindow("qtyAround", "sum", "quantity", frame=("rows", -1, 1), **over_time)]
     m.sort = ("tradeId", False)
     out.append(m)
 
@@ -166,9 +166,10 @@ def windows() -> list[Spec]:
     r.projections = _trade_columns()
     by_size = dict(partition=["bookId"], order=[("notional", True)])
     tie_free = dict(partition=["bookId"], order=[("notional", True), ("tradeId", False)])
-    r.windows = [Window("rank", "rank", **by_size), Window("denseRank", "denseRank", **by_size),
-                 Window("pctRank", "percentRank", **by_size), Window("cumeDist", "cumulativeDistribution", **by_size),
-                 Window("place", "rowNumber", **tie_free), Window("tercile", "ntile", args=[3], **tie_free)]
+    r.windows = [FramedWindow("rank", "rank", **by_size), FramedWindow("denseRank", "denseRank", **by_size),
+                 FramedWindow("pctRank", "percentRank", **by_size),
+                 FramedWindow("cumeDist", "cumulativeDistribution", **by_size),
+                 FramedWindow("place", "rowNumber", **tie_free), FramedWindow("tercile", "ntile", args=[3], **tie_free)]
     r.sort = ("tradeId", False)
     out.append(r)
 
@@ -176,7 +177,7 @@ def windows() -> list[Spec]:
               "Each name's two largest trades: a row number over the name by notional, kept where it is at most two "
               "(SQL's QUALIFY).", TRADE)
     t.projections = _trade_columns()
-    t.windows = [Window("place", "rowNumber", partition=["instrumentId"],
+    t.windows = [FramedWindow("place", "rowNumber", partition=["instrumentId"],
                         order=[("notional", True), ("tradeId", False)])]
     t.post_filters = [Pred(["place"], "<=", 2)]
     t.sort = [("instrumentId", False), ("place", False)]
@@ -186,9 +187,9 @@ def windows() -> list[Spec]:
               "Each trade beside its book's whole: the book's notional and its trades, an unordered window over the "
               "partition.", TRADE)
     w.projections = _trade_columns()
-    w.windows = [Window("bookNotional", "sum", "notional", partition=["bookId"]),
-                 Window("bookTrades", "count", "tradeId", partition=["bookId"]),
-                 Window("bookLargest", "max", "notional", partition=["bookId"])]
+    w.windows = [FramedWindow("bookNotional", "sum", "notional", partition=["bookId"]),
+                 FramedWindow("bookTrades", "count", "tradeId", partition=["bookId"]),
+                 FramedWindow("bookLargest", "max", "notional", partition=["bookId"])]
     w.sort = ("tradeId", False)
     out.append(w)
 
@@ -196,8 +197,8 @@ def windows() -> list[Spec]:
               "Each name's volume and trades in the fifteen minutes up to each trade: a time range frame "
               "(_range(-15, MINUTES, 0, MINUTES)).", TRADE)
     q.projections = _trade_columns()
-    q.windows = [Window("qty15m", "sum", "quantity", frame=("range", -15, 0, MINUTES), **over_time),
-                 Window("trades15m", "count", "tradeId", frame=("range", -15, 0, MINUTES), **over_time)]
+    q.windows = [FramedWindow("qty15m", "sum", "quantity", frame=("range", -15, 0, MINUTES), **over_time),
+                 FramedWindow("trades15m", "count", "tradeId", frame=("range", -15, 0, MINUTES), **over_time)]
     q.sort = ("tradeId", False)
     out.append(q)
     return out
@@ -216,10 +217,10 @@ def tape() -> list[Spec]:
               "from (an uptick or a downtick on the screen) and the running high and low.", PRINT)
     s.projections = _print_columns()
     s.filters = list(DAY)
-    s.windows = [Window("dayVolume", "sum", "quantity", **by_seq),
-                 Window("tickFrom", "lag", "price", **by_seq),
-                 Window("dayHigh", "max", "price", **by_seq),
-                 Window("dayLow", "min", "price", **by_seq)]
+    s.windows = [FramedWindow("dayVolume", "sum", "quantity", **by_seq),
+                 FramedWindow("tickFrom", "lag", "price", **by_seq),
+                 FramedWindow("dayHigh", "max", "price", **by_seq),
+                 FramedWindow("dayLow", "min", "price", **by_seq)]
     s.sort = ("printId", False)
     out.append(s)
 
@@ -230,9 +231,9 @@ def tape() -> list[Spec]:
     e.projections = _print_columns()
     e.filters = list(DAY)
     running = dict(by_seq, frame=("rows", None, 0))
-    e.windows = [Window("emaFast", "ema", "price", args=[0.5], **running),
-                 Window("emaSlow", "ema", "price", args=[0.2], **running),
-                 Window("emaSize", "ema", "quantity", args=[0.2], **running)]
+    e.windows = [FramedWindow("emaFast", "ema", "price", args=[0.5], **running),
+                 FramedWindow("emaSlow", "ema", "price", args=[0.2], **running),
+                 FramedWindow("emaSize", "ema", "quantity", args=[0.2], **running)]
     e.sort = ("printId", False)
     out.append(e)
 
@@ -242,8 +243,8 @@ def tape() -> list[Spec]:
     r.projections = _print_columns()
     r.filters = list(DAY)
     five = dict(partition=["instrumentId"], order=[("printTime", False)], frame=("range", -5, 0, MINUTES))
-    r.windows = [Window("vol5m", "sum", "quantity", **five), Window("hi5m", "max", "price", **five),
-                 Window("lo5m", "min", "price", **five), Window("prints5m", "count", "printId", **five)]
+    r.windows = [FramedWindow("vol5m", "sum", "quantity", **five), FramedWindow("hi5m", "max", "price", **five),
+                 FramedWindow("lo5m", "min", "price", **five), FramedWindow("prints5m", "count", "printId", **five)]
     r.sort = ("printId", False)
     out.append(r)
 

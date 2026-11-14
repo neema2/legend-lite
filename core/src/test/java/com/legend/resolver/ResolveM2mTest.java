@@ -1,12 +1,12 @@
 package com.legend.resolver;
 
+import com.legend.testing.Lean;
+
 import com.legend.testbackend.TestBackends;
 import com.legend.Compiler;
-import com.legend.Execution;
 import com.legend.compiler.NameResolver;
 import com.legend.compiler.spec.SpecCompiler;
 import com.legend.compiler.spec.typed.TypedSpec;
-import com.legend.exec.ExecutionResult;
 import com.legend.lowering.Lowerer;
 import com.legend.parser.SpecParser;
 import org.junit.jupiter.api.AfterAll;
@@ -122,9 +122,9 @@ class ResolveM2mTest {
     @Test
     @DisplayName("H5-3: M2M bare root — the implicit serialize composes too")
     void m2mImplicitSerialize() throws SQLException {
-        ExecutionResult r = Execution.execute(MODEL, "m::Person.all()", "m::RT", conn);
-        assertInstanceOf(ExecutionResult.Graph.class, r);
-        String json = ((ExecutionResult.Graph) r).json();
+        Lean.Result r = Lean.run(MODEL, "m::Person.all()", "m::RT", conn);
+        assertEquals(com.legend.executionplan.ExecutionPlan.TdsResult.Shape.OBJECTS, r.shape());
+        String json = r.json();
         assertTrue(json.contains("\"fullName\":\"Ann Ash\"")
                 && json.contains("\"age\":40"), json);
     }

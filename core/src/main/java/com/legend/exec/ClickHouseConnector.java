@@ -3,10 +3,8 @@
 
 package com.legend.exec;
 
-import com.legend.model.ConnectionDefinition;
-import com.legend.model.ConnectionDefinition.DatabaseType;
+import com.legend.executionplan.DatabaseType;
 
-import java.sql.Connection;
 
 /** ClickHouse's sessions: the platform opens no declared connection to it yet (its sessions are the test harnesses');
  *  a session handed to execution is checked against its driver's product name. */
@@ -29,7 +27,7 @@ final class ClickHouseConnector implements DatabaseConnector {
     }
 
     @Override
-    public Sessions.Opening opening(ConnectionDefinition def) {
+    public Sessions.Opening opening(com.legend.executionplan.Connection def) {
         return DatabaseConnector.notOpened(def);
     }
 
@@ -39,9 +37,16 @@ final class ClickHouseConnector implements DatabaseConnector {
         return false;
     }
 
-    /** {@inheritDoc} None: {@code ClickHouse}'s errors carry their raise. */
+    /** {@inheritDoc} No: ClickHouse holds no transaction the platform opens across statements (none is kept in a turn). */
     @Override
-    public @com.legend.base.Nullable String raisedMessage(Connection session) {
-        return null;
+    public boolean abortsTransactionOnError() {
+        return false;
+    }
+
+    /** {@inheritDoc} No: ClickHouse's driver refuses autocommit off ("setAutoCommit(false) is not supported", measured
+     *  2026-11-07, PR #81): its statements run each their own. */
+    @Override
+    public boolean takesTransactions() {
+        return false;
     }
 }
