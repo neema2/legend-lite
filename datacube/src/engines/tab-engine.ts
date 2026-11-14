@@ -96,6 +96,26 @@ function sections(text: string, names: readonly string[]): string {
   return out.join('');
 }
 
+/** How many readings of a model (its elements, a project's text) and planners over one the tab's engine keeps. */
+const READINGS_KEPT = 16;
+const PLANNERS_KEPT = 8;
+
+/** `key`'s value in `kept`, made once and kept while recent (the least recent let go past `limit`); a value whose
+ *  making failed is not kept, so the next asks again. */
+function recent<T>(kept: Map<string, Promise<T>>, key: string, limit: number, make: () => Promise<T>): Promise<T> {
+  const was = kept.get(key);
+  if (was !== undefined) {
+    kept.delete(key);
+    kept.set(key, was);
+    return was;
+  }
+  const made = make();
+  kept.set(key, made);
+  made.catch(() => { if (kept.get(key) === made) kept.delete(key); });
+  while (kept.size > limit) kept.delete(kept.keys().next().value!);
+  return made;
+}
+
 /** Whether a table name is one DataCube may ask (Q28): a plain identifier, never a literal or legend-lite's own. */
 function plainName(name: string): boolean {
   return /^[A-Za-z_][A-Za-z0-9_]*$/.test(name) && !['true', 'false'].includes(name.toLowerCase()) && !name.startsWith('__legend_lite_');
@@ -171,13 +191,37 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
     }
     return { model: written.model, runtime: written.runtime, source: written.source };
   };
+  // A MODEL READ ONCE (merging main's #81, 2026-11-14: a project's model is 4 MB, and its tile's and grid's every query
+  // read it again, the trading page's first sheet 55-66 s): its elements, by its text; a project's text, by its
+  // coordinates; a planner, by its model, runtime and how -- each kept while recent, a planner let go once it is not
+  const readings = new Map<string, Promise<Element[]>>();
   const elementsOf = async (model: string, call: CallName): Promise<Element[]> => {
     try {
       // the engine's own reading, in lite's dialect (Q27): its checks read what the planner compiles
-      return (await o.writer.liteElements(model) as Element[]).filter((e) => e._type !== SECTION_INDEX);
+      return await recent(readings, model, READINGS_KEPT, async () =>
+        (await o.writer.liteElements(model) as Element[]).filter((e) => e._type !== SECTION_INDEX));
     } catch (e) {
       throw new CompileError(e instanceof Error ? e.message : String(e), call, { cause: e });
     }
+  };
+  const planners = new Map<string, Planner>();
+  /** The plane's planner over `model` (Q20), the one kept for it while recent: its model compiled once. */
+  const plannerOver = (model: string, runtime: string, how: ModelOptions = {}): Planner => {
+    const key = `${runtime}\u0000${JSON.stringify(how)}\u0000${model}`;
+    const kept = planners.get(key);
+    if (kept !== undefined) {
+      planners.delete(key);
+      planners.set(key, kept);
+      return kept;
+    }
+    const made = o.plane.another(model, runtime, how);
+    planners.set(key, made);
+    while (planners.size > PLANNERS_KEPT) {
+      const [oldest, gone] = planners.entries().next().value!;
+      planners.delete(oldest);
+      gone.dispose?.();
+    }
+    return made;
   };
   /** The model a query plans over (R3a): refused by name with a connection or runtime, or a runtime the tab does not
    *  own; else the model the tab served as that text, or the text with the tab's own runtime added, DataCube's library
@@ -215,7 +259,7 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
   /** The plane's planner over a query's model (Q20): what types and plans it. */
   const plannerFor = async (ask: QueryAsk, call: CallName): Promise<{ readonly planner: Planner; readonly model: string }> => {
     const r = await resolved(ask, call);
-    return { planner: o.plane.another(r.model, ask.runtime, r.how), model: r.model };
+    return { planner: plannerOver(r.model, ask.runtime, r.how), model: r.model };
   };
   /** A runtime the tab owns, its Connection and Runtime text; refused by name where it owns none of that name. */
   const ownRuntime = (ask: QueryAsk, call: CallName): string => {
@@ -225,7 +269,10 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
   };
   /** A project's text, resolved by its coordinates: a version's (Q19) or a workspace revision's (Q23); refused by name
    *  where the tab resolves none. */
-  const projectText = async (p: ProjectAt, call: CallName): Promise<string> => {
+  const projectTexts = new Map<string, Promise<string>>();
+  const projectText = (p: ProjectAt, call: CallName): Promise<string> =>
+    recent(projectTexts, JSON.stringify(p), READINGS_KEPT, () => projectTextOf(p, call));
+  const projectTextOf = async (p: ProjectAt, call: CallName): Promise<string> => {
     const version = isVersion(p);
     const coords = version ? `${p.groupId}:${p.artifactId}:${p.versionId}` : `${p.project}/${p.workspace}@${p.revision}`;
     const projects = o.projects;
@@ -439,12 +486,8 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
       async describe(handle) {
         open('describe');
         const h = sourceOf(handle, 'describe');
-        const p = o.plane.another(h.model, h.runtime);
-        try {
-          return { columns: columnsOf(await planned('describe', () => p.relationType(lambda([], h.relation)))) };
-        } finally {
-          p.dispose?.();
-        }
+        const p = plannerOver(h.model, h.runtime);
+        return { columns: columnsOf(await planned('describe', () => p.relationType(lambda([], h.relation)))) };
       },
       async drop(handle) {
         open('drop');
@@ -469,33 +512,26 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
       async typeOf(ask) {
         open('typeOf');
         const { planner: p } = await plannerFor(ask, 'typeOf');
-        try {
-          return { columns: columnsOf(await planned('typeOf', () => p.relationType(ask.query))) };
-        } finally {
-          p.dispose?.();
-        }
+        return { columns: columnsOf(await planned('typeOf', () => p.relationType(ask.query))) };
       },
       async query(ask, opts) {
         open('query');
         const { planner: p, model } = await plannerFor(ask, 'query');
         // THE MINT: one execution id for this plan run (Q7)
         const executionId = mint();
-        try {
-          const plan = await planned('query', () => p.plan(ask.query, opts?.signal), executionId);
-          const on = await rowsOn(ask, model);
-          const rows = await ran('query', executionId, () => on.execute(plan, 0, opts?.signal));
-          // an Integer column's whole numbers as Int64: the one reader's word (types.ts), never a name compared here
-          const batch = recordBatchOf(rows, plan.columns.filter((c) => isNumeric(c.type) && !isFractional(c.type)).map((c) => c.name));
-          return {
-            executionId,
-            schema: columnsOf(plan.columns),
-            rows: (async function* one() { yield batch; })(),
-            explain: plan.sql,
-            ...(rows.receipt !== undefined ? { receipt: rows.receipt } : {}),
-          };
-        } finally {
-          p.dispose?.();
-        }
+        // the planner is kept for the model's next query (plannerOver)
+        const plan = await planned('query', () => p.plan(ask.query, opts?.signal), executionId);
+        const on = await rowsOn(ask, model);
+        const rows = await ran('query', executionId, () => on.execute(plan, 0, opts?.signal));
+        // an Integer column's whole numbers as Int64: the one reader's word (types.ts), never a name compared here
+        const batch = recordBatchOf(rows, plan.columns.filter((c) => isNumeric(c.type) && !isFractional(c.type)).map((c) => c.name));
+        return {
+          executionId,
+          schema: columnsOf(plan.columns),
+          rows: (async function* one() { yield batch; })(),
+          explain: plan.sql,
+          ...(rows.receipt !== undefined ? { receipt: rows.receipt } : {}),
+        };
       },
       async write(ask) {
         open('write', { mode: writeModeName(ask.mode) });
