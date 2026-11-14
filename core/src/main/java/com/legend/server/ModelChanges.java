@@ -577,11 +577,19 @@ public final class ModelChanges {
     }
 
     /** A text model's {@code serializer}, where it carries one: an object of upstream's protocol's {@code name} and
-     *  {@code version}, any other key refused by name. */
+     *  {@code version}, any other key refused by name; JSON's {@code null} is none (upstream's protocol field is
+     *  optional, as the readers' {@code getObjOr} read a null), and any other value is refused by name (the C4 final
+     *  fix round's B2, 2026-11-14: {@code has} is true of a null, and the cast to an object answered 500). */
     static void serializer(Json.Obj model) {
-        if (model.has("serializer")) {
-            only(model.getObj("serializer"), "a model's serializer", "name", "version");
+        Json.Node given = model.fields().get("serializer");
+        if (given == null || given instanceof Json.Null) {
+            return;
         }
+        if (!(given instanceof Json.Obj serializer)) {
+            throw new IllegalArgumentException("a model's serializer is an object of its name and version, not "
+                    + given.getClass().getSimpleName().toLowerCase(Locale.ROOT));
+        }
+        only(serializer, "a model's serializer", "name", "version");
     }
 
     /** A name Pure holds unquoted: letters, digits and {@code _}, not led by a digit, and no literal's word. */
