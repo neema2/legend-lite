@@ -26,7 +26,8 @@ import org.junit.jupiter.api.Test;
 class ModelChangesRequestsAreClosedTest {
 
     private static final String UNKNOWN = "extra";
-    private static final String REFUSED = " has no key " + UNKNOWN + " (names and fields only, never a value)";
+    private static final String REFUSED = " has no key " + UNKNOWN + " (a model change's request holds the keys its"
+            + " wire writes, model-changes/src/wire.ts, and no other)";
 
     private static final String TRADES = """
             ###Relational

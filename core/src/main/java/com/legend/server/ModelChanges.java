@@ -631,8 +631,11 @@ public final class ModelChanges {
         Set<String> allowed = Set.of(keys);
         for (String key : o.fields().keySet()) {
             if (!allowed.contains(key)) {
-                throw new IllegalArgumentException(what + " has no key " + key + " (names and fields only, never a"
-                        + " value)");
+                // its own words: a model change's request carries values (model text, documentation, a sample's rows),
+                // so the boundary doors' "names and fields only, never a value" is not its rule (the C4 final fix
+                // round's nit, 2026-11-14)
+                throw new IllegalArgumentException(what + " has no key " + key + " (a model change's request holds the"
+                        + " keys its wire writes, model-changes/src/wire.ts, and no other)");
             }
         }
     }

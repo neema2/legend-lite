@@ -29,10 +29,12 @@ import org.junit.jupiter.api.Test;
  * the account: the database must answer ONE column, labelled exactly the name. A statement the database refuses, a second
  * column, or another label is a finding, named.
  *
- * <p>A manual probe, never in a lane: {@code bazel test //core:identifier_escaping_cloud_probe} with
+ * <p>A manual probe, in {@code //gates:heavy} beside the cloud PCT lanes (since 2026-11-14: CI's lane guard on PR #101
+ * found it in no suite) and in no CI lane: {@code bazel test //core:identifier_escaping_cloud_probe} with
  * {@code LEGENDLITE_PCT_CLOUD_PROPERTIES} naming the cloud lanes' properties file (the account's coordinates and
  * credentials, as {@code testbackend.CloudBackend} reads them) and {@code LEGENDLITE_PROBE_CLOUD} the cloud
- * ({@code snowflake} or {@code databricks}). Without them it fails by name: it never skips (the skip census).
+ * ({@code snowflake} or {@code databricks}) -- one cloud a run, so a heavy run covers the one it names. Without them it
+ * fails by name: it never skips (the skip census).
  */
 @Tag("probe")
 class IdentifierEscapingCloudProbeTest {
