@@ -428,7 +428,7 @@ public final class ProductStatements {
     /** A store write prepared on the product's road, lowered: its statement, the seedable let prefix before it. A
      *  write under the frame's post-processors is refused by name, as the test road refuses it (the writes design's
      *  leg 2 writes the table it names). */
-    public static SqlDml storeWrite(TypedQuery query, Prepared.StoreWrite w, boolean temporal,
+    static SqlDml storeWrite(TypedQuery query, Prepared.StoreWrite w, boolean temporal,
             List<SqlExpr.PlanParam> slots, ObjectSites sites) {
         PlanEnv env = w.env();
         if (!env.tableReplace().isEmpty() || env.postProcessors().extractCtes()

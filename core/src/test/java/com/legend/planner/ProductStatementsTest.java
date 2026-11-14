@@ -143,17 +143,28 @@ class ProductStatementsTest {
         assertInstanceOf(com.legend.sql.SqlSelect.class, lowered);
     }
 
-    /** The lowering's own steps are the planner's (the C4 audit's M5, 2026-11-13): {@code planned}, {@code lower} and
-     *  both {@code lowerer}s package-private, so no class past the planner reaches the product's road but by
-     *  {@code prepare} (whose callers ArchitectureTest pins) and the seed's one entry; and the tests' helper
-     *  {@link Lowered} refuses raw SQL first, as the product's doors and the seed's entry do. */
+    /** The lowering's own steps are the planner's (the C4 audit's M5, 2026-11-13; the follow-up audit's G1,
+     *  2026-11-14): ProductStatements' {@code planned}, {@code lower}, both {@code lowerer}s and {@code storeWrite}, and
+     *  BodyPlanner's {@code lowerAndPrepare}s, {@code lowererFor} and {@code prepare}, package-private. A class past the
+     *  planner reaches a lowering by these public routes alone, each refusing an executeInDb's read by name first or
+     *  pinned to its callers: the query doors (TypedQuery's plans, Execution's runs, QueryDoor first);
+     *  {@code ProductStatements.prepare}, whose callers ArchitectureTest pins to the planner and the test planner; the
+     *  seed's one entry ({@code lowerTestDataSeed}); and {@code Compiler.lowerResolved}, which refuses inside itself
+     *  ({@link #theRootsLowerResolvedRefusesRawSqlInsideItself}). The tests' helper {@link Lowered} refuses raw SQL
+     *  first, as the product's doors and the seed's entry do. */
     @Test
     void theLoweringsStepsArePackagePrivateAndTheTestsHelperRefusesRawSql() {
         java.util.Set<String> open = new java.util.TreeSet<>();
         for (java.lang.reflect.Method m : ProductStatements.class.getDeclaredMethods()) {
-            if (java.util.Set.of("planned", "lower", "lowerer", "configured").contains(m.getName())
+            if (java.util.Set.of("planned", "lower", "lowerer", "configured", "storeWrite").contains(m.getName())
                     && java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
-                open.add(m.getName());
+                open.add("ProductStatements." + m.getName());
+            }
+        }
+        for (java.lang.reflect.Method m : BodyPlanner.class.getDeclaredMethods()) {
+            if (java.util.Set.of("lowerAndPrepare", "lowererFor", "prepare").contains(m.getName())
+                    && java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
+                open.add("BodyPlanner." + m.getName());
             }
         }
         assertEquals(java.util.Set.of(), open, "the lowering's steps reachable past the planner");
@@ -163,6 +174,25 @@ class ProductStatementsTest {
         com.legend.error.NotImplementedException refused = assertThrows(
                 com.legend.error.NotImplementedException.class, () -> Lowered.lower(raw, "s::RT", false));
         assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
+    }
+
+    /** The root's {@code Compiler.lowerResolved} types, resolves and lowers on its own; it refuses an executeInDb's
+     *  read by name inside itself, as the seed's entry does (the follow-up audit's G1, 2026-11-14: until then it lowered
+     *  one, reproduced from a class past the planner); the same query without the read is lowered. */
+    @Test
+    void theRootsLowerResolvedRefusesRawSqlInsideItself() {
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
+        com.legend.protocol.spec.ValueSpecification raw = Compiler.parseQuery("{|" + CONN
+                + "let n = meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).columnNames;\n"
+                + "#>{s::DB.T}#->select(~[ID]);}");
+        com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(
+                ((com.legend.protocol.spec.LambdaFunction) raw).body(), com.legend.model.ImportScope.empty(), ctx);
+        com.legend.error.NotImplementedException refused = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> Compiler.lowerResolved(resolved, ctx, "s::RT", false));
+        assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
+        com.legend.protocol.spec.ValueSpecification plain = Compiler.resolveQuery(((com.legend.protocol.spec.LambdaFunction)
+                Compiler.parseQuery("|#>{s::DB.T}#->select(~[ID])")).body(), com.legend.model.ImportScope.empty(), ctx);
+        assertInstanceOf(com.legend.sql.SqlSelect.class, Compiler.lowerResolved(plain, ctx, "s::RT", false));
     }
 
     @Test

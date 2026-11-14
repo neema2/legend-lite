@@ -671,6 +671,21 @@ final class ArchitectureTest {
         PREPARE_IS_THE_PLANNERS.check(CORE_PROD_CLASSES);
     }
 
+    /** {@link #aProductStatementIsPreparedByThePlannersAlone} over the hosts' doors as well (the follow-up audit's G1,
+     *  2026-11-14): the boundary ({@code //wasm:boundary}, its package {@code planner}, outside the planners'), the
+     *  tab's adapter ({@code //wasm:tab}) and the native entry ({@code //native:entry}) prepare no product statement
+     *  either. */
+    @Test
+    void theHostsDoorsPrepareNoProductStatement() {
+        JavaClasses classes = coreAndTheHostsDoors();
+        // each host's door is held by the rule: none resides in the planners' packages, which the rule exempts
+        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.nativelib.Compiler")) {
+            org.junit.jupiter.api.Assertions.assertFalse(classes.get(door).getPackageName().matches(
+                    "com\\.legend\\.(planner|testplan)(\\..*)?"), door + " is exempt from the rule");
+        }
+        PREPARE_IS_THE_PLANNERS.check(classes);
+    }
+
     /** The rule of {@link #aProductStatementIsPreparedByThePlannersAlone}. */
     static final com.tngtech.archunit.lang.ArchRule PREPARE_IS_THE_PLANNERS = noClasses()
             .that().resideOutsideOfPackages("com.legend.planner", "com.legend.testplan")
@@ -2497,6 +2512,12 @@ final class ArchitectureTest {
      */
     @Test
     void theAuthoredDoorIsReachedFromTheBoundaryAlone() {
+        AUTHORED_DOOR.check(coreAndTheHostsDoors());
+    }
+
+    /** The classes of core and of the hosts' doors ({@code //core:product_jars} and {@code //core:authored_door_jars}:
+     *  the boundary, the tab's adapter and the native entry), the import checked to hold each door. */
+    private static JavaClasses coreAndTheHostsDoors() {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
             for (String property : java.util.List.of("legend.product.jars", "legend.authored.jars")) {
@@ -2511,7 +2532,7 @@ final class ArchitectureTest {
         for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.nativelib.Compiler")) {
             org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
         }
-        AUTHORED_DOOR.check(classes);
+        return classes;
     }
 
     /** {@link #theAuthoredDoorIsReachedFromTheBoundaryAlone} fails on a class that plans a person's statement past the

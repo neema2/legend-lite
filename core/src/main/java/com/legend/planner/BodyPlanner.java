@@ -141,7 +141,7 @@ public final class BodyPlanner {
     /** LOWER → post-process → two-phase dynamic pivot → deferred
      * relation-toString resolution: the whole plan-preparation ladder
      * (split from executeTyped at the 250-line shape guard). */
-    public static SqlQuery lowerAndPrepare(
+    static SqlQuery lowerAndPrepare(
             List<TypedSpec> body, PlanEnv env, ModelContext ctx,
             SqlDialect dialect, boolean identity) {
         return lowerAndPrepare(body, env, ctx, dialect, identity, false);
@@ -151,7 +151,7 @@ public final class BodyPlanner {
      *  boolean)}; {@code named}: the query's columns named in its select, in its relation's
      *  order (Lowerer.namedColumns: a staged table takes them by position). The two schema reads here (a static
      *  pivot's keys, a deferred relation's columns) go through the session seam (track B's B1a, 2026-10-29). */
-    public static SqlQuery lowerAndPrepare(
+    static SqlQuery lowerAndPrepare(
             List<TypedSpec> body, PlanEnv env, ModelContext ctx,
             SqlDialect dialect, boolean identity, boolean named) {
         Lowerer lowerer = lowererFor(body, env, ctx, identity);
@@ -179,7 +179,7 @@ public final class BodyPlanner {
 
     /** The Lowerer a statement's body lowers with (lowerAndPrepare's and the store write's): the model's layouts,
      *  keys, time zone and the body's features. */
-    public static Lowerer lowererFor(List<TypedSpec> body, PlanEnv env,
+    static Lowerer lowererFor(List<TypedSpec> body, PlanEnv env,
             ModelContext ctx, boolean identity) {
         // F13: the verdict-side lane's layouts carry the canon rider too;
         // the value lane's are the object layout (docs/OBJECT_IDENTITY_2026_10_20.md
@@ -265,7 +265,7 @@ public final class BodyPlanner {
     /** A statement's body PREPARED over {@code env} (already routed: {@link SystemRoutes}): framed by the execute call
      *  it runs under and ready to plan, or the kind of answer it is given with no plan ({@link Prepared}; the shared
      *  preparation, 2026-10-31: the body driver's prelude decided both while it ran the answers). */
-    public static Prepared prepare(List<TypedSpec> body, PlanEnv env) {
+    static Prepared prepare(List<TypedSpec> body, PlanEnv env) {
         ModelContext ctx = env.ctx();
         // a late-bound grid is never pinned here: its columns are the ones its result reports, read when the plan
         // runs (the seam program's S3c, 2026-10-30; until then RawGridSchema.stamp took GridProbe's LIMIT-0 roster)

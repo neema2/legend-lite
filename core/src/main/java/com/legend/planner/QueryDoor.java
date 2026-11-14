@@ -172,6 +172,18 @@ public final class QueryDoor {
         }
     }
 
+    /** {@link #refuseRawSql(TypedQuery)} for a body typed by {@code specs} apart from a typed query -- the root's
+     *  {@code Compiler.lowerResolved}, which types, resolves and lowers on its own (the follow-up audit's G1, 2026-11-14:
+     *  until then it lowered an executeInDb's read past every refusal). */
+    public static void refuseRawSql(java.util.List<TypedSpec> body, SpecCompiler specs) {
+        Map<FunctionId, Boolean> memo = new HashMap<>();
+        for (TypedSpec statement : body) {
+            if (StatementEffects.reaches(statement, n -> n instanceof TypedRawSqlRelation, specs, memo)) {
+                throw refused(TestOnly.RAW_SQL);
+            }
+        }
+    }
+
     /** {@code kind}'s refusal, by name. */
     private static NotImplementedException refused(TestOnly kind) {
         return new NotImplementedException(kind.what + " in a query: " + kind.why

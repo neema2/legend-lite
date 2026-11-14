@@ -511,6 +511,8 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#executionPlan(String, Set<Feature>)", List.of(NAME, OPTION)),
             Map.entry("TypedQuery#projectPlan(String)", List.of(NAME)),
             // HeldModels: a model's text held by its handle, its compiled model handed to the caller's function
+            // a host's own holder, empty (its constructor read since the follow-up audit's G1, 2026-11-14)
+            Map.entry("HeldModels#new()", List.of()),
             Map.entry("HeldModels#hold(String)", List.of(MODEL_TEXT)),
             // merged main 3a217086a (#81), 2026-11-14: a model held over a library's text
             Map.entry("HeldModels#hold(String, String)", List.of(MODEL_TEXT, MODEL_TEXT)),
@@ -543,11 +545,122 @@ class PlannerSurfaceTest {
             Map.entry("TestExecution#runBody(TestPlan, Sessions.Session, AssertListener, SqlReplayReferee,"
                     + " ExecuteOptions, Output)", List.of(PLAN_DATA, SESSION, CALLBACK, CALLBACK, OPTION, OUTPUT)),
             Map.entry("TestExecution#runFixture(TestPlan, Sessions.Session, ExecuteOptions)",
-                    List.of(PLAN_DATA, SESSION, OPTION))));
+                    List.of(PLAN_DATA, SESSION, OPTION)),
+            // ExecuteOptions, the test door's options (the follow-up audit's G1, 2026-11-14: a parameter of three root
+            // doors that no row read): its constructors, accessors and withers, each a closed word, a data store or the
+            // compatibility edge's callback -- no field a statement's text
+            Map.entry("ExecuteOptions#new(PlanningOptions, DataStores)", List.of(OPTION, DATA_REFERENCE)),
+            Map.entry("ExecuteOptions#new(Edge, DataStores, Set<Feature>)", List.of(CALLBACK, DATA_REFERENCE, OPTION)),
+            Map.entry("ExecuteOptions#planning()", List.of()),
+            Map.entry("ExecuteOptions#stores()", List.of()),
+            Map.entry("ExecuteOptions#edge()", List.of()),
+            Map.entry("ExecuteOptions#judgingRules()", List.of()),
+            Map.entry("ExecuteOptions#judgeMode()", List.of()),
+            Map.entry("ExecuteOptions#judgedAs(ExecuteOptions)", List.of(OPTION)),
+            Map.entry("ExecuteOptions#withJudgeMode(PlanningOptions.JudgeMode)", List.of(OPTION)),
+            Map.entry("ExecuteOptions#withFeatures(Set<Feature>)", List.of(OPTION)),
+            Map.entry("ExecuteOptions#withOptions(Set<PlanOption>)", List.of(OPTION)),
+            Map.entry("ExecuteOptions#withEngineCompat(boolean)", List.of(OPTION)),
+            Map.entry("ExecuteOptions#recording(Edge, DataStores)", List.of(CALLBACK, DATA_REFERENCE))));
 
     /** The root doors' classes. */
     private static final List<Class<?>> ROOT_CLASSES = List.of(Compiler.class, TypedQuery.class, HeldModels.class,
-            Execution.class, TestExecution.class);
+            Execution.class, TestExecution.class, ExecuteOptions.class);
+
+    /** WHAT A ROOT DOOR DOES WITH A QUERY (the follow-up audit's G1, 2026-11-14: the census counted a
+     *  {@link Kind#LAMBDA} as a value the planner reads, and a Pure query can hold an executeInDb's SQL text -- a
+     *  statement's own SQL, the test road's alone by the user's ruling (a) of 2026-11-13). Every root door that takes a
+     *  query -- a LAMBDA parameter, or a {@code TypedQuery} as its receiver -- is one of three, and
+     *  {@link #everyRootDoorThatTakesAQueryNamesItsRoad} holds each such door to a row of {@link #QUERY_ROADS}. */
+    enum QueryRoad {
+        /** It parses, names, types or reads facts of the query, or carries it in a record: it lowers and plans
+         *  nothing (what it answers is planned by a refusing door). */
+        PLANS_NOTHING,
+        /** It lowers or plans the query, refusing an executeInDb's read by name first: each driven by
+         *  {@link #everyRefusingRootDoorRefusesAnExecuteInDbsRead}. */
+        REFUSES_RAW_SQL,
+        /** The test road (TestExecution's doors): a test's program plans the read (TestDoorTest), by the ruling. */
+        TEST_ROAD
+    }
+
+    static final Map<String, QueryRoad> QUERY_ROADS = new TreeMap<>(Map.ofEntries(
+            // a record of a query the planner lowered: no public door takes one back
+            Map.entry("Compiler.LoweredQuery#new(SqlQuery, TypedSpec, ModelContext)", QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#parseQuery(String)", QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#query(ModelContext, String)", QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#query(ModelContext, ValueSpecification)", QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#queryResolved(ModelContext, ValueSpecification)", QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#resolveQuery(List<ValueSpecification>, ImportScope, ModelContext)",
+                    QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#resolveNames(List<ValueSpecification>, ImportScope, ModelContext)",
+                    QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#hasStatementEffects(ValueSpecification, ModelContext)", QueryRoad.PLANS_NOTHING),
+            Map.entry("Compiler#programFacts(ValueSpecification, ModelContext)", QueryRoad.PLANS_NOTHING),
+            // it types, resolves and lowers on its own: it refuses inside itself (G1)
+            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
+                    QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean, String)",
+                    QueryRoad.REFUSES_RAW_SQL),
+            // TypedQuery: its receiver is the query; its rewrites keep it a TypedQuery, whose plans scan its body
+            Map.entry("TypedQuery#withBody(List<TypedSpec>)", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#withOptions(Set<PlanOption>)", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#options()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#context()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#specs()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#resolved()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#body()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#resultType()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#parameters()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#answersADiagnostic()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#expression()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#target()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#writes()", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#runtime(String)", QueryRoad.PLANS_NOTHING),
+            Map.entry("TypedQuery#plan(String)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("TypedQuery#executionPlan(String)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("TypedQuery#executionPlan(String, Set<Feature>)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("TypedQuery#projectPlan(String)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                    + " Output)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                    + " Output, int)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                    + " Set<Feature>, Output, int)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output)",
+                    QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output, int)",
+                    QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)", QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
+                    QueryRoad.REFUSES_RAW_SQL),
+            Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", QueryRoad.TEST_ROAD),
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+                    + " ExecuteOptions)", QueryRoad.TEST_ROAD),
+            Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
+                    + " ExecuteOptions, Output)", QueryRoad.TEST_ROAD)));
+
+    /** Every violation of {@link #QUERY_ROADS} over {@code doors} (a signature to its kinds): a door that takes a
+     *  query -- a LAMBDA parameter, or {@code TypedQuery} its owner -- with no road, and a road for no such door. */
+    static List<String> queryRoadViolations(Map<String, List<Kind>> doors, Map<String, QueryRoad> roads) {
+        List<String> out = new ArrayList<>();
+        Set<String> taking = new TreeSet<>();
+        doors.forEach((sig, kinds) -> {
+            if (kinds.contains(LAMBDA) || sig.startsWith("TypedQuery#")) {
+                taking.add(sig);
+            }
+        });
+        for (String sig : taking) {
+            if (!roads.containsKey(sig)) {
+                out.add("a root door that takes a query names no road: " + sig);
+            }
+        }
+        for (String sig : roads.keySet()) {
+            if (!taking.contains(sig)) {
+                out.add("a road for no root door that takes a query: " + sig);
+            }
+        }
+        return out;
+    }
 
     /** PYTHON'S PLANNER PROTOCOL ({@code _planner.KINDS}): each request kind, the native export answering it, and the
      *  request's fields in that export's argument order -- each field's kind its door's parameter's
@@ -816,7 +929,9 @@ class PlannerSurfaceTest {
                         doors.add(m);
                     }
                 }
-                if (c != top) {
+                // a top class's public constructor is a door too (the follow-up audit's G1, 2026-11-14: ExecuteOptions,
+                // a record, is constructed by its callers)
+                {
                     for (var k : c.getDeclaredConstructors()) {
                         if (Modifier.isPublic(k.getModifiers()) && !k.isSynthetic()) {
                             doors.add(k);
@@ -1397,6 +1512,77 @@ class PlannerSurfaceTest {
     @Test
     void theRootDoorsAreClosed() {
         assertEquals(List.of(), rootViolations(ROOT_CLASSES), "the root doors are not closed");
+    }
+
+    /** Every root door that takes a query names what it does with an executeInDb's SQL text ({@link QueryRoad}). */
+    @Test
+    void everyRootDoorThatTakesAQueryNamesItsRoad() {
+        assertEquals(List.of(), queryRoadViolations(ROOT_DOORS, QUERY_ROADS));
+        // planted: a new door taking a query, with no road, is named; a road whose door is gone is named
+        Map<String, List<Kind>> planted = new TreeMap<>(ROOT_DOORS);
+        planted.put("Compiler#lowerRaw(ValueSpecification, ModelContext)", List.of(LAMBDA, MODEL));
+        planted.put("TypedQuery#lower(String, boolean)", List.of(NAME, OPTION));
+        planted.remove("Compiler#parseQuery(String)");
+        assertEquals(List.of("a root door that takes a query names no road: Compiler#lowerRaw(ValueSpecification,"
+                + " ModelContext)", "a root door that takes a query names no road: TypedQuery#lower(String, boolean)",
+                "a road for no root door that takes a query: Compiler#parseQuery(String)"),
+                queryRoadViolations(planted, QUERY_ROADS));
+    }
+
+    /** Each {@link QueryRoad#REFUSES_RAW_SQL} door, driven with a query that reads an executeInDb's SQL text, refuses it
+     *  by name before it plans or runs anything (no session is touched: each is handed none). The drivers are one per
+     *  such door, and a door added to the road without its driver is named. */
+    @Test
+    void everyRefusingRootDoorRefusesAnExecuteInDbsRead() {
+        String model = com.legend.testbackend.StorelessRuntime.with("", com.legend.database.Databases.PLATFORM);
+        String runtime = com.legend.testbackend.StorelessRuntime.RUNTIME;
+        String query = "{| let c = ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB);\n"
+                + "meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).columnNames;}";
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(model);
+        java.util.function.Supplier<TypedQuery> typed = () -> Compiler.query(ctx, query);
+        java.util.function.Supplier<com.legend.protocol.spec.ValueSpecification> resolved = () -> Compiler.resolveQuery(
+                ((com.legend.protocol.spec.LambdaFunction) Compiler.parseQuery(query)).body(),
+                com.legend.model.ImportScope.empty(), ctx);
+        com.legend.exec.ProductRun.Establish declared = com.legend.exec.ProductRun.Establish.DECLARED_SETUP;
+        Map<String, org.junit.jupiter.api.function.Executable> drivers = new TreeMap<>(Map.ofEntries(
+                Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
+                        () -> Compiler.lowerResolved(resolved.get(), ctx, runtime, false)),
+                Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean, String)",
+                        () -> Compiler.lowerResolved(resolved.get(), ctx, runtime, false, null)),
+                Map.entry("TypedQuery#plan(String)", () -> typed.get().plan(runtime)),
+                Map.entry("TypedQuery#executionPlan(String)", () -> typed.get().executionPlan(runtime)),
+                Map.entry("TypedQuery#executionPlan(String, Set<Feature>)",
+                        () -> typed.get().executionPlan(runtime, Set.of())),
+                Map.entry("TypedQuery#projectPlan(String)", () -> typed.get().projectPlan(runtime)),
+                Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                        + " Output)", () -> Execution.run(typed.get(), runtime, null, null, declared, null)),
+                Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                        + " Output, int)", () -> Execution.run(typed.get(), runtime, null, null, declared, null, 1)),
+                Map.entry("Execution#run(TypedQuery, String, SessionSource, PlanSessions.Source, ProductRun.Establish,"
+                        + " Set<Feature>, Output, int)",
+                        () -> Execution.run(typed.get(), runtime, null, null, declared, Set.of(), null, 1)),
+                Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output)",
+                        () -> Execution.run(model, query, runtime, null, null, null)),
+                Map.entry("Execution#run(String, String, String, SessionSource, PlanSessions.Source, Output, int)",
+                        () -> Execution.run(model, query, runtime, null, null, null, 1)),
+                Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, Output)",
+                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null)),
+                Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
+                        () -> Execution.runOnProjectDatabases(typed.get(), runtime, null, null))));
+        Set<String> refusing = new TreeSet<>();
+        QUERY_ROADS.forEach((sig, road) -> {
+            if (road == QueryRoad.REFUSES_RAW_SQL) {
+                refusing.add(sig);
+            }
+        });
+        assertEquals(refusing, drivers.keySet(), "a refusing door without its driver, or a driver for no such door");
+        drivers.forEach((sig, driver) -> {
+            com.legend.error.NotImplementedException refused = org.junit.jupiter.api.Assertions.assertThrows(
+                    com.legend.error.NotImplementedException.class, driver, sig);
+            assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query: "), sig + ": "
+                    + refused.getMessage());
+        });
     }
 
     /** The check names a public method of a root door no row lists ({@code planner.PlantedRootDoor}, a test class

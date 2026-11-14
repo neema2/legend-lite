@@ -981,6 +981,9 @@ public final class Compiler {
             @com.legend.base.Nullable String explicitMappingFqn) {
         SpecCompiler specs = new SpecCompiler(ctx);
         java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
+        // a statement's own SQL text (an executeInDb's read) refused by name first, as every product door and the
+        // seed's one entry refuse it: this lowers on its own (the follow-up audit's G1, 2026-11-14)
+        com.legend.planner.QueryDoor.refuseRawSql(body, specs);
         body = new com.legend.compiler.spec.UserCallInliner(specs).inlineBody(body);
         boolean temporalRoot = com.legend.compiler.element.Temporal
                 .anyTemporalGetAll(body, ctx);

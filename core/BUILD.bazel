@@ -2306,7 +2306,8 @@ java_jars(
 # the hosts' doors to the authored statement, by class: the boundary, the tab's adapter and the native entry, whose
 # reach of the planner's Authored.plan ArchitectureTest.theAuthoredDoorIsReachedFromTheBoundaryAlone pins (the third
 # re-audit's SHOULD-FIX 5, 2026-11-12: until then a source regex alone, PlannedSqlTest.AUTHORED_JAVA_REFERENCE, which a
-# method reference or a static import passed)
+# method reference or a static import passed), and whose reach of ProductStatements.prepare
+# ArchitectureTest.theHostsDoorsPrepareNoProductStatement pins (the follow-up audit's G1, 2026-11-14)
 java_jars(
     name = "authored_door_jars",
     testonly = True,
