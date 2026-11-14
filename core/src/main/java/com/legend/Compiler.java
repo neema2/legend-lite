@@ -205,6 +205,10 @@ public final class Compiler {
      * its record carries source information.
      */
     public static ModelContext compileModel(com.legend.protocol.Protocol.PureModelContextData model) {
+        // the model's door is pure data (invariant 6j: com.legend.model reaches no RunScope), so its callers ask the
+        // run's wall: this door and ModelFromText's (the final audit of 9af16fbe58's J5; ArchitectureTest
+        // .aModelsRecordsAreReadByTheCheckedDoorsAlone keeps them its only callers)
+        com.legend.base.RunScope.planning("read a model's records (phase B)");
         ParsedModel parsed;
         try {
             parsed = com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));

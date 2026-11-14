@@ -717,6 +717,37 @@ final class ArchitectureTest {
         PREPARE_IS_THE_PLANNERS.check(classes);
     }
 
+    /**
+     * <strong>A MODEL'S RECORDS ARE READ BY THE CHECKED DOORS ALONE (the final audit of 9af16fbe58's J5,
+     * 2026-11-14).</strong> The model's door ({@code model.ModelFromProtocol}: records in, the compiler's parsed model
+     * out) is pure data -- its package reaches protocol, values and error alone (invariant 6j, {@link #modelIsPureData})
+     * -- so it cannot ask the run's wall itself. Its callers do, and are these alone, default-deny: the root's
+     * {@code Compiler} (whose {@code compileModel(records)} asks first) and {@code door.ModelFromText} (whose
+     * {@code parse} and {@code element} ask first). A new caller is named here the day it is written.
+     */
+    @Test
+    void aModelsRecordsAreReadByTheCheckedDoorsAlone() {
+        MODEL_RECORDS_BY_THE_CHECKED_DOORS.check(coreAndTheHostsDoors());
+    }
+
+    /** {@link #aModelsRecordsAreReadByTheCheckedDoorsAlone} fails on a class that reads a model's records past the
+     *  checked doors, by a call and by a reference ({@code server.PlantedModelRead}, planted for this alone). */
+    @Test
+    void theModelRecordsRuleBitesAPlantedCaller() {
+        bites(MODEL_RECORDS_BY_THE_CHECKED_DOORS, com.legend.server.PlantedModelRead.class);
+        bites(MODEL_RECORDS_BY_THE_CHECKED_DOORS, com.legend.server.PlantedModelRead.ByReference.class);
+    }
+
+    /** The rule of {@link #aModelsRecordsAreReadByTheCheckedDoorsAlone}. */
+    static final com.tngtech.archunit.lang.ArchRule MODEL_RECORDS_BY_THE_CHECKED_DOORS = noClasses()
+            .that().resideOutsideOfPackage("com.legend.model")
+            .and().doNotHaveFullyQualifiedName("com.legend.Compiler")
+            .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
+            .should().accessTargetWhere(invokesWhere("ModelFromProtocol.of or element",
+                    a -> a.getTargetOwner().isEquivalentTo(com.legend.model.ModelFromProtocol.class)
+                            && (a.getName().equals("of") || a.getName().equals("element"))))
+            .as("J5 (2026-11-14): a model's records are read by the doors that ask the run's wall alone");
+
     /** The rule of {@link #aProductStatementIsPreparedByThePlannersAlone}. */
     static final com.tngtech.archunit.lang.ArchRule PREPARE_IS_THE_PLANNERS = noClasses()
             .that().resideOutsideOfPackages("com.legend.planner", "com.legend.testplan")
