@@ -1103,6 +1103,35 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         return Optional.empty();
     }
 
+    @Override
+    public Optional<DatabaseDefinition.TableDefinition> findTableDefinition(String dbFqn, String schema,
+            String table) {
+        return findTableDefinition(dbFqn, schema, table, new java.util.HashSet<>());
+    }
+
+    private Optional<DatabaseDefinition.TableDefinition> findTableDefinition(String dbFqn, String schema,
+            String table, java.util.Set<String> seen) {
+        if (!seen.add(dbFqn)) {
+            return Optional.empty();
+        }
+        DatabaseDefinition db = findDatabase(dbFqn).orElse(null);
+        if (db == null) {
+            return Optional.empty();
+        }
+        TableIndex tables = tablesByDb.get(symbols.resolveId(dbFqn));
+        DatabaseDefinition.TableDefinition own = tables == null ? null : tables.find(schema, table);
+        if (own != null) {
+            return Optional.of(own);
+        }
+        for (String inc : db.includes()) {
+            Optional<DatabaseDefinition.TableDefinition> hit = findTableDefinition(inc, schema, table, seen);
+            if (hit.isPresent()) {
+                return hit;
+            }
+        }
+        return Optional.empty();
+    }
+
     /** The TABLE {@code name} declared in database {@code dbFqn} itself (its
      *  includes not consulted), by {@link TableIndex}'s spelling rules. */
     @Override

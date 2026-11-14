@@ -79,8 +79,12 @@ final class TableIndex {
         if (dot <= 0) {
             return bare.get(name);
         }
-        String schema = name.substring(0, dot);
-        String table = name.substring(dot + 1);
+        return find(name.substring(0, dot), name.substring(dot + 1));
+    }
+
+    /** The table {@code table} of schema {@code schema} ({@code default}: a top-level table first), or null: the two
+     *  names apart, each compared whole (a name holding a dot is itself). */
+    @com.legend.base.Nullable TableDefinition find(String schema, String table) {
         if (schema.equals("default")) {
             TableDefinition hit = top.get(table);
             if (hit != null) {

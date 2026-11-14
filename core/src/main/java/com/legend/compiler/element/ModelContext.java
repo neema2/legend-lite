@@ -321,6 +321,12 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    @Override
+    default Optional<com.legend.model.DatabaseDefinition.TableDefinition>
+            findTableDefinition(String dbFqn, String schema, String table) {
+        return Optional.empty();
+    }
+
     /** The full store definition — DDL derivation (the harness's model-
      * driven seeding) enumerates a module's databases through this. */
     @Override

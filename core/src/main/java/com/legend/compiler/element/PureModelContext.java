@@ -858,4 +858,10 @@ public final class PureModelContext implements ModelContext {
         return model.findTableDefinition(dbFqn, name);
     }
 
+    @Override
+    public Optional<com.legend.model.DatabaseDefinition.TableDefinition>
+            findTableDefinition(String dbFqn, String schema, String table) {
+        return model.findTableDefinition(dbFqn, schema, table);
+    }
+
 }

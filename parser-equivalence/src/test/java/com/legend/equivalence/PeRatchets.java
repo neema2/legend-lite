@@ -80,7 +80,9 @@ public final class PeRatchets {
                     + " breakout): DeclaredNameBreakoutTest's model's six elements (a class, a database, a mapping, a"
                     + " connection, a runtime and a Data element)",
             "own_corpus.matched 3232 -> 3235 (2026-11-14, stream S's Phase 1, the hosts' fileLoad pin):"
-                    + " DeclaredDdlNamesTest's model's three elements (a database, a connection and a runtime)");
+                    + " DeclaredDdlNamesTest's model's three elements (a database, a connection and a runtime)",
+            "own_corpus.matched 3235 -> 3236 (2026-11-14, stream S, the seed's typed table lookup):"
+                    + " DottedNamesSeedTest's database");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

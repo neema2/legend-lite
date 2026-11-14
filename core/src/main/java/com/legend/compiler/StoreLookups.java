@@ -23,6 +23,11 @@ public interface StoreLookups {
      *  {@code dbFqn}, with its declared columns. */
     Optional<DatabaseDefinition.TableDefinition> findTableDefinition(String dbFqn, String name);
 
+    /** The TABLE {@code table} of schema {@code schema} ({@code default}: a top-level table, then an explicit
+     *  {@code Schema default}'s) reached from {@code dbFqn}: the two names apart, so a name holding a dot is itself
+     *  ({@link #findTableDefinition(String, String)} splits {@code SCHEMA.T} at its first dot; stream S, 2026-11-14). */
+    Optional<DatabaseDefinition.TableDefinition> findTableDefinition(String dbFqn, String schema, String table);
+
     /** The TABLE {@code name} declared in {@code dbFqn} ITSELF (its
      *  includes not consulted) — which database OWNS a table. */
     Optional<DatabaseDefinition.TableDefinition> findOwnTableDefinition(String dbFqn, String name);

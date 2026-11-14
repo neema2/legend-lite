@@ -219,7 +219,9 @@ public final class CsvSeed {
         // L1); the first database that declares it, as upstream's lookup over a database including them all
         var def = java.util.Optional.<com.legend.model.DatabaseDefinition.TableDefinition>empty();
         for (String db : dbFqns) {
-            def = ctx.findTableDefinition(db, schema + "." + table);
+            // the schema and table apart: a name holding a dot is itself (stream S, 2026-11-14; "s.t" and "x" found
+            // the schema s's table "t.x" while the dotted spelling was split at its first dot)
+            def = ctx.findTableDefinition(db, schema, table);
             if (def.isPresent()) {
                 break;
             }
@@ -257,7 +259,8 @@ public final class CsvSeed {
                 ? columnsOf(def.get(), table, dbNames, cols) : null;
         String[] names = named == null ? cols
                 : named.stream().map(com.legend.model.DatabaseDefinition.ColumnDefinition::name).toArray(String[]::new);
-        RowLoad load = rowLoad(defaultSchema ? null : schema, table,
+        // the rows into the table the DDL above made: the definition's own name when one is declared
+        RowLoad load = rowLoad(defaultSchema ? null : schema, def.map(d -> d.name()).orElse(table),
                 def.map(d -> Ddl.quoting(d, defaultSchema ? null : schema)).orElse(com.legend.sql.NameQuoting.BARE),
                 names, def.map(CsvSeed::quotedColumns).orElse(java.util.Set.of()), rows,
                 named == null ? List.of() : types(named));
