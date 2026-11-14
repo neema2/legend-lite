@@ -29,6 +29,15 @@ import org.junit.jupiter.api.Test;
  *
  * <p>The findings are pinned by database and place (KNOWN, shrink-only): each is a defect named until it is fixed, and a
  * new one fails the test.
+ *
+ * <p>ITS SCOPE, said plainly (the user's ruling of 2026-11-14: injection safety is its own stream, S, after C4): a
+ * person's text in a QUERY's places, on the 11 relational databases lite writes SQL for (BigQuery, ClickHouse,
+ * Databricks, DuckDB, H2, MariaDB, MySQL, Postgres, SQLite, Snowflake, Trino; MongoDB's pipeline is no SQL, and this
+ * oracle does not read it). The boundary's request fields and the upstream protocol's have fuzzes of their own
+ * (BoundaryRequestFieldsFuzzTest, UpstreamProtocolFieldsTest), the lite model-change routes' Pure text one of its own
+ * (ModelTextInjectionFuzzTest). NOT covered by any: names a MODEL declares (a store's tables, columns and schemas, as
+ * DDL and the protocol carry them), the DDL lite writes, and the Pure text lite generates beyond those routes -- stream
+ * S's.
  */
 class InjectionFuzzTest {
 
