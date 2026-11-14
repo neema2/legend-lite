@@ -15,7 +15,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -114,8 +113,10 @@ public final class ViewSignatures {
         // count BIGINT and average DOUBLE whatever their arguments, :291-300, :543-551; sum by its first, :1717-1741;
         // max and min over several the safe type when one exists, else the first's, :1151-1197); until 2026-11-13 at
         // exactly one argument only (S376, ruling 32)
+        // the name matched exactly, as the engine's map get matches it (relationalExtension.pure:114): COUNT or Sum is
+        // no aggregate, no rule; until 2026-11-14 lower-cased first (S378, the names batch, item 3, ruling 34)
         if (expr instanceof RelationalOperation.FunctionCall fc) {
-            String fn = fc.name().toLowerCase(Locale.ROOT);
+            String fn = fc.name();
             switch (fn) {
                 case "count" -> {
                     return new Type.Column(cm.name(), Type.Primitive.INTEGER, Multiplicity.Bounded.ONE);

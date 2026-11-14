@@ -521,6 +521,8 @@ class KnowledgeLayerTest {
                 RP8: replace(sqlNull(), 'a', 'b'))
               View VLITE (LK1: like(T.V, 'a%'), PO1: position('a', T.V), CI1: charindex('a', T.V), LO1: locate('a', T.V),
                 LK2: like())
+              View VCASE (UA1: ABS(T.I), UA2: Sum(T.I), UA3: COUNT(T.I), UA4: Max(T.I), UA5: CONCAT(T.V, T.V),
+                UA6: Coalesce(T.I), UA7: abs(T.I), UA8: SUM(T.I), UA9: count(T.I), UA10: AVERAGE(T.I))
             )
             """;
 
@@ -584,6 +586,26 @@ class KnowledgeLayerTest {
     @DisplayName("kernel: like, position, charindex and locate have no rule, as in the engine")
     void theRulesOnlyLiteHadAreGone() {
         assertEquals("VLITE.LK1=- VLITE.PO1=- VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-", inferenceTable(ENGINE_CASES, "VLITE"));
+    }
+
+    /** A function's name matched exactly (2026-11-14, the names batch, item 3: register row S378, ruling 34), as the
+     * engine's map {@code get} matches it (relationalExtension.pure:114): a name spelled otherwise than its key has no
+     * rule ({@link #ENGINE_CASES}: the engine answers EMPTY for ABS, Sum, COUNT, Max, CONCAT, Coalesce, SUM and AVERAGE),
+     * in the inference and in the view signature's aggregate switch alike (COUNT is no aggregate: Any[0..1]). Each was
+     * lower-cased first and typed as its key. */
+    @Test
+    @DisplayName("kernel: a relational function's name is matched exactly, as the engine's map matches it")
+    void aFunctionsNameIsMatchedExactly() {
+        assertEquals(String.join(" ", """
+                VCASE.UA1=- VCASE.UA2=- VCASE.UA3=- VCASE.UA4=- VCASE.UA5=- VCASE.UA6=- VCASE.UA7=Integer VCASE.UA8=-
+                VCASE.UA9=BigInt VCASE.UA10=-
+                """.trim().split("\\s+")), inferenceTable(ENGINE_CASES, "VCASE"));
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model(ENGINE_CASES)));
+        var signature = com.legend.compiler.element.ViewSignatures.of(ix, "nb::Db", ix.findView("nb::Db", "VCASE")
+                .orElseThrow()).columns();
+        assertEquals("UA3:meta::pure::metamodel::type::Any[0..1]", signature.get(2).text(), "COUNT is no aggregate");
+        assertEquals("UA8:meta::pure::metamodel::type::Any[0..1]", signature.get(7).text(), "SUM is no aggregate");
+        assertEquals("UA9:Integer[1]", signature.get(8).text(), "count is");
     }
 
     /** S376's join terminal (2026-11-13, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34): a join

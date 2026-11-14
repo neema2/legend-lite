@@ -57,8 +57,10 @@ public final class RelationalTypeInference {
         return switch (op) {
             case RelationalOperation.ColumnRef c ->
                     columnType(db, ctx, c.databaseName(), c.table(), c.column(), expanding);
-            case RelationalOperation.FunctionCall f -> switch (
-                    f.name().toLowerCase(java.util.Locale.ROOT)) {
+            // a function's name is matched exactly, as the engine's map get matches it (relationalExtension.pure:114,
+            // `$dfToReturnFunctionMap->get($d.name)`): each arm spells the map's key; a name spelled otherwise (ABS, Sum)
+            // has no rule, no type. Until 2026-11-14 lower-cased first (S378, the names batch, item 3, ruling 34)
+            case RelationalOperation.FunctionCall f -> switch (f.name()) {
                 // aggregates carry their argument's type (engine
                 // inferDynaFunctionReturnType: max/min/sum/avg family); max
                 // and min over SEVERAL arguments are the safe type over all
@@ -110,16 +112,16 @@ public final class RelationalTypeInference {
                 // boolean dynafunctions spell BIT (engine H2). like has no rule in the engine's map, so no type
                 // (relationalExtension.pure's getDynaFunctionTypeInferenceMap, asked of the engine: EMPTY); until
                 // 2026-11-14 BIT, a rule only lite had (S378, the names batch, item 2, ruling 34)
-                case "and", "or", "not", "equal", "notequal", "in",
-                        "isnull", "isnotnull", "greaterthan", "lessthan",
-                        "greaterthanequal", "lessthanequal", "isempty",
-                        "isnotempty", "startswith", "endswith",
+                case "and", "or", "not", "equal", "notEqual", "in",
+                        "isNull", "isNotNull", "greaterThan", "lessThan",
+                        "greaterThanEqual", "lessThanEqual", "isEmpty",
+                        "isNotEmpty", "startsWith", "endsWith",
                         "contains" -> new RelationalDataType.Bit();
                 // sqlNull carries the engine's OTHER type
-                case "sqlnull" -> new RelationalDataType.Other();
+                case "sqlNull" -> new RelationalDataType.Other();
                 // engine inferDynaFunctionReturnType: sqlTrue/sqlFalse
                 // are BIT literals (ledger cluster 56)
-                case "sqltrue", "sqlfalse" -> new RelationalDataType.Bit();
+                case "sqlTrue", "sqlFalse" -> new RelationalDataType.Bit();
                 // substring, left, right, trim, ltrim and rtrim are a VARCHAR sized by their first argument's
                 // CHAR or VARCHAR (relationalExtension.pure:1051-1059, :1121-1129, :1509-1517, :1547-1555,
                 // :1647-1655, :1853-1861: a match with those two arms alone, so another first argument has no type);
@@ -134,13 +136,13 @@ public final class RelationalTypeInference {
                 // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower have no
                 // rule in the engine's map, so no type (until 2026-11-13 they kept their first argument's type: S378,
                 // ruling 34)
-                case "toupper", "tolower" ->
+                case "toUpper", "toLower" ->
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
                 // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
                 // :961-969); position, charindex and locate have no rule in the engine's map, so no type (asked of the
                 // engine: EMPTY); until 2026-11-14 INTEGER, rules only lite had (S378, the names batch, item 2, ruling 34)
-                case "length", "indexof" -> new RelationalDataType.Integer_();
+                case "length", "indexOf" -> new RelationalDataType.Integer_();
                 // sub is its first argument's type when its first two have one raw kind, else no rule matches
                 // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type
                 // over all its arguments (S378, ruling 32; its INTEGER default went with the names fixes, item 10)
@@ -154,7 +156,7 @@ public final class RelationalTypeInference {
                 }
                 // joinStrings AGGREGATES: the engine assigns the fixed
                 // 4000 buffer size
-                case "joinstrings" -> new RelationalDataType.Varchar(4000);
+                case "joinStrings" -> new RelationalDataType.Varchar(4000);
                 // string concatenation SUMS the operand sizes (engine
                 // getSize over concat); an operand typed other than CHAR or
                 // VARCHAR leaves it no type -- the engine's one rule asks every
@@ -245,13 +247,13 @@ public final class RelationalTypeInference {
                 // :773-781, firstDayOfWeek :813-821, firstDayOfYear :823-831 a DATE; firstHourOfDay :833-841,
                 // firstMinuteOfHour :843-851, firstSecondOfMinute :853-861 a TIMESTAMP; convertVarchar128 :503-511 a
                 // VARCHAR(128), md5 :1165-1173 a VARCHAR(32), sha256 :1577-1585 a VARCHAR(64)
-                case "bitand", "bitshiftleft", "bitxor", "dayofmonth", "dayofyear", "mod", "monthnumber", "sign",
-                        "weekofyear" -> new RelationalDataType.Integer_();
+                case "bitAnd", "bitShiftLeft", "bitXor", "dayOfMonth", "dayOfYear", "mod", "monthNumber", "sign",
+                        "weekOfYear" -> new RelationalDataType.Integer_();
                 case "cbrt", "log", "sin", "sqrt" -> new RelationalDataType.Double_();
-                case "datepart", "firstdayofmonth", "firstdayofquarter", "firstdayofweek", "firstdayofyear" ->
+                case "datePart", "firstDayOfMonth", "firstDayOfQuarter", "firstDayOfWeek", "firstDayOfYear" ->
                         new RelationalDataType.Date_();
-                case "firsthourofday", "firstminuteofhour", "firstsecondofminute" -> new RelationalDataType.Timestamp();
-                case "convertvarchar128" -> new RelationalDataType.Varchar(128);
+                case "firstHourOfDay", "firstMinuteOfHour", "firstSecondOfMinute" -> new RelationalDataType.Timestamp();
+                case "convertVarchar128" -> new RelationalDataType.Varchar(128);
                 case "md5" -> new RelationalDataType.Varchar(32);
                 case "sha256" -> new RelationalDataType.Varchar(64);
                 // abs is its one argument's type, whatever its kind (:193-201, `$params->toOne()->inferRelationalType()`):
