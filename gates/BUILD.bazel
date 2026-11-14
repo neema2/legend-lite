@@ -464,6 +464,11 @@ test_suite(
         "//pct:pct_channel_b_databricks",
         "//pct:pct_channel_b_snowflake",
         "//pct:pct_channel_b_bigquery",
+        # the identifier escaping measured on a live cloud (core/BUILD.bazel's identifier_escaping_cloud_probe, the
+        # orchestrator's item 4, 2026-11-13): manual, external and local as the cloud PCT lanes above -- an account's
+        # credentials (LEGENDLITE_PCT_CLOUD_PROPERTIES) and its cost; found in no lane by CI's lane guard on PR #101
+        # (2026-11-14)
+        "//core:identifier_escaping_cloud_probe",
     ],
 )
 
