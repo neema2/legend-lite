@@ -83,15 +83,25 @@ public final class RelationalTypeInference {
                 case "distinct" ->
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
-                // sum/avg PROMOTE float-family to DOUBLE (engine
-                // inferDynaFunctionReturnType aggregation rule)
-                case "sum", "average" -> {
+                // sum by its first argument's raw kind, the engine's four rules (relationalExtension.pure:1717-1730):
+                // TINYINT, SMALLINT and INTEGER an INTEGER, BIGINT a BIGINT, a DECIMAL or a NUMERIC its own kind with its
+                // precision capped at 31; any other kind (FLOAT and DOUBLE among them) matches no rule, no type. Until
+                // 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (S378, ruling 34)
+                case "sum" -> {
                     RelationalDataType at = f.args().isEmpty() ? null
                             : infer(f.args().get(0), db, ctx, expanding);
-                    yield at instanceof RelationalDataType.Float_
-                            || at instanceof RelationalDataType.Real
-                            ? new RelationalDataType.Double_() : at;
+                    yield at == null ? null : switch (kind(at)) {
+                        case TINYINT, SMALLINT, INTEGER -> new RelationalDataType.Integer_();
+                        case BIGINT -> new RelationalDataType.BigInt();
+                        case DECIMAL, NUMERIC -> capped(at);
+                        case FLOAT, DOUBLE, REAL, BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME,
+                                TIMESTAMP_NS, DISTINCT, OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> null;
+                    };
                 }
+                // average and divide are DOUBLE whatever their arguments, which the engine's one rule each does not read
+                // (relationalExtension.pure:291-300, :693-702); until 2026-11-13 average kept its first argument's type,
+                // a FLOAT or REAL one DOUBLE, and divide was the safe type over its arguments (S378, ruling 34)
+                case "average", "divide" -> new RelationalDataType.Double_();
                 // count is BIGINT at any arity (relationalExtension.pure:543-551); until 2026-11-13 INTEGER
                 // (S378, ruling 32)
                 case "count" -> new RelationalDataType.BigInt();
@@ -117,9 +127,10 @@ public final class RelationalTypeInference {
                             : at instanceof RelationalDataType.Char_ c ? new RelationalDataType.Varchar(c.size())
                             : null;
                 }
-                // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower,
-                // which the engine's map has no rule for, are typed as they are
-                case "toupper", "tolower", "upper", "lower" ->
+                // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower have no
+                // rule in the engine's map, so no type (until 2026-11-13 they kept their first argument's type: S378,
+                // ruling 34)
+                case "toupper", "tolower" ->
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
                 case "position", "length", "charindex", "locate",
@@ -163,8 +174,14 @@ public final class RelationalTypeInference {
                     yield other ? null : new RelationalDataType.Varchar(size);
                 }
                 // case(c1, v1, ..., else): the engine's safe type over the value branches and the last
-                // argument (relationalExtension.pure:402-411); where none is possible the engine asserts, and lite
-                // types it as nothing (no type)
+                // argument (relationalExtension.pure:402-411: the branches at 1, 3, ... below 2 * floor((n - 1) / 2),
+                // then the last). Where none is possible the engine ASSERTS, whatever failOnMatchFailure is ('Type
+                // inference not supported yet! Dyna function: case'): its inference fails where the engine runs it,
+                // at plan generation (relationalMappingExecution.pure:205-208, a TDS column's source type, :96, :101),
+                // never when the database compiles (HelperRelationalBuilder.java:469-517 types no view column). Lite
+                // runs the inference when the model compiles (ViewSignatures, KnowledgeLayer) and when it seeds the
+                // metamodel (RelationalOpRows), where a failure would refuse or break what the engine compiles: it
+                // answers no type there, register row S378's form lite cannot spell (2026-11-13, ruling 34)
                 case "case" -> {
                     List<RelationalDataType> types = new ArrayList<>();
                     for (int i = 1; i < f.args().size(); i += 2) {
@@ -175,15 +192,35 @@ public final class RelationalTypeInference {
                     }
                     yield safeTypeOf(types);
                 }
-                // the numeric operators: the engine's safe type over every argument (its own rules for them
-                // differ, register row S378: plus and minus answer the first argument's type, times the first
-                // two's safe type, divide DOUBLE)
-                case "plus", "minus", "times", "divide" -> {
-                    List<RelationalDataType> types = new ArrayList<>(f.args().size());
-                    for (var arg : f.args()) {
-                        types.add(infer(arg, db, ctx, expanding));
+                // the numeric operators, each by the engine's own rules (S378, 2026-11-13, ruling 34; until then the
+                // safe type over every argument, a rule only lite had). plus over ONE argument widens it
+                // (relationalExtension.pure:1408-1436: TINYINT and SMALLINT an INTEGER, INTEGER and BIGINT a BIGINT, a
+                // DECIMAL or NUMERIC its own kind capped at precision 31, FLOAT and DOUBLE a DOUBLE, another kind no
+                // rule); plus and minus over several are their FIRST argument's type when a safe type over all of
+                // them is possible, else no rule (:1408-1436, :1209-1218); times is the safe type of its first two
+                // arguments, the rest unread (:1773-1782). divide is DOUBLE, above.
+                case "plus" -> {
+                    if (f.args().size() == 1) {
+                        RelationalDataType at = infer(f.args().get(0), db, ctx, expanding);
+                        yield at == null ? null : switch (kind(at)) {
+                            case TINYINT, SMALLINT -> new RelationalDataType.Integer_();
+                            case INTEGER, BIGINT -> new RelationalDataType.BigInt();
+                            case DECIMAL, NUMERIC -> capped(at);
+                            case FLOAT, DOUBLE -> new RelationalDataType.Double_();
+                            case REAL, BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME, TIMESTAMP_NS,
+                                    DISTINCT, OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> null;
+                        };
                     }
-                    yield safeTypeOf(types);
+                    yield firstWhenSafe(f.args(), db, ctx, expanding);
+                }
+                case "minus" -> firstWhenSafe(f.args(), db, ctx, expanding);
+                case "times" -> {
+                    if (f.args().size() < 2) {
+                        yield null;
+                    }
+                    RelationalDataType t0 = infer(f.args().get(0), db, ctx, expanding);
+                    RelationalDataType t1 = infer(f.args().get(1), db, ctx, expanding);
+                    yield t0 == null || t1 == null ? null : safeTypeOf(List.of(t0, t1));
                 }
                 default -> null;
             };
@@ -210,7 +247,8 @@ public final class RelationalTypeInference {
                         new RelationalDataType.Varchar(str.length());
                 case Integer ignored -> new RelationalDataType.Integer_();
                 case Long ignored -> new RelationalDataType.Integer_();
-                case Double ignored -> new RelationalDataType.Double_();
+                // a float literal is FLOAT (relationalExtension.pure:148); until 2026-11-13 DOUBLE (S378, ruling 34)
+                case Double ignored -> new RelationalDataType.Float_();
                 default -> null;
             };
             // boolean expressions spell BIT (engine H2 boolean SQL type)
@@ -224,6 +262,34 @@ public final class RelationalTypeInference {
                     new RelationalDataType.Bit();
             default -> null;
         };
+    }
+
+    /** plus's and minus's rule over several arguments (relationalExtension.pure:1408-1436, :1209-1218): the FIRST
+     *  argument's type when there is more than one argument and a safe type over all of them is possible (an argument
+     *  with no type drops out, as {@link #safeTypeOf} drops it), else no rule matches (no type). */
+    private static @com.legend.base.Nullable RelationalDataType firstWhenSafe(List<RelationalOperation> args,
+            @com.legend.base.Nullable DatabaseDefinition db, @com.legend.base.Nullable StoreLookups ctx,
+            java.util.Set<DatabaseDefinition.ViewDefinition.ViewColumnMapping> expanding) {
+        if (args.size() <= 1) {
+            return null;
+        }
+        List<RelationalDataType> types = new ArrayList<>(args.size());
+        for (var arg : args) {
+            types.add(infer(arg, db, ctx, expanding));
+        }
+        return safeTypeOf(types) != null ? types.get(0) : null;
+    }
+
+    /** plus's and sum's DECIMAL and NUMERIC rules (relationalExtension.pure:1408-1436, :1717-1730): the kind kept, its
+     *  precision {@code min([31, precision])}, its scale as it is. Asked of a DECIMAL or NUMERIC alone. */
+    private static RelationalDataType capped(RelationalDataType t) {
+        if (t instanceof RelationalDataType.Decimal d) {
+            return new RelationalDataType.Decimal(Math.min(31, d.precision()), d.scale());
+        }
+        if (t instanceof RelationalDataType.Numeric n) {
+            return new RelationalDataType.Numeric(Math.min(31, n.precision()), n.scale());
+        }
+        throw new IllegalStateException("a " + kind(t) + " asked for a DECIMAL's or NUMERIC's capped precision");
     }
 
     // ---- the engine's safe type (S378, 2026-11-13, ruling 32): relationalExtension.pure:1926-2033, exactly
