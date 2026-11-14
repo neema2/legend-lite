@@ -100,3 +100,20 @@ The owner's ruling, 2026-11-08, which the judge inherits:
 **The passage rule differs by corpus, by design (for the study's §4; the owner, 2026-11-08).** EDGAR passages merge to about
 800 characters because filings have no natural unit. SALES and LENDING passages are the paragraph or the clause because the
 ground truth hashes exactly that unit. `corpus/README.md` states it for the corpus.
+
+## For the experiment
+
+**A table-sourced fact gets its own span class, not a generalised `Passage`** (the author's decision, 2026-11-13, answering
+the owner's review of PR #93, §1 and §2). It is a recommendation to bring to the owner in the experiment's first model
+commit, and nothing on #93 changes the model:
+
+- `corpus::SourceSpan` is the abstraction, with two kinds:
+  - `corpus::Passage`, a span of text: `path`, `charStart`, `charEnd`, and the `sha256` of exactly those characters.
+  - `corpus::TableRowSpan`, a span of a table's rows: `path`, `rowStart`, `rowEnd`, and the `sha256` of the rows' bytes.
+- Every extracted fact (`sales::AllocationRequest`, `lending::Covenant`, `lending::EventOfDefault`, `edgar::Holding`)
+  associates to a `SourceSpan`, and carries `extractorVersion` and `confidence`.
+- The synthetic corpora's facts point at a `Passage`, their generator the extractor at confidence 1.0 and a named
+  version. `edgar::Holding` points at a `TableRowSpan` of its `holdings.csv`, which `tools/edgar-corpus/extract.py` parses
+  from the filing's information table.
+- Real extraction stays out of scope: this is where its output would land.
+- Structured-route receipts are judged through this association under a new key version, never by widening the frozen one.
