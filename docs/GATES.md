@@ -22065,8 +22065,59 @@ no run asks the planner; every guard bites a planted violator. Merged onto `clau
   protection keys fit the pattern. V8 now starts once per process with `--single-threaded
   --no-memory-protection-keys`, and V8 started first by other code is refused in words (2f2bacc34; the user's ruling,
   2026-11-13: protection off for now, the parent-thread start a follow-up, start-here §6.1).
+- **The V8 crash's cause, PROVEN after the merge (2026-11-13, C4's sandbox, measure only):** an Intel Xeon with
+  `pku` and `ospke`. At 068dbf199 (without 2f2bacc34) `//python:headless_test`, `engine_test` and `notebook_test`
+  segfault under py_mini_racer, every time over five runs (first crashes:
+  `WarehouseOnPython.test_a_frames_grid_snaps_too_a_copy_of_its_base_as_the_frame_was`,
+  `OneRead.test_a_call_made_from_datacubes_own_thread_is_refused_never_left_waiting`,
+  `InMarimo.test_a_session_let_go_lets_its_cubes_and_frames_go`). At 40d3bf0d5 (with it) all three pass, with no
+  segfault: 63, 344 and 29 tests. So memory protection keys are the cause, and 2f2bacc34 is the fix. The code comment
+  in `python/legend_lite/_headless.py` still says "unproven", and its next edit corrects it.
 - **Found by the next PR's fuzzing, not in this landing** (the user's ruling, 2026-11-13): ClickHouse's delimited
   identifiers double only `"`, while ClickHouse reads backslash escapes inside them, so a column name such as
   `a\" , version() AS v --` breaks out (confirmed on the pinned ClickHouse 25.8). It predates the total wall; the fix
   (every dialect's identifier escaped for its own lexer) is the first item of the foolproof stream's PR.
 - **CI on the landing head** (1c4c86c56 plus these records): recorded in PR #95's description (a commit here would restart the run).
+
+## 2026-11-14 — C4 closed: the plan/exec separation made foolproof on every host; the landing candidate
+
+The total wall's C4 (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §6.1 item 1), scoped by the user on 2026-11-13 and
+2026-11-14 to G4 alone, finished on Java, TypeScript and Python. Injection beyond query names is stream S
+(`claude/injection-safety`), which lands after it. Branch `claude/separation-foolproof-068`, main 3a217086a merged in
+(3189c116c).
+
+- **What it proves, each guard red on revert:**
+  - **A closed planner surface:** every root door by signature, a query-taking door named by its road, request
+    objects closed by name.
+  - **Default-deny reach into the planner:** `ArchitectureTest.PLANNER_ENTRIES_ONLY`. Outside planner, testplan and
+    lowering and the root's `Compiler`, a class reaches them only through 59 measured entries, checked over core and
+    the hosts' doors.
+  - **No raw-SQL lowering past the refusal:** `TypedQuery.lower` deleted (the user's option B), one seed entry,
+    `Compiler.lowerResolved` refusing, the test planner's pieces package-private.
+  - **A run-time witness on every host:** Java's phases A-J and the model-building entries; the TypeScript and Python
+    run frames; the server planner client refused inside a run.
+  - **A compile-time wall on both hosts:** run sets computed from the code, renamed imports resolved, import doors
+    default-deny, composers pinned shrink-only for C5.
+- **Injection, in its stated scope:** query names on 13 dialects (ClickHouse's breakout and H2's pre-quoted shortcut
+  fixed as classes). The fuzzes count lite's named refusals only, with coverage pinned. The cloud probe ran 25/25 on
+  Snowflake and on Databricks.
+- **Audits:**
+  - 7f872ef24: three independent read-only reviewers (Java, hosts, tenets);
+  - fb8c2a41c: two delta reviewers;
+  - 9af16fbe58: two final reviewers on G4 alone. The separation held everywhere; the guards claimed more than they
+    pinned, and every finding was fixed, default-deny where it matters;
+  - e9e651b56 and edd5a0817: a checklist verification of exactly those fixes.
+- **Register:** S307 RULED (a) by the user on 2026-11-14. A test body's seed generation refuses an executeInDb read by
+  name; legend-engine's API refuses it; legend-pure runs it.
+- **Lanes, measure only:**
+  - **Round 48** at fb8c2a41c: 6 lanes, every error text byte-identical to round 41.
+  - **Round 49** at 9af16fbe58, the first with main's #81: every difference attributed to main by a rerun at
+    3a217086a (a new MongoDB test, ClickHouse 26.3's gained pass, 4 H2 lateral texts).
+  - **Round 50** at e9e651b56: zero differences from round 49, and no "inside a run" refusal anywhere. A same-machine
+    back-to-back measured the new checks at +0.7-1.4%, within the spread.
+- **The gate** at e9e651b56: 520 pass and 1 skipped; the 11 Postgres-backed targets refused as root pass
+  unprivileged. At edd5a0817 (the last list): census, guardrails, the host walls, //tools/guards and //:generated pass.
+- **C5 (start none without the user):**
+  - run frames around every send site;
+  - Node's promise cost (a flag, or Node 24);
+  - the TypeScript wall on the type checker once its program API is available.
