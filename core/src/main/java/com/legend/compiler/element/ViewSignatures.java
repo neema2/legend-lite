@@ -179,7 +179,12 @@ public final class ViewSignatures {
                     }
                     return;
                 }
-                throw cantFindTable(cr.table(), srcDb);
+                // the engine's getRelation validates the schema before it looks for the table (validateSchemaExists,
+                // HelperRelationalBuilder.java:348-354, called at :286): a schema neither the database nor, through
+                // its includes, an included one declares is refused in its own words; default always exists
+                // (:369-379). Until 2026-11-14 refused as a missing table (S376, the names batch, item 6, ruling 34)
+                throw schemaMissing(store, srcDb, schemaOf(cr.table())) ? cantFindSchema(schemaOf(cr.table()), srcDb)
+                        : cantFindTable(cr.table(), srcDb);
             }
             case RelationalOperation.FunctionCall f -> f.args().forEach(a -> requireColumns(store, dbFqn, a));
             case RelationalOperation.Comparison c -> {
@@ -227,10 +232,50 @@ public final class ViewSignatures {
      *  when unwritten) and the database's own name. */
     private static com.legend.error.ModelException cantFindTable(String spelled, String dbFqn) {
         int dot = spelled.lastIndexOf('.');
-        String schema = dot < 0 ? "default" : spelled.substring(0, dot);
+        String schema = schemaOf(spelled);
         String table = dot < 0 ? spelled : spelled.substring(dot + 1);
         return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
                 "Can't find table '" + table + "' in schema '" + schema + "' and database '"
                         + com.legend.protocol.Protocol.splitFqn(dbFqn)[1] + "'");
+    }
+
+    /** A spelled relation's schema: what precedes its last dot, {@code default} when there is none. */
+    private static String schemaOf(String spelled) {
+        int dot = spelled.lastIndexOf('.');
+        return dot < 0 ? "default" : spelled.substring(0, dot);
+    }
+
+    /** The engine's validateSchemaExists refusal (HelperRelationalBuilder.java:348-354): {@code Can't find schema 's' in
+     *  database 'D'}, the database written as its own name (the engine concatenates the Database itself, whose text is
+     *  its name: asked of the engine, 2026-11-14, the names batch). */
+    private static com.legend.error.ModelException cantFindSchema(String schema, String dbFqn) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                "Can't find schema '" + schema + "' in database '" + com.legend.protocol.Protocol.splitFqn(dbFqn)[1] + "'");
+    }
+
+    /** Whether the engine's schemaExists is false (HelperRelationalBuilder.java:369-379): the schema is not default, the
+     *  database is known, and neither it nor a database it includes, transitively (each once), declares the schema. An
+     *  unknown database claims nothing (its own refusal is another's). */
+    private static boolean schemaMissing(StoreLookups store, String dbFqn, String schema) {
+        if (schema.equals("default") || store.findDatabase(dbFqn).isEmpty()) {
+            return false;
+        }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.ArrayDeque<String> todo = new java.util.ArrayDeque<>(List.of(dbFqn));
+        while (!todo.isEmpty()) {
+            String fqn = todo.pop();
+            if (!seen.add(fqn)) {
+                continue;
+            }
+            var db = store.findDatabase(fqn).orElse(null);
+            if (db == null) {
+                continue;
+            }
+            if (db.schemas().stream().anyMatch(s -> s.name().equals(schema))) {
+                return false;
+            }
+            todo.addAll(db.includes());
+        }
+        return true;
     }
 }

@@ -611,6 +611,38 @@ class KnowledgeLayerTest {
         assertEquals("UA9:Integer[1]", signature.get(8).text(), "count is");
     }
 
+    /** A view column read through a schema its database lacks (2026-11-14, the names batch, item 6: register row S376,
+     * ruling 34) is refused in the engine's words, {@code Can't find schema 's9' in database 'Db'} (HelperRelationalBuilder
+     * .java:348-354, validateSchemaExists, before the table is looked for; asked of the engine, the database written as its
+     * own name), nested in an operation too; a schema an included database declares exists, and a table it lacks is then
+     * the table's refusal, as the engine's. It was refused as a missing table. */
+    @Test
+    @DisplayName("kernel: a view reading a schema its database lacks is refused in the engine's words")
+    void aViewReadingAMissingSchemaIsRefusedInTheEnginesWords() {
+        java.util.function.Function<String, String> refusal = text -> {
+            ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model(text)));
+            String db = text.contains("nb::six::Outer") ? "nb::six::Outer" : "nb::six::Db";
+            return assertThrows(ModelException.class, () -> com.legend.compiler.element.ViewSignatures.of(ix, db,
+                    ix.findView(db, "V1").orElseThrow())).getMessage();
+        };
+        assertEquals("Can't find schema 's9' in database 'Db'", refusal.apply("""
+                ###Relational
+                Database nb::six::Db ( Schema s1 ( Table T (ID INTEGER PRIMARY KEY, V VARCHAR(4)) )
+                  View V1 (A: s9.T.V, Z: s1.T.ID) )
+                """));
+        assertEquals("Can't find schema 's7' in database 'Db'", refusal.apply("""
+                ###Relational
+                Database nb::six::Db ( Schema s1 ( Table T (ID INTEGER PRIMARY KEY, V VARCHAR(4)) )
+                  View V1 (A: concat(s1.T.V, s7.T.V), Z: s1.T.ID) )
+                """));
+        assertEquals("Can't find table 'Q' in schema 's1' and database 'Outer'", refusal.apply("""
+                ###Relational
+                Database nb::six::Inner ( Schema s1 ( Table T (ID INTEGER PRIMARY KEY, V VARCHAR(4)) ) )
+                Database nb::six::Outer ( include nb::six::Inner
+                  View V1 (A: s1.T.V, B: s1.Q.V, Z: s1.T.ID) )
+                """));
+    }
+
     /** joinStrings (2026-11-14, the names batch, item 4: register row S378, ruling 34): a VARCHAR of the larger of 4000
      * and its first argument's CHAR or VARCHAR size, no rule for another first argument (relationalExtension.pure
      * :1031-1039; {@link #ENGINE_CASES}: the engine's own answers; its own testJoinStringsTypeInference expects
