@@ -1,0 +1,47 @@
+# The timeseries time model: dates, moments, pairing and duplicates (2026-11-02)
+
+**Ratified 2026-11-03** (the user: "Okay let's go", to every recommendation of the v1 roadmap). The working note, with its
+worked examples and its comparison with kdb+, pandas, QuestDB and Polars, is the shared doc "Timeseries time model:
+dates, moments, pairing and duplicates" (claude.ai/artifact/Sikk7P9eWmqroegXWftyLT). This file is its record in the
+repository: the rules, the rulings, and what is built. The language spec's R2 and R6 carry the rules (D7).
+
+## The model in five rules
+
+1. **A point has a time.** A timestamp is a moment (2 January, 10:00); a date is a whole day (2 January).
+2. **A line is one source's rows for one choice of instrument.** Every row is a point, even when several share a date
+   (the 2026-10-30 ruling). `close` and `volume` read from the same rows are two columns of one line.
+3. **A daily value sits somewhere in its day.** A close at its end, an open at its start, a fixing at its own time; the
+   default is the end of the day, which never makes a value look known early. It matters only where a daily value
+   meets moments.
+4. **Changing grain is always explicit**: `SAMPLE BY` and how to take a period's rows (`last(close)`), rule R5.
+5. **Two lines pair in one of two ways**: by the same period, or by the value prevailing at each point's time. On a
+   calendar of days both exist today (R6, and `FILL prev`); for moments meeting days they answer different questions
+   (end-of-day marking, or what the market knew), so neither may be a silent default.
+
+## The rulings
+
+| # | Decision | Ruled | Built |
+|---|---|---|---|
+| D1 | Duplicates allowed inside a line; one side with several rows pairs as a lookup; both sides with several refused | agreed, 2026-11-03 | 692016cb: `lines::meet`, `lines::onto`, the database refusing while the query runs |
+| D2 | The check skipped where uniqueness is known (a declared key, `SAMPLE BY`); else the database checks | agreed | built 2026-11-04 by the compiler, not the library: a count of rows a declared key makes one is 1 (`lowering/KeyedCounts`: the key carried through filters, plain columns, joins on a key and `GROUP BY`), so `lines::perPeriod`'s count and `single()`'s check vanish where the source's key is its instrument and date (spec-13: 15 counts -> 0, the run 73 -> ~27 ms on DuckDB). `SAMPLE BY` lines are a `GROUP BY` and fold the same way. On every query, not only the timeseries' (register S147, ruled by the user 2026-11-04) |
+| D3 | A daily value sits at the end of its day unless its source says otherwise | agreed | nothing reads it in v1 (prevailing pairing for moments is v1.1) |
+| D4 | In v1 a line of moments meeting a line of days is refused, naming the fix | agreed | 50ebe0bd: `lines::meet` and `lines::union` forms by the periods' types |
+| D5 | R7: words that keep their rows add columns to one table; each word's kind declared in the library | agreed | a00fc91b (one table per base), 5eb1ba92 (points carried), 485ba593 (the simple statistics), then zscores, drawdown, max_drawdown and lag (2026-11-03); 2026-11-04, two lines: their meeting made once for the same values of the same lines (`met`), the words of two lines' levels (`hedge_ratio`, `residual`, `cov`, each window) columns of it and every figure of those lines too -- spec-13's hedge and spread one table, its joins 10 to 8 (guide-12's 8 to 6, guide-13's 9 to 6, where its z, position and lags join them), every example's rows the same; then the calendar spans of mean, sum, min, max, std, var, range, zscores, drawdown, max_drawdown, lag and diff, diff of observations and sum since a date -- spec-13 5 joins, guide-13 5, every example's rows the same and the forms held to their line forms on a set of 13 queries of their own (SAMPLE BY, words of words, two sources, a broadcast); a line of several rows on a date now answers these words as columns of its table, as the others' rows forms do, where its lines met were refused (D1); the others keep line forms (the program doc, A1) |
+| D6 | Prevailing pairing for moments in v1.1 | agreed | -- |
+| D7 | These rules amend R2 and R6 in the language spec | agreed | the spec's R6 |
+| D8 | A word that counts observations -- a window of n observations, lag, diff and returns by obs, every word's form with a count of rows -- over a line with several rows on one date is refused while the query runs, naming the fix (BY or a subscript, or SAMPLE BY 1d with last(x)): a date's rows have no order in SQL, so its answer differed from run to run (q13 of `docs/ts-sql-homework/data/equivalence_queries.sql`: three runs, three answers). A calendar window reads every row of its dates at once and answers. Amends D1 (such a line answers per-point and calendar words, not these) and D5 (their rows forms on such a line refuse). Widened the same day to every word that reads its line in order without counting: a window to date or since a date, a value as of a date (lag, diff and returns by a calendar span: an as-of join), a value from the line's first or a date's (index, rebase, change, percent_change, value_at, first, last), an exponential or cumulative figure (ema, macd, the exponential deviations, prices, geometrically_aggregate, total_return, excess_returns, obv, consecutive, smooth_spikes) and interpolate's step | ruled 2026-11-06 ("Refuse, name the fix"; widened: "Okay extend the refusal") | the library's `lines::once`, in the answer of each rows form that counts rows and in each such line form's answer (`lines::untied`; a word of several value columns, a band, checks each line it reads): no filter of its own, so a chain keeps its levels, and not in the value a word's windows read, which keeps the passes from merging (measured: planning +15-20%, run +6-12% on the examples, against +4% and +4% on the answer); a declared key makes the count 1 (D2, S147). On the answer, ties confined to a word's ramp (its first rows, dropped) go unseen. Register S149 |
+
+## What the proofs found
+
+- **Duplicates.** Before, two lines with several rows on a date were joined and multiplied silently (3 against 2 gave
+  6); every read of a column built its own table, so even two items over one column multiplied (48 rows for 24
+  points). Both fixed.
+- **Moments meeting days.** Before, an expression or a word of both found no row, silently; two items were a type
+  error with no fix named. Now refused by name, the fix (`SAMPLE BY 1d`, `last(...)`) answering right on DuckDB and
+  SQLite (H2 has no `ARG_MAX`).
+- **Order.** A line of several rows on one date (no BY) has no order among that date's rows: a word that counts
+  observations over it gave a different answer at each run of the same SQL. Refused by name since D8
+  (2026-11-06); a calendar window, which reads all of a date's rows at once, answers.
+- **Points.** A word's answer is no point of its ramp's rows, and a point may have no value (a return's first): one
+  column cannot say both, so a value that is not a point of every row carries its points as another column, the
+  library's rules (`timeseries::rows::`) deciding what they are.

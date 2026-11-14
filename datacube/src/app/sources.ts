@@ -17,6 +17,7 @@ import type { Query, QueryReader } from '../../../query-store/src/index.ts';
 import { from, fromJson, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ClassAt, ClassElement, ClassGiven } from '../class-source.ts';
 import type { ClassOf } from '../class-tree.ts';
+import { loadLibrary, withLibrary } from '../pure-library.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
@@ -1192,9 +1193,13 @@ export function pageSources(d: SourcesOf): PageSources {
       const model = await once(projectModels, key, async () => (project
         ? (await Promise.all(project.models.map((url) => queries.fetchText(url)))).join('\n')
         : (await lazily(() => import('../../../depot-client/src/model-text.ts'))).modelText((await modelHome!.connect()).depot, q.groupId, q.artifactId, q.versionId)));
+      // planned over DataCube's Pure library from the start (docs/TS_DECISIONS_2026_11_07.md item 8b): a timeseries
+      // tile over its grid plans on the one hold, its model compiled once; its elements read from the model alone
+      const library = await loadLibrary();
+      const planned = withLibrary(model, library);
       const elements = once(projectElements, key, () => reading.elements(model));
       opened = await savedQueryOpened(q, { parse, elements: () => elements }, (at, options) => {
-        rows = rowsOver(model, at, options);
+        rows = rowsOver(planned, at, { ...options, overLibrary: { model, library } });
         return typer(rows);
       });
     }
@@ -1245,7 +1250,11 @@ export function pageSources(d: SourcesOf): PageSources {
     const rows: Over = byEngine
       ? { rows: byEngine.rows({ project: at.project, workspace: at.workspace, revision: at.revision }, at.runtime, at.mapping),
         ...(local ? { writing: local.another(model, at.runtime, { mapping: at.mapping }) } : {}), at: { model, runtime: at.runtime } }
-      : rowsOver(model, at.runtime, { mapping: at.mapping });
+      // over DataCube's Pure library from the start, as a saved query's (item 8b)
+      : await (async () => {
+        const library = await loadLibrary();
+        return rowsOver(withLibrary(model, library), at.runtime, { mapping: at.mapping, overLibrary: { model, library } });
+      })();
     try {
       const columns = await sourceColumns(typer(rows), source);
       // its rows, asked for once: a table its store names that is not open in this tab is said now, by the database

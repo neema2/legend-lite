@@ -15,6 +15,7 @@ import { CubeRefusal } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { canonical, renamedPage } from './page-same.ts';
 import { layoutTiles } from '../src/page-document.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 // the saved-page corpus's frame page: grids grid and grid-2 and two charts on sheet-1, grid-2 alone on sheet-2
 const trades = (await corpus())['trades.page.json']!;
@@ -178,7 +179,7 @@ describe("the history survives another editor's change (D19 W4): a step is comma
     it(`a sheet of a grid and the timeseries reading it deleted, undone (${what}): the tile reads the grid brought back`, () => {
       const state = new PageState(start());
       state.tag = tag;
-      const spec = { sources: [{ alias: 'bydesk', cube: 'grid-2', date: 'traded', key: 'desk' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] } as const;
+      const spec = { sources: [{ alias: 'bydesk', cube: 'grid-2', date: 'traded', key: 'desk' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] } as const;
       apply(state, [{ kind: 'addTimeseries', sheet: 'sheet-2', near: 'grid-2', spec, title: null, columns: null }], 'Add Timeseries');
       apply(state, [{ kind: 'removeSheet', sheet: 'sheet-2' }], 'Delete Sheet');
       if (between) apply(state, [{ kind: 'addSheet', name: 'More' }], 'Add Sheet');

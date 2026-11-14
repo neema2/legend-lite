@@ -37,6 +37,21 @@ public final class HeldModels {
         return models.hold(Hash.ofUtf8(model), () -> Compiler.compileModel(model));
     }
 
+    /**
+     * Hold {@code model} compiled over {@code library} ({@code Compiler.compileModel(model, library)}: the library a
+     * layer the process compiles once, whatever models are held over it). Held as the one text {@code model + "\n" +
+     * library} is -- the same model -- so a request naming that text ({@link #withText}, a pure/v1 question's model:
+     * the tab's planner types its queries so, the 4 MB trading model typed in 5-6 s a request otherwise) finds it,
+     * compiled no more. The answers are the one text's but for one thing, named (the second review's finding 7,
+     * 2026-11-06): a refusal the library raises is placed at its line in the library's own text where the one text
+     * counts the model's lines before it -- so a question by text answered over a layered hold places it so, and two
+     * splits of one text into a model and a library share the key and the first one held. A model the layer cannot
+     * compile as the one text would is refused by name ({@code Compiler.compileModel(String, String)}).
+     */
+    public int hold(String model, String library) {
+        return models.hold(Hash.ofUtf8(model + "\n" + library), () -> Compiler.compileModel(model, library));
+    }
+
     /** Let go of {@code handle} once; its model goes with its last holder. */
     public void release(int handle) {
         models.release(handle);

@@ -6,6 +6,7 @@
 // already used, built here once rather than at each use; the tab's entry hands in what only it knows (its plane, its
 // planner, its DuckDB, its configuration).
 
+import type { TsItemAnswer } from '../lite-planner.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { ProjectDatabases, ProjectDataSource } from '../../../engine-client/src/project-data.ts';
 import type { WarehouseBinding } from '../../../engine-client/src/warehouse.ts';
@@ -49,6 +50,8 @@ export interface TabPlanner {
   readonly tables: LitePlanner;
   /** legend-lite's planner for a project's own database (C5, engine-client's project-data.ts). */
   readonly projects: ProjectDataSource;
+  /** A timeseries series' #TS text, read by legend-lite's module (A3 step 3): the same module as `tables`. */
+  tsItem(text: string): Promise<TsItemAnswer>;
   readonly models: {
     another(model: string, runtime: string, how?: ModelOptions): Planner;
     elements(text: string): Promise<unknown[]>;
@@ -132,7 +135,11 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       plane: o.plane,
       label: o.planner.label,
       // the page's own planner reads a saved query and its project's model
-      reading: { parse: (text) => o.planner.planner.parse(text), elements: (text) => o.planner.models.elements(text) },
+      reading: {
+        parse: (text) => o.planner.planner.parse(text), elements: (text) => o.planner.models.elements(text),
+        // a series' #TS text: legend-lite's module, beside whichever planner the page chose (the one reader, A3)
+        tsItem: (text) => o.planner.tsItem(text),
+      },
       // a grid's rows through the tab's engine: the model the page wrote served by it (R3a (c)), its BIT columns and
       // enumerations the engine's reading of it (Q21, Q22), a mapping how the engine reads it
       rows: (model, runtime, how) => engineRows(tabEngine().then(async (t) => ({
@@ -145,7 +152,8 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
         return (await t.session.write({ box: { model: box.model, runtime: box.runtime, query: rows }, target: { table: output.name }, mode })).rowsWritten;
       },
       projects: {
-        rows: (project, runtime, mapping) => engineRows({ model: '', runtime, how: { project, ...(mapping !== undefined ? { mapping } : {}) } }),
+        // over DataCube's library from the start (#81's item 8b): a project's tile and grid plan on one hold
+        rows: (project, runtime, mapping) => engineRows({ model: '', runtime, how: { project, ...(mapping !== undefined ? { mapping } : {}) }, overLibrary: true }),
         elements: async (project) => (await session()).elements({ project }),
       },
       database: { ...tabDatabase(o.duckdb, o.planner.tables), ...tabSnaps(session, (m, r) => tabEngine().then((t) => t.served(m, r))) },

@@ -15,6 +15,7 @@ import type { QueryRunner } from '../runner.ts';
 import { rowsOnce } from '../rows-once.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
 import { catalogColumns } from '../upload.ts';
+import type { ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { LocalEngine, OpenedTogether, Services } from './services.ts';
 import type { PageSources } from './sources.ts';
 
@@ -41,6 +42,49 @@ export async function openTogether(grids: readonly string[], o: TogetherOf): Pro
       return rowsOnce(rows.run, query);
     },
     dispose: () => rows.letGo(),
+  };
+}
+
+/**
+ * GRIDS OF ONE PROJECT TOGETHER (docs/TS_DECISIONS_2026_11_07.md §4, a', 2026-11-07: the markets page over classes, a
+ * series of the prices and the curve): grids that are each a saved query or a class of one project version, through
+ * one mapping and runtime -- each read through the tab's engine over that project by its coordinates (the engine
+ * contract's Q19, Q23: its rows the version's own database there) -- are read together over that model as they are:
+ * each its own query (its grid's snapshot's), the series' one query through the first grid's runner, the same project,
+ * mapping and runtime as every other's (merged with main's #81, 2026-11-14: #81 read them through each grid's planner
+ * and the version's database, which the engine now holds). Undefined where they are not (the tab's tables are then
+ * read: tabSources).
+ */
+export function projectTogether(grids: readonly string[], o: {
+  readonly page: PageApp;
+  readonly sources: PageSources;
+}): TsTogether | undefined {
+  const places = grids.map((id) => o.sources.place(id));
+  const contexts = new Set<string>();
+  for (const p of places) {
+    if (p?.runner === undefined) return undefined;
+    const s = p.cubeSource;
+    if (s?._type === 'savedQuery') {
+      contexts.add(JSON.stringify([s.query.groupId, s.query.artifactId, s.query.versionId, s.query.executionContext]));
+    } else if (s?._type === 'class') {
+      contexts.add(JSON.stringify([s.project, s.workspace, s.revision, s.mapping, s.runtime]));
+    } else {
+      return undefined;
+    }
+  }
+  if (contexts.size !== 1) return undefined;
+  const relations = new Map<string, ValueSpecification>();
+  for (const id of grids) {
+    const grid = o.page.grid(id);
+    if (!grid) return undefined;
+    relations.set(id, grid.snapshot.source.query);
+  }
+  const run = places[0]!.runner!;
+  return {
+    relations,
+    run: (query) => rowsOnce(run, query),
+    // the grids' planners are theirs: let go with them
+    dispose: () => undefined,
   };
 }
 

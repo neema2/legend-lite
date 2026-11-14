@@ -1,9 +1,5 @@
 package com.legend.compiler.spec;
 
-import com.legend.builtin.Pure;
-import com.legend.compiler.spec.typed.TypedCDecimal;
-import com.legend.compiler.spec.typed.TypedCFloat;
-import com.legend.compiler.spec.typed.TypedCInteger;
 import com.legend.compiler.spec.typed.TypedEnumValue;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
@@ -16,7 +12,10 @@ import java.util.List;
 /**
  * Window-frame classification (remediation T3.1): {@code rows(a,b)} /
  * {@code _range(...)} / {@code _rangeInterval(...)} decided ONCE, where the
- * checker sees the literal bounds — including the boundary validation the
+ * checker sees the literal bounds (a bound that is no literal yet -- a
+ * function's parameter -- is kept as its expression for the inliner to
+ * substitute into: {@code WindowFrame.Bound.Offset}; an interval's stays
+ * literal-only) — including the boundary validation the
  * engine also performs at check time (its {@code ExtendChecker}). The
  * lowerer maps the resulting {@link WindowFrame} to the SQL IR shape 1:1;
  * it no longer recovers PRECEDING/FOLLOWING from the sign of a literal.
@@ -83,31 +82,9 @@ final class Frames {
     }
 
     private static WindowFrame.Bound bound(TypedSpec arg, boolean fromSide) {
-        // A negative literal arrives as unary minus AROUND the number — unwrap.
-        if (arg instanceof TypedNativeCall neg
-                && Pure.AT_MATH_MINUS.contains(neg.callee().id())
-                && neg.args().size() == 1 && numericBound(neg.args().get(0)) != null) {
-            return new WindowFrame.Bound.Preceding(java.util.Objects
-                    .requireNonNull(numericBound(neg.args().get(0))));
-        }
-        Number n = numericBound(arg);
-        if (n != null) {
-            double v = n.doubleValue();
-            if (v < 0) {
-                return new WindowFrame.Bound.Preceding(negate(n));
-            }
-            if (v > 0) {
-                return new WindowFrame.Bound.Following(n);
-            }
-            return new WindowFrame.Bound.CurrentRow();
-        }
-        if (isUnboundedCall(arg)) {
-            return fromSide ? new WindowFrame.Bound.UnboundedPreceding()
-                    : new WindowFrame.Bound.UnboundedFollowing();
-        }
-        // NO fallback: an unrecognized bound is a loud error, never UNBOUNDED.
-        throw new IllegalStateException("window frame bound must be a numeric literal or"
-                + " unbounded(), got " + arg.getClass().getSimpleName());
+        // a literal by its sign, unbounded() by its side, anything else a bound the database computes (an Offset the
+        // inliner substitutes into: docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, C1) -- the one rule
+        return WindowFrame.bound(arg, fromSide);
     }
 
     private static boolean isUnboundedCall(TypedSpec arg) {
@@ -136,27 +113,6 @@ final class Frames {
 
     /** The numeric value of a literal frame bound, or null (RANGE takes decimals). */
     private static @com.legend.base.Nullable Number numericBound(TypedSpec arg) {
-        // A negative literal arrives as unary minus AROUND the number.
-        if (arg instanceof TypedNativeCall neg
-                && Pure.AT_MATH_MINUS.contains(neg.callee().id())
-                && neg.args().size() == 1) {
-            Number inner = numericBound(neg.args().get(0));
-            return inner == null ? null : -inner.doubleValue();
-        }
-        return switch (arg) {
-            case TypedCInteger c -> c.value().longValue();
-            case TypedCFloat c -> c.value();
-            case TypedCDecimal c -> c.value();
-            default -> null;
-        };
-    }
-
-    private static Number negate(Number n) {
-        return switch (n) {
-            case Long l -> -l;
-            case Double d -> -d;
-            case java.math.BigDecimal b -> b.negate();
-            default -> -n.doubleValue();
-        };
+        return WindowFrame.literal(arg);
     }
 }

@@ -25,18 +25,21 @@ public record TypedOver(List<String> partitions, List<TypedSort.TypedSortKey> so
         sortKeys = List.copyOf(sortKeys);
     }
 
-    // frame is a CLASSIFIED value (WindowFrame), not an expression child:
-    // its literal bounds were decided and validated at the checker; there
-    // is nothing beneath it for a rewriter to substitute into.
+    // frame is a CLASSIFIED value (WindowFrame): its literal bounds were
+    // decided and validated at the checker. Its children are the bounds that
+    // were no literal there (WindowFrame.Bound.Offset: a function's parameter,
+    // arithmetic over one), for the inliner to substitute the call's arguments
+    // into; each is classified again as it is rebuilt (WindowFrame.withOffsets).
     @Override
     public List<TypedSpec> children() {
-        return List.of();
+        return frame.map(WindowFrame::offsets).orElse(List.of());
     }
 
     @Override
     public TypedSpec withChildren(java.util.List<TypedSpec> kids) {
-        TypedSpec.expectChildren(kids, 0, "TypedOver");
-        return this;
+        TypedSpec.expectChildren(kids, children().size(), "TypedOver");
+        return kids.isEmpty() ? this
+                : new TypedOver(partitions, sortKeys, frame.map(f -> f.withOffsets(kids)), info);
     }
     @Override
     public TypedSpec withInfo(ExprType info) {

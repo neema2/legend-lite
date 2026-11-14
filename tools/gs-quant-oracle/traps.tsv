@@ -1,0 +1,10 @@
+# THE TRAPS gs-quant answers (snap.py --fixture, from the answers and the fixture's manifest): each trap mapping.yaml's traps: names, its case, each price file's value(s) on the trap's date, the manifest's correct answer, and whether they agree (exactly, or within 1e-8 relative). GENERATED.
+trap	case	file	date	gs-quant	correct	agree
+holiday_gap	returns default @ALPHA	adversarial-raw	2025-11-28	0.0013684930785831106	0.0013684930785831106	yes
+holiday_gap	returns default @ALPHA	adversarial-adjusted	2025-11-28	0.0013684930785831106	0.0013684930785831106	yes
+late_print	returns default @BRAVO	adversarial-raw	2025-03-13	-0.00022246941045611646	-0.00022246941045611646	yes
+late_print	returns default @BRAVO	adversarial-adjusted	2025-03-13	-0.00022246941045611646	-0.00022246941045611646	yes
+split_2_for_1	returns default @BRAVO	adversarial-raw	2024-06-10	-0.48950811315945963	0.02098377368108073	NO
+split_2_for_1	returns default @BRAVO	adversarial-adjusted	2024-06-10	0.02098377368108073	0.02098377368108073	yes
+stale_price_5d	volatility w=10,annualization_factor=252 @BRAVO	adversarial-raw	2024-10-21	14.870221753433558	14.870221753433476	within 1e-8
+stale_price_5d	volatility w=10,annualization_factor=252 @BRAVO	adversarial-adjusted	2024-10-21	14.870221753433476	14.870221753433476	yes

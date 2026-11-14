@@ -30,6 +30,7 @@ import type { LitePlanner } from '../lite-planner.ts';
 import type { Planner } from '../cube.ts';
 import type { ModelOptions } from '../planner.ts';
 import { catalogColumnsOf } from '../upload.ts';
+import { withLibrary } from '../pure-library.ts';
 
 const ENGINE = 'the tab';
 
@@ -196,7 +197,8 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
     const model = how.project !== undefined ? await projectModel(ask, how.project, added, call)
       : servedAs.get(`${ask.runtime}\n${ask.model}`) ?? `${ask.model}\n${ownRuntime(ask, call)}`;
     if (ask.library !== undefined) await libraryChecked(ask.library, call);
-    const whole = ask.library === undefined ? model : `${model}\n${ask.library}`;
+    // DataCube's library (Q17) held beside the model, as #81's planners hold it (overLibrary: its text the two together)
+    const whole = ask.library === undefined ? model : withLibrary(model, ask.library);
     const read = await elementsOf(model, call);
     const bits = read.flatMap((e) => (e._type === 'relational' ? e.schemas ?? [] : []))
       .flatMap((sc) => sc.tables ?? []).flatMap((t) => t.columns ?? []).filter((c) => c.type?._type === 'Bit').map((c) => c.name);
@@ -205,7 +207,7 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
       ...(how.mapping !== undefined ? { mapping: how.mapping } : {}),
       ...(bits.length > 0 ? { bitColumns: [...new Set(bits)] } : {}),
       ...(enumerations.length > 0 ? { enumerations } : {}),
-      ...(ask.library !== undefined ? { library: true as const } : {}),
+      ...(ask.library !== undefined ? { overLibrary: { model, library: ask.library } } : {}),
     } };
   };
   /** The plane's planner over a query's model (Q20): what types and plans it. */

@@ -1,0 +1,1944 @@
+{
+ "enums": {
+  "Currency": {
+   "ACU": "ACU",
+   "ADP": "ADP",
+   "AED": "AED",
+   "AFA": "AFA",
+   "ALL": "ALL",
+   "AMD": "AMD",
+   "ANG": "ANG",
+   "AOA": "AOA",
+   "AOK": "AOK",
+   "AON": "AON",
+   "ARA": "ARA",
+   "ARS": "ARS",
+   "ARZ": "ARZ",
+   "ATS": "ATS",
+   "AUD": "AUD",
+   "AUZ": "AUZ",
+   "AUd": "AUd",
+   "AWG": "AWG",
+   "AZM": "AZM",
+   "AZN": "AZN",
+   "B03": "B03",
+   "BAD": "BAD",
+   "BAK": "BAK",
+   "BAM": "BAM",
+   "BBD": "BBD",
+   "BDN": "BDN",
+   "BDT": "BDT",
+   "BEF": "BEF",
+   "BGL": "BGL",
+   "BGN": "BGN",
+   "BHD": "BHD",
+   "BIF": "BIF",
+   "BMD": "BMD",
+   "BND": "BND",
+   "BOB": "BOB",
+   "BR6": "BR6",
+   "BRE": "BRE",
+   "BRF": "BRF",
+   "BRL": "BRL",
+   "BRR": "BRR",
+   "BSD": "BSD",
+   "BTC": "BTC",
+   "BTN": "BTN",
+   "BTR": "BTR",
+   "BWP": "BWP",
+   "BWp": "BWp",
+   "BYN": "BYN",
+   "BYR": "BYR",
+   "BZD": "BZD",
+   "C23": "C23",
+   "CAC": "CAC",
+   "CAD": "CAD",
+   "CAZ": "CAZ",
+   "CCI": "CCI",
+   "CDF": "CDF",
+   "CFA": "CFA",
+   "CHF": "CHF",
+   "CHZ": "CHZ",
+   "CLF": "CLF",
+   "CLP": "CLP",
+   "CLZ": "CLZ",
+   "CNH": "CNH",
+   "CNO": "CNO",
+   "CNY": "CNY",
+   "CNZ": "CNZ",
+   "COP": "COP",
+   "COZ": "COZ",
+   "CPB": "CPB",
+   "CPI": "CPI",
+   "CRC": "CRC",
+   "CUP": "CUP",
+   "CVE": "CVE",
+   "CYP": "CYP",
+   "CZH": "CZH",
+   "CZK": "CZK",
+   "DAX": "DAX",
+   "DEM": "DEM",
+   "DIJ": "DIJ",
+   "DJE": "DJE",
+   "DJF": "DJF",
+   "DKK": "DKK",
+   "DOP": "DOP",
+   "DZD": "DZD",
+   "E51": "E51",
+   "E52": "E52",
+   "E53": "E53",
+   "E54": "E54",
+   "ECI": "ECI",
+   "ECS": "ECS",
+   "ECU": "ECU",
+   "EEK": "EEK",
+   "EF0": "EF0",
+   "EGP": "EGP",
+   "ESP": "ESP",
+   "ETB": "ETB",
+   "ETH": "ETH",
+   "EUR": "EUR",
+   "EUZ": "EUZ",
+   "EUr": "EUr",
+   "F06": "F06",
+   "FED": "FED",
+   "FIM": "FIM",
+   "FJD": "FJD",
+   "FKP": "FKP",
+   "FRF": "FRF",
+   "FT1": "FT1",
+   "GBP": "GBP",
+   "GBZ": "GBZ",
+   "GBp": "GBp",
+   "GEK": "GEK",
+   "GEL": "GEL",
+   "GHC": "GHC",
+   "GHS": "GHS",
+   "GHY": "GHY",
+   "GIP": "GIP",
+   "GLD": "GLD",
+   "GLR": "GLR",
+   "GMD": "GMD",
+   "GNF": "GNF",
+   "GQE": "GQE",
+   "GRD": "GRD",
+   "GTQ": "GTQ",
+   "GWP": "GWP",
+   "GYD": "GYD",
+   "HKB": "HKB",
+   "HKD": "HKD",
+   "HNL": "HNL",
+   "HRK": "HRK",
+   "HSI": "HSI",
+   "HTG": "HTG",
+   "HUF": "HUF",
+   "IDB": "IDB",
+   "IDO": "IDO",
+   "IDR": "IDR",
+   "IEP": "IEP",
+   "IGP": "IGP",
+   "ILS": "ILS",
+   "ILs": "ILs",
+   "INO": "INO",
+   "INP": "INP",
+   "INR": "INR",
+   "IPA": "IPA",
+   "IPX": "IPX",
+   "IQD": "IQD",
+   "IRR": "IRR",
+   "IRS": "IRS",
+   "ISI": "ISI",
+   "ISK": "ISK",
+   "ISO": "ISO",
+   "ITL": "ITL",
+   "J05": "J05",
+   "JMD": "JMD",
+   "JNI": "JNI",
+   "JOD": "JOD",
+   "JPY": "JPY",
+   "JPZ": "JPZ",
+   "JZ9": "JZ9",
+   "KES": "KES",
+   "KGS": "KGS",
+   "KHR": "KHR",
+   "KMF": "KMF",
+   "KOR": "KOR",
+   "KPW": "KPW",
+   "KRW": "KRW",
+   "KWD": "KWD",
+   "KWd": "KWd",
+   "KYD": "KYD",
+   "KZT": "KZT",
+   "LAK": "LAK",
+   "LBA": "LBA",
+   "LBP": "LBP",
+   "LHY": "LHY",
+   "LKR": "LKR",
+   "LRD": "LRD",
+   "LSL": "LSL",
+   "LSM": "LSM",
+   "LTL": "LTL",
+   "LUF": "LUF",
+   "LVL": "LVL",
+   "LYD": "LYD",
+   "MAD": "MAD",
+   "MDL": "MDL",
+   "MGA": "MGA",
+   "MGF": "MGF",
+   "MKD": "MKD",
+   "MMK": "MMK",
+   "MNT": "MNT",
+   "MOP": "MOP",
+   "MRO": "MRO",
+   "MRU": "MRU",
+   "MTL": "MTL",
+   "MTP": "MTP",
+   "MUR": "MUR",
+   "MVR": "MVR",
+   "MWK": "MWK",
+   "MWk": "MWk",
+   "MXB": "MXB",
+   "MXN": "MXN",
+   "MXP": "MXP",
+   "MXW": "MXW",
+   "MXZ": "MXZ",
+   "MYO": "MYO",
+   "MYR": "MYR",
+   "MZM": "MZM",
+   "MZN": "MZN",
+   "NAD": "NAD",
+   "ND3": "ND3",
+   "NGF": "NGF",
+   "NGI": "NGI",
+   "NGN": "NGN",
+   "NIC": "NIC",
+   "NIO": "NIO",
+   "NLG": "NLG",
+   "NOK": "NOK",
+   "NOZ": "NOZ",
+   "NPR": "NPR",
+   "NZD": "NZD",
+   "NZZ": "NZZ",
+   "O08": "O08",
+   "OMR": "OMR",
+   "PAB": "PAB",
+   "PEI": "PEI",
+   "PEN": "PEN",
+   "PEZ": "PEZ",
+   "PGK": "PGK",
+   "PHP": "PHP",
+   "PKR": "PKR",
+   "PLN": "PLN",
+   "PLZ": "PLZ",
+   "PSI": "PSI",
+   "PTE": "PTE",
+   "PYG": "PYG",
+   "QAR": "QAR",
+   "QOF": "QOF",
+   "R2K": "R2K",
+   "ROL": "ROL",
+   "RON": "RON",
+   "RSD": "RSD",
+   "RUB": "RUB",
+   "RUF": "RUF",
+   "RUR": "RUR",
+   "RWF": "RWF",
+   "SAR": "SAR",
+   "SBD": "SBD",
+   "SCR": "SCR",
+   "SDG": "SDG",
+   "SDP": "SDP",
+   "SDR": "SDR",
+   "SEK": "SEK",
+   "SET": "SET",
+   "SGD": "SGD",
+   "SGS": "SGS",
+   "SGd": "SGd",
+   "SHP": "SHP",
+   "SIL": "SIL",
+   "SIT": "SIT",
+   "SKK": "SKK",
+   "SLE": "SLE",
+   "SLL": "SLL",
+   "SRD": "SRD",
+   "SRG": "SRG",
+   "SSI": "SSI",
+   "STD": "STD",
+   "SUR": "SUR",
+   "SVC": "SVC",
+   "SVT": "SVT",
+   "SYP": "SYP",
+   "SZL": "SZL",
+   "SZl": "SZl",
+   "T21": "T21",
+   "T51": "T51",
+   "T52": "T52",
+   "T53": "T53",
+   "T54": "T54",
+   "T55": "T55",
+   "T71": "T71",
+   "TE0": "TE0",
+   "TED": "TED",
+   "TF9": "TF9",
+   "THB": "THB",
+   "THO": "THO",
+   "TMM": "TMM",
+   "TND": "TND",
+   "TNT": "TNT",
+   "TOF": "TOF",
+   "TOP": "TOP",
+   "TPE": "TPE",
+   "TPX": "TPX",
+   "TRB": "TRB",
+   "TRL": "TRL",
+   "TRY": "TRY",
+   "TRZ": "TRZ",
+   "TTD": "TTD",
+   "TWD": "TWD",
+   "TZS": "TZS",
+   "UAH": "UAH",
+   "UCB": "UCB",
+   "UDI": "UDI",
+   "UFC": "UFC",
+   "UFZ": "UFZ",
+   "UGS": "UGS",
+   "UGX": "UGX",
+   "USB": "USB",
+   "USD": "USD",
+   "USd": "USd",
+   "UVR": "UVR",
+   "UYP": "UYP",
+   "UYU": "UYU",
+   "UZS": "UZS",
+   "VAC": "VAC",
+   "VEB": "VEB",
+   "VEF": "VEF",
+   "VES": "VES",
+   "VND": "VND",
+   "VUV": "VUV",
+   "WST": "WST",
+   "XAF": "XAF",
+   "XAG": "XAG",
+   "XAU": "XAU",
+   "XCD": "XCD",
+   "XDR": "XDR",
+   "XEU": "XEU",
+   "XOF": "XOF",
+   "XPD": "XPD",
+   "XPF": "XPF",
+   "XPT": "XPT",
+   "YDD": "YDD",
+   "YER": "YER",
+   "YUD": "YUD",
+   "YUN": "YUN",
+   "ZAL": "ZAL",
+   "ZAR": "ZAR",
+   "ZAZ": "ZAZ",
+   "ZAr": "ZAr",
+   "ZMK": "ZMK",
+   "ZMW": "ZMW",
+   "ZRN": "ZRN",
+   "ZRZ": "ZRZ",
+   "ZWD": "ZWD",
+   "ZWL": "ZWL",
+   "_": ""
+  },
+  "CurveType": {
+   "EXCESS_RETURNS": "excess_returns",
+   "PRICES": "prices"
+  },
+  "FilterOperator": {
+   "EQUALS": "equals",
+   "GREATER": "greater_than",
+   "G_EQUALS": "g_equals",
+   "LESS": "less_than",
+   "L_EQUALS": "l_equals",
+   "N_EQUALS": "not_equals"
+  },
+  "Frequency": {
+   "MONTH": "month",
+   "QUARTER": "quarter",
+   "WEEK": "week",
+   "YEAR": "year"
+  },
+  "Interpolate": {
+   "INTERSECT": "intersect",
+   "NAN": "nan",
+   "STEP": "step",
+   "TIME": "time",
+   "ZERO": "zero"
+  },
+  "LagMode": {
+   "EXTEND": "extend",
+   "TRUNCATE": "truncate"
+  },
+  "MeanType": {
+   "ARITHMETIC": "arithmetic",
+   "QUADRATIC": "quadratic"
+  },
+  "RebalFreq": {
+   "DAILY": "daily",
+   "MONTHLY": "monthly",
+   "WEEKLY": "weekly"
+  },
+  "ReturnType": {
+   "EXCESS_RETURN": "excess_return"
+  },
+  "Returns": {
+   "ABSOLUTE": "absolute",
+   "LOGARITHMIC": "logarithmic",
+   "SIMPLE": "simple"
+  },
+  "RiskFreeRateCurrency": {
+   "AUD": "AUD",
+   "CHF": "CHF",
+   "EUR": "EUR",
+   "GBP": "GBP",
+   "JPY": "JPY",
+   "SEK": "SEK",
+   "USD": "USD",
+   "_AUD": "aud",
+   "_CHF": "chf",
+   "_EUR": "eur",
+   "_GBP": "gbp",
+   "_JPY": "jpy",
+   "_SEK": "sek",
+   "_USD": "usd"
+  },
+  "SeasonalModel": {
+   "ADDITIVE": "additive",
+   "MULTIPLICATIVE": "multiplicative"
+  },
+  "SeriesType": {
+   "PRICES": "prices",
+   "RETURNS": "returns"
+  },
+  "SignDirection": {
+   "NEGATIVE": "negative",
+   "POSITIVE": "positive"
+  },
+  "ThresholdType": {
+   "absolute": "absolute",
+   "percentage": "percentage"
+  }
+ },
+ "gs_quant": "2.2.3",
+ "words": {
+  "annualize": [
+   {
+    "function": "econometrics.annualize",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "append": [
+   {
+    "function": "datetime.append",
+    "params": [
+     {
+      "annotation": "list[Series]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "series"
+     }
+    ]
+   }
+  ],
+  "basket": [
+   {
+    "function": "backtesting.basket_series",
+    "params": [
+     {
+      "annotation": "list",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "series"
+     },
+     {
+      "annotation": "list",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "weights"
+     },
+     {
+      "annotation": "list",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "costs"
+     },
+     {
+      "annotation": "RebalFreq",
+      "default": {
+       "enum": "RebalFreq",
+       "member": "DAILY"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "rebal_freq"
+     },
+     {
+      "annotation": "ReturnType",
+      "default": {
+       "enum": "ReturnType",
+       "member": "EXCESS_RETURN"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "return_type"
+     }
+    ]
+   }
+  ],
+  "beta": [
+   {
+    "function": "econometrics.beta",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "b"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     },
+     {
+      "annotation": "bool",
+      "default": {
+       "value": true
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "prices"
+     }
+    ]
+   }
+  ],
+  "bollinger_bands": [
+   {
+    "function": "technicals.bollinger_bands",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 2
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "k"
+     }
+    ]
+   }
+  ],
+  "ceil": [
+   {
+    "function": "algebra.ceil",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 0
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "value"
+     }
+    ]
+   }
+  ],
+  "change": [
+   {
+    "function": "econometrics.change",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "compare": [
+   {
+    "function": "analysis.compare",
+    "params": [
+     {
+      "annotation": "Union[Series, Real]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Series, Real]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "y"
+     },
+     {
+      "annotation": "Interpolate",
+      "default": {
+       "enum": "Interpolate",
+       "member": "STEP"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "method"
+     }
+    ]
+   }
+  ],
+  "consecutive": [
+   {
+    "function": "analysis.consecutive",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "SignDirection",
+      "default": {
+       "enum": "SignDirection",
+       "member": "POSITIVE"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "direction"
+     }
+    ]
+   }
+  ],
+  "correlation": [
+   {
+    "function": "econometrics.correlation",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "y"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     },
+     {
+      "annotation": "SeriesType",
+      "default": {
+       "enum": "SeriesType",
+       "member": "PRICES"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "type_"
+     },
+     {
+      "annotation": "Returns",
+      "default": {
+       "enum": "Returns",
+       "member": "SIMPLE"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "returns_type"
+     },
+     {
+      "annotation": "bool",
+      "default": {
+       "value": false
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "assume_zero_mean"
+     }
+    ]
+   }
+  ],
+  "count": [
+   {
+    "function": "analysis.count",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "cov": [
+   {
+    "function": "statistics.cov",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "y"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "day": [
+   {
+    "function": "datetime.day",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "diff": [
+   {
+    "function": "analysis.diff",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "value": 1
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "obs"
+     }
+    ]
+   }
+  ],
+  "excess_returns": [
+   {
+    "function": "econometrics.excess_returns",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "price_series"
+     },
+     {
+      "annotation": "Union[Asset, Currency, float]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "benchmark_or_rate"
+     },
+     {
+      "annotation": null,
+      "default": {
+       "enum": "DayCountConvention",
+       "member": "ACTUAL_360"
+      },
+      "kind": "KEYWORD_ONLY",
+      "name": "day_count_convention"
+     }
+    ]
+   }
+  ],
+  "exponential_moving_average": [
+   {
+    "function": "technicals.exponential_moving_average",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 0.75
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "beta"
+     }
+    ]
+   }
+  ],
+  "exponential_spread_volatility": [
+   {
+    "function": "technicals.exponential_spread_volatility",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 0.75
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "beta"
+     }
+    ]
+   }
+  ],
+  "exponential_std": [
+   {
+    "function": "statistics.exponential_std",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 0.75
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "beta"
+     }
+    ]
+   }
+  ],
+  "exponential_volatility": [
+   {
+    "function": "technicals.exponential_volatility",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 0.75
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "beta"
+     }
+    ]
+   }
+  ],
+  "filter": [
+   {
+    "function": "algebra.filter_",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Optional[FilterOperator]",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "operator"
+     },
+     {
+      "annotation": "Optional[Real]",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "value"
+     }
+    ]
+   }
+  ],
+  "first": [
+   {
+    "function": "analysis.first",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "floor": [
+   {
+    "function": "algebra.floor",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 0
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "value"
+     }
+    ]
+   }
+  ],
+  "geometrically_aggregate": [
+   {
+    "function": "algebra.geometrically_aggregate",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "series"
+     }
+    ]
+   }
+  ],
+  "if": [
+   {
+    "function": "algebra.if_",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "flags"
+     },
+     {
+      "annotation": "Union[Series, float]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Series, float]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "y"
+     }
+    ]
+   }
+  ],
+  "index": [
+   {
+    "function": "econometrics.index",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "int",
+      "default": {
+       "value": 1
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "initial"
+     }
+    ]
+   }
+  ],
+  "interpolate": [
+   {
+    "function": "datetime.interpolate",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[list[date], list[time], Series]",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "dates"
+     },
+     {
+      "annotation": "Interpolate",
+      "default": {
+       "enum": "Interpolate",
+       "member": "INTERSECT"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "method"
+     }
+    ]
+   }
+  ],
+  "lag": [
+   {
+    "function": "analysis.lag",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "value": 1
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "obs"
+     },
+     {
+      "annotation": "LagMode",
+      "default": {
+       "enum": "LagMode",
+       "member": "EXTEND"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "mode"
+     }
+    ]
+   }
+  ],
+  "last": [
+   {
+    "function": "analysis.last",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "macd": [
+   {
+    "function": "technicals.macd",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "int",
+      "default": {
+       "value": 12
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "m"
+     },
+     {
+      "annotation": "int",
+      "default": {
+       "value": 26
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "n"
+     },
+     {
+      "annotation": "int",
+      "default": {
+       "value": 1
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "s"
+     }
+    ]
+   }
+  ],
+  "max": [
+   {
+    "function": "statistics.max_",
+    "params": [
+     {
+      "annotation": "Union[Series, list[Series]]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "max_drawdown": [
+   {
+    "function": "econometrics.max_drawdown",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "mean": [
+   {
+    "function": "statistics.mean",
+    "params": [
+     {
+      "annotation": "Union[Series, list[Series]]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     },
+     {
+      "annotation": "MeanType",
+      "default": {
+       "enum": "MeanType",
+       "member": "ARITHMETIC"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "mean_type"
+     }
+    ]
+   },
+   {
+    "function": "technicals.moving_average",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "median": [
+   {
+    "function": "statistics.median",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "min": [
+   {
+    "function": "statistics.min_",
+    "params": [
+     {
+      "annotation": "Union[Series, list[Series]]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "month": [
+   {
+    "function": "datetime.month",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "percentile": [
+   {
+    "function": "statistics.percentile",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "n"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "percentiles": [
+   {
+    "function": "statistics.percentiles",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Optional[Series]",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "y"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "prepend": [
+   {
+    "function": "datetime.prepend",
+    "params": [
+     {
+      "annotation": "list[Series]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "prices": [
+   {
+    "function": "econometrics.prices",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "series"
+     },
+     {
+      "annotation": "int",
+      "default": {
+       "value": 1
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "initial"
+     },
+     {
+      "annotation": "Returns",
+      "default": {
+       "enum": "Returns",
+       "member": "SIMPLE"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "type"
+     }
+    ]
+   }
+  ],
+  "product": [
+   {
+    "function": "statistics.product",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "quarter": [
+   {
+    "function": "datetime.quarter",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "range": [
+   {
+    "function": "statistics.range_",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "returns": [
+   {
+    "function": "econometrics.returns",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "series"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "value": 1
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "obs"
+     },
+     {
+      "annotation": "Returns",
+      "default": {
+       "enum": "Returns",
+       "member": "SIMPLE"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "type"
+     }
+    ]
+   }
+  ],
+  "rsi": [
+   {
+    "function": "technicals.relative_strength_index",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "value": 14
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "seasonally_adjusted": [
+   {
+    "function": "technicals.seasonally_adjusted",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "SeasonalModel",
+      "default": {
+       "enum": "SeasonalModel",
+       "member": "ADDITIVE"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "method"
+     },
+     {
+      "annotation": "Frequency",
+      "default": {
+       "enum": "Frequency",
+       "member": "YEAR"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "freq"
+     }
+    ]
+   }
+  ],
+  "sharpe_ratio": [
+   {
+    "function": "econometrics.sharpe_ratio",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "series"
+     },
+     {
+      "annotation": "RiskFreeRateCurrency",
+      "default": {
+       "enum": "RiskFreeRateCurrency",
+       "member": "USD"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "currency"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     },
+     {
+      "annotation": "CurveType",
+      "default": {
+       "enum": "CurveType",
+       "member": "PRICES"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "curve_type"
+     },
+     {
+      "annotation": "Interpolate",
+      "default": {
+       "enum": "Interpolate",
+       "member": "NAN"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "method"
+     }
+    ]
+   }
+  ],
+  "smooth_spikes": [
+   {
+    "function": "analysis.smooth_spikes",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "threshold"
+     },
+     {
+      "annotation": "ThresholdType",
+      "default": {
+       "enum": "ThresholdType",
+       "member": "percentage"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "threshold_type"
+     }
+    ]
+   }
+  ],
+  "smoothed_moving_average": [
+   {
+    "function": "technicals.smoothed_moving_average",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "std": [
+   {
+    "function": "statistics.std",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "sum": [
+   {
+    "function": "statistics.sum_",
+    "params": [
+     {
+      "annotation": "Union[Series, list[Series]]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "trend": [
+   {
+    "function": "technicals.trend",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "SeasonalModel",
+      "default": {
+       "enum": "SeasonalModel",
+       "member": "ADDITIVE"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "method"
+     },
+     {
+      "annotation": "Frequency",
+      "default": {
+       "enum": "Frequency",
+       "member": "YEAR"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "freq"
+     }
+    ]
+   }
+  ],
+  "union": [
+   {
+    "function": "datetime.union",
+    "params": [
+     {
+      "annotation": "list[Series]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "var": [
+   {
+    "function": "statistics.var",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "vol_swap_volatility": [
+   {
+    "function": "econometrics.vol_swap_volatility",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "prices"
+     },
+     {
+      "annotation": "Union[int, Window]",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "n_days"
+     },
+     {
+      "annotation": "int",
+      "default": {
+       "value": 252
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "annualization_factor"
+     },
+     {
+      "annotation": "bool",
+      "default": {
+       "value": true
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "assume_zero_mean"
+     }
+    ]
+   }
+  ],
+  "volatility": [
+   {
+    "function": "econometrics.volatility",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     },
+     {
+      "annotation": "Optional[Returns]",
+      "default": {
+       "enum": "Returns",
+       "member": "SIMPLE"
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "returns_type"
+     },
+     {
+      "annotation": "Optional[int]",
+      "default": {
+       "value": null
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "annualization_factor"
+     },
+     {
+      "annotation": "bool",
+      "default": {
+       "value": false
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "assume_zero_mean"
+     }
+    ]
+   }
+  ],
+  "weekday": [
+   {
+    "function": "datetime.weekday",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "weighted_sum": [
+   {
+    "function": "algebra.weighted_sum",
+    "params": [
+     {
+      "annotation": "list[Series]",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "series"
+     },
+     {
+      "annotation": "list",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "weights"
+     }
+    ]
+   }
+  ],
+  "winsorize": [
+   {
+    "function": "statistics.winsorize",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "float",
+      "default": {
+       "value": 2.5
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "limit"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ],
+  "year": [
+   {
+    "function": "datetime.year",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     }
+    ]
+   }
+  ],
+  "zscores": [
+   {
+    "function": "statistics.zscores",
+    "params": [
+     {
+      "annotation": "Series",
+      "default": null,
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "x"
+     },
+     {
+      "annotation": "Union[Window, int, str]",
+      "default": {
+       "window": [
+        null,
+        0
+       ]
+      },
+      "kind": "POSITIONAL_OR_KEYWORD",
+      "name": "w"
+     }
+    ]
+   }
+  ]
+ }
+}

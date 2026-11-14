@@ -20,6 +20,7 @@ import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { cubeToJson, openCube, writeCube, type CubeDocument, type FileSource } from '../src/cube-document.ts';
 import { tiles as tilesOf } from '../src/layout/bands.ts';
 import { PageApp, type GridMaker, type PageAppOptions } from '../src/page/page-app.ts';
+import { readText } from './catalog-builder.ts';
 import { CubePage, type SpawnedGrid } from '../src/page/cube-page.ts';
 import { PAGE_CUBE, pageToJson, readPage, startingViews, writePageOf, type ChartView, type PageDocument } from '../src/page-document.ts';
 import { pageSources } from '../src/app/sources.ts';
@@ -36,6 +37,7 @@ import { theirs } from './theirs.ts';
 import { differing, sameButIds } from './page-same.ts';
 import { bandsOf } from './bands-of.ts';
 import { layoutTiles } from '../src/page-document.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 /** jsdom has no canvas: a 2D context that draws nothing, so ECharts can mount (as chart-tiles.test.ts does). */
 function inertCanvas(window: JSDOM['window']): void {
@@ -113,7 +115,7 @@ const over = (name: string, saved?: CubeDocument): GridMaker => (gridHost, spawn
 };
 
 function newPage(extra: Partial<PageAppOptions> = {}): PageApp {
-  page = new PageApp({ host, title: 'Q3', empty: (slot) => { slot.textContent = 'Add a data source'; }, ...extra });
+  page = new PageApp({ host, title: 'Q3', empty: (slot) => { slot.textContent = 'Add a data source'; }, readText, ...extra });
   return page;
 }
 
@@ -556,10 +558,10 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     });
     options();
     assert.deepEqual(placed(win()!), [600 - 8 - 528, 8, 528, 752], 'beside where the chart is now, as wide as it was left');
-    // Escape typed in a field of it is the field's; in it, it puts it away
-    await settle();
-    const field = win()!.querySelector<HTMLElement>('select, input');
-    assert.ok(field, 'its fields painted');
+    // Escape typed in a field of it is the field's; in it, it puts it away. Its form is fetched as it first opens
+    // (chart-form.ts, a chunk of its own): waited for, never counted in ticks -- the fetch outlasted settle() on
+    // Windows' CI (main's run of 369bb176, 2026-10-28), as the layouts' had (cube-fixture.ts shown)
+    const field = await shown<HTMLElement>(win()!, 'select, input');
     field.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
     assert.ok(win(), 'Escape in a field');
     win()!.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
@@ -593,8 +595,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     };
     options();
     assert.equal(win()!.getRootNode(), shadow, 'in the shadow root, with the page');
-    await settle();
-    const field = win()!.querySelector<HTMLElement>('select, input')!;
+    const field = await shown<HTMLElement>(win()!, 'select, input');
     field.dispatchEvent(new dom.window.MouseEvent('pointerdown', { bubbles: true, composed: true }));
     assert.ok(win(), 'a press in them, in a shadow root');
     // put away with the focus in them: the focus on the chart's tile, never the body
@@ -670,7 +671,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
       el.dispatchEvent(new dom.window.PointerEvent(type, { pointerId: 1, button: 0, clientX: x, clientY: y, bubbles: true }));
     open();
     assert.deepEqual(placed(), [308, 8, 588, 752], 'as tall as the screen lets it be, till its form is painted');
-    await settle();
+    await shown(win(), 'select, input');
     assert.deepEqual(placed(), [308, 120, 588, 426], 'as tall as its form, level with its chart');
     // a press on its title bar, no drag: no size kept, so it is fitted again as it opens
     const head = win().querySelector('.dc-overlay-head')!;
@@ -678,7 +679,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     on(head, 'pointerup', 400, 130);
     close();
     open();
-    await settle();
+    await shown(win(), 'select, input');
     assert.deepEqual(placed(), [308, 120, 588, 426], 'fitted again: a press on its title bar kept no size');
     close();
     // dragged before its form is painted: where it was put, it stays
@@ -688,19 +689,19 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     on(bar, 'pointermove', 350, 20);
     on(bar, 'pointerup', 350, 20);
     assert.deepEqual(placed(), [258, 8, 588, 752]);
-    await settle();
+    await shown(win(), 'select, input');
     assert.deepEqual(placed(), [258, 8, 588, 752], 'moved meanwhile: not fitted over where it was put');
     close();
     // the browser's window shrinking squeezes it, and keeps no size either
     open();
-    await settle();
+    await shown(win(), 'select, input');
     Object.defineProperty(dom.window, 'innerHeight', { value: 300, configurable: true });
     dom.window.dispatchEvent(new dom.window.Event('resize'));
     assert.deepEqual(placed().slice(2), [588, 300], 'squeezed onto the screen');
     close();
     Object.defineProperty(dom.window, 'innerHeight', { value: 768, configurable: true });
     open();
-    await settle();
+    await shown(win(), 'select, input');
     assert.deepEqual(placed(), [308, 120, 588, 426], 'its squeezed size not kept');
     // resized by a grip: that size kept, and not fitted over
     const south = win().querySelector('.dc-window-s')!;
@@ -709,7 +710,7 @@ describe('a chart\'s right-click menu: Properties…, and Show Grid offered only
     on(south, 'pointerup', 500, 646);
     close();
     open();
-    await settle();
+    await shown(win(), 'select, input');
     assert.deepEqual(placed().slice(2), [588, 526], 'the size its grip gave it');
   });
 
@@ -969,7 +970,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const grid = doc.views.find((v) => v.id === a)!;
     assert.ok(grid.kind === 'grid');
     const spec: TimeseriesSpec = {
-      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }],
     };
     reopen({
       ...doc,
@@ -1018,7 +1019,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const grid = doc.views.find((v) => v.id === a)!;
     assert.ok(grid.kind === 'grid');
     const spec: TimeseriesSpec = {
-      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+      sources: [{ alias: 't', cube: grid.cube, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }],
     };
     reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Notional', spec }],
       sheets: doc.sheets.map((sh, i) => (i === 0 ? { ...sh, layout: { kind: 'bands', fit: true, bands: [
@@ -1048,7 +1049,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const doc = pg().document('Q3')!;
     const gridB = doc.views.find((v) => v.id === b)!;
     assert.ok(gridB.kind === 'grid');
-    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] };
     reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
       sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...bandsOf(s.layout), bands: [...bandsOf(s.layout).bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
     await shown(host, '[data-tile="ts"] .dc-ts-bar');
@@ -1100,7 +1101,7 @@ describe('sheets: tiles dragged onto tabs, sheets deleted and reopened, one page
     const doc = pg().document('Q3')!;
     const gridB = doc.views.find((v) => v.id === b)!;
     assert.ok(gridB.kind === 'grid');
-    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: gridB.cube, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] };
     reopen({ ...doc, views: [...doc.views, { id: 'ts', kind: 'timeseries', title: 'Orders', spec }],
       sheets: doc.sheets.map((s, i) => (i === 0 ? { ...s, layout: { ...bandsOf(s.layout), bands: [...bandsOf(s.layout).bands, { height: 0.5, node: { tile: 'ts' } }] } } : s)) });
     await shown(host, '[data-tile="ts"] .dc-ts-bar');
@@ -1536,7 +1537,7 @@ describe('the page\'s undo and redo: one page state (page-state.ts), each struct
     const chart = await chartOf(a);
     await drawn();
     chartMenu(chart).find((i) => label(i) === 'Properties…')!.click();
-    await settle();
+    await shown(host, '.dc-chart-options select');
     // its options' window, among the page's windows
     const across = [...host.querySelectorAll<HTMLElement>('.dc-chart-options .dc-field')]
       .find((f) => f.querySelector('.dc-field-label')?.textContent === 'Across:')?.querySelector('select');

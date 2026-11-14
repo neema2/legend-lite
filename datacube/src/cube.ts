@@ -117,6 +117,9 @@ export interface SnapCopy {
   dispose(): void;
 }
 
+/** A #TS query as one statement (Show #TS, D12): the statement, or why it has none in words. */
+export type TsShown = { readonly statement: string; readonly refused?: undefined } | { readonly statement?: undefined; readonly refused: string };
+
 export interface Planner {
   /** A query (a protocol tree, query.ts) in, SQL and the compiler's result type out. */
   plan(query: Lambda, signal?: AbortSignal): Promise<Plan>;
@@ -133,6 +136,9 @@ export interface Planner {
   executionPlan?(program: Lambda, signal?: AbortSignal): Promise<PlanText>;
   /** A query as Pure text, for a person to read: E4, the compiler's print (PRETTY unless asked). */
   print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string>;
+  /** A #TS query over grids as the one statement a person would write (D12, legend-lite's own: legend-engine has no
+   *  #TS, so its planner has none). */
+  tsStatement?(query: Lambda, signal?: AbortSignal): Promise<TsShown>;
   /**
    * Let go of what the planner holds -- its model, compiled once and held while it plans
    * (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §9): called by its owner when nothing plans through it any more.
@@ -284,6 +290,7 @@ function recording(runner: QueryRunner, into: Receipt[], plane: PlaneState): Que
     relationType: (query, signal) => runner.relationType(query, signal),
     parse: (text, signal) => runner.parse(text, signal),
     print: (query, style, signal) => runner.print(query, style, signal),
+    ...(runner.tsStatement ? { tsStatement: (query: Lambda, signal?: AbortSignal) => runner.tsStatement!(query, signal) } : {}),
   };
 }
 
@@ -571,6 +578,13 @@ export class CubeController {
   }
 
   /** A query as Pure text for a person to read: the compiler's print (E4). */
+  /** A #TS query over grids as one statement (D12), or why there is none: its runner's planner's, said where it
+   *  has none (legend-engine's). */
+  async tsStatement(query: Lambda, signal?: AbortSignal): Promise<TsShown> {
+    return this.#runner.tsStatement ? this.#runner.tsStatement(query, signal)
+      : { refused: 'this grid\'s planner is legend-engine\'s, which has no #TS' };
+  }
+
   async print(query: Lambda, style?: PrintStyle, signal?: AbortSignal): Promise<string> {
     return this.#runner.print(query, style, signal);
   }

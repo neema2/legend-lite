@@ -42,13 +42,16 @@ class QueryBlocksTest {
         return select(SqlExpr.Column.of("t3", PHYSICAL), trade, PHYSICAL);
     }
 
-    /** {@code SELECT "t3"."bookId" ... FROM (SELECT "t1".bookId AS "bookId" FROM Trade AS "t1") AS "t3"}: the same
-     *  alias a subselect, its column the projection's quoted label -- the reference built with the table's stamp. */
+    /** {@code SELECT "t3"."bookId" ... FROM (SELECT DISTINCT "t1".bookId AS "bookId" FROM Trade AS "t1") AS "t3"}: the
+     *  same alias a subselect, its column the projection's quoted label -- the reference built with the table's stamp.
+     *  The subselect is DISTINCT so that it stays one (2026-11-06, main's merge into the timeseries branch): H2 folds a
+     *  pass-through select over a plain one into it (ProjectionWrapsFold, SelectMerge), which would leave no second
+     *  "t3" to resolve; neither folds a DISTINCT one, whose rows a narrowing could change. */
     private static SqlQuery overTheSubselect() {
         SqlSource.Table trade = new SqlSource.Table("Trade", "t1", List.of(PHYSICAL), false, Map.of(),
                 com.legend.sql.NameQuoting.BARE);
         SqlSelect inner = new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of("t1", PHYSICAL), "bookId",
-                DERIVED)), false, trade, null, List.of(), null, null, List.of(), null, null, List.of(DERIVED));
+                DERIVED)), true, trade, null, List.of(), null, null, List.of(), null, null, List.of(DERIVED));
         return select(SqlExpr.Column.of("t3", PHYSICAL), new SqlSource.Subselect(inner, "t3", null), DERIVED);
     }
 

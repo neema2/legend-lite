@@ -790,6 +790,154 @@ public class AsOfJoinCheckerTest extends AbstractDatabaseTest {
         }
     }
 
+    // ==================== On a database without an ASOF JOIN ====================
+
+    @Nested
+    @DisplayName("as-of where the database has no ASOF JOIN")
+    class WindowPass {
+
+        /** docs/TS_SCALE_2026_11_07.md F2 (2026-11-07): where the database has no ASOF JOIN, the join is one window
+         *  pass over both sides' keys and dates (CarrierStrategies.asOfByWindow), not a correlated MAX a left row --
+         *  and a star over it answers the join's own columns, never the pass's. */
+        @Test
+        @DisplayName("keys and >=: one window pass, the join's own columns, each row's match")
+        void oneWindowPassTheJoinsOwnColumns() throws SQLException {
+            String query = """
+                    #TDS
+                        id, k, event_time
+                        1, a, 10
+                        2, a, 20
+                        3, b, 20
+                        4, b, 5
+                        5, c, 30
+                    #->asOfJoin(
+                        #TDS
+                            rk, ts, value
+                            a, 10, 100
+                            a, 15, 150
+                            b, 18, 180
+                            b, 21, 210
+                        #,
+                        {l, r | $l.event_time >= $r.ts},
+                        {l, r | $l.k == $r.rk}
+                    )""";
+            String sql = generateSql(query);
+            String database = backend().name();
+            if (java.util.Set.of("h2", "sqlite", "postgres", "mariadb", "mysql").contains(database)) {
+                // the pass's stream (_asu), never the correlated MAX's copy (_asof, a word of its own)
+                assertTrue(sql.contains("_asu") && !java.util.regex.Pattern.compile("(?<![_a-z])_asof(?![_a-z])")
+                        .matcher(sql).find(), database + ": a window pass: " + sql);
+                // the left side read once: its rows carried through the stream (#81's final review, item 14k (7),
+                // 2026-11-10: read twice, a side that is not deterministic could answer otherwise each time) -- 'c'
+                // is the left's alone
+                assertEquals(1, sql.split("'c'", -1).length - 1, database + ": the left side read once: " + sql);
+            } else if ("duckdb".equals(database)) {
+                assertTrue(sql.toUpperCase(java.util.Locale.ROOT).contains("ASOF"), "DuckDB's own ASOF JOIN: " + sql);
+            }
+            var result = executeRelation(query);
+            assertEquals(java.util.List.of("id", "k", "event_time", "rk", "ts", "value"),
+                    result.columns().stream().map(c -> c.name()).toList(), "the join's columns, no more");
+            assertEquals(5, result.rowCount(), "one row a left row");
+            var byId = CheckerResults.collect(result, "id", "value");
+            // 1: a at 10 -> a's 10 (at the date: >=); 2: a at 20 -> a's 15; 3: b at 20 -> b's 18 (not 21, after);
+            // 4: b at 5 -> none; 5: c -> no c on the right
+            assertEquals(100L, ((Number) byId.get(1L)).longValue());
+            assertEquals(150L, ((Number) byId.get(2L)).longValue());
+            assertEquals(180L, ((Number) byId.get(3L)).longValue());
+            assertNull(byId.get(4L));
+            assertNull(byId.get(5L));
+        }
+    }
+
+    // ==================== Ties: one row, the same everywhere ====================
+
+    @Nested
+    @DisplayName("as-of where right rows tie on the match")
+    class Ties {
+
+        /** The user, 2026-11-07: "Can we make as of deterministic?" -- two right rows at the matched time (and key):
+         *  one row a left row, as every as-of join answers, and the same one on every database (the greatest by its
+         *  columns in order: here the later quote id), where DuckDB's own ASOF answers any one and the emulation of a
+         *  database without one answered both. */
+        @Test
+        @DisplayName("keys and >=, two quotes at the matched time: one row, the greatest, on every database")
+        void tiedRightRowsAnswerOneTheGreatest() throws SQLException {
+            var result = executeRelation("""
+                    #TDS
+                        id, k, event_time
+                        1, a, 20
+                        2, b, 20
+                    #->asOfJoin(
+                        #TDS
+                            rk, ts, quote_id, value
+                            a, 10, 1, 100
+                            a, 15, 2, 150
+                            a, 15, 3, 151
+                            b, 18, 4, 180
+                            b, 18, 5, 181
+                            b, 18, 6, 179
+                        #,
+                        {l, r | $l.event_time >= $r.ts},
+                        {l, r | $l.k == $r.rk}
+                    )""");
+            assertEquals(2, result.rowCount(), "one row a left row: " + result.rows());
+            var byId = CheckerResults.collect(result, "id", "quote_id");
+            assertEquals(3L, ((Number) byId.get(1L)).longValue(), "a at 20: of quotes 2 and 3 at 15, the greatest");
+            assertEquals(6L, ((Number) byId.get(2L)).longValue(), "b at 20: of quotes 4, 5 and 6 at 18, the greatest");
+        }
+
+        /** The final review of PR #81 (2026-11-09): a condition of the right side alone (a venue left out) filters the
+         *  quotes before the greatest is kept -- the kept quote had been one the ON then refused, its left row matching
+         *  an older quote. */
+        @Test
+        @DisplayName("a condition of the right side alone: the greatest of the quotes it keeps")
+        void aRightSideConditionFiltersBeforeTheGreatestIsKept() throws SQLException {
+            var result = executeRelation("""
+                    #TDS
+                        id, k, event_time
+                        1, a, 20
+                    #->asOfJoin(
+                        #TDS
+                            rk, ts, quote_id, venue
+                            a, 10, 1, ARCA
+                            a, 15, 2, ARCA
+                            a, 15, 3, DARK
+                        #,
+                        {l, r | $l.event_time >= $r.ts},
+                        {l, r | ($l.k == $r.rk) && ($r.venue != 'DARK')}
+                    )""");
+            assertEquals(1, result.rowCount(), result.rows().toString());
+            var byId = CheckerResults.collect(result, "id", "quote_id");
+            assertEquals(2L, ((Number) byId.get(1L)).longValue(), "a at 20: the lit quote at 15, not the older one at 10");
+        }
+
+        /** The tenet audit of PR #81 (2026-11-13): two quotes tied on the key and the time that differ in a decimal
+         *  alone (a bid) -- the decimal orders them too, so the greater bid is kept on every database, where the rank had
+         *  read scalars alone and kept the one the database chose. */
+        @Test
+        @DisplayName("quotes tied but for a decimal: the greater decimal is kept")
+        void aDecimalBreaksTheTie() throws SQLException {
+            var result = executeRelation("""
+                    #TDS
+                        id, k, event_time
+                        1, a, 20
+                    #->asOfJoin(
+                        #TDS
+                            rk:String, ts:Integer, bidText:String
+                            a, 15, 1.25
+                            a, 15, 1.50
+                            a, 15, 1.10
+                        #->extend(~bid: r | $r.bidText->parseDecimal())->select(~[rk, ts, bid]),
+                        {l, r | $l.event_time >= $r.ts},
+                        {l, r | $l.k == $r.rk}
+                    )""");
+            assertEquals(1, result.rowCount(), "one row a left row: " + result.rows());
+            var byId = CheckerResults.collect(result, "id", "bid");
+            assertEquals(0, new java.math.BigDecimal("1.50").compareTo(new java.math.BigDecimal(
+                    String.valueOf(byId.get(1L)))), "a at 20: of the three bids at 15, the greatest: " + byId);
+        }
+    }
+
     // ==================== Utilities ====================
 
     /** Collects results into a map keyed by the group column value. */

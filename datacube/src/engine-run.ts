@@ -20,6 +20,10 @@ export interface EngineSource {
   readonly model: string;
   readonly runtime: string;
   readonly how?: QueryAsk['how'];
+  /** DataCube's Pure library sent with every query, not only one calling it: a project's grid's (#81's item 8b, merged
+   *  2026-11-14) -- its timeseries tile and its own levels then plan over one hold of the project and the library,
+   *  its model compiled once. */
+  readonly overLibrary?: true;
 }
 
 // the Arrow answer's reader (apache-arrow), fetched with a grid's first rows: a page's start never downloads it
@@ -44,7 +48,7 @@ export class EngineRun implements QueryRunner {
     return {
       model: source.model, runtime: source.runtime, query,
       ...(source.how !== undefined ? { how: source.how } : {}),
-      ...(callsLibrary(query) ? { library: await loadLibrary() } : {}),
+      ...(source.overLibrary === true || callsLibrary(query) ? { library: await loadLibrary() } : {}),
     };
   }
 

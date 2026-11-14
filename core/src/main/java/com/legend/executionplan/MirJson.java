@@ -58,7 +58,7 @@ public final class MirJson {
     enum FactTag { typed, bottom, raises, unknown }
 
     enum BoundTag { unboundedPreceding, preceding, currentRow, following, unboundedFollowing, intervalPreceding,
-        intervalFollowing }
+        intervalFollowing, computedPreceding, computedFollowing }
 
     enum FmtTag { part, text }
 
@@ -565,6 +565,9 @@ public final class MirJson {
             fo.put("kind", w.frame().kind().name());
             fo.put("from", bound(w.frame().from()));
             fo.put("to", bound(w.frame().to()));
+            if (w.frame().checked()) {
+                fo.put("checked", true);   // a renderer's (FrameGuard): never a lowered plan's, kept if met
+            }
             o.put("frame", fo);
         }
     }
@@ -626,6 +629,14 @@ public final class MirJson {
                 o.put("_type", BoundTag.intervalFollowing.name());
                 o.put("n", f.n());
                 o.put("unit", f.unit());
+            }
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> {
+                o.put("_type", BoundTag.computedPreceding.name());
+                o.put("offset", expr(c.offset()));
+            }
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> {
+                o.put("_type", BoundTag.computedFollowing.name());
+                o.put("offset", expr(c.offset()));
             }
         }
         return o;
@@ -1036,7 +1047,7 @@ public final class MirJson {
                 Json.Obj f = objOrNull(o, "frame");
                 SqlExpr.WindowCall.Frame frame = f == null ? null : new SqlExpr.WindowCall.Frame(
                         named(SqlExpr.WindowCall.Frame.Kind.class, f.getString("kind"), "frame kind"),
-                        readBound(f.getObj("from")), readBound(f.getObj("to")));
+                        readBound(f.getObj("from")), readBound(f.getObj("to")), f.getBoolOr("checked", false));
                 yield new SqlExpr.WindowCall(readAgg(o.getObj("fn")), readExprs(o.getArr("partitionBy")),
                         readSortKeys(o.getArr("orderBy")), frame, type);
             }
@@ -1076,6 +1087,10 @@ public final class MirJson {
                     o.getString("unit"));
             case intervalFollowing -> new SqlExpr.WindowCall.Frame.Bound.IntervalFollowing(o.getLong("n"),
                     o.getString("unit"));
+            case computedPreceding -> new SqlExpr.WindowCall.Frame.Bound.ComputedPreceding(
+                    readExpr(o.getObj("offset")));
+            case computedFollowing -> new SqlExpr.WindowCall.Frame.Bound.ComputedFollowing(
+                    readExpr(o.getObj("offset")));
         };
     }
 

@@ -116,7 +116,7 @@ class TempTableAsTest {
     @Test
     void everyOtherDialectRefusesIt() {
         for (SqlDialect d : List.<SqlDialect>of(new MariaDb(), new MySql(), new Trino(),
-                new ClickHouse(), new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(),
+                new Snowflake(), new Databricks(), new BigQuery(), new EngineStyleH2(),
                 new EngineStyleDB2(), new EngineStyleComposite())) {
             DialectCapability refusal = assertThrows(DialectCapability.class,
                     () -> d.render(new SqlDml.CreateTempTableAs("tdg_t", values("a"))), d.getClass().getSimpleName());
@@ -124,10 +124,19 @@ class TempTableAsTest {
         }
     }
 
+    /** ClickHouse's own (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 9b: a statement's shared relations staged,
+     *  measured on the documents' examples): a Memory table of the HTTP session. */
+    @Test
+    void clickHousesIsAMemoryTableOfTheSession() {
+        String sql = new ClickHouse().render(new SqlDml.CreateTempTableAs("tdg_t", values("a")));
+        assertTrue(sql.startsWith("CREATE TEMPORARY TABLE \"tdg_t\" ENGINE = Memory AS "), sql);
+    }
+
     /** One line, a literal's own newline kept: only the layout's newlines go. */
     @Test
     void aQueryOnOneLine() {
-        SqlSelect inner = values("a\nb", "c");
+        // a LIMIT keeps the subselect a level of its own on every dialect (SelectMerge merges a plain one, 2026-11-04)
+        SqlSelect inner = values("a\nb", "c").withLimit(1L);
         SqlSelect outer = SqlSelect.starOf(new SqlSource.Subselect(inner, "s", null));
         for (SqlDialect d : List.<SqlDialect>of(new DuckDb(), new H2(), new SQLite(), new Postgres())) {
             String name = d.getClass().getSimpleName();

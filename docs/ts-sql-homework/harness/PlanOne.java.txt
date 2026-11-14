@@ -1,0 +1,28 @@
+package com.legend.integration;
+
+import java.util.*;
+
+/** Scratch: one example's planning, by phase (typing, then G½ to J), first and warm, N times. */
+public final class PlanOne {
+    public static void main(String[] a) throws Exception {
+        var backend = com.legend.testbackend.TestBackends.platform();
+        var m = TsDocumentsTest.class.getDeclaredMethod("model", com.legend.testbackend.TestBackend.class);
+        m.setAccessible(true);
+        var ctx = com.legend.Compiler.compileModel((String) m.invoke(null, backend));
+        var ex = TsDocumentsTest.class.getDeclaredMethod("examples", java.nio.file.Path.class);
+        ex.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, String> examples = (Map<String, String>) ex.invoke(null, java.nio.file.Path.of(a[0]));
+        String q = "|#TS{" + examples.get(a[1]) + "}#";
+        int n = Integer.parseInt(System.getProperty("n", "4"));
+        for (int i = 0; i < n; i++) {
+            long t0 = System.nanoTime();
+            var typed = com.legend.Compiler.query(ctx, q);
+            long t1 = System.nanoTime();
+            String sql = typed.plan("docs::RT").sql();
+            long t2 = System.nanoTime();
+            System.out.printf("run %d: typed %d ms, planned %d ms, %d chars%n", i, (t1 - t0) / 1_000_000,
+                    (t2 - t1) / 1_000_000, sql.length());
+        }
+    }
+}

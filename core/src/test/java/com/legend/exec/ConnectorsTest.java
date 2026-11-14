@@ -282,21 +282,23 @@ class ConnectorsTest {
      *  statements read no JDBC row. */
     @Test
     void eachConnectorAnswersItsDriversDecodeFacts() {
-        DatabaseConnector.Decoding dflt = new DatabaseConnector.Decoding(true, false, false, false);
+        DatabaseConnector.Decoding dflt = new DatabaseConnector.Decoding(true, false, false, false, true);
         Map<DatabaseType, DatabaseConnector.Decoding> expected = new LinkedHashMap<>();
+        // (ClickHouse's no transaction is takesTransactions's, its decoding the default: the correctness audit of PR
+        // #81, 2026-11-13, removed the field that repeated it)
         for (DatabaseType t : List.of(DatabaseType.H2, DatabaseType.SQLite, DatabaseType.Postgres, DatabaseType.MariaDB,
                 DatabaseType.MySQL, DatabaseType.ClickHouse)) {
             expected.put(t, dflt);
         }
         // no java.time re-fetch (the drivers refuse getObject(int, LocalDateTime.class); a BC date-time is designed)
-        expected.put(DatabaseType.Databricks, new DatabaseConnector.Decoding(false, false, false, false));
-        expected.put(DatabaseType.Snowflake, new DatabaseConnector.Decoding(false, false, false, false));
+        expected.put(DatabaseType.Databricks, new DatabaseConnector.Decoding(false, false, false, false, true));
+        expected.put(DatabaseType.Snowflake, new DatabaseConnector.Decoding(false, false, false, false, false));
         // a decimal's trailing zeros dropped by the driver (BIGNUMERIC '3.0' reads 3), padded back to the slot's scale
-        expected.put(DatabaseType.BigQuery, new DatabaseConnector.Decoding(true, true, false, false));
+        expected.put(DatabaseType.BigQuery, new DatabaseConnector.Decoding(true, true, false, false, true));
         // JSON spells a non-finite double as a bare token
-        expected.put(DatabaseType.DuckDB, new DatabaseConnector.Decoding(true, false, false, true));
+        expected.put(DatabaseType.DuckDB, new DatabaseConnector.Decoding(true, false, false, true, true));
         // a failed statement's result opens with no columns, its error on the first read
-        expected.put(DatabaseType.Trino, new DatabaseConnector.Decoding(true, false, true, false));
+        expected.put(DatabaseType.Trino, new DatabaseConnector.Decoding(true, false, true, false, true));
         for (Map.Entry<DatabaseType, DatabaseConnector.Decoding> e : expected.entrySet()) {
             assertEquals(e.getValue(), Connectors.of(com.legend.planner.ConnectionPlans.type(e.getKey())).decoding(), e.getKey().toString());
         }

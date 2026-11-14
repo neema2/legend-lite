@@ -54,6 +54,8 @@ write_source_files(
         "legend_lite/_type_facts.py": "//engine-client:lite_facts_py",
         # DataCube's commands, one builder each (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D17)
         "legend_lite/_commands.py": "//datacube:python_commands",
+        # the #TS builder's words for Python, from core's catalog and gs-quant's signatures (B3's twin)
+        "legend_lite/_ts_words.py": "//datacube:python_ts_words",
     },
     visibility = ["//:__pkg__"],
 )
@@ -470,6 +472,38 @@ py_test(
     ],
 )
 
+# THE #TS BUILDER IN PYTHON (B3's twin, docs/TS_DECISIONS_2026_11_07.md §4, the builders): its words gs-quant's own
+# signatures (held to projects/timeseries/gs-quant-signatures.json), its operators pandas', and its terms plotted on a
+# timeseries tile, DataCube's builder writing their text (headless) -- a lane of its own, apart from headless_test's
+py_test(
+    name = "ts_builder_test",
+    size = "medium",
+    srcs = [
+        "tests/main.py",
+        "tests/test_ts_builder.py",
+    ],
+    args = ["test_ts_builder"],
+    data = [
+        ":wheel_duckdb",
+        "//datacube:headless_bundle",
+        "//native:compiler",
+        "//projects:timeseries/gs-quant-signatures.json",
+        "//datacube:test/fixtures/timeseries/builder-python.json",
+    ],
+    env = _ENV | _HEADLESS_ENV | {
+        "LEGEND_LITE_GS_QUANT_SIGNATURES": "$(rlocationpath //projects:timeseries/gs-quant-signatures.json)",
+        # every gallery series as Python's builder code, with its text (B4's Show Python)
+        "LEGEND_LITE_BUILDER_PYTHON": "$(rlocationpath //datacube:test/fixtures/timeseries/builder-python.json)",
+    },
+    main = "tests/main.py",
+    target_compatible_with = _PLATFORMS,
+    deps = [
+        ":legend_lite",
+        "@pypi//pandas",
+        "@rules_python//python/runfiles",
+    ],
+)
+
 # A notebook's cube (legend_lite/notebook.py): the widget's calls over its channel answered by the engine, its version
 # following the frame, close; show() in a notebook's kernel (stood in for: no kernel runs) -- the cube under the cell,
 # once -- or in a tab when asked; and the import without anywidget saying how to install it. Over the site as the
@@ -515,11 +549,14 @@ py_test(
         "//datacube:headless_bundle",
         "//datacube:markets_data",
         "//datacube:markets_page",
+        "//datacube:tools/markets-data/markets-model.pure",
         "//native:compiler",
         "//scripts/corpus:trading_model",
     ],
     env = _ENV | _HEADLESS_ENV | {
         "LEGEND_LITE_MARKETS_DATA": "$(rlocationpath //datacube:markets_data)",
+        # the project's own elements, which its Data fills since the copies over classes (2026-11-07: the macro table)
+        "LEGEND_LITE_MARKETS_OWN": "$(rlocationpath //datacube:tools/markets-data/markets-model.pure)",
         "LEGEND_LITE_MARKETS_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",
         "LEGEND_LITE_MARKETS_PAGE": "$(rlocationpath //datacube:markets_page)",
     },

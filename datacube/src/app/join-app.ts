@@ -5,4 +5,4 @@
 export { flowJoin, hostJoinFlow, joinFlow } from './join-flow.ts';
 export { openedInputsOf, openedJoin, openedRows } from './join-sources.ts';
 // a timeseries series of several grids: opened together over one model, as a join's inputs are
-export { openTogether, tabSources } from './timeseries-together.ts';
+export { openTogether, projectTogether, tabSources } from './timeseries-together.ts';
