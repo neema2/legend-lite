@@ -1465,8 +1465,8 @@ class Grid(Tile):
 
     def timeseries(self, *series: Any, title: str | None = None, **slots: Any) -> Timeseries:
         """A timeseries tile of this grid alone, under it (``Page.timeseries`` with this grid its one source): its date
-        and instrument columns DataCube's to choose (``date=``, ``key=`` say them), ``series`` each an expression
-        (``'close[AAPL]'``, ``'volatility(close[AAPL], 63)'``); none: DataCube's first series of it."""
+        and instrument columns DataCube's to choose (``date=``, ``key=`` say them), ``series`` each a #TS expression
+        (``"close['AAPL']"``, ``"volatility(close['AAPL'], w => 63)"``); none: DataCube's first series of it."""
         told = {k: slots.pop(k) for k in ('date', 'key', 'alias') if k in slots}
         return self._page.timeseries({'grid': self, **told}, series, title=title, **slots)
 
@@ -1593,7 +1593,7 @@ def _cube_spec(session: Any, cube: Mapping[str, Any], frames: Any, engine: Any,
 
 def _with_library(base: Mapping[str, Any], said: Mapping[str, Any]) -> Mapping[str, Any]:
     """A query's base with DataCube's Pure library beside its model, where DataCube says the query calls it
-    (headless ``library``: datacube/src/pure-library.ts, ``datacube::ts::mean`` and the rest), which the engine plans
+    (headless ``library``: datacube/src/pure-library.ts, ``timeseries::mean`` and the rest), which the engine plans
     it over after the model -- else the base as it is."""
     library = said.get('library')
     return base if library is None else {**base, 'library': library}
@@ -1945,10 +1945,13 @@ class Text(Tile):
         self._page._apply_page([_commands.page_set_text_files(tile=self._id, files=given)])
 
 
-def _series_told(expr: str, name: str | None, split: str | None, pane: int | None, axis: str | None,
+def _series_told(expr: Any, name: str | None, split: str | None, pane: int | None, axis: str | None,
                  style: Mapping[str, Any] | None) -> dict[str, Any]:
-    """A series as Python's plot and edit tell it: its expression's text (read by DataCube's parser) and the slots given."""
-    told = {'expr': expr, 'name': name, 'split': split, 'pane': pane, 'axis': axis, 'style': dict(style) if style is not None else None}
+    """A series as Python's plot and edit tell it: its #TS text (read by core, the one reader: A3 step 3), or a term of
+    the builder (legend_lite.timeseries: DataCube's builder writes its text, B3), and the slots given."""
+    from ._ts_terms import Term
+    said = {'term': expr._wire} if isinstance(expr, Term) else {'text': expr}
+    told = {**said, 'name': name, 'split': split, 'pane': pane, 'axis': axis, 'style': dict(style) if style is not None else None}
     return {k: v for k, v in told.items() if v is not None}
 
 
@@ -1980,9 +1983,9 @@ def _timeseries_sources(sources: Any) -> list[dict[str, Any]]:
 @_operations
 class Timeseries(Tile):
     """A timeseries tile -- DataCube's timeseries viewer (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md): series of any
-    number of the page's grids along one time axis, each an expression in gs-quant's vocabulary, PlotTool Pro's --
-    ``returns(px:close[SPX], 1, log)``, ``volatility($A, 63)``, ``correlation($A, $B, 126)``, ``$A / $B`` -- read by
-    DataCube's own parser; every figure the database's. Its spec is DataCube's page document's (``spec``); each change
+    number of the page's grids along one time axis, each a #TS expression in gs-quant's vocabulary, PlotTool Pro's --
+    ``returns(px.close['SPX'], 1, 'log')``, ``volatility(A, w => 63)``, ``correlation(A, B, w => 126)``, ``A / B`` --
+    read by core, the one reader (A3 step 3); every figure the database's. Its spec is DataCube's page document's (``spec``); each change
     is the command its viewer sends (page-commands.ts setTimeseries), judged by DataCube in its words."""
 
     _kind = 'timeseries'
@@ -2016,14 +2019,15 @@ class Timeseries(Tile):
     # its viewer's editors ask too (headless timeseriesEdit) -- and judged as a tile Python makes is: no rule of Python's
     # own (the review's A2, docs/TIMESERIES_REVIEW_2026_10_25.md).
 
-    def plot(self, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
+    def plot(self, expr: Any, *, name: str | None = None, split: str | None = None, pane: int | None = None,
              axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
-        """A series more, after its others: ``expr`` in DataCube's expression language, its id the next letter (``$B``
-        reads it), a line per value of ``split`` (a text column of the grid it reads first), drawn in ``pane`` (0 the
-        main one) on ``axis`` as ``style`` says -- what the viewer's + Series adds."""
+        """A series more, after its others: ``expr`` its #TS text, or a term of the builder (``legend_lite.timeseries``:
+        ``volatility(column('close', 'SPX'), 22)``), its id the next letter (``B`` reads it), a line per value of
+        ``split`` (a text column of the grid it reads first), drawn in ``pane`` (0 the main one) on ``axis`` as ``style``
+        says -- what the viewer's + Series adds."""
         return self._edit({'kind': 'plot', 'series': _series_told(expr, name, split, pane, axis, style)})
 
-    def edit(self, id: str, expr: str, *, name: str | None = None, split: str | None = None, pane: int | None = None,
+    def edit(self, id: str, expr: Any, *, name: str | None = None, split: str | None = None, pane: int | None = None,
              axis: str | None = None, style: Mapping[str, Any] | None = None) -> Timeseries:
         """Series ``id`` written again, in place -- what the viewer's series editor's OK makes: its expression and how it is
         drawn, each as told (None: none), hidden if it was. Refused when it has no series ``id``."""
@@ -2156,7 +2160,6 @@ class Timeseries(Tile):
         series' points, or with ``table`` one of the tables its screen's statistics panel shows) -- of one grid, as the
         grid is read (its copy, snapped; a class's mapping; the page's filters on it: headless gridTimeseries), of several
         over one model of their tables. Called within a read of the frames (Frames.reading)."""
-        from . import compiler
         page = self._page
         session = page._session
         engine, frames = session.headless(), session.frames
@@ -2174,7 +2177,7 @@ class Timeseries(Tile):
         said = _json.loads(engine.call('gridTimeseries', spec, _json.dumps(asked)))
         if 'problems' in said:
             raise ValueError('; '.join(said['problems']))
-        return compiler.parse(said['query']), _with_library(spec, said), said
+        return said['query'], _with_library(spec, said), said
 
     def _rows(self, asked: dict[str, Any]) -> tuple[Any, dict[str, Any]]:
         """The rows of one of the tile's queries (``_query``) as a pandas DataFrame, and its answer's words: planned and
@@ -2606,7 +2609,7 @@ class Timeseries(Tile):
         return pd.DataFrame([table[k] for k in keys], index=index, columns=[*months, 'Year'])
 
     def swap(self, instrument: Any, to: Any, *, source: str | None = None) -> Timeseries:
-        """Instrument ``instrument`` read as ``to`` in every series that reads it (``close[SPX]``: a match on its source's
+        """Instrument ``instrument`` read as ``to`` in every series that reads it (``close['SPX']``: a match on its source's
         instrument column) -- of source ``source`` alone when given -- a name that says it saying the other: the screen's
         Swap, by the tile's one rule (timeseries-edit.ts). An instrument column of numbers takes them as numbers
         (``swap(10, 20)``); the spaces round a name are not of it. Refused where no series reads it."""
@@ -2843,13 +2846,17 @@ class Sheet:
         """A timeseries tile on this sheet -- under ``near`` (a tile of this sheet), else a band of its own at its bottom
         -- reading ``sources`` (a grid, grids, or grids by alias: ``{'px': prices, 'rates': rates}``; each grid's date
         and instrument columns DataCube's to choose unless told: ``{'grid': rates, 'date': 'asof', 'key': 'tenor'}``),
-        plotting ``series`` (each an expression, ``'volatility(px:close[SPX], 63)'``, or a mapping of one and how it is
+        plotting ``series`` (each a #TS expression, ``"volatility(px.close['SPX'], w => 63)"``, or a mapping of its ``text`` and how it is
         drawn), with its other ``slots`` (``grain``, ``range``, ``view``, ``panes``, ``annotations``) -- as Create ▸
         Timeseries adds one (page-commands.ts addTimeseries), every word judged by DataCube."""
         _ = self._doc
         page = self._page
         # no series: DataCube's first series of its first grid (its price-like value, a line per instrument)
-        given = {'sources': _timeseries_sources(sources), **({'series': list(series)} if series else {}),
+        # a term of the builder (legend_lite.timeseries) told as one: DataCube's builder writes its text (B3)
+        from ._ts_terms import Term
+        told = [{'term': s._wire} if isinstance(s, Term)
+                else {**s, 'term': s['term']._wire} if isinstance(s, Mapping) and isinstance(s.get('term'), Term) else s for s in series]
+        given = {'sources': _timeseries_sources(sources), **({'series': told} if series else {}),
                  **{k: v for k, v in slots.items() if v is not None}}
         said = json.loads(page._session.headless().call('timeseriesMade', _json.dumps(page._doc), _json.dumps(given)))
         if 'problems' in said:

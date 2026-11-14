@@ -1,0 +1,46 @@
+package com.legend.integration;
+
+import java.sql.*;
+import java.util.*;
+
+/** Scratch: every example of the documents run on the seeded DuckDB, its rows written to <dir>/<id>.csv. */
+public final class AllAnswers {
+    public static void main(String[] a) throws Exception {
+        var backend = com.legend.testbackend.TestBackends.platform();
+        var m = TsDocumentsTest.class.getDeclaredMethod("model", com.legend.testbackend.TestBackend.class);
+        m.setAccessible(true);
+        var ctx = com.legend.Compiler.compileModel((String) m.invoke(null, backend));
+        var ex = TsDocumentsTest.class.getDeclaredMethod("examples", java.nio.file.Path.class);
+        ex.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, String> examples = (Map<String, String>) ex.invoke(null, java.nio.file.Path.of(a[0]));
+        java.nio.file.Path dir = java.nio.file.Path.of(a[1]);
+        java.nio.file.Files.createDirectories(dir);
+        try (Connection c = backend.open()) {
+            var seed = TsDocumentsTest.class.getDeclaredMethod("seed", com.legend.testbackend.TestBackend.class, Connection.class);
+            seed.setAccessible(true);
+            seed.invoke(null, backend, c);
+            for (var e : examples.entrySet()) {
+                StringBuilder out = new StringBuilder();
+                try {
+                    String sql = com.legend.Compiler.query(ctx, "|#TS{" + e.getValue() + "}#").plan("docs::RT").sql();
+                    try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) {
+                        ResultSetMetaData md = r.getMetaData();
+                        for (int i = 1; i <= md.getColumnCount(); i++) out.append(i > 1 ? "," : "").append(md.getColumnLabel(i).toLowerCase(Locale.ROOT));
+                        out.append('\n');
+                        while (r.next()) {
+                            for (int i = 1; i <= md.getColumnCount(); i++) {
+                                Object o = r.getObject(i);
+                                out.append(i > 1 ? "," : "").append(o == null ? "" : o.toString());
+                            }
+                            out.append('\n');
+                        }
+                    }
+                } catch (Throwable t) {
+                    out.append("ERROR ").append(t.getClass().getSimpleName()).append(": ").append(String.valueOf(t.getMessage()).lines().findFirst().orElse(""));
+                }
+                java.nio.file.Files.writeString(dir.resolve(e.getKey() + ".csv"), out.toString());
+            }
+        }
+    }
+}

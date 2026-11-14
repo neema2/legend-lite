@@ -40,6 +40,7 @@ import com.legend.sql.SqlQuery;
 import com.legend.sql.SqlRewriter;
 import com.legend.sql.SqlSelect;
 import com.legend.sql.SqlSource;
+import com.legend.sql.SqlWith;
 import com.legend.sql.dialect.RenderedStatement;
 import com.legend.sql.dialect.SqlDialect;
 
@@ -152,8 +153,30 @@ public final class PlanMaker {
         ExecutionPlan.Target target = target(decided.target(), Objects.requireNonNull(runtime), l.ctx(), dialect,
                 projectDatabase);
         SqlQuery lowered = DataSources.read(EnumValueTables.apply(l.plan()), dialect);
-        return ExecutionPlan.reading(declarations(declared, l.ctx()),
-                stampedIfRead(typed(l.root(), lowered, dialect, target), st.reads().ownStamp()));
+        Staged staged = stagedShared(dialect, lowered, target, 0);
+        ExecutionPlan.Node answer = stampedIfRead(typed(l.root(), staged.statement(), dialect, target),
+                st.reads().ownStamp());
+        if (staged.tables().isEmpty()) {
+            return ExecutionPlan.reading(declarations(declared, l.ctx()), answer);
+        }
+        // the shared relations' tables made ahead of the answer and dropped after it (stagedShared): effects, a
+        // session's own tables, never a change of the database's (no transaction is opened for them: ClickHouse's
+        // driver takes none, "setAutoCommit(false) is not supported", measured 2026-11-07)
+        List<ExecutionPlan.Node> steps = new ArrayList<>();
+        for (String table : staged.tables()) {
+            // a table a failed run left in the session (its drop never ran) is dropped before it is made again
+            steps.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
+            steps.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
+        }
+        steps.add(answer);
+        if (!dialect.dropsStagedTablesWithTheirTransaction()) {
+            for (String table : staged.tables()) {
+                steps.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
+            }
+        }
+        // a reading plan (its tables a session's own: it changes no store), run on its answer's session -- the
+        // staging's session, the same (ProductRun)
+        return ExecutionPlan.reading(declarations(declared, l.ctx()), new ExecutionPlan.Sequence(steps));
     }
 
     /**
@@ -595,8 +618,11 @@ public final class PlanMaker {
                     StagedRows.storeOf(sp.body(), ctx, state.runtime()), let.info()));
             return;
         }
+        // a relation read more than once written once, but where the engine's CTE extraction names the statement's
+        // subqueries itself (as ProductStatements.lower: the third review's finding 6, 2026-11-07)
         Lowerer lowerer = ProductStatements.lowerer(query, sp, st.temporal(), false,
-                withStamps(state.slots(), state.frames()), state.sites());
+                withStamps(state.slots(), state.frames()), state.sites())
+                .sharingRelations(!sp.env().postProcessors().extractCtes());
         SqlQuery q = state.read(FrameCtes.attach(EnumValueTables.apply(lowerer.namedColumns(
                 ProductStatements.postProcessed(lowerer.lower(ProductStatements.seeded(sp.body(), sp.env(), ctx)),
                         sp.env()))), st.reads().definitions()));
@@ -669,10 +695,170 @@ public final class PlanMaker {
             unplannedOnTheTestDoor(st);
         }
         Prepared.Planned p = ProductStatements.planned(st);
-        SqlQuery q = state.lowered(st, last);
+        Staged staged = stagedShared(dialect, state.lowered(st, last), target, state.staged().size());
+        for (String table : staged.tables()) {
+            state.add(new ExecutionPlan.Effect(dropping(dialect, table, target)));
+            state.add(new ExecutionPlan.Effect(staging(dialect, staged, table, target)));
+            state.stage(table);
+        }
+        SqlQuery q = staged.statement();
         TypedSpec answer = p.body().get(p.body().size() - 1);
         state.add(stampedIfRead(last ? typed(answer, q, dialect, target)
                 : new ExecutionPlan.Check(sql(dialect.renderStatement(q), target, q)), st.reads().ownStamp()));
+    }
+
+    /**
+     * SHARED RELATIONS STAGED (docs/TS_DECISIONS_2026_11_07.md item 9b, decision 16 (b), 2026-11-07): where the
+     * database writes each read of a common table expression again ({@link SqlDialect#writesEachReadOfAWithAgain}:
+     * ClickHouse), each relation {@code q} reads more than once -- the lowering's shared ones, {@code __let<n>} at its
+     * head ({@code lowering.SharedRelations}) -- is computed once, in the WITH's order, into a temporary table of the
+     * session (named {@code __stage<n>__let<m>} from {@code first}, so a program's statements never share one), and
+     * the statement and the relations after read it by name. Elsewhere {@code q} as it is, and no table.
+     */
+    static Staged stagedShared(SqlDialect dialect, SqlQuery q, ExecutionPlan.Target target, int first) {
+        if (!dialect.writesEachReadOfAWithAgain() || !(q instanceof SqlWith w)
+                || w.ctes().stream().noneMatch(c -> c.name().startsWith(SqlWith.SHARED_PREFIX))) {
+            return new Staged(q, List.of(), Map.of());
+        }
+        if (!dialect.stagesSharedRelations()) {
+            // no table to compute it once in (Trino, BigQuery): the WITH stays, each read computing it again -- the
+            // same rows where the relation is the same rows each time, but not where it picks them by no order
+            // (#81's final review, item 14k (9), 2026-11-10)
+            Map<String, SqlQuery> ctes = new HashMap<>();
+            for (SqlWith.Cte c : w.ctes()) {
+                ctes.put(c.name(), c.query());
+            }
+            for (SqlWith.Cte c : w.ctes()) {
+                if (c.name().startsWith(SqlWith.SHARED_PREFIX)
+                        && picksRowsByNoOrder(c.query(), ctes, new java.util.HashSet<>())) {
+                    throw new NotImplementedException("a relation the query reads more than once picks its rows by no"
+                            + " order (a limit, a slice or a drop with no sort before it): this database computes it"
+                            + " again at each read, and each could pick other rows; sort it by a unique key first");
+                }
+            }
+            return new Staged(q, List.of(), Map.of());
+        }
+        Map<String, String> tables = new HashMap<>();
+        List<String> order = new ArrayList<>();
+        Map<String, SqlQuery> bodies = new LinkedHashMap<>();
+        List<SqlWith.Cte> kept = new ArrayList<>();
+        for (SqlWith.Cte c : w.ctes()) {
+            SqlQuery body = readingTables(c.query(), tables);
+            if (!c.name().startsWith(SqlWith.SHARED_PREFIX)) {
+                kept.add(new SqlWith.Cte(c.name(), body, c.materialized()));
+                continue;
+            }
+            String table = "__stage" + (first + order.size()) + c.name();
+            order.add(table);
+            // the WITH's other relations it reads, ahead of it in its own statement (#81's final review, item 14k (4),
+            // 2026-11-10: staged without them, its statement named a relation it did not have)
+            List<SqlWith.Cte> needs = readBy(body, kept);
+            bodies.put(table, needs.isEmpty() ? body : SqlWith.prepend(needs, body, w.recursive()));
+            tables.put(c.name(), table);
+        }
+        SqlQuery body = readingTables(w.body(), tables);
+        return new Staged(kept.isEmpty() ? body : w.with(kept, body), List.copyOf(order),
+                java.util.Collections.unmodifiableMap(bodies));
+    }
+
+    /** The relations of {@code ctes} that {@code q} reads by name, and the ones they read, in {@code ctes}' order. */
+    private static List<SqlWith.Cte> readBy(SqlQuery q, List<SqlWith.Cte> ctes) {
+        java.util.Set<String> needed = new java.util.HashSet<>();
+        java.util.Deque<SqlQuery> todo = new java.util.ArrayDeque<>();
+        todo.push(q);
+        while (!todo.isEmpty()) {
+            for (String name : cteReads(todo.pop())) {
+                for (SqlWith.Cte c : ctes) {
+                    if (c.name().equals(name) && needed.add(name)) {
+                        todo.push(c.query());
+                    }
+                }
+            }
+        }
+        return ctes.stream().filter(c -> needed.contains(c.name())).toList();
+    }
+
+    /** The common table expressions {@code q} reads by name. */
+    private static List<String> cteReads(SqlQuery q) {
+        List<String> reads = new ArrayList<>();
+        new SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Cte c) {
+                    reads.add(c.name());
+                }
+                return s;
+            }
+        }.rewrite(q);
+        return reads;
+    }
+
+    /** Whether {@code q} picks its rows by no order: a select with a limit or an offset and no sort, in {@code q} or in
+     *  a common table expression of {@code ctes} it reads by name ({@code seen} the ones looked at). */
+    static boolean picksRowsByNoOrder(SqlQuery q, Map<String, SqlQuery> ctes, java.util.Set<String> seen) {
+        boolean[] found = {false};
+        List<String> reads = new ArrayList<>();
+        new SqlRewriter() {
+            @Override
+            protected SqlQuery select(SqlSelect s) {
+                if ((s.limit() != null || s.offset() != null) && s.orderBy().isEmpty()) {
+                    found[0] = true;
+                }
+                return s;
+            }
+
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Cte c) {
+                    reads.add(c.name());
+                }
+                return s;
+            }
+        }.rewrite(q);
+        if (found[0]) {
+            return true;
+        }
+        for (String r : reads) {
+            SqlQuery read = ctes.get(r);
+            if (read != null && seen.add(r) && picksRowsByNoOrder(read, ctes, seen)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A statement with its shared relations staged: the statement reading the tables, the tables in the order they
+     *  are made, and each one's query. */
+    record Staged(SqlQuery statement, List<String> tables, Map<String, SqlQuery> queries) {
+    }
+
+    /** The statement that drops {@code table} where it is ({@code DROP TABLE IF EXISTS}). */
+    static ExecutionPlan.Sql dropping(SqlDialect dialect, String table, ExecutionPlan.Target target) {
+        return new ExecutionPlan.Sql(dialect.render(new SqlDdl.DropTable(null, table, NameQuoting.BARE, true)),
+                List.of(), target, null, List.of());
+    }
+
+    /** The statement that makes {@code table} of {@code staged}: a temporary table of the session holding its rows. */
+    static ExecutionPlan.Sql staging(SqlDialect dialect, Staged staged, String table, ExecutionPlan.Target target) {
+        return sql(dialect.renderStatement(new SqlDml.CreateTempTableAs(table,
+                Objects.requireNonNull(staged.queries().get(table), table))), target, null);
+    }
+
+    /** {@code q}, each read of a staged relation ({@code tables}' keys) a read of its table. */
+    private static SqlQuery readingTables(SqlQuery q, Map<String, String> tables) {
+        if (tables.isEmpty()) {
+            return q;
+        }
+        return new SqlRewriter() {
+            @Override
+            protected SqlSource source(SqlSource s) {
+                if (s instanceof SqlSource.Cte c && tables.containsKey(c.name())) {
+                    return new SqlSource.Table(tables.get(c.name()), c.alias(), c.outputs(), false, Map.of(),
+                            NameQuoting.BARE);
+                }
+                return s;
+            }
+        }.rewrite(q);
     }
 
     /** The process's CATALOG beside {@code home} (a program's own target): a statement reading the system metamodel
@@ -709,7 +895,7 @@ public final class PlanMaker {
         SqlDialect dialect = state.dialect();
         for (String table : dialect.dropsStagedTablesWithTheirTransaction() ? List.<String>of() : state.staged()) {
             steps.add(new PlannedStep.Product(new ExecutionPlan.Update(new ExecutionPlan.Sql(dialect.render(
-                    new SqlDdl.DropTable(null, table, NameQuoting.BARE)), List.of(), state.target(), null, List.of()),
+                    new SqlDdl.DropTable(null, table, NameQuoting.BARE, true)), List.of(), state.target(), null, List.of()),
                     null)));
         }
         return steps;

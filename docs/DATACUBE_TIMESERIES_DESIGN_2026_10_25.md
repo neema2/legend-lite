@@ -920,10 +920,19 @@ dated budget notes; every figure still the database's.
     the compiler, as `#SQL{...}#` reads Postgres SQL and `#IQ{...}#` its own (docs/LEGEND_SQL_STUDY_2026_10_11.md,
     docs/CYPHER_STUDY_2026_10_15.md: one translator per language into one target), so a formula is Pure wherever Pure
     is written -- Studio, Python, a saved query -- and the tile's writer shapes alone.
-  - *The SQL's size* (proposed, 2026-10-28): the lowering pastes a column's definition at each use when it folds
-    consecutive extends into one SELECT, and a `sqrt` guard spells its argument some 29 times, so one volatility series
-    is 25 KB of SQL, three quarters of it one CASE copied 59 times; a column reused past a few times kept as a
-    subquery's column instead, measured against DuckDB's nested-window cost (core lowering, its own PR).
+  - *The SQL's size* (proposed 2026-10-28; built 2026-10-30): the lowering pastes a column's definition at each use when
+    it folds consecutive extends into one SELECT, and a `sqrt` guard spells its argument some 27 times, so one
+    volatility series was 25 KB of SQL, three quarters of it one CASE copied 59 times. The fold budget charged a read
+    once and never saw a rule's copies; it now counts the copies a pass writes, a rule's included (`Fold.overCopied`),
+    and a projection whose copies pass the budget stays in the select below, read by name. And an integer division by
+    a written literal other than 0 carries no zero guard (`DecimalKindRules.divide`: the token compared, nothing
+    computed). Measured by `//datacube:timeseries_sql_measure` (twelve of the tile's queries over six years of three
+    instruments, on DuckDB-WASM, the median of five runs, measured on three runs before and two after): a 63-day
+    volatility 25,188 bytes to 7,821 and 84-132 ms to 27-28; its z-score 25,876 to 8,539 and 83-122 ms to 28-31; RSI
+    22,430 to 12,267 and 76-92 ms to 58; the other nine byte for byte as before. Left: the
+    statistics' 23 KB is three sqrt guards of one column, 1.9 KB each -- the guard's message spelling a float as Pure
+    prints it -- and a volatility's window writes its guarded value twice (the ramp's count and the deviation): the
+    library's shape, not the fold's. Pinned in `ScaleCostsDuckDbTest`.
 - **Phase 6, charts from a model** (the user, 2026-10-27: "start all the charts from Class models projected to Relation
   instead of starting with Relation tables -- we should use the same Stress data model ... this also will give us richer
   joins to reference data and be able to plot trades"). A tile's grid reads a class of the stress model

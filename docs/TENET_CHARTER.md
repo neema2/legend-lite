@@ -194,6 +194,22 @@ PROGRAMS (input to the compiler, whoever wrote them). Consequences:
      literal (`'a' + 'b'` inside a filter stays SQL). A test pins that a data-position expression is never folded.
   4. **Anything else is a clear error**, naming the expression and the fence; never a guess and never a partial fold.
   5. Every row value such a function produces is computed by the database, as today.
+- **C6.2b — A window frame's bound is structure, folded when spelled** (ruled 2026-11-04, the user: asked "Can the
+  offset arithmetic fit in our tenets? Constant fold known at compile time?", then "Agree on everything else" to this
+  wording). A frame bound decides the window's shape,
+  as a column name decides a schema (C6.2a): legend-engine evaluates the window while it plans and reads each bound as
+  the number it computed (docs/SEMANTICS_REGISTER.md S170). A library writes its window's span once over its arguments
+  (`-(timeseries::periodSpan($n, $unit) - 1)`), and once a call's literals are substituted the span is arithmetic over
+  spelled integers alone; written to the database as an expression, it costs a runtime check around every window and is
+  refused outright by MySQL and MariaDB.
+  1. **Where:** a `rows`/`_range` bound alone (`WindowFrame.Bound.of`, the checker's and the inliner's one
+     classification), never a row's value.
+  2. **What:** integer `+`, `-`, `*` and unary minus over integer literals, worked exactly (`WindowFrame.spelled`); an
+     overflow, a division, a float, a parameter, a column or any other function folds nothing and leaves the bound the
+     database's (S170).
+  3. **Then:** the frame is the literal one -- its direction the number's sign, its order checked as a literal frame's,
+     in upstream's words -- so `rows(1 - $w, 0)` with `w = 2` is `1 PRECEDING`, as upstream reads it.
+  4. **Never a row value:** the same arithmetic in any other position stays SQL.
 - **C6.3 — The prelude ships declarations only** (class/enum shapes with keys and defaults,
   native signatures), verified against the real `.pure`; the ONE body exception is a Pure
   QUERY over the platform's own system tables (no control flow on computed values, no
@@ -297,6 +313,7 @@ wins.
 | C6.1 | `ObservabilityGuardrailTest` string-dispatch pin; `ArchitectureTest` metamodel-channel class-list (shrinks with the toPostgresModel leg) |
 | C6.2 | `LiteralUnrollLedgerTest` — the exact fold set of `LiteralUnroll`, compare-only (lands with the residual leg) |
 | C6.2a | The schema evaluator's pinned operation list and its never-a-row-value test (lands with execution plan W4.2) |
+| C6.2b | `FrameFromParameterTest` (a spelled bound is the literal frame; a query parameter's stays the database's, checked) and `WindowFrame.spelled`, called by `Bound.of` alone |
 
 Until a clause's enforcement lands, the clause still governs adjudication — "the guard is
 not built yet" is a schedule fact, not a license.

@@ -189,6 +189,8 @@ class PlannerSurfaceTest {
             door("relationType", p("model", MODEL_TEXT), p("query", LAMBDA)),
             door("planJson", p("model", MODEL_TEXT), p("lambdaJson", LAMBDA), p("runtime", NAME)),
             door("holdModel", p("model", MODEL_TEXT)),
+            // merged main 3a217086a (#81), 2026-11-14: a model held over a library (both Pure text, compiled by the planner)
+            door("holdModelOver", p("model", MODEL_TEXT), p("library", MODEL_TEXT)),
             door("releaseModel", handle()),
             door("planHeld", handle(), p("query", LAMBDA), p("runtime", NAME)),
             door("planJsonHeld", handle(), p("lambdaJson", LAMBDA), p("runtime", NAME)),
@@ -251,6 +253,7 @@ class PlannerSurfaceTest {
             Map.entry("executeArrowAnswerOrError", "executeArrowAnswer"), Map.entry("plan", "planSql"),
             Map.entry("planOrError", "plan"), Map.entry("relationTypeOrError", "relationType"),
             Map.entry("planJsonOrError", "planJson"), Map.entry("holdModelOrError", "holdModel"),
+            Map.entry("holdModelOverOrError", "holdModelOver"), // merged main 3a217086a (#81), 2026-11-14: the held model over a library
             Map.entry("releaseModelOrError", "releaseModel"), Map.entry("planHeldOrError", "planHeld"),
             Map.entry("planJsonHeldOrError", "planJsonHeld"),
             Map.entry("executionPlanJsonHeldOrError", "executionPlanJsonHeld"),
@@ -270,6 +273,7 @@ class PlannerSurfaceTest {
     static final Map<String, String> NATIVE_EXPORTS = new TreeMap<>(Map.ofEntries(
             Map.entry("lite_plan_json", "planJson"), Map.entry("lite_plan_text", "plan"),
             Map.entry("lite_hold_model", "holdModel"), Map.entry("lite_release_model", "releaseModel"),
+            Map.entry("lite_hold_model_over", "holdModelOver"), // merged main 3a217086a (#81), 2026-11-14: the held model over a library
             Map.entry("lite_plan_json_held", "planJsonHeld"),
             Map.entry("lite_execution_plan_json_held", "executionPlanJsonHeld"),
             Map.entry("lite_relation_type_held", "relationTypeJsonHeld"), Map.entry("lite_plan_text_held", "planHeld"),
@@ -318,6 +322,9 @@ class PlannerSurfaceTest {
                     "a test-data request"),
             Map.entry("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", "a model and a query"),
             Map.entry("/api/lite/v1/compilation/compile", "a model"),
+            // merged main 3a217086a (#81), 2026-11-14: #TS's two lite routes (upstream has no #TS)
+            Map.entry("/api/lite/v1/grammar/jsonToTs/lambda", "a model and a lambda's protocol JSON, shown as #TS"),
+            Map.entry("/api/lite/v1/grammar/tsItem", "one #TS item's text, read by core's parser"),
             Map.entry("/api/lite/v1/model/createClass", "a project's model and the classes to make"),
             Map.entry("/api/lite/v1/model/createAssociation", "a project's model and the associations to make"),
             Map.entry("/api/lite/v1/model/createDataSpace", "a project's model and the data space to make")));
@@ -337,7 +344,9 @@ class PlannerSurfaceTest {
                     "lambda", LAMBDA, "lowerBound", VALUE, "model", MODEL_TEXT, "multiplicity", OBJECT, "name", NAME,
                     "parameterValues", VALUE, "parameters", LAMBDA, "rawType", NAME, "renderStyle", OPTION,
                     "planned.resultColumns", PLAN_DATA, "runtime", NAME, "serializationFormat", OPTION,
-                    "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA, "upperBound", VALUE, "value", VALUE)),
+                    "planned.shape", PLAN_DATA, "planned.sql", PLAN_DATA, "upperBound", VALUE, "value", VALUE,
+                    // merged main 3a217086a (#81), 2026-11-14: tsItem's one #TS item, a query's text core's parser reads
+                    "text", LAMBDA)),
             "TestDataRoutes.java", new TreeMap<>(fields("_type", OPTION, "columnValuePairs", OBJECT, "function",
                     LAMBDA, "hashStrings", OPTION, "mapping", NAME, "model", MODEL_TEXT, "name", NAME,
                     "parameterValues", VALUE, "query", LAMBDA, "rowIdentifiers", OBJECT, "runtime", NAME, "schema",
@@ -448,6 +457,8 @@ class PlannerSurfaceTest {
             Map.entry("Compiler#parseModel(String)", List.of(MODEL_TEXT)),
             Map.entry("Compiler#parseQuery(String)", List.of(LAMBDA)),
             Map.entry("Compiler#compileModel(String)", List.of(MODEL_TEXT)),
+            // merged main 3a217086a (#81), 2026-11-14: a model compiled over a library's text
+            Map.entry("Compiler#compileModel(String, String)", List.of(MODEL_TEXT, MODEL_TEXT)),
             Map.entry("Compiler#compileModel(Protocol.PureModelContextData)", List.of(MODEL)),
             Map.entry("Compiler#compileModel(List<Compiler.ModelSource>)", List.of(MODEL_TEXT)),
             Map.entry("Compiler#parseSources(List<Compiler.ModelSource>)", List.of(MODEL_TEXT)),
@@ -477,6 +488,9 @@ class PlannerSurfaceTest {
                     List.of(LAMBDA, MODEL, NAME, OPTION, NAME)),
             // TypedQuery: a query typed once; its plans by a runtime's name and options
             Map.entry("TypedQuery#withBody(List<TypedSpec>)", List.of(LAMBDA)),
+            // merged main 3a217086a (#81), 2026-11-14: lite's own planning options, a closed set of words
+            Map.entry("TypedQuery#withOptions(Set<PlanOption>)", List.of(OPTION)),
+            Map.entry("TypedQuery#options()", List.of()),
             Map.entry("TypedQuery#context()", List.of()),
             Map.entry("TypedQuery#specs()", List.of()),
             Map.entry("TypedQuery#resolved()", List.of()),
@@ -498,6 +512,8 @@ class PlannerSurfaceTest {
             Map.entry("TypedQuery#projectPlan(String)", List.of(NAME)),
             // HeldModels: a model's text held by its handle, its compiled model handed to the caller's function
             Map.entry("HeldModels#hold(String)", List.of(MODEL_TEXT)),
+            // merged main 3a217086a (#81), 2026-11-14: a model held over a library's text
+            Map.entry("HeldModels#hold(String, String)", List.of(MODEL_TEXT, MODEL_TEXT)),
             Map.entry("HeldModels#release(int)", List.of(HANDLE)),
             Map.entry("HeldModels#with(int, Function<ModelContext, T>)", List.of(HANDLE, CALLBACK)),
             Map.entry("HeldModels#withText(String, Function<ModelContext, T>)", List.of(MODEL_TEXT, CALLBACK)),
@@ -537,7 +553,8 @@ class PlannerSurfaceTest {
      *  request's fields in that export's argument order -- each field's kind its door's parameter's
      *  ({@link #BOUNDARY}), read through {@link #NATIVE_EXPORTS}. */
     static final Map<String, List<String>> PY_KINDS = new TreeMap<>(Map.ofEntries(
-            Map.entry("hold", List.of("lite_hold_model", "model")),
+            // merged main 3a217086a (#81), 2026-11-14: Python holds a model over its library
+            Map.entry("hold", List.of("lite_hold_model_over", "model", "library")),
             Map.entry("release", List.of("lite_release_model", "handle")),
             Map.entry("plan", List.of("lite_plan_text_held", "handle", "query", "runtime")),
             Map.entry("relationType", List.of("lite_relation_type_text_held", "handle", "query")),

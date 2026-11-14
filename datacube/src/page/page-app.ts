@@ -27,6 +27,7 @@
 // the board put at the page it makes (CubePage.sync); what the grids change of themselves (a view, a chart following
 // it) is kept as they leave it. Undo and Redo put the board at a step the same way.
 
+import type { TsReader } from '../timeseries-text.ts';
 import { CubePage, type FlowStep, type PageEdit, type SheetInfo, type SpawnOptions, type SpawnedGrid } from './cube-page.ts';
 import { MenuView } from '../ui/menu-view.ts';
 import type { FileHandle, HandleRead } from '../file-handles.ts';
@@ -165,6 +166,9 @@ export interface PageAppOptions {
   /** The grids of `cubes` opened together for a timeseries series that combines them (page/cube-page.ts
    *  CubePageOptions.together): where the page plans and runs its own SQL. */
   readonly together?: (cubes: readonly string[]) => Promise<TsTogether>;
+  /** Core's reader of a timeseries series' #TS text (page/cube-page.ts CubePageOptions.readText): the host's legend-lite
+   *  module. */
+  readonly readText?: TsReader;
   /**
    * The host's readout (where the planner runs, what went wrong), at the right of the page's FIRST grid's status bar
    * -- it moves when another grid becomes the first -- on each of that bar's renders.
@@ -1086,6 +1090,7 @@ export class PageApp {
           at?: FlowPoint, step?: FlowStep) => this.#options.onFlowTool?.(tool, after, sheet, this.#state.draft.page, editor, into, port, at, step),
       } : {}),
       ...(this.#options.together ? { together: this.#options.together } : {}),
+      ...(this.#options.readText ? { readText: this.#options.readText } : {}),
       unopenedCube: (cube) => this.#unopened.get(cube),
     });
   }

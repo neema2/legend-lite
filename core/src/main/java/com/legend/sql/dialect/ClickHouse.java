@@ -58,9 +58,23 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  each aggregate's own {@code OrNull} form ({@link #reducerIn}): {@code aggregate_functions_null_for_empty}
      *  makes {@code groupArray} a NULLABLE array, which ClickHouse refuses (measured). And a CASE's branch runs only
      *  where its guard holds: the planner's merge of a subquery's expressions into its reader's drops that (a guarded
-     *  raise read through an outer {@code if} raised on every row, measured on 25.8), so the merge is off. */
+     *  raise read through an outer {@code if} raised on every row, measured on 25.8), so the merge is off; and so is
+     *  the plan's push-down of a filter below a join, which runs a WHERE's guarded branch where the WHERE's own AND
+     *  would not (W9, 2026-11-06: a #TS answer's FILTER of dates after latest - 3y, a WHERE over a join once SelectMerge
+     *  lifted it there, raised its date guard on four of the timeseries documents' examples; with the push-down off
+     *  each answers as without the merge). And a count of a value is never read from its column's null map: the
+     *  rewrite that does so ({@code optimize_functions_to_subcolumns}, {@code count(x)} as {@code sum(not(x.null))})
+     *  lost the column under a window over a join ("Not found column __table2.close.null in block", measured
+     *  2026-11-07 on the gallery's replay: {@code count(close[symbol = 'SPX'], all)}), so it is off. And a join is
+     *  planned by the join step 25.8 planned it by: 26.3's new logical join step ran a CASE's guarded raise its guard
+     *  held back once its select was a side of a hash join (the PCT's channel B verdict of {@code
+     *  testExtendLeadAdjustDerivedOffset} and {@code testProjectExtendNestedIfLeadAdjust}: a lead's date adjusted, its
+     *  date guard raised in the join of the expected and actual cells, each side answering alone; measured 2026-11-09
+     *  on 26.3.60.2 with {@code clickhouse local}, the lane round on PR #81). */
     static final String SETTINGS = "SETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT',"
-            + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0";
+            + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0,"
+            + " query_plan_filter_push_down = 0, optimize_functions_to_subcolumns = 0,"
+            + " query_plan_use_new_logical_join_step = 0";
 
     /** The setting of correlated subqueries, experimental on 25.8 and ON by default there (measured 2026-10-13): a
      *  correlated EXISTS answers false for an outer row whose correlated column is NULL, whatever the filter (o.v IS
@@ -70,6 +84,9 @@ public final class ClickHouse extends AnsiSqlRenderer {
      *  the server rather than answered wrong (PR #34's review: the default had made that claim false). */
     static final String CORRELATED = ", allow_experimental_correlated_subqueries = 1";
     static final String UNCORRELATED = ", allow_experimental_correlated_subqueries = 0";
+
+    /** Numbers each raise this dialect writes ({@link #error}): no two of a statement are one expression. */
+    private final int[] raises = {0};
 
     /** How deep the writer is in {@link #query}: the root query (depth 0 on entry) writes the SETTINGS clause. */
     private final int[] nesting = {0};
@@ -213,8 +230,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new PivotAsGroupBy(), new OuterJoinResidualsAsMatches(),
                 new ExplosionMarkers.LateralUnnestAsMarker(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
                 new ArrayJoinColumnsNamed(), new CheckedDefectsToLists(), new SubstringClamp(),
-                new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)), new ConstantKeysAsExpressions(),
-                new RootNumericTypes());
+                new AggregatesDeliverDouble(java.util.Set.of(SqlAgg.Fn.AVG)),
+                // a select over one subselect merged into it where the answer is kept, and a chain of windowed levels
+                // laid out again, each value once (W9, 2026-11-06, as on the other dialects: the timeseries documents'
+                // 26 runnable examples the same answers, most 2-8x faster -- guide-14 22.8 -> 3.6 s, spec-14 23.0 ->
+                // 3.9 s -- with the filter push-down off, SETTINGS)
+                new SelectMerge(java.util.function.UnaryOperator.identity()), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(), new RootNumericTypes());
     }
 
     /**
@@ -929,21 +950,30 @@ public final class ClickHouse extends AnsiSqlRenderer {
     }
 
     /** A branch that IS the raise is cast to the CASE's own type (the raise is an Int64, which a CASE of another type
-     *  refuses). */
+     *  refuses); and the branches share a type as a list's members do ({@link #unified}: a Float literal, a Decimal by
+     *  its digits, beside a computed Float64 is its Float64 -- "There is no supertype for types Decimal(2, 1), Float64"
+     *  otherwise, measured on four of the timeseries documents' examples in ClickHouse 25.8, W9 2026-11-06). */
     @Override
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
         SqlType slot = typeOf(c);
+        List<SqlExpr> members = new ArrayList<>();
+        c.whens().forEach(w -> members.add(w.then()));
+        if (c.otherwise() != null) {
+            members.add(c.otherwise());
+        }
+        java.util.function.BiConsumer<SqlWriter, SqlExpr> unify = unified(members);
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot));
+            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").piece(branch(w.then(), slot, unify));
         }
         if (c.otherwise() != null) {
-            writer.append(" ELSE ").piece(branch(c.otherwise(), slot));
+            writer.append(" ELSE ").piece(branch(c.otherwise(), slot, unify));
         }
         return writer.append(" END");
     }
 
-    private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot) {
+    private SqlWriter.Piece branch(SqlExpr e, @com.legend.base.Nullable SqlType slot,
+            java.util.function.BiConsumer<SqlWriter, SqlExpr> unify) {
         if (isRaise(e) && slot instanceof SqlType.Array) {
             // a list-typed raise: the raise is the size of an empty list of the slot's type
             String type = castTypeName(slot);
@@ -953,7 +983,7 @@ public final class ClickHouse extends AnsiSqlRenderer {
             String type = castTypeName(slot);
             return w -> w.append("CAST(").expr(e, 0).append(" AS " + type + ")");
         }
-        return w -> w.expr(e, 0);
+        return w -> unify.accept(w, e);
     }
 
     @Override
@@ -1128,16 +1158,23 @@ public final class ClickHouse extends AnsiSqlRenderer {
     private java.util.function.BiConsumer<SqlWriter, SqlExpr> unified(List<SqlExpr> members) {
         boolean dbl = members.stream().anyMatch(e -> typeOf(e) == SqlType.Scalar.DOUBLE);
         boolean dec = members.stream().anyMatch(e -> typeOf(e) instanceof SqlType.Decimal);
-        if (!(dbl && dec)) {
+        // an integer beside a Float64 is its Float64, as DuckDB's DOUBLE ("There is no supertype for types Float64,
+        // Int64", measured 2026-11-07 on the gallery's replay: CASE WHEN z < -2 THEN -2 ELSE z END, floor-ceil B)
+        boolean whole = members.stream().anyMatch(e -> integral(typeOf(e)));
+        if (!(dbl && (dec || whole))) {
             return (w, e) -> w.expr(e, 0);
         }
         return (w, e) -> {
-            if (typeOf(e) instanceof SqlType.Decimal) {
+            if (typeOf(e) instanceof SqlType.Decimal || integral(typeOf(e))) {
                 w.append("toFloat64(").expr(e, 0).append(")");
             } else {
                 w.expr(e, 0);
             }
         };
+    }
+
+    private static boolean integral(@com.legend.base.Nullable SqlType t) {
+        return t == SqlType.Scalar.BIGINT || t == SqlType.Scalar.INTEGER || t == SqlType.Scalar.HUGEINT;
     }
 
     @Override
@@ -1952,16 +1989,49 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return infix(writer, c, parentPrec);
     }
 
-    /** The {@code ERROR} arm of {@link #call}. */
+    /** The {@code ERROR} arm of {@link #call}: a parse of the enveloped message as an Int64, which fails with the
+     *  message quoted. It ends in an empty text of {@code rand(n)}'s, {@code n} its own in the statement, so the
+     *  server neither folds it as a constant nor makes two raises one: 26.3 evaluated a raise its CASE's guard held
+     *  back wherever the same raise stood twice in one WHERE (one shared expression, computed eagerly: the documents'
+     *  {@code latest - 2y}, its date check nested in its month check, measured 2026-11-07 -- even throwIf raised
+     *  there; distinct raises answer, as on 25.8). */
+    /** {@inheritDoc} A computed key its select names is written by that name. A raise is written with its own
+     *  {@code rand(n)} ({@link #error}), here and in the guards the writing adds (a date's range, {@code ADD_INTERVAL}),
+     *  so a key holding one is written two ways, and ClickHouse, which matches a select's values to its keys by their
+     *  text, refused the select ("Column 'x' is not under aggregate function and not in GROUP BY keys", measured
+     *  2026-11-09 on 26.3.60.2 with {@code clickhouse local}; by the alias it answers, an alias that shadows its own
+     *  column too). Found by the final review of PR #81: a date key's range guard (adjust under groupBy). */
+    @Override
+    protected SqlWriter groupByKeys(SqlWriter writer, SqlSelect s) {
+        String separator = "";
+        for (SqlExpr key : s.groupBy()) {
+            writer.append(separator);
+            separator = ", ";
+            String alias = key instanceof SqlExpr.Column ? null : s.projections().stream()
+                    .filter(p -> p.alias() != null && p.expr().equals(key) && (p.out() == null
+                            || p.out().origin() != com.legend.sql.OutputCol.Origin.PER_KEY))
+                    .map(SqlSelect.Projection::alias)
+                    .findFirst().orElse(null);
+            if (alias != null) {
+                writer.append(aliasIdent(alias));
+            } else {
+                writer.expr(key, 0);
+            }
+        }
+        return writer;
+    }
+
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
-        writer.append("toInt64(materialize(concat(char(31), ");
+        writer.append("toInt64(concat(char(31), ");
         if (a.size() > 1) {
             writer.expr(a.get(1), 0).append(", char(30), ");
         }
         // the server's error text quotes the message as a string literal, a quote in it escaped (\', measured):
         // each quote travels as the envelope's quote mark (RaisedErrors.QUOTE_MARK), as SQLite's
-        return writer.append("replaceAll(toString(").expr(a.get(0), 0).append("), '\\'', char(29)), char(31))))");
+        return writer.append("replaceAll(toString(").expr(a.get(0), 0)
+                .append("), '\\'', char(29)), char(31), substring(toString(rand(" + (++raises[0])
+                        + ")), 1, 0)))");
     }
 
     /** The message a date-time parameter of a digit past the microsecond raises (S181, A7). */
@@ -2774,6 +2844,11 @@ public final class ClickHouse extends AnsiSqlRenderer {
             case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> b;
             case SqlExpr.WindowCall.Frame.Bound.Following f -> b;
             case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> b;
+            // an interval frame keeps literal bounds (Frames.intervalBound): never beside a computed one
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new IllegalStateException(
+                    "a computed frame offset in an interval RANGE frame");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new IllegalStateException(
+                    "a computed frame offset in an interval RANGE frame");
         };
     }
 
@@ -2787,6 +2862,39 @@ public final class ClickHouse extends AnsiSqlRenderer {
         return ms;
     }
 
+    /** {@code lagInFrame} ({@code lag}) or {@code leadInFrame} of {@code args}' nullable value over the whole partition,
+     *  its offset {@code offset} where given, else {@code args}' own. */
+    private SqlWriter inFrame(SqlWriter writer, SqlExpr.WindowCall w, boolean lag, List<SqlExpr> args,
+            SqlWriter.@com.legend.base.Nullable Piece offset) {
+        writer.append(lag ? "lagInFrame(toNullable(" : "leadInFrame(toNullable(").expr(args.get(0), 0).append(")");
+        for (int i = 1; i < args.size(); i++) {
+            writer.append(", ");
+            if (i == 1 && offset != null) {
+                writer.piece(offset);
+            } else {
+                writer.expr(args.get(i), 0);
+            }
+        }
+        writer.append(") OVER (");
+        if (!w.partitionBy().isEmpty()) {
+            writer.append("PARTITION BY ").list(w.partitionBy());
+        }
+        if (!w.orderBy().isEmpty()) {
+            writer.append(w.partitionBy().isEmpty() ? "" : " ").append("ORDER BY ").join(w.orderBy(), ", ",
+                    this::sortKey);
+        }
+        return writer.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
+    }
+
+    /** Whether {@code e} is an integer literal of 1 or more, under casts. */
+    private static boolean positiveLiteral(SqlExpr e) {
+        SqlExpr x = e;
+        while (x instanceof SqlExpr.Cast c) {
+            x = c.value();
+        }
+        return x instanceof SqlExpr.IntLit i && i.value() >= 1;
+    }
+
     private static final java.util.Map<String, Long> UNIT_MILLIS = java.util.Map.of("WEEK", 604800000L, "DAY",
             86400000L, "HOUR", 3600000L, "MINUTE", 60000L, "SECOND", 1000L, "MILLISECOND", 1L);
 
@@ -2795,6 +2903,12 @@ public final class ClickHouse extends AnsiSqlRenderer {
     @Override
     protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
         SqlExpr.WindowCall.Frame frame = w.frame();
+        if (frame != null && frame.computed() && frame.kind() == SqlExpr.WindowCall.Frame.Kind.RANGE) {
+            // a RANGE frame of offsets is rewritten here (nullsAtEdge, fractionalRange) by its numbers; a ROWS frame's
+            // computed offset is ClickHouse's own (measured 2026-10-31: an expression and a parameter taken)
+            throw new DialectCapability("a RANGE window frame offset the database computes reached ClickHouse,"
+                    + " whose RANGE frames of offsets are rewritten by their numbers");
+        }
         if (frame != null && frame.kind() == SqlExpr.WindowCall.Frame.Kind.RANGE
                 && (isInterval(frame.from()) || isInterval(frame.to()))) {
             w = epochFramed(w, frame);
@@ -2807,20 +2921,20 @@ public final class ClickHouse extends AnsiSqlRenderer {
             }
         }
         if (w.fn() instanceof SqlAgg.ValueFn v && (v.fn() == SqlAgg.Fn.LAG || v.fn() == SqlAgg.Fn.LEAD)) {
-            writer.append(v.fn() == SqlAgg.Fn.LAG ? "lagInFrame(toNullable(" : "leadInFrame(toNullable(")
-                    .expr(v.args().get(0), 0).append(")");
-            for (SqlExpr e : v.args().subList(1, v.args().size())) {
-                writer.append(", ").expr(e, 0);
+            if (v.args().size() < 2 || positiveLiteral(v.args().get(1))) {
+                return inFrame(writer, w, v.fn() == SqlAgg.Fn.LAG, v.args(), null);
             }
-            writer.append(") OVER (");
-            if (!w.partitionBy().isEmpty()) {
-                writer.append("PARTITION BY ").list(w.partitionBy());
-            }
-            if (!w.orderBy().isEmpty()) {
-                writer.append(w.partitionBy().isEmpty() ? "" : " ").append("ORDER BY ").join(w.orderBy(), ", ",
-                        this::sortKey);
-            }
-            return writer.append(" ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)");
+            // an offset of any sign (a lag of -1 is a lead of 1, as DuckDB's, Postgres's and Snowflake's LAG read it):
+            // ClickHouse takes an offset in (0, max] alone ("The offset for function lagInFrame must be in (0,
+            // 9223372036854775807], -1 given", measured 2026-11-07 on the gallery's replay, lead_lag at lag -1), so
+            // the database picks the function by the offset's sign, each offset at least 1, and the value itself at 0
+            SqlExpr k = v.args().get(1);
+            boolean lag = v.fn() == SqlAgg.Fn.LAG;
+            writer.append("multiIf((").expr(k, 0).append(") >= 1, ");
+            inFrame(writer, w, lag, v.args(), w2 -> w2.append("greatest(").expr(k, 0).append(", 1)"));
+            writer.append(", (").expr(k, 0).append(") <= -1, ");
+            inFrame(writer, w, !lag, v.args(), w2 -> w2.append("greatest(-(").expr(k, 0).append("), 1)"));
+            return writer.append(", toNullable(").expr(v.args().get(0), 0).append("))");
         }
         // cume_dist (ClickHouse has none): the rows up to the current one's value over the partition's rows
         if (w.fn() instanceof SqlAgg.RankingFn r && r.fn() == SqlAgg.Fn.CUME_DIST) {
@@ -3021,6 +3135,46 @@ public final class ClickHouse extends AnsiSqlRenderer {
     // ==================================================================
     // Session tables and DDL
     // ==================================================================
+
+    /** {@inheritDoc} ClickHouse's own: {@code CREATE TEMPORARY TABLE t ENGINE = Memory AS <query>}, a table of the HTTP
+     *  session (a connection with none makes it and loses it with the request) -- a statement's shared relations
+     *  staged (writesEachReadOfAWithAgain), measured 2026-11-07 on the documents' examples on 25.8. */
+    @Override
+    protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        return createTemporaryTableAs(ct, false, "CREATE TEMPORARY TABLE ", " ENGINE = Memory");
+    }
+
+    /** {@inheritDoc} Yes: ClickHouse writes a WITH's relation in place at each read, and 25.8 has no materialized CTE
+     *  ({@code AS MATERIALIZED} a syntax error, no setting; measured 2026-11-07) -- the documents' spec-15, 111 KB of SQL,
+     *  was 2.8 MB written so, a relation's windows computed hundreds of times, and never finished. */
+    @Override
+    public boolean writesEachReadOfAWithAgain() {
+        return true;
+    }
+
+    /** {@inheritDoc} {@code DROP TEMPORARY TABLE}: the plain drop of a name the session holds no temporary table of
+     *  drops the database's table of that name (measured 2026-11-09 on 26.3.60.2 with {@code clickhouse local}: a
+     *  staged table's drop after its session was lost; the final review of PR #81). */
+    @Override
+    protected String dropTemporaryTable() {
+        return "DROP TEMPORARY TABLE IF EXISTS ";
+    }
+
+    /** A table of the database's own (not a session's TEMPORARY one, a Memory one without saying so) is legend-engine's
+     *  ClickHouse table: {@code ENGINE = MergeTree ORDER BY tuple()} (clickHouseExtension.pure,
+     *  translateCreateTableStatementForClickHouse). Without an engine the server's default, MergeTree, refuses a table
+     *  with no ORDER BY ("ORDER BY or PRIMARY KEY clause is missing", measured 2026-11-07 on 25.8, the gallery's replay,
+     *  docs/TS_DECISIONS_2026_11_07.md item 9). A keyed table sorts by its key: the engine's text is refused for one
+     *  ("Primary key must be a prefix of the sorting key", measured that day; register S157, ruled "Sort by its key"). */
+    @Override
+    protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
+        if (ct.temporary()) {
+            return "";
+        }
+        List<String> keys = ct.columns().stream().filter(com.legend.sql.SqlDdl.Column::primaryKey)
+                .map(c -> ddlKeyIdentifier(c.name(), c.declaredQuoted())).toList();
+        return " ENGINE = MergeTree ORDER BY " + (keys.isEmpty() ? "tuple()" : "(" + String.join(", ", keys) + ")");
+    }
 
     /** ClickHouse DDL: {@code BIT} is a UInt64 there (measured), so a Pure Boolean column is a {@code Bool}. */
     @Override

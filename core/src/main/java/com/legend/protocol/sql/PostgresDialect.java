@@ -21,12 +21,14 @@ import java.util.List;
  * {@link PostgresAggregates}; the dialect program's D11, 2026-10-18, moved them out of {@link SqlToPure}), which read
  * the translator throughout ({@link SqlToPure.At}'s place).
  */
-public final class PostgresDialect implements InputDialect {
+public class PostgresDialect implements InputDialect {
 
     /** The one Postgres dialect: it has no options. */
     public static final PostgresDialect INSTANCE = new PostgresDialect();
 
-    private PostgresDialect() {
+    /** One dialect is Postgres's but for a rule of its own: the SQL a #TS statement holds ({@code protocol.ts.TsSql},
+     *  its {@code /}). */
+    protected PostgresDialect() {
     }
 
     @Override
@@ -232,7 +234,11 @@ public final class PostgresDialect implements InputDialect {
             case "Number" -> Kind.NUMBER;
             case "String" -> Kind.STRING;
             case "Boolean" -> Kind.BOOLEAN;
-            case "StrictDate" -> Kind.DATE;
+            // Pure's Date, a column a Pure function computed (a period's date, firstDayOfWeek's): a date, as
+            // upstream's normalizeType reads StrictDate, DateTime and Date alike -- so a string compared with it is
+            // read as a date, as Postgres reads an untyped constant (A9, 2026-11-03: #TS's FILTER date >=
+            // '2024-01-01' under SAMPLE BY)
+            case "StrictDate", "Date" -> Kind.DATE;
             case "DateTime" -> Kind.DATETIME;
             // a Variant is Postgres's jsonb (register S49)
             case "Variant", SqlToPure.VARIANT -> Kind.JSON;

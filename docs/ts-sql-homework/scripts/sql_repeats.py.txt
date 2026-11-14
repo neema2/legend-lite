@@ -1,0 +1,62 @@
+import re, sys, hashlib, collections
+sql = open(sys.argv[1]).read()
+n = len(sql)
+print(f"size {n:,} chars")
+for label, pat in [("reads of the table prices", r'\bprices\b'), ("SELECTs", r'\bSELECT\b'),
+                   ("JOINs", r'\bJOIN\b'), ("GROUP BYs", r'\bGROUP BY\b'), ("window functions (OVER)", r'\bOVER\s*\(')]:
+    print(f"{label}: {len(re.findall(pat, sql)):,}")
+# every parenthesized subquery: its span and its children
+stack, nodes, children = [], [], collections.defaultdict(list)
+i = 0
+# find '(' positions followed by optional whitespace + SELECT
+for m in re.finditer(r'[()]', sql):
+    c = m.group(); p = m.start()
+    if c == '(':
+        is_q = re.compile(r'\(\s*SELECT\b').match(sql, p) is not None
+        stack.append((p, is_q))
+    else:
+        if not stack: continue
+        start, is_q = stack.pop()
+        if is_q:
+            nodes.append((start, p + 1))
+print(f"subqueries: {len(nodes):,}")
+# nest: a node's parent = nearest enclosing query node
+nodes.sort(key=lambda s: (s[0], -s[1]))
+parent = {}
+open_ = []
+for s in nodes:
+    while open_ and open_[-1][1] <= s[0]:
+        open_.pop()
+    parent[s] = open_[-1] if open_ else None
+    if open_: children[open_[-1]].append(s)
+    open_.append(s)
+def norm(t):
+    t = re.sub(r'\bt\d+\b', 't#', t)
+    t = re.sub(r'_\d+\b', '_#', t)
+    return t
+key = {}
+for s in nodes:
+    key[s] = hashlib.sha1(norm(sql[s[0]:s[1]]).encode()).hexdigest()
+counts = collections.Counter(key[s] for s in nodes)
+length = {}
+for s in nodes: length[key[s]] = s[1] - s[0]
+print(f"distinct subqueries (aliases normalised): {len(counts):,}")
+# own text of a node: its length less its direct children's, plus a short reference for each
+own = {}
+for s in nodes:
+    own[key[s]] = (s[1]-s[0]) - sum(c[1]-c[0] for c in children[s]) + 12*len(children[s])
+top_level = [s for s in nodes if parent[s] is None]
+main_own = n - sum(s[1]-s[0] for s in top_level) + 12*len(top_level)
+once = main_own + sum(own[k] for k in counts)
+print(f"if each distinct subquery were written once (a WITH each): about {once:,} chars ({n/once:,.0f}x smaller)")
+print("the most-repeated subqueries by text they take:")
+rows = sorted(counts.items(), key=lambda kv: -kv[1]*length[kv[0]])[:6]
+for k, c in rows:
+    s = next(x for x in nodes if key[x]==k)
+    txt = re.sub(r'\s+', ' ', sql[s[0]:s[1]])
+    print(f"  x{c:,}  each {length[k]:,} chars  = {c*length[k]:,}  :: {txt[:150]}...")
+print("the most-repeated subqueries by count:")
+for k, c in sorted(counts.items(), key=lambda kv: (-kv[1], -length[kv[0]]))[:8]:
+    s = next(x for x in nodes if key[x]==k)
+    txt = re.sub(r'\s+', ' ', sql[s[0]:s[1]])
+    print(f"  x{c:,}  each {length[k]:,} chars :: {txt[:230]}")

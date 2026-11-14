@@ -116,8 +116,9 @@ public final class ProductStatements {
         // no dialect: nothing on this road writes a statement (its caller renders in the runtime's dialect), so the
         // runtime is decided after the resolver, as the product always decided it, and every refusal keeps its order
         ProgramFrames.StatementRows rows = frames.statementRows();
-        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows)
-                : env(ctx, runtime, features, rows).withTableReplace(runtimeRenames);
+        // the query's own planning options (TypedQuery.withOptions), its lowering's
+        PlanEnv env = runtimeRenames.isEmpty() ? env(ctx, runtime, features, rows).withOptions(query.options())
+                : env(ctx, runtime, features, rows).withTableReplace(runtimeRenames).withOptions(query.options());
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
         Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered);
         // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
@@ -338,7 +339,11 @@ public final class ProductStatements {
      *  declared parameters, {@code sites} the program's object-id minter. */
     static SqlQuery lower(TypedQuery query, Prepared.Planned p, boolean temporal,
             boolean streaming, List<SqlExpr.PlanParam> slots, ObjectSites sites) {
-        Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites);
+        // a relation read more than once written once, but where the engine's cteExtractionPostProcessor names the
+        // statement's subqueries itself (legend-engine's text: SharedRelations, 2026-11-04; the merge of main on
+        // 2026-11-06 kept it on the test road alone, BodyPlanner.lowererFor -- the second review's finding 1)
+        Lowerer lowerer = lowerer(query, p, temporal, streaming, slots, sites)
+                .sharingRelations(!p.env().postProcessors().extractCtes());
         SqlQuery plan = lowerer.lower(seeded(p.body(), p.env(), query.context()));
         return postProcessed(plan, p.env());
     }
@@ -370,7 +375,7 @@ public final class ProductStatements {
             boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
             ObjectSites sites) {
         return configured(query, temporal, streaming, slots, BodyPlanner.featuresOf(env, body), sites)
-                .withDbTimeZone(env.timeZone());
+                .withDbTimeZone(env.timeZone()).withOptions(env.options());
     }
 
     /**

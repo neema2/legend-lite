@@ -61,9 +61,15 @@ public sealed interface SqlDdl
         }
     }
 
-    /** {@code DROP TABLE IF EXISTS [schema.]table}, its names as {@link CreateTable}'s. */
-    record DropTable(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting)
-            implements SqlDdl {
+    /** {@code DROP TABLE IF EXISTS [schema.]table}, its names as {@link CreateTable}'s; {@code temporary}: the table is
+     *  a session's own (a program's or a statement's staged table), so the drop reaches no table of the database's
+     *  where the session's is gone (ClickHouse's plain drop falls through to the database's table of the name,
+     *  measured 2026-11-09 on 26.3: the final review of PR #81). */
+    record DropTable(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting,
+            boolean temporary) implements SqlDdl {
+        public DropTable(@com.legend.base.Nullable String schema, String table, com.legend.sql.NameQuoting quoting) {
+            this(schema, table, quoting, false);
+        }
     }
 
     /** {@code CREATE SCHEMA IF NOT EXISTS schema}; {@code quoted}: the store declared the name quoted. */

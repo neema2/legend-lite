@@ -20600,6 +20600,195 @@ and `//gates:corpus_h2` green, every roster and register unchanged. **CI on `2bb
 **PR #83 merged** by the owner (`1aa9a34b`). PCT and core at 100% on the program road under the host and database
 judges, the wall total. What follows: the start page's §10.
 
+## 2026-11-06 — The timeseries branch's CI on #81: the corpus lanes' regressions from 4c3a2cfbe, fixed
+
+The timeseries branch's code commits of 2026-11-04 (`b7d69d98b` to `8b948df5d`) had run no CI until #81's branch was
+fast-forwarded to them (the user, 2026-11-06: "Yes, push to #81's branch"). Run 42156188850 (`dc8a065f0`) and run
+42181188360 (`72200a18b`) found, on every OS:
+
+1. **`//spec:corpus_duckdb` and `//spec:corpus_h2`: graph fetches lost in database mode** (8 on DuckDB, 9 on H2), each
+   `ClassCastException: SqlWith cannot be cast to SqlSelect`. `4c3a2cfbe` writes a relation a statement reads twice
+   once, as `WITH __let<n>`; the database judge composes each side into a verdict statement of its own
+   (`lowering/VerdictSql`), which casts the side to a `SELECT`. Fixed in `72200a18b`: `BodyDriver.planValue` writes a
+   database-judge side's shared relations back in place first (`SharedRelationsInPlace.all()`). Both lanes' lost
+   registers back to the committed ones.
+2. **`//core:census`: BodyDriver's ledger pin.** `72200a18b`'s five lines; the pin moved 2321 -> 2326 with the reason
+   (`b54facfa8`).
+3. **`//spec:corpus_duckdb`: `testUnionWithQualifiedProperty` failed the host judge on every runner** (passing here).
+   A first fix, `5bdffbcc9` (the test lanes' scan-order emulation writing a statement's shared relations in place),
+   moved the failure, not its cause: run 42190923965 failed it on the database judge on Linux and on the host judge on
+   Windows. The cause, read in the SQL (`LEGEND_LITE_DUMP_SQL`, `//spec:corpus_one`): a graph fetch's members
+   serialize in branch order, a key the lowering adds to a union under the envelope (`UnionSerialOrder`,
+   `list(... ORDER BY u_serial_ord__)`); since `4c3a2cfbe` the test's person union is read twice, so it was one
+   `WITH`, the envelope read `SELECT * FROM __let<n>`, found no union, and wrote `json_group_array` with no order --
+   in product SQL too, not only in the test lanes; which order DuckDB gave was the runner's. Fixed by the commit that
+   corrects this entry: `Lowerer.sharedRead` writes a union's relation at each read, as it does one with an ORDER BY
+   (a common table expression carries no order), and `UnionSerialOrder` keys a star member (`SELECT *, -i AS
+   u_serial_ord__ FROM __let<n>`, a member shared by name). `5bdffbcc9` reverted, its two register lines with it.
+   The test now failed here before the fix (with the union in place and its members shared) and passes after it.
+4. **`//datacube:bundle_budget_test`**: R7 part 3's rows forms took the timeseries tile to 126,834 of 126,500 bytes;
+   raised with the user's word ("Sure raise it"), `5beeed931` and `aa4980178`.
+
+Run 42200094861 (`16eb248ef`, the fix of finding 3 and W2) found:
+
+5. **`//spec:corpus_duckdb` green** on Linux and Windows: finding 3's fix holds there.
+6. **`//parser-equivalence:update_ratchets_test` (the checks lane, every OS) and `OwnCorpusParityTest` (the
+   parser_equivalence lane, every OS)**: `own_corpus.matched` 3025 -> 3026. The own corpus counts the Pure models inside
+   core's Java tests, and `16eb248ef`'s `LetSharingTest.UNIONED` is one more that joins and matches the referee byte for
+   byte. Re-blessed (`bazel run //parser-equivalence:update_ratchets`) by the commit that adds this line.
+7. **`//datacube:verify_layout_test` on Linux only**: 15 of 16 checks pass; the one that fails is a timing budget ("no
+   task over 100 ms, nor two over 50 ms, while a tile is dragged"), 127 ms dragging a tile between bands on the
+   runner. No commit of the run touches the layout or the drag; here, at `e0f840b15`, it passes with every drag 0 ms
+   (16 of 16): the runner's load, not a regression; nothing changed for it.
+
+Run 42207084841 (`f4fa15e81`): **every lane green on every OS** ("gates green"), the corpus lanes on Linux, Windows
+and macOS among them.
+
+## 2026-11-07 — The adversarial markets fixture and `//core:ts_adversarial_test`
+
+Branch `abs/ts-adversarial-fixture` on `claude/timeseries-language` (`aad8e762a`), PR #90; the design and the findings are
+`docs/TS_ADVERSARIAL_FIXTURE_2026_11_07.md`.
+
+1. **The fixture**, `projects/timeseries/fixtures/adversarial/` (generate.py, seed 20261107, standard library only,
+   every float sum `math.fsum`; prices.csv in file order with `seq`, its ingest sequence, the last column;
+   prices_adjusted.csv; calendar.csv; manifest.yaml; 385,451 bytes): nine traps, each with the naive SQL's answer and
+   the correct one, both worked by the generator over the file's own numbers. Its files are held to the generator by
+   `//projects:timeseries_adversarial_fixture_test` (`generate.py --check`, in the core lane). `--check` is sensitive
+   to Python's float summation (`sum()` over floats compensates since 3.12): that test failed under Bazel's Python
+   3.12.13 against files written by 3.9.6, the plain mean's last digit apart. Every float sum is `math.fsum` now,
+   correctly rounded; `--check` passes on Python 3.9.6 and 3.12.13, the two versions verified.
+2. **`//core:ts_adversarial_test`** (in the `core` lane): per trap a query on DuckDB (`#TS`, or Pure handing `#TS` a
+   relation) judged against the correct answer; each case's status, value and whether it faces its trap held by
+   `core/src/test/resources/ts-adversarial/ledger.tsv` (the parity lanes' ratchet's problems, VALUE MOVED, a case
+   twice). Every manifest naive SQL answers one row, dated: its answer the manifest's, never the correct one; the
+   holiday's and the weekly trap's controls (the same SQL on a neighbouring date) answer a value; the holiday's
+   calendar is read. **6 of the 9 traps face the trap: 5 PASS, 1 DIFF** (`duplicate_row`: SAMPLE BY's sum counts the
+   print and its correction, 226,756 against last print wins' 193,862 -- the last-print-wins proposal, for the
+   owner's ruling: its full proposed row in PR #90, the register file untouched). The other four cases (stale_price_5d, split_2_for_1, vwap_zero_volume,
+   duplicate_row/last_print_source) PASS as evidence of the word, not of the trap. A second test measures a tie: SAMPLE
+   BY's `last()`, the fix S149's refusal names, picks among a date's two rows by the order they were loaded:
+   `last(CLOSE['BTCUSD'])` on 2025-02-05 is 63009.14 (the original print) over the rows in file order and 63387.19
+   (the correction) over the same rows reversed -- a defect report of its own. Measured: a ledger status or value moved, a case twice, a naive answer's date changed, a
+   control answer changed -- each turns the target red, the problem named.
+3. **What the first local gate found, fixed**: `//core:census` (`DialectLeakRatchetTest`: the test named its database;
+   now the BUILD file does, `-Dts.backend=duckdb`); `//parser-equivalence:update_ratchets_test`: `own_corpus.matched`
+   3117 -> 3119, of which **this PR's is +1** (the test's model joins the own corpus and matches the referee). The other
+   +1 is the base's own drift: the bare base computes 3118 against its committed 3117 (measured in a scratch worktree
+   on `9968907a7`, `fa016715d` and `aad8e762a`; the oracle session saw it on `c047d41b0`). Re-blessed with `bazel run
+   //parser-equivalence:update_ratchets`. The reason cannot sit in `ratchets.tsv` itself: the file is generated, its
+   one comment line the generator's, and `//parser-equivalence:update_ratchets_test` diff-tests it against the
+   generator's output, so a comment of ours would fail it; the reason is here and in the commit. The oracle's PR
+   leaves the ratchet alone, so this one merges first. That run's third failure, `//datacube:chart_tiles_test`, was
+   the base's (it failed alike on the bare `8e31b504a`) and passes since `9968907a7`.
+4. **`//gates:local` at the final tree (on `aad8e762a`): green** -- 514 tests pass, 2 skipped
+   (`//tools/guards:classpath_test` and `//tools/guards:markdown_inputs_test`, whose reports `guards_package` limits to
+   the platforms it lists: skipped on darwin-arm64), Bazel's exit 0. Edited after the run: Markdown alone (PR #90's
+   number, this line).
+
+## 2026-11-08 — The gs-quant oracle for #TS: every word against gs-quant's own function (`//core:ts_gsquant_parity_test`)
+
+Stacked on #90 (the adversarial markets fixture). A new lane member in `core`, a hand tool and generated reports in
+`checks` (`tools/gs-quant-oracle/README.md`). `mapping.yaml` maps each of the 87 words of `docs/timeseries/WORDS.md`
+(the library's `timeseries::line::` functions, held to the mapping by WORDS) to its `gs_quant.timeseries` twin -- 62
+MAPPED, 150 cases; 25 SKIP, each with why; and `wavg`, `wsum`, ruled by R15 but no words yet. The stack is pinned
+whole, `tools/gs-quant-oracle/pins.env`: gs-quant, pandas, numpy, scipy, statsmodels and Python's minor, each exact
+(`requirements.txt` reads them, `snap.sh` installs from it, `snap.py` refuses any other, every answer's hash and every
+ledger's header names the set, so another stack's snap is STALE). `release-diff.tsv` holds each mapped definition at
+the release the author's catalog names against the pin's: none changed.
+
+`snap.py` runs each case over three datasets -- the gallery's samples (`//datacube:ts_replay_samples`) and #90's two
+price files, raw and adjusted, over the four trap symbols -- into gzipped answers (one row a series, every point kept)
+and three ledgers (a `digest` column for DRIFT from the ledger alone, a `note` column for a `dup-span`), and
+`traps.tsv`, #90's four values read from the answers. `//core:ts_gsquant_parity_test` runs each `#TS` item through the
+library on DuckDB and judges it at 1e-9 absolute (1e-8 relative for a volatility, a correlation, a beta), a date's
+values compared as a bag (S149: the database's order among equal keys is undefined); REFUSED only for lite's own
+refusal, NO ROW, POINTS and SPINE failing it. Every count below is a row of `summary.tsv`, every unruled DIFF a row of
+`unruled.tsv`, generated from the ledgers by `two_rows.py` and diff-tested (`//tools/gs-quant-oracle:update_generated_tests`,
+in `//:generated`; the page `TWO_ROWS.md` written by the same rule, not diff-tested, G17).
+
+**The ledgers (2026-11-08, on #90's `0f76abe80`):** samples PASS 135, DIFF 13, GS_ERROR 2, SKIP 27; each fixture
+file PASS 386 (17 on a dup-span), DIFF 43 (7), REFUSED 92 (92), GS_ERROR 27, SKIP 160. On the two-row line
+lite's S149 refuses 92 cases of 42 words and answers 24 cases of 21 words over both rows (17 PASS:
+agreement, not correctness). The unruled DIFFs (17 cases) are posted in the PR, each with its proposed register row.
+
+Checks: `snap.sh --check` and `--check --fixture` (0 problems over 150, 548 and 548 cases; `traps.tsv` fresh), the two
+ledger writers byte-identical on all three ledgers, `//core:ts_gsquant_parity_test`,
+`//tools/gs-quant-oracle:update_generated_tests`, `//core:ts_adversarial_test`, `//core:census`. `//gates:local`:
+**green** at the final tree (on #90's `0f76abe80`, `--lockfile_mode=error`): 519 tests pass, 2 skipped
+(`//tools/guards:classpath_test` and `//tools/guards:markdown_inputs_test`, whose reports `guards_package` limits to the
+platforms it lists: skipped on darwin-arm64), Bazel's exit 0. Edited after the run: Markdown alone (this line).
+
+## 2026-11-09 — A calendar word's ramp as gs-quant's: from the line's first date, its dates dropped (item 14g)
+
+The user's ruling on PR #91's finding 2 ("gs-quant's: from the first date"), done whole (the user: "Should we push the
+right fix to later? Why?"), `docs/TS_DECISIONS_2026_11_07.md` item 14g. Every calendar word's ramp counts from its
+line's first date (a word of returns from the first price's, the pair words, the captures, `lead_lag`,
+`dickey_fuller` and `half_life` too); its line form drops the ramp's dates (`helpers::rampedPeriod`,
+`rampedBandPeriod`) and its rows form's points start past it (`rows::pointsPeriod`), so a word reading it next counts
+its own ramp from its first point, as gs-quant's does after `apply_ramp` (`zscores(volatility(x, 2w), 3w)`).
+
+**#91's ledgers (rewritten by the parity test's update mode, the reports regenerated):** 14 cases DIFF -> PASS and no
+other move (`product w=3mo` and `correlation w=3mo`, on the samples and each fixture file's three symbols): samples PASS
+138, DIFF 10, GS_ERROR 2, SKIP 27; each fixture file PASS 397 (19 on a dup-span), DIFF 32 (5), REFUSED 92 (92),
+GS_ERROR 27, SKIP 160; `unruled.tsv` down to `if x=line,y=line` and `interpolate method=zero`. `tools/ts-oracle` over the
+gallery: AGREE 185, DEPARTS 4, NOT-CHECKED 26, as before.
+
+Checks, one at a time: `//datacube:timeseries_queries_test` (79.5s; the calendar tests hold the dropped dates),
+`//core:timeseries_library_test` (43.7s), `//core:ts_island_test` (74.9s), `//core:ts_documents_test`,
+`//core:ts_adversarial_test`, `//core:ts_line_spike_test`, `//core:ts_gsquant_parity_test` (29.7s),
+`//datacube:timeseries_ts_parity_test` (38.2s), `//datacube:stress_markets_test` (46.7s), the builder, code, spec,
+edit, saved-documents and offer-facts tests, `//python:markets_test` (120.2s), `//python:ts_builder_test`, as the
+unprivileged user `//core:ts_island_postgres_test` (67.1s), `//core:ts_replay_postgres_test` (138.3s),
+`//core:ts_replay_clickhouse_test` (28.4s), `//core:ts_documents_postgres_test` and `_clickhouse_test`, `//:generated`
+(72), `//datacube:bundle_budget_test` (the tile's ceiling 144,500 -> 145,200, measured 144,911), `//core:census`: all
+pass. Not run: `//gates:local` and CI (a push to the branch alone).
+
+## 2026-11-09 — Show Python refuses nothing (14h); the one gs-quant oracle takes in the gallery (14f, steps 4b and 4c)
+
+`docs/TS_DECISIONS_2026_11_07.md` items 14h and 14f, §5 (the rulings of the day).
+
+**14h (092c8bcbc, 5e168f4cd):** every series a tile draws is written as the builder's code, in TypeScript and Python;
+where gs-quant has no spelling of the language's meaning, DataCube's own (`ToDate()`, `Across()`, `rand`/`ror`, a value
+gs-quant refuses), never a gs-quant spelling of another meaning. `compare(x, y)` leaves its method to the language
+(S145). The tile refuses `filter`'s `empty` operator given a value (gs-quant's `filter_` raises on one). Checks:
+`//datacube:timeseries_builder_test`, `_code_test`, `_spec_test`, `//python:ts_builder_test` (3.7s; every fixture row
+incl. the extensions), `//core:ts_gsquant_parity_test` (54.0s): pass.
+
+**14f (4b, a41d62608; 4c):** the gallery's and the markets example's series are the one oracle's (`gallery.jsonl`, held
+by `//datacube:timeseries_ts_parity_test`): each its Show Python run by `snap.py` over the pages' samples (the lines
+meeting on the dates both have, S152; `sharpe_ratio`'s curve the page's cash), its Show #TS judged by
+`//core:ts_gsquant_parity_test`: **gallery PASS 196, DIFF 4 (each ruled: S145, Keltner's and OBV's sentences), SKIP 32
+(a split, a frequency, an alignment, a base date shown, `ToDate()`, a band's width)**; the samples PASS 240, DIFF 16, and
+each fixture file PASS 698, DIFF 54, as before; `unruled.tsv` empty. `tools/ts-oracle/oracle.py` and `calls.py`
+retired (its README says what stays: `signatures.py`, the reports). Checks: `//core:ts_gsquant_parity_test` (69.0s),
+`//datacube:timeseries_ts_parity_test` (43.8s), `snap.sh --check` (0 problems: samples 258 cases, gallery 202),
+`//tools/gs-quant-oracle/...`, `//tools/guards/...`: pass. Not run: `//gates:local` and CI.
+
+## 2026-11-09 — The checkpoint (14i): the chart API's guards, and an independent review's findings fixed
+
+`docs/TS_DECISIONS_2026_11_07.md` item 14i. The guards (ruling A of §5): 14f35bc24. The review (two reviewers: the
+library and core; the printer, builders and oracle), its findings fixed: every windowed word's line and points begin
+where its ramp ends, as gs-quant's `apply_ramp` slices it -- found by `mean(volatility(x, 22), 3mo)` answering from a
+month early, held by 45 new nested cases (`mean w=3mo|<word>` over every windowed word, and median, percentile,
+percentiles and volatility over returns and lags); D8 for a calendar vol swap, D1 for a basket's member of several rows
+a date; Python's number-first `and` as `x.rand(2)`; a currency's code as written; `ToDate()`/`Across()` branded; the
+oracle's harness errors, its shas over the gallery's rows and its own code. **Verdicts: the samples PASS 285, DIFF 16
+(PASS +45, the nested cases; no verdict moved); each fixture file PASS 832, DIFF 55 (+1: `mean w=3mo|cov22 @NEWCO`,
+S167's), REFUSED 162 (+30: BTCUSD's D8, as the inner words'), GS_ERROR 107 (+15); the gallery PASS 196, DIFF 4, SKIP
+32, as before; `unruled.tsv` empty.** Checks, each alone: `//core:ts_gsquant_parity_test` (82.2s),
+`//core:ts_island_test` (79.0s), `//core:timeseries_library_test` (48.5s), `//core:ts_documents_test` (8.1s),
+`//core:ts_adversarial_test` (7.3s), `//core:ts_replay_clickhouse_test` (27.5s), `//core:ts_documents_clickhouse_test`
+(21.2s), as the unprivileged user `//core:ts_island_postgres_test` (66.4s), `//core:ts_replay_postgres_test` (104.6s:
+the Sharpe ratio's first form joined its line back onto x, which Postgres planned past its two-minute timeout -- its
+points are now its met rows), `//core:ts_documents_postgres_test` (15.0s), `//core:core_tests_protocol`,
+`//core:core_tests_architecture`, `//datacube:timeseries_ts_parity_test` (39.2s), `//datacube:timeseries_queries_test`
+(79.6s: a count word's tile line from its ramp's end, as the rows forms' already), `//datacube:stress_markets_test`
+(52.9s), `//datacube:timeseries_builder_test`, `_spec_test`, `_code_test`, `guardrails_test`, `one_api_ledger_test`,
+`timeseries_edit_test`, `timeseries_view_dom_test` (27.2s), `bundle_budget_test` (the first timeseries tile 147,679 of a
+budget raised 146,100 -> 148,000, its note dated), `typecheck_test`, `//python:ts_builder_test`, `//python:markets_test`
+(120.3s), `//:generated` (72): pass. `snap.sh --write` and `--write --fixture` re-snapped every dataset (the tools' sha
+now in each file); `snap.sh --check`: 0 problems (samples 303 cases, gallery 202). Not run: `//gates:local` and CI.
+
 ## 2026-11-06 — The corpus walk: a named allow list; the test data generator's tests skipped (S143)
 
 The owner's ruling, verbatim: "Agree skip the tests, delete walk then we revisit to build product and maybe that's

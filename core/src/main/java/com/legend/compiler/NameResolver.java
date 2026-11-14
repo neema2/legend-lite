@@ -1593,7 +1593,7 @@ public final class NameResolver {
                 ? null : resolveName(cd.storeName(), scope);
         if (Objects.equals(store, cd.storeName())) return cd;
         return new ConnectionDefinition(cd.qualifiedName(), store, cd.databaseType(),
-                cd.specification(), cd.authentication());
+                cd.specification(), cd.authentication(), cd.rowMappers());
     }
 
     // =================================================================

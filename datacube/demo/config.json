@@ -23,6 +23,7 @@
       "title": "Markets on the trading model",
       "models": [
         "./projects/markets/trading-model.pure",
+        "./projects/markets/markets-model.pure",
         "./projects/markets/markets-data.pure"
       ]
     }

@@ -26,7 +26,10 @@ class MarketsOverClasses(unittest.TestCase):
         cls._site = os.environ.get('LEGEND_LITE_SITE')
         os.environ['LEGEND_LITE_SITE'] = tempfile.mkdtemp(dir=os.environ.get('TEST_TMPDIR'))
         datacube._session = datacube._Session()
+        # the project as the site lists it (datacube:markets_project): the trading model, the project's own elements and
+        # its Data
         files = [{'path': 'trading-model.pure', 'pureCode': Path(os.environ['LEGEND_LITE_MARKETS_MODEL']).read_text('utf-8')},
+                 {'path': 'markets-model.pure', 'pureCode': Path(os.environ['LEGEND_LITE_MARKETS_OWN']).read_text('utf-8')},
                  {'path': 'markets-data.pure', 'pureCode': Path(os.environ['LEGEND_LITE_MARKETS_DATA']).read_text('utf-8')}]
         answer = _headless.answer_fetch
         cls.asked = []

@@ -1,0 +1,37 @@
+"""spec-13 (the pairs trade) as lite answers it against the hand-written query's answer, date by date.
+
+usage: python3 compare_spec13.py.txt <lite.csv> <hand.csv>
+  lite.csv: harness.sh time <spec13.sql> writes it beside the SQL (<spec13.sql>.csv)
+  hand.csv: harness.sh time docs/ts-sql-homework/data/spec13_by_hand.sql (copied out of the tree first)
+Prints the dates of each, whether they are the same set, the worst relative difference over hedge, spread, z,
+position, daily_pnl and pnl_since_2023, and the cells one has a value in and the other none. On 2026-11-04 every
+step of the work held: 522 dates, the same set, worst 2.8e-14, no null mismatches.
+"""
+import csv
+import sys
+
+COLUMNS = ('hedge', 'spread', 'z', 'position', 'daily_pnl', 'pnl_since_2023')
+
+
+def load(path):
+    rows = {}
+    for r in csv.DictReader(open(path)):
+        low = {k.lower(): v for k, v in r.items()}
+        rows[low.get('date')] = low
+    return rows
+
+
+lite, hand = load(sys.argv[1]), load(sys.argv[2])
+hand = {d: r for d, r in hand.items() if d and d >= '2023'}
+worst, mismatches = 0.0, 0
+for d, h in hand.items():
+    for c in COLUMNS:
+        a, b = h.get(c, ''), lite.get(d, {}).get(c, '')
+        if (a == '') != (b == ''):
+            mismatches += 1
+            continue
+        if a == '':
+            continue
+        worst = max(worst, abs(float(a) - float(b)) / max(1.0, abs(float(a))))
+print(f'dates {len(lite)} vs {len(hand)}, same set {set(lite) == set(hand)}, '
+      f'worst relative difference {worst:.1e}, null mismatches {mismatches}')

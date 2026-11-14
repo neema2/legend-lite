@@ -252,6 +252,25 @@ public interface SqlDialect {
         return false;
     }
 
+    /** Whether the database writes each read of a common table expression again, never once for every read (a
+     *  database with no materialized CTE that inlines one: ClickHouse, measured 2026-11-07 on 25.8). Where it does, a
+     *  relation the statement reads more than once (the lowering's shared {@code __let<n>}) is planned as a temporary
+     *  table of the session, computed once ahead of the statement (PlanMaker.stagedShared; docs/TS_DECISIONS_2026_11_07.md
+     *  item 9b). */
+    default boolean writesEachReadOfAWithAgain() {
+        return false;
+    }
+
+    /** Whether, where the database writes each read of a WITH again ({@link #writesEachReadOfAWithAgain}), a relation
+     *  the statement reads more than once is staged as a temporary table (ClickHouse). Where it cannot be (Trino and
+     *  BigQuery: no temporary table of a query here; MongoDB, whose pipeline writes each read in place), the WITH stays
+     *  -- each read computes the same rows, where the relation is the same rows each time -- and one that picks its rows
+     *  by no order (a limit or an offset with no sort) is refused by name (PlanMaker.stagedShared; #81's final review,
+     *  item 14k (9), 2026-11-10; MongoDB 2026-11-13; S360). */
+    default boolean stagesSharedRelations() {
+        return writesEachReadOfAWithAgain();
+    }
+
     /** A result column's type as this database's driver names it ({@code getColumnTypeName}), in the platform's wire
      *  vocabulary ({@link WireNames}): the type census compares a plan's label with it (the dialect program's Phase 4,
      *  2026-10-15: until then the census held each database's names, keyed by the dialect's class name). Default: the

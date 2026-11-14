@@ -81,8 +81,14 @@ class FixtureWriteCensusTest {
      *  (1). 922 -> 925 (2026-11-13, the ClickHouse identifier breakout, the user's ruling: every dialect's identifier
      *  escaped for its own lexer): DataSourceServersTest's own table on the pinned ClickHouse, its backslash-named
      *  columns in the server's own spelling -- made by the server's DDL, never by the dialect whose identifier writer it
-     *  checks (3). */
-    private static final int CEILING = 925;
+     *  checks (3). 922 -> 947 (2026-11-13, main's #95 merged into the timeseries branch, measured by the census's run): the
+     *  timeseries branch's twelve files, written before this census, each a fixture's own rows or a lane's own database
+     *  set up as its user's -- the price, cash and adversarial tables the #TS tests read (TsIslandTest 4,
+     *  TsScaleMeasureTest 5 at 10M rows, TimeseriesLibraryTest 2; the documents', the oracle's, the replay's and the
+     *  spike's 1 each), the dialect tests' own tables (SelectLayersTest 2, SharedRelationsInPlaceTest 2) and the
+     *  ClickHouse and Snowflake backends' schemas (2, 3); 25. 925, 947 -> 950 (2026-11-14, merged main 3a217086a
+     *  (#81) into the separation stream, measured by the census's run on the merged tree): both sides' moves together. */
+    private static final int CEILING = 950;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -226,7 +232,20 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/testplan/RenderedTextTest.java", 2),
             Map.entry("spec/src/test/java/com/legend/harness/ReplayReferee.java", 7),
             Map.entry("testing/src/main/java/com/legend/testing/EmbeddedPostgres.java", 1),
-            Map.entry("warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java", 12));
+            Map.entry("warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java", 12),
+            // 2026-11-13, main's #95 merged into the timeseries branch: the branch's own fixtures (the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/integration/TimeseriesLibraryTest.java", 2),
+            Map.entry("core/src/test/java/com/legend/integration/TsAdversarialTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsDocumentsTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsGsquantParityTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsIslandTest.java", 4),
+            Map.entry("core/src/test/java/com/legend/integration/TsLineSpikeTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsReplayTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsScaleMeasureTest.java", 5),
+            Map.entry("core/src/test/java/com/legend/sql/dialect/SelectLayersTest.java", 2),
+            Map.entry("core/src/test/java/com/legend/sql/dialect/SharedRelationsInPlaceTest.java", 2),
+            Map.entry("core/src/test/java/com/legend/testbackend/ClickHouseBackend.java", 2),
+            Map.entry("core/src/test/java/com/legend/testbackend/SnowflakeBackend.java", 3));
 
     static int writes(String source) {
         int n = 0;

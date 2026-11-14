@@ -8,6 +8,7 @@
 // LEGEND_LITE_SOAK_SEED=n runs that seed alone, each step and each write's answer logged; LEGEND_LITE_SOAK_SEEDS=n runs
 // more (60 run green, 2026-10-24).
 
+import { PAGE_VERSION } from '../src/page-document.ts';
 import assert from 'node:assert/strict';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
@@ -387,7 +388,7 @@ describe('two tabs and Python on one page, interleaved at random, hold one page 
       const rand = random(seed);
       // the page as Python builds it: two grids
       const a = new Tab('a', dom.window.document.getElementById('a') as unknown as HTMLElement, new FakeKeeper({
-        kind: 'datacube.page', version: 6, name: 'Soak', cubes: [], views: [],
+        kind: 'datacube.page', version: PAGE_VERSION, name: 'Soak', cubes: [], views: [],
         sheets: [{ id: 'sheet-1', layout: { kind: 'bands', fit: true, bands: [] } }],
       } as PageDocument));
       tabs.push(a);

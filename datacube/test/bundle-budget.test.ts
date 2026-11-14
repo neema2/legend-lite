@@ -491,7 +491,7 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  series, a seasonality's years, a histogram's bins, a curve's dates (timeseries-spec.ts TsView) -- which a saved page
  *  is read by as it opens; no startup file added). Measured 410,869.
  *  411,500 -> 413,400 (2026-10-26, the user: "try as pure function ... can be datacube pure scripts" -- DataCube's Pure
- *  library (pure-library.ts: datacube::ts::mean, the returns, volatility), its text with the planner, which takes it
+ *  library (pure-library.ts: timeseries::mean, the returns, volatility), its text with the planner, which takes it
  *  after the model of a query that calls it (lite-planner.ts #over): a person's own query may call it too; no startup
  *  file added). Measured 412,861.
  *  413,400 -> 414,000 (2026-10-27, Phase 5's drawings, docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11: the spec's
@@ -519,8 +519,40 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  data: payload, which DuckDB binds as a parameter, is read where the tab reads a plan -- from the plan beside the text,
  *  by its digest, verified (engine-client plan-params.ts, the synchronous SHA-256 moved there from page-hash.ts) -- and
  *  bound where the engine runs it (duckdb.ts #bound), the snap, the join summary and the Output carrying it).
- *  Measured 433,818. */
-const BUDGET = 434_500;
+ *  Measured 433,818.
+ *  430,500 -> 431,000 (2026-10-30, the timeseries language's P5, docs/TS_LANGUAGE_BUILD_2026_10_30.md: a query holding a
+ *  #TS{...}# island is planned over the timeseries library, every figure of the island being the library's
+ *  (pure-library.ts callsLibrary reads the island); no startup file added). Measured 430,509.
+ *  431,000 -> 431,100 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 8b, the user: "keep going, don't stop"): a
+ *  project's saved query and class planned over the library from the start (ModelOptions.overLibrary), the trading
+ *  model compiled once on the class page, not again under the library (its first sheet 5.9-6.2 s -> 4.8 s); a few lines
+ *  of app/sources.ts, no startup file added. Measured 431,038.
+ *  431,100 -> 431,400 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md §4, a', the user: "copies of the charts that start
+ *  with classes"; "Budget is fine"): the catalog's two copies over classes (their entries' labels and words) and the app
+ *  reading a series of a project's grids together over its model (datacube-app.ts, projectTogether a lazy chunk's); no
+ *  startup file added. Measured 431,285.
+ *  431,400 -> 431,700 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 11, A3 step 3, the user: "keep going in order
+ *  don't stop"): a timeseries tile's series stored as #TS text, read by core -- the page's reader passed to its tiles
+ *  (cube-page.ts readText, page-app.ts, the hosts' QueryReading.tsItem), a tile drawn once its texts are read; no
+ *  startup file added. Measured 431,505.
+ *  431,700 -> 432,400 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md §4, the order's step 1, the user: "Looks good to
+ *  me"): each word's signature generated from core's catalog -- the library's stated defaults and limits, whether a
+ *  call gives it, gs-quant's own default beside it -- in place of the tile's hand-kept table
+ *  (src/generated/ts-signatures.ts, read at a page's start to judge a saved series); the words' facts a module of their
+ *  own, fetched with a tile (src/generated/ts-facts.ts); a cube alone's board given its host's #TS reader (app.ts
+ *  readText). Measured 432,159.
+ *  432,400 -> 433,400 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13b, the risk-free data model; the user: "keep
+ *  going in order"): the cash sample's generator beside the others (samples.ts cashCsv, seven currencies' policy steps),
+ *  as the macro sample's was. Measured 433,196.
+ *  433,400 -> 433,700 (2026-11-09, docs/TS_DECISIONS_2026_11_07.md item 14f, step 3, the gs-quant oracle's cases from
+ *  the catalog; the user: "Merge #91, then unify"): each word's signature says what its span takes no form of
+ *  (observations, period, all: winsorize's, count's, first's, last's, a lag's), and the saved series' judge refuses
+ *  those forms as core does (timeseries-spec.ts) -- winsorize(x, 1.5, 20) was taken and refused only when it ran.
+ *  Measured 433,405.
+ *  434,500 -> 437,000 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
+ *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
+ *  file). Measured 436,691. */
+const BUDGET = 437_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -736,10 +768,29 @@ const BUDGET = 434_500;
  *  421,500 -> 422,000 (2026-11-12, the total wall's B and C3 together: a planner client's answers typed as a plan's
  *  statements where they are read -- planned-sql.ts fromPlan, allFromPlan and plannedProjectData -- and the planner's
  *  synthesize door, LitePlanner.synthesize; each fit alone, the two over by 169 bytes). Measured 421,669.
+ *  418,500 -> 419,000 (2026-11-01, the library's text, which the engine page carries for its timeseries -- the
+ *  timeseries budget's note of the same date: O1's ramp and O2's compare, 0.8 KB gzipped). Measured 418,511; S4 (the
+ *  planner resolving the library) takes the text out.
+ *  419,000 -> 419,100 (2026-11-07, item 8b -- the grid-only page's note of the same date). Measured 419,032.
+ *  419,100 -> 419,400 (2026-11-07, the copies over classes -- the grid-only page's note of the same date). Measured
+ *  419,259.
+ *  419,400 -> 419,700 (2026-11-07, item 11, a series' #TS text read by core -- the grid-only page's note of the same
+ *  date). Measured 419,439.
+ *  419,700 -> 420,300 (2026-11-07, the order's step 1, the words' signatures generated -- the grid-only page's note of
+ *  the same date). Measured 420,094.
+ *  420,300 -> 421,300 (2026-11-08, item 13b, the cash sample's generator -- the grid-only page's note of the same date).
+ *  Measured 421,116.
+ *  421,300 -> 421,600 (2026-11-09, item 14f, a span's forms in its signature -- the grid-only page's note of the same
+ *  date). Measured 421,329.
+ *  422,000 -> 425,500 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
+ *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
+ *  file). Measured 425,126.
  *  422,000 -> 422,500 (2026-11-13, the next PR's item 2, "separation made foolproof", the standing witness: the run
  *  frame -- engine-client's run-frame.ts, the grid road's run marker in runner.ts and the planner's guard in
- *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108. */
-const ENGINE_BUDGET = 422_500;
+ *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108.
+ *  422,500, 425,500 -> 425,500 (2026-11-14, merged main 3a217086a (#81) into the separation stream: both sides' growth
+ *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382. */
+const ENGINE_BUDGET = 425_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -870,8 +921,114 @@ const CHART_BUDGET = 303_500;
  *  the last views as its functions (summaryStatistics, seasonality, projection, tradedValue, linearAt, periodIndex, in
  *  its text), the writer's enumeration values (timeseries-query.ts libraryOption), the program of a page of its own
  *  (timeseries-code.ts) and each formula's Pure under it (ui/timeseries-view.ts #codePanel), docs/TIMESERIES_REVIEW_2026_10_25.md
- *  §19-§20 -- the headroom ~2%). Measured 100,296. */
-const TIMESERIES_BUDGET = 102_000;
+ *  §19-§20 -- the headroom ~2%). Measured 100,296.
+ *  102,000 -> 114,000 (2026-11-01, the user: "Should this stuff all live in pure or in java?" -- the library defines the
+ *  language, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md S1 to S1e: the 81 words of #TS and its line rules
+ *  (timeseries::line::, timeseries::lines::) in the library's text, about 10.6 KB of it gzipped; and the user's "Why
+ *  would we not match gs-quant": O1's ramp and O2's compare, docs/TS_GSQUANT_ORACLE_2026_11_01.md, 0.8 KB -- the
+ *  headroom ~2%). Measured 111,691. The text leaves the client with the one-tree plan's S4 (the planner resolves the
+ *  timeseries project itself, docs/TS_ONE_TREE_PLAN_2026_10_31.md §6a), and this budget falls by its size then.
+ *  114,000 -> 118,500 (2026-11-03, the user's "Java parses and binds; Pure decides" and the time model's rulings,
+ *  docs/TS_TIME_MODEL_2026_11_02.md, "Okay let's go" -- the language's last rules in the library's text, about 4.3 KB of
+ *  it gzipped: A1's moves of 2026-11-02 (the answer's assembly, the spine, the words' name conventions, about 1.6 KB),
+ *  and today's D1 (lines with several rows on a date: perPeriod, single, most), D4 (moments meeting days refused: the
+ *  meet and union forms by the periods' types), 2a (the All key's overloads of meet, periodsOf, onto and each) and R7
+ *  (the rows forms, timeseries::rows::), about 2.7 KB; the viewer and the generated words 0.3 KB -- found by the local
+ *  gate of the A2 review, the headroom ~2%). Measured 116,279. Still falls by the text's size with S4 (#130).
+ *  118,500 -> 126,500 (2026-11-03, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md step 1: each word's facts -- its label,
+ *  family, unit, level, bounds, gs-quant's name and how lite's differs, a sentence on it and on its parameters, the
+ *  words a picker finds it by -- moved from the tile's table into the library as timeseries::Words tags, about 7.6 KB of
+ *  the library's text gzipped; the tile's own copy is deleted with its grammar, A3 step 5, and the text leaves the wire
+ *  with A5). Measured 123,986.
+ *  126,500 -> 128,000 (2026-11-06, the user: "Sure raise it", asked after CI on #81 found it over): R7 part 3's rows
+ *  forms (the calendar spans, the pair words, sum since a date; 2026-11-04, no CI then) took it to 126,834, and the time
+ *  model's D8 (a word that reads its line in order refused on a line with several rows on a date: lines::once,
+ *  lines::untied and each such word's check, 2026-11-06) to 127,852 -- about 1.0 KB of the library's text gzipped.
+ *  Measured 127,852; the headroom ~0.1%, A5 taking the text off the wire.
+ *  128,000 -> 130,500 (2026-11-06, the roadmap's W3, the user: "keep going don't stop until we do the whole roadmap"):
+ *  timeseries::lines::within, the answer's spine on the line whose rows hold every other's (spec-13: 5 joins 4), 0.2 KB
+ *  of the library's text gzipped. Measured 128,096; the headroom ~2% again, as before the raise above, for the rows
+ *  forms the roadmap's W2 and W5 add until A5.
+ *  130,500 -> 132,000 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 5, the user: "keep going, don't stop"): latest
+ *  as a value in a word's date argument (rebase(close, latest - 3y)) -- timeseries::lines::lastDate, later and day, the
+ *  translator's map, max and adjust moved into the library (TsTranslatorGuardrailTest), with what the library has
+ *  grown by since the raise above. Measured 130,640; the headroom ~1% for B3's window and logarithmic forms.
+ *  132,000 -> 135,000 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 11, A3 step 3, the user: "keep going in order
+ *  don't stop"): a series stored as its #TS text and read by core -- timeseries-text.ts, its own text's writer, core's
+ *  tree read back as the tile's, the readings held -- beside the tile's own grammar, which A3 step 5 deletes
+ *  (timeseries-expr.ts's parser and timeseries-ts.ts: this budget falls then). Measured 134,055.
+ *  135,000 -> 136,500 (2026-11-07, item 11, A3 step 3, decision 9b): the formula box's completions (timeseries-text.ts
+ *  completionsAt, the words core's catalog offers -- the catalog itself a chunk fetched as the editor opens, not here)
+ *  and its error's place marked. Measured 135,747; step 5's deletions take it down.
+ *  136,500 -> 137,400 (2026-11-07, docs/TS_DECISIONS_2026_11_07.md §4, the order's step 1, the user: "Looks good to
+ *  me"): the words' signatures and facts generated from core's catalog (src/generated/ts-signatures.ts,
+ *  ts-facts.ts) in place of the tile's two hand-kept tables, every word of the library's facts among them, and the rule
+ *  of a parameter neither told nor defaulted (timeseries-spec.ts writtenParams, begunParams). Measured 137,191; step
+ *  3's deletions take it down.
+ *  137,400 -> 137,800 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md §4, the order's step 2, the user: "keep going in
+ *  order"): the library's text, which the tile carries, with the builders' facts of a word's signature
+ *  (timeseries::Words.gsParam, gsValue, gsAlso: where gs-quant names a parameter or spells an option otherwise) and the
+ *  profile's sentence on them; the builder itself is no part of the tile (src/timeseries-builder.ts, imported by no
+ *  page). Measured 137,512.
+ *  137,800 -> 138,900 (2026-11-08, the user: "Yes extend default to align with truncate option"): the library's text,
+ *  which the tile carries, with lag's extend -- gs-quant's LagMode, its tail past the line's end per date type, its rows
+ *  form's when -- and their sentences. Measured 138,684.
+ *  138,900 -> 139,300 (2026-11-08, the user: "Go", percentile to date unless the whole line is said): the library's
+ *  text with percentile's whole form and gsWhole, and the tile's whole window (TsParamShape.whole). Measured 138,999.
+ *  139,300 -> 139,800 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13, gs-quant's Window(w, r), ruled "add it"
+ *  2026-11-07; the user: "Carry on"): the library's text with each windowed word's r (helpers::ramp and two overloads a
+ *  word, bollinger_bands' and winsorize's) and r's sentence (timeseries-expr.ts PARAM_ABOUT). Measured 139,546.
+ *  139,800 -> 141,100 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13b, the risk-free data model; the user: "keep
+ *  going in order", then "As of, and a register row" for the calendar form, S162): the library's text with gs-quant's
+ *  Sharpe ratio (helpers::sharpe, annualizedReturn of a count, to date and of a period, the Window(w, r) form's own
+ *  stitch) and its sentences, less S155's two helpers. Measured 140,814.
+ *  141,100 -> 141,900 (2026-11-08, item 13b, the same): the library's text with cash_index, an overnight rate's cash
+ *  account, and its day count (timeseries::DayCount, gs-quant's names). Measured 141,677.
+ *  141,900 -> 142,300 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13c; the user: "A window scope: across"): the
+ *  library's text with zscores', winsorize's and percentile's forms across a date's instruments (timeseries::Across), and
+ *  the tile's across window (TsParamShape.across). Measured 142,041.
+ *  A correction (2026-11-08, the review of #81's commits): the notes above at 132,000, 135,000 and 136,500 say a later
+ *  deletion lowers this budget (A3 step 5, the order's step 3). It landed as 9968907a7 (the tile's parser and printers
+ *  deleted), between the 139,300 and 139,800 raises, and the budget was not lowered on its own then: the 139,546
+ *  measured at item 13 is the size after those deletions and item 13's growth together, and every ceiling since sits
+ *  within 1% of its measure. No deletion is promised here now.
+ *  142,300 -> 143,000 (2026-11-08, the review of #81's commits, the library's findings; the user: "Do review"): the
+ *  library's text, which the tile carries, with gs-quant's edges of Window(w, r) -- a ramp longer than its line refused
+ *  (helpers::rampFits), a one-point window's z-score 0, to-date sharpe's first valued row, cash_index over a missing
+ *  rate, vol_swap_volatility's r overloads gone -- and their sentences. Measured 142,751.
+ *  143,000 -> 143,500 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 14c; the user: "Last print wins, else
+ *  refuse"): the library's text with SAMPLE BY's last and first refusing a tie at the moment they pick
+ *  (lines::onceTaken) and its sentence. Measured 143,164.
+ *  143,500 -> 144,000 (2026-11-08, item 14c; the user: "A clause: LATEST BY seq"): the library's text with LATEST BY's
+ *  rule (lines::latestBy, onceLatest) and its sentence. Measured 143,624.
+ *  144,000 -> 144,500 (2026-11-08, item 14e; the user's rulings on PR #91's findings): the library's text with
+ *  vol_swap_volatility's default as gs-quant's one figure and the rulings' sentences. Measured 144,047 with item 14g's
+ *  first attempt in it too (a calendar ramp from the first date, withdrawn the same day until 14g's points land), which
+ *  the ceiling keeps room for.
+ *  144,500 -> 145,200 (2026-11-09, item 14g; the user's ruling on PR #91's finding 2, "gs-quant's: from the first
+ *  date", and "Should we push the right fix to later? Why?" -- done now): the library's text with every calendar word's
+ *  ramp counted from its line's first date and its ramp's dates dropped (helpers::rampedPeriod, rampedBandPeriod,
+ *  rows::pointsPeriod, the since forms of overPeriod and its kin) and their sentences. Measured 144,911.
+ *  145,200 -> 145,800 (2026-11-09, item 14f, the gs-quant oracle's catalog cases and what they found): the library's
+ *  text with cov over a count ramped as gs-quant's Window(w, w), and lines spread refusing two of several rows on one
+ *  date (the time model's D1, as meet's: each line's rows counted in spreadOn's groupBy) and their sentences. Measured
+ *  145,501.
+ *  145,800 -> 146,100 (2026-11-09, item 14f, step 4, the references' cases and what they found): the library's text with
+ *  lead_lag's ramp full from x's (w + lag)-th point (helpers::ramp's full), and a calendar volatility's, Dickey-Fuller's
+ *  and half-life's lines of several rows a date refused (D8) and their sentences. Measured 145,861.
+ *  146,100 -> 148,000 (2026-11-09, item 14i, the checkpoint: an independent review of the run's changes, its findings
+ *  fixed; the user: "keep going in order don't stop"): the library's text, which the tile carries, with every count
+ *  word's line from its ramp's end (helpers::ramped on its line forms; the pair words' rows forms' points,
+ *  rows::pairPoints and pairPointsPeriod), the calendar words' ramps from the line's first point, lead_lag's line from
+ *  its w-th pair, the Sharpe ratio's points on its met rows (helpers::sharpeOn, firstNone), a basket's member of several
+ *  rows a date refused (helpers::memberOnce, D1), percentile's empties dropped first, and their sentences. Measured
+ *  147,679.
+ *  148,000 -> 148,200 (2026-11-09, main's #92 merged into the branch; the user: "we also have to merge in main again
+ *  first"): the library's text with a window's ramp's two refusals that core's translator had raised by a parameter's
+ *  name (a negative r, which gs-quant's Window(w, r) refuses; percentiles' r past its window) -- helpers::fromZero and
+ *  minPeriods, moved into the library, as TsTranslatorGuardrailTest keeps the translator to calls of the library (it
+ *  had failed since b4a267ae0, found at the merge). Measured 148,023. */
+const TIMESERIES_BUDGET = 148_200;
 
 /** Batch 3's kinds (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3): their drawing (chart-kinds.ts) and the rarer ECharts
  *  charts they draw with (chart-render-kinds.ts), fetched with the first chart of one of them, beyond the first chart's
@@ -1128,8 +1285,26 @@ const EXAMPLE_BUDGET = 4_000;
  *  450,000 -> 450,500 (2026-11-12, the total wall's B3 items 1 and 4: the user's ruling that a snapshot's request carries
  *  the pull, never SQL -- the cube asks its planner for the pull, LitePlanner.pullRequest, and a remote snap without one
  *  is refused by name -- and the snap's count and its copy's drop refused or said by name, never defaulted or swallowed;
- *  the re-audit's own growth was trimmed back under 450,000 first, c3191d097). Measured 450,200. */
-const WIDGET_BUDGET = 450_500;
+ *  the re-audit's own growth was trimmed back under 450,000 first, c3191d097). Measured 450,200.
+ *  446,500 -> 447,000 (2026-10-30, main -- PR #80, the plan path -- merged into the timeseries platform branch: main's
+ *  module and the branch's together, the library enumerations among the branch's, src/generated/library-enums.ts;
+ *  neither measured alone). Measured 446,637.
+ *  447,000 -> 447,600 (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A3 step 1 and A9: the timeseries library's text,
+ *  src/pure-library-text.ts, carries each word's facts as tags, and the word rank with its enumeration Order; A5 takes
+ *  the library's text off the wire). Measured 447,016.
+ *  447,600 -> 447,900 (2026-11-07, item 11, a series' #TS text read by core -- the grid-only page's note of the same
+ *  date). Measured 447,678.
+ *  447,900 -> 448,700 (2026-11-07, the order's step 1, the words' signatures generated, and the library's text with
+ *  its lines named by role (price and dividends, benchmark) and compare's method said -- the grid-only page's note of
+ *  the same date). Measured 448,472.
+ *  448,700 -> 449,700 (2026-11-08, item 13b, the cash sample's generator -- the grid-only page's note of the same date).
+ *  Measured 449,486.
+ *  449,700 -> 450,000 (2026-11-09, item 14f, a span's forms in its signature -- the grid-only page's note of the same
+ *  date). Measured 449,707.
+ *  450,500 -> 453,800 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
+ *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
+ *  file). Measured 453,495. */
+const WIDGET_BUDGET = 453_800;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
