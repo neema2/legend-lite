@@ -17,9 +17,10 @@ frame (_runframe.py) refuses a planner entry asked inside a run; this holds, bef
   quoted annotation (the final audit of 9af16fbe58's P3, 2026-11-14).
 - A RUN IS SPELLED ONE WAY (P4, 2026-11-14): `runs` only as `@runs(...)` on a function, `in_run` and `exempt` only as
   `with in_run(...)` / `with exempt(...)` -- `framed = runs(...)` then `@framed`, `runs(...)(f)`,
-  `ExitStack().enter_context(in_run(...))` are each refused by name, not chased. No module imports by `importlib`
-  (`import_module`, `__import__`, `reload`; `importlib.util.find_spec`, which imports nothing, is allowed), and a star
-  import is one STAR_IMPORTS lists: a name either form brings in is one this guard could not read.
+  `ExitStack().enter_context(in_run(...))` are each refused by name, not chased. importlib is DEFAULT-DENY: a module
+  uses it only as IMPORTLIB_ALLOWED lists (`importlib.util.find_spec`, which imports nothing), under whatever name an
+  import binds it to (`import importlib as il`, `from importlib import import_module as im`), and calls no
+  `__import__`; a star import is one STAR_IMPORTS lists: a name either form brings in is one this guard could not read.
 - THE RUNS ARE PINNED by module and name (RUNS): a run unmarked, or a new one, is seen.
 - EVERY SEND IS IN A RUN, OR NAMED (the follow-up audit's G2, 2026-11-14: until then only the marked runs were read):
   each call of the one send (`_planned.send`) is a send site, and so is each call of a SENDING HELPER -- a function that
@@ -30,7 +31,9 @@ frame (_runframe.py) refuses a planner entry asked inside a run; this holds, bef
 Each name is read through what the module imported it as: a relative import (`from . import compiler`, `from .compiler
 import plan`), an absolute one (`from legend_lite import compiler`, `from legend_lite.compiler import plan`, `import
 legend_lite.compiler as c`), an alias (`from ._runframe import runs as marks`) or a module's attribute
-(`@_runframe.runs(...)`, `with _runframe.in_run(...)`).
+(`@_runframe.runs(...)`, `with _runframe.in_run(...)`). An annotation is read the same way: a name an import renamed
+(`from .compiler import HeldModel as H`, `from .compiler import Plan as P`, `from .x import PlanMaker as M`, `from typing
+import Callable as C`) is read as the name it imports (the last list of 2026-11-14, P3).
 
 Python modules plan and run side by side (frames.py plans a table's query and runs a read), so the wall is drawn around
 the runs and the sends, not around modules; Python's modules are not split by this guard (a product change, not a
@@ -47,6 +50,7 @@ counted at Reading.execute alone, a helper, never at that caller (the final audi
 the task, and shrinks."""
 
 import ast
+import copy
 import os
 import unittest
 from pathlib import Path
@@ -375,10 +379,27 @@ def _parsed(annotation: ast.AST) -> ast.AST:
 ANSWERED = frozenset({'PlannedSql', 'PlanText', 'Plan'})
 
 
-def _names_answered(node: ast.AST) -> bool:
-    """Whether `node` names a planner's answer: a name or an attribute (`compiler.Plan`) in ANSWERED."""
+def _renamed(tree: ast.Module) -> dict[str, str]:
+    """Each name a module's imports bind under another name, to the name it imports: `from .compiler import HeldModel as
+    H`, `from typing import Callable as C` (the last list of 2026-11-14, P3: an `as` name was not read)."""
+    return {a.asname: a.name for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) for a in n.names
+            if a.asname and a.asname != a.name}
+
+
+def _unaliased(annotation: ast.AST, renamed: dict[str, str]) -> ast.AST:
+    """A copy of `annotation`, its quoted parts parsed, each name an import renamed read as the name it imports."""
+    copied = _parsed(copy.deepcopy(annotation))
+    for n in ast.walk(copied):
+        if isinstance(n, ast.Name) and n.id in renamed:
+            n.id = renamed[n.id]
+    return copied
+
+
+def _names_answered(node: ast.AST, renamed: dict[str, str] | None = None) -> bool:
+    """Whether `node` names a planner's answer: a name or an attribute (`compiler.Plan`) in ANSWERED, under any name
+    an import renamed it to."""
     return any((isinstance(n, ast.Name) and n.id in ANSWERED) or (isinstance(n, ast.Attribute) and n.attr in ANSWERED)
-               for n in ast.walk(_parsed(node)))
+               for n in ast.walk(_unaliased(node, renamed or {})))
 
 
 def _answers_planned(annotation: ast.AST) -> bool:
@@ -394,13 +415,15 @@ def _answers_planned(annotation: ast.AST) -> bool:
 
 def planner_protocols(tree: ast.Module) -> set[str]:
     """A module's classes that answer a planner's answer -- a method whose return annotation names one (a Protocol with
-    `plan() -> PlannedSql`, any class so shaped): a planner under another name (P3)."""
+    `plan() -> PlannedSql`, any class so shaped), under any name an import renamed it to: a planner under another name
+    (P3)."""
+    renamed = _renamed(tree)
     out: set[str] = set()
     for c in tree.body:
         if isinstance(c, ast.ClassDef):
             for m in c.body:
                 if isinstance(m, (ast.FunctionDef, ast.AsyncFunctionDef)) and m.returns is not None \
-                        and _names_answered(m.returns):
+                        and _names_answered(m.returns, renamed):
                     out.add(c.name)
     return out
 
@@ -426,21 +449,25 @@ def planner_aliases(tree: ast.Module) -> set[str]:
             declared[n.target.id] = n.value
         elif hasattr(ast, 'TypeAlias') and isinstance(n, ast.TypeAlias):
             declared[n.name.id] = n.value
+    renamed = _renamed(tree)
     out: set[str] = set()
     grew = True
     while grew:
         grew = False
         for name, value in declared.items():
-            if name not in out and _annotation_crossing(value, out) is not None:
+            if name not in out and _annotation_crossing(value, out, renamed) is not None:
                 out.add(name)
                 grew = True
     return out
 
 
-def _annotation_crossing(annotation: ast.AST | None, aliases: set[str] = frozenset()) -> str | None:
+def _annotation_crossing(annotation: ast.AST | None, aliases: set[str] = frozenset(),
+                         renamed: dict[str, str] | None = None) -> str | None:
+    """Why `annotation` is a planner's, or None: read with each name an import renamed (`renamed`) as the name it
+    imports, so `H` from `from .compiler import HeldModel as H` is a HeldModel."""
     if annotation is None:
         return None
-    parsed = _parsed(annotation)
+    parsed = _unaliased(annotation, renamed or {})
     if isinstance(parsed, ast.Constant):
         # a string that is no type (a module's text constant): nothing a run could be annotated with
         return None
@@ -468,6 +495,7 @@ def signature_crossings(source: str, sources: dict[str, str] | None = None) -> l
     callable answering a statement, a plan's text or a typed plan."""
     tree = ast.parse(source)
     bound = bindings(tree)
+    renamed = _renamed(tree)
     aliases = planner_aliases(tree) | planner_protocols(tree) | package_planner_names(sources)
     out: list[str] = []
     for owner in [tree] + [c for c in tree.body if isinstance(c, ast.ClassDef)]:
@@ -476,7 +504,7 @@ def signature_crossings(source: str, sources: dict[str, str] | None = None) -> l
                                              and _holds_in_run(fn, bound)):
                 args = fn.args
                 for a in args.posonlyargs + args.args + args.kwonlyargs + [x for x in (args.vararg, args.kwarg) if x]:
-                    why = _annotation_crossing(a.annotation, aliases)
+                    why = _annotation_crossing(a.annotation, aliases, renamed)
                     if why is not None:
                         out.append(f'{fn.name}({a.arg}): {why}')
     return out
@@ -572,17 +600,38 @@ def unframed_senders(sources: dict[str, str]) -> set[str]:
 # imported module). 2026-11-14 (P4): timeseries.py takes gs-quant's generated words.
 STAR_IMPORTS = frozenset({('timeseries.py', '_ts_words')})
 
-# The importlib calls refused: each imports a module by a name this guard cannot read.
-IMPORTING = frozenset({'importlib.import_module', 'importlib.__import__', 'importlib.reload', '__import__'})
+# The one use of importlib a module may make, DEFAULT-DENY (the last list of 2026-11-14, P4: until then the refused
+# calls were listed, and `import importlib as il; il.import_module(...)` passed): asking whether an optional module is
+# installed, which imports nothing. Any other reference to importlib -- under any name an import binds it to -- and any
+# `__import__` is refused: each could import a module by a name this guard cannot read.
+IMPORTLIB_ALLOWED = frozenset({'importlib.util.find_spec'})
+
+
+def _importlib_bound(tree: ast.Module) -> dict[str, str]:
+    """Each name a module's imports bind to importlib or a part of it, to that part's full name: `import importlib`,
+    `import importlib as il`, `import importlib.util as u`, `from importlib import import_module as im`."""
+    out: dict[str, str] = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Import):
+            for a in n.names:
+                if a.name == 'importlib' or a.name.startswith('importlib.'):
+                    out[a.asname or 'importlib'] = a.name if a.asname else 'importlib'
+        elif isinstance(n, ast.ImportFrom) and n.level == 0 and n.module \
+                and (n.module == 'importlib' or n.module.startswith('importlib.')):
+            for a in n.names:
+                out[a.asname or a.name] = f'{n.module}.{a.name}'
+    return out
 
 
 def spelling_violations(name: str, source: str) -> list[str]:
-    """Each run spelled another way than `@runs(...)` / `with in_run(...)` / `with exempt(...)`, each importlib import,
-    and each star import STAR_IMPORTS does not list, in module `name` (P4)."""
+    """Each run spelled another way than `@runs(...)` / `with in_run(...)` / `with exempt(...)`, each use of importlib
+    but those IMPORTLIB_ALLOWED lists (under any name it is bound to) and each `__import__`, and each star import
+    STAR_IMPORTS does not list, in module `name` (P4)."""
     if name == '_runframe.py':
         return []
     tree = ast.parse(source)
     bound = bindings(tree)
+    importlib = _importlib_bound(tree)
     parent: dict[int, ast.AST] = {}
     for p in ast.walk(tree):
         for c in ast.iter_child_nodes(p):
@@ -606,15 +655,24 @@ def spelling_violations(name: str, source: str) -> list[str]:
                 else n.module
             if (name, module) not in STAR_IMPORTS:
                 out.append(f'{name}:{n.lineno}: a star import of {n.module}')
-        if isinstance(n, ast.Call):
-            called = ast.unparse(n.func)
-            imported = bound.get(called) if isinstance(n.func, ast.Name) else None
-            if called in IMPORTING or (imported is None and isinstance(n.func, ast.Name) and called == 'import_module'):
-                out.append(f'{name}:{n.lineno}: an import by importlib ({called})')
-    for n in ast.walk(tree):
-        if isinstance(n, ast.ImportFrom) and n.module == 'importlib' and any(
-                a.name in ('import_module', '__import__', 'reload') for a in n.names):
-            out.append(f'{name}:{n.lineno}: an import by importlib (from importlib import ...)')
+        if isinstance(n, ast.Name) and n.id == '__import__' and n.id not in bound:
+            out.append(f'{name}:{n.lineno}: an import by __import__')
+        if isinstance(n, ast.Name) and n.id in importlib and isinstance(n.ctx, ast.Load):
+            # the reference's whole chain (`il.import_module`, `importlib.util.find_spec`), by the name it is bound to
+            full, at = importlib[n.id], n
+            while isinstance(parent.get(id(at)), ast.Attribute) and parent[id(at)].value is at:
+                at = parent[id(at)]
+                full += '.' + at.attr
+            if full not in IMPORTLIB_ALLOWED:
+                out.append(f'{name}:{n.lineno}: importlib used other than as {" or ".join(sorted(IMPORTLIB_ALLOWED))}'
+                           f' ({full})')
+        if isinstance(n, ast.ImportFrom) and n.level == 0 and n.module \
+                and (n.module == 'importlib' or n.module.startswith('importlib.')):
+            for a in n.names:
+                imported = f'{n.module}.{a.name}'
+                if not any(ok == imported or ok.startswith(imported + '.') for ok in IMPORTLIB_ALLOWED):
+                    out.append(f'{name}:{n.lineno}: importlib imported other than as'
+                               f' {" or ".join(sorted(IMPORTLIB_ALLOWED))} ({imported})')
     return out
 
 
@@ -868,9 +926,36 @@ def fine():
             'a star import of compiler',
             'runs spelled other than @runs(...)',
             'in_run spelled other than with in_run(...)',
-            'an import by importlib (importlib.import_module)',
-            'an import by importlib (__import__)',
-            'an import by importlib (from importlib import ...)',
+            'importlib used other than as importlib.util.find_spec (importlib.import_module)',
+            'an import by __import__',
+            'importlib imported other than as importlib.util.find_spec (importlib.import_module)',
+        ]))
+
+    def test_importlib_under_any_name_is_refused_but_find_spec(self):
+        # the last list of 2026-11-14, P4: default-deny, by the name importlib is bound to
+        planted = """
+import importlib as il
+import importlib.util as u
+from importlib import util as iu, reload as again
+from importlib.util import find_spec as fs, module_from_spec
+
+def load():
+    il.import_module('legend_lite.compiler')
+    u.spec_from_file_location('x', 'y')
+    again(il)
+    getattr(il, 'import_module')('legend_lite.compiler')
+
+def fine():
+    return fs('duckdb'), u.find_spec('duckdb'), iu.find_spec('duckdb')
+"""
+        self.assertEqual(sorted(f.split(': ', 1)[1] for f in spelling_violations('planted.py', planted)), sorted([
+            'importlib imported other than as importlib.util.find_spec (importlib.reload)',
+            'importlib imported other than as importlib.util.find_spec (importlib.util.module_from_spec)',
+            'importlib used other than as importlib.util.find_spec (importlib.import_module)',
+            'importlib used other than as importlib.util.find_spec (importlib.util.spec_from_file_location)',
+            'importlib used other than as importlib.util.find_spec (importlib.reload)',
+            'importlib used other than as importlib.util.find_spec (importlib)',
+            'importlib used other than as importlib.util.find_spec (importlib)',
         ]))
 
     def test_a_planner_answering_a_typed_plan_a_protocol_or_an_imported_alias_is_named(self):
@@ -904,6 +989,36 @@ def holder(e: 'Plans | None', f: Callable[[compiler.Plan], None]) -> None:
             "run(b): a PlanMaker, a planner's alias",
             "run(c): a Plans, a planner's alias",
             "holder(e): a Plans, a planner's alias",
+        ])
+
+    def test_a_name_an_import_renamed_is_read_as_what_it_imports(self):
+        # the last list of 2026-11-14, P3: `as` names were not resolved
+        sources = dict(self.sources)
+        sources['planted_types.py'] = """
+from typing import Callable
+from . import compiler
+
+PlanMaker = Callable[[str], compiler.Plan]
+"""
+        planted = """
+from typing import Callable as C, Optional
+from .compiler import HeldModel as H, Plan as P
+from .planted_types import PlanMaker as M
+from ._runframe import runs
+
+Asks = C[[str], P]
+
+@runs('a planted run')
+def run(a: H, b: Callable[[str], P], c: M, d: Optional[C[[], P]], e: Asks, f: P) -> None:
+    pass
+"""
+        # a typed plan TAKEN (f) is the run's own: not named
+        self.assertEqual(signature_crossings(planted, sources), [
+            'run(a): a HeldModel',
+            "run(b): a callable that answers a planner's statement or plan",
+            "run(c): a PlanMaker, a planner's alias",
+            "run(d): a callable that answers a planner's statement or plan",
+            "run(e): a Asks, a planner's alias",
         ])
 
     def test_a_planted_seam_that_imports_the_planner_is_named(self):
