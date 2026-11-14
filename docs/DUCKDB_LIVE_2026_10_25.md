@@ -196,6 +196,37 @@ NULL` (`MARKET_TRADE.PRICE DOUBLE`, though `MarketTrade.price` is `Float[1]`), s
 SQL tree and the Stock and News tabs keep the whole-history fold. The model's tables declaring `NOT NULL` where their
 property is `[1]` is a change to the stress corpus (`scripts/corpus/trading_model.py`), the user's call.
 
+### Stage A again, on ingest plans (2026-11-14, after main's merge)
+
+Main's total wall (data enters a database only through a planned load) replaced the live engine's own writes with an
+ingest's plans (docs/DESK_DATA_ROADMAP_2026_10_29.md C0): each batch attached by name and put in by the land plan's
+statements, the retention kept by the keep plan. Re-measured the same way, `bazel test //datacube:market_measure` at a
+tape of 25,000 (p95, ms; refresh is the emit):
+
+| tape | tab | refresh p50/p95 | write | click | tick | alone: write ms | alone: refresh ms | 2026-10-26: refresh p95 / write / tick |
+|---|---|---|---|---|---|---|---|---|
+| 25k | Markets | 39/55 | 67 | 7 | 93 | 53 | 38 | 89 / 77 / 123 |
+| 25k | Blotter | 47/59 | 68 | 6 | 102 | 55 | 52 | 89 / 71 / 126 |
+| 25k | P&L and risk | 52/67 | 62 | 5 | 104 | 56 | 52 | 102 / 73 / 148 |
+| 25k | FX | 41/55 | 64 | 6 | 89 | 48 | 36 | 68 / 71 / 105 |
+| 25k | Crypto | 98/128 | 66 | 16 | 150 | 57 | 100 | 180 / 74 / 204 |
+| 25k | Options | 110/136 | 71 | 14 | 169 | 58 | 118 | 421 / 78 / 452 |
+| 25k | Stock | 460/537 | 73 | 212 | 576 | 58 | 442 | 731 / 83 / 772 |
+| 25k | News | 213/257 | 69 | 184 | 299 | 56 | 221 | 420 / 77 / 456 |
+| 25k | Order flow | 254/302 | 82 | 150 | 338 | 58 | 258 | 506 / 84 / 475 |
+| 25k | TCA | 442/486 | 69 | 63 | 522 | 60 | 462 | 634 / 92 / 640 |
+
+**A write through the plans costs no more than the engine's own did:** p95 62-82 ms (71-92 before), alone 48-60 ms
+(51-74). Every refresh and tick is lower too, but that is mostly the work in between (the linear EMA, the options
+chain's variable computed once, the lazy tabs, the model's NOT NULL columns), not the plans. A write is still over
+its 30 ms budget, as it was. The start: 19.3 s in all, of which 13.2 s is planning the tiles; the 20 tables' plans
+take 1.4 s to write and 62 ms to run.
+
+**Not measured now:** DuckDB's share of the time in use and an operation's round trips to its worker. The page timed
+the worker's requests by wrapping the database's `postTask`, and main's tab now hands a page its files' handle alone
+(`DuckDbInTab.db`), never the database. The report says so (`-`), and DuckDB's memory, which needed a statement
+outside a plan, is `?`.
+
 ### L3 and L4, landed (2026-10-27)
 
 **L3, the desk in the tab** (`datacube/demo/market-sim/local-host.ts`): where the page names no market server -- DataCube's

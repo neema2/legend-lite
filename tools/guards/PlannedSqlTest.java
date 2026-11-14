@@ -203,10 +203,6 @@ class PlannedSqlTest {
             // one send, its subscription to a public market data WebSocket (JSON naming products and channels) -- it
             // reaches no database of ours and carries no statement; the world falls back to its simulation without it
             Map.entry("datacube/demo/market-sim/coinbase.ts", List.of("socket.send(")),
-            // 2026-11-14 (the same merge; stage A's capacity measurement, docs/DUCKDB_LIVE_2026_10_25.md): the measurement
-            // times DuckDB-WASM's own requests by wrapping its worker's postTask, each task forwarded as DuckDB made it
-            // (the bind and the wrapper) -- it adds none, and no statement is written there
-            Map.entry("datacube/demo/market-sim/measure/measure.ts", List.of("d.postTask", "d.postTask")),
             Map.entry("datacube/src/headless/host.ts", List.of("calls.query(")),
             Map.entry("engine-client/src/duckdb.ts", List.of("conn.insertArrowFromIPCStream", "conn.query(", "prepared.query(", "prepared.query(", "prepared.send(", "this.#conn.prepare(", "this.#conn.query(")),
             Map.entry("query/src/app/app.ts", List.of("recent.query(")),

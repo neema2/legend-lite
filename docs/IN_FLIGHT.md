@@ -3248,7 +3248,8 @@ Community License) with live results beside typed rows; DataCube the first live 
   publisher, and DataCube's ticking mode (once the DataCube line has settled).
 - **State, 2026-10-27: start at `docs/DEEPHAVEN_START_HERE.md`.** The work is on `claude/deephaven-3-browser` (L1, L2
   and everything since, stacked; none on `main` yet; `main` merged into it on 2026-10-27, PRs #73 to #78, and again on
-  2026-11-14, PRs #77 to #98; its register rows S400 to S499 since): DataCube on
+  2026-11-14, PRs #77 to #98 -- finished that day with the ingest plans, the desk roadmap's C0, local gate green; its
+  register rows S400 to S499 since): DataCube on
   Deephaven straight from the browser, ticking, through the single-user audit (A1), and the trading desk (the trader
   demos' plan). Open, waiting on the user or counsel: the licence question on the protocol table, section 4's guard
   before writes, the whole system's sign-in design. Next by the result boundary program (PR #78): the Deephaven line

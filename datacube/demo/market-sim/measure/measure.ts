@@ -76,51 +76,11 @@ const say = (what: string): void => {
 };
 
 
-/**
- * EVERY REQUEST TO DUCKDB'S WORKER, logged: DuckDB-WASM posts each (a query run, a pending query started, polled, its
- * results fetched, Arrow put in) through its database's `postTask`, one at a time in the worker. A request's interval is
- * from its posting to its answer, so the union of the intervals is the time the worker had work -- an upper bound on its
- * being busy (it includes each message's passage) -- and their count is the round trips an operation costs.
+/*
+ * DuckDB's worker is not reached here (2026-11-14, main's total wall: the tab hands a page its files' handle alone,
+ * DuckDbInTab.db, never the database): its share of the time in use and an operation's round trips to it are not
+ * measured, and the report says so (null) where it gave them -- the times, which a person sees, are.
  */
-interface Task { readonly type: string; readonly start: number; end: number }
-const TASKS: Task[] = [];
-
-function logTasks(db: unknown): void {
-  const d = db as { postTask: (task: { type: unknown }, transfer?: unknown) => Promise<unknown> };
-  const post = d.postTask.bind(d);
-  d.postTask = (task, transfer) => {
-    const t: Task = { type: String(task.type), start: performance.now(), end: Number.NaN };
-    TASKS.push(t);
-    return post(task, transfer).finally(() => { t.end = performance.now(); });
-  };
-}
-
-/** The share of [from, to] in which the worker had a request: the union of the requests' intervals, clipped. */
-function inUse(from: number, to: number): number {
-  const spans = TASKS.filter((t) => t.start < to && (Number.isNaN(t.end) ? to : t.end) > from)
-    .map((t) => [Math.max(from, t.start), Math.min(to, Number.isNaN(t.end) ? to : t.end)] as const)
-    .sort((a, b) => a[0] - b[0]);
-  let busy = 0;
-  let at = from;
-  for (const [s, e] of spans) {
-    if (e <= at) continue;
-    busy += e - Math.max(s, at);
-    at = e;
-  }
-  return Math.round((busy / (to - from)) * 1000) / 10;
-}
-
-/** The requests posted in [from, to], by type: how many, and their mean round trip (ms). */
-function tasksIn(from: number, to: number): Record<string, { n: number; meanMs: number }> {
-  const by: Record<string, { n: number; total: number }> = {};
-  for (const t of TASKS) {
-    if (t.start < from || t.start >= to || Number.isNaN(t.end)) continue;
-    const s = (by[t.type] ??= { n: 0, total: 0 });
-    s.n++;
-    s.total += t.end - t.start;
-  }
-  return Object.fromEntries(Object.entries(by).map(([k, v]) => [k, { n: v.n, meanMs: Math.round((v.total / v.n) * 100) / 100 }]));
-}
 
 async function main(): Promise<void> {
   const t0 = performance.now();
@@ -136,7 +96,6 @@ async function main(): Promise<void> {
   const plannerMs = performance.now() - t0;
   say('DuckDB starting');
   const tab = await startDuckDbInTab('./vendor/', planner);
-  logTasks(tab.db);
   const duckdbMs = performance.now() - t0 - plannerMs;
   say(`the market's tables and world (a tape of ${TAPE})`);
   const market: LiveMarket = await openLiveMarket({
@@ -327,9 +286,7 @@ async function main(): Promise<void> {
     const heap0 = heapUsed();
     const duck0 = await memory();
     measuring = true;
-    const from = performance.now();
     await new Promise((r) => setTimeout(r, MEASURE_S * 1000));
-    const to = performance.now();
     measuring = false;
     for (const t of timers) clearInterval(t);
     // let what is in flight land before the readers go
@@ -340,23 +297,19 @@ async function main(): Promise<void> {
     const duck1 = await memory();
 
     // ISOLATED, the clock stopped: a quarter-second's rows written alone, then a refresh alone -- each one's time and its
-    // round trips to the worker, nothing else in flight
-    const alone = { write: new Series(), writeTrips: new Series(), refresh: new Series(), refreshTrips: new Series() };
+    // nothing else in flight
+    const alone = { write: new Series(), refresh: new Series() };
     for (let i = 0; i < 8; i++) {
       for (let b = 0; b < 5; b++) {
         await new Promise((r) => setTimeout(r, 50));
         world.beat();
       }
-      let k = TASKS.length;
       let t = performance.now();
       await world.flush();
       alone.write.push(performance.now() - t);
-      alone.writeTrips.push(TASKS.length - k);
-      k = TASKS.length;
       t = performance.now();
       await live.emit();
       alone.refresh.push(performance.now() - t);
-      alone.refreshTrips.push(TASKS.length - k);
     }
     // EACH TILE'S QUERY ALONE: its run's median of three, on a connection of its own, no kept result answering it -- what
     // a refresh pays for it at this tape
@@ -382,11 +335,10 @@ async function main(): Promise<void> {
       openMs: Math.round(openMs), emit: emit.summary, flush: flush.summary, probe: probeWait.summary, tick: tick.summary,
       tickRun: tickRun.summary, beat: beat.summary, ticks, served, ran, failures,
       reruns: after.reruns - before.reruns, unchanged: after.unchanged - before.unchanged, told: after.told - before.told,
-      duckdbInUsePct: inUse(from, to), trips: tasksIn(from, to),
-      alone: { write: alone.write.summary, writeTrips: alone.writeTrips.summary, refresh: alone.refresh.summary, refreshTrips: alone.refreshTrips.summary },
+      duckdbInUsePct: null, trips: null,
+      alone: { write: alone.write.summary, writeTrips: null, refresh: alone.refresh.summary, refreshTrips: null },
       memory: { jsHeapBefore: heap0, jsHeapAfter: heap1, duckdbBefore: duck0, duckdbAfter: duck1 },
     };
-    TASKS.length = 0;
     return result;
   }
 }

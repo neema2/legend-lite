@@ -250,6 +250,10 @@ ingest's own declaration (A1), and run by the host for every batch:
   operations, `live-market.ts`'s retention table and the tables' write kinds.
 - **Done when:** the merge's lanes are green with main's guard unchanged, the in-tab desk ticks, and the stage A
   measurement is repeated beside its old numbers.
+- **Done (2026-11-14):** `//gates:local` green on the merge (527 pass; its 11 Postgres targets, which refuse root,
+  pass as an unprivileged user), with `DataMechanismCensusTest` and `PlannedSqlTest` unchanged in what they forbid;
+  the in-tab desk opens and ticks every tab (`//datacube:verify_live_desk_test`); stage A repeated beside its old
+  numbers (docs/DUCKDB_LIVE_2026_10_25.md, "Stage A again"): a write through the plans p95 62-82 ms against 71-92.
 
 ### C. The tab (does not touch Deephaven; the one-connection plan's steps 6 and 7)
 

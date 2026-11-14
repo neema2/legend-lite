@@ -100,8 +100,8 @@ function report(r) {
     const fails = BUDGETS.filter(([, of, limit]) => !(of(t) <= limit)).map(([n]) => n);
     const mb = (v) => (v === null || Number.isNaN(v) ? '?' : (v / 2 ** 20).toFixed(0));
     return [t.tab, t.tiles, t.queries, t.openMs, `${t.emit.p50}/${t.emit.p95}`, t.flush.p95, `${t.probe.p50}/${t.probe.p95}`,
-      `${t.tick.p50}/${t.tick.p95}`, t.beat.p95, t.duckdbInUsePct, `${t.alone.write.p50}/${t.alone.writeTrips.p50}`,
-      `${t.alone.refresh.p50}/${t.alone.refreshTrips.p50}`, `${t.served}/${t.ran}`, `${t.reruns} (${t.unchanged})`,
+      `${t.tick.p50}/${t.tick.p95}`, t.beat.p95, t.duckdbInUsePct ?? '-', `${t.alone.write.p50}/${t.alone.writeTrips?.p50 ?? '-'}`,
+      `${t.alone.refresh.p50}/${t.alone.refreshTrips?.p50 ?? '-'}`, `${t.served}/${t.ran}`, `${t.reruns} (${t.unchanged})`,
       `${mb(t.memory.duckdbBefore)}->${mb(t.memory.duckdbAfter)}`, fails.length === 0 ? 'within' : `OVER: ${fails.join(', ')}`];
   });
   const widths = cols.map((c, i) => Math.max(c.length, ...rows.map((row) => String(row[i]).length)));
@@ -116,14 +116,15 @@ function report(r) {
   // the round trips by kind, over every tab's measured span: how many a second, and each one's mean
   const trips = {};
   for (const t of r.tabs) {
-    for (const [k, v] of Object.entries(t.trips)) {
+    for (const [k, v] of Object.entries(t.trips ?? {})) {
       const s = (trips[k] ??= { n: 0, total: 0 });
       s.n += v.n;
       s.total += v.n * v.meanMs;
     }
   }
   const span = r.tabs.length * r.settings.measureS;
-  console.log(`  round trips: ${Object.entries(trips).map(([k, v]) => `${k} ${(v.n / span).toFixed(0)}/s at ${(v.total / v.n).toFixed(2)} ms`).join('; ')}`);
+  if (Object.keys(trips).length === 0) console.log('  round trips: not measured (the worker is not reached from the page)');
+  else console.log(`  round trips: ${Object.entries(trips).map(([k, v]) => `${k} ${(v.n / span).toFixed(0)}/s at ${(v.total / v.n).toFixed(2)} ms`).join('; ')}`);
 }
 
 function verdict(v, limit) {
