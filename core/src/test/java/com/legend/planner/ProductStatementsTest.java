@@ -187,6 +187,13 @@ class ProductStatementsTest {
         com.legend.error.NotImplementedException refused = assertThrows(
                 com.legend.error.NotImplementedException.class, () -> Lowered.lower(raw, "s::RT", false));
         assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
+        // the zoned helper too (the final audit of 9af16fbe58's J6: it handed out a bare Lowerer), and it hands out
+        // no Lowerer at all
+        assertTrue(QueryDoor.isRawSqlRefusal(assertThrows(com.legend.error.NotImplementedException.class,
+                () -> Lowered.lowerInZone(raw, "EST", List.of()))));
+        for (java.lang.reflect.Method m : Lowered.class.getDeclaredMethods()) {
+            assertTrue(m.getReturnType() != com.legend.lowering.Lowerer.class, m.toString());
+        }
     }
 
     /** The root's {@code Compiler.lowerResolved} types, resolves and lowers on its own; it refuses an executeInDb's
