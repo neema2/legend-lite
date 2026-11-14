@@ -127,10 +127,117 @@ class ProductStatementsTest {
         assertTrue(c.cells().get(0).get(0).startsWith("select "), c.cells().toString());
     }
 
+    /** The test-data seed's one entry (the user's ruling of 2026-11-13, option (b): it replaces TypedQuery.lower for the
+     *  generator's two callers) refuses a query reaching a statement's own SQL text by name, inside itself, as every
+     *  product door refuses it; the same query without that read is lowered. */
+    @Test
+    void theTestDataSeedsEntryRefusesRawSqlInsideItself() {
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
+        com.legend.TypedQuery raw = Compiler.query(ctx, "{|" + CONN + "let n = meta::relational::metamodel::execute"
+                + "::executeInDb('select 7 as A', $c).columnNames;\n#>{s::DB.T}#->select(~[ID]);}");
+        com.legend.error.NotImplementedException refused = assertThrows(
+                com.legend.error.NotImplementedException.class, () -> ProductStatements.lowerTestDataSeed(raw, "s::RT"));
+        assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
+        com.legend.sql.SqlQuery lowered = ProductStatements.lowerTestDataSeed(Compiler.query(ctx,
+                "|#>{s::DB.T}#->select(~[ID])"), "s::RT");
+        assertInstanceOf(com.legend.sql.SqlSelect.class, lowered);
+    }
+
+    /** The lowering's own steps are the planner's (the C4 audit's M5, 2026-11-13; the follow-up audit's G1,
+     *  2026-11-14): ProductStatements' {@code planned}, {@code lower}, both {@code lowerer}s and {@code storeWrite},
+     *  BodyPlanner's {@code lowerAndPrepare}s, {@code lowererFor}, {@code prepare} and {@code bare}, PlanMaker's
+     *  {@code copyInto} and EnginePlans' {@code engineSql}s, {@code engineTestSql} and {@code planModel}, package-private;
+     *  the public lowering statics that remain, and the Lowerer's constructors, pinned to the planners by
+     *  ArchitectureTest.PLANNER_ENTRIES_ONLY (default-deny: a listed entry point alone). A class past the
+     *  planner reaches a lowering by these public routes alone, each refusing an executeInDb's read by name first or
+     *  pinned to its callers: the query doors (TypedQuery's plans, Execution's runs, QueryDoor first);
+     *  {@code ProductStatements.prepare}, whose callers ArchitectureTest pins to the planner and the test planner; the
+     *  seed's one entry ({@code lowerTestDataSeed}); and {@code Compiler.lowerResolved}, which refuses inside itself
+     *  ({@link #theRootsLowerResolvedRefusesRawSqlInsideItself}). The tests' helper {@link Lowered} refuses raw SQL
+     *  first, as the product's doors and the seed's entry do. */
+    @Test
+    void theLoweringsStepsArePackagePrivateAndTheTestsHelperRefusesRawSql() {
+        java.util.Set<String> open = new java.util.TreeSet<>();
+        for (java.lang.reflect.Method m : ProductStatements.class.getDeclaredMethods()) {
+            if (java.util.Set.of("planned", "lower", "lowerer", "configured", "storeWrite").contains(m.getName())
+                    && java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
+                open.add("ProductStatements." + m.getName());
+            }
+        }
+        // the follow-up audit's G1, its second part (2026-11-14): the snapshot's copy, the engine text's lowerings and the
+        // body planner's bare lowering, whose callers are the planner's own
+        Map<Class<?>, java.util.Set<String>> narrowed = Map.of(
+                BodyPlanner.class, java.util.Set.of("lowerAndPrepare", "lowererFor", "prepare", "bare"),
+                PlanMaker.class, java.util.Set.of("copyInto"),
+                // the final audit of 9af16fbe58's J1 (2026-11-14): their callers the planner's own
+                SidePlanner.class, java.util.Set.of("prepare"),
+                PlanAllocations.class, java.util.Set.of("node"),
+                EnginePlans.class, java.util.Set.of("engineSql", "engineTestSql", "planModel"));
+        narrowed.forEach((owner, names) -> {
+            for (java.lang.reflect.Method m : owner.getDeclaredMethods()) {
+                if (names.contains(m.getName()) && java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
+                    open.add(owner.getSimpleName() + "." + m.getName());
+                }
+            }
+        });
+        assertEquals(java.util.Set.of(), open, "the lowering's steps reachable past the planner");
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
+        com.legend.TypedQuery raw = Compiler.query(ctx, "{|" + CONN + "let n = meta::relational::metamodel::execute"
+                + "::executeInDb('select 7 as A', $c).columnNames;\n#>{s::DB.T}#->select(~[ID]);}");
+        com.legend.error.NotImplementedException refused = assertThrows(
+                com.legend.error.NotImplementedException.class, () -> Lowered.lower(raw, "s::RT", false));
+        assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
+        // the zoned helper too (the final audit of 9af16fbe58's J6: it handed out a bare Lowerer), and it hands out
+        // no Lowerer at all
+        assertTrue(QueryDoor.isRawSqlRefusal(assertThrows(com.legend.error.NotImplementedException.class,
+                () -> Lowered.lowerInZone(raw, "EST", List.of()))));
+        for (java.lang.reflect.Method m : Lowered.class.getDeclaredMethods()) {
+            assertTrue(m.getReturnType() != com.legend.lowering.Lowerer.class, m.toString());
+        }
+    }
+
+    /** The root's {@code Compiler.lowerResolved} types, resolves and lowers on its own; it refuses an executeInDb's
+     *  read by name inside itself, as the seed's entry does (the follow-up audit's G1, 2026-11-14: until then it lowered
+     *  one, reproduced from a class past the planner); the same query without the read is lowered. */
+    @Test
+    void theRootsLowerResolvedRefusesRawSqlInsideItself() {
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
+        com.legend.protocol.spec.ValueSpecification raw = Compiler.parseQuery("{|" + CONN
+                + "let n = meta::relational::metamodel::execute::executeInDb('select 7 as A', $c).columnNames;\n"
+                + "#>{s::DB.T}#->select(~[ID]);}");
+        com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(
+                ((com.legend.protocol.spec.LambdaFunction) raw).body(), com.legend.model.ImportScope.empty(), ctx);
+        com.legend.error.NotImplementedException refused = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> Compiler.lowerResolved(resolved, ctx, "s::RT", false));
+        assertTrue(refused.getMessage().startsWith("an executeInDb's SQL in a query"), refused.getMessage());
+        com.legend.protocol.spec.ValueSpecification plain = Compiler.resolveQuery(((com.legend.protocol.spec.LambdaFunction)
+                Compiler.parseQuery("|#>{s::DB.T}#->select(~[ID])")).body(), com.legend.model.ImportScope.empty(), ctx);
+        assertInstanceOf(com.legend.sql.SqlSelect.class, Compiler.lowerResolved(plain, ctx, "s::RT", false));
+    }
+
+    /** The plan handles' scans answer "no rows" for a lowering's failure, but never for the raw-SQL refusal, which
+     *  propagates by name (the final audit of 9af16fbe58's J7, 2026-11-14: the catch swallowed lowerResolved's). */
+    @Test
+    void theLineageScansLetTheRawSqlRefusalThrough() {
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
+        com.legend.protocol.spec.ValueSpecification resolved = Compiler.resolveQuery(((com.legend.protocol.spec
+                .LambdaFunction) Compiler.parseQuery("{|" + CONN + "let n = meta::relational::metamodel::execute"
+                + "::executeInDb('select 7 as A', $c).columnNames;\n#>{s::DB.T}#->select(~[ID]);}")).body(),
+                com.legend.model.ImportScope.empty(), ctx);
+        com.legend.error.NotImplementedException refusal = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> Compiler.lowerResolved(resolved, ctx, "s::RT", false));
+        assertTrue(QueryDoor.isRawSqlRefusal(refusal));
+        assertEquals(false, PlanAllocations.noLineageRows(refusal));
+        assertEquals(true, PlanAllocations.noLineageRows(new com.legend.error.NotImplementedException("a wall")));
+        assertEquals(true, PlanAllocations.noLineageRows(new IllegalStateException("a wall")));
+        // the same words from another refusal are not it: the exact refusal alone
+        assertEquals(true, PlanAllocations.noLineageRows(new IllegalStateException(refusal.getMessage())));
+    }
+
     @Test
     void aDdlTextIsThePlansConstantAndHasNoSqlText() {
         // D17: a DDL text generator's text is the model's, answered with nothing sent; the query's SQL text (the
-        // lowering, TypedQuery.lower) has none, refused by name
+        // lowering, the planner's road: Lowered.lower in tests) has none, refused by name
         String query = "|meta::relational::functions::toDDL::createTableStatement(test::DB, 'T')";
         com.legend.TypedQuery typed = Compiler.query(Compiler.compileModel(StorelessRuntime.with(LEGACY,
                 Databases.PLATFORM)), query);
@@ -139,7 +246,7 @@ class ProductStatementsTest {
         assertTrue(c.cells().get(0).get(0).toUpperCase(java.util.Locale.ROOT).startsWith("CREATE TABLE"),
                 c.cells().toString());
         com.legend.error.NotImplementedException none = assertThrows(com.legend.error.NotImplementedException.class,
-                () -> typed.lower(StorelessRuntime.RUNTIME, false));
+                () -> Lowered.lower(typed, StorelessRuntime.RUNTIME, false));
         assertTrue(none.getMessage().contains("DDL text"), none.getMessage());
     }
 

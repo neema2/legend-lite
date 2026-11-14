@@ -41,6 +41,7 @@ import { answer as answerOf, type PlannerModule } from '../../engine-client/src/
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../../engine-client/src/planned-sql.ts';
+import { planning } from '../../engine-client/src/run-frame.ts';
 
 interface TeavmRuntime {
   load(
@@ -209,6 +210,8 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * the worker gives (engine-client's planner-answer.ts): one mapping of kinds to exports, wherever the module runs.
    */
   #call(request: RequestBody): Promise<string> {
+    // the planner's one dispatch, worker or in-thread: refused inside a run of its flow (run-frame.ts, the witness)
+    planning(request.kind);
     return this.#useWorker() ? this.#ask(request) : this.#load().then((m) => answerOf(m, request));
   }
 

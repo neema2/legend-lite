@@ -1,0 +1,48 @@
+// Witness cost, TS (2026-11-13; throwaway, never committed): engine-client's run-frame.ts, real (ON: Node's
+// AsyncLocalStorage) vs no frame kept (OFF), each in its own process.
+//   node --experimental-strip-types bench.mjs <on|off> <per-call|awaits-outside|awaits-inside|runs>
+const [variant, mode] = process.argv.slice(2);
+const rf = await import(`./run-frame-${variant}.ts`);
+const now = () => process.hrtime.bigint();
+const med = xs => { const s = [...xs].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; };
+const REPS = 9;
+
+async function awaitsLoop(n) {          // n awaits of an async function returning a resolved promise
+  const step = async (i) => i + 1;
+  let x = 0;
+  for (let i = 0; i < n; i++) x = await step(x);
+  return x;
+}
+
+if (mode === 'per-call') {
+  // planning(kind) outside a run: the check each planner entry makes
+  const N = 5_000_000;
+  for (let i = 0; i < N; i++) rf.planning('planJson');           // warm
+  const ns = [];
+  for (let r = 0; r < REPS; r++) { const t0 = now(); for (let i = 0; i < N; i++) rf.planning('planJson'); ns.push(Number(now() - t0) / N); }
+  console.log(`${variant} planning(kind) outside a run: median ${med(ns).toFixed(2)} ns per call (frameKept=${rf.frameKept})`);
+} else if (mode === 'runs') {
+  // inRun(what, work) around an empty async work, awaited: the frame's cost per run
+  const N = 300_000;
+  const work = async () => 1;
+  for (let i = 0; i < N; i++) await rf.inRun('a plan', work);    // warm
+  const ns = [];
+  for (let r = 0; r < REPS; r++) { const t0 = now(); for (let i = 0; i < N; i++) await rf.inRun('a plan', work); ns.push(Number(now() - t0) / N); }
+  console.log(`${variant} await inRun('a plan', async () => 1): median ${med(ns).toFixed(1)} ns per run`);
+  const bare = [];
+  for (let r = 0; r < REPS; r++) { const t0 = now(); for (let i = 0; i < N; i++) await work(); bare.push(Number(now() - t0) / N); }
+  console.log(`${variant} await (async () => 1)() (reference, same process): median ${med(bare).toFixed(1)} ns`);
+} else {
+  // the global cost: every await in the process, once a frame has ever been entered (ON enables Node's promise hooks
+  // at its first run and keeps them), measured outside any run and inside one
+  if (variant === 'on') await rf.inRun('a plan', async () => 1);   // a run happened: the hooks are on
+  const N = 1_000_000;
+  const body = async () => {
+    await awaitsLoop(N);                                           // warm
+    const ns = [];
+    for (let r = 0; r < REPS; r++) { const t0 = now(); await awaitsLoop(N); ns.push(Number(now() - t0) / N); }
+    return ns;
+  };
+  const ns = mode === 'awaits-inside' ? await rf.inRun('a plan', body) : await body();
+  console.log(`${variant} ${mode}: median ${med(ns).toFixed(1)} ns per await of an async call (min ${Math.min(...ns).toFixed(1)}, max ${Math.max(...ns).toFixed(1)})`);
+}

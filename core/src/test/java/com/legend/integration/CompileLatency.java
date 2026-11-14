@@ -180,7 +180,7 @@ public final class CompileLatency {
         long n2 = System.nanoTime();
         Compiler.LoweredQuery l;
         try {
-            l = q.lower(c.runtime(), false);
+            l = com.legend.planner.Lowered.lower(q, c.runtime(), false);
         } catch (RuntimeException e) {
             return new Timing(c.name(), n1 - n0, n2 - n1, System.nanoTime() - n2, 0, "fail: lower: " + bucket(e));
         }

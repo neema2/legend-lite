@@ -165,6 +165,21 @@ _SCANNED = {
         "src/theme.css",
     ],
     "menu-ids": [":src"],
+    # THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13): the run side's imports and signatures, read
+    # over DataCube's planner and the engine client, and the protocol library the snapshot's runner imports (the
+    # follow-up audit's G2, 2026-11-14), and Studio's and Query's apps with the libraries they import (the final audit
+    # of 9af16fbe58's T5, 2026-11-14)
+    "run-wall": [
+        ":src",
+        "//depot-client:depot_client",
+        "//engine-client:engine_client",
+        "//legend-art:legend_art",
+        "//pure-protocol:pure_protocol",
+        "//query:src",
+        "//query-store:query_store",
+        "//sdlc-client:sdlc_client",
+        "//studio:src",
+    ],
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],

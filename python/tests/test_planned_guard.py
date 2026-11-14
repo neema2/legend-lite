@@ -134,7 +134,13 @@ ATTACHES = {
 # type and its version alone, never for a function that runs on its default connection (duckdb.sql, duckdb.execute,
 # duckdb.append, duckdb.read_csv, ...). HTTP: a SQL API's statement ('submit') is sent by warehouse.py alone
 # (Warehouse.arrow_chunks: required a PlannedSql), and each module that opens a network client is pinned.
-DUCKDB_NAMES = {'Error', 'TransactionException', 'DuckDBPyConnection', '__version__'}
+# 2026-11-14 (the follow-up audit's G3, commit 876194a592): ParserException, CatalogException and BinderException, the
+# three errors a read tells apart as refused before anything ran (frames._REFUSED_BEFORE_RUNNING) -- errors, as the rule
+# admits, never a send.
+# 2026-11-14 (the final audit of 9af16fbe58's P7): InvalidInputException, a statement's parameters not as many as its
+# `?`s -- an error, as the rule admits.
+DUCKDB_NAMES = {'Error', 'TransactionException', 'ParserException', 'CatalogException', 'BinderException',
+                'InvalidInputException', 'DuckDBPyConnection', '__version__'}
 SUBMITS = {'warehouse.py': 1}
 NETWORK = {
     # the SQL API's client (the one): its HTTP, its errors

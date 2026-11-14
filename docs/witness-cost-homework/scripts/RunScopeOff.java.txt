@@ -1,0 +1,37 @@
+package com.legend.base;
+
+/** MEASUREMENT STUB (witness cost, 2026-11-13; never committed): the real RunScope's API with every check a no-op
+ *  -- the "before" of the before/after. The execution id is kept so a run still binds one. */
+public final class RunScope implements AutoCloseable {
+    private static final ThreadLocal<java.util.@Nullable UUID[]> EXECUTION = ThreadLocal.withInitial(() -> new java.util.UUID[1]);
+    private static final RunScope SCOPE = new RunScope();
+    private static final Planning PLANNING = new Planning();
+    private RunScope() {}
+    public static RunScope enter(java.util.UUID execution) { EXECUTION.get()[0] = execution; return SCOPE; }
+    public static RunScope enter() { return SCOPE; }
+    @Override public void close() { EXECUTION.get()[0] = null; }
+    public static java.util.UUID execution() {
+        java.util.UUID id = EXECUTION.get()[0];
+        if (id == null) throw new IllegalStateException("no execution runs on this thread");
+        return id;
+    }
+    public static java.util.@Nullable UUID currentExecution() { return EXECUTION.get()[0]; }
+    public static final class Refused extends Error {
+        private static final long serialVersionUID = 1L;
+        Refused(String message) { super(message); }
+    }
+    public static boolean running() { return false; }
+    public static void planning(String what) {}
+    public static Judging judging() { return () -> {}; }
+    public static Judging callingBack() { return () -> {}; }
+    public interface Judging extends AutoCloseable { @Override void close(); }
+    public static Planning plans(String what) { return PLANNING; }
+    public static boolean isPlanning() { return false; }
+    public static @Nullable String planningWhat() { return null; }
+    public static final class Planning implements AutoCloseable {
+        private Planning() {}
+        @Override public void close() {}
+    }
+    public static void opening(String act) {}
+    public static void statement(String act) {}
+}

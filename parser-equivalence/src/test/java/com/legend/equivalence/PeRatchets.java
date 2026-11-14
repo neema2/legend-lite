@@ -76,7 +76,12 @@ public final class PeRatchets {
             "own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR"
                     + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
                     + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
-                    + " tests')");
+                    + " tests')",
+            "own_corpus.matched 3211 -> 3226 (2026-11-14, C4's must-haves M1-M5, found red by the gate on b915e29405):"
+                    + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
+                    + " them)",
+            "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

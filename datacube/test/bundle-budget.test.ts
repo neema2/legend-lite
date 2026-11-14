@@ -551,8 +551,14 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  Measured 433,405.
  *  434,500 -> 437,000 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
- *  file). Measured 436,691. */
-const BUDGET = 437_000;
+ *  file). Measured 436,691.
+ *  437,000 -> 437,300 (2026-11-14, PR #101's CI on Windows: the grid's script measured 437,026 there, run 43564396326).
+ *  The separation's last checks: the server planners' and the server typing's planning() (engine.ts's HttpEngine and
+ *  RoutedEngine -- generatePlan, relationType, compile, compileErrors, returnType -- and planner.ts's UpstreamPlanner,
+ *  the final audit of 9af16fbe58's T2 and its last list), and the run frame's NOT_PLANNING (T6): 63 bytes, 436,935
+ *  without them. Measured 436,998 on Linux; Windows' 28 bytes more are its own build's -- the startup files name 305
+ *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here. */
+const BUDGET = 437_300;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -784,7 +790,12 @@ const BUDGET = 437_000;
  *  date). Measured 421,329.
  *  422,000 -> 425,500 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
- *  file). Measured 425,126. */
+ *  file). Measured 425,126.
+ *  422,000 -> 422,500 (2026-11-13, the next PR's item 2, "separation made foolproof", the standing witness: the run
+ *  frame -- engine-client's run-frame.ts, the grid road's run marker in runner.ts and the planner's guard in
+ *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108.
+ *  422,500, 425,500 -> 425,500 (2026-11-14, merged main 3a217086a (#81) into the separation stream: both sides' growth
+ *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382. */
 const ENGINE_BUDGET = 425_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).

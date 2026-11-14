@@ -1,0 +1,52 @@
+# Java: W1 A/B, first round (5 JVMs ON, 5 OFF; 2 GB heap; 5 builds, 6 passes; reader ab_read2.py)
+
+OFF r1  planning(passes 3-6) median    5931 min    5786  json median   650  parse   509 build   608
+OFF r2  planning(passes 3-6) median    5220 min    4658  json median   591  parse   452 build   509
+OFF r3  planning(passes 3-6) median    5076 min    4760  json median   580  parse   525 build   600
+OFF r4  planning(passes 3-6) median    5917 min    5530  json median   632  parse   464 build   588
+OFF r5  planning(passes 3-6) median    4971 min    4667  json median   567  parse   419 build   494
+ON r1   planning(passes 3-6) median    5319 min    4846  json median   616  parse   471 build   565
+ON r2   planning(passes 3-6) median    6220 min    5766  json median   653  parse   431 build   554
+ON r3   planning(passes 3-6) median    6213 min    5333  json median   671  parse   436 build   533
+ON r4   planning(passes 3-6) median    4868 min    4849  json median   577  parse   490 build   585
+ON r5   planning(passes 3-6) median    5727 min    5056  json median   608  parse   426 build   513
+names+type+plan, median of warm passes 3-6       OFF median  5219.8 [4971-5931]  ON median  5726.6 [4868-6220]  ON-OFF  +506.8 ms (+9.71%)
+names+type+plan, min of warm passes 3-6          OFF median  4759.9 [4658-5786]  ON median  5055.7 [4846-5766]  ON-OFF  +295.8 ms (+6.21%)
+PlanJson.write (no checks: the noise control)    OFF median   590.8 [567-650]  ON median   616.2 [577-671]  ON-OFF   +25.4 ms (+4.31%)
+model parse warm (A-C)                           OFF median   464.3 [419-525]  ON median   436.2 [426-490]  ON-OFF   -28.2 ms (-6.06%)
+model build warm (D-F)                           OFF median   587.6 [494-608]  ON median   554.2 [513-585]  ON-OFF   -33.4 ms (-5.68%)
+
+# Java: W1 A/B, second round (6 GB heap pre-touched, 2 builds, 10 passes; the container restarted mid-run: 4 JVMs ON and 4 OFF completed, one host; reader ab2_read.py)
+
+OFF r1  names+type+plan over passes 3-10: median  6221.4 min  5454.2 sd 481.7 | names  615.0 type  579.6 plan  5017.9 | json  644.2
+OFF r2  names+type+plan over passes 3-10: median  5079.9 min  4616.0 sd 863.2 | names  476.6 type  441.5 plan  4167.9 | json  574.8
+OFF r3  names+type+plan over passes 3-10: median  4718.9 min  4597.8 sd 788.0 | names  426.4 type  412.7 plan  3900.9 | json  584.5
+OFF r4  names+type+plan over passes 3-10: median  5174.3 min  4585.6 sd 310.0 | names  474.0 type  447.5 plan  4233.8 | json  611.2
+ON r1   names+type+plan over passes 3-10: median  4668.5 min  4548.6 sd 765.1 | names  417.2 type  393.3 plan  3857.0 | json  569.3
+ON r2   names+type+plan over passes 3-10: median  5862.2 min  4781.3 sd 491.9 | names  561.8 type  530.7 plan  4780.6 | json  637.2
+ON r3   names+type+plan over passes 3-10: median  4882.6 min  4581.8 sd 254.9 | names  439.9 type  427.3 plan  4020.7 | json  578.5
+ON r4   names+type+plan over passes 3-10: median  6152.6 min  5301.2 sd 368.1 | names  592.8 type  560.7 plan  4983.2 | json  650.6
+names+type+plan (median of passes 3-10)    OFF  5127.1 [4718.9-6221.4]  ON  5372.4 [4668.5-6152.6]  ON-OFF +245.3 ms (+4.78%)
+names+type+plan (min of passes 3-10)       OFF  4606.9 [4585.6-5454.2]  ON  4681.5 [4548.6-5301.2]  ON-OFF  +74.6 ms (+1.62%)
+names                                      OFF   475.3 [426.4-615.0]  ON   500.8 [417.2-592.8]  ON-OFF  +25.5 ms (+5.37%)
+type                                       OFF   444.5 [412.7-579.6]  ON   479.0 [393.3-560.7]  ON-OFF  +34.5 ms (+7.76%)
+plan                                       OFF  4200.8 [3900.9-5017.9]  ON  4400.6 [3857.0-4983.2]  ON-OFF +199.8 ms (+4.76%)
+PlanJson.write: the control, no checks     OFF   597.8 [574.8-644.2]  ON   607.8 [569.3-650.6]  ON-OFF  +10.0 ms (+1.67%)
+
+# Java: the product path whole (RunProbe: Compiler.query + Execution.run on DuckDB, trades corpus, 1,000 rows, 30 passes, first 10 dropped; 5 JVMs each; reader abrun_read.py)
+
+OFF r1  ok 55/69  per query (median over warm passes): names+type   269.1 us  plan+run   2509.0 us  whole   2783.3 us (best pass   2464.5)  whole p50  2148.7 us
+OFF r2  ok 55/69  per query (median over warm passes): names+type   337.1 us  plan+run   2996.8 us  whole   3334.8 us (best pass   2679.1)  whole p50  2746.2 us
+OFF r3  ok 55/69  per query (median over warm passes): names+type   224.7 us  plan+run   2391.1 us  whole   2604.8 us (best pass   2406.5)  whole p50  2018.2 us
+OFF r4  ok 55/69  per query (median over warm passes): names+type   273.8 us  plan+run   2731.9 us  whole   3008.4 us (best pass   2491.4)  whole p50  2214.8 us
+OFF r5  ok 55/69  per query (median over warm passes): names+type   304.4 us  plan+run   2833.4 us  whole   3145.1 us (best pass   2580.9)  whole p50  2573.1 us
+ON r1   ok 55/69  per query (median over warm passes): names+type   251.1 us  plan+run   2561.0 us  whole   2813.1 us (best pass   2525.4)  whole p50  2444.4 us
+ON r2   ok 55/69  per query (median over warm passes): names+type   222.6 us  plan+run   2301.5 us  whole   2522.6 us (best pass   2375.6)  whole p50  1930.5 us
+ON r3   ok 55/69  per query (median over warm passes): names+type   261.8 us  plan+run   2597.1 us  whole   2839.9 us (best pass   2452.3)  whole p50  2258.5 us
+ON r4   ok 55/69  per query (median over warm passes): names+type   232.9 us  plan+run   2359.8 us  whole   2605.1 us (best pass   2430.3)  whole p50  2047.8 us
+ON r5   ok 55/69  per query (median over warm passes): names+type   304.9 us  plan+run   2858.8 us  whole   3130.2 us (best pass   2427.4)  whole p50  2668.0 us
+names+type                 OFF    273.8 [224.7-337.1]  ON    251.1 [222.6-304.9]  ON-OFF   -22.7 us (-8.29%)
+plan+run (Execution.run)   OFF   2731.9 [2391.1-2996.8]  ON   2561.0 [2301.5-2858.8]  ON-OFF  -170.9 us (-6.26%)
+whole query, mean          OFF   3008.4 [2604.8-3334.8]  ON   2813.1 [2522.6-3130.2]  ON-OFF  -195.3 us (-6.49%)
+whole query, best pass     OFF   2491.4 [2406.5-2679.1]  ON   2430.3 [2375.6-2525.4]  ON-OFF   -61.1 us (-2.45%)
+whole query, p50           OFF   2214.8 [2018.2-2746.2]  ON   2258.5 [1930.5-2668.0]  ON-OFF   +43.8 us (+1.98%)

@@ -50,8 +50,9 @@ final class TestDataRoutes {
     static PureV1Api.Answer seedData(String body, PureV1Api.Runner runner, PureV1Api.Models models) {
         return PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
-            return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(ctx,
-                    TestDataPlanner.seedJson(ctx, seed(doored(ctx, r), r, true)), r.runtime(), runner));
+            // doored first, before the seed scans the query's relations (the final audit of 9af16fbe58's J8)
+            return ModelInput.of(r.json().getObj("model")).with(models, ctx -> run(doored(ctx, r),
+                    TestDataPlanner.seedJson(ctx, seed(ctx, r, true)), r.runtime(), runner));
         });
     }
 
@@ -72,6 +73,9 @@ final class TestDataRoutes {
         PureV1Api.Answer a = PureV1Api.answer(500, "COMPILATION", () -> {
             Request r = Request.of(PureV1Api.request(body));
             return ModelInput.of(r.json().getObj("model")).with(models, ctx -> {
+                // every route doored first, before its query's relations are scanned (ScanRelations.relTree: a raw
+                // read's query with no root, or several, was answered by the scan's words until the final audit of
+                // 9af16fbe58's J8, 2026-11-14); the seed's entry refuses raw SQL inside itself too
                 doored(ctx, r);
                 List<TestDataGenerator.TableRowIds> ids = defaultSeed ? List.of() : identifiers(r.json());
                 // a view root's main table admitted, so a view is refused by the route's own rule (TestDataPlanner.route)
@@ -102,6 +106,9 @@ final class TestDataRoutes {
             LambdaFunction query = resolved(request.getObj("query"));
             String mapping = request.getString("mapping");
             return ModelInput.of(request.getObj("model")).with(models, ctx -> {
+                // through the product's door before its scan, as the generator's other routes (the last list of
+                // 2026-11-14's observation: the census scanned first; it plans and runs nothing either way)
+                com.legend.planner.QueryDoor.refuseRawSql(com.legend.Compiler.query(ctx, query));
                 List<Map<String, Object>> tables = new ArrayList<>();
                 for (List<String> t : TestDataCensus.rows(ctx, query, mapping)) {
                     Map<String, Object> table = new LinkedHashMap<>();
@@ -158,9 +165,10 @@ final class TestDataRoutes {
      *  declares ({@link TestDataPlanner#underMapping}, as upstream executes the seed's function with the given
      *  mapping). */
     private static TestDataPlanner.Seed seed(ModelContext ctx, Request r, boolean viewRoot) {
-        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q -> com.legend.Compiler.query(ctx,
-                TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery))
-                .lower(r.runtime(), false).plan());
+        return TestDataPlanner.seed(ctx, r.query(), r.mapping(), viewRoot, q ->
+                com.legend.planner.ProductStatements.lowerTestDataSeed(com.legend.Compiler.query(ctx,
+                        TestDataPlanner.underMapping(q, r.mapping(), r.runtime(), com.legend.Compiler::parseQuery)),
+                        r.runtime()));
     }
 
     /** The request's {@code tableRowIdentifiers}: each table's identifiers, each a row's column-value pairs. */

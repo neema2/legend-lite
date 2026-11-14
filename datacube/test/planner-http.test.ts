@@ -10,6 +10,7 @@ import {
 } from '../src/planner.ts';
 
 import { element, fn, fromElement, lambda, toJson } from '../../pure-protocol/src/index.ts';
+import { inRun } from '../../engine-client/src/run-frame.ts';
 
 /** This test reads a JSON text loosely, its fields probed as it goes: since the C final audit's H5 (2026-11-12)
  *  JSON.parse is `unknown` everywhere (engine-client/src/json-unknown.ts), so the product reads none unchecked. */
@@ -49,6 +50,18 @@ const ok = (path: string) => ({ json: path.endsWith('/lambda') ? looseJson(toJso
 const Q = fromElement('demo::T').select(['a']).lambda();
 
 const OTHER = fromElement('demo::T').select(['b']).lambda();
+
+describe('UpstreamPlanner inside a run (the final audit of 9af16fbe58\'s T2)', () => {
+  it('refuses plan and relationType inside a run of the caller\'s flow, before anything is sent', async () => {
+    const seen: Seen[] = [];
+    const p = new UpstreamPlanner({ baseUrl: 'http://localhost:9999/', model: 'Class demo::Person {}',
+      runtime: 'demo::RT', fetch: fakeServer(seen, ok) });
+    await assert.rejects(inRun("a test's run", () => p.plan(Q)), /the planner was asked 'plan' inside a run/);
+    await assert.rejects(inRun("a test's run", () => p.relationType(Q)),
+      /the planner was asked 'relationType' inside a run/);
+    assert.equal(seen.length, 0, 'nothing sent inside the run');
+  });
+});
 
 describe('UpstreamPlanner: legend-engine\'s own API, the same client for lite and the engine', () => {
   it('sends the query to generatePlan with its runtime, and returns the plan\'s SQL', async () => {

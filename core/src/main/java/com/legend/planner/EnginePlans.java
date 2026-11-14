@@ -110,7 +110,7 @@ public final class EnginePlans {
             java.util.List<TypedSpec> body) {
     }
 
-    public static EngineSql engineSql(
+    static EngineSql engineSql(
             com.legend.compiler.spec.typed.TypedLambda lam,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
@@ -122,7 +122,7 @@ public final class EnginePlans {
 
     /** {@code raw}'s SQL in the engine's text for its test connection's database (H2): no plan parameters, no
      *  renames -- an activity's SQL, as the engine records the SQL it generated (the frame planner's string entry). */
-    public static String engineTestSql(java.util.List<TypedSpec> raw, @com.legend.base.Nullable String mappingFqn,
+    static String engineTestSql(java.util.List<TypedSpec> raw, @com.legend.base.Nullable String mappingFqn,
             SpecCompiler specs, PlanEnv env) {
         return engineSql(raw, mappingFqn, specs, env, EngineText.engineText(), java.util.Map.of(),
                 java.util.function.UnaryOperator.identity()).sql();
@@ -131,7 +131,7 @@ public final class EnginePlans {
     /** The body form, with plan-TEMPLATE parameters: each named free
      * variable lowers to the engine's {@code ${name}} placeholder
      * (value = string-typed, driving the freemarker quote template). */
-    public static EngineSql engineSql(java.util.List<TypedSpec> raw,
+    static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
             com.legend.sql.dialect.EngineTextDialect renderer,
@@ -145,7 +145,7 @@ public final class EnginePlans {
     /** {@code chainMappings}: ModelChainConnection mappings from the plan
      * surface's runtime argument (M2M2R — ~src classes resolve through
      * them). */
-    public static EngineSql engineSql(java.util.List<TypedSpec> raw,
+    static EngineSql engineSql(java.util.List<TypedSpec> raw,
             @com.legend.base.Nullable String mappingFqn, com.legend.compiler.spec.SpecCompiler specs,
             PlanEnv env,
             com.legend.sql.dialect.EngineTextDialect renderer,
@@ -707,7 +707,7 @@ public final class EnginePlans {
     /** The PLAN NODE MODEL for an executionPlan call — same shapes the
      * text printer spells (Sequence / FunctionParametersValidation /
      * RelationalInstantiation / SQLExecution). */
-    public static com.legend.plan.PlanNode planModel(
+    static com.legend.plan.PlanNode planModel(
             com.legend.compiler.spec.typed.TypedNativeCall ep,
             com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
         if (!(ep.args().get(0)

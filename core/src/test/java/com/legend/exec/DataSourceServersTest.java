@@ -102,6 +102,54 @@ class DataSourceServersTest {
                         Math.min(400, refused.getMessage().length())));
     }
 
+    /**
+     * A COLUMN IS NAMED EXACTLY AS WRITTEN ON CLICKHOUSE (the user's ruling of 2026-11-13: every dialect's identifier
+     * escaped as its own lexer reads a delimited identifier). ClickHouse reads a backslash escape inside a quoted
+     * identifier, and until then only the quote was doubled: an extended column named {@code a\" , version() AS v --}
+     * ran {@code version()} as a column of its own, a name ending in a backslash left its identifier open, and a declared
+     * name holding one named another column. Each now runs on the pinned ClickHouse and answers one column named
+     * exactly as written, and no other.
+     */
+    @Test
+    void clickHouseNamesEachColumnExactlyAsWritten() throws Exception {
+        var backend = TestBackends.of(DatabaseType.ClickHouse);
+        try (java.sql.Connection c = backend.open(); java.sql.Statement s = c.createStatement()) {
+            // the test's own table, its two columns declared with a backslash (ClickHouse's own spelling of them)
+            s.execute("DROP TABLE IF EXISTS IDENTS");
+            s.execute("CREATE TABLE IDENTS (ID Int64, \"a\\\\b\" Int64, \"e\\\\\" Int64) ENGINE = Memory");
+            s.execute("INSERT INTO IDENTS VALUES (1, 2, 3)");
+        }
+        String model = """
+                ###Relational
+                Database s::DB ( Table IDENTS ( ID INTEGER PRIMARY KEY, "a\\\\b" INTEGER, "e\\\\" INTEGER ) )
+                ###Connection
+                RelationalDatabaseConnection s::Conn { store: s::DB; %s }
+                ###Runtime
+                Runtime s::RT { mappings: [ ]; connections: [ s::DB: [ c1: s::Conn ] ]; }
+                """.formatted(backend.connectionBody());
+        String breakout = "a\\\" , version() AS v --";
+        Map<String, List<String>> asked = new java.util.LinkedHashMap<>();
+        // a declared name holding a backslash, and one ending in one
+        asked.put("|#>{s::DB.IDENTS}#", List.of("ID", "a\\b", "e\\"));
+        // an extended column's name, the breakout's payload
+        asked.put("|#>{s::DB.IDENTS}#->select(~[ID])->extend(~['a\\\\\" , version() AS v --':r|1])",
+                List.of("ID", breakout));
+        // a renamed column's, ending in a backslash
+        asked.put("|#>{s::DB.IDENTS}#->select(~[ID])->rename(~ID, ~'z\\\\')", List.of("z\\"));
+        for (Map.Entry<String, List<String>> a : asked.entrySet()) {
+            ExecutionPlan plan = Compiler.query(Compiler.compileModel(model), a.getKey()).executionPlan("s::RT");
+            StringWriter out = new StringWriter();
+            try (java.sql.Connection c = backend.open()) {
+                PlanRunner.stream(plan, Map.of(), PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                        PlanCases.Written.JSON.writer(out, plan.answerShape()), java.util.UUID.randomUUID());
+            }
+            var rows = ((com.legend.json.Json.Arr) com.legend.json.Json.parse(out.toString())).items();
+            assertEquals(1, rows.size(), a.getKey() + ": " + out);
+            assertEquals(a.getValue(), List.copyOf(((com.legend.json.Json.Obj) rows.get(0)).fields().keySet()),
+                    a.getKey() + ": its columns, each named exactly as written, and no other: " + out);
+        }
+    }
+
     /** {@code type}'s plan of {@code query}, run: no load, its JSON rows. */
     private static String rows(DatabaseType type, String query) throws Exception {
         var backend = TestBackends.of(type);

@@ -189,7 +189,7 @@ public final class PlanMaker {
      * ({@code SnapCopy}); a pull this lowering answers otherwise -- a value the program wrote, the metamodel's, a keyed
      * result, a pull whose database is not {@code dialect}'s -- is refused by name.
      */
-    public static ExecutionPlan.Sql copyInto(TypedQuery query, String runtime, SqlDialect dialect,
+    static ExecutionPlan.Sql copyInto(TypedQuery query, String runtime, SqlDialect dialect,
             ExecutionPlan.Target target, @Nullable String schema, String table) {
         try (var planning = com.legend.base.RunScope.plans("a snapshot's copy")) {
             ProgramFrames frames = new ProgramFrames();
@@ -934,7 +934,7 @@ public final class PlanMaker {
         ExprType type = new ExprType(write.info().type(), Multiplicity.Bounded.ONE);
         QueryParameters.Declared count = new QueryParameters.Declared(ExecutionPlan.COUNT, type.type(),
                 type.multiplicity());
-        SqlQuery q = query.lowerer(false, false, List.of(count.slot()), features, sites)
+        SqlQuery q = ProductStatements.configured(query, false, false, List.of(count.slot()), features, sites)
                 .lowerPlanParam(ExecutionPlan.COUNT, type);
         return new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.VALUE,
                 PlanColumns.of(TypedRows.schema(type), q, ExecutionPlan.TdsResult.Shape.VALUE),

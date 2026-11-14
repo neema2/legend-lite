@@ -1,0 +1,10 @@
+import { createHook } from 'node:async_hooks';
+let promises = 0;
+const step = async (i) => i + 1;
+async function awaitsLoop(n) { let x = 0; for (let i = 0; i < n; i++) x = await step(x); return x; }
+const h = createHook({ init(id, type) { if (type === 'PROMISE') promises++; } });
+h.enable();
+const before = promises;
+await awaitsLoop(100000);
+h.disable();
+console.log(`promises per iteration of the await loop: ${((promises - before) / 100000).toFixed(2)}`);

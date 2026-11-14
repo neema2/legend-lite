@@ -23,6 +23,7 @@ from typing import Any
 
 from . import compiler
 from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, read_plan, send
+from ._runframe import runs
 
 # the kinds the compiler names a model's failure to read as a model by (planner.Folded, PureV1Api.refusal): such a
 # model is no project's, and is refused where a model is; any other refusal of a project's database (a Data element
@@ -57,6 +58,7 @@ def _load_of(given: PlanText) -> dict[str, Any]:
     return root
 
 
+@runs('a load')
 def run_load(plan: PlanText, execute: Callable[[PlannedSql], Any]) -> None:
     """A plan whose root is the ONCE load a project's database is made with (the native library's ``load``: the platform's
     LoadPlanner.projectData, the load a server's project plan carries), run by ``execute`` on the database Python made
@@ -124,6 +126,7 @@ class HostLoad:
     landed: tuple[Landed, ...]
 
 
+@runs('a plan of writes')
 def run_write(plan: PlanText, connection: Any) -> None:
     """A PLAN OF WRITES THAT ANSWERS NOTHING, run on ``connection`` (the final audit's item 1(b), 2026-11-12: a
     snapshot's copy, the native library's Boundary.snapCopy): its effects in order, each binding its data: payloads from
@@ -167,6 +170,7 @@ def run_write(plan: PlanText, connection: Any) -> None:
         raise
 
 
+@runs("a host's load")
 def run_host_load(plan: PlanText, connection: Any, *, values: Callable[[str], Any] | None = None,
                   planes: Mapping[str, Any] | None = None) -> HostLoad:
     """A HOST_SESSION load run on ``connection`` (duckdb-python's) -- the user's ruling of 2026-11-11, "This is the right

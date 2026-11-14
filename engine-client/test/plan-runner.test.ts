@@ -10,7 +10,8 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, type PlanSession } from '../src/plan-runner.ts';
+import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
+import { currentRun, frameKept } from '../src/run-frame.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
 import { relationColumns } from '../src/relation-type.ts';
@@ -140,20 +141,26 @@ let database: Awaited<ReturnType<typeof startNodeDuckDb>>;
  * text DuckDB-WASM itself is handed -- each query, each statement prepared or sent, each Arrow import (by its target's
  * name) -- not what the runner says it sent. A plan's run must hand it its plan's statements and nothing else.
  */
-const witnessed = (raw: ArrowishConnection): { readonly engine: DuckDbEngine; readonly received: string[] } => {
+const witnessed = (raw: ArrowishConnection): { readonly engine: DuckDbEngine; readonly received: string[]; readonly runs: (string | undefined)[] } => {
   const received: string[] = [];
+  // the run each text arrived inside (run-frame.ts, the witness): a plan's statements are sent inside its run
+  const runs: (string | undefined)[] = [];
+  const took = (text: string): void => {
+    received.push(text);
+    runs.push(currentRun());
+  };
   const connection: ArrowishConnection = {
-    query: (sql) => { received.push(sql); return raw.query(sql); },
-    ...(raw.send === undefined ? {} : { send: (sql: PlannedSql) => { received.push(sql); return raw.send!(sql); } }),
-    ...(raw.prepare === undefined ? {} : { prepare: (sql: PlannedSql) => { received.push(sql); return raw.prepare!(sql); } }),
+    query: (sql) => { took(sql); return raw.query(sql); },
+    ...(raw.send === undefined ? {} : { send: (sql: PlannedSql) => { took(sql); return raw.send!(sql); } }),
+    ...(raw.prepare === undefined ? {} : { prepare: (sql: PlannedSql) => { took(sql); return raw.prepare!(sql); } }),
     ...(raw.insertArrowFromIPCStream === undefined ? {} : {
       insertArrowFromIPCStream: (buffer: Uint8Array, options: { name: string; schema?: string; create?: boolean }) => {
-        received.push(`<an Arrow stream into ${options.name}>`);
+        took(`<an Arrow stream into ${options.name}>`);
         return raw.insertArrowFromIPCStream!(buffer, options);
       },
     }),
   };
-  return { engine: new DuckDbEngine(connection), received };
+  return { engine: new DuckDbEngine(connection), received, runs };
 };
 
 before(async () => {
@@ -214,12 +221,31 @@ describe("a write's plan, run by the host's runner on DuckDB-WASM", () => {
     const plan = planned(fn('write', src(), target()));
     // the witness at the database itself: every text DuckDB-WASM's connection is handed during the run (H13) -- the
     // transaction's statements the plan's target's, never asked of the planner at run (S8: no planner is handed in)
-    const { engine: own, received } = witnessed(database.connect() as ArrowishConnection);
+    const { engine: own, received, runs } = witnessed(database.connect() as ArrowishConnection);
     await own.exclusive(async (held) => runPlan(plan, sessionOn(own.databaseType, held)));
     const read: unknown = looseJson(plan);
     const { begin, commit } = transactionOf(read);
     assert.deepEqual(begin, ['BEGIN TRANSACTION']);
     assert.deepEqual(received, [...sessionOf(read), ...begin, ...statementsOf((read as { root: unknown }).root), ...commit]);
+    // each received inside a run: the session's statements in the plan's, the rest in its transaction's, nested in it
+    assert.deepEqual(runs, [...sessionOf(read).map(() => 'a plan'), ...received.slice(sessionOf(read).length).map(() => 'a transaction')]);
+  });
+
+  // the witness (run-frame.ts, 2026-11-13): each of the runner's roads is a run, so a planner entry it reaches is refused
+  it('runs each of its roads as a run, which plans nothing', async () => {
+    const plan = planned(fn('write', src(), target()));
+    const seen: (string | undefined)[] = [];
+    const seeing: PlanSession = { databaseType: 'DuckDB', run: async () => { seen.push(currentRun()); return []; } };
+    await establish(plan, seeing);
+    assert.ok(seen.length > 0 && seen.every((r) => r === "a target's establishing"), String(seen));
+    assert.equal(await transacted({ begin: [], commit: [], rollback: [] }, async () => [], async () => currentRun()), 'a transaction');
+    const written = unplannedPlan(ok(answer(m, { kind: 'authored', request: JSON.stringify({ databaseType: 'DuckDB', text: 'SELECT 1' }) })));
+    assert.equal(await runAuthored(written, { databaseType: 'DuckDB', run: async () => currentRun() }), 'an authored statement');
+    if (frameKept) {
+      await assert.rejects(transacted({ begin: [], commit: [], rollback: [] }, async () => [], async () => answer(m, { kind: 'hold', model: MODEL })),
+        /the planner was asked 'hold' inside a run \(a transaction\)/);
+    }
+    assert.equal(currentRun(), undefined, 'each run ended with its road');
   });
 
   it("refuses by name a write whose target carries no transaction, nothing run (the re-audit's S8)", async () => {
@@ -579,12 +605,14 @@ describe("the load runners' shared conformance fixture", () => {
     const project = planOf();
     const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
     // the witness at the database itself (H13): what it receives from the load's run alone
-    const { engine: own, received } = witnessed(db.connect() as ArrowishConnection);
+    const { engine: own, received, runs } = witnessed(db.connect() as ArrowishConnection);
     for (const sql of [...project.open, ...project.use]) await own.run(unplanned(sql), 0);
     received.length = 0;
+    runs.length = 0;
     await runLoad(unplannedPlan(JSON.stringify(project.load)), (sql) => own.run(sql, 0));
     assert.ok(received.length > 1, received.join('; '));
     assert.deepEqual(received, statementsOf(project.load.root));
+    assert.deepEqual(runs, received.map(() => 'a load'), 'each received inside the load\'s run');
   });
 
   it('refuses the tampered blob in the fixture\'s words, nothing run', async () => {

@@ -172,10 +172,34 @@ public final class QueryDoor {
         }
     }
 
+    /** {@link #refuseRawSql(TypedQuery)} for a body typed by {@code specs} apart from a typed query -- the root's
+     *  {@code Compiler.lowerResolved}, which types, resolves and lowers on its own (the follow-up audit's G1, 2026-11-14:
+     *  until then it lowered an executeInDb's read past every refusal). */
+    public static void refuseRawSql(java.util.List<TypedSpec> body, SpecCompiler specs) {
+        Map<FunctionId, Boolean> memo = new HashMap<>();
+        for (TypedSpec statement : body) {
+            if (StatementEffects.reaches(statement, n -> n instanceof TypedRawSqlRelation, specs, memo)) {
+                throw refused(TestOnly.RAW_SQL);
+            }
+        }
+    }
+
+    /** Whether {@code e} is the raw-SQL refusal ({@link TestOnly#RAW_SQL}'s, {@link #refuseRawSql}), by its exact words:
+     *  a catch answering "no rows" for a lowering's failure lets it through (the final audit of 9af16fbe58's J7). */
+    public static boolean isRawSqlRefusal(Throwable e) {
+        return e instanceof NotImplementedException && RAW_SQL_REFUSAL.equals(e.getMessage());
+    }
+
+    private static final String RAW_SQL_REFUSAL = message(TestOnly.RAW_SQL);
+
     /** {@code kind}'s refusal, by name. */
     private static NotImplementedException refused(TestOnly kind) {
-        return new NotImplementedException(kind.what + " in a query: " + kind.why
-                + ", and the product's query door plans none");
+        return new NotImplementedException(message(kind));
+    }
+
+    /** {@code kind}'s refusal's words. */
+    private static String message(TestOnly kind) {
+        return kind.what + " in a query: " + kind.why + ", and the product's query door plans none";
     }
 
     /** Whether {@code statement} is an {@code assertError(f, ...)} at its root -- not a let -- whose function's body

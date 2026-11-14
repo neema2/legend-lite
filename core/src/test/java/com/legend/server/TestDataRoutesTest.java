@@ -122,6 +122,26 @@ class TestDataRoutesTest {
         }
     }
 
+    /** A raw read's query whose relations name no root, or several, is refused by name too, before its relations are
+     *  scanned (the final audit of 9af16fbe58's J8, 2026-11-14: the default seed's routes answered the scan's words). */
+    @Test
+    void aRawReadsQueryWithNoRootOrSeveralIsRefusedByNameBeforeItsScan() {
+        String read = "{|let n = meta::relational::metamodel::execute::executeInDb('select 7 as A',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB)).columnNames;\n";
+        String noRoot = read + "'x';}";
+        String twoRoots = read + "model::Person.all()->project([p|$p.name], ['name'])->concatenate("
+                + "model::Firm.all()->project([f|$f.legalName], ['name']));}";
+        for (String q : java.util.List.of(noRoot, twoRoots)) {
+            for (String r : java.util.List.of("generateTestData_WithDefaultSeed", "generateSeedData")) {
+                PureV1Api.Answer a = route("execution/testDataGeneration/" + r, input(q, ""));
+                assertTrue(a.status() != 200, r + ": " + a.json());
+                assertTrue(a.json().contains("an executeInDb\\u0027s SQL in a query") || a.json().contains(
+                        "an executeInDb's SQL in a query"), r + ": " + a.json());
+            }
+        }
+    }
+
     /** The test data from given identifiers: the routes' table order (by schema and table: FIRM before the root
      *  PERSON), as text. */
     @Test
@@ -340,6 +360,25 @@ class TestDataRoutesTest {
         assertEquals(200, one.status(), one.json());
         assertTrue(one.json().startsWith("default\nSTAMP\nN,S\n1,"), "the nanosecond key's own row: " + one.json());
         assertEquals(1, one.json().lines().filter(l -> l.matches("\\d+,.*")).count(), "its row alone: " + one.json());
+    }
+
+    /** The census route passes the product's door first too: a raw read is refused by name before its scan (the last
+     *  list of 2026-11-14's observation). */
+    @Test
+    void theCensusRefusesARawReadByNameBeforeItsScan() {
+        String q = "{|let n = meta::relational::metamodel::execute::executeInDb('select 7 as A',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB)).columnNames;\n'x';}";
+        String body = "{\"query\":" + PureV1Api.grammarToJsonLambda(q, false).json() + ",\"model\":"
+                + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", model))
+                + ",\"mapping\":\"model::M\",\"runtime\":\"model::RT\"}";
+        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
+                (query, runtime, output) -> {
+                    throw new AssertionError("the census runs nothing");
+                });
+        assertTrue(a.status() != 200, a.json());
+        assertTrue(a.json().contains("an executeInDb\\u0027s SQL in a query") || a.json().contains(
+                "an executeInDb's SQL in a query"), a.json());
     }
 
     /** The census: upstream's embedded data, a model fact (no run). */

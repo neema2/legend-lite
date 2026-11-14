@@ -47,6 +47,7 @@ import pyarrow as pa
 
 from . import _host, compiler
 from ._planned import Database, PlannedSql, Result, connect, send
+from ._runframe import runs
 from .projects import LoadRefused, run_host_load
 from ._types import UnknownType, is_integer
 
@@ -375,6 +376,23 @@ class _File:
         return {'model': self.model, 'runtime': self.runtime, 'source': self.source, 'table': self.name, 'leaf': self.leaf}
 
 
+# the failures DuckDB raises BEFORE a statement runs -- a table not there, a name not bound, text that does not parse:
+# they leave the transaction standing, so they never end a read, and DuckDB still raises them after a read has ended
+# (measured on the pinned DuckDB, 2026-11-14: after an abort a ParserException, a CatalogException and a
+# BinderException are each raised as themselves, as is an invalid input, which Reading._failed reads apart; a statement
+# that runs says the transaction is aborted)
+_REFUSED_BEFORE_RUNNING = (duckdb.ParserException, duckdb.CatalogException, duckdb.BinderException)
+
+
+def _words(said: str, kind: str) -> str:
+    """A failure's words: its first line that says something, or its class where none does (an empty message, or one
+    that is only space and line breaks)."""
+    for line in said.splitlines():
+        if line.strip():
+            return line.strip()
+    return kind
+
+
 class Reading:
     """WHAT ONE READ SEES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D15): the frames' database as it was when the read
     began -- a cursor of its own, its session set as the planner's SQL expects, each frame read at each query registered
@@ -391,32 +409,85 @@ class Reading:
         self.models = models
         # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
         self.held_values = held
+        # the failure that aborted this read's transaction, in its words (``execute``): the read's end
+        self.ended_by: str | None = None
+        # the read's latest failure that RAN -- at a statement or at its fetch -- in its words: the one that aborted the
+        # transaction, when DuckDB next says it is aborted (one refused before it ran never replaces it)
+        self._last_failure: str | None = None
 
     def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
         """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
-        overflow) aborts DuckDB's transaction: begun again then, and pinned, so the read's next query runs -- seeing the
-        database as it is from then on (F36). One refused before it ran (a table not there) leaves the read as it was.
-        A failure's words name no value the engine holds (an expired presigned link's read repeats its URL: M2)."""
+        overflow) aborts DuckDB's transaction, and the read ENDS there: the call shows that failure, and its later
+        queries do not run -- DuckDB refuses each, said in words naming the failure that ended the read -- and the next
+        call opens a fresh read (the user's ruling of 2026-11-13, (1b)). Until then the read began and pinned another
+        transaction (F36), which planned the pin's statement inside the read's run (G4: a run plans nothing) and moved
+        the read, unsaid, to the database as it was then (G7: no silent snapshot switch). One refused before it ran (a
+        table not there) leaves the read as it was: DuckDB's transaction stands. A failure's words name no value the
+        engine holds (an expired presigned link's read repeats its URL: M2)."""
         failure: BaseException | None = None
         try:
             # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
             return send(self.cursor, sql, params)
+        except duckdb.TransactionException as e:
+            # DuckDB says the read's transaction is aborted: by the read's latest failure that ran -- at a statement or
+            # at its fetch -- never one refused before it ran (a table not there, text that does not parse), which left
+            # the transaction standing, before the abort or after it (the C4 audit's M4, 2026-11-13; the follow-up
+            # audit's G3, 2026-11-14: until then a refusal after the abort replaced the failure that ended the read)
+            if self.ended_by is None:
+                self.ended_by = self._last_failure
+            if self.ended_by is None:
+                failure = redacted(e, self.held_values)
+                if failure is None:
+                    raise
+            else:
+                # the database's own error class, so a caller that answers a database's refusal answers this one (the
+                # plan-and-run's 422, never a 500)
+                failure = duckdb.TransactionException(
+                    f"this read ended at the failure that aborted its transaction ({self.ended_by}): DuckDB aborts"
+                    " the read's transaction there, so the call's later queries do not run; the next call reads the"
+                    ' database afresh')
         except duckdb.Error as e:
-            try:
-                _pin(self.cursor)
-            except duckdb.TransactionException:
-                with contextlib.suppress(duckdb.Error):
-                    self.cursor.rollback()
-                self.cursor.begin()
-                _pin(self.cursor)
-            failure = redacted(e, self.held_values)
+            failure = self._failed(e)
             if failure is None:
                 raise
         raise failure
 
+    def _failed(self, e: duckdb.Error) -> BaseException | None:
+        """``e`` kept as the read's latest failure where it RAN (one refused before it ran leaves the transaction
+        standing, and never replaces the one that aborted it); the failure to raise, its held values taken out (None:
+        ``e`` names none)."""
+        failure = redacted(e, self.held_values)
+        # an invalid input (a statement given fewer values than its `?`s) aborts a standing transaction, yet DuckDB
+        # raises it as itself after an abort too (measured on the pinned DuckDB, 2026-11-14): it is kept only where
+        # nothing is kept yet -- the read's end when it came first, and never a replacement for the failure that ended
+        # the read (the final audit of 9af16fbe58's P7)
+        if not isinstance(e, _REFUSED_BEFORE_RUNNING) and not (
+                isinstance(e, duckdb.InvalidInputException) and self._last_failure is not None):
+            self._last_failure = _words(str(failure) if failure is not None else str(e), type(e).__name__)
+        return failure
+
+    def fetched(self, result: Result) -> pa.Table:
+        """``result``'s rows as this read fetches them: a failure AT THE FETCH (DuckDB converts as it streams, so a
+        value that does not convert past the first rows it hands over fails here, not at the statement: measured at
+        3M rows, 2026-11-14) is the read's failure as one at the statement is -- it aborts the transaction, and the
+        read ends there, named by it (the follow-up audit's G3: until then a fetch's failure went unrecorded). Named by
+        what DuckDB raises: DuckDB 1.5.5 now and then answers a worker's conversion failure as its interrupt, a race of
+        its own threads (measured 2026-11-14 with no legend-lite code: about 1 in 20 on a cursor or in a transaction),
+        and the read is named by that."""
+        try:
+            return result.to_arrow_table()
+        except duckdb.TransactionException:
+            raise
+        except duckdb.Error as e:
+            failure = self._failed(e)
+            if failure is None:
+                raise
+            raise failure from None
+
+    @runs('a read')
     def run(self, plan: compiler.Plan) -> pa.Table:
         """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
-        return typed_by_plan(self.execute(plan.sql, plan.params).to_arrow_table(), plan)
+        return typed_by_plan(self.fetched(self.execute(plan.sql, plan.params)), plan)
 
 
 def _pin(cursor: Database) -> None:
@@ -505,6 +576,7 @@ class Frames:
             self._tables[key] = table
             return table
 
+    @runs('a plan')
     def run(self, plan: compiler.Plan) -> pa.Table:
         """PYTHON'S EXECUTOR: a plan's SQL run on this database, its rows typed by the plan (``typed_by_plan``) --
         a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).

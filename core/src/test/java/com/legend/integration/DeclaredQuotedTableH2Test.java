@@ -49,7 +49,8 @@ class DeclaredQuotedTableH2Test {
 
     private static String engineText(EngineStyleH2 printer, String query) {
         ModelContext ctx = Compiler.compileModel(MODEL);
-        return printer.render(Compiler.query(ctx, query).lower("q::RT", false).plan()).replace("\n", " ");
+        return printer.render(com.legend.planner.Lowered.lower(Compiler.query(ctx, query), "q::RT", false).plan())
+                .replace("\n", " ");
     }
 
     /** The engine text names a quoted table as the store wrote it, and aliases it by that name. */
@@ -123,7 +124,8 @@ class DeclaredQuotedTableH2Test {
     @Test
     void theLineageFindsTheDatabaseOfAQuotedTable() {
         ModelContext ctx = Compiler.compileModel(MODEL);
-        var plan = Compiler.query(ctx, "#>{q::DB.Sales.Orders}#->select(~[id, Amt])").lower("q::RT", false).plan();
+        var plan = com.legend.planner.Lowered.lower(Compiler.query(ctx, "#>{q::DB.Sales.Orders}#->select(~[id, Amt])"),
+                "q::RT", false).plan();
         var entries = com.legend.lineage.ScanColumns.entries(plan);
         var rows = com.legend.lineage.ColumnLineageRows.rows("s", ctx, "q::M", entries).get("column_contexts");
         assertEquals(List.of("s", "0", "q::DB", "Sales", "Orders"), rows.get(0).subList(0, 5));

@@ -15,6 +15,7 @@ import { fakeParse, fakePrint, limitsOf } from './fake-planner.ts';
 import { fromElement, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import { variable } from '../../pure-protocol/src/index.ts';
 import { unplanned } from '../../engine-client/test/unplanned.ts';
+import { currentRun, frameKept, planning } from '../../engine-client/src/run-frame.ts';
 
 /** A cube query, as DataCube builds one. */
 const Q = fromElement('demo::T').select(['region']).lambda();
@@ -85,6 +86,76 @@ class StubExecutor implements RemoteExecutor {
   parse = fakeParse;
   print = fakePrint;
 }
+
+// THE GRID ROAD'S RUN MARKER (the witness, run-frame.ts, 2026-11-13): the tab's engine runs a grid's plan inside a
+// run, and a planner entry that run reaches is refused by name; the planning before it, and a second flow planning
+// while the first one's plan runs, are not.
+describe('the grid road: its plan runs inside a run, which plans nothing', () => {
+  /** An engine whose run asks the planner (a crossing), or reports the run it is inside. */
+  class AskingEngine extends FakeEngine {
+    readonly name = 'asking';
+    readonly runs: (string | undefined)[] = [];
+    readonly asks: boolean;
+    readonly gate: Promise<void> | undefined;
+    constructor(asks: boolean, gate?: Promise<void>) {
+      super();
+      this.asks = asks;
+      this.gate = gate;
+    }
+    async answer(_sql: string, epoch: number): Promise<ResultTable> {
+      await this.gate;
+      this.runs.push(currentRun());
+      if (this.asks) planning('plan');
+      return table(epoch);
+    }
+  }
+
+  // kept where the host offers a flow's context (Node's), and nowhere else: the headless V8 this suite also runs in
+  // keeps none, so there the witness is blind -- its named gap -- and the cases below have nothing to see
+  it('keeps the frame exactly where the host offers a flow\'s context', () => {
+    const host = (globalThis as { process?: { getBuiltinModule?: unknown } }).process;
+    assert.equal(frameKept, typeof host?.getBuiltinModule === 'function');
+  });
+
+  it('runs the plan inside a run, and plans outside it', async () => {
+    if (!frameKept) return;
+    const engine = new AskingEngine(false);
+    const planner = new (class extends StubPlanner {
+      override async plan(query: Lambda): Promise<Plan> {
+        planning('plan');
+        return super.plan(query);
+      }
+    })();
+    await new PlanThenRun(planner, engine).run(Q, SNAPSHOT);
+    assert.deepEqual(engine.runs, ['a grid query'], 'the engine ran inside the grid road\'s run');
+    assert.equal(currentRun(), undefined, 'and the run ended with it');
+    const streamed = new AskingEngine(false);
+    await new PlanThenRun(new StubPlanner(), streamed).stream(Q, SNAPSHOT, () => {});
+    assert.deepEqual(streamed.runs, ['a grid query, streamed']);
+  });
+
+  it('refuses a planner entry inside the run, by name', async () => {
+    if (!frameKept) return;
+    await assert.rejects(new PlanThenRun(new StubPlanner(), new AskingEngine(true)).run(Q, SNAPSHOT), (e: Error) => {
+      assert.match(String((e as { cause?: unknown }).cause ?? e), /the planner was asked 'plan' inside a run \(a grid query\)/);
+      return true;
+    });
+  });
+
+  it('lets a second flow plan while the first flow\'s plan runs: the frame is the flow\'s', async () => {
+    if (!frameKept) return;
+    let open!: () => void;
+    const gate = new Promise<void>((done) => { open = done; });
+    const engine = new AskingEngine(false, gate);
+    const first = new PlanThenRun(new StubPlanner(), engine).run(Q, SNAPSHOT);
+    await new Promise((done) => setTimeout(done, 0));
+    // the first flow's run is open (its engine waits at the gate); this flow plans
+    planning('plan');
+    open();
+    await first;
+    assert.deepEqual(engine.runs, ['a grid query']);
+  });
+});
 
 describe('the two arrangements', () => {
   it('plans then executes locally, and says which', async () => {

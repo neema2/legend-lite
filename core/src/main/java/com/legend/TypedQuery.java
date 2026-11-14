@@ -16,8 +16,10 @@ import java.util.List;
 /**
  * A query typed ONCE against a compiled model ({@link Compiler#query}; C2b,
  * docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): its result type, the target it names, its typed
- * expression, its lowering and its plan all come off this one object. Each replaces a {@code Compiler} static that took
- * the model as TEXT and compiled it again per question.
+ * expression and its plan all come off this one object. Each replaces a {@code Compiler} static that took the model as
+ * TEXT and compiled it again per question. Its lowering does not: that is the planner's own step, reached from outside
+ * the planners by a listed entry alone ({@code ArchitectureTest.PLANNER_ENTRIES_ONLY}; the final audit of 9af16fbe58,
+ * 2026-11-14).
  */
 public final class TypedQuery {
 
@@ -71,11 +73,11 @@ public final class TypedQuery {
         return ctx;
     }
 
-    /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). */
-    /** The spec compiler the query was typed by. This and the members below (resolved, lower,
-     *  lowerer, writes) are the planner's and the driver's internals, public since step C (D73, 2026-10-30) because
-     *  the machinery left this package; the product API of a typed query is plan, lower(runtime), resultType,
-     *  expression, target and parameters. */
+    /** The spec compiler the query's statements are typed by (a user function's body is compiled through it). This
+     *  and the members below (resolved, body, writes) are the planner's and the test planner's internals, public since
+     *  step C (D73, 2026-10-30) because the machinery left this package; the product API of a typed query is plan,
+     *  executionPlan, projectPlan, resultType, expression, target and parameters (lower and lowerer went with the user's
+     *  ruling of 2026-11-13, option (b): the lowering is the planner's own). */
     public SpecCompiler specs() {
         return specs;
     }
@@ -168,63 +170,6 @@ public final class TypedQuery {
      *  names none. Every door's one rule ({@code PlanMaker.runtimeOf}; the checkpoint tenets audit's 1, 2026-11-10). */
     public @com.legend.base.Nullable String runtime(@com.legend.base.Nullable String given) {
         return com.legend.planner.PlanMaker.runtimeOf(this, given);
-    }
-
-    /** The query lowered for {@code runtime}: inlined (G½), resolved (H) against the runtime, every touched store
-     *  checked against its connections, lowered (I) — every planning step, no database. {@code streaming}: the
-     *  streaming graph root (one json_object per row). */
-    public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming) {
-        return lower(runtime, streaming, List.of(), java.util.Set.of());
-    }
-
-    /** {@link #lower(String, boolean)} with the query's declared parameters as {@code slots}: each {@code $name} of a
-     *  slot lowers to it, a value the statement binds (a plan's parameters, docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md
-     *  §9, step 2's landing 2). */
-    public Compiler.LoweredQuery lower(@com.legend.base.Nullable String runtime, boolean streaming,
-            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
-        // the product's statement road (the test-is-the-product plan's M2, B11): the test road's front half, the
-        // product's lowering
-        com.legend.planner.ProductStatements.Statement s = com.legend.planner.ProductStatements.prepare(this,
-                body(), runtime, null, features);
-        com.legend.planner.Prepared.Planned p = com.legend.planner.ProductStatements.planned(s);
-        com.legend.sql.SqlQuery plan = com.legend.planner.ProductStatements.lower(this, p, s.temporal(), streaming,
-                slots, new com.legend.lowering.ObjectSites());
-        return new Compiler.LoweredQuery(plan, p.body().get(p.body().size() - 1), ctx);
-    }
-
-    /** The Lowerer a planned statement lowers with (the wire path's): the model's object layouts (every object its
-     *  identity and its class, docs/OBJECT_IDENTITY_2026_10_20.md §3.1; D91: equal() over keyed instances is the key
-     *  relation on every lane, the plan's too), the engine's exists-join form unless a temporal class is read
-     *  ({@code temporal}), the streaming graph root if asked, the query's feature flags, each slot a value the
-     *  statement binds. */
-    public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
-            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features) {
-        return lowerer(temporal, streaming, slots, features, new com.legend.lowering.ObjectSites());
-    }
-
-    /** {@link #lowerer(boolean, boolean, List, java.util.Set)} naming its objects' sites with {@code sites}: the
-     *  program's one minter, shared by every statement of a program (the test-is-the-product plan's B9, 2026-10-31). */
-    public com.legend.lowering.Lowerer lowerer(boolean temporal, boolean streaming,
-            List<com.legend.sql.SqlExpr.PlanParam> slots, java.util.Set<com.legend.platform.Feature> features,
-            com.legend.lowering.ObjectSites sites) {
-        com.legend.lowering.Lowerer planLw = new com.legend.lowering.Lowerer(
-                t -> com.legend.compiler.element.ClassLayouts.objectLayoutOf(ctx, t),
-                f -> ctx.findClass(f).isPresent(), ctx.implementations())
-                .withInstanceKeys(t -> com.legend.compiler.element.EqualityKeys.resolve(ctx, t))
-                .withObjectIdentity(sites::idOf);
-        if (!temporal) {
-            planLw = planLw.withEngineExistsJoinForm();
-        }
-        if (streaming) {
-            planLw = planLw.withStreamingGraphRoot();
-        }
-        if (!features.isEmpty()) {
-            planLw = planLw.withFeatures(features);
-        }
-        for (com.legend.sql.SqlExpr.PlanParam slot : slots) {
-            planLw.bindPlanParam(slot);
-        }
-        return planLw;
     }
 
     /** Whether the query is a program that changes a store (docs/WRITES_DESIGN_2026_10_18.md §8, leg 7): a statement

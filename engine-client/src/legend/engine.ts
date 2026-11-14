@@ -6,6 +6,7 @@
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
+import { planning } from '../run-frame.ts';
 import type {
   CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer,
 } from './wire.ts';
@@ -123,11 +124,15 @@ export class HttpEngine implements Engine {
     return res.text();
   }
 
+  // a server's typing is planning: each refused inside a run of the caller's flow (run-frame.ts; the last list of
+  // 2026-11-14, T2's neighbours)
   relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
+    planning('relationType');
     return this.#json('POST', '/pure/v1/compilation/lambdaRelationType', { model, lambda });
   }
 
   compile(model: PureModelContext): Promise<CompileResult> {
+    planning('compile');
     return this.#json('POST', '/pure/v1/compilation/compile', model);
   }
 
@@ -137,6 +142,7 @@ export class HttpEngine implements Engine {
    * route, and once it has answered 404 its `compilation/compile` is asked instead, which answers the first.
    */
   async compileErrors(code: string): Promise<string[]> {
+    planning('compileErrors');
     const model: PureModelContext = { _type: 'text', code };
     if (this.#liteCompile !== false) {
       try {
@@ -159,6 +165,7 @@ export class HttpEngine implements Engine {
   }
 
   async returnType(model: PureModelContext, lambda: Lambda): Promise<string> {
+    planning('returnType');
     return (await this.#json<{ returnType: string }>('POST', '/pure/v1/compilation/lambdaReturnType', { model, lambda })).returnType;
   }
 
@@ -167,6 +174,8 @@ export class HttpEngine implements Engine {
   }
 
   generatePlan(input: ExecuteInput): Promise<unknown> {
+    // a server's planner: refused inside a run of the caller's flow (run-frame.ts; the final audit of 9af16fbe58's T2)
+    planning('generatePlan');
     return this.#json('POST', '/pure/v1/execution/generatePlan', withContext(input));
   }
 
@@ -192,10 +201,24 @@ export class RoutedEngine implements Engine {
   lambdaJson(text: string): Promise<Lambda> { return this.#grammar.lambdaJson(text); }
   lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> { return this.#grammar.lambdaText(lambda, style); }
   modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string> { return this.#grammar.modelText(model, style); }
-  relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> { return this.#grammar.relationType(model, lambda); }
-  compile(model: PureModelContext): Promise<CompileResult> { return this.#server.compile(model); }
-  returnType(model: PureModelContext, lambda: Lambda): Promise<string> { return this.#server.returnType(model, lambda); }
+  // typing is planning, whatever engine it routes to (the last list, T2's neighbours)
+  relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
+    planning('relationType');
+    return this.#grammar.relationType(model, lambda);
+  }
+  compile(model: PureModelContext): Promise<CompileResult> {
+    planning('compile');
+    return this.#server.compile(model);
+  }
+  returnType(model: PureModelContext, lambda: Lambda): Promise<string> {
+    planning('returnType');
+    return this.#server.returnType(model, lambda);
+  }
   execute(input: ExecuteInput, signal?: AbortSignal): Promise<ExecutionResult> { return this.#server.execute(input, signal); }
-  generatePlan(input: ExecuteInput): Promise<unknown> { return this.#server.generatePlan(input); }
+  generatePlan(input: ExecuteInput): Promise<unknown> {
+    // whatever engine it routes to (T2)
+    planning('generatePlan');
+    return this.#server.generatePlan(input);
+  }
   currentUser(): Promise<string> { return this.#server.currentUser(); }
 }

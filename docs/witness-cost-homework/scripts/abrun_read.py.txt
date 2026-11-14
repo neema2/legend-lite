@@ -1,0 +1,17 @@
+import re, statistics, sys
+log = re.split(r'(?m)^### (?=(?:ON|OFF) r\d$)', open(sys.argv[1]).read())
+skip = int(sys.argv[2])  # warm-up passes dropped
+rows = {'ON': [], 'OFF': []}
+for ch in log[1:]:
+    lab = ch.split('\n')[0]; v = lab.split()[0]
+    ps = re.findall(r'pass (\d+): (\d+) of (\d+) ok; per query mean: names\+type ([\d.]+) us, plan\+run ([\d.]+) us, whole ([\d.]+) us; whole p50 ([\d.]+) us', ch)
+    warm = [tuple(map(float, x[3:])) for x in ps if int(x[0]) > skip]
+    rows[v].append(dict(lab=lab, ok=ps[0][1], nt=statistics.median(w[0] for w in warm), pr=statistics.median(w[1] for w in warm),
+                        whole=statistics.median(w[2] for w in warm), p50=statistics.median(w[3] for w in warm), best=min(w[2] for w in warm)))
+for v in ('OFF', 'ON'):
+    for r in rows[v]:
+        print(f"{r['lab']:7s} ok {r['ok']}/69  per query (median over warm passes): names+type {r['nt']:7.1f} us  plan+run {r['pr']:8.1f} us  whole {r['whole']:8.1f} us (best pass {r['best']:8.1f})  whole p50 {r['p50']:7.1f} us")
+for key, name in [('nt', 'names+type'), ('pr', 'plan+run (Execution.run)'), ('whole', 'whole query, mean'), ('best', 'whole query, best pass'), ('p50', 'whole query, p50')]:
+    off = [r[key] for r in rows['OFF']]; on = [r[key] for r in rows['ON']]
+    mo, mn = statistics.median(off), statistics.median(on)
+    print(f"{name:26s} OFF {mo:8.1f} [{min(off):.1f}-{max(off):.1f}]  ON {mn:8.1f} [{min(on):.1f}-{max(on):.1f}]  ON-OFF {mn-mo:+7.1f} us ({100*(mn-mo)/mo:+.2f}%)")

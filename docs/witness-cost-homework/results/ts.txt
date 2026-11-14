@@ -1,0 +1,85 @@
+# TS on Node 22.16.0 (the pinned toolchain): bench.mjs, run-frame.ts ON vs no frame kept OFF, each its own process
+
+on planning(kind) outside a run: median 0.39 ns per call (frameKept=true)
+off planning(kind) outside a run: median 0.39 ns per call (frameKept=false)
+on planning(kind) outside a run: median 0.39 ns per call (frameKept=true)
+off planning(kind) outside a run: median 0.39 ns per call (frameKept=false)
+on await inRun('a plan', async () => 1): median 170.8 ns per run
+on await (async () => 1)() (reference, same process): median 126.1 ns
+off await inRun('a plan', async () => 1): median 46.7 ns per run
+off await (async () => 1)() (reference, same process): median 44.1 ns
+on await inRun('a plan', async () => 1): median 153.4 ns per run
+on await (async () => 1)() (reference, same process): median 125.1 ns
+off await inRun('a plan', async () => 1): median 53.6 ns per run
+off await (async () => 1)() (reference, same process): median 49.9 ns
+on awaits-outside: median 141.1 ns per await of an async call (min 131.0, max 175.8)
+off awaits-outside: median 40.3 ns per await of an async call (min 39.4, max 77.8)
+on awaits-outside: median 122.3 ns per await of an async call (min 120.6, max 138.0)
+off awaits-outside: median 39.9 ns per await of an async call (min 39.4, max 41.2)
+on awaits-inside: median 127.6 ns per await of an async call (min 120.8, max 199.4)
+off awaits-inside: median 39.5 ns per await of an async call (min 39.1, max 42.6)
+on awaits-inside: median 125.4 ns per await of an async call (min 120.4, max 136.5)
+off awaits-inside: median 39.8 ns per await of an async call (min 39.3, max 43.9)
+
+# the same, with and without --experimental-async-context-frame
+[no flag] on planning(kind) outside a run: median 0.40 ns per call (frameKept=true) 
+[no flag] off planning(kind) outside a run: median 0.39 ns per call (frameKept=false) 
+[--experimental-async-context-frame] on planning(kind) outside a run: median 1.04 ns per call (frameKept=true) 
+[--experimental-async-context-frame] off planning(kind) outside a run: median 0.39 ns per call (frameKept=false) 
+[no flag] on planning(kind) outside a run: median 0.39 ns per call (frameKept=true) 
+[no flag] off planning(kind) outside a run: median 0.40 ns per call (frameKept=false) 
+[--experimental-async-context-frame] on planning(kind) outside a run: median 1.04 ns per call (frameKept=true) 
+[--experimental-async-context-frame] off planning(kind) outside a run: median 0.69 ns per call (frameKept=false) 
+[no flag] on await inRun('a plan', async () => 1): median 155.1 ns per run on await (async () => 1)() (reference, same process): median 131.5 ns 
+[no flag] off await inRun('a plan', async () => 1): median 48.2 ns per run off await (async () => 1)() (reference, same process): median 44.7 ns 
+[--experimental-async-context-frame] on await inRun('a plan', async () => 1): median 77.7 ns per run on await (async () => 1)() (reference, same process): median 46.2 ns 
+[--experimental-async-context-frame] off await inRun('a plan', async () => 1): median 47.6 ns per run off await (async () => 1)() (reference, same process): median 45.1 ns 
+[no flag] on await inRun('a plan', async () => 1): median 147.7 ns per run on await (async () => 1)() (reference, same process): median 126.5 ns 
+[no flag] off await inRun('a plan', async () => 1): median 47.3 ns per run off await (async () => 1)() (reference, same process): median 45.1 ns 
+[--experimental-async-context-frame] on await inRun('a plan', async () => 1): median 77.3 ns per run on await (async () => 1)() (reference, same process): median 45.4 ns 
+[--experimental-async-context-frame] off await inRun('a plan', async () => 1): median 46.3 ns per run off await (async () => 1)() (reference, same process): median 44.4 ns 
+[no flag] on awaits-outside: median 118.8 ns per await of an async call (min 117.6, max 160.6) 
+[no flag] off awaits-outside: median 40.5 ns per await of an async call (min 39.4, max 41.7) 
+[--experimental-async-context-frame] on awaits-outside: median 40.2 ns per await of an async call (min 39.6, max 48.3) 
+[--experimental-async-context-frame] off awaits-outside: median 39.4 ns per await of an async call (min 38.5, max 71.1) 
+[no flag] on awaits-outside: median 121.3 ns per await of an async call (min 118.8, max 183.9) 
+[no flag] off awaits-outside: median 40.2 ns per await of an async call (min 38.9, max 76.0) 
+[--experimental-async-context-frame] on awaits-outside: median 47.9 ns per await of an async call (min 45.0, max 93.6) 
+[--experimental-async-context-frame] off awaits-outside: median 45.0 ns per await of an async call (min 43.4, max 51.2) 
+[no flag] on awaits-inside: median 133.1 ns per await of an async call (min 130.4, max 140.9) 
+[no flag] off awaits-inside: median 39.5 ns per await of an async call (min 38.9, max 41.8) 
+[--experimental-async-context-frame] on awaits-inside: median 39.4 ns per await of an async call (min 38.6, max 39.9) 
+[--experimental-async-context-frame] off awaits-inside: median 39.7 ns per await of an async call (min 39.0, max 45.5) 
+[no flag] on awaits-inside: median 121.7 ns per await of an async call (min 119.0, max 139.1) 
+[no flag] off awaits-inside: median 40.4 ns per await of an async call (min 39.4, max 72.7) 
+[--experimental-async-context-frame] on awaits-inside: median 40.1 ns per await of an async call (min 39.8, max 44.2) 
+[--experimental-async-context-frame] off awaits-inside: median 40.9 ns per await of an async call (min 40.6, max 47.1) 
+
+# promises per iteration of the await loop (loop-count.mjs): 2.00
+
+# promises per query (count-promises.mjs preloaded into whole-bench.ts; 18 queries a pass; passes 1 vs 11): (13356 - 9576) / 180 = 21.0
+[no flag] passes=1 [ts] pass 1: 18 of 18 ok (frameKept=true); per query mean: plan 3940.1 us, run 13821.2 us, whole 17761.3 us; whole p50 6299.9 us [count] promises=9576 
+[no flag] passes=11 [ts] pass 11: 18 of 18 ok (frameKept=true); per query mean: plan 1066.2 us, run 1491.8 us, whole 2557.9 us; whole p50 2483.3 us [count] promises=13356 
+[--experimental-async-context-frame] passes=1 [ts] pass 1: 18 of 18 ok (frameKept=true); per query mean: plan 4140.8 us, run 15539.3 us, whole 19680.1 us; whole p50 5684.6 us [count] promises=9576 
+[--experimental-async-context-frame] passes=11 [ts] pass 11: 18 of 18 ok (frameKept=true); per query mean: plan 1029.6 us, run 1304.6 us, whole 2334.3 us; whole p50 2224.0 us [count] promises=13356 
+
+# the whole path A/B (abts.sh, 1,000 rows, 20 passes, first 5 dropped; reader abts_read.py)
+OFF r1  frameKept=false per query (median over warm passes): plan  1312.8 us  run  1739.0 us  whole  3143.7 us (best pass  2295.1)  p50  2951.6
+OFF r2  frameKept=false per query (median over warm passes): plan  1275.3 us  run  1575.3 us  whole  2867.2 us (best pass  2435.9)  p50  2570.0
+OFF r3  frameKept=false per query (median over warm passes): plan  1085.7 us  run  1439.4 us  whole  2544.6 us (best pass  2077.1)  p50  2451.8
+OFF r4  frameKept=false per query (median over warm passes): plan  1324.1 us  run  1769.5 us  whole  3148.5 us (best pass  2397.8)  p50  3068.3
+OFF r5  frameKept=false per query (median over warm passes): plan  1120.6 us  run  1383.8 us  whole  2469.5 us (best pass  2199.1)  p50  2354.0
+ON r1   frameKept=true  per query (median over warm passes): plan  1155.4 us  run  1433.9 us  whole  2619.7 us (best pass  2077.2)  p50  2496.2
+ON r2   frameKept=true  per query (median over warm passes): plan   957.7 us  run  1213.2 us  whole  2153.5 us (best pass  2046.0)  p50  2100.2
+ON r3   frameKept=true  per query (median over warm passes): plan   977.1 us  run  1229.6 us  whole  2236.6 us (best pass  2049.3)  p50  2133.4
+ON r4   frameKept=true  per query (median over warm passes): plan  1045.6 us  run  1309.0 us  whole  2331.1 us (best pass  2105.1)  p50  2270.3
+ON r5   frameKept=true  per query (median over warm passes): plan  1263.3 us  run  1676.7 us  whole  2940.0 us (best pass  2263.4)  p50  2963.2
+plan (WASM planner, in-thread)   OFF  1275.3 [1085.7-1324.1]  ON  1045.6 [957.7-1263.3]  ON-OFF -229.7 us (-18.01%)
+run (runPlan on DuckDB-WASM)     OFF  1575.3 [1383.8-1769.5]  ON  1309.0 [1213.2-1676.7]  ON-OFF -266.3 us (-16.90%)
+whole query, mean                OFF  2867.2 [2469.5-3148.5]  ON  2331.1 [2153.5-2940.0]  ON-OFF -536.1 us (-18.70%)
+whole query, best pass           OFF  2295.1 [2077.1-2435.9]  ON  2077.2 [2046.0-2263.4]  ON-OFF -217.9 us (-9.49%)
+whole query, p50                 OFF  2570.0 [2354.0-3068.3]  ON  2270.3 [2100.2-2963.2]  ON-OFF -299.7 us (-11.66%)
+
+# the run frame's tests with --experimental-async-context-frame (bazel test ... --test_env=NODE_OPTIONS="--experimental-async-context-frame --import=$PRELOAD_DIR/flag-check-env.mjs")
+//engine-client:run_frame_test PASSED (5 of 5); //engine-client:plan_runner_test PASSED (43 of 43); //datacube:lite_planner_test PASSED (29 of 29); each printed [flag-check] NODE_OPTIONS=--experimental-async-context-frame ...
+run directly from a copy of the runfiles with the flag on the command line (execArgv checked): run-frame.test.ts 5 of 5, plan-runner.test.ts 43 of 43
