@@ -477,6 +477,104 @@ class KnowledgeLayerTest {
         assertEquals("L1:Float[0..1]", signature.get(17).text());
     }
 
+    /** The engine's type-inference cases (2026-11-14, the names batch: register row S378, docs/rust-port/
+     * PHASE3_SHIM_DESIGN.md §10 rulings 34 and 35), one Database whose every view column is one case, every arm of each
+     * rule. Each answer below is legend-engine 4.145.0's for that column, ASKED of the engine, not read: the pinned
+     * release's own generated {@code inferRelationalType} (failOnMatchFailure false) over this very text, compiled by
+     * its own compiler (port-scratch/namesbatch/engine: InferProbe, the engine runner's class path), and the same cases
+     * through the legend-lsp daemon (interpreted) answering alike. {@code -} is the engine's EMPTY or a throw (a toOne
+     * over no type, an at() past the arguments, a match with no arm): no type here, as for every inference the engine
+     * fails where it is asked (S378). One answer is lite's and differs, said where it stands. lite-names' tests.rs holds
+     * the same text and table. */
+    static final String ENGINE_CASES = """
+            ###Relational
+            Database nb::Db (
+              Table T (ID INTEGER PRIMARY KEY, I INTEGER, TI TINYINT, SI SMALLINT, B BIGINT, F FLOAT, DB DOUBLE, R REAL,
+                D DECIMAL(10,2), N NUMERIC(6,2), C CHAR(3), K CHAR(5), V VARCHAR(4), W VARCHAR(10), X VARCHAR(5000),
+                H VARCHAR(2000000000), DT DATE, TS TIMESTAMP, BT BIT)
+              View VABS (AB1: abs(T.I), AB2: abs(T.D), AB3: abs(T.V), AB4: abs(T.I, T.I), AB5: abs(nope(T.I)), AB6: abs(1),
+                AB7: abs(abs(T.F)), AB8: abs())
+              View VADD (AD1: add(T.V, T.W), AD2: add(T.C, T.V), AD3: add(T.I, T.F), AD4: add(T.I, T.V), AD5: add(T.B, T.F),
+                AD6: add(sqlNull(), T.V), AD7: add(T.D, T.I), AD8: add(T.I), AD9: add(T.I, T.I, T.V), AD10: add(nope(T.I), T.I),
+                AD11: add(T.C, T.K), AD12: add('ab', 'cde'), AD13: add(T.V, sqlNull()), AD14: add(sqlNull(), sqlNull()),
+                AD15: add(T.R, T.R), AD16: add(T.DT, T.DT))
+              View VBIT (BA1: bitAnd(T.I, T.I), BA2: bitAnd(nope(T.I), T.V), BL1: bitShiftLeft(T.I, 2), BL2: bitShiftLeft(),
+                BX1: bitXor(T.I, T.I), BX2: bitXor(T.V))
+              View VCONST (CB1: cbrt(T.I), CB2: cbrt(nope(T.I)), CV1: convertVarchar128(T.I), CV2: convertVarchar128(nope(T.I)),
+                DP1: datePart(T.TS), DP2: datePart(T.V), DM1: dayOfMonth(T.DT), DY1: dayOfYear(T.DT), FM1: firstDayOfMonth(T.DT),
+                FQ1: firstDayOfQuarter(T.DT), FW1: firstDayOfWeek(T.DT), FY1: firstDayOfYear(T.DT), FH1: firstHourOfDay(T.TS),
+                FN1: firstMinuteOfHour(T.TS), FS1: firstSecondOfMinute(T.TS), LG1: log(T.I), M51: md5(T.V), M52: md5(nope(T.I)),
+                MO1: mod(T.I, 2), MO2: mod(T.F, T.F), MN1: monthNumber(T.DT), SH1: sha256(T.V), SG1: sign(T.F),
+                SG2: sign(nope(T.I)), SN1: sin(T.I), SQ1: sqrt(T.I), WY1: weekOfYear(T.DT), FH2: firstHourOfDay())
+              View VCOAL (CO1: coalesce(T.I, T.F), CO2: coalesce(T.V, T.K), CO3: coalesce(T.I, T.V), CO4: coalesce(T.I),
+                CO5: coalesce(nope(T.I), T.I), CO6: coalesce(sqlNull(), T.I), CO7: coalesce(T.D, T.N),
+                CO8: coalesce(T.I, T.F, T.V), CO9: coalesce(), CO10: coalesce(T.R), CO11: coalesce(T.R, T.R),
+                CO12: coalesce(T.I, sqlNull()), CO13: coalesce(T.C, T.K), CO14: coalesce(T.TI, T.SI, T.B))
+              View VIF (IF1: if(equal(T.ID, 1), T.I, T.F), IF2: if(equal(T.ID, 1), T.V, T.K), IF3: if(equal(T.ID, 1), T.I, T.V),
+                IF4: if(equal(T.ID, 1), T.I), IF5: if(equal(T.ID, 1), nope(T.I), T.I), IF6: if(nope(T.I), T.I, T.I),
+                IF7: if(equal(T.ID, 1), T.D, T.I), IF8: if(equal(T.ID, 1), T.I, T.F, T.V), IF9: if(equal(T.ID, 1), T.I, sqlNull()),
+                IF10: if(equal(T.ID, 1), T.R, T.R), IF11: if(equal(T.ID, 1), T.B, T.F), ZZ: T.ID)
+              View VLPAD (LP1: lpad(T.V, 10, ' '), LP2: lpad(T.V, T.I, ' '), LP3: lpad(T.V, 'x'), LP4: lpad(T.V),
+                LP5: lpad(nope(T.I), 7), LP6: lpad(T.V, 2.5), LP7: lpad(T.V, plus(1, 2)))
+              View VREPL (RP1: replace(T.V, 'a', 'b'), RP2: replace(T.C, 'a', 'b'), RP3: replace(T.I, 'a', 'b'),
+                RP4: replace(nope(T.I), 'a', 'b'), RP5: replace('abc', 'a', 'b'), RP6: replace(T.H, 'a', 'b'), RP7: replace(),
+                RP8: replace(sqlNull(), 'a', 'b'))
+            )
+            """;
+
+    /** Every view column of {@code nb::Db} in {@code text}, in the order {@code views} names them, typed by the
+     *  inference: {@code VIEW.COLUMN=TYPE} tokens, space-separated ({@code -} no type). */
+    static String inferenceTable(String text, String... views) {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model(text)));
+        com.legend.model.DatabaseDefinition db = ix.findDatabase("nb::Db").orElseThrow();
+        StringBuilder b = new StringBuilder();
+        for (String view : views) {
+            for (var cm : ix.findView("nb::Db", view).orElseThrow().columnMappings()) {
+                var t = com.legend.compiler.element.RelationalTypeInference.infer(cm.expression(), db, ix);
+                String text1 = switch (t) {
+                    case null -> "-";
+                    case com.legend.model.RelationalDataType.Varchar v -> "Varchar(" + v.size() + ")";
+                    case com.legend.model.RelationalDataType.Char_ c -> "Char(" + c.size() + ")";
+                    case com.legend.model.RelationalDataType.Decimal d -> "Decimal(" + d.precision() + "," + d.scale() + ")";
+                    case com.legend.model.RelationalDataType.Numeric n -> "Numeric(" + n.precision() + "," + n.scale() + ")";
+                    default -> t.getClass().getSimpleName().replace("_", "");
+                };
+                b.append(b.isEmpty() ? "" : " ").append(view).append('.').append(cm.name()).append('=').append(text1);
+            }
+        }
+        return b.toString();
+    }
+
+    /** The 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1: register row S378, ruling 35;
+     * until then each had no rule here, no type), every arm, typed as the engine types them ({@link #ENGINE_CASES}: the
+     * engine's own answers). The one answer that differs: RP6, a VARCHAR(2000000000) replaced, which the engine types
+     * VARCHAR(4000000000) (its Integer) and lite VARCHAR(-294967296) (Java's int doubling, as concat's sum wraps; S378's
+     * form lite cannot spell). */
+    @Test
+    @DisplayName("kernel: the 30 engine rules the seeds use are typed as the engine types them")
+    void theThirtyRulesTheSeedsUseAreTheEngines() {
+        assertEquals(String.join(" ", """
+                VABS.AB1=Integer VABS.AB2=Decimal(10,2) VABS.AB3=Varchar(4) VABS.AB4=- VABS.AB5=- VABS.AB6=Integer
+                VABS.AB7=Float VABS.AB8=- VADD.AD1=Varchar(14) VADD.AD2=Varchar(7) VADD.AD3=Float VADD.AD4=- VADD.AD5=-
+                VADD.AD6=- VADD.AD7=Decimal(10,2) VADD.AD8=- VADD.AD9=Integer VADD.AD10=- VADD.AD11=Varchar(8)
+                VADD.AD12=Varchar(5) VADD.AD13=- VADD.AD14=Other VADD.AD15=- VADD.AD16=Date VBIT.BA1=Integer
+                VBIT.BA2=Integer VBIT.BL1=Integer VBIT.BL2=Integer VBIT.BX1=Integer VBIT.BX2=Integer VCONST.CB1=Double
+                VCONST.CB2=Double VCONST.CV1=Varchar(128) VCONST.CV2=Varchar(128) VCONST.DP1=Date VCONST.DP2=Date
+                VCONST.DM1=Integer VCONST.DY1=Integer VCONST.FM1=Date VCONST.FQ1=Date VCONST.FW1=Date VCONST.FY1=Date
+                VCONST.FH1=Timestamp VCONST.FN1=Timestamp VCONST.FS1=Timestamp VCONST.LG1=Double VCONST.M51=Varchar(32)
+                VCONST.M52=Varchar(32) VCONST.MO1=Integer VCONST.MO2=Integer VCONST.MN1=Integer VCONST.SH1=Varchar(64)
+                VCONST.SG1=Integer VCONST.SG2=Integer VCONST.SN1=Double VCONST.SQ1=Double VCONST.WY1=Integer
+                VCONST.FH2=Timestamp VCOAL.CO1=Float VCOAL.CO2=Varchar(5) VCOAL.CO3=- VCOAL.CO4=Integer VCOAL.CO5=-
+                VCOAL.CO6=Integer VCOAL.CO7=Decimal(10,2) VCOAL.CO8=- VCOAL.CO9=- VCOAL.CO10=Real VCOAL.CO11=-
+                VCOAL.CO12=Integer VCOAL.CO13=Varchar(5) VCOAL.CO14=BigInt VIF.IF1=Float VIF.IF2=Varchar(5) VIF.IF3=-
+                VIF.IF4=- VIF.IF5=- VIF.IF6=Integer VIF.IF7=Decimal(10,2) VIF.IF8=Float VIF.IF9=Integer VIF.IF10=-
+                VIF.IF11=- VIF.ZZ=Integer VLPAD.LP1=Varchar(10) VLPAD.LP2=- VLPAD.LP3=- VLPAD.LP4=- VLPAD.LP5=Varchar(7)
+                VLPAD.LP6=- VLPAD.LP7=- VREPL.RP1=Varchar(8) VREPL.RP2=Varchar(6) VREPL.RP3=- VREPL.RP4=-
+                VREPL.RP5=Varchar(6) VREPL.RP6=Varchar(-294967296) VREPL.RP7=- VREPL.RP8=-
+                """.trim().split("\\s+")),
+                inferenceTable(ENGINE_CASES, "VABS", "VADD", "VBIT", "VCONST", "VCOAL", "VIF", "VLPAD", "VREPL"));
+    }
+
     /** S376's join terminal (2026-11-13, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34): a join
      * navigation's terminal is compiled as any other operation once the navigation's joins resolve
      * (HelperRelationalBuilder.java:1181-1186), in the database of its last join (RelationalParseTreeWalker.java

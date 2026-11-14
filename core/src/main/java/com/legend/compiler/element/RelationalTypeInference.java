@@ -224,6 +224,93 @@ public final class RelationalTypeInference {
                     RelationalDataType t1 = infer(f.args().get(1), db, ctx, expanding);
                     yield t0 == null || t1 == null ? null : safeTypeOf(List.of(t0, t1));
                 }
+                // ---- the 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1: register row S378,
+                // docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 35; until then no rule, no type). Each is legend-engine
+                // 4.145.0's getDynaFunctionTypeInferenceMap entry (relationalExtension.pure, the lines cited), and every
+                // arm's answer was ASKED of the engine, not only read: the pinned release's own generated
+                // inferRelationalType over each case (port-scratch/namesbatch/engine, InferProbe and cases1.pure), the
+                // same 123 cases through the legend-lsp daemon too. Where the engine's inference fails (a toOne over no
+                // type, an at() past the arguments, a match with no arm), lite answers no type, as for every inference the
+                // engine fails where it is asked (S378).
+                //
+                // One type whatever the arguments, which the rule never reads (so an argument no rule types, or none at
+                // all, leaves it typed): bitAnd :321-329, bitShiftLeft :351-359, bitXor :371-379, dayOfMonth :633-641,
+                // dayOfYear :663-671, mod :1219-1227 (the map's second mod, :1479-1487, the same rule), monthNumber
+                // :1259-1267, sign :1587-1595, weekOfYear :1883-1891 an INTEGER; cbrt :415-423, log :1101-1109, sin
+                // :1597-1605, sqrt :1687-1695 a DOUBLE; datePart :623-631, firstDayOfMonth :763-771, firstDayOfQuarter
+                // :773-781, firstDayOfWeek :813-821, firstDayOfYear :823-831 a DATE; firstHourOfDay :833-841,
+                // firstMinuteOfHour :843-851, firstSecondOfMinute :853-861 a TIMESTAMP; convertVarchar128 :503-511 a
+                // VARCHAR(128), md5 :1165-1173 a VARCHAR(32), sha256 :1577-1585 a VARCHAR(64)
+                case "bitand", "bitshiftleft", "bitxor", "dayofmonth", "dayofyear", "mod", "monthnumber", "sign",
+                        "weekofyear" -> new RelationalDataType.Integer_();
+                case "cbrt", "log", "sin", "sqrt" -> new RelationalDataType.Double_();
+                case "datepart", "firstdayofmonth", "firstdayofquarter", "firstdayofweek", "firstdayofyear" ->
+                        new RelationalDataType.Date_();
+                case "firsthourofday", "firstminuteofhour", "firstsecondofminute" -> new RelationalDataType.Timestamp();
+                case "convertvarchar128" -> new RelationalDataType.Varchar(128);
+                case "md5" -> new RelationalDataType.Varchar(32);
+                case "sha256" -> new RelationalDataType.Varchar(64);
+                // abs is its one argument's type, whatever its kind (:193-201, `$params->toOne()->inferRelationalType()`):
+                // with no argument or several the engine's toOne fails, no type
+                case "abs" -> f.args().size() == 1 ? infer(f.args().get(0), db, ctx, expanding) : null;
+                // add's two rules over its first two arguments, the rest unread (:213-225; the first rule that matches
+                // answers): when a safe type of the two is possible and is a VARCHAR, a VARCHAR of their two sizes summed
+                // (getSize reads a CHAR's or a VARCHAR's alone: an OTHER, as sqlNull(), fails it, no type); else when one
+                // is possible, the safe type; else no rule. Each of the two must be typed (the engine's toOne), and there
+                // must be two (its at(1))
+                case "add" -> {
+                    if (f.args().size() < 2) {
+                        yield null;
+                    }
+                    RelationalDataType t0 = infer(f.args().get(0), db, ctx, expanding);
+                    RelationalDataType t1 = infer(f.args().get(1), db, ctx, expanding);
+                    if (t0 == null || t1 == null) {
+                        yield null;
+                    }
+                    RelationalDataType safe = safeTypeOf(List.of(t0, t1));
+                    if (!(safe instanceof RelationalDataType.Varchar)) {
+                        yield safe;
+                    }
+                    yield isCharOrVarchar(t0) && isCharOrVarchar(t1) ? new RelationalDataType.Varchar(size(t0) + size(t1))
+                            : null;
+                }
+                // coalesce is the safe type over every argument when one is possible, else no rule (:453-461, its
+                // `$params->map(p | $p->inferRelationalType())`, failOnMatchFailure true): an argument no rule types fails
+                // the engine's inference, so no type -- not dropped, as case's untyped branch is (S378, the owner's) --
+                // and no argument at all fails its fold's head, no type
+                case "coalesce" -> {
+                    List<RelationalDataType> types = everyType(f.args(), db, ctx, expanding);
+                    yield types == null ? null : safeTypeOf(types);
+                }
+                // if is the safe type of its second and third arguments when one is possible, else no rule (:941-949): the
+                // condition and any fourth argument unread; each of the two must be typed (toOne), and there must be three
+                case "if" -> {
+                    if (f.args().size() < 3) {
+                        yield null;
+                    }
+                    RelationalDataType t1 = infer(f.args().get(1), db, ctx, expanding);
+                    RelationalDataType t2 = infer(f.args().get(2), db, ctx, expanding);
+                    yield t1 == null || t2 == null ? null : safeTypeOf(List.of(t1, t2));
+                }
+                // lpad is a VARCHAR sized by its second argument when that is an integer literal (:1131-1139: a match
+                // with that one arm), its first argument unread; any other second argument (a column, a string, a float,
+                // a call) or none fails the match, no type. Lite's grammar reads every integer constant as a Long; one
+                // past an int is past the engine's own parser too (it reads an integer constant with Integer.parseInt,
+                // RelationalParseTreeWalker.visitConstant) and past a lite VARCHAR's size: no type
+                case "lpad" -> {
+                    Object v = f.args().size() >= 2 && f.args().get(1) instanceof RelationalOperation.Literal l
+                            ? l.value() : null;
+                    yield v instanceof Integer i ? new RelationalDataType.Varchar(i)
+                            : v instanceof Long g && g == g.intValue() ? new RelationalDataType.Varchar(g.intValue())
+                            : null;
+                }
+                // replace is a VARCHAR of twice its first argument's CHAR or VARCHAR size (:1489-1497); any other first
+                // argument, or none, fails the match, no type. Java's int doubling, as concat's sum (the engine's Integer
+                // does not wrap: a size past 2^30 is the form lite cannot spell)
+                case "replace" -> {
+                    RelationalDataType at = f.args().isEmpty() ? null : infer(f.args().get(0), db, ctx, expanding);
+                    yield at != null && isCharOrVarchar(at) ? new RelationalDataType.Varchar(size(at) * 2) : null;
+                }
                 default -> null;
             };
             case RelationalOperation.JoinNavigation j -> {
@@ -280,6 +367,27 @@ public final class RelationalTypeInference {
             types.add(infer(arg, db, ctx, expanding));
         }
         return safeTypeOf(types) != null ? types.get(0) : null;
+    }
+
+    /** Every argument's type, in order, each typed (the engine's {@code map} over {@code inferRelationalType()}, which
+     *  is failOnMatchFailure true); null when any has none, as the engine's inference fails there (coalesce's rule,
+     *  2026-11-14, the names batch, item 1). */
+    private static @com.legend.base.Nullable List<RelationalDataType> everyType(List<RelationalOperation> args,
+            @com.legend.base.Nullable DatabaseDefinition db, @com.legend.base.Nullable StoreLookups ctx,
+            java.util.Set<DatabaseDefinition.ViewDefinition.ViewColumnMapping> expanding) {
+        List<RelationalDataType> types = new ArrayList<>(args.size());
+        boolean untyped = false;
+        for (var arg : args) {
+            RelationalDataType t = infer(arg, db, ctx, expanding);
+            untyped |= t == null;
+            types.add(t);
+        }
+        return untyped ? null : types;
+    }
+
+    /** A CHAR or a VARCHAR: the kinds the engine's getSize and its size matches read (:2005-2011). */
+    private static boolean isCharOrVarchar(@com.legend.base.Nullable RelationalDataType t) {
+        return t instanceof RelationalDataType.Char_ || t instanceof RelationalDataType.Varchar;
     }
 
     /** plus's and sum's DECIMAL and NUMERIC rules (relationalExtension.pure:1408-1436, :1717-1741): the kind kept, its
