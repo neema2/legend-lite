@@ -107,11 +107,13 @@ public final class RelationalTypeInference {
                 // count is BIGINT at any arity (relationalExtension.pure:543-551); until 2026-11-13 INTEGER
                 // (S378, ruling 32)
                 case "count" -> new RelationalDataType.BigInt();
-                // boolean dynafunctions spell BIT (engine H2)
+                // boolean dynafunctions spell BIT (engine H2). like has no rule in the engine's map, so no type
+                // (relationalExtension.pure's getDynaFunctionTypeInferenceMap, asked of the engine: EMPTY); until
+                // 2026-11-14 BIT, a rule only lite had (S378, the names batch, item 2, ruling 34)
                 case "and", "or", "not", "equal", "notequal", "in",
                         "isnull", "isnotnull", "greaterthan", "lessthan",
                         "greaterthanequal", "lessthanequal", "isempty",
-                        "isnotempty", "like", "startswith", "endswith",
+                        "isnotempty", "startswith", "endswith",
                         "contains" -> new RelationalDataType.Bit();
                 // sqlNull carries the engine's OTHER type
                 case "sqlnull" -> new RelationalDataType.Other();
@@ -135,8 +137,10 @@ public final class RelationalTypeInference {
                 case "toupper", "tolower" ->
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
-                case "position", "length", "charindex", "locate",
-                        "indexof" -> new RelationalDataType.Integer_();
+                // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
+                // :961-969); position, charindex and locate have no rule in the engine's map, so no type (asked of the
+                // engine: EMPTY); until 2026-11-14 INTEGER, rules only lite had (S378, the names batch, item 2, ruling 34)
+                case "length", "indexof" -> new RelationalDataType.Integer_();
                 // sub is its first argument's type when its first two have one raw kind, else no rule matches
                 // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type
                 // over all its arguments (S378, ruling 32; its INTEGER default went with the names fixes, item 10)

@@ -519,6 +519,8 @@ class KnowledgeLayerTest {
               View VREPL (RP1: replace(T.V, 'a', 'b'), RP2: replace(T.C, 'a', 'b'), RP3: replace(T.I, 'a', 'b'),
                 RP4: replace(nope(T.I), 'a', 'b'), RP5: replace('abc', 'a', 'b'), RP6: replace(T.H, 'a', 'b'), RP7: replace(),
                 RP8: replace(sqlNull(), 'a', 'b'))
+              View VLITE (LK1: like(T.V, 'a%'), PO1: position('a', T.V), CI1: charindex('a', T.V), LO1: locate('a', T.V),
+                LK2: like())
             )
             """;
 
@@ -573,6 +575,15 @@ class KnowledgeLayerTest {
                 VREPL.RP5=Varchar(6) VREPL.RP6=Varchar(-294967296) VREPL.RP7=- VREPL.RP8=-
                 """.trim().split("\\s+")),
                 inferenceTable(ENGINE_CASES, "VABS", "VADD", "VBIT", "VCONST", "VCOAL", "VIF", "VLPAD", "VREPL"));
+    }
+
+    /** The four rules only lite had (2026-11-14, the names batch, item 2: register row S378, ruling 34): like, position,
+     * charindex and locate are keys of no entry of the engine's map, so no type ({@link #ENGINE_CASES}: the engine
+     * answers EMPTY for each, and fails each with failOnMatchFailure true); like was BIT here and the three INTEGER. */
+    @Test
+    @DisplayName("kernel: like, position, charindex and locate have no rule, as in the engine")
+    void theRulesOnlyLiteHadAreGone() {
+        assertEquals("VLITE.LK1=- VLITE.PO1=- VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-", inferenceTable(ENGINE_CASES, "VLITE"));
     }
 
     /** S376's join terminal (2026-11-13, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34): a join
