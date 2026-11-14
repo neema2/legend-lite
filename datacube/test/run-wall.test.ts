@@ -4,8 +4,9 @@
 // itself says:
 //
 // - THE RUN SIDE IS COMPUTED (the follow-up audit's G2, 2026-11-14: until then eight hand-listed roots): every module
-//   that calls a run -- runPlan, runLoad, inRun, a session's or an engine's run -- or has a function that takes a
-//   PlannedSql (a statement to send) is a run entry (runEntries), and a root of the RUN set beside the named roots
+//   that calls a run -- runPlan, runLoad, inRun, a run, an execute or a stream on a session, an engine, a runner, an
+//   executor, a server, a client or a host (RUN_CALL) -- or has a function that takes a PlannedSql or a PlanText (a
+//   statement or a plan to send) is a run entry (runEntries), and a root of the RUN set beside the named roots
 //   (RUN_ROOTS). A run entry that also plans -- its imports reach the planner, or it is a planner module -- is a
 //   composer, named by module and reason (COMPOSER_MODULES): shrink-only, each C5's to split.
 // - THE RUN SIDE IMPORTS NO PLANNER: the RUN set -- the roots and every module they import, `import type` included,
@@ -22,9 +23,12 @@
 //   type argument), its strings and comments aside. A planner smuggled in untyped would need one, and no lint bans it
 //   (no ESLint runs on these packages; tsconfig's strict refuses an IMPLICIT any only).
 //
-// ITS LIMIT, said plainly: this reads text, not types. A run is seen by its callee's spelling (runPlan, runLoad, inRun,
-// a receiver named for a session or an engine): a run reached through another name -- a callback handed in, an object
-// whose method sends -- is seen only where its parameter is typed with a PlannedSql. An untyped closure slips through,
+// ITS LIMIT, said plainly: this reads text, not types (the TypeScript checker was weighed for the final audit's T1 and
+// not used: the package's TypeScript is 7.0.2, the native compiler, whose program API this node test does not load).
+// A run is seen by its callee's spelling (runPlan, runLoad, inRun, or run, execute or stream on a receiver named for a
+// session, an engine, a runner, an executor, a server, a client or a host, however reached: `!.`, `?.`): a run reached
+// through another name -- a callback handed in, an object whose method sends -- is seen only where its parameter is
+// typed with a PlannedSql or a PlanText. An untyped closure slips through,
 // a planner reached through a value the run is given at run time (an object literal's method, a value from a map), a
 // type inferred rather than written, and a type that reaches a PlannedSql through a generic parameter. The `any` ban
 // narrows the first; the run frame is the backstop at run time where a frame is kept. Each list moves only with a dated
@@ -91,6 +95,12 @@ const COMPOSER_MODULES = new Map([
   ['src/services/browser.ts', "the browser's services: DuckDB's engine run beside the app's services (C5)"],
   ['src/headless/host.ts', "the headless host: its query takes a PlannedSql beside the Python host's services (C5)"],
   ['../engine-client/src/legend/browser-engine.ts', 'the engine with no server: plans, then runs on its engine (C5)'],
+  // 2026-11-14 (the final audit of 9af16fbe58's T1: `!.run(`, `.execute(` and `.stream(` now seen): each calls a run
+  // and reaches the planner
+  ['src/app/join-flow.ts', "the join flow: a summary's query planned by the grid's planner, then run on its engine (C5)"],
+  ['src/cube.ts', "DataCube's cube, a planner module: runs and streams a page's queries through its runner (C5)"],
+  ['src/plan.ts', "a page's plan: its query run by DataCube's runner, which plans it (C5)"],
+  ['src/treeview.ts', "the tree view: its rows run by DataCube's runner, which plans them (C5)"],
 ]);
 
 // A RUN module's function that takes a planner, by module and name, with its reason. Shrink-only.
@@ -124,8 +134,11 @@ const COMPOSER_SIGNATURES = new Map([
   ['src/upload.ts readFileInto', ASKS('TableModels')],
 ]);
 
-/** A call of a run: the plan runner's, the frame's, a session's or an engine's. */
-const RUN_CALL = /\b(?:runPlan|runLoad|inRun)\s*\(|\b[\w$]*(?:[sS]ession|[eE]ngine)\??\.run\s*\(/g;
+/** A call of a run: the plan runner's, the frame's, or a run, an execute or a stream on a session, an engine, a
+ *  runner, an executor, a server, a client or a host -- however the receiver is reached (`engine!.run(`,
+ *  `rows.engine?.run(`, `this.#runner.stream(`). The final audit of 9af16fbe58's T1 (2026-11-14): `!.run(`,
+ *  QueryEngine's `execute(` and the runners' `stream(` were not seen. */
+const RUN_CALL = /\b(?:runPlan|runLoad|inRun)\s*\(|\b[\w$]*(?:[sS]ession|[eE]ngine|[rR]unner|[eE]xecutor|[sS]erver|[cC]lient|[hH]ost)\s*[!?]?\s*\??\.\s*(?:run|execute|stream)\s*\(/g;
 
 /** The planner's answers: a statement (PlannedSql) and a plan (PlanText, the plan's JSON), each a brand only the
  *  planned-sql module mints. Taking one is a run's work; answering one is planning. */
@@ -530,6 +543,19 @@ export async function plantedCompose(session: { run(sql: unknown): Promise<void>
     assert.ok(runRoots(planted, PLANNER).includes('src/planted-run.ts'));
     assert.ok(planningEntries(planted, PLANNER).includes('src/planted-composer.ts'));
     assert.notDeepEqual(planningEntries(planted, PLANNER), [...COMPOSER_MODULES.keys()].sort());
+  });
+
+  it('sees each spelling of a run: a non-null or optional receiver, an execute, a stream (T1)', () => {
+    const planted = new Map(files);
+    planted.set('src/planted-spellings.ts', `export async function a(rows: { engine?: { run(s: string): Promise<void> } }): Promise<void> { await rows.engine!.run('x'); }
+export async function b(rows: { engine?: { run(s: string): Promise<void> } }): Promise<void> { await rows.engine?.run('x'); }
+export async function c(engine: { execute(s: string): Promise<void> }): Promise<void> { await engine.execute('x'); }
+export async function d(runner: { stream(s: string): Promise<void> }): Promise<void> { await runner.stream('x'); }
+export async function e(self: { readonly client: { execute(s: string): Promise<void> } }): Promise<void> { await self.client . execute('x'); }
+`);
+    assert.deepEqual(runEntries(planted).get('src/planted-spellings.ts'), [
+      'calls client.execute(', 'calls engine!.run(', 'calls engine.execute(', 'calls engine?.run(', 'calls runner.stream(',
+    ]);
   });
 
   it('names a planted any on the run side', () => {
