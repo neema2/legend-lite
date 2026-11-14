@@ -33,6 +33,13 @@ evaluation discipline; §5 the results; §6 the decision; §7 the findings that 
 4. **The score floors are a small and fitted gain, reported as that** (§5.3).
 5. **The decision is the owner's** (§6): `textSearch` has no legend-engine twin, so it would be a lite extension and a register row.
 
+**Scope.** Extraction is out of scope. The tables the structured route reads were never extracted from prose: `SALES`' and
+`LENDING`'s are the synthetic generators' own ground truth, written with the documents, and EDGAR's holdings are parsed by
+`tools/edgar-corpus/extract.py` from each 13F filing's information table, which is a table already. So "24 of
+24" is lite answering over such rows, not evidence that such rows can be obtained from documents: like embedding,
+extraction is data preparation that lite reads and never does. And on 40 answerable rows, hybrid's 16 against
+keyword's 15 on DuckDB is noise; the study ranks no method above another on it.
+
 ---
 
 ## 1. The question and the corpora
