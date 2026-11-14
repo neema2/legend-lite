@@ -112,9 +112,8 @@ class ParkedWorkLedgerTest {
             Map.entry("PARK-10 parts of legend-pure's ranking not ported",
                             new Anchor("Type\\.SchemaAlgebra ignored -> FunctionMatch\\.TypeFit\\.NULL",
                                     List.of("InferenceKernel.java"))),
-            Map.entry("PARK-10 parts of legend-pure's ranking not ported (relation columns)",
-                            new Anchor("Type\\.RelationType ignored -> FunctionMatch\\.TypeFit\\.of\\(FunctionMatch\\.Kind\\.RELATION\\)",
-                                    List.of("InferenceKernel.java"))),
+            // (PARK-10's relation-columns part ported 2026-11-03, 2a: InferenceKernel.relationTypeFit, m3's
+            // RelationTypeMatch, with its kernel test; its anchor went with it)
             Map.entry("PARK-10 parts of legend-pure's ranking not ported (type arguments by position)",
                             new Anchor("if \\(actualArgs\\.size\\(\\) == fg\\.arguments\\(\\)\\.size\\(\\)\\)",
                                     List.of("InferenceKernel.java"))),

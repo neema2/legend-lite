@@ -18,6 +18,7 @@ import { CubeRefusal, type FilterNode } from '../src/snapshot.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { canonical, differing, renamedPage } from './page-same.ts';
 import { layoutTiles } from '../src/page-document.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 const pages = await corpus();
 const trades = pages['trades.page.json']!;
@@ -47,7 +48,7 @@ function random(seed: number): () => number {
 /** A timeseries spec over `cubes` (each once), one series of the first. */
 const seriesOver = (cubes: readonly string[]): TimeseriesSpec => ({
   sources: [...new Set(cubes)].map((cube, i) => ({ alias: `s${i}`, cube, date: 'tradeDate' })),
-  series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }],
+  series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }],
 });
 
 /** One edit of a page a person or Python could make, picked at random, and its name. */

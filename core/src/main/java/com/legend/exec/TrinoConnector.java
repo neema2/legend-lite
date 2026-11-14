@@ -94,6 +94,6 @@ final class TrinoConnector implements DatabaseConnector {
      *  read; a statement that succeeds always reports its columns. */
     @Override
     public DatabaseConnector.Decoding decoding() {
-        return new DatabaseConnector.Decoding(true, false, true, false);
+        return new DatabaseConnector.Decoding(true, false, true, false, true);
     }
 }

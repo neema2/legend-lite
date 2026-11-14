@@ -441,6 +441,32 @@ class InferenceKernelTest {
     }
 
     @Test
+    void overload_aRelationsConcreteColumnTypeOutranksATypeParameter() {
+        // m3's RelationTypeMatch (TypeMatch.java:158, newRelationTypeMatch :436): a relation formal ranks column by
+        // column in name order, so f(Relation<(key:R::All, v:Integer)>) beats f<K>(Relation<(key:K, v:Integer)>) for
+        // a key of R::All -- an equal relation type an exact match, a value with more columns column by column; a
+        // value's column type that fits no formal's refuses that overload (PARK-10's relation-columns part, 2026-11-03)
+        Type.EnumType all = new Type.EnumType("R::All");
+        TypedFunction concrete = overload("R::Concrete", List.of(param(new Type.GenericType(REL,
+                List.of(rel(col("key", all), col("v", Type.Primitive.INTEGER)))), Multiplicity.Bounded.ONE)));
+        TypedFunction generic = new TypedFunction("f", List.of("K"), List.of(),
+                List.of(new TypedParameter("x", new Type.GenericType(REL, List.of(rel(col("key", new Type.TypeVar("K")),
+                        col("v", Type.Primitive.INTEGER)))), Multiplicity.Bounded.ONE)),
+                new Type.ClassType("R::Generic"), Multiplicity.Bounded.ONE, Optional.empty(), true);
+        Type keyedByAll = new Type.GenericType(REL, List.of(rel(col("key", all), col("v", Type.Primitive.INTEGER))));
+        assertEquals(new Type.ClassType("R::Concrete"), kernel().resolveOverload(List.of(generic, concrete),
+                List.of(et(keyedByAll, Multiplicity.Bounded.ONE))).output().type(), "the equal relation type");
+        Type wider = new Type.GenericType(REL, List.of(rel(col("v", Type.Primitive.INTEGER), col("key", all),
+                col("w", Type.Primitive.STRING))));
+        assertEquals(new Type.ClassType("R::Concrete"), kernel().resolveOverload(List.of(generic, concrete),
+                List.of(et(wider, Multiplicity.Bounded.ONE))).output().type(), "more columns, by name");
+        Type keyedByText = new Type.GenericType(REL, List.of(rel(col("key", Type.Primitive.STRING),
+                col("v", Type.Primitive.INTEGER))));
+        assertEquals(new Type.ClassType("R::Generic"), kernel().resolveOverload(List.of(concrete, generic),
+                List.of(et(keyedByText, Multiplicity.Bounded.ONE))).output().type(), "a text key fits no R::All");
+    }
+
+    @Test
     void overload_nearerParentClassWinsInC3Order() {
         // m3 ranks a class formal by its position in the argument's C3 linearization. For
         // X extends A, B with A extends Y: C3(X) = X, A, Y, B, Any, so f(Y) beats f(B) for an X —

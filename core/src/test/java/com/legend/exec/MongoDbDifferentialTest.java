@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -350,6 +351,27 @@ class MongoDbDifferentialTest {
             new Case("window_qualify", SCORES + "->extend(over(~g, ~s->descending()), ~r: {p, w, r | $p->rank($w, $r)})"
                     + "->filter(x | $x.r == 1)->sort(~id->ascending())->select(~[id, s])"));
 
+    /** An as-of join under the tests' option (PlanOption.DETERMINISTIC_AS_OF, which every PCT lane plans with) answers
+     *  as the reference: its right side, ranked to one row per match inside the lookup, reads its own source wrapped
+     *  (PR #81's round T2, 2026-11-13: the subselect read the lookup's alias flat, matched no right row, and every left
+     *  row went unmatched -- //pct:pct_mongodb_relation's four as-of tests). */
+    @Test
+    void aDeterministicAsOfAnswersAsTheReference() throws Exception {
+        java.util.Set<com.legend.platform.PlanOption> deterministic =
+                java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF);
+        String duck = com.legend.testbackend.TestBackends.platform().withStorelessRuntime(CLASSES);
+        String mongo = com.legend.testbackend.TestBackends.of(DatabaseType.MongoDB).withStorelessRuntime(CLASSES);
+        int checked = 0;
+        for (Case c : CASES) {
+            if (c.name().startsWith("asof")) {
+                assertEquals(run(duck, c.expression(), c.output(), deterministic),
+                        run(mongo, c.expression(), c.output(), deterministic), c.name());
+                checked++;
+            }
+        }
+        assertEquals(2, checked, "the as-of cases");
+    }
+
     @Test
     void differential() throws Exception {
         // the reference is the platform's engine, the subject this test's database (their test backends' runtimes)
@@ -425,12 +447,23 @@ class MongoDbDifferentialTest {
 
     /** {@code expression}'s typed plan. */
     private static ExecutionPlan plan(String model, String expression) {
-        return Compiler.query(Compiler.compileModel(model), expression)
+        return plan(model, expression, java.util.Set.of());
+    }
+
+    /** {@code expression}'s typed plan under lite's planning {@code options}. */
+    private static ExecutionPlan plan(String model, String expression,
+            java.util.Set<com.legend.platform.PlanOption> options) {
+        return Compiler.query(Compiler.compileModel(model), expression).withOptions(options)
                 .executionPlan(com.legend.testbackend.StorelessRuntime.RUNTIME);
     }
 
     private static String run(String model, String expression, PlanCases.Written output) throws Exception {
-        ExecutionPlan plan = plan(model, expression);
+        return run(model, expression, output, java.util.Set.of());
+    }
+
+    private static String run(String model, String expression, PlanCases.Written output,
+            java.util.Set<com.legend.platform.PlanOption> options) throws Exception {
+        ExecutionPlan plan = plan(model, expression, options);
         // the plan path program's round-trip gate (step 1b): every case's plan, on both databases
         com.legend.testcases.PlanRoundTrip.assertRoundTrips(plan, expression);
         StringWriter out = new StringWriter();

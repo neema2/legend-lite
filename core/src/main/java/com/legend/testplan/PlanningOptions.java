@@ -11,17 +11,23 @@ package com.legend.testplan;
  * system connections -- are never planning's.
  *
  * @param judgingRules lite's own, or the compatibility rules (an edge implies them)
+ * @param options      lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}:
+ *                     the tests turn on {@code DETERMINISTIC_AS_OF})
  */
 public record PlanningOptions(
         com.legend.testexecutionplan.@com.legend.base.Nullable Edge edge,
         com.legend.executionplan.DataStores stores,
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
-        com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules) {
+        com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules,
+        java.util.Set<com.legend.platform.PlanOption> options) {
 
     public PlanningOptions {
         java.util.Objects.requireNonNull(stores, "stores");
         features = java.util.Collections.unmodifiableSet(new java.util.LinkedHashSet<>(features));
+        // an enum set: its order the declaration's (NoSaltedIterationOrderTest)
+        options = options.isEmpty() ? java.util.Set.of()
+                : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(options));
         if (edge != null && judgingRules != com.legend.testexecutionplan.TestPlan.JudgingRules.COMPILED_PURE_COMPAT) {
             // the user's ruling of 2026-11-08 (docs/PLAN_AS_DATA_2026_11_07.md 3a.3): the edge, with the referee's
             // ledger, is the compatibility rules' -- lite's own rules plan nothing for it
@@ -38,7 +44,7 @@ public record PlanningOptions(
 
     /** These options under lite's own rules or backwards compatibility's ({@link #rules}). */
     public PlanningOptions withEngineCompat(boolean on) {
-        return new PlanningOptions(edge, stores, features, judgeMode, rules(on));
+        return new PlanningOptions(edge, stores, features, judgeMode, rules(on), options);
     }
 
     /** The assert judge of a RUN (docs/JUDGING_TWO_MODES): HOST -- the verdict of record, judged in Java over each
@@ -50,10 +56,15 @@ public record PlanningOptions(
     public enum JudgeMode { HOST, DATABASE, BOTH }
 
     public PlanningOptions withJudgeMode(JudgeMode mode) {
-        return new PlanningOptions(edge, stores, features, mode, judgingRules);
+        return new PlanningOptions(edge, stores, features, mode, judgingRules, options);
     }
 
     public PlanningOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
-        return new PlanningOptions(edge, stores, f, judgeMode, judgingRules);
+        return new PlanningOptions(edge, stores, f, judgeMode, judgingRules, options);
+    }
+
+    /** Lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}). */
+    public PlanningOptions withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
+        return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, o);
     }
 }

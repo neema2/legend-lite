@@ -34,6 +34,7 @@ import * as echarts from 'echarts/core';
 import '../src/ui/page-filter-bar.ts';
 import { bandsOf } from './bands-of.ts';
 import { layoutTiles } from '../src/page-document.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 let dom: JSDOM;
 let host: HTMLElement;
@@ -1148,7 +1149,7 @@ describe('a page of its own', () => {
     const a = page.addGrid(over('trades.csv'));
     await settle();
     const sheet = page.sheets[0]!;
-    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: 'grid-7', date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: 'grid-7', date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] };
     const commands: PageCommand[] = [
       { kind: 'addGrid', id: 'grid-7', document: page.document('Q3')!.cubes[0]!.cube, sheet, near: a, title: 'Orders', columns: null },
       { kind: 'addTimeseries', sheet, near: 'grid-7', spec, title: 'Orders over time', columns: null },
@@ -1170,7 +1171,7 @@ describe('a page of its own', () => {
     const a = page.addGrid(over('trades.csv'));
     await settle();
     const sheet = page.sheets[0]!;
-    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: a, date: 'region' }], series: [{ id: 'A', expr: { kind: 'column', column: 'notional' } }] };
+    const spec: TimeseriesSpec = { sources: [{ alias: 'o', cube: a, date: 'region' }], series: [{ id: 'A', text: writtenText({ kind: 'column', column: 'notional' }, []) }] };
     await theirs(page, [{ kind: 'addTimeseries', sheet, near: a, spec, title: 'Trades over time', columns: null }]);
     await settle();
     const ts = page.views().views.find((v) => v.kind === 'timeseries')!.id;

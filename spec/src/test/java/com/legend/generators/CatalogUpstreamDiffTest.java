@@ -222,8 +222,12 @@ class CatalogUpstreamDiffTest {
      *  shapes), the relation less the named columns, user-facing (Pure.LITE_SURFACE); upstream has no column drop,
      *  rename's T-Z+V being its only column-subtracting signature. 69 on 2026-10-27 (S114): meta::legend::lite::read, a
      *  row's column through a column spec, typed as the property read; upstream reads a column only as a reflected
-     *  Column evaluated on a row. */
-    private static final int NOT_UPSTREAM_MAX = 69;
+     *  Column evaluated on a row. 70 on 2026-11-02 (the user: "Yes array read"; S114 amended): read's ColSpecArray
+     *  overload, a row's values in several columns as one list without its empty cells, so the timeseries library's
+     *  someValued is one function where it was twelve overloads (an answer's 12-column cap); upstream's ColSpecArray is
+     *  names alone and no function of either pinned tree takes a row and one (checked per name 2026-11-02), and a list
+     *  literal of [0..1] elements, [$r.a, $r.b], is refused there. */
+    private static final int NOT_UPSTREAM_MAX = 70;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

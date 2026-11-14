@@ -25,7 +25,7 @@
 // it while the user is still looking at an empty grid.
 
 import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
-import type { Planner } from './cube.ts';
+import type { Planner, TsShown } from './cube.ts';
 import type { CatalogColumn, InferOptions, InferredModel, ModelTable, OutputRequest, TableModels, TablesModel } from './infer.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
@@ -124,6 +124,27 @@ interface Transport {
   generation: number;
 }
 
+/** One #TS item as core reads it ({@link LitePlanner.tsItem}): its canonical text and its tree, or its error placed in
+ *  the text (1-based line and column). */
+export type TsItemAnswer =
+  | { readonly text: string; readonly item: TsItemTree; readonly error?: undefined }
+  | { readonly text?: undefined; readonly item?: undefined; readonly error: { readonly message: string; readonly line: number; readonly column: number } };
+
+/** An item's tree as core writes it (protocol/ts TsTree): its alias, and its expression, each node its kind (`k`),
+ *  its place (`at`) and its parts. */
+export interface TsItemTree {
+  readonly alias: string | null;
+  readonly expr: TsNode | null;
+}
+
+/** A node of an item's tree: its kind (`column`, `number`, `call`, `binary`, `pick`, `option`, `span`, `all`, ...), its
+ *  place, and its parts by name. */
+export interface TsNode {
+  readonly k: string;
+  readonly at: readonly [number, number];
+  readonly [part: string]: unknown;
+}
+
 /**
  * A text plan as the planner answers it (Boundary.planned: `{"sql", "type", "plan"?}`): its SQL, the compiler's type of
  * its result in upstream's RelationType shape, and -- where the text does not run alone -- the values its statement binds,
@@ -157,8 +178,9 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    *  calls the library -- its text fetched then, a chunk of its own: what plans such a query, this one's model held as
    *  it is for every other. */
   #library: Promise<LitePlanner> | undefined;
-  /** It is that planner: its model has the library already. */
-  #ofLibrary = false;
+  /** It is that planner: its model has the library already -- `withLibrary(model, library)`, the text every question
+   *  names it by -- held as the model compiled over the library, a layer the module compiles once (A5). */
+  #ofLibrary: { readonly model: string; readonly library: string } | undefined;
 
   constructor(options: LitePlannerOptions) {
     this.#options = options;
@@ -172,6 +194,13 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const other = new LitePlanner({ ...readsOf(this.#options), model, runtime, ...readsHow(how) });
     other.#t = this.#t;
     other.#borrowed = true;
+    // over the library from the start (item 8b): its text the two together, held apart, every query planned on it
+    if (how.overLibrary !== undefined) {
+      if (withLibrary(how.overLibrary.model, how.overLibrary.library) !== model) {
+        throw new Error('a planner over the library is given its model with the library after it');
+      }
+      other.#ofLibrary = how.overLibrary;
+    }
     return other;
   }
 
@@ -402,7 +431,11 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     if (this.#held !== undefined && this.#held.generation === this.#t.generation) return this.#held.handle;
     const model = this.#options.model;
     if (this.#useWorker()) this.#ensureWorker();
-    const handle = this.#call({ kind: 'hold', model }).then((held) => Number(decode(held, model)));
+    // over the library: the model and the library apart, so the module compiles the library once for every model held
+    // over it (A5); it holds the two as the one text this planner names, so a question naming that text finds them
+    const request: RequestBody = this.#ofLibrary === undefined ? { kind: 'hold', model }
+      : { kind: 'hold', model: this.#ofLibrary.model, library: this.#ofLibrary.library };
+    const handle = this.#call(request).then((held) => Number(decode(held, model)));
     const held = { handle, generation: this.#t.generation };
     this.#held = held;
     handle.catch(() => {
@@ -476,7 +509,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /** The planner of `query`: this one, or -- a query calling DataCube's Pure library -- the one over this one's model
    *  with the library after it, on the same module and worker. */
   async #over(query: Lambda): Promise<LitePlanner> {
-    if (this.#ofLibrary || !callsLibrary(query)) return this;
+    if (this.#ofLibrary !== undefined || !callsLibrary(query)) return this;
     if (this.#library === undefined) {
       const options = this.#options;
       const made = loadLibrary().then((library) => {
@@ -484,7 +517,7 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
           ...(options.mapping === undefined ? {} : { mapping: options.mapping }),
           ...(options.enumerations === undefined ? {} : { enumerations: options.enumerations }),
         });
-        over.#ofLibrary = true;
+        over.#ofLibrary = { model: options.model, library };
         return over;
       });
       this.#library = made;
@@ -545,7 +578,12 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const { model, runtime } = this.#options;
     // a query calling DataCube's Pure library: the library beside its model, which the host plans it over after the
     // model it holds of that text (Python's engine: the model admitted by its own rule, the library by its text)
-    const library = !this.#ofLibrary && callsLibrary(query) ? { library: await loadLibrary() } : {};
+    // a planner over the library sends the two apart too, so its host holds the library once beside every model (A5)
+    if (this.#ofLibrary !== undefined) {
+      return { lambda: toJson(this.#overMapping(query)), model: this.#ofLibrary.model, runtime,
+        library: this.#ofLibrary.library };
+    }
+    const library = callsLibrary(query) ? { library: await loadLibrary() } : {};
     return { lambda: toJson(this.#overMapping(query)), model, runtime, ...library };
   }
 
@@ -636,6 +674,24 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
   /** E4 (`grammar/jsonToGrammar/lambda`): a query as Pure text, as upstream prints it. */
   async compose(query: Lambda, style: PrintStyle = 'PRETTY'): Promise<string> {
     return this.#pureV1('/api/pure/v1/grammar/jsonToGrammar/lambda', `renderStyle=${style}`, toJson(query), query);
+  }
+
+  /** ONE #TS ITEM, read by core (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md: the one reader): a series'
+   *  text as a formula box holds it, answered as its canonical text and its tree (core's, as data), or why it is no
+   *  item, placed in the text. */
+  async tsItem(text: string): Promise<TsItemAnswer> {
+    return JSON.parse(await this.#pureV1('/api/lite/v1/grammar/tsItem', '', JSON.stringify({ text }), text)) as TsItemAnswer;
+  }
+
+  /** SHOW #TS (D12): a #TS query over grids as the one statement a person would write -- core's printer
+   *  (protocol/ts TsShow), each grid a flat source named by WITH -- or why it has none. Asked with the model, as a
+   *  query is typed (`relationType`): its compiler answers what a calculated column's `+` adds (A6, 2026-11-03). */
+  async tsStatement(query: Lambda): Promise<TsShown> {
+    const over = await this.#over(query);
+    if (over !== this) return over.tsStatement(query);
+    await this.#handle().catch(() => undefined);
+    const body = `{"model":${JSON.stringify({ _type: 'text', code: this.#options.model })},"lambda":${toJson(query)}}`;
+    return JSON.parse(await this.#pureV1('/api/lite/v1/grammar/jsonToTs/lambda', '', body, query)) as TsShown;
   }
 
   /** A query printed for a person to read (the Planner's `print`): PRETTY unless asked. */

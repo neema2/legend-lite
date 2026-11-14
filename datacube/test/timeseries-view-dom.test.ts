@@ -17,7 +17,7 @@ import type { EChartsOption } from 'echarts';
 import { marketsCsv } from '../src/samples.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
 import type { MountedTimeseries } from '../src/timeseries-render.ts';
-import { exprSource, parseExpr } from '../src/timeseries-expr.ts';
+import { column, filter_, FilterOperator, mean, returns, series, volatility } from '../src/timeseries-builder.ts';
 import { tileCode } from '../src/timeseries-code.ts';
 import type { FileSource } from '../src/cube-document.ts';
 import { DATACUBE_LIBRARY } from '../src/pure-library-text.ts';
@@ -25,7 +25,8 @@ import type { TimeseriesSpec } from '../src/timeseries-spec.ts';
 import { ingestFile } from '../src/upload.ts';
 import { TimeseriesView, type MountOn, type TsGrid, type TsTogether } from '../src/ui/timeseries-view.ts';
 import { MARKET_SPECS } from '../src/examples/markets.ts';
-import { plannerFor } from './catalog-builder.ts';
+import { plannerFor, readText } from './catalog-builder.ts';
+import { writtenText } from '../src/timeseries-text.ts';
 
 /** The file the viewer's grid of prices was opened over, as a page records it: what the code that builds a tile opens. */
 const PRICES_FILE: FileSource = { _type: 'file', name: 'prices.csv', format: 'csv', size: 1, sha256: '00', columns: [] };
@@ -70,6 +71,7 @@ before(async () => {
     },
     format: (value) => (typeof value === 'number' ? value.toFixed(2) : String(value)),
     print: (query) => planner.print(query),
+    tsStatement: (query) => planner.tsStatement(query),
   };
 });
 
@@ -121,6 +123,7 @@ function viewer(spec: TimeseriesSpec, refused?: (query: string) => boolean, over
     grids: () => [g],
     together: () => Promise.reject(new Error('one grid here')),
     setSpec: (s) => { told.push(s); },
+    readText,
     windowHost: windows,
     title: () => 'Markets',
     codeOf: () => ({ title: 'Markets', grids: { prices: { title: 'Prices', source: PRICES_FILE } } }),
@@ -138,8 +141,8 @@ async function until(done: () => boolean, what: string): Promise<void> {
 const SPEC: TimeseriesSpec = {
   sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
   series: [
-    { id: 'A', expr: parseExpr('close[SPX]'), name: 'S&P 500' },
-    { id: 'B', expr: parseExpr('volatility($A, 21)'), name: '21d vol', pane: 1 },
+    { id: 'A', text: writtenText(column('close', 'SPX').expr, []), name: 'S&P 500' },
+    { id: 'B', text: writtenText(volatility(series('A'), 21).expr, []), name: '21d vol', pane: 1 },
   ],
   view: { stats: true },
 };
@@ -176,7 +179,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
 
   // a level's change in percent beside its value; a spread's start may be zero or below, so its legend says none
   it('the legend\'s change in percent: a level\'s, and none for a spread of the same unit', async () => {
-    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, { id: 'C', expr: parseExpr('close[SPX] - 4000'), name: 'Over 4000' }] };
+    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, { id: 'C', text: writtenText(column('close', 'SPX').sub(4000).expr, []), name: 'Over 4000' }] };
     const { root, view } = viewer(spec);
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
@@ -232,7 +235,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
   // the E9 review's 3 and 8: a hidden line's tables asked with the rest (tableSeries, Python's rule): shown again, its rows
   // are there -- never left out, nothing asked again
   it('a hidden line shown again: its drawdowns and its correlations there, nothing asked again', async () => {
-    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, SPEC.series[1]!, { id: 'C', expr: parseExpr('close[NDX]'), name: 'Nasdaq', hidden: true }] };
+    const spec: TimeseriesSpec = { ...SPEC, series: [SPEC.series[0]!, SPEC.series[1]!, { id: 'C', text: writtenText(column('close', 'NDX').expr, []), name: 'Nasdaq', hidden: true }] };
     const { root, view } = viewer(spec);
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
@@ -296,7 +299,7 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
   it('a condition shaded where it holds, across every pane; its chip says whether it holds; no statistics of it', async () => {
     const spec: TimeseriesSpec = {
       ...SPEC,
-      series: [...SPEC.series, { id: 'C', expr: parseExpr('close[SPX] > mean(close[SPX], 21)'), name: 'Above its 21-day' }],
+      series: [...SPEC.series, { id: 'C', text: writtenText(column('close', 'SPX').gt(mean(column('close', 'SPX'), 21)).expr, []), name: 'Above its 21-day' }],
     };
     const { root, drawn, view } = viewer(spec);
     try {
@@ -308,7 +311,8 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       // its periods: where the close is above its 21-day mean, each from its first date to the next, from which it no
       // longer holds (its own last at the line's end) -- a run of one date a day wide (the E9 review's 4)
       const spx = of('SPX');
-      const mean = spx.closes.map((_, i) => (i < 20 ? null : spx.closes.slice(i - 20, i + 1).reduce((a, b) => a + b, 0) / 21));
+      // the 21-day mean from the 22nd close (gs-quant's ramp: docs/TS_GSQUANT_ORACLE_2026_11_01.md, O1)
+      const mean = spx.closes.map((_, i) => (i < 21 ? null : spx.closes.slice(i - 20, i + 1).reduce((a, b) => a + b, 0) / 21));
       const holds = spx.closes.map((c, i) => mean[i] !== null && c > mean[i]!);
       const runs: [string, string][] = [];
       holds.forEach((h, i) => {
@@ -569,32 +573,57 @@ describe('the timeseries viewer over a grid of the markets sample', () => {
       assert.equal(root.querySelector('.dc-ts-pop'), null, 'not over the tile');
       assert.match(windows.querySelector('.dc-ts-window-title')?.textContent ?? '', /^New series C — Markets$/);
       const expr = pop.querySelector('.dc-ts-expr') as HTMLInputElement;
-      const typed = (text: string): string => {
+      // what is typed is #TS, read by core as it is typed (A3 step 3): its error, or what it reads, once core answers
+      const typed = async (text: string): Promise<string> => {
+        const error = pop.querySelector('.dc-ts-error')!;
+        const reads = pop.querySelector('.dc-ts-hint')!;
+        error.textContent = '';
+        reads.textContent = '';
         expr.value = text;
         expr.dispatchEvent(new expr.ownerDocument.defaultView!.Event('input'));
-        return pop.querySelector('.dc-ts-error')?.textContent ?? '';
+        await until(() => error.textContent !== '' || (reads.textContent ?? '').startsWith('Reads'), `${text} read`);
+        return error.textContent ?? '';
       };
-      assert.match(typed('vola($A)'), /there is no function vola/);
-      assert.match(typed('smooth_outliers($A)'), /an iterative procedure/);
+      assert.match(await typed('vola(A)'), /there is no function vola/);
+      assert.match(await typed('smooth_outliers(A)'), /an iterative procedure/);
+      assert.match(await typed('vola(A'), /line 1/, 'core\'s own error, placed');
+      assert.equal(pop.querySelector('.dc-ts-error-at mark') !== null, true, 'the place core names, marked');
+      // COMPLETIONS (decision 9b): a word of core's catalog, taken by a click, its call opened; a column; an instrument
+      const items = (): string[] => [...pop.querySelectorAll('.dc-ts-complete .dc-ts-complete-label')].map((x) => x.textContent ?? '');
+      expr.value = 'vol';
+      expr.dispatchEvent(new expr.ownerDocument.defaultView!.Event('input'));
+      await until(() => items().includes('volatility'), 'the catalog\'s words offered');
+      [...pop.querySelectorAll<HTMLButtonElement>('.dc-ts-complete button')].find((b) => b.dataset['insert'] === 'volatility(')!.click();
+      assert.equal(expr.value, 'volatility(');
+      expr.value = 'volatility(clo';
+      expr.dispatchEvent(new expr.ownerDocument.defaultView!.Event('input'));
+      assert.deepEqual(items(), ['close']);
+      expr.value = "volatility(close['N";
+      expr.dispatchEvent(new expr.ownerDocument.defaultView!.Event('input'));
+      await until(() => items().includes('NDX'), 'the instruments its source has, the database\'s');
+      assert.ok(!items().includes('SPX'), 'those it starts with');
       // gs-quant's recursions are built now (the expert functions, 2026-10-26): read as typed
-      assert.equal(typed('macd($A)'), '');
-      assert.equal(typed('mean($A, 50)'), '');
+      assert.equal(await typed('macd(A)'), '');
+      assert.equal(await typed('mean(A, 50)'), '');
+      const before = told.length;
       [...pop.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'OK')!.click();
+      await until(() => told.length > before, 'plotted');
       const added = told.at(-1)!.series.at(-1)!;
       assert.equal(added.id, 'C');
-      assert.deepEqual(added.expr, parseExpr('mean($A, 50)'));
+      assert.equal(added.text, 'mean(A, 50)', 'its text as core prints it');
       assert.equal(windows.querySelector('.dc-ts-window'), null, 'the editor closed, its window gone');
       // the third review's 1, 2: a change refused keeps its editor open, what was typed in it kept; Escape puts it away
       [...root.querySelectorAll<HTMLButtonElement>('.dc-ts-bar button')].find((b) => b.textContent === '+ Series')!.click();
       const again = windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
       const field = again.querySelector('.dc-ts-expr') as HTMLInputElement;
-      field.value = 'nosuchcolumn[SPX]';
+      field.value = "nosuchcolumn['SPX']";
       field.dispatchEvent(new field.ownerDocument.defaultView!.Event('input'));
-      const before = told.length;
+      const kept = told.length;
       [...again.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'OK')!.click();
-      assert.equal(told.length, before, 'nothing told');
+      await until(() => /nosuchcolumn/.test(root.querySelector('.dc-ts-banner')?.textContent ?? ''), 'refused, said');
+      assert.equal(told.length, kept, 'nothing told');
       assert.ok(windows.querySelector('.dc-ts-window'), 'its editor still open');
-      assert.equal((windows.querySelector('.dc-ts-expr') as HTMLInputElement).value, 'nosuchcolumn[SPX]', 'what was typed kept');
+      assert.equal((windows.querySelector('.dc-ts-expr') as HTMLInputElement).value, "nosuchcolumn['SPX']", 'what was typed kept');
       const win = windows.querySelector<HTMLElement>('.dc-ts-window')!;
       win.dispatchEvent(new win.ownerDocument.defaultView!.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       assert.equal(windows.querySelector('.dc-ts-window'), null, 'Escape puts it away');
@@ -668,8 +697,8 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       assert.ok(![...to!.options].some((o) => o.value === 'SPX'), 'not the one it reads');
       to!.value = 'NDX';
       windowButton(windows, 'Swap').click();
-      assert.deepEqual(told.at(-1)!.series[0]!.expr, parseExpr('close[NDX]'));
-      assert.deepEqual(told.at(-1)!.series[1]!.expr, parseExpr('volatility($A, 21)'), 'its reader follows by its reference');
+      assert.equal(told.at(-1)!.series[0]!.text, "close['NDX']");
+      assert.equal(told.at(-1)!.series[1]!.text, SPEC.series[1]!.text, 'its reader follows by its reference');
       assert.equal(windows.querySelector('.dc-ts-window'), null, 'the window put away');
     } finally {
       view.dispose();
@@ -678,7 +707,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
 
   // the Phase 2 review's 6: the list painted again before the database answered the first: both answers appended
   it('Swap\'s list painted again while the database answers: the last paint\'s answer alone', async () => {
-    const two: TimeseriesSpec = { ...SPEC, series: [{ id: 'A', expr: parseExpr('close[SPX]') }, { id: 'B', expr: parseExpr('close[NDX]') }] };
+    const two: TimeseriesSpec = { ...SPEC, series: [{ id: 'A', text: writtenText(column('close', 'SPX').expr, []) }, { id: 'B', text: writtenText(column('close', 'NDX').expr, []) }] };
     const { root, windows, view } = viewer(two);
     try {
       await until(() => chips(root).length === 2, 'its lines');
@@ -708,7 +737,8 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       const asks = (): HTMLElement[] => [...pop().querySelectorAll<HTMLElement>('.dc-ts-ask')];
       const said = (a: HTMLElement): string => a.querySelector('summary span')!.textContent ?? '';
       const status = (a: HTMLElement): string => a.querySelector('.dc-ts-ask-status')!.textContent ?? '';
-      const code = (a: HTMLElement): string[] => [...a.querySelectorAll('.dc-ts-code')].map((c) => c.textContent ?? '');
+      // its Pure and its SQL (a series' #TS statement beside them is the next test's)
+      const code = (a: HTMLElement): string[] => [...a.querySelectorAll('.dc-ts-code:not(.dc-ts-statement)')].map((c) => c.textContent ?? '');
       // by the one rule Python's queries() reads (timeseries-query.ts tileAsks): the chart's, then the panel's
       assert.deepEqual(asks().map(said), [
         "1. Source px's dates: its latest and earliest, where each range button starts",
@@ -729,9 +759,11 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       assert.deepEqual(asks().map(status), ['ran', 'ran', 'ran', 'ran', 'ran', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet', 'not asked yet']);
       assert.deepEqual(asks().map((a) => a.hasAttribute('open')), [true, true, true, false, false, false, false, false, false, false], "the chart's open");
       await until(() => asks().every((a) => code(a)[0] !== 'Writing…'), 'every query written');
-      for (const a of asks()) assert.match(code(a)[0]!.trimStart(), /^\|/, `${said(a)}: a lambda, as the compiler prints one: ${code(a)[0]!.slice(0, 80)}`);
+      // a lambda as the compiler prints one -- a series' braced, its sources bound by let before its #TS query (P6)
+      for (const a of asks()) assert.match(code(a)[0]!.trimStart(), /^\{?\|/, `${said(a)}: a lambda, as the compiler prints one: ${code(a)[0]!.slice(0, 80)}`);
       const [pureA, sqlA] = code(asks()[1]!);
       assert.match(pureA!, /'SPX'/);
+      assert.match(pureA!, /let px = [\s\S]*#TS\{SELECT /, 'its source bound, its series the #TS query');
       assert.match(sqlA!, /select/i, 'the SQL its rows were read by');
       assert.match(code(asks()[5]!)[1]!, /^Not asked yet: the Drawdowns tab asks for it when shown\.$/);
       assert.match(code(asks()[5]!)[0]!, /'SPX'/, 'written as its tab would ask it');
@@ -749,6 +781,39 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       await until(() => asks().length === 10 && status(asks()[5]!) === 'ran', 'the drawdowns asked');
       await until(() => code(asks()[5]!)[0] !== 'Writing…', 'written');
       assert.match(code(asks()[5]!)[1]!, /select/i, 'the SQL it ran');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  // D12 (the user, 2026-10-31: "the Show #TS of the grid to actually show that single statement view")
+  it('Query: a series\' points as one #TS statement too, its grid named by WITH, in its own box, copied and among all', async () => {
+    const { root, windows, view } = viewer(SPEC);
+    const written = clipboardOf(root);
+    try {
+      await until(() => statRows(root).length === 2, 'its statistics');
+      barButton(root, 'Query').click();
+      const pop = (): HTMLElement => windows.querySelector('.dc-ts-window .dc-ts-pop') as HTMLElement;
+      const asks = (): HTMLElement[] => [...pop().querySelectorAll<HTMLElement>('.dc-ts-ask')];
+      const statement = (a: HTMLElement): string | undefined => a.querySelector('.dc-ts-statement')?.textContent ?? undefined;
+      // the same window and tabs: the series' points (asks 2 and 3) say their statement above their Pure, no other ask does
+      assert.deepEqual([...pop().querySelectorAll<HTMLButtonElement>('.dc-ts-stats-tab')].map((t) => t.textContent),
+        ['Queries', 'Library', 'Python', 'TypeScript']);
+      assert.deepEqual(asks().map((a) => statement(a) !== undefined), [false, true, true, false, false, false, false, false, false, false]);
+      await until(() => asks().every((a) => statement(a) !== 'Writing…'), 'every statement written');
+      const statements = asks().map(statement).filter((t): t is string => t !== undefined);
+      for (const t of statements) {
+        assert.match(t, /^WITH px AS \(SELECT \* FROM \S+\) SELECT .* AS ts_value FROM px ON date/, t);
+        assert.doesNotMatch(t, /\$px|let /, 'no Pure: one statement');
+      }
+      assert.match(statements[0]!, /close\[symbol = 'SPX'\]/);
+      assert.deepEqual([...asks()[1]!.querySelectorAll('.dc-ts-field-label')].map((l) => l.textContent), ['#TS', 'Pure', 'SQL']);
+      windowButton(asks()[1]!, 'Copy #TS').click();
+      await until(() => written.length === 1, 'its statement copied');
+      assert.equal(written[0], statements[0]);
+      windowButton(pop(), 'Copy all').click();
+      await until(() => written.length === 2, 'every query copied');
+      for (const t of statements) assert.ok(written[1]!.includes(`-- as one #TS statement\n${t}`), 'each statement among them');
     } finally {
       view.dispose();
     }
@@ -772,7 +837,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       // its text a chunk of its own (pure-library-text.ts), read as the planner reads it
       await until(() => program(1) !== 'Reading…', 'the library read');
       assert.equal(program(1), DATACUBE_LIBRARY);
-      assert.match(program(1), /function datacube::ts::volatility</);
+      assert.match(program(1), /function timeseries::volatility</);
       windowButton(windows, 'Copy Library').click();
       await until(() => written.length === 1, 'the library copied');
       assert.equal(written[0], DATACUBE_LIBRARY);
@@ -791,9 +856,10 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       // and under it each formula with the Pure the tile writes for it, as the compiler prints it
       const pures = (i: number): string[] => [...panels[i]!.querySelectorAll<HTMLElement>('pre.dc-ts-code:not(.dc-ts-program)')].map((x) => x.textContent ?? '');
       await until(() => pures(2).length === SPEC.series.length && pures(2).every((x) => x !== 'Writing…'), 'each formula\'s Pure');
-      assert.deepEqual([...panels[2]!.querySelectorAll('.dc-ts-field-label')].map((x) => x.textContent), SPEC.series.map((x) => `${x.id}  ${exprSource(x.expr)}`));
+      assert.deepEqual([...panels[2]!.querySelectorAll('.dc-ts-field-label')].map((x) => x.textContent), SPEC.series.map((x) => `${x.id}  ${x.text}`));
       assert.ok(pures(2).every((x) => x.includes('#>{') || x.includes('->')), pures(2).join('\n'));
-      assert.match(python, /\{'expr': 'close\[SPX\]', 'name': 'S&P 500'\}/);
+      // each series gs-quant's call of it (B4: legend_lite.timeseries)
+      assert.match(python, /\{'term': column\('close', 'SPX'\), 'name': 'S&P 500'\}/);
       windowButton(windows, 'Copy Python').click();
       await until(() => written.length === 1, 'its Python copied');
       assert.equal(written[0], python);
@@ -851,15 +917,16 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       assert.ok(slider, 'its window\'s length a slider');
       assert.equal(slider.value, '21');
       drag(slider, '30');
-      assert.equal((pop.querySelector('.dc-ts-expr') as HTMLInputElement).value, 'volatility($A, 30)');
+      assert.equal((pop.querySelector('.dc-ts-expr') as HTMLInputElement).value, "volatility(A, w => 30, type => 'simple')");
       // drawn again when it stops, as a look of the person's own: the page told nothing (the Phase 2 review's 1)
-      await until(() => JSON.stringify(view.spec.series[1]!.expr) === JSON.stringify(parseExpr('volatility($A, 30)')), 'the series drawn again when it stops');
+      await until(() => view.spec.series[1]!.text === "volatility(A, w => 30, type => 'simple')", 'the series drawn again when it stops');
       await new Promise((r) => setTimeout(r, 450));
       assert.equal(told.length, 0, 'nothing told while it is tried');
       assert.ok(windows.querySelector('.dc-ts-window'), 'its editor still open');
       windowButton(windows, 'OK').click();
+      await until(() => told.length > 0, 'kept by OK');
       assert.equal(told.length, 1, 'kept by OK, once: one step to undo');
-      assert.deepEqual(told[0]!.series[1]!.expr, parseExpr('volatility($A, 30)'));
+      assert.equal(told[0]!.series[1]!.text, "volatility(A, w => 30, type => 'simple')");
       assert.equal(told[0]!.series[1]!.name, '21d vol', 'the rest of the series as it was');
       assert.equal(windows.querySelector('.dc-ts-window'), null);
     } finally {
@@ -870,7 +937,7 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
   // the Phase 2 review's 9: a number of no least had its slider from 0 -- a filter's -0.02 could go no lower, a power no
   // negative -- and a filter's 0 to 1 on prices was blind to their scale
   it('a number of no least or most: its slider either side of 0, as far as its value goes', async () => {
-    const spec: TimeseriesSpec = { ...SPEC, series: [...SPEC.series, { id: 'C', expr: parseExpr('filter(returns($A), less_than, -0.02)'), name: 'Bad days' }] };
+    const spec: TimeseriesSpec = { ...SPEC, series: [...SPEC.series, { id: 'C', text: writtenText(filter_(returns(series('A')), FilterOperator.LESS, -0.02).expr, []), name: 'Bad days' }] };
     const { root, windows, view } = viewer(spec);
     try {
       await until(() => chips(root).length === 3, 'its lines');
@@ -887,15 +954,15 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
 
   it('a parameter dragged, then Cancel, Escape or Remove: nothing of the drag kept, nothing told after (the Phase 2 review\'s 1)', async () => {
     const { root, windows, told, view } = viewer(SPEC);
-    const was = JSON.stringify(SPEC.series[1]!.expr);
+    const was = SPEC.series[1]!.text;
     try {
       await until(() => statRows(root).length === 2, 'its statistics');
       // tried and drawn, then Cancel: as it was, drawn so, the page told nothing
       let pop = openSeries(root, windows, '21d vol');
       drag(pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!, '40');
-      await until(() => JSON.stringify(view.spec.series[1]!.expr) === JSON.stringify(parseExpr('volatility($A, 40)')), 'the drag drawn');
+      await until(() => view.spec.series[1]!.text === "volatility(A, w => 40, type => 'simple')", 'the drag drawn');
       windowButton(windows, 'Cancel').click();
-      assert.equal(JSON.stringify(view.spec.series[1]!.expr), was, 'Cancel leaves it as it was');
+      assert.equal(view.spec.series[1]!.text, was, 'Cancel leaves it as it was');
       // dragged, then Escape before it stops: its stop never lands
       pop = openSeries(root, windows, '21d vol');
       drag(pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!, '30');
@@ -903,16 +970,16 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
       win.dispatchEvent(new (win.ownerDocument.defaultView!.KeyboardEvent)('keydown', { key: 'Escape', bubbles: true }));
       assert.equal(windows.querySelector('.dc-ts-window'), null, 'Escape put it away');
       await new Promise((r) => setTimeout(r, 450));
-      assert.equal(JSON.stringify(view.spec.series[1]!.expr), was);
+      assert.equal(view.spec.series[1]!.text, was);
       assert.equal(told.length, 0, 'nothing told by a drag put away');
       // tried, then another change told (Log): made to the tile as the page has it, never with the try
       pop = openSeries(root, windows, '21d vol');
       drag(pop.querySelector<HTMLInputElement>('.dc-ts-slider[aria-label$="w"]')!, '50');
-      await until(() => JSON.stringify(view.spec.series[1]!.expr) === JSON.stringify(parseExpr('volatility($A, 50)')), 'the drag drawn');
+      await until(() => view.spec.series[1]!.text === "volatility(A, w => 50, type => 'simple')", 'the drag drawn');
       barButton(root, 'Log').click();
       assert.equal(told.at(-1)!.panes?.[0]?.log, true);
-      assert.equal(JSON.stringify(told.at(-1)!.series[1]!.expr), was, 'the try not told with it');
-      assert.equal(JSON.stringify(view.spec.series[1]!.expr), was, 'and drawn as the page has it');
+      assert.equal(told.at(-1)!.series[1]!.text, was, 'the try not told with it');
+      assert.equal(view.spec.series[1]!.text, was, 'and drawn as the page has it');
       windowButton(windows, 'Cancel').click();
       told.length = 0;
       // dragged, then Remove: the series taken off, and its drag's stop says nothing after
@@ -943,17 +1010,20 @@ describe('the timeseries viewer, every day: its data, a swap, its queries, a pic
         f.value = value;
         f.dispatchEvent(new Event('change'));
       };
-      set('Rows marked', 'SPX');
+      set('Rows marked', "'SPX'");
       set('Drawn at', 'close');
       set('Shape', 'down');
       set('Says', 'volume');
       set('Marks label', 'SPX closes');
       [...win().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Add' && b.title === 'Mark the rows over the series')!.click();
+      // the rows' matches read by core (the one reader), then added
+      await until(() => (told.at(-1)?.annotations ?? []).length === 1, 'the marks');
       assert.deepEqual(told.at(-1)!.annotations, [{ kind: 'marks', source: 'px', where: [{ value: 'SPX' }], at: 'close', shape: 'down', text: 'volume', label: 'SPX closes' }]);
       set('Shade column', 'volume');
-      set('Rows shaded', 'NDX');
+      set('Rows shaded', "'NDX'");
       [...win().querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === 'Shade')!.click();
-      assert.deepEqual(told.at(-1)!.series.at(-1), { id: 'C', expr: parseExpr('volume[NDX] != 0'), name: 'volume' });
+      await until(() => told.at(-1)!.series.length === 3, 'the shade');
+      assert.deepEqual(told.at(-1)!.series.at(-1), { id: 'C', text: writtenText(column('volume', 'NDX').ne(0).expr, []), name: 'volume' });
     } finally {
       view.dispose();
     }
@@ -1056,7 +1126,7 @@ const drawnSeries = (drawn: EChartsOption[], id: string): { data: unknown[]; nam
 describe('the timeseries viewer\'s other views: a scatter, a histogram, seasonality, a curve, the calendar', () => {
   const TWO: TimeseriesSpec = {
     sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
-    series: [{ id: 'A', expr: parseExpr('close[SPX]'), name: 'S&P 500' }, { id: 'B', expr: parseExpr('close[NDX]'), name: 'Nasdaq 100' }],
+    series: [{ id: 'A', text: writtenText(column('close', 'SPX').expr, []), name: 'S&P 500' }, { id: 'B', text: writtenText(column('close', 'NDX').expr, []), name: 'Nasdaq 100' }],
     view: { stats: true },
   };
 
@@ -1123,7 +1193,7 @@ describe('the timeseries viewer\'s other views: a scatter, a histogram, seasonal
   it('a curve: a split series\' lines across its key, each its latest value, as of the latest date', async () => {
     const spec: TimeseriesSpec = {
       sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }],
-      series: [{ id: 'A', expr: parseExpr('close'), split: 'symbol' }],
+      series: [{ id: 'A', text: writtenText(column('close').expr, []), split: 'symbol' }],
       view: { mode: 'curve', dates: ['latest'] },
     };
     const { drawn, view } = viewer(spec);
@@ -1291,13 +1361,13 @@ describe('a refusal said where it lands, never shown as something missing', () =
   it("a function on a blank box: of its source's first value by DataCube's rule, or refused -- never a column guessed", async () => {
     // a grid of no close: its first number (no price-like name) is its open (timeseries-expr.ts firstValue)
     const opens: TsGrid = { ...grid, snapshot: { ...grid.snapshot, columns: grid.snapshot.columns.filter((c) => c.name !== 'close') } };
-    const { root, windows, view } = viewer({ ...SPEC, series: [{ id: 'A', expr: parseExpr('open[SPX]') }] }, undefined, opens);
+    const { root, windows, view } = viewer({ ...SPEC, series: [{ id: 'A', text: writtenText(column('open', 'SPX').expr, []) }] }, undefined, opens);
     try {
       [...root.querySelectorAll<HTMLButtonElement>('button')].find((b) => b.textContent === '+ Series')!.click();
       const fn = windows.querySelector<HTMLSelectElement>('select[aria-label="Function"]')!;
       fn.value = 'mean';
       fn.dispatchEvent(new root.ownerDocument.defaultView!.Event('change'));
-      assert.match(windows.querySelector<HTMLInputElement>('input[aria-label="Expression"]')!.value, /^mean\(open\b/);
+      await until(() => /^mean\(open\b/.test(windows.querySelector<HTMLInputElement>('input[aria-label="Expression"]')!.value), 'the function written around it');
     } finally {
       view.dispose();
     }
@@ -1319,7 +1389,7 @@ describe('a refusal said where it lands, never shown as something missing', () =
   it("a level's blank statistics said why: at or below zero over the dates shown, or under a year", async () => {
     const below: TsGrid = { ...grid, snapshot: { ...grid.snapshot,
       derived: [{ name: 'gap', type: 'Float', lambda: lambda(['x'], minus(fn('toOne', col('x', 'close')), lit.integer(1_000_000))) }] } };
-    const { root, view } = viewer({ sources: SPEC.sources, series: [{ id: 'A', expr: parseExpr('gap[SPX]'), name: 'Gap' }], view: { stats: true } }, undefined, below);
+    const { root, view } = viewer({ sources: SPEC.sources, series: [{ id: 'A', text: writtenText(column('gap', 'SPX').expr, []), name: 'Gap' }], view: { stats: true } }, undefined, below);
     try {
       await until(() => root.querySelector('.dc-ts-stats-blanks') !== null, 'why its figures are blank');
       assert.match(root.querySelector('.dc-ts-stats-blanks')!.textContent!, /^Gap is at or below zero over these dates: it has no volatility, drawdown, growth or Sharpe ratio/);
@@ -1368,6 +1438,7 @@ describe('asking the database what is shown, once', () => {
         };
       },
       setSpec: () => {},
+      readText,
       windowHost: dom.window.document.getElementById('w') as unknown as HTMLElement,
       title: () => 'Markets',
       codeOf: () => ({ title: 'Markets', grids: { prices: { title: 'Prices', source: PRICES_FILE }, prices2: { title: 'Prices again', source: PRICES_FILE } } }),
@@ -1383,8 +1454,8 @@ describe('asking the database what is shown, once', () => {
     const spec: TimeseriesSpec = {
       sources: [{ alias: 'px', cube: 'prices', date: 'date', key: 'symbol' }, { alias: 'qx', cube: 'prices2', date: 'date', key: 'symbol' }],
       series: [
-        { id: 'A', expr: parseExpr('px:close[SPX] / qx:close[NDX]'), name: 'Ratio' },
-        { id: 'B', expr: parseExpr('px:close[SPX] + qx:close[NDX]'), name: 'Sum' },
+        { id: 'A', text: writtenText(column('px.close', 'SPX').div(column('qx.close', 'NDX')).expr, []), name: 'Ratio' },
+        { id: 'B', text: writtenText(column('px.close', 'SPX').add(column('qx.close', 'NDX')).expr, []), name: 'Sum' },
       ],
       view: { stats: true },
     };

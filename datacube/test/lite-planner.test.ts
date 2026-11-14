@@ -39,15 +39,18 @@ function fakeExports(
   let next = 1;
   const over = (h: number, q: string, r: string): string =>
     (models.has(h) ? answer(models.get(h)!, q, r) : `ERR\n500\nno model is held under handle ${h}`);
+  const hold = (m: string): string => {
+    onWarm?.(m);
+    log.holds.push(m);
+    if (m === 'does not compile') return 'ERR\nCOMPILATION\nthe model does not compile';
+    const handle = next++;
+    models.set(handle, m);
+    return `OK\n${handle}`;
+  };
   return {
-    holdModelOrError: (m: string) => {
-      onWarm?.(m);
-      log.holds.push(m);
-      if (m === 'does not compile') return 'ERR\nCOMPILATION\nthe model does not compile';
-      const handle = next++;
-      models.set(handle, m);
-      return `OK\n${handle}`;
-    },
+    holdModelOrError: hold,
+    // a model over a library held as the one text, as the module holds it (HeldModels.hold(model, library))
+    holdModelOverOrError: (m: string, l: string) => hold(`${m}\n${l}`),
     releaseModelOrError: (h: number) => { log.releases.push(h); models.delete(h); return 'OK\n'; },
     planHeldOrError: over,
     planJsonHeldOrError: over,
@@ -410,7 +413,10 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     }
     postMessage(msg: Record<string, unknown>): void {
       const x = this.exports;
-      const answer = msg['kind'] === 'hold' ? (this.holds.push(msg['model'] as string), x.holdModelOrError(msg['model'] as string))
+      const answer = msg['kind'] === 'hold' && msg['library'] !== undefined
+        ? (this.holds.push(`${msg['model'] as string}\n${msg['library'] as string}`),
+          x.holdModelOverOrError(msg['model'] as string, msg['library'] as string))
+        : msg['kind'] === 'hold' ? (this.holds.push(msg['model'] as string), x.holdModelOrError(msg['model'] as string))
         : msg['kind'] === 'release' ? (this.releases.push(msg['handle'] as number), this.told.push('release'), x.releaseModelOrError(msg['handle'] as number))
         : msg['kind'] === 'plan' ? x.planHeldOrError(msg['handle'] as number, msg['query'] as string, msg['runtime'] as string)
         : 'ERR\nfake\nnot in this fake';
