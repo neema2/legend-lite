@@ -1,0 +1,102 @@
+// Documentation before the function activators and the Service (Studio's grammar roundtrip cases,
+// 2026-11-14). `documentation? KIND` is legend-engine 4.145.0's rule for SnowflakeApp,
+// SnowflakeM2MUdf, MemSqlFunction, BigQueryFunction, HostedService, FunctionJar and Service. The
+// literal becomes the element's FIRST tagged value (meta::pure::profiles::doc.doc, the block's layout
+// with no escape processing and no edge blank lines), ahead of any written tagged value, and the
+// element's span starts at the literal. An element's own `documentation:` field is another thing
+// and stays where it is. The kinds whose rules have no such slot are the negatives
+// neg-*-documentation-before-*.pure.
+###Pure
+Profile fixture::doc::A
+{
+   stereotypes: [test];
+   tags: [val];
+}
+
+###Snowflake
+'''
+  A documented app.
+
+  Its second paragraph keeps a backslash as written: a\b, and \n is two characters.
+'''
+SnowflakeApp <<fixture::doc::A.test>> {fixture::doc::A.val = 'ok'} fixture::doc::MyApp
+{
+   applicationName : 'MyApp';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'appOwner'};
+   description : 'A documented app';
+}
+
+'''
+A documented UDF.
+'''
+SnowflakeM2MUdf fixture::doc::MyUdf
+{
+   udfName : 'MyUDF';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'udfOwner'};
+   deploymentSchema : 'legend_native_apps_1';
+   deploymentStage : 'snowflakeStage';
+}
+
+###MemSql
+'''
+A documented MemSql function.
+'''
+MemSqlFunction fixture::doc::MyMemSqlFunction
+{
+   functionName : 'demoFunction';
+   function : zxx(Integer[1]):String[1];
+   ownership : Deployment { identifier: 'testDeployment' };
+}
+
+###BigQuery
+'''
+A documented BigQuery function.
+'''
+BigQueryFunction {fixture::doc::A.val = 'tagged'} fixture::doc::MyBigQueryFunction
+{
+   functionName : 'MyFunction';
+   function : zxx(Integer[1]):String[1];
+}
+
+###HostedService
+'''
+A documented hosted service.
+'''
+HostedService fixture::doc::MyHostedService
+{
+   pattern: '/fixture/doc/hosted';
+   ownership: UserList { users: ['user1'] };
+   function: fixture::doc::queryFunction():String[1];
+   documentation: 'its documentation field stays its own';
+   autoActivateUpdates: true;
+}
+
+###FunctionJar
+'''
+A documented function jar.
+'''
+FunctionJar fixture::doc::MyJar
+{
+   ownership: Deployment { identifier: '17' };
+   function: fixture::doc::queryFunction():String[1];
+}
+
+###Service
+'''
+    A documented service,
+      indented.
+'''
+Service <<fixture::doc::A.test>> fixture::doc::MyService
+{
+   pattern: '/fixture/doc/service';
+   documentation: 'its documentation field stays its own';
+   autoActivateUpdates: true;
+   execution: Single
+   {
+      query: |fixture::doc::Person.all()->project([col(p|$p.name, 'name')]);
+      mapping: fixture::doc::Mapping;
+      runtime: fixture::doc::Runtime;
+   }
+}

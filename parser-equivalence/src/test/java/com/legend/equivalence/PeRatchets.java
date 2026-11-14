@@ -83,7 +83,13 @@ public final class PeRatchets {
             "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
                     + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
             "own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models,"
-                    + " measured by //parser-equivalence:update_ratchets");
+                    + " measured by //parser-equivalence:update_ratchets",
+            "mutation.deck 950 -> 1032 (2026-11-14, Studio's grammar roundtrip, the parser tier): the mutants of its four"
+                    + " new positive sibling fixtures (doc-before-activators-and-services,"
+                    + " servicestore-content-pattern-escapes, filegeneration-dotted-config-keys, diagram-quoted-view-ids)",
+            "own_corpus.matched 3262 -> 3263 (2026-11-14, Studio's grammar roundtrip, the parser tier; it measured 3211 -> 3212"
+                    + " on its branch, re-measured on studio-compatibility-dev 4dfbb5b76 on 2026-11-16): DocumentationTest's"
+                    + " documented Service");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
