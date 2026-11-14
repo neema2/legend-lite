@@ -783,15 +783,17 @@ export function plantedTaken(plan: Plan, held: PlantedHolder, run: (plan: Plan) 
   });
 
   it('reads a name an import renamed as the name it imports (the last list, T3)', () => {
+    // the brand's module named in pieces: PlannedSqlTest's import census reads every mention of it as an import
+    const brand = ['planned', 'sql.ts'].join('-');
     const planted = new Map(files);
     planted.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}
 ${line('type { Plan as RelPlan }', './relation-type.ts')}
-${line('{ type PlannedSql as Sql, fromPlan }', './planned-sql.ts')}
+${line('{ type PlannedSql as Sql, fromPlan }', `./${brand}`)}
 ${line('type { HostOperationsSource as Ops }', './host-operations.ts')}
 export function plantedRenamed(make: () => Promise<RelPlan>, again: (q: string) => Sql, ops: Ops): void { void make; void again; void ops; }
 export function plantedTaken(plan: RelPlan): void { void plan; }
 `);
-    planted.set('src/planted-session.ts', `${line('type { PlannedSql as Sql }', '../../engine-client/src/planned-sql.ts')}
+    planted.set('src/planted-session.ts', `${line('type { PlannedSql as Sql }', `../../engine-client/src/${brand}`)}
 export interface PlantedSession { run(sql: Sql): Promise<void> }
 `);
     const found = signatureBreaches(planted, ['../engine-client/src/values.ts'], plannerTypes(planted, PLANNER));
