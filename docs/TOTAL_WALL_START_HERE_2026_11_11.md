@@ -984,7 +984,8 @@ In order. Nothing here is in the A/B/C PR.
      - the fuzzes (331efd7ad, 9b41b9d7b) and what they found, fixed:
        - ClickHouse's identifier breakout, the user's "fix C2 now" (de1ca0859);
        - C1, a Python read ends at its first failure (90a91a89f, the user's "C1 agree": it deletes the re-pin, so
-         `EXEMPTIONS` is empty; this closes the "run that plans" found item below);
+         `EXEMPTIONS` was empty; this closes the "run that plans" found item below. A gone marimo session's finalizer
+         joined it on 2026-11-14, 4d14c16d9, and left it with the final fix round's D2: `EXEMPTIONS` is empty again);
        - C3, `Part.block` (add33d144, the user's "C3 agree");
        - F1-F3 (d00692eee, under the user's "do all of them, then PR").
      - The narrowing as ruled (795a7b8af); the cloud probe (7f872ef24: Snowflake 20/20, Databricks 20/20, r47); the
@@ -1010,6 +1011,17 @@ In order. Nothing here is in the A/B/C PR.
        to main's) and the stale texts.
      - Then: a follow-up audit, a lane round, the PR, CI, and the user's merge word.
    - **C5, the follow-up (start none without the user):**
+     - FIRST, THE STRUCTURAL SPLIT (the user's ruling of 2026-11-14: the TypeScript and Python split is C5's, after C4
+       merges). Its finish line: TypeScript's and Python's run code live in packages whose build deps exclude the
+       planner, a run frame wraps every send, and the run walls (`datacube/test/run-wall.test.ts`,
+       `python/tests/test_run_wall.py`) are deleted for a plain dependency rule, as `//core:exec`'s deps are pinned for
+       Java. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
+       final fix round's T4); their lists are this work's list: TypeScript's 17 `COMPOSER_MODULES`, 22
+       `COMPOSER_SIGNATURES` and 2 `COMPUTED_DOORS`, Python's 12 `UNFRAMED_SENDERS`, each named there;
+     - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
+       `verdicts`) carried in the test plan instead;
+     - the resolver's reads of lowering helpers (`lowering.Aggregates`, `lowering.AsorRef`: spelling and
+       classification, listed in `ArchitectureTest.PLANNER_ENTRIES`) moved below both;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
        20 TS sites);
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
@@ -1019,9 +1031,14 @@ In order. Nothing here is in the A/B/C PR.
        lite's witness pays about 45 ns.
    - **RULED by the user, 2026-11-14:** "let's finish the foolproof separation and get that out for all hosts" and
      "yes, separate safety stream". The scope is now set as follows.
-     - **C4 is the plan/exec separation (G4) only,** finished on Java, TypeScript and Python.
+     - **C4 is the plan/exec separation (G4) only:** proven on Java; fenced and frozen on TypeScript and Python (the
+       final fix round's T2: until then this said "finished on Java, TypeScript and Python"; the limits are in
+       `docs/GATES.md`'s C4 entry -- no frame in the browser or the headless V8, the lexer and parser unwitnessed, and
+       the walls' named composers and unframed senders, each C5's).
        - Its injection work already built stays: M1, ClickHouse and the fuzzes. Its PR states the injection scope
-         honestly: names in queries on 13 dialects; model-declared names, DDL and generated Pure are stream S's.
+         honestly: names in queries on the 11 relational dialects (MongoDB writes no SQL; the engine-text printers are
+         byte-identical to main, `IdentifierEscapingTest.theEngineTextPrintersAreMainsByteForByte`; the final fix
+         round's T1: until then "13 dialects"); model-declared names, DDL and generated Pure are stream S's.
        - The follow-up audit of fb8c2a41c gave C4 four more items, G1-G4:
          - G1, the narrowing really closed: `Compiler.lowerResolved`, BodyPlanner's lowering pieces and
            `ProductStatements.storeWrite` still lower an executeInDb read;
@@ -1049,6 +1066,19 @@ In order. Nothing here is in the A/B/C PR.
        - The row says so; nothing uses the pure behaviour, and seed generation never plans raw SQL.
      - **The user, 2026-11-14: C4's PR is the number one priority,** D and E's decisions next. The other streams
        finish their main merges and hold.
+     - **The C4 final fix round, 2026-11-14** (the orchestrator's list at 6e68a11e5c, PR #101's CI 51/51; every finding
+       fixed in C4, each commit naming its item, each test red on revert; `docs/GATES.md`'s C4 entry has the list).
+       The user's rulings in it:
+       - **D1, investigate and report only, no code:** the column-lineage scan's refusal of a query holding an
+         executeInDb read (on main it lowered); the findings went to the orchestrator.
+       - **D2 (b):** a gone marimo session's finalizer only queues it, and the queue drains outside any run
+         (`datacube._let_go_gone`, called first by `_current`); `_runframe.EXEMPTIONS` is empty again, the mechanism
+         kept shrink-only.
+       - **D3 (a):** the census route's typing is kept (`TestDataRoutes.census` types the query and refuses a raw read
+         before its scan; be5faae7f called it wording) and recorded.
+       - **B3, kept:** DateFormats' malformed-pattern ModelException escapes four catch sites by name (b915e2940 said
+         no caller relied on the class: the claim corrected); upstream's answer recorded.
+       - **The TypeScript and Python split is C5's,** after C4 merges (C5's list below, first item).
    - **Moved to D's batch** (compatibility questions C4 only surfaced):
      - the engine-text printer's name rule: (a) engine's exactly, (b) lite's quoting plus a row, or (c) engine's where
        engine spells a name right and a refusal by name where it would mangle or break it (the orchestrator recommends
@@ -1114,7 +1144,8 @@ In order. Nothing here is in the A/B/C PR.
      - **A run that plans (G4), Python:** `frames.Reading.execute` re-pins a failed read's cursor through `_pin` ->
        `_host.count` -> `compiler.host_operations`, planning inside the read's run. Found by C4's witness; the one
        entry of `_runframe.EXEMPTIONS` (shrink-only). CLOSED 2026-11-13: the user ruled C1 (the read ends at its first
-       failure; the re-pin deleted, 90a91a89f); `EXEMPTIONS` is empty.
+       failure; the re-pin deleted, 90a91a89f). `EXEMPTIONS` is empty: its one later entry, a gone marimo session's
+       finalizer (4d14c16d9), went with the user's ruling (b) of 2026-11-14, the final fix round's D2.
      - **The model printer cannot print a DuckDB connection** ("required field 'path' is absent",
        `grammar/jsonToGrammar/model`): DataCube's R3a keeps the planner's own Connection and Runtime as text because of
        it.
