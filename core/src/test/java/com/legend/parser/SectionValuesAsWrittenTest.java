@@ -65,8 +65,13 @@ class SectionValuesAsWrittenTest {
         assertEquals("{\\\"r\\\": 1}",
                 java.util.Objects.requireNonNull(q.headerParams()).get(0).pattern().expectedValue());
         // a one-line ''' literal is no text block: the engine's lexer splits it, and the pattern refuses
-        assertThrows(ParseException.class, () -> stub("          method: POST;\n          url: '/e';\n"
-                + "          bodyPatterns:\n          [\n" + pattern("EqualToJson", "'''{}'''") + "          ];\n"));
+        String body = "          method: POST;\n          url: '/e';\n          bodyPatterns:\n          [\n";
+        assertThrows(ParseException.class, () -> stub(body + pattern("EqualToJson", "'''{}'''") + "          ];\n"));
+        // `expected: STRING;` and nothing after it: the semicolon is required, and a second definition refuses
+        assertThrows(ParseException.class, () -> stub(body
+                + "            EqualToJson\n            #{\n              expected:'{}'\n            }#\n          ];\n"));
+        assertThrows(ParseException.class, () -> stub(body
+                + pattern("EqualTo", "'a';\n              expected:'b'") + "          ];\n"));
     }
 
     @Test

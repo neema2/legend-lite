@@ -211,7 +211,14 @@ final class ServiceStubDataParser {
         inner.advance();
         inner.expect(TokenType.COLON);
         String expected = expectedValue(inner, "equalToJson".equals(type));
-        inner.match(TokenType.SEMI_COLON);
+        // both pattern grammars are `definition: expectedDefinition EOF;
+        // expectedDefinition: EXPECTED COLON STRING SEMI_COLON` (4.145.0):
+        // the semicolon is required and nothing follows it (the sibling
+        // deck's mutants, 2026-11-14)
+        inner.expect(TokenType.SEMI_COLON);
+        if (!inner.atEnd()) {
+            throw inner.error("Unexpected token '" + inner.safeText() + "'");
+        }
         return new Protocol.PStringValuePattern(type, expected);
     }
 

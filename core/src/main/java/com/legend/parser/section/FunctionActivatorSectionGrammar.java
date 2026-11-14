@@ -155,6 +155,20 @@ public final class FunctionActivatorSectionGrammar
             "SnowflakeApp", "SnowflakeM2MUdf", "MemSqlFunction",
             "BigQueryFunction", "HostedService", "FunctionJar");
 
+    /** The field each kind's walker requires FIRST, before its function
+     *  (4.145.0's {@code validateAndExtractRequiredField}: SnowflakeTreeWalker
+     *  :84 and :145, MemSqlFunctionTreeWalker:89, BigQueryFunctionTreeWalker
+     *  :89, HostedServiceTreeWalker:98). SnowflakeApp's, SnowflakeM2MUdf's,
+     *  BigQueryFunction's and HostedService's were not checked until the
+     *  sibling deck's mutants of a documented SnowflakeApp found the first
+     *  (Studio's grammar roundtrip, 2026-11-14). */
+    private static final Map<String, String> NAME_FIELD = Map.of(
+            "SnowflakeApp", "applicationName",
+            "SnowflakeM2MUdf", "udfName",
+            "MemSqlFunction", "functionName",
+            "BigQueryFunction", "functionName",
+            "HostedService", "pattern");
+
     /** One {@code [documentation] Kind <<dec>> qn { key: value; ... }}
      *  activator (or an {@code ExecutionEnvironment} — the HostedService
      *  section hosts them with the SERVICE grammar's shape, probe
@@ -315,6 +329,12 @@ public final class FunctionActivatorSectionGrammar
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
+        String named = NAME_FIELD.get(kind);
+        if (named != null && !scalars.containsKey(named)) {
+            throw com.legend.parser.TokenStreamCursor.throwAt(
+                    c.tokens(), declStart,
+                    "Field '" + named + "' is required");
+        }
         if (functionPath == null || functionSpan == null) {
             throw com.legend.parser.TokenStreamCursor.throwAt(
                     c.tokens(), declStart,
@@ -335,12 +355,6 @@ public final class FunctionActivatorSectionGrammar
             throw com.legend.parser.TokenStreamCursor.throwAt(
                     c.tokens(), declStart,
                     "Field 'applicationName' is required");
-        }
-        if ("MemSqlFunction".equals(kind)
-                && !scalars.containsKey("functionName")) {
-            throw com.legend.parser.TokenStreamCursor.throwAt(
-                    c.tokens(), declStart,
-                    "Field 'functionName' is required");
         }
         if ("SnowflakeM2MUdf".equals(kind)) {
             if (!scalars.containsKey("deploymentSchema")) {
