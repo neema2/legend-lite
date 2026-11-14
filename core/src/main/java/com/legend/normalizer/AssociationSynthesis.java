@@ -79,7 +79,14 @@ final class AssociationSynthesis {
         Map<String, List<PropertyMapping>> byClass = new LinkedHashMap<>();
         Map<String, Map<String, List<PropertyMapping>>> bySet = new LinkedHashMap<>();
         for (AssociationMapping.Relational rel : rels) {
-            AssociationDefinition ad = model.findAssociation(rel.associationName()).orElseThrow(() -> MissProbe.neverFired("AssociationSynthesis#1"));
+            // an included mapping's association mapping of an association the model has not: its pre-pass refused it
+            // (a strict build stops there; a module walls that mapping), but this mapping's closure still reads its
+            // surface. The model's error, in legend-engine's words, as MappingClosures' same lookup says it. Until
+            // 2026-11-14 the never-fired funnel's "AssociationSynthesis#1", a raw IllegalStateException from 14 of the
+            // front oracle's texts, tolerant only (ruling 29, the normalizer slice's step 1; RefusalsNotCrashesTest)
+            AssociationDefinition ad = model.findAssociation(rel.associationName()).orElseThrow(() ->
+                    new ModelException(LegendCompileException.Phase.MAPPING,
+                            "Can't find association '" + rel.associationName() + "'"));
             // per (source set, property): a pair group whose TARGET class
             // is union- or inheritance-mapped (or cannot anchor a
             // predicate) is a ROUTED group — ALL its entries, single-hop

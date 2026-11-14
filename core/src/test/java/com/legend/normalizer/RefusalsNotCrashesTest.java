@@ -194,4 +194,23 @@ class RefusalsNotCrashesTest {
         assertEquals(Map.of("t::DB$view$V", inView, "t::DB", database), viewModule.walls());
         assertEquals(inView, poison(viewModule, "t::M", "t::Person"));
     }
+
+    // ---- AssociationSynthesis: an included mapping's association mapping of an association the model has not ----
+
+    private static final String INCLUDED_UNKNOWN_ASSOCIATION = """
+            ###Mapping
+            Mapping t::Top ( include mapping t::Inner )
+            Mapping t::Inner ( t::Firm_Person: Relational { AssociationMapping ( employees: [t::DB] @Firm_Person ) } )
+            """;
+
+    @Test
+    @DisplayName("an included mapping's unknown association walls the including mapping, not an IllegalStateException")
+    void anIncludedMappingsUnknownAssociationIsRefused() {
+        String unknown = "Can't find association 't::Firm_Person'";
+        // strict: the included mapping's own pre-pass refuses it first, as before
+        assertEquals(List.of("[3:1] " + unknown), strict(INCLUDED_UNKNOWN_ASSOCIATION));
+        // tolerant: that mapping walled by its pre-pass, as before; the including one, whose closure reads its surface,
+        // walled in the same words (it was a raw exception out of the module build)
+        assertEquals(Map.of("t::Inner", unknown, "t::Top", unknown), module(INCLUDED_UNKNOWN_ASSOCIATION).walls());
+    }
 }
