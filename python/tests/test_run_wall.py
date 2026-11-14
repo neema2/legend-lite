@@ -33,7 +33,9 @@ import plan`), an absolute one (`from legend_lite import compiler`, `from legend
 legend_lite.compiler as c`), an alias (`from ._runframe import runs as marks`) or a module's attribute
 (`@_runframe.runs(...)`, `with _runframe.in_run(...)`). An annotation is read the same way: a name an import renamed
 (`from .compiler import HeldModel as H`, `from .compiler import Plan as P`, `from .x import PlanMaker as M`, `from typing
-import Callable as C`) is read as the name it imports (the last list of 2026-11-14, P3).
+import Callable as C`) is read as the name it imports (the last list of 2026-11-14, P3), and a name imported from a
+package module that renamed it (`from .x import H`, x having `from .compiler import HeldModel as H`) as the name first
+imported, through the package's modules to a fixed point (the orchestrator's chained case, 2026-11-14).
 
 Python modules plan and run side by side (frames.py plans a table's query and runs a read), so the wall is drawn around
 the runs and the sends, not around modules; Python's modules are not split by this guard (a product change, not a
@@ -51,6 +53,7 @@ the task, and shrinks."""
 
 import ast
 import copy
+import functools
 import os
 import unittest
 from pathlib import Path
@@ -379,11 +382,51 @@ def _parsed(annotation: ast.AST) -> ast.AST:
 ANSWERED = frozenset({'PlannedSql', 'PlanText', 'Plan'})
 
 
-def _renamed(tree: ast.Module) -> dict[str, str]:
-    """Each name a module's imports bind under another name, to the name it imports: `from .compiler import HeldModel as
-    H`, `from typing import Callable as C` (the last list of 2026-11-14, P3: an `as` name was not read)."""
-    return {a.asname: a.name for n in ast.walk(tree) if isinstance(n, ast.ImportFrom) for a in n.names
-            if a.asname and a.asname != a.name}
+def _module_of(n: ast.ImportFrom) -> str | None:
+    """The package's module an import reads names from (`from .x import a`, `from legend_lite.x import a`), or None."""
+    if n.level >= 1 and n.module:
+        return n.module.split('.')[0]
+    if n.level == 0 and n.module and n.module.startswith('legend_lite.'):
+        return n.module.split('.')[1]
+    return None
+
+
+@functools.lru_cache(maxsize=None)
+def _imports_from(text: str) -> tuple[tuple[str | None, str, str], ...]:
+    """A module's names imported from somewhere, each as (the package module it reads from, or None; the name imported;
+    the name it binds), parsed once per text."""
+    return tuple((_module_of(n), a.name, a.asname or a.name) for n in ast.walk(ast.parse(text))
+                 if isinstance(n, ast.ImportFrom) for a in n.names)
+
+
+def _origin(module: str | None, name: str, sources: dict[str, str] | None, seen: frozenset = frozenset()) -> str:
+    """What `name`, read in the package's `module`, first named: followed through that module's imports to a fixed point
+    -- a name it imports under another name, or imports from a module that renamed it, is the name first imported
+    (the orchestrator's chained case, 2026-11-14: a module renames HeldModel as H, a run imports H from it)."""
+    text = (sources or {}).get(f'{module}.py') if module else None
+    if text is None or (module, name) in seen:
+        return name
+    for target, imported, bound in _imports_from(text):
+        if bound == name:
+            return _origin(target, imported, sources, seen | {(module, name)}) if target else imported
+    return name
+
+
+def _renamed(tree: ast.Module, sources: dict[str, str] | None = None) -> dict[str, str]:
+    """Each name a module's imports bind, to the name it first named when that is another: `from .compiler import
+    HeldModel as H`, `from typing import Callable as C` (the last list of 2026-11-14, P3: an `as` name was not read), and
+    a name imported from a package module that itself renamed it (`from .x import H`, x having `HeldModel as H`),
+    through the package's modules to a fixed point (`sources`)."""
+    out: dict[str, str] = {}
+    for n in ast.walk(tree):
+        if isinstance(n, ast.ImportFrom):
+            target = _module_of(n)
+            for a in n.names:
+                local = a.asname or a.name
+                first = _origin(target, a.name, sources) if target else a.name
+                if first != local:
+                    out[local] = first
+    return out
 
 
 def _unaliased(annotation: ast.AST, renamed: dict[str, str]) -> ast.AST:
@@ -413,11 +456,11 @@ def _answers_planned(annotation: ast.AST) -> bool:
     return False
 
 
-def planner_protocols(tree: ast.Module) -> set[str]:
+def planner_protocols(tree: ast.Module, sources: dict[str, str] | None = None) -> set[str]:
     """A module's classes that answer a planner's answer -- a method whose return annotation names one (a Protocol with
     `plan() -> PlannedSql`, any class so shaped), under any name an import renamed it to: a planner under another name
     (P3)."""
-    renamed = _renamed(tree)
+    renamed = _renamed(tree, sources)
     out: set[str] = set()
     for c in tree.body:
         if isinstance(c, ast.ClassDef):
@@ -434,11 +477,11 @@ def package_planner_names(sources: dict[str, str] | None) -> set[str]:
     out: set[str] = set()
     for text in (sources or {}).values():
         tree = ast.parse(text)
-        out |= planner_aliases(tree) | planner_protocols(tree)
+        out |= planner_aliases(tree, sources) | planner_protocols(tree, sources)
     return out
 
 
-def planner_aliases(tree: ast.Module) -> set[str]:
+def planner_aliases(tree: ast.Module, sources: dict[str, str] | None = None) -> set[str]:
     """A module's type aliases that are a planner's: `X = Callable[..., PlannedSql]`, `X: TypeAlias = ...`, `type X =
     ...` whose value answers a statement or a plan, or names a planner's type (or another such alias)."""
     declared: dict[str, ast.AST] = {}
@@ -449,7 +492,7 @@ def planner_aliases(tree: ast.Module) -> set[str]:
             declared[n.target.id] = n.value
         elif hasattr(ast, 'TypeAlias') and isinstance(n, ast.TypeAlias):
             declared[n.name.id] = n.value
-    renamed = _renamed(tree)
+    renamed = _renamed(tree, sources)
     out: set[str] = set()
     grew = True
     while grew:
@@ -495,8 +538,8 @@ def signature_crossings(source: str, sources: dict[str, str] | None = None) -> l
     callable answering a statement, a plan's text or a typed plan."""
     tree = ast.parse(source)
     bound = bindings(tree)
-    renamed = _renamed(tree)
-    aliases = planner_aliases(tree) | planner_protocols(tree) | package_planner_names(sources)
+    renamed = _renamed(tree, sources)
+    aliases = planner_aliases(tree, sources) | planner_protocols(tree, sources) | package_planner_names(sources)
     out: list[str] = []
     for owner in [tree] + [c for c in tree.body if isinstance(c, ast.ClassDef)]:
         for fn in owner.body:
@@ -1019,6 +1062,26 @@ def run(a: H, b: Callable[[str], P], c: M, d: Optional[C[[], P]], e: Asks, f: P)
             "run(c): a PlanMaker, a planner's alias",
             "run(d): a callable that answers a planner's statement or plan",
             "run(e): a Asks, a planner's alias",
+        ])
+
+    def test_a_name_imported_from_a_module_that_renamed_it_is_read_as_the_first(self):
+        # the orchestrator's chained case, 2026-11-14: a module renames, a run imports the renamed name from it
+        sources = dict(self.sources)
+        sources['planted_mid.py'] = 'from .compiler import HeldModel as Held, Plan as Answer\n'
+        sources['planted_names.py'] = ('from .planted_mid import Held as H, Answer\n'
+                                       'from typing import Callable as C\n')
+        planted = """
+from .planted_names import H, Answer, C
+from ._runframe import runs
+
+@runs('a planted run')
+def run(a: H, b: C[[str], Answer], c: Answer) -> None:
+    pass
+"""
+        # a typed plan TAKEN (c) is the run's own: not named
+        self.assertEqual(signature_crossings(planted, sources), [
+            'run(a): a HeldModel',
+            "run(b): a callable that answers a planner's statement or plan",
         ])
 
     def test_a_planted_seam_that_imports_the_planner_is_named(self):

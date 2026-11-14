@@ -26,11 +26,13 @@
 //   or names a planner's type -- or anything else that answers a PlannedSql, a PlanText or a PLANNED RECORD (a
 //   function's result, a method's, a stream or an array of them, a record holding one). A planned record is a type
 //   alias or interface whose text outside its parameter lists names a statement, a plan or another planned record, by
-//   any alias (relation-type.ts's Plan: the final audit of 9af16fbe58's T3) -- a type alias, or a name an import or a
-//   re-export renames (`import type { Plan as RelPlan }`: every name a module's imports rename is read as the name it
-//   imports, in its signatures, its types and its run entries; the last list's T3). Taking a statement, a plan or a
-//   planned record to run is the run's own work and is not named. Each composer function is named, by its reason
-//   (COMPOSER_SIGNATURES): shrink-only.
+//   any alias (relation-type.ts's Plan: the final audit of 9af16fbe58's T3) -- a type alias, or a name an import
+//   renames (`import type { Plan as RelPlan }`), or a name imported from a module that re-exported or renamed it
+//   (`import type { RelPlan } from './a.ts'`, a.ts having `export type { Plan as RelPlan } from`): every name a
+//   module's imports bind is read as the name it first named, followed through the modules this guard reads to a fixed
+//   point, in its signatures, its types and its run entries (the last list's T3, and the chained case). Taking a
+//   statement, a plan or a planned record to run is the run's own work and is not named. Each composer function is
+//   named, by its reason (COMPOSER_SIGNATURES): shrink-only.
 // - THE RUN SIDE WRITES NO `any`: the word in any type position (`: any`, `as any`, `=> any`, a union's `| any`, a
 //   type argument), its strings and comments aside. A planner smuggled in untyped would need one, and no lint bans it
 //   (no ESLint runs on these packages; tsconfig's strict refuses an IMPLICIT any only).
@@ -197,31 +199,82 @@ function namesPlanned(text: string, records: ReadonlySet<string>): boolean {
   return [...text.matchAll(/[\w$]+/g)].some((w) => w[0] === 'PlannedSql' || w[0] === 'PlanText' || records.has(w[0]));
 }
 
-/** Each name a module's imports or re-exports bind under another name, to the name it imports: `import type { Plan as
- *  RelPlan }`, `import { type PlannedSql as Sql, x }`, `export { Plan as P } from` (the last list of 2026-11-14, T3: a
- *  renamed import was not read). */
-export function renamesOf(text: string): Map<string, string> {
-  const out = new Map<string, string>();
-  for (const m of withoutComments(text).matchAll(/\b(?:import|export)\s+(?:type\s+)?\{([^}]*)\}/g)) {
-    for (const item of m[1]!.split(',')) {
-      const r = /^\s*(?:type\s+)?([\w$]+)\s+as\s+([\w$]+)\s*$/.exec(item);
-      if (r !== null && r[1] !== r[2]) out.set(r[2]!, r[1]!);
+/** One name a module's import or export clause names: `[type] A [as B]`, from a module (`from '...'`) or its own. */
+interface Named { readonly kind: 'import' | 'export'; readonly from: string | null; readonly name: string; readonly as: string }
+
+const NAMED = new WeakMap<Map<string, string>, Map<string, Named[]>>();
+
+/** Each name `file`'s import and export clauses name (`import [type] { ... } from`, `export [type] { ... } [from]`),
+ *  each from the module it reads, resolved to its path as importsOf resolves it, or its own. */
+function namedIn(file: string, files: Map<string, string>): Named[] {
+  let byFile = NAMED.get(files);
+  if (byFile === undefined) NAMED.set(files, byFile = new Map());
+  const known = byFile.get(file);
+  if (known !== undefined) return known;
+  const out: Named[] = [];
+  const clauses = /\b(import|export)\s+(?:type\s+)?(?:[\w$]+\s*,\s*)?\{([^}]*)\}(?:\s*from\s*(['"])([^'"\n]+)\3)?/g;
+  for (const m of withoutComments(files.get(file) ?? '').matchAll(clauses)) {
+    const spec = m[4];
+    const from = spec === undefined ? null : spec.startsWith('.')
+      ? posix.normalize(posix.join(posix.dirname(file), spec)).replace(/^\.\.\/datacube\//, '') : `package:${spec}`;
+    for (const item of m[2]!.split(',')) {
+      const r = /^\s*(?:type\s+)?([\w$]+)(?:\s+as\s+([\w$]+))?\s*$/.exec(item);
+      if (r !== null) out.push({ kind: m[1] as 'import' | 'export', from, name: r[1]!, as: r[2] ?? r[1]! });
     }
   }
+  byFile.set(file, out);
   return out;
 }
 
-/** `text` with each name its imports renamed read as the name it imports (renamesOf). */
-function unaliased(text: string): string {
-  const renames = renamesOf(text);
+/** What `name`, read in `file`, first named: followed through the module's re-exports (`export { A as B } from`), its
+ *  own export renames (`export { A as B }`) and its imports, to a fixed point (the orchestrator's chained case,
+ *  2026-11-14: a module re-exports Plan as RelPlan, a run imports RelPlan from it). A name no clause binds is its own. */
+function origin(file: string, name: string, files: Map<string, string>, seen: ReadonlySet<string> = new Set()): string {
+  const key = `${file}#${name}`;
+  if (!files.has(file) || seen.has(key)) return name;
+  const next = new Set([...seen, key]);
+  for (const n of namedIn(file, files)) {
+    if (n.as !== name) continue;
+    if (n.kind === 'export' && n.from === null && n.name === name) continue; // `export { A }`: A is the module's own
+    if (n.from === null) return origin(file, n.name, files, next);
+    return n.from.startsWith('package:') ? n.name : origin(n.from, n.name, files, next);
+  }
+  return name;
+}
+
+const RENAMES = new WeakMap<Map<string, string>, Map<string, Map<string, string>>>();
+
+/** Each name `file`'s imports bind, to the name it first named when that is another: `import type { Plan as RelPlan }`,
+ *  `import { type PlannedSql as Sql, x }` (the last list of 2026-11-14, T3), and a name imported from a module that
+ *  renamed it -- `import type { RelPlan } from './a.ts'`, a.ts having `export type { Plan as RelPlan } from` -- through
+ *  the modules this guard reads to a fixed point (the chained case). */
+export function renamesIn(file: string, files: Map<string, string>): Map<string, string> {
+  let byFile = RENAMES.get(files);
+  if (byFile === undefined) RENAMES.set(files, byFile = new Map());
+  const known = byFile.get(file);
+  if (known !== undefined) return known;
+  const out = new Map<string, string>();
+  for (const n of namedIn(file, files)) {
+    if (n.kind !== 'import' || n.from === null) continue;
+    const first = n.from.startsWith('package:') ? n.name : origin(n.from, n.name, files);
+    if (first !== n.as) out.set(n.as, first);
+  }
+  byFile.set(file, out);
+  return out;
+}
+
+/** `file`'s text with each name its imports bind read as the name it first named (renamesIn). */
+function unaliased(file: string, files: Map<string, string>): string {
+  const text = files.get(file) ?? '';
+  const renames = renamesIn(file, files);
   return renames.size === 0 ? text : text.replace(/[\w$]+/g, (w) => renames.get(w) ?? w);
 }
 
 /** The run entries: each module that calls a run or has a function taking a statement or a plan, with why. */
 export function runEntries(files: Map<string, string>): Map<string, string[]> {
   const out = new Map<string, string[]>();
-  for (const [file, text] of files) {
-    const code = withoutStrings(withoutComments(unaliased(text)));
+  for (const file of files.keys()) {
+    const code = withoutStrings(withoutComments(unaliased(file, files)));
     const why = [...new Set([...code.matchAll(RUN_CALL)].map((m) => `calls ${m[0].replace(/\s+/g, '')}`))];
     // a parameter list's statement or plan (a record's field holding one is data, not a run)
     const taken = [...code.matchAll(new RegExp(`[(,]\\s*(?:readonly\\s+)?[\\w$]+\\??\\s*:\\s*(?:readonly\\s+)?(?:\\w+<\\s*)?(${PLANNED_NAMES})\\b`, 'g'))];
@@ -470,8 +523,8 @@ function answersPlanned(text: string, records: ReadonlySet<string>): boolean {
 function declaredTypes(files: Map<string, string>): Map<string, string> {
   const declared = new Map<string, string>();
   const add = (name: string, body: string): void => { declared.set(name, `${declared.get(name) ?? ''}\n${body}`); };
-  for (const text of files.values()) {
-    const code = withoutStrings(withoutComments(unaliased(text)));
+  for (const file of files.keys()) {
+    const code = withoutStrings(withoutComments(unaliased(file, files)));
     for (const m of code.matchAll(/\btype\s+([\w$]+)\s*(?:<[^=]*>)?\s*=\s*([^;]+);/g)) add(m[1]!, m[2]!);
     for (const m of code.matchAll(/\binterface\s+([\w$]+)[^{]*\{/g)) {
       const open = m.index! + m[0].length - 1;
@@ -559,7 +612,7 @@ export function signatureBreaches(files: Map<string, string>, run: readonly stri
   const out: string[] = [];
   const records = plannedRecords(files);
   for (const file of run) {
-    for (const [name, signature] of declaredSignatures(unaliased(files.get(file) ?? ''))) {
+    for (const [name, signature] of declaredSignatures(unaliased(file, files))) {
       const taken = takes(signature);
       const typed = [...taken.matchAll(/\b([A-Z][\w$]*)\b/g)].map((m) => m[1]!).find((t) => types.has(t));
       if (typed !== undefined) out.push(`${file} ${name}: takes the planner's ${typed}`);
@@ -809,6 +862,35 @@ export interface PlantedSession { run(sql: Sql): Promise<void> }
     ["../engine-client/src/values.ts plantedRenamed: takes something that answers a planner's statement or plan"]);
     // a statement taken under another name makes a run entry
     assert.deepEqual(runEntries(planted).get('src/planted-session.ts'), ['takes a PlannedSql']);
+  });
+
+  it('reads a name imported from a module that renamed it as the name first named, through re-exports (the chained case)', () => {
+    // the orchestrator's chained case, 2026-11-14: a module re-exports Plan as RelPlan, a run imports RelPlan from it.
+    // A planted re-export written in pieces, as `line` writes an import: the package's import scanner reads this text.
+    const reexport = (what: string, spec: string): string => ['ex', 'port ', what, ' fr', 'om ', `'${spec}'`, ';'].join('');
+    const planted = new Map(files);
+    planted.set('../engine-client/src/planted-mid.ts', `${reexport('type { Plan as Mid }', './relation-type.ts')}\n`);
+    planted.set('../engine-client/src/planted-reexport.ts', `${reexport('type { Mid as RelPlan }', './planted-mid.ts')}
+${line('type { HostOperationsSource as Hops }', './host-operations.ts')}
+${['ex', 'port type { Hops as Ops };'].join('')}
+`);
+    planted.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}
+${line('type { RelPlan, Ops }', './planted-reexport.ts')}
+${line('type { Mid }', './planted-mid.ts')}
+export function plantedChained(make: () => Promise<RelPlan>): void { void make; }
+export function plantedOnce(make: () => Mid): void { void make; }
+export function plantedOps(ops: Ops): void { void ops; }
+export function plantedTaken(plan: RelPlan): void { void plan; }
+`);
+    assert.equal(renamesIn('../engine-client/src/values.ts', planted).get('RelPlan'), 'Plan');
+    const found = signatureBreaches(planted, ['../engine-client/src/values.ts'], plannerTypes(planted, PLANNER))
+      .filter((f) => f.includes(' planted'));
+    // a Plan TAKEN under the re-exported name (plantedTaken) is the run's own: not named
+    assert.deepEqual(found, [
+      "../engine-client/src/values.ts plantedChained: takes something that answers a planner's statement or plan",
+      "../engine-client/src/values.ts plantedOnce: takes something that answers a planner's statement or plan",
+      "../engine-client/src/values.ts plantedOps: takes the planner's HostOperationsSource",
+    ]);
   });
 
   it('reads a door through any receiver and every importScripts argument, and refuses one it cannot (the last list, T4)', () => {
