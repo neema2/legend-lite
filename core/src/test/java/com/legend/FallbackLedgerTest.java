@@ -80,7 +80,11 @@ class FallbackLedgerTest {
     // 6 -> 5 (2026-10-21, the independent audit of the reference checks): ImplicitInheritance#1, an association
     // mapping of an association the model has not, reached from a user's text (ReferenceIntegrityTest
     // anAssociationMappingsAssociationExists): "Can't find association 'x'" now
-    private static final int NEVER_FIRED_FLOOR = 5;
+    // 5 -> 4 (2026-11-14, ruling 29's second policy, the normalizer slice's step 1): JoinChainEmission#3, a join hop's
+    // target table no database of the hop declares, reached from 3 of the front oracle's texts (the normalizer
+    // differential's discovery run) and from a two-line join (RefusalsNotCrashesTest): a ModelException in the words
+    // of the join-not-found refusal beside it now -- still loud, and the user's, not an internal state
+    private static final int NEVER_FIRED_FLOOR = 4;
 
     @org.junit.jupiter.api.Test
     void noBareEmptyAnswerOutsideTheFunnel() throws IOException {

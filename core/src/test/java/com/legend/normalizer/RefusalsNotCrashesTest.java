@@ -149,4 +149,49 @@ class RefusalsNotCrashesTest {
         assertEquals(Map.of(), module.walls());
         assertEquals(unknown, poison(module, "t::M", "t::Nope"));
     }
+
+    // ---- JoinChainEmission: a join hop's target table no database of the hop declares ----
+
+    private static final String JOIN_TO_AN_UNDECLARED_TABLE = """
+            Class t::Firm { name: String[1]; }
+            Class t::Person { name: String[1]; firm: t::Firm[0..1]; }
+            ###Relational
+            Database t::DB (
+              Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER)
+              Join Person_Firm(PERSON.FIRM_ID = FIRM.ID)
+            )
+            ###Mapping
+            Mapping t::M ( *t::Person: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, firm: [t::DB] @Person_Firm } )
+            """;
+
+    private static final String VIEW_JOIN_TO_AN_UNDECLARED_TABLE = """
+            Class t::Person { name: String[1]; }
+            ###Relational
+            Database t::DB (
+              Table PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER)
+              Join Person_Firm(PERSON.FIRM_ID = FIRM.ID)
+              View V (ID: PERSON.ID PRIMARY KEY, FIRM_NAME: @Person_Firm | PERSON.NAME)
+            )
+            ###Mapping
+            Mapping t::M ( *t::Person: Relational { ~mainTable [t::DB] V name: [t::DB] V.FIRM_NAME } )
+            """;
+
+    @Test
+    @DisplayName("a join hop to a table its database does not declare is the model's error, not an IllegalStateException")
+    void aJoinHopToAnUndeclaredTableIsRefused() {
+        // the database's own check (F, the engine's words) walls the database in a module; E, which runs first, names
+        // the hop
+        String database = "The table 'FIRM' can't be found in the database 't::DB' (join 'Person_Firm')";
+        String hop = "Join 'Person_Firm' target table 'FIRM' not found in db 't::DB'; PM='firm', mapping=t::M";
+        assertEquals(List.of("[9:1] " + hop), strict(JOIN_TO_AN_UNDECLARED_TABLE));
+        Compiler.BuiltModule module = module(JOIN_TO_AN_UNDECLARED_TABLE);
+        assertEquals(Map.of("t::DB", database), module.walls());
+        assertEquals(hop, poison(module, "t::M", "t::Person"));
+
+        String inView = "Join 'Person_Firm' target table 'FIRM' not found in db 't::DB'; PM='FIRM_NAME', store=t::DB";
+        assertEquals(List.of(inView), strict(VIEW_JOIN_TO_AN_UNDECLARED_TABLE), "the view's lift refuses the model");
+        Compiler.BuiltModule viewModule = module(VIEW_JOIN_TO_AN_UNDECLARED_TABLE);
+        assertEquals(Map.of("t::DB$view$V", inView, "t::DB", database), viewModule.walls());
+        assertEquals(inView, poison(viewModule, "t::M", "t::Person"));
+    }
 }
