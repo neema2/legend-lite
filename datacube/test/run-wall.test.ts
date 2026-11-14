@@ -10,9 +10,13 @@
 //   (RUN_ROOTS). A run entry that also plans -- its imports reach the planner, or it is a planner module -- is a
 //   composer, named by module and reason (COMPOSER_MODULES): shrink-only, each C5's to split.
 // - THE RUN SIDE IMPORTS NO PLANNER: the RUN set -- the roots and every module they import, `import type` included,
-//   `export ... from`, a dynamic `import()`, a worker's or a `new URL(..., import.meta.url)`'s module and a `require`,
-//   transitively -- holds no module of the planner's (PLANNER). A module it imports this guard does not read (another
-//   package's, a `#subpath` import) is named too: the wall has no door it cannot see.
+//   `export ... from`, a dynamic `import()`, a worker's or a `new URL(..., import.meta.url)`'s module, a `require`, an
+//   `import.meta.resolve` and an `importScripts`, a specifier quoted or a template with no substitution, transitively --
+//   holds no module of the planner's (PLANNER). A module it imports this guard does not read (another package's, a
+//   `#subpath` import) is named too: the wall has no door it cannot see.
+// - THE RUN SIDE OPENS NO DOOR IT CANNOT READ: an import door whose specifier is not a literal -- a template with a
+//   substitution, a name, a call -- chooses its module at run time, so the wall cannot follow it; each on the run side
+//   is named by its reason (COMPUTED_DOORS, the final audit of 9af16fbe58's T4): shrink-only.
 // - A RUN SIGNATURE TAKES NO PLANNER: no function, class member or interface member a RUN module declares (exported or
 //   not, so an `export { f }` list hides nothing; a private member is the class's own and is skipped) takes a planner's
 //   type -- any type a PLANNER module exports, or a type alias or interface declared anywhere that answers a PlannedSql
@@ -33,7 +37,8 @@
 // through another name -- a callback handed in, an object whose method sends -- is seen only where its parameter is
 // typed with a PlannedSql or a PlanText. An untyped closure slips through,
 // a planner reached through a value the run is given at run time (an object literal's method, a value from a map), a
-// type inferred rather than written, and a type that reaches a PlannedSql through a generic parameter. The `any` ban
+// type inferred rather than written, a type that reaches a PlannedSql through a generic parameter, and a module a
+// dependency opens from a URL this tree hands it (DuckDB's instantiate, a vendor's loader). The `any` ban
 // narrows the first; the run frame is the backstop at run time where a frame is kept. Each list moves only with a dated
 // justification naming the task, and shrinks.
 
@@ -145,6 +150,19 @@ const COMPOSER_SIGNATURES = new Map([
   ['src/upload.ts readFileInto', ASKS('TableModels')],
 ]);
 
+// A RUN module's import door whose specifier is not a literal (computedDoors), by module and door, with its reason: the
+// module it opens is chosen at run time, so the wall cannot follow it. Shrink-only.
+// 2026-11-14 (the final audit of 9af16fbe58's T4, measured: the run side's two; the planner's own -- lite-planner.ts,
+// planner-worker.ts, wasm-grammar.ts -- are the planner's and not read): each loads a build artifact of a dependency's
+// or the warehouse binding's from the page's vendor directory, never a module of this tree.
+const COMPUTED_DOORS = new Map([
+  ['../engine-client/src/duckdb-tab.ts new Worker(bundle.mainWorker!)',
+    "DuckDB's own worker, its bundle's duckdb-browser-eh.worker.js from the page's vendor directory: DuckDB runs there"],
+  ['../engine-client/src/warehouse.ts import(runtimeUrl)',
+    "TeaVM's runtime for the warehouse's wire binding (vendor/warehouse/, //warehouse:sqlapi_page): it names the"
+      + " warehouse's calls and reads their answers, and plans nothing"],
+]);
+
 /** A call of a run: the plan runner's, the frame's, or a run, an execute or a stream on a session, an engine, a
  *  runner, an executor, a server, a client or a host -- however the receiver is reached (`engine!.run(`,
  *  `rows.engine?.run(`, `this.#runner.stream(`). The final audit of 9af16fbe58's T1 (2026-11-14): `!.run(`,
@@ -185,21 +203,72 @@ function withoutComments(text: string): string {
 }
 
 /** The modules `file` imports -- `import`, `import type`, `export ... from`, a bare `import '...'`, a dynamic
- *  `import('...')`, a `require('...')`, a worker's module (`new Worker('...')`) and a `new URL('...', import.meta.url)`'s
- *  (a worker's too) -- each relative one resolved to its path from the package; a `#subpath` import as written (a
- *  package's own map: this guard reads none, so it is named). A bare package name is a dependency's, not this tree's. */
+ *  `import('...')`, a `require('...')`, an `import.meta.resolve('...')`, an `importScripts('...')`, a worker's module
+ *  (`new Worker('...')`) and a `new URL('...', import.meta.url)`'s (a worker's too), each specifier quoted or a template
+ *  with no substitution (a door whose specifier is not a literal is computedDoors') -- each relative one resolved to
+ *  its path from the package; a `#subpath` import as written (a package's own map: this guard reads none, so it is
+ *  named). A bare package name is a dependency's, not this tree's. */
 export function importsOf(file: string, text: string): string[] {
   const code = withoutComments(text);
+  // a literal: quoted, or a template with no substitution (the final audit of 9af16fbe58's T4)
+  const lit = '([\'"`])([^\'"`$\\n]+)\\1';
   const specs = [
-    ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,$]+?\s+from\s+)?['"]([^'"\n]+)['"]/g),
-    ...code.matchAll(/\b(?:import|require)\(\s*['"]([^'"\n]+)['"]\s*\)/g),
-    ...code.matchAll(/\bnew\s+(?:Shared)?Worker\(\s*['"]([^'"\n]+)['"]/g),
-    ...code.matchAll(/\bnew\s+URL\(\s*['"]([^'"\n]+)['"]\s*,\s*import\.meta\.url\s*\)/g),
-  ].map((m) => m[1]!);
+    ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,$]+?\s+from\s+)?(['"])([^'"\n]+)\1/g),
+    ...code.matchAll(new RegExp(`\\b(?:import|require|import\\.meta\\.resolve|importScripts)\\(\\s*${lit}\\s*[,)]`, 'g')),
+    ...code.matchAll(new RegExp(`\\bnew\\s+(?:Shared)?Worker\\(\\s*${lit}`, 'g')),
+    ...code.matchAll(new RegExp(`\\bnew\\s+URL\\(\\s*${lit}\\s*,\\s*import\\.meta\\.url\\s*\\)`, 'g')),
+  ].map((m) => m[2]!);
   // a path back into this package (`../datacube/src/x.ts`, from the engine client) is its own: `src/x.ts`
   return specs.filter((s) => s.startsWith('.') || s.startsWith('#'))
     .map((s) => (s.startsWith('#') ? s
       : posix.normalize(posix.join(posix.dirname(file), s)).replace(/^\.\.\/datacube\//, '')));
+}
+
+/** `code` with each string literal's text blanked, its quotes and every offset kept (a template's substitutions too). */
+function blankStrings(code: string): string {
+  return code.replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g,
+    (m) => m[0] + ' '.repeat(m.length - 2) + m[m.length - 1]);
+}
+
+/** A specifier this guard reads: a quoted literal or a template with no substitution. */
+const LITERAL_SPEC = /^\s*(?:'[^'\\\n]*'|"[^"\\\n]*"|`[^`\\$]*`)\s*$/;
+
+/** Each import door `text` opens whose specifier is NOT a literal (the final audit of 9af16fbe58's T4): a dynamic
+ *  `import()`, a `require()`, an `import.meta.resolve()`, an `importScripts()`, a worker's module, or a `new URL(...,
+ *  import.meta.url)` -- whose first argument is a template with a substitution, a name, a call, or any other expression.
+ *  The module such a door opens is chosen at run time, so the wall cannot follow it: on the run side each is refused
+ *  but those named, by reason (COMPUTED_DOORS). A worker built from a `new URL('...', import.meta.url)` is read. */
+export function computedDoors(text: string): string[] {
+  const code = withoutComments(text);
+  const blank = blankStrings(code);
+  const out: string[] = [];
+  const doors = /(?<![\w$.])(?:import|require|importScripts)\s*\(|\bimport\.meta\.resolve\s*\(|\bnew\s+(?:Shared)?Worker\s*\(|\bnew\s+URL\s*\(/g;
+  for (const m of blank.matchAll(doors)) {
+    const open = m.index! + m[0].length - 1;
+    const close = closing(blank, open);
+    const args = code.slice(open + 1, close - 1);
+    // the first argument: up to the first comma outside brackets (strings blanked, so theirs never count)
+    const blankArgs = blank.slice(open + 1, close - 1);
+    let depth = 0;
+    let end = blankArgs.length;
+    for (let i = 0; i < blankArgs.length; i++) {
+      const c = blankArgs[i]!;
+      if (c === '(' || c === '[' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}') depth--;
+      else if (c === ',' && depth === 0) {
+        end = i;
+        break;
+      }
+    }
+    const first = args.slice(0, end);
+    const door = m[0].replace(/\s+/g, ' ').replace(/\s*\($/, '(');
+    if (door === 'new URL(' && !/,\s*import\.meta\.url\s*$/.test(args)) continue; // a URL, not a module's
+    if (LITERAL_SPEC.test(first)) continue;
+    if (/^new (?:Shared)?Worker\($/.test(door)
+      && /^\s*new\s+URL\(\s*(?:'[^'\\\n]*'|"[^"\\\n]*"|`[^`\\$]*`)\s*,\s*import\.meta\.url\s*\)\s*$/.test(first)) continue;
+    out.push(`${door}${first.replace(/\s+/g, ' ').trim()}${end < args.length ? ', ...' : ''})`);
+  }
+  return out;
 }
 
 /** The RUN set's breaches: a planner module reached (the import path to it), or a module it imports this guard cannot
@@ -501,6 +570,11 @@ describe('the run wall (TypeScript)', () => {
     }
   });
 
+  it('the run side opens no import door whose module is chosen at run time, but those named (shrink-only, T4)', () => {
+    const found = run.flatMap((f) => computedDoors(files.get(f) ?? '').map((d) => `${f} ${d}`)).sort();
+    assert.deepEqual(found, [...COMPUTED_DOORS.keys()].sort());
+  });
+
   it('the run side writes no any', () => {
     assert.deepEqual(anyBreaches(files, run), []);
   });
@@ -598,6 +672,44 @@ export function plantedTaken(plan: Plan, held: PlantedHolder, run: (plan: Plan) 
       "../engine-client/src/values.ts plantedHeld: takes something that answers a planner's statement or plan",
       "../engine-client/src/values.ts plantedMethod: takes something that answers a planner's statement or plan",
     ]);
+  });
+
+  it('names a planted door whose module is chosen at run time, and reads a template with no substitution (T4)', () => {
+    // written in pieces, as `line` is: the package's import scanner reads this file's text
+    const [imp, req, meta] = [['im', 'port'].join(''), ['re', 'quire'].join(''), ['im', 'port.meta'].join('')];
+    const planted = [
+      `export const a = (name: string) => ${imp}(\`./legend/\${name}.ts\`);`,
+      `export const b = (spec: string) => ${imp}(/* @vite-ignore */ spec);`,
+      `export const c = (spec: string) => ${req}(spec);`,
+      `export const d = (spec: string) => ${meta}.resolve(spec);`,
+      `export const e = (base: string) => new Worker(new URL(\`\${base}w.js\`, ${meta}.url));`,
+      `export const f = (spec: string) => new URL(spec, ${meta}.url);`,
+      // read, not computed: a literal, a template with no substitution, a URL that is no module's
+      `export const g = () => ${imp}(\`./legend/planner-answer.ts\`);`,
+      `export const h = () => ${meta}.resolve('./legend/planner-protocol.ts');`,
+      `export const i = (spec: string) => new URL(spec);`,
+      `export const j = () => new Worker(new URL('./legend/planner-worker.ts', ${meta}.url), { type: 'module' });`,
+    ].join('\n');
+    assert.deepEqual(computedDoors(planted), [
+      `${imp}(\`./legend/\${name}.ts\`)`,
+      `${imp}(spec)`,
+      `${req}(spec)`,
+      `${meta}.resolve(spec)`,
+      `new Worker(new URL(\`\${base}w.js\`, ${meta}.url))`,
+      'new URL(`${base}w.js`, ...)',
+      'new URL(spec, ...)',
+    ]);
+    const tree = new Map(files);
+    tree.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}\n${planted}\n`);
+    const breaches = importBreaches(tree, ['../engine-client/src/values.ts'], PLANNER);
+    for (const p of ['planner-answer.ts', 'planner-protocol.ts', 'planner-worker.ts']) {
+      assert.ok(breaches.some((x) => x.startsWith(`the planner's ../engine-client/src/legend/${p}, reached by `)), breaches.join('\n'));
+    }
+    const run = runSet(tree, runRoots(tree, PLANNER));
+    assert.ok(run.includes('../engine-client/src/values.ts'));
+    // the run-side test's own reading names the planted module's seven
+    const found = run.flatMap((f) => computedDoors(tree.get(f) ?? '').map((d) => `${f} ${d}`));
+    assert.equal(found.filter((d) => d.startsWith('../engine-client/src/values.ts ')).length, 7, found.join('\n'));
   });
 
   it('names a planted #subpath import and a worker reached by a URL', () => {
