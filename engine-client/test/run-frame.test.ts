@@ -5,14 +5,16 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { currentRun, frameKept, inRun, planning } from '../src/run-frame.ts';
+import { NOT_PLANNING, currentRun, frameKept, inRun, planning } from '../src/run-frame.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { WorkerPort } from '../src/legend/wasm-grammar.ts';
 
 const REFUSED = /the planner was asked 'plan' inside a run \(a test's run\): a run sends its plan's statements and plans nothing \(G4\)/;
 
-/** A module whose one export answers a plan. */
-const module = { exports: { planHeldOrError: () => 'OK\nSELECT 1' } } as unknown as PlannerModule;
+/** A module whose exports answer a plan and let a model go. */
+const released: number[] = [];
+const module = { exports: { planHeldOrError: () => 'OK\nSELECT 1',
+  releaseModelOrError: (handle: number) => { released.push(handle); return 'OK\n'; } } } as unknown as PlannerModule;
 
 describe('the run frame', () => {
   it('is kept under Node: the witness is not blind here', () => {
@@ -41,6 +43,19 @@ describe('the run frame', () => {
     planning('plan');
     open();
     await assert.rejects(first, REFUSED);
+  });
+
+  it('lets a held model go inside a run: a release plans nothing (T6), and nothing else is let through', async () => {
+    // the final audit of 9af16fbe58's T6: a release inside a run was refused, LitePlanner's let-go swallowed it, and
+    // the model stayed held
+    assert.deepEqual([...NOT_PLANNING], ['release']);
+    await inRun("a test's run", async () => {
+      planning('release');
+      assert.equal(answer(module, { kind: 'release', handle: 7 }), 'OK\n');
+    });
+    assert.deepEqual(released, [7], 'the model was let go');
+    await assert.rejects(inRun("a test's run", async () => answer(module, { kind: 'hold', model: 'm' })),
+      /the planner was asked 'hold' inside a run/);
   });
 
   it('refuses the planner\'s in-thread answer inside a run, and answers it outside one', async () => {

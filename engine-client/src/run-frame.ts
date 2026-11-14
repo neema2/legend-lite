@@ -34,8 +34,16 @@ export function currentRun(): string | undefined {
   return frames?.getStore();
 }
 
-/** A planner entry, asked for `kind` (the planner protocol's kind of request): refused inside a run of its own flow. */
+/** The planner protocol's kinds that plan nothing, let through inside a run: a held model let go, which a page's
+ *  teardown or a planner's release may do at any point, a run's included -- Python's `_NOT_PLANNING` holds
+ *  `lite_release_model` so (the final audit of 9af16fbe58's T6, 2026-11-14: until then a release inside a run was
+ *  refused, LitePlanner's let-go swallowed the refusal, and the model stayed held). */
+export const NOT_PLANNING: ReadonlySet<string> = new Set(['release']);
+
+/** A planner entry, asked for `kind` (the planner protocol's kind of request): refused inside a run of its own flow,
+ *  unless it plans nothing (NOT_PLANNING). */
 export function planning(kind: string): void {
+  if (NOT_PLANNING.has(kind)) return;
   const run = currentRun();
   if (run !== undefined) {
     throw new Error(`the planner was asked '${kind}' inside a run (${run}): a run sends its plan's statements and plans`
