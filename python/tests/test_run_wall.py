@@ -5,9 +5,11 @@ frame (_runframe.py) refuses a planner entry asked inside a run; this holds, bef
 - THE SEND SEAM IMPORTS NO PLANNER: `_planned` (the one send, the plan readers, the type) and `_runframe` import, through
   the package's own modules, no module of the planner's (PLANNER_MODULES).
 - A RUN CALLS NO PLANNER: each run -- a function marked `@runs(...)`, the body of a `with in_run(...)` -- and every
-  function of its module it reaches by name (a module function, a method of its class through `self`) calls no planner
-  entry: no `library()`, no `_planner`, and of `compiler` only the readers COMPILER_READERS names (types, errors and the
-  plan's own data, each held here to call no library itself).
+  function it reaches by name, in its module or ACROSS the package's (a module function, a method of its class through
+  `self`, a class's construction, another module's function or class through an import: the final audit of
+  9af16fbe58's P2, 2026-11-14), calls no planner entry: no `library()`, no `_planner`, none of _host's planning
+  functions (HOST_PLANNERS), and of `compiler` only the readers COMPILER_READERS names (types, errors and the plan's
+  own data, each held here to call no library itself). A `with exempt(...)` block is a named crossing and not followed.
 - A RUN TAKES NO PLANNER: no run's parameter is annotated with a planner's type (a held model, the library) or with a
   callable that answers a PlannedSql or a PlanText (a planner handed in under another name) -- in a union (`X | None`,
   `Optional[...]`), in a quoted annotation, or through a module's type alias.
@@ -29,7 +31,7 @@ test's).
 
 ITS LIMIT, said plainly: Python is dynamic, and this reads names, not values. A planner reached through a value handed in
 at run time -- an untyped closure, a callable from a dict, an object whose method plans, a name rebound after its import
--- is not seen; a call through a name this module does not define is followed only as far as the readers' check; a
+-- is not seen; a call through a name the package does not define (a library's, a value's method) is not followed; a
 sending helper is seen by its parameter's annotation, so one that takes its statement untyped is a send site its callers
 do not inherit; a method called on anything but `self` is not resolved (a read's `over.execute(...)` is the read's,
 seen at its own send). The run frame is the backstop at run time. Each list moves only with a dated justification naming
@@ -238,38 +240,108 @@ def _planner_use(node: ast.AST, bound: dict[str, str]) -> str | None:
     return target
 
 
-def run_crossings(source: str) -> list[str]:
-    """Each planner call a run of `source` reaches -- in its body, or in a function of its module it calls by name, or
-    through `self` -- named by its run and where it is."""
-    tree = ast.parse(source)
-    bound = bindings(tree)
-    defs = _definitions(tree)
+# _host's planning functions: each asks the planner for a host operation's statements (compiler.host_operations), then
+# sends them -- a planner entry for a run that reaches one. 2026-11-14 (the final audit of 9af16fbe58's P2: a run that
+# re-pinned through _host.count was not seen).
+HOST_PLANNERS = frozenset({'_host.statements', '_host.run', '_host.ask', '_host.count'})
+
+
+class _Module:
+    """A module of the package, read: its tree, its imports' meanings, its functions and methods, its classes."""
+
+    def __init__(self, name: str, source: str) -> None:
+        self.name = name
+        self.tree = ast.parse(source)
+        self.bound = bindings(self.tree)
+        self.defs = _definitions(self.tree)
+        self.classes = {n.name for n in self.tree.body if isinstance(n, ast.ClassDef)}
+
+
+def _index(sources: dict[str, str] | None) -> dict[str, _Module]:
+    return {name[:-3]: _Module(name[:-3], text) for name, text in (sources or {}).items()}
+
+
+def _unexempt(node: ast.AST, bound: dict[str, str]):
+    """Every node under `node` but those in a `with exempt(...)` block (a named crossing, refused at run time unless
+    _runframe.EXEMPTIONS holds it)."""
+    stack = [node]
+    while stack:
+        n = stack.pop()
+        yield n
+        for child in ast.iter_child_nodes(n):
+            if isinstance(child, (ast.With, ast.AsyncWith)) and any(
+                    isinstance(i.context_expr, ast.Call) and resolve(i.context_expr.func, bound) == '_runframe.exempt'
+                    for i in child.items):
+                continue
+            stack.append(child)
+
+
+def _callee(call: ast.Call, mod: _Module, cls: str, index: dict[str, _Module]) -> tuple[str, str] | None:
+    """The package function a call names, as (module, qualified name): a function of its module, a method through
+    `self`, a class's construction (its `__init__`), or another module's function or class reached through an import
+    (`from .m import f`, `m.f`, `from legend_lite.m import f`)."""
+    f = call.func
+    if isinstance(f, ast.Name):
+        if f.id in mod.defs:
+            return mod.name, f.id
+        if f.id in mod.classes and f'{f.id}.__init__' in mod.defs:
+            return mod.name, f'{f.id}.__init__'
+    if isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == 'self':
+        return (mod.name, cls + f.attr) if (cls + f.attr) in mod.defs else None
+    target = resolve(f, mod.bound)
+    if target is None or '.' not in target:
+        return None
+    module, name = target.split('.', 1)
+    other = index.get(module)
+    if other is None:
+        return None
+    if name in other.defs:
+        return module, name
+    if name in other.classes and f'{name}.__init__' in other.defs:
+        return module, f'{name}.__init__'
+    return None
+
+
+def run_crossings(source: str, sources: dict[str, str] | None = None, module: str = 'planted') -> list[str]:
+    """Each planner call a run of `source` (the module `module`) reaches -- in its body, in a function of its module
+    it calls by name or through `self`, or ACROSS the package's modules (`sources`: a function or a class another module
+    imports from, followed with that module's own imports; the final audit of 9af16fbe58's P2, 2026-11-14) -- named by
+    its run and where it is. A `with exempt(...)` block is not followed (a named crossing); one of _host's planning
+    functions is a planner entry (HOST_PLANNERS)."""
+    index = _index(sources)
+    here = _Module(module, source)
+    index[module] = here
     out: list[str] = []
-    for run, body in runs_of(tree).items():
-        cls = run.split('.')[0] + '.' if '.' in run.split(':')[0] else ''
-        seen: set[str] = set()
-        work: list[tuple[str, list[ast.AST]]] = [(run, body)]
+    for run, body in runs_of(here.tree).items():
+        seen: set[tuple[str, str]] = set()
+        work: list[tuple[_Module, str, list[ast.AST]]] = [(here, run, body)]
         while work:
-            where, nodes = work.pop()
+            mod, where, nodes = work.pop()
+            qualified = where.split(':')[0]
+            cls = qualified.rsplit('.', 1)[0] + '.' if '.' in qualified else ''
+            shown_where = where if mod is here else f'{mod.name}.{where}'
             for stmt in nodes:
                 # an attribute chain is named once, at its outermost load (`compiler.plan`, not `compiler` too)
                 bases = {id(a.value) for a in ast.walk(stmt) if isinstance(a, ast.Attribute)}
-                for n in ast.walk(stmt):
-                    used = _planner_use(n, bound)
+                for n in _unexempt(stmt, mod.bound):
+                    used = _planner_use(n, mod.bound)
                     if used is not None and id(n) not in bases:
                         shown = ast.unparse(n)
                         out.append(f"{run}: {shown}{'()' if used.endswith('library') else ''} (the planner's {used},"
-                                   f' in {where}, line {n.lineno})')
+                                   f' in {shown_where}, line {n.lineno})')
                     if isinstance(n, ast.Call):
-                        f = n.func
-                        name = None
-                        if isinstance(f, ast.Name):
-                            name = f.id if f.id in defs else None
-                        elif isinstance(f, ast.Attribute) and isinstance(f.value, ast.Name) and f.value.id == 'self':
-                            name = cls + f.attr if (cls + f.attr) in defs else None
-                        if name is not None and name not in seen:
-                            seen.add(name)
-                            work.append((name, defs[name].body))
+                        callee = _callee(n, mod, cls, index)
+                        if callee is None:
+                            continue
+                        if f'{callee[0]}.{callee[1]}' in HOST_PLANNERS:
+                            out.append(f"{run}: {ast.unparse(n.func)} (_host's planning, {callee[0]}.{callee[1]},"
+                                       f' in {shown_where}, line {n.lineno})')
+                            continue
+                        # a planner module's own body is the planner's: its call is named above, never followed
+                        if callee not in seen and callee[0] not in PLANNER_MODULES:
+                            seen.add(callee)
+                            target = index[callee[0]]
+                            work.append((target, callee[1], target.defs[callee[1]].body))
     return sorted(set(out))
 
 
@@ -455,7 +527,7 @@ class RunWallTest(unittest.TestCase):
             self.assertEqual(planner_reached(self.sources, module), [], f'{module} reaches the planner')
 
     def test_no_run_calls_a_planner(self):
-        found = {name: run_crossings(text) for name, text in self.sources.items()}
+        found = {name: run_crossings(text, self.sources, name[:-3]) for name, text in self.sources.items()}
         self.assertEqual({k: v for k, v in found.items() if v}, {})
 
     def test_no_run_takes_a_planner(self):
@@ -520,6 +592,33 @@ def load(held: compiler.HeldModel, make: 'Callable[[str], PlannedSql]') -> None:
         # did not see it: the follow-up audit's G2)
         self.assertEqual(signature_crossings(planted),
                          ['load(held): a HeldModel', 'load(make): a callable that answers a PlannedSql or a PlanText'])
+
+    def test_the_crossing_that_motivated_the_wall_is_named_across_modules(self):
+        # the final audit of 9af16fbe58's P2 (2026-11-14): Reading.execute's failure branch re-pinning the read
+        # (_pin -> _host.count -> _host.ask -> _host.statements -> compiler.host_operations), the crossing the user's
+        # ruling (1b) deleted, re-added exactly as it was: reached from the read's run (Reading.run -> self.execute)
+        sources = dict(self.sources)
+        old = '            return send(self.cursor, sql, params)\n'
+        self.assertEqual(sources['frames.py'].count(old), 1)
+        sources['frames.py'] = sources['frames.py'].replace(old, old.replace(
+            'return send(self.cursor, sql, params)',
+            'result = send(self.cursor, sql, params)\n            _pin(self.cursor)\n            return result'))
+        found = run_crossings(sources['frames.py'], sources, 'frames')
+        self.assertIn("Reading.run: _host.count (_host's planning, _host.count, in _pin, line", '\n'.join(found))
+        # and a planner call in another module, reached through an import, is named where it is
+        sources['planted_helper.py'] = 'from . import compiler\n\ndef plan_it(m):\n    return compiler.plan(m, {}, "r")\n'
+        planted = """
+from ._runframe import runs
+from .planted_helper import plan_it
+from . import planted_helper
+
+@runs('a planted run')
+def run(m):
+    plan_it(m)
+    planted_helper.plan_it(m)
+"""
+        self.assertEqual([f.split(' (')[0] + ' in ' + f.split(' in ')[1].split(',')[0] for f in
+                          run_crossings(planted, sources)], ['run: compiler.plan in planted_helper.plan_it'])
 
     def test_a_planted_in_run_block_that_plans_is_named(self):
         planted = '''
