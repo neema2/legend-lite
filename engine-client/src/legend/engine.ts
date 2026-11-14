@@ -6,6 +6,7 @@
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
+import { planning } from '../run-frame.ts';
 import type {
   CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer,
 } from './wire.ts';
@@ -167,6 +168,8 @@ export class HttpEngine implements Engine {
   }
 
   generatePlan(input: ExecuteInput): Promise<unknown> {
+    // a server's planner: refused inside a run of the caller's flow (run-frame.ts; the final audit of 9af16fbe58's T2)
+    planning('generatePlan');
     return this.#json('POST', '/pure/v1/execution/generatePlan', withContext(input));
   }
 
@@ -196,6 +199,10 @@ export class RoutedEngine implements Engine {
   compile(model: PureModelContext): Promise<CompileResult> { return this.#server.compile(model); }
   returnType(model: PureModelContext, lambda: Lambda): Promise<string> { return this.#server.returnType(model, lambda); }
   execute(input: ExecuteInput, signal?: AbortSignal): Promise<ExecutionResult> { return this.#server.execute(input, signal); }
-  generatePlan(input: ExecuteInput): Promise<unknown> { return this.#server.generatePlan(input); }
+  generatePlan(input: ExecuteInput): Promise<unknown> {
+    // whatever engine it routes to (T2)
+    planning('generatePlan');
+    return this.#server.generatePlan(input);
+  }
   currentUser(): Promise<string> { return this.#server.currentUser(); }
 }

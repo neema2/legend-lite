@@ -81,6 +81,8 @@ const PLANNER = new Set([
   '../engine-client/src/legend/planner-protocol.ts',
   '../engine-client/src/legend/planner-worker.ts',
   '../engine-client/src/legend/browser-engine.ts',
+  // the server engines, HttpEngine and RoutedEngine (generatePlan): the final audit of 9af16fbe58's T2, 2026-11-14
+  '../engine-client/src/legend/engine.ts',
   'src/lite-planner.ts',
   'src/cube.ts',
   'src/planner.ts',
@@ -101,6 +103,9 @@ const COMPOSER_MODULES = new Map([
   ['src/cube.ts', "DataCube's cube, a planner module: runs and streams a page's queries through its runner (C5)"],
   ['src/plan.ts', "a page's plan: its query run by DataCube's runner, which plans it (C5)"],
   ['src/treeview.ts', "the tree view: its rows run by DataCube's runner, which plans them (C5)"],
+  // 2026-11-14 (the final audit of 9af16fbe58's T2: the server engines joined the planner set)
+  ['../engine-client/src/legend/engine.ts', "the server engines: generatePlan plans on a server, execute plans and runs"
+    + ' there in one request (C5)'],
 ]);
 
 // A RUN module's function that takes a planner, by module and name, with its reason. Shrink-only.

@@ -8,6 +8,7 @@ import { describe, it } from 'node:test';
 import { NOT_PLANNING, currentRun, frameKept, inRun, planning } from '../src/run-frame.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { WorkerPort } from '../src/legend/wasm-grammar.ts';
+import { HttpEngine, RoutedEngine } from '../src/legend/engine.ts';
 
 const REFUSED = /the planner was asked 'plan' inside a run \(a test's run\): a run sends its plan's statements and plans nothing \(G4\)/;
 
@@ -56,6 +57,22 @@ describe('the run frame', () => {
     assert.deepEqual(released, [7], 'the model was let go');
     await assert.rejects(inRun("a test's run", async () => answer(module, { kind: 'hold', model: 'm' })),
       /the planner was asked 'hold' inside a run/);
+  });
+
+  it('refuses a server engine\'s generatePlan inside a run, before anything is sent (T2)', async () => {
+    const sent: string[] = [];
+    const fetcher = (async (url: string) => {
+      sent.push(String(url));
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as unknown as typeof fetch;
+    const http = new HttpEngine('http://engine.invalid', fetcher);
+    const routed = new RoutedEngine({} as never, http);
+    const input = { function: {}, model: {}, runtime: {} } as never;
+    for (const engine of [http, routed]) {
+      await assert.rejects(inRun("a test's run", async () => engine.generatePlan(input)),
+        /the planner was asked 'generatePlan' inside a run \(a test's run\)/);
+    }
+    assert.deepEqual(sent, [], 'nothing sent to the server inside the run');
   });
 
   it('refuses the planner\'s in-thread answer inside a run, and answers it outside one', async () => {
