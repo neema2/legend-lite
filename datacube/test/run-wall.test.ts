@@ -12,12 +12,14 @@
 //   composer, named by module and reason (COMPOSER_MODULES): shrink-only, each C5's to split.
 // - THE RUN SIDE IMPORTS NO PLANNER: the RUN set -- the roots and every module they import, `import type` included,
 //   `export ... from`, a dynamic `import()`, a worker's or a `new URL(..., import.meta.url)`'s module, a `require`, an
-//   `import.meta.resolve` and an `importScripts`, a specifier quoted or a template with no substitution, transitively --
-//   holds no module of the planner's (PLANNER). A module it imports this guard does not read (another package's, a
-//   `#subpath` import) is named too: the wall has no door it cannot see.
-// - THE RUN SIDE OPENS NO DOOR IT CANNOT READ: an import door whose specifier is not a literal -- a template with a
-//   substitution, a name, a call -- chooses its module at run time, so the wall cannot follow it; each on the run side
-//   is named by its reason (COMPUTED_DOORS, the final audit of 9af16fbe58's T4): shrink-only.
+//   `import.meta.resolve` and an `importScripts` (every argument), each through any receiver (`self.importScripts`,
+//   `module.require`, `new globalThis.Worker`: the last list's T4), a specifier quoted or a template with no
+//   substitution, transitively -- holds no module of the planner's (PLANNER). A module it imports this guard does not
+//   read (another package's, a `#subpath` import) is named too: the wall has no door it cannot see.
+// - THE RUN SIDE OPENS NO DOOR IT CANNOT READ, DEFAULT-DENY: an import door -- import, require, importScripts (each
+//   argument), a worker or a module's URL, through any receiver -- whose specifier is not a literal (a template with a
+//   substitution, a name, a call) chooses its module at run time, so the wall cannot follow it; each on the run side is
+//   refused but those named by their reason (COMPUTED_DOORS, the final audit of 9af16fbe58's T4): shrink-only.
 // - A RUN SIGNATURE TAKES NO PLANNER: no function, class member or interface member a RUN module declares (exported or
 //   not, so an `export { f }` list hides nothing; a private member is the class's own and is skipped) takes a planner's
 //   type -- any type a PLANNER module exports, or a type alias or interface declared anywhere that answers a PlannedSql
@@ -251,10 +253,17 @@ export function importsOf(file: string, text: string): string[] {
   const lit = '([\'"`])([^\'"`$\\n]+)\\1';
   const specs = [
     ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,$]+?\s+from\s+)?(['"])([^'"\n]+)\1/g),
-    ...code.matchAll(new RegExp(`\\b(?:import|require|import\\.meta\\.resolve|importScripts)\\(\\s*${lit}\\s*[,)]`, 'g')),
-    ...code.matchAll(new RegExp(`\\bnew\\s+(?:Shared)?Worker\\(\\s*${lit}`, 'g')),
-    ...code.matchAll(new RegExp(`\\bnew\\s+URL\\(\\s*${lit}\\s*,\\s*import\\.meta\\.url\\s*\\)`, 'g')),
+    // through any receiver (`self.importScripts`, `module.require`, `new globalThis.Worker`: the last list's T4)
+    ...code.matchAll(new RegExp(`${RECEIVER}(?:import|require|importScripts)\\s*\\(\\s*${lit}\\s*[,)]`, 'g')),
+    ...code.matchAll(new RegExp(`\\bimport\\.meta\\.resolve\\s*\\(\\s*${lit}\\s*[,)]`, 'g')),
+    ...code.matchAll(new RegExp(`\\bnew\\s+${CHAIN}(?:Shared)?Worker\\s*\\(\\s*${lit}`, 'g')),
+    ...code.matchAll(new RegExp(`\\bnew\\s+${CHAIN}URL\\s*\\(\\s*${lit}\\s*,\\s*import\\.meta\\.url\\s*\\)`, 'g')),
   ].map((m) => m[2]!);
+  // every argument of an importScripts, each a module it loads (the last list's T4: only the first was read)
+  for (const m of code.matchAll(new RegExp(`${RECEIVER}importScripts\\s*\\(`, 'g'))) {
+    const open = m.index! + m[0].length - 1;
+    for (const a of code.slice(open + 1, closing(code, open) - 1).matchAll(new RegExp(lit, 'g'))) specs.push(a[2]!);
+  }
   // a path back into this package (`../datacube/src/x.ts`, from the engine client) is its own: `src/x.ts`
   return specs.filter((s) => s.startsWith('.') || s.startsWith('#'))
     .map((s) => (s.startsWith('#') ? s
@@ -267,43 +276,61 @@ function blankStrings(code: string): string {
     (m) => m[0] + ' '.repeat(m.length - 2) + m[m.length - 1]);
 }
 
+/** A chain of receivers before a door's name, any length (`self.`, `globalThis.`, `a.b?.`). */
+const CHAIN = '(?:[\\w$]+\\s*\\??\\.\\s*)*';
+
+/** A door's start: its receivers' chain from its first name, or its name alone. */
+const RECEIVER = `(?<![\\w$.])${CHAIN}`;
+
 /** A specifier this guard reads: a quoted literal or a template with no substitution. */
 const LITERAL_SPEC = /^\s*(?:'[^'\\\n]*'|"[^"\\\n]*"|`[^`\\$]*`)\s*$/;
 
 /** Each import door `text` opens whose specifier is NOT a literal (the final audit of 9af16fbe58's T4): a dynamic
  *  `import()`, a `require()`, an `import.meta.resolve()`, an `importScripts()`, a worker's module, or a `new URL(...,
- *  import.meta.url)` -- whose first argument is a template with a substitution, a name, a call, or any other expression.
- *  The module such a door opens is chosen at run time, so the wall cannot follow it: on the run side each is refused
- *  but those named, by reason (COMPUTED_DOORS). A worker built from a `new URL('...', import.meta.url)` is read. */
+ *  import.meta.url)`, through any receiver (`self.`, `module.`, `globalThis.`: the last list's T4) -- whose first
+ *  argument (each argument, for an importScripts) is a template with a substitution, a name, a call, or any other
+ *  expression. The module such a door opens is chosen at run time, so the wall cannot follow it: on the run side each
+ *  is refused but those named, by reason (COMPUTED_DOORS). A worker built from a `new URL('...', import.meta.url)` is
+ *  read. */
 export function computedDoors(text: string): string[] {
   const code = withoutComments(text);
   const blank = blankStrings(code);
   const out: string[] = [];
-  const doors = /(?<![\w$.])(?:import|require|importScripts)\s*\(|\bimport\.meta\.resolve\s*\(|\bnew\s+(?:Shared)?Worker\s*\(|\bnew\s+URL\s*\(/g;
+  // through any receiver, DEFAULT-DENY (the last list of 2026-11-14, T4: `self.importScripts(n)`, `module.require(n)`
+  // and `new globalThis.Worker(n)` were neither read nor refused)
+  const doors = new RegExp(`${RECEIVER}(?:import|require|importScripts)\\s*\\(|\\bimport\\.meta\\.resolve\\s*\\(`
+    + `|\\bnew\\s+${CHAIN}(?:Shared)?Worker\\s*\\(|\\bnew\\s+${CHAIN}URL\\s*\\(`, 'g');
   for (const m of blank.matchAll(doors)) {
     const open = m.index! + m[0].length - 1;
     const close = closing(blank, open);
     const args = code.slice(open + 1, close - 1);
-    // the first argument: up to the first comma outside brackets (strings blanked, so theirs never count)
+    // the arguments: split at each comma outside brackets (strings blanked, so theirs never count)
     const blankArgs = blank.slice(open + 1, close - 1);
+    const each: string[] = [];
     let depth = 0;
-    let end = blankArgs.length;
-    for (let i = 0; i < blankArgs.length; i++) {
-      const c = blankArgs[i]!;
+    let start = 0;
+    for (let i = 0; i <= blankArgs.length; i++) {
+      const c = i < blankArgs.length ? blankArgs[i]! : ',';
       if (c === '(' || c === '[' || c === '{') depth++;
       else if (c === ')' || c === ']' || c === '}') depth--;
       else if (c === ',' && depth === 0) {
-        end = i;
-        break;
+        each.push(args.slice(start, i));
+        start = i + 1;
       }
     }
-    const first = args.slice(0, end);
-    const door = m[0].replace(/\s+/g, ' ').replace(/\s*\($/, '(');
-    if (door === 'new URL(' && !/,\s*import\.meta\.url\s*$/.test(args)) continue; // a URL, not a module's
+    const first = each[0] ?? '';
+    const door = m[0].replace(/\s+/g, ' ').replace(/\s*\.\s*/g, '.').replace(/\s*\($/, '(');
+    if (/URL\($/.test(door) && !/,\s*import\.meta\.url\s*$/.test(args)) continue; // a URL, not a module's
+    if (/importScripts\($/.test(door)) {
+      // every argument is a module it loads: each must be one this guard reads
+      if (each.every((a) => LITERAL_SPEC.test(a))) continue;
+      out.push(`${door}${each.map((a) => a.replace(/\s+/g, ' ').trim()).join(', ')})`);
+      continue;
+    }
     if (LITERAL_SPEC.test(first)) continue;
-    if (/^new (?:Shared)?Worker\($/.test(door)
+    if (/(?:Shared)?Worker\($/.test(door)
       && /^\s*new\s+URL\(\s*(?:'[^'\\\n]*'|"[^"\\\n]*"|`[^`\\$]*`)\s*,\s*import\.meta\.url\s*\)\s*$/.test(first)) continue;
-    out.push(`${door}${first.replace(/\s+/g, ' ').trim()}${end < args.length ? ', ...' : ''})`);
+    out.push(`${door}${first.replace(/\s+/g, ' ').trim()}${each.length > 1 ? ', ...' : ''})`);
   }
   return out;
 }
@@ -780,6 +807,33 @@ export interface PlantedSession { run(sql: Sql): Promise<void> }
     ["../engine-client/src/values.ts plantedRenamed: takes something that answers a planner's statement or plan"]);
     // a statement taken under another name makes a run entry
     assert.deepEqual(runEntries(planted).get('src/planted-session.ts'), ['takes a PlannedSql']);
+  });
+
+  it('reads a door through any receiver and every importScripts argument, and refuses one it cannot (the last list, T4)', () => {
+    const [imp, req] = [['im', 'port'].join(''), ['re', 'quire'].join('')];
+    const planted = [
+      'export const a = (n: string) => self.importScripts(n);',
+      `export const b = (n: string) => module.${req}(n);`,
+      'export const c = (n: string) => new globalThis.Worker(n);',
+      "export const d = (n: string) => importScripts('./a.js', n);",
+      `export const e = (n: string) => loader.${imp}(n);`,
+      // read, not computed: each a literal, through a receiver, and every importScripts argument
+      "export const f = () => importScripts('./a.js', './legend/planner-worker.ts');",
+      "export const g = () => self.importScripts('./legend/planner-answer.ts');",
+      "export const h = () => new globalThis.Worker('./legend/planner-protocol.ts');",
+      `export const i = () => module.${req}('./legend/wasm-grammar.ts');`,
+    ].join('\n');
+    assert.deepEqual(computedDoors(planted), [
+      'self.importScripts(n)', `module.${req}(n)`, 'new globalThis.Worker(n)', "importScripts('./a.js', n)",
+      `loader.${imp}(n)`,
+    ]);
+    const tree = new Map(files);
+    tree.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}\n${planted}\n`);
+    const breaches = importBreaches(tree, ['../engine-client/src/values.ts'], PLANNER);
+    for (const p of ['planner-worker.ts', 'planner-answer.ts', 'planner-protocol.ts', 'wasm-grammar.ts']) {
+      assert.ok(breaches.some((b) => b.startsWith(`the planner's ../engine-client/src/legend/${p}, reached by `)),
+        `${p}: ${breaches.join('\n')}`);
+    }
   });
 
   it('names a planted #subpath import and a worker reached by a URL', () => {
