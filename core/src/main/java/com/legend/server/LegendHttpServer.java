@@ -287,7 +287,10 @@ public class LegendHttpServer {
             try (InputStream in = exchange.getRequestBody()) {
                 body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             }
-            PureV1Api.Answer answer = module.answer(exchange.getRequestMethod(), exchange.getRequestURI().getPath(),
+            // the RAW path, as the query store's route read it before the modules (main's LegendHttpServer): a module
+            // decodes its own segments (SavedQueries' and SavedCubes' ids), so an encoded "../" stays one segment, a
+            // refused id, never a path that leaves its route (#81's saved-pages test; D1.0b's mount had read it decoded)
+            PureV1Api.Answer answer = module.answer(exchange.getRequestMethod(), exchange.getRequestURI().getRawPath(),
                     exchange.getRequestURI().getRawQuery(), body);
             answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
             if (answer.status() == 204) {

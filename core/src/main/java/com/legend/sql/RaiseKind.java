@@ -32,6 +32,11 @@ public enum RaiseKind {
     VALUE_NOT_HELD,
     FRACTION_NOT_KEPT,
     CSV_TOO_WIDE,
+    /** A window frame whose computed start comes after its end (merged with #81's frame guard, 2026-11-14). */
+    WINDOW_FRAME_INVERTED,
+    /** A window frame's computed offset that is negative or empty (S170; merged with #81's frame guard,
+     *  2026-11-14). */
+    WINDOW_FRAME_OFFSET_INVALID,
     /** {@code fail(message)}: the user's own message, the one operand the product writes. */
     USER_FAIL
 }

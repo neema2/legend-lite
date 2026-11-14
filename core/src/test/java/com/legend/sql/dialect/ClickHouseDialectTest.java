@@ -186,6 +186,8 @@ class ClickHouseDialectTest {
         String sql = render(grouped);
         String keys = sql.substring(sql.indexOf("GROUP BY "));
         assertTrue(keys.startsWith("GROUP BY \"d2\", \"t0\".\"d\""), sql);
+        // the date's range guard, by its raise's kind (phase D's D1.1, merged 2026-11-14: the product writes the kind,
+        // VALUE_NOT_HELD; until then the sentence, "a date outside the years ...")
         assertEquals(1, sql.split("VALUE_NOT_HELD", -1).length - 1, "the guard written once: " + sql);
     }
 

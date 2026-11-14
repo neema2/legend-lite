@@ -19,16 +19,6 @@ import java.util.List;
  */
 final class FrameGuard {
 
-    /** Upstream's text for a start after the end (legend-pure's {@code rows}/{@code _range} assert), verbatim, as the
-     *  lowering raises it for literal bounds ({@code lowering/Windows.sqlFrame}). */
-    static final String ORDER = "Invalid window frame boundary - lower bound of window frame cannot be greater than"
-            + " the upper bound!";
-
-    /** A computed offset that is negative or empty: lite reads a bound's direction from its shape (S170). */
-    static final String SIGN = "Invalid window frame boundary - a window frame bound written -(n) is n before the"
-            + " current row and any other n after it, so a computed n must be neither negative nor empty"
-            + " (docs/SEMANTICS_REGISTER.md S170)";
-
     private FrameGuard() {
     }
 
@@ -43,7 +33,8 @@ final class FrameGuard {
         SqlExpr lo = signed(f.from());
         SqlExpr hi = signed(f.to());
         if (lo != null && hi != null) {
-            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER, lo, hi), raise(ORDER)));
+            whens.add(new SqlExpr.Case.When(SqlExpr.Call.of(SqlFn.GREATER, lo, hi),
+                    raise(com.legend.sql.RaiseKind.WINDOW_FRAME_INVERTED)));
         }
         SqlExpr bad = null;
         for (SqlExpr o : f.offsets()) {
@@ -52,7 +43,7 @@ final class FrameGuard {
             bad = bad == null ? b : SqlExpr.Call.of(SqlFn.OR, bad, b);
         }
         if (bad != null) {
-            whens.add(new SqlExpr.Case.When(bad, raise(SIGN)));
+            whens.add(new SqlExpr.Case.When(bad, raise(com.legend.sql.RaiseKind.WINDOW_FRAME_OFFSET_INVALID)));
         }
         return new SqlExpr.Case(whens, new SqlExpr.WindowCall(w.fn(), w.partitionBy(), w.orderBy(), f.asChecked(),
                 w.type()), SqlExpr.Reason.RAISE);
@@ -86,7 +77,9 @@ final class FrameGuard {
         };
     }
 
-    private static SqlExpr raise(String message) {
-        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.StringLit(message));
+    /** The raise of {@code kind} (phase D's D1.1, merged with #81 2026-11-14): the product writes the kind, the edge
+     *  its sentence -- legend-pure's for a start after the end, lite's own for a bad offset (S170). */
+    private static SqlExpr raise(com.legend.sql.RaiseKind kind) {
+        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(kind, List.of()));
     }
 }

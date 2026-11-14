@@ -2013,7 +2013,8 @@ public class ClickHouse extends AnsiSqlRenderer {
     }
 
     private SqlWriter error(SqlWriter writer, SqlExpr.Call c) {
-        // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence)
+        // a raise's message as this dialect writes it (raised: the product's kind, the edge's sentence; D1.1), in
+        // main's unfoldable form (each raise its own rand(n), #81; merged 2026-11-14)
         List<SqlExpr> a = raised(c).args();
         writer.append("toInt64(concat(char(31), ");
         if (a.size() > 1) {

@@ -33,6 +33,8 @@ public enum ErrorKind {
     VALUE_NOT_HELD("the value is outside the range this database can hold"),
     FRACTION_NOT_KEPT("more fraction digits than this database keeps"),
     CSV_TOO_WIDE("CSV record wider than its table"),
+    WINDOW_FRAME_INVERTED("window frame starts after it ends"),
+    WINDOW_FRAME_OFFSET_INVALID("window frame offset is negative or empty"),
     /** {@code fail(message)}: the user's own message is the error's text; this word only where none was given. */
     USER_FAIL("fail");
 

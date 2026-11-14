@@ -14,6 +14,8 @@ package com.legend.testplan;
  * @param spelling     the dialects the program's statements are written in (D1.0's spelling hook)
  * @param options      lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}:
  *                     the tests turn on {@code DETERMINISTIC_AS_OF})
+ * @param spelling     where the body's statements take their dialects (phase D's D1.0: the product's own, or the
+ *                     compatibility edge's)
  */
 public record PlanningOptions(
         com.legend.testexecutionplan.@com.legend.base.Nullable Edge edge,
@@ -21,8 +23,8 @@ public record PlanningOptions(
         java.util.Set<com.legend.platform.Feature> features,
         JudgeMode judgeMode,
         com.legend.testexecutionplan.TestPlan.JudgingRules judgingRules,
-        com.legend.database.SqlSpelling spelling,
-        java.util.Set<com.legend.platform.PlanOption> options) {
+        java.util.Set<com.legend.platform.PlanOption> options,
+        com.legend.database.SqlSpelling spelling) {
 
     public PlanningOptions {
         java.util.Objects.requireNonNull(stores, "stores");
@@ -47,7 +49,7 @@ public record PlanningOptions(
 
     /** These options under lite's own rules or backwards compatibility's ({@link #rules}). */
     public PlanningOptions withEngineCompat(boolean on) {
-        return new PlanningOptions(edge, stores, features, judgeMode, rules(on), spelling, options);
+        return new PlanningOptions(edge, stores, features, judgeMode, rules(on), options, spelling);
     }
 
     /** The assert judge of a RUN (docs/JUDGING_TWO_MODES): HOST -- the verdict of record, judged in Java over each
@@ -59,21 +61,21 @@ public record PlanningOptions(
     public enum JudgeMode { HOST, DATABASE, BOTH }
 
     public PlanningOptions withJudgeMode(JudgeMode mode) {
-        return new PlanningOptions(edge, stores, features, mode, judgingRules, spelling, options);
+        return new PlanningOptions(edge, stores, features, mode, judgingRules, options, spelling);
     }
 
     public PlanningOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
-        return new PlanningOptions(edge, stores, f, judgeMode, judgingRules, spelling, options);
+        return new PlanningOptions(edge, stores, f, judgeMode, judgingRules, options, spelling);
+    }
+
+    /** Lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}). */
+    public PlanningOptions withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
+        return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, o, spelling);
     }
 
     /** These options with the program's statements written in {@code d}'s dialects (the spelling hook, D1.0: the
      *  compatibility edge's, {@code com.legend.edge.PureText}, for PCT and the corpus). */
     public PlanningOptions withSpelling(com.legend.database.SqlSpelling d) {
-        return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, d, options);
-    }
-
-    /** Lite's own planning options for every query of the body ({@link com.legend.platform.PlanOption}). */
-    public PlanningOptions withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
-        return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, spelling, o);
+        return new PlanningOptions(edge, stores, features, judgeMode, judgingRules, options, d);
     }
 }

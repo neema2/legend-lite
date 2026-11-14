@@ -175,8 +175,8 @@ class PlanMakerTest {
     void eachDatabaseWritesItsOwnDatePlaceholder() {
         // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
         // (ClickHouse's raise as the timeseries branch writes it since #81's final review, 2026-11-09: each ends in an
-        // empty text of a rand(n) of its own, no materialize -- main's #95 merged in 2026-11-13; its message the raise's
-        // KIND, D1.1's, since main 3a217086a (#81) merged into claude/total-wall-e, 2026-11-14)
+        // empty text of a rand(n) of its own, no materialize -- main's #95 merged in 2026-11-13; with phase D's kind,
+        // VALUE_NOT_HELD, merged 2026-11-14)
         java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
         for (String line : """
                 Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))

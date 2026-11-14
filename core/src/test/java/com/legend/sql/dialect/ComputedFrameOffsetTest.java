@@ -52,7 +52,10 @@ class ComputedFrameOffsetTest {
             assertTrue(sql.matches("(?s).*ROWS BETWEEN \\(.*3.* - .*1.*\\) PRECEDING AND CURRENT ROW.*"),
                     t + ": " + sql);
             assertTrue(sql.contains("CASE WHEN"), t + ": the check: " + sql);
-            assertTrue(sql.contains(FrameGuard.ORDER) && sql.contains("S170"), t + ": both refusals: " + sql);
+            // both refusals, by their kinds (phase D's D1.1, merged with #81 2026-11-14: the edge words them, legend-pure's
+            // sentence and S170's, RaiseTextTest.theEdgeWritesLegendPuresSentence)
+            assertTrue(sql.contains("WINDOW_FRAME_INVERTED") && sql.contains("WINDOW_FRAME_OFFSET_INVALID"),
+                    t + ": both refusals: " + sql);
         }
     }
 

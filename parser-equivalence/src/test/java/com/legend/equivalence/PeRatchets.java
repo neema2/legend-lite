@@ -86,7 +86,12 @@ public final class PeRatchets {
                     + " tests')",
             "own_corpus.matched 3222/3246 -> 3257 (2026-11-14, merged main 3a217086a (#81) into claude/total-wall-e, measured on"
                     + " the merged tree):"
-                    + " both sides' models joined, 3222 + 3246 - 3211 = 3257, not one side's number");
+                    + " both sides' models joined, 3222 + 3246 - 3211 = 3257, not one side's number",
+            "own_corpus.matched 3246 -> 3251 (2026-11-14, main 3a217086a (#81) merged into claude/total-wall-d,"
+                    + " whose own tests had not been measured: phase D's, the edge's and the raise kinds'), as measured"
+                    + " on the merged tree, not attributed",
+            "own_corpus.matched 3257/3251 -> 3257 (2026-11-14, claude/total-wall-d 392ce271b merged into"
+                    + " claude/total-wall-e, as measured): D's added models were already E's, through E's earlier merge of D");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

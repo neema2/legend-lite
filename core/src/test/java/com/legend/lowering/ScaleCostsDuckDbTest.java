@@ -240,9 +240,9 @@ class ScaleCostsDuckDbTest {
     void aLiteralDivisorNeedsNoGuard() throws SQLException {
         // the literal's token is compared, nothing computed (2026-10-30: Wilder's (w - 1) / w was guarded at each
         // of RSI's 64 terms); a divisor of 0, or one read from a row, keeps the guard that raises Pure's error. Pure's
-        // Integer / Integer (a SQL island's integer division is SQL's, not this rule). The guard is counted by its raise's
-        // KIND, DIVIDE_BY_ZERO: a product raise writes its kind and the edge words it (D1.1; merged main 3a217086a
-        // (#81) into claude/total-wall-e, 2026-11-14)
+        // Integer / Integer (a SQL island's integer division is SQL's, not this rule)
+        // the guard counted by its raise's kind (phase D's D1.1, merged with main's #81 2026-11-14: the product writes
+        // DIVIDE_BY_ZERO; until then Pure's sentence, "Division by zero", which the edge still writes)
         String rows = "|#>{store::HR.EMP}#->filter(r|$r.age->isNotEmpty())";
         String byTwo = rows + "->extend(~h: r|$r.age->toOne() / 2)->select(~[ID, h])->sort(~ID->ascending())";
         assertEquals(0, count(renderQuery(byTwo), "DIVIDE_BY_ZERO"), renderQuery(byTwo));
