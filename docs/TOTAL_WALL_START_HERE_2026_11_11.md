@@ -1041,10 +1041,14 @@ In order. Nothing here is in the A/B/C PR.
          `;`-separated statements. It is on main too; nothing is in production.
        - It also takes C5's typed identifiers and wider fuzzing, `databaseFromCatalog`'s raw `path`, the vacuous fuzz
          pins, the loose `IllegalArgumentException` rule, and `RawSqlBoundary`.
-     - **S307, reopened for the user:** engine's API refuses a seed query holding executeInDb (C4's runner probe), but
-       legend-pure registers `ExecuteInDb` natives in both runtimes, so pure's test road likely runs the read. The row
-       says "as upstream's"; C4 reads pure's path before the user rules (a) refuse with an honest row or (b) keep the
-       read in seed generation.
+     - **S307, RULED by the user, 2026-11-14: (a), lite refuses.**
+       - legend-engine's API refuses a seed query holding executeInDb (C4's runner probe).
+       - legend-pure runs it: C4 read the pinned sources, `testDataGeneration.pure` keeps the let and
+         `router_execution`'s `reactivate` evaluates it.
+       - Lite's test road keeps a body's own executeInDb reads, but its seed generation refuses them by name.
+       - The row says so; nothing uses the pure behaviour, and seed generation never plans raw SQL.
+     - **The user, 2026-11-14: C4's PR is the number one priority,** D and E's decisions next. The other streams
+       finish their main merges and hold.
    - **Moved to D's batch** (compatibility questions C4 only surfaced):
      - the engine-text printer's name rule: (a) engine's exactly, (b) lite's quoting plus a row, or (c) engine's where
        engine spells a name right and a refusal by name where it would mangle or break it (the orchestrator recommends
