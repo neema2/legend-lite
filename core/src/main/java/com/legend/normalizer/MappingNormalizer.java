@@ -1095,6 +1095,15 @@ public final class MappingNormalizer {
                 classA, classB, p0, p1, t0, t1);
         String aVar = pair[0];
         String bVar = pair[1];
+        // the lambda's two parameters one name (`{p: A[1], p: B[1]| ...}`, which the grammar admits): one variable
+        // cannot be both ends. Refused by name, as the parameter count above is; until 2026-11-14 the maps below
+        // threw a raw "duplicate key" IllegalArgumentException (ruling 29, the normalizer slice's step 1;
+        // RefusalsNotCrashesTest). ModelJoinNesting.compose relies on it.
+        if (aVar.equals(bVar)) {
+            throw new NotImplementedException(
+                    "ModelJoin for '" + mj.associationName() + "' needs two distinct lambda parameter names;"
+                    + " got [" + p0.name() + ", " + p1.name() + "]");
+        }
         Variable srcRow = new Variable("srcRow");
         Variable tgtRow = new Variable("tgtRow");
         Map<String, Variable> rowByVar = Map.of(aVar, srcRow, bVar, tgtRow);

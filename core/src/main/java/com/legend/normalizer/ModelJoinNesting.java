@@ -50,6 +50,14 @@ final class ModelJoinNesting {
         // subselect: person ⟕ address on Person_Address's condition),
         // and the read rewrites to the nested target's column on the
         // composite row (task #78).
+        // THE INVARIANT (2026-11-14, ruling 29, the normalizer slice's step 1): the two end variables are two names --
+        // compose's one caller, MappingNormalizer.synthesizeModelJoinMapping, refuses a lambda whose parameters share
+        // a name before it composes, so the Set.of below never meets a duplicate (it threw a raw IllegalArgumentException
+        // from a user's text until that refusal)
+        if (aVar.equals(bVar)) {
+            throw new IllegalStateException("ModelJoinNesting.compose: the two end variables are one name '" + aVar
+                    + "'; synthesizeModelJoinMapping refuses that before it composes (an internal error)");
+        }
         ValueSpecification pipeA = pipeA0;
         ValueSpecification pipeB = pipeB0;
         Map<String, Map<String, Map<String, String>>> nestedCols =
@@ -110,6 +118,20 @@ final class ModelJoinNesting {
                     ? nn1.name() : null;
             String[] nPair = pairEndVars(nmj.associationName(), nad,
                     endCls, nestedCls, np0, np1, nt0, nt1);
+            // Two refusals where the maps below threw until 2026-11-14 (ruling 29, the normalizer slice's step 1;
+            // RefusalsNotCrashesTest), in this order as those maps were built: the nested lambda's two parameters one
+            // name (a raw "duplicate key" IllegalArgumentException), as the top-level ModelJoin refuses it; the nested
+            // end mapped by a Pure set, which has no column view (a raw NullPointerException), in the top-level
+            // ModelJoin's words for a Pure-set end.
+            if (nPair[0].equals(nPair[1])) {
+                throw new NotImplementedException("nested ModelJoin '" + nmj.associationName()
+                        + "' needs two distinct lambda parameter names; got [" + np0.name() + ", " + np1.name() + "]");
+            }
+            if (nEnd.pure()) {
+                throw new NotImplementedException("nested ModelJoin '" + nmj.associationName()
+                        + "' has a Pure-set end — the property-space route covers XStore only so far (mapping="
+                        + md.qualifiedName() + ")");
+            }
             Variable j0 = new Variable("_mj0");
             Variable j1 = new Variable("_mj1");
             ValueSpecification nCond = RelationReads.rewrite(

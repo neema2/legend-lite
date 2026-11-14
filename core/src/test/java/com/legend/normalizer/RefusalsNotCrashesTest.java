@@ -263,4 +263,86 @@ class RefusalsNotCrashesTest {
         assertEquals("ModelJoin mapping references unknown association 'Firm_Person'; mapping=t::M",
                 modelJoin.context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow());
     }
+
+    // ---- MappingNormalizer and ModelJoinNesting: a ModelJoin lambda's parameters, and a nested hop's end ----
+
+    private static final String MODEL_JOIN_PARAMETERS_OF_ONE_NAME = """
+            Class t::Person { name: String[1]; firmId: Integer[1]; }
+            Class t::Firm { id: Integer[1]; }
+            Association t::Firm_Person { firm: t::Firm[0..1]; employees: t::Person[*]; }
+            ###Relational
+            Database t::DB ( Table PERSON (NAME VARCHAR(100), FIRM_ID INTEGER) Table FIRM (ID INTEGER PRIMARY KEY) )
+            ###Mapping
+            Mapping t::M (
+              t::Person: Relational { ~mainTable [t::DB] PERSON name: [t::DB] PERSON.NAME, firmId: [t::DB] PERSON.FIRM_ID }
+              t::Firm: Relational { ~mainTable [t::DB] FIRM id: [t::DB] FIRM.ID }
+              t::Firm_Person: ModelJoin { {p: t::Firm[1], p: t::Person[1]|$p.id == $p.firmId} }
+            )
+            """;
+
+    private static final String NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME = """
+            Class t::A { id: Integer[1]; bId: Integer[1]; }
+            Class t::B { id: Integer[1]; cName: String[1]; }
+            Class t::C { name: String[1]; }
+            Class t::S { name: String[1]; }
+            Association t::A_B { b: t::B[0..1]; as: t::A[*]; }
+            Association t::B_C { c: t::C[0..1]; bs: t::B[*]; }
+            ###Relational
+            Database t::DB ( Table TA (ID INTEGER PRIMARY KEY, B_ID INTEGER) Table TB (ID INTEGER PRIMARY KEY, C_NAME VARCHAR(100)) Table TC (NAME VARCHAR(100) PRIMARY KEY) )
+            ###Mapping
+            Mapping t::M (
+              t::A: Relational { ~mainTable [t::DB] TA id: [t::DB] TA.ID, bId: [t::DB] TA.B_ID }
+              t::B: Relational { ~mainTable [t::DB] TB id: [t::DB] TB.ID, cName: [t::DB] TB.C_NAME }
+              t::C: Relational { ~mainTable [t::DB] TC name: [t::DB] TC.NAME }
+              t::A_B: ModelJoin { {x: t::A[1], y: t::B[1]|($x.bId == $y.id) && ($y.c.name == 'n')} }
+              t::B_C: ModelJoin { {u: t::B[1], u: t::C[1]|$u.cName == $u.name} }
+            )
+            """;
+
+    private static final String NESTED_MODEL_JOIN_TO_A_PURE_END = """
+            Class t::A { id: Integer[1]; bId: Integer[1]; }
+            Class t::B { id: Integer[1]; cName: String[1]; }
+            Class t::C { name: String[1]; }
+            Class t::S { name: String[1]; }
+            Association t::A_B { b: t::B[0..1]; as: t::A[*]; }
+            Association t::B_C { c: t::C[0..1]; bs: t::B[*]; }
+            ###Relational
+            Database t::DB ( Table TA (ID INTEGER PRIMARY KEY, B_ID INTEGER) Table TB (ID INTEGER PRIMARY KEY, C_NAME VARCHAR(100)) )
+            ###Mapping
+            Mapping t::M (
+              t::A: Relational { ~mainTable [t::DB] TA id: [t::DB] TA.ID, bId: [t::DB] TA.B_ID }
+              t::B: Relational { ~mainTable [t::DB] TB id: [t::DB] TB.ID, cName: [t::DB] TB.C_NAME }
+              t::C: Pure { ~src t::S name: $src.name }
+              t::A_B: ModelJoin { {x: t::A[1], y: t::B[1]|($x.bId == $y.id) && ($y.c.name == 'n')} }
+              t::B_C: ModelJoin { {u: t::B[1], v: t::C[1]|$u.cName == $v.name} }
+            )
+            """;
+
+    @Test
+    @DisplayName("a ModelJoin's lambda parameters of one name, and a nested hop to a Pure end, are refused, not JDK collection errors")
+    void aModelJoinsParametersAndANestedHopsEndAreRefused() {
+        String top = "ModelJoin for 't::Firm_Person' needs two distinct lambda parameter names; got [p, p]";
+        assertEquals(List.of("[7:1] " + top), strict(MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
+        Compiler.BuiltModule topModule = module(MODEL_JOIN_PARAMETERS_OF_ONE_NAME);
+        assertEquals(Map.of(), topModule.walls());
+        assertEquals(top, topModule.context().mappingAssociationPoison("t::M", "t::Firm_Person").orElseThrow());
+
+        String nested = "nested ModelJoin 't::B_C' needs two distinct lambda parameter names; got [u, u]";
+        assertEquals(List.of("[10:1] " + nested), strict(NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME));
+        Compiler.BuiltModule nestedModule = module(NESTED_MODEL_JOIN_PARAMETERS_OF_ONE_NAME);
+        assertEquals(Map.of(), nestedModule.walls());
+        assertEquals(nested, nestedModule.context().mappingAssociationPoison("t::M", "t::A_B").orElseThrow());
+        assertEquals("ModelJoin for 't::B_C' needs two distinct lambda parameter names; got [u, u]",
+                nestedModule.context().mappingAssociationPoison("t::M", "t::B_C").orElseThrow());
+
+        String pureEnd = "nested ModelJoin 't::B_C' has a Pure-set end — the property-space route covers XStore"
+                + " only so far (mapping=t::M)";
+        assertEquals(List.of("[10:1] " + pureEnd), strict(NESTED_MODEL_JOIN_TO_A_PURE_END));
+        Compiler.BuiltModule pureModule = module(NESTED_MODEL_JOIN_TO_A_PURE_END);
+        assertEquals(Map.of(), pureModule.walls());
+        assertEquals(pureEnd, pureModule.context().mappingAssociationPoison("t::M", "t::A_B").orElseThrow());
+        assertEquals("ModelJoin association 't::B_C' has a Pure-set end — the property-space route covers XStore"
+                + " only so far (mapping=t::M)",
+                pureModule.context().mappingAssociationPoison("t::M", "t::B_C").orElseThrow());
+    }
 }
