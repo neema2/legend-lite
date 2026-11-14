@@ -40,11 +40,13 @@ public final class IngestTopics {
     }
 
     /**
-     * One topic: the landing table it feeds ({@code table}), its name, its records' columns, the key a compacted
-     * topic keeps each latest record of (empty: an appended topic), and an appended topic's retention -- its latest
-     * {@code keepRows} records, or those of the last {@code keepFor} (an ISO 8601 duration) -- null for none.
+     * One topic: the landing table it feeds ({@code table}), the store its topic is a table of ({@code store}: the
+     * topic store, or the ingest for its own topic -- the store a runtime binds to the topic's brokers), its name, its
+     * records' columns, the key a compacted topic keeps each latest record of (empty: an appended topic), and an
+     * appended topic's retention -- its latest {@code keepRows} records, or those of the last {@code keepFor} (an ISO
+     * 8601 duration) -- null for none.
      */
-    public record Topic(String table, String topic, List<Column> columns, List<String> key,
+    public record Topic(String table, String store, String topic, List<Column> columns, List<String> key,
             @com.legend.base.Nullable Long keepRows, @com.legend.base.Nullable String keepFor) {
         public Topic {
             columns = List.copyOf(columns);
@@ -83,6 +85,7 @@ public final class IngestTopics {
         String where = "the ingest " + ingest.qualifiedName() + "'s dataset " + d.name();
         IngestDefinition.TableRead read = IngestDefinition.tableRead(d);
         String name = read != null ? read.table() : ingest.qualifiedName().replace("::", ".") + "." + d.name();
+        String store = read != null ? read.database() : ingest.qualifiedName();
         if (!TOPIC.matcher(name).matches()) {
             throw new IllegalArgumentException(where + " reads the topic '" + name + "', which is no Kafka topic's name"
                     + " (letters, digits, '.', '_' and '-', at most 249)");
@@ -107,6 +110,6 @@ public final class IngestTopics {
                 case Protocol.PIngestLast l -> duration = l.duration();
             }
         }
-        return new Topic(d.name(), name, columns, keyed ? d.primaryKey() : List.of(), rows, duration);
+        return new Topic(d.name(), store, name, columns, keyed ? d.primaryKey() : List.of(), rows, duration);
     }
 }

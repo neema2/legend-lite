@@ -1785,6 +1785,13 @@ public final class Deephaven extends AnsiSqlRenderer {
         throw new DialectCapability("a data payload reached Deephaven: a server reads no rows a plan carries");
     }
 
+    /** {@inheritDoc} A Deephaven server's tables are made by the startup program the planner writes (DeephavenProgram):
+     *  each stream's a subscription to its topic (the desk roadmap's B2). */
+    @Override
+    public boolean tablesMadeAtStartup() {
+        return true;
+    }
+
     /** The Java type a Deephaven column holds a store's declared column as (DH16's one mapping): what a server's table
      *  is checked against, and what a topic's reader takes a dataset's column as (the desk roadmap's B1). A type no
      *  Deephaven column holds is refused by name. */

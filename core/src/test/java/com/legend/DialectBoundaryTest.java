@@ -114,7 +114,9 @@ class DialectBoundaryTest {
             // 14 -> 15 (2026-10-22, main's merge): MongoDB executes (the branch's MongoDB line, 2026-10-17), one arm
             // 15 -> 17 (2026-10-23, docs/DEEPHAVEN_PLAN_2026_10_22.md DH21): Deephaven's dialect arm, and its arm in who
             // executes a plan (a host: the browser tab)
-            "Databases.java", 17,           // the owner: a declared type's dialect
+            // 17 -> 19 (2026-11-14, the desk roadmap's B2): Kafka, a topic store's brokers -- its arm in who executes
+            // (no query ever runs there) and its dialect's refusal, by name
+            "Databases.java", 19,           // the owner: a declared type's dialect
             // Sessions.java 24 -> 0, row deleted, and StorelessRuntime.java 5 -> 0, row deleted (2026-10-16, the
             // dialect program's Phase 5): each type's product name, URL, opening and storeless declaration are its
             // connector's; Connectors is the registry, one arm per type, as Databases is the dialects'
@@ -154,7 +156,8 @@ class DialectBoundaryTest {
             // Athena, Aurora, Oracle, Spanner, Databricks, BigQuery), as upstream's grammar does
             // 12 -> 13 (2026-10-22, docs/DEEPHAVEN_PLAN_2026_10_22.md L1): the Deephaven specification keyword, parsed
             // by name as the other specification keywords are
-            "ConnectionSectionGrammar.java", 13,
+            // 13 -> 14 (2026-11-14, the desk roadmap's B2): the Kafka specification's keyword, read as Deephaven's is
+            "ConnectionSectionGrammar.java", 14,
             // 0 -> 1 (2026-10-13, Phase 0, the same widening): the PMCD reader's connection kinds by their protocol names
             "PmcdParser.java", 1,
             // 0 -> 1 (2026-10-17, docs/MONGODB_PLAN_2026_10_16.md D4): not a new line -- the class mapping's wire

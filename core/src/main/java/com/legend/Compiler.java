@@ -811,8 +811,16 @@ public final class Compiler {
                         + " tables as written, not as they map them");
             }
         }
+        // the connections a query runs on: a topic store's brokers are where a stream's rows come from, never a query's
+        // target (the desk roadmap's B2: the desk's Deephaven runtime binds its topic stores' Kafka beside the server)
+        var queried = new java.util.LinkedHashMap<String, com.legend.model.ConnectionDefinition>();
+        connections.forEach((f, c) -> {
+            if (com.legend.database.Databases.answersQueries(c.databaseType())) {
+                queried.put(f, c);
+            }
+        });
         var types = new java.util.TreeMap<String, com.legend.model.ConnectionDefinition.DatabaseType>();
-        connections.forEach((f, c) -> types.put(f, c.databaseType()));
+        queried.forEach((f, c) -> types.put(f, c.databaseType()));
         var distinct = new java.util.TreeSet<>(types.values());
         if (distinct.size() > 1) {
             throw new com.legend.error.NotImplementedException("runtime '" + runtimeFqn + "' mixes databases "
@@ -820,7 +828,7 @@ public final class Compiler {
         }
         if (!distinct.isEmpty()) {
             return new com.legend.database.Target.Declared(distinct.first(),
-                    java.util.List.copyOf(connections.values()));
+                    java.util.List.copyOf(queried.values()));
         }
         if (modelData) {
             return new com.legend.database.Target.Platform();

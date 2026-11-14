@@ -2803,22 +2803,20 @@ browser_test(
     },
 )
 
-# THE WORLD AS A FEED, BEHIND THE DOOR (docs/DESK_DATA_ROADMAP_2026_10_29.md B1's done-when): the pinned Deephaven with a
-# test's probe as its application (test/deephaven/door/: each topic consumed from its beginning by Deephaven's own Kafka
-# reader), the desk model's topics as the planner answers them, the door (demo/market-sim/door) holding them, and the
-# market world writing every table a stream reads through it -- every row read once. Manual, as the market lane is.
+# THE DESK'S STREAM TABLES ON DEEPHAVEN, MADE BY THE PLATFORM (docs/DESK_DATA_ROADMAP_2026_10_29.md B1's and B2's
+# done-when): the market world behind the door (demo/market-sim/door, the desk model's topics), and the pinned Deephaven
+# running the startup program the planner generates from the model (the test writes it as the server's application, a
+# check beside it: test/deephaven/door/check.groovy) -- each table typed as its store declares it, every row read once.
+# The fixture takes its application from the test (--jvm_flag). Manual, as the market lane is.
 legend_java_binary(
     name = "deephaven_door_fixture",
     testonly = True,
     data = [
-        "test/deephaven/door/door.app",
-        "test/deephaven/door/door.groovy",
         "@embedded_deephaven//:deephaven",
         "@embedded_deephaven//:deephaven/DEEPHAVEN_ROOT",
     ],
     jvm_flags = [
         "-Dembedded.deephaven.root=$(rlocationpath @embedded_deephaven//:deephaven/DEEPHAVEN_ROOT)",
-        "-Dembedded.deephaven.application=$(rlocationpath test/deephaven/door/door.app)",
     ],
     main_class = "com.legend.testing.EmbeddedDeephaven",
     runtime_deps = ["//testing"],
@@ -2841,6 +2839,7 @@ node_test(
         "demo/deephaven/market/environments.pure",
         "demo/deephaven/market/market.pure",
         "test/catalog-builder.ts",
+        "test/deephaven/door/check.groovy",
         "test/host/node.ts",
         "test/lite-compiler.ts",
         ":deephaven_door_fixture",
@@ -2852,6 +2851,7 @@ node_test(
     ],
     entry_point = "test/deephaven/door-world.test.ts",
     env = {
+        "DOOR_CHECK": "$(rlocationpath test/deephaven/door/check.groovy)",
         "DOOR_FIXTURE": "$(rlocationpath :deephaven_door_fixture_executable)",
         "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
         "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",

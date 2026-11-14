@@ -73,7 +73,7 @@ public final class Databases {
     }
 
     /** Who runs a plan for a database: the platform's own sessions, the host that embeds the planner, or nobody yet. */
-    private enum Runs { PLATFORM, HOST, NONE }
+    private enum Runs { PLATFORM, HOST, NONE, NEVER }
 
     /** Who executes on {@code type}: {@link #dialect} gives one exactly when someone does (a test holds the two
      *  together). */
@@ -85,9 +85,15 @@ public final class Databases {
             case Deephaven -> Runs.HOST;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
                  Aurora -> Runs.NONE;
-            // a topic store's brokers: no query runs there (a stream's ingest reads its topics; the desk roadmap's B2)
-            case Kafka -> Runs.NONE;
+            // a topic store's brokers: no query ever runs there (a stream's ingest reads its topics; the desk roadmap's B2)
+            case Kafka -> Runs.NEVER;
         };
+    }
+
+    /** Whether a query runs on {@code type}'s connections: every database's but a topic store's brokers (Kafka), which
+     *  are where a stream's rows come from (the desk roadmap's B2), never a query's target. */
+    public static boolean answersQueries(DatabaseType type) {
+        return runs(type) != Runs.NEVER;
     }
 
     /** The dialect a query on {@code type} is planned and executed with. */

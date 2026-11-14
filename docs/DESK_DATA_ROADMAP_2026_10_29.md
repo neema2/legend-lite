@@ -205,6 +205,19 @@ Python model reads `###Lakehouse` (its generated files byte-identical).
   - DH16 stays and checks the generated tables.
   - It is installed by the test fixture (as its application) and, on a real server, by an internal user. The licence's
     section 4 says no third party may define input-table schemas.
+- **Built (2026-11-14), the program:** `planner/DeephavenStartup` writes it from the model for a runtime -- each store
+  the runtime binds to a server whose dialect makes its tables at startup (`SqlDialect.tablesMadeAtStartup`:
+  Deephaven's), its streams' tables (`IngestTopics`), each topic read from the brokers the runtime binds its store to:
+  a **Kafka connection**, lite's own type as Deephaven is (`type: Kafka; specification: Kafka { bootstrapServers;
+  format; schemaRegistry; }`, the design's §4.6), which no query runs on (`Databases.answersQueries`; DataCube's
+  `engineOf` leaves it out too). The Deephaven dialect renders it (`sql/dialect/DeephavenProgram`): `consumeToTable`
+  from the topic's beginning, a ring of the retention or `blink` then `lastBy(key)`, a day read as text and made a
+  `LocalDate` on the server, the declared columns alone published under the table's name. A time retention and an Avro
+  topic are refused by name (not generated yet). The desk's environments bind the four topic stores (the three topic
+  databases and the world's status ingest) to the door at 127.0.0.1:19092. Answered by the `deephaven` request's op
+  `program`. **Measured** (`//datacube:deephaven_door_test`): the pinned Deephaven runs the generated program for the
+  desk's Deephaven runtime with the feed behind the door -- all nine tables typed as the store declares them, every
+  appended row once (trades 12,615 of 12,615), each keyed table one row a key (quotes 38, orders 17, RFQs 46).
 - **Done when:**
   - `deephaven_market_test` and the desk lane on Deephaven pass;
   - the screens still show the same rows on DuckDB and Deephaven (P4);

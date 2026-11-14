@@ -633,6 +633,7 @@ public final class Boundary {
         for (com.legend.planner.IngestTopics.Topic t : topics) {
             java.util.Map<String, Object> o = new java.util.LinkedHashMap<>();
             o.put("table", t.table());
+            o.put("store", t.store());
             o.put("topic", t.topic());
             o.put("columns", t.columns().stream().map(c -> {
                 java.util.Map<String, Object> col = new java.util.LinkedHashMap<>();
@@ -883,6 +884,9 @@ public final class Boundary {
             // each landing table's rows to its topic, and the door keeps each as its dataset lands)
             case "topics" -> MODELS.withText(a.getString("model"), ctx -> topics(
                     com.legend.planner.IngestTopics.of(ctx, a.getString("database"))));
+            // the startup program of the Deephaven servers a runtime names (B2): Groovy for the server's application
+            case "program" -> MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(
+                    java.util.Map.of("program", com.legend.planner.DeephavenStartup.program(ctx, a.getString("runtime")))));
             case "keys" -> com.legend.json.Json.toCompact(java.util.Map.of("keys",
                     com.legend.deephaven.DeephavenWire.keys(a.getString("plan"))));
             case "send" -> {

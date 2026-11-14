@@ -62,6 +62,8 @@ class IngestTopicsTest {
                 topics.stream().map(IngestTopics.Topic::topic).toList());
         IngestTopics.Topic trades = topics.get(0);
         assertEquals("TRADES", trades.table());
+        assertEquals("t::Topics", trades.store(), "the topic store its brokers are bound to");
+        assertEquals("t::Status", topics.get(2).store(), "the ingest's own topic: the ingest");
         assertEquals(List.of(new IngestTopics.Column("ID", "java.lang.String"),
                 new IngestTopics.Column("AT", "java.time.Instant"), new IngestTopics.Column("PX", "double"),
                 new IngestTopics.Column("N", "int"), new IngestTopics.Column("ODD", "java.lang.Boolean"),

@@ -234,6 +234,12 @@ public interface SqlDialect {
         return true;
     }
 
+    /** Whether a server of this database makes its tables by a startup program the planner writes from the model
+     *  (Deephaven's: the desk roadmap's B2, DeephavenProgram) rather than by a plan's statements. Default: not. */
+    default boolean tablesMadeAtStartup() {
+        return false;
+    }
+
     /** Whether this database runs IN THIS PROCESS (an embedded engine, a private instance of which the platform opens:
      *  H2, DuckDB, SQLite) or on a SERVER: a plan writes the system metamodel store's tables as its target's setup on
      *  the one and as its sessions' own TEMPORARY tables on the other (the plan path program's step 9, 2026-10-19; until

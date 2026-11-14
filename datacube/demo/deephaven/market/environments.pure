@@ -39,6 +39,38 @@ RelationalDatabaseConnection market::DeephavenStatus
   auth: PreSharedKey { keyVaultReference: 'deephaven.psk'; };
 }
 
+// THE TOPICS' BROKERS, on this machine: the market world behind legend-lite's own Kafka door (bazel run
+// //datacube:market_feed, docs/DESK_DATA_ROADMAP_2026_10_29.md B1) -- what the Deephaven server's startup program
+// subscribes to (B2); in the tab nothing is consumed, the world writes the landing tables itself
+RelationalDatabaseConnection market::TickerPlant
+{
+  store: tickerplant::Topics;
+  type: Kafka;
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  auth: Test;
+}
+RelationalDatabaseConnection market::Newswire
+{
+  store: newswire::Topics;
+  type: Kafka;
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  auth: Test;
+}
+RelationalDatabaseConnection market::OrderSystem
+{
+  store: oms::Topics;
+  type: Kafka;
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  auth: Test;
+}
+RelationalDatabaseConnection market::WorldTopic
+{
+  store: market::WorldStatus;
+  type: Kafka;
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  auth: Test;
+}
+
 ###Runtime
 Runtime market::InTabRuntime
 {
@@ -49,7 +81,9 @@ Runtime market::InTabRuntime
 Runtime market::DeephavenRuntime
 {
   mappings: [ stress::AllMapping ];
-  connections: [ store::DB: [ live: market::Deephaven ], market::World: [ status: market::DeephavenStatus ] ];
+  connections: [ store::DB: [ live: market::Deephaven ], market::World: [ status: market::DeephavenStatus ],
+    tickerplant::Topics: [ tickerplant: market::TickerPlant ], newswire::Topics: [ newswire: market::Newswire ],
+    oms::Topics: [ oms: market::OrderSystem ], market::WorldStatus: [ world: market::WorldTopic ] ];
 }
 
 ###DataSpace

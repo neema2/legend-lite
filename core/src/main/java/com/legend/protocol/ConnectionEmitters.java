@@ -212,30 +212,9 @@ final class ConnectionEmitters {
                 srcInfo(b, sq.sourceInformation());
                 b.append('}');
             }
-            case Protocol.PKafkaSpec k -> {
-                // lite's own, as Deephaven (docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6)
-                b.append("{\"_type\":\"kafka\",\"bootstrapServers\":");
-                str(b, k.bootstrapServers());
-                b.append(",\"format\":");
-                str(b, k.format());
-                if (k.schemaRegistry() != null) {
-                    b.append(",\"schemaRegistry\":");
-                    str(b, k.schemaRegistry());
-                }
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, k.sourceInformation());
-                b.append('}');
-            }
-            case Protocol.PDeephavenSpec dh -> {
-                // lite's own, as SQLite (docs/DEEPHAVEN_PLAN_2026_10_22.md §4; ONE_CONNECTION_DESK D1)
-                b.append("{\"_type\":\"deephaven\",\"host\":");
-                str(b, dh.host());
-                b.append(",\"port\":").append(dh.port());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, dh.sourceInformation());
-                b.append(",\"useTls\":").append(dh.useTls());
-                b.append('}');
-            }
+            // lite's own (docs/DEEPHAVEN_PLAN_2026_10_22.md §4; DEEPHAVEN_TABLES_AND_SOURCES §4.6; ONE_CONNECTION_DESK D1)
+            case Protocol.PKafkaSpec k -> kafkaSpec(b, k);
+            case Protocol.PDeephavenSpec dh -> deephavenSpec(b, dh);
             case Protocol.PH2EmbeddedSpec eh -> {
                 b.append("{\"_type\":\"h2Embedded\",\"autoServerMode\":")
                         .append(eh.autoServerMode());
@@ -528,5 +507,31 @@ final class ConnectionEmitters {
             }
             default -> throw new IllegalStateException("not a vendor datasource spec: " + d.getClass().getSimpleName());
         }
+    }
+
+    /** A Kafka datasource spec's JSON: lite's own, as Deephaven's. */
+    private static void kafkaSpec(StringBuilder b, Protocol.PKafkaSpec k) {
+        b.append("{\"_type\":\"kafka\",\"bootstrapServers\":");
+        str(b, k.bootstrapServers());
+        b.append(",\"format\":");
+        str(b, k.format());
+        if (k.schemaRegistry() != null) {
+            b.append(",\"schemaRegistry\":");
+            str(b, k.schemaRegistry());
+        }
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, k.sourceInformation());
+        b.append('}');
+    }
+
+    /** A Deephaven datasource spec's JSON: lite's own, as SQLite's. */
+    private static void deephavenSpec(StringBuilder b, Protocol.PDeephavenSpec dh) {
+        b.append("{\"_type\":\"deephaven\",\"host\":");
+        str(b, dh.host());
+        b.append(",\"port\":").append(dh.port());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, dh.sourceInformation());
+        b.append(",\"useTls\":").append(dh.useTls());
+        b.append('}');
     }
 }

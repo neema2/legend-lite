@@ -94,7 +94,9 @@ function connectionOf(elements: readonly unknown[], runtime: string, store: stri
  *  binding a Deephaven server beside another database, or two servers, is refused: no query is run across two. */
 export type EngineOf = { readonly kind: 'deephaven'; readonly server: DeephavenServerOf } | { readonly kind: 'tab' };
 
-export function engineOf(runtime: string, connections: readonly StoreConnection[]): EngineOf {
+export function engineOf(runtime: string, all: readonly StoreConnection[]): EngineOf {
+  // a topic store's brokers (Kafka) are where a stream's rows come from, never where a grid runs (the desk roadmap's B2)
+  const connections = all.filter((c) => c.databaseType !== 'Kafka');
   const servers = connections.filter((c) => c.deephaven !== undefined);
   if (servers.length === 0) return { kind: 'tab' };
   if (servers.length < connections.length) {
