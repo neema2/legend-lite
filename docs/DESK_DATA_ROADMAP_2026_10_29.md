@@ -3,6 +3,11 @@
 **Status: AGREED 2026-10-29 but for decision P (§2); work under way.** Written to read with the user first (the
 user, 2026-10-29: "Let's write down full roadmap so we can start after we look at it together").
 
+**2026-11-14: a redesign is proposed, not ratified:** docs/DEPLOYMENT_DESIGN_2026_11_14.md. If ratified it
+replaces B2's generated Groovy program with a plan of data and a fixed loader, B3's pulls and decision P with the
+masters publishing to Kafka, and the ingest words `Stream`, `Pull`, `LatestByKey` and `retention` with upstream's
+Lakehouse words; it adds one element, a deployment. Read it before working on B2 to B4.
+
 This orders the work of the data products design, docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md ("the design"). It
 also takes in what is left of the one-connection plan (docs/ONE_CONNECTION_DESK_2026_10_28.md: steps 6 and 7, "Next
 (D6)", "Last") and the open Deephaven items (docs/DEEPHAVEN_START_HERE.md). Sizes are estimates, not measures.

@@ -328,6 +328,11 @@ every row once. B2's last done-when, the market and desk lanes on that program, 
 reference tables from its own world, and switching the streams alone would mix two worlds on one desk. B3 waits on
 decision P (how pulled reference data reaches Deephaven; recommended (c), a keyed topic through the door).
 
+**2026-11-14: a redesign is proposed, not ratified:** docs/DEPLOYMENT_DESIGN_2026_11_14.md. If ratified it
+replaces B2's generated Groovy program with a plan of data and a fixed loader, B3's pulls and decision P with the
+masters publishing to Kafka, and the ingest words `Stream`, `Pull`, `LatestByKey` and `retention` with upstream's
+Lakehouse words; it adds one element, a deployment. Read it before working on B2 to B4.
+
 **docs/DESK_DATA_ROADMAP_2026_10_29.md**: every desk table declared by an ingest and made by the platform; on Deephaven
 a generated startup program fed through our own Kafka door, `market.groovy` deleted; the tab written directly; the desk
 a data space of data products. It orders docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md and takes over the
