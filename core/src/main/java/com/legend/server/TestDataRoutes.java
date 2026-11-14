@@ -106,6 +106,9 @@ final class TestDataRoutes {
             LambdaFunction query = resolved(request.getObj("query"));
             String mapping = request.getString("mapping");
             return ModelInput.of(request.getObj("model")).with(models, ctx -> {
+                // through the product's door before its scan, as the generator's other routes (the last list of
+                // 2026-11-14's observation: the census scanned first; it plans and runs nothing either way)
+                com.legend.planner.QueryDoor.refuseRawSql(com.legend.Compiler.query(ctx, query));
                 List<Map<String, Object>> tables = new ArrayList<>();
                 for (List<String> t : TestDataCensus.rows(ctx, query, mapping)) {
                     Map<String, Object> table = new LinkedHashMap<>();

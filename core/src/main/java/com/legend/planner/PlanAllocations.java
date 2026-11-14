@@ -422,12 +422,6 @@ public final class PlanAllocations {
         }
     }
 
-    /** The column-lineage chain's rows: the query lambda is chased from
-     * the scanColumns let through {@code buildPropertyTree($p.result)},
-     * {@code scanProperties(<lambda>.expressionSequence->at(0)->
-     * evaluateAndDeactivate(), …)} in the protocol lets; the columns are
-     * the ones the LOWERED plan reads (ScanColumns over
-     * Compiler.lowerResolved — the real pipeline's output). */
     /** Whether a lineage or plan scan's failure leaves the handle with no rows (its walls stand): every one the
      *  lowering raises but the raw-SQL refusal, which propagates by name (the final audit of 9af16fbe58's J7,
      *  2026-11-14: the catches swallowed Compiler.lowerResolved's refusal, answering "no rows"). */
@@ -435,6 +429,12 @@ public final class PlanAllocations {
         return !QueryDoor.isRawSqlRefusal(e);
     }
 
+    /** The column-lineage chain's rows: the query lambda is chased from
+     * the scanColumns let through {@code buildPropertyTree($p.result)},
+     * {@code scanProperties(<lambda>.expressionSequence->at(0)->
+     * evaluateAndDeactivate(), …)} in the protocol lets; the columns are
+     * the ones the LOWERED plan reads (ScanColumns over
+     * Compiler.lowerResolved — the real pipeline's output). */
     private static void registerColumnLineageRows(String letName,
             TypedNativeCall pn,
             List<TypedSpec> letPrefix,

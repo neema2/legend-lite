@@ -1588,7 +1588,6 @@ class PlannerSurfaceTest {
                 "the server's surface is not closed");
     }
 
-    /** The check names a route no row lists, a request field that carries SQL, and an HTTP route no row lists. */
     /** Lite's own routes, each closed over exactly its keys or open by its reason; a route whose closure is removed,
      *  widened, or a new lite route, is named. */
     @Test
@@ -1608,6 +1607,7 @@ class PlannerSurfaceTest {
                 liteRouteViolations(added, LITE_ROUTES));
     }
 
+    /** The check names a route no row lists, a request field that carries SQL, and an HTTP route no row lists. */
     @Test
     void theServersSurfaceRefusesAPlantedRoute() {
         Map<String, String> files = routeFiles();

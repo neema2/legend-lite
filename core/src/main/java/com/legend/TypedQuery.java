@@ -16,8 +16,10 @@ import java.util.List;
 /**
  * A query typed ONCE against a compiled model ({@link Compiler#query}; C2b,
  * docs/PLAN_EXECUTION_SPLIT_AND_DATABASE_OWNER_2026_10_03.md): its result type, the target it names, its typed
- * expression, its lowering and its plan all come off this one object. Each replaces a {@code Compiler} static that took
- * the model as TEXT and compiled it again per question.
+ * expression and its plan all come off this one object. Each replaces a {@code Compiler} static that took the model as
+ * TEXT and compiled it again per question. Its lowering does not: that is the planner's own step, reached from outside
+ * the planners by a listed entry alone ({@code ArchitectureTest.PLANNER_ENTRIES_ONLY}; the final audit of 9af16fbe58,
+ * 2026-11-14).
  */
 public final class TypedQuery {
 

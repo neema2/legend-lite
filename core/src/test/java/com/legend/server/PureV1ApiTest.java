@@ -800,12 +800,6 @@ class PureV1ApiTest {
         assertTrue(o.getString("message").contains("trades::h2::broken"), refused.json());
     }
 
-    /**
-     * legend-lite's own {@code /api/lite/v1/compilation/compile} (leg 6): the same whole-model compile, EVERY error
-     * answered, 200 -- both of two bodies that do not type, where legend-engine's route answers the first; an element
-     * error alone, since it stops the compile; none when the model compiles. A request it cannot read is refused as
-     * legend-engine's route refuses it.
-     */
     /** Lite's own #TS routes are closed: a key neither reads is refused by name, before anything is read (the final
      *  audit of 9af16fbe58's J4, 2026-11-14: they sat under the census's upstream-protocol row, open); the keys each
      *  reads are answered as before. */
@@ -824,6 +818,12 @@ class PureV1ApiTest {
         assertTrue(shown.json().contains("a jsonToTs/lambda request has no key sql"), shown.json());
     }
 
+    /**
+     * legend-lite's own {@code /api/lite/v1/compilation/compile} (leg 6): the same whole-model compile, EVERY error
+     * answered, 200 -- both of two bodies that do not type, where legend-engine's route answers the first; an element
+     * error alone, since it stops the compile; none when the model compiles. A request it cannot read is refused as
+     * legend-engine's route refuses it.
+     */
     @Test
     void liteCompile_answersEveryError_whereTheEnginesRouteAnswersTheFirst() {
         String lite = "/api/lite/v1/compilation/compile";

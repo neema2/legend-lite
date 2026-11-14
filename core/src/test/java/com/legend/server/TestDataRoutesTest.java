@@ -362,6 +362,25 @@ class TestDataRoutesTest {
         assertEquals(1, one.json().lines().filter(l -> l.matches("\\d+,.*")).count(), "its row alone: " + one.json());
     }
 
+    /** The census route passes the product's door first too: a raw read is refused by name before its scan (the last
+     *  list of 2026-11-14's observation). */
+    @Test
+    void theCensusRefusesARawReadByNameBeforeItsScan() {
+        String q = "{|let n = meta::relational::metamodel::execute::executeInDb('select 7 as A',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB)).columnNames;\n'x';}";
+        String body = "{\"query\":" + PureV1Api.grammarToJsonLambda(q, false).json() + ",\"model\":"
+                + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", model))
+                + ",\"mapping\":\"model::M\",\"runtime\":\"model::RT\"}";
+        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
+                (query, runtime, output) -> {
+                    throw new AssertionError("the census runs nothing");
+                });
+        assertTrue(a.status() != 200, a.json());
+        assertTrue(a.json().contains("an executeInDb\\u0027s SQL in a query") || a.json().contains(
+                "an executeInDb's SQL in a query"), a.json());
+    }
+
     /** The census: upstream's embedded data, a model fact (no run). */
     @Test
     void theCensusIsUpstreamsEmbeddedData() {
