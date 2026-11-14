@@ -1020,6 +1020,10 @@ In order. Nothing here is in the A/B/C PR.
        `COMPOSER_SIGNATURES` and 2 `COMPUTED_DOORS`, Python's 12 `UNFRAMED_SENDERS`, each named there;
      - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
        `verdicts`) carried in the test plan instead;
+     - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
+       `registerColumnLineageRows` (:492) and `registerLineageRows` (:561), and FramePlanner's legendQuery activity SQL
+       (:149, which catches LegendCompileException and so still swallows a malformed date pattern; it predates C4) --
+       not a fix in C4 (the C4 second small round's item 3);
      - the resolver's reads of lowering helpers (`lowering.Aggregates`, `lowering.AsorRef`: spelling and
        classification, listed in `ArchitectureTest.PLANNER_ENTRIES`) moved below both;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
@@ -1076,8 +1080,9 @@ In order. Nothing here is in the A/B/C PR.
          kept shrink-only.
        - **D3 (a):** the census route's typing is kept (`TestDataRoutes.census` types the query and refuses a raw read
          before its scan; be5faae7f called it wording) and recorded.
-       - **B3, kept:** DateFormats' malformed-pattern ModelException escapes four catch sites by name (b915e2940 said
-         no caller relied on the class: the claim corrected); upstream's answer recorded.
+       - **B3, kept:** DateFormats' malformed-pattern ModelException escapes five catch sites by name -- the plan,
+         column-lineage and relation-lineage scans, the activity SQL and HostAsserts (b915e2940 said no caller relied on
+         the class: the claim corrected; "four" until the C4 second small round's item 3); upstream's answer recorded.
        - **The TypeScript and Python split is C5's,** after C4 merges (C5's list below, first item).
    - **Moved to D's batch** (compatibility questions C4 only surfaced):
      - the engine-text printer's name rule: (a) engine's exactly, (b) lite's quoting plus a row, or (c) engine's where

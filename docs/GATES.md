@@ -22151,8 +22151,9 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
   (`com.legend.error.RawSqlRefusal`), its rethrow proven by a body; a refused planner entry rejects its promise, never
   throws (the bundle budgets unmoved: the grid 436,999 of 437,300, the engine page 425,411 of 425,500).
   - **B3, a correction (ruled: keep the new behaviour):** b915e2940 made DateFormats' unterminated quote a
-    ModelException and said "no caller relied on the class". Four catch sites did: PlanAllocations' activity SQL, its
-    column-lineage and relation-lineage scans, and HostAsserts' assertIs lowering catch the lowering's
+    ModelException and said "no caller relied on the class". Five catch sites did (four, said this entry until the C4
+    second small round's item 3: the plan scan was missed): PlanAllocations' plan scan (`registerPlanRows`), its
+    activity SQL, its column-lineage and relation-lineage scans, and HostAsserts' assertIs lowering catch the lowering's
     NotImplementedException and IllegalStateException. The ModelException now escapes them by name, where the bare
     IllegalStateException was read as "no rows" (pinned by
     `BodyRouterParityTest.aMalformedDatePatternInAScannedQueryIsRefusedByName`). Upstream's answer, read in legend-pure
@@ -22171,6 +22172,9 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     a run frame around every send, and the run walls deleted for a plain dependency rule (the walls' headers name this
     finish line; they are interim scaffolding, neither slimmed nor re-engineered meanwhile);
   - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`) carried in the test plan instead;
+  - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
+    `registerColumnLineageRows` (:492) and `registerLineageRows` (:561), and FramePlanner's legendQuery activity SQL
+    (:149, which catches LegendCompileException and so still swallows a malformed date pattern; it predates C4);
   - the resolver's reads of lowering helpers (`lowering.Aggregates`, `lowering.AsorRef`) moved below both;
   - Node's promise cost (a flag, or Node 24);
   - the TypeScript wall on the type checker once its program API is available.
