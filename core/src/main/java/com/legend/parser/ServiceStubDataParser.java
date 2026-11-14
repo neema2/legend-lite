@@ -210,9 +210,43 @@ final class ServiceStubDataParser {
         }
         inner.advance();
         inner.expect(TokenType.COLON);
-        String expected = inner.consumeStringLiteral("'expected'");
+        String expected = expectedValue(inner, "equalToJson".equals(type));
         inner.match(TokenType.SEMI_COLON);
         return new Protocol.PStringValuePattern(type, expected);
+    }
+
+    /** A content pattern's {@code expected} STRING, read as the engine's
+     *  two pattern parsers read it (4.145.0): {@code EqualTo} by
+     *  {@code fromGrammarString(text, true)}, {@code EqualToJson} by
+     *  {@code fromGrammarString(text, false)} — the JSON keeps its escapes
+     *  as written ({@code '{\"a\": 1}'} is {@code {\"a\": 1}} on the wire).
+     *  The engine's STRING is {@code TextBlock | String}: a
+     *  {@code '''...'''} text block takes the block's layout, unescaped
+     *  for {@code EqualTo} only; a {@code '''} literal that is no text
+     *  block the engine's lexer splits into adjacent strings, and refuses
+     *  (Studio's roundtrip case DSL_Data-basic-dataElement, 2026-11-14). */
+    private static String expectedValue(MappingProtocolParser inner,
+            boolean keepEscapes) {
+        if (!inner.atEnd() && inner.peek() == TokenType.DOC_STRING) {
+            String raw = inner.text();
+            if (!TokenStreamCursor.isTextBlock(raw)) {
+                throw inner.error("Unexpected token '" + raw + "'");
+            }
+            inner.advance();
+            return keepEscapes ? TokenStreamCursor.textBlockLayout(raw)
+                    : TokenStreamCursor.docStringValue(raw);
+        }
+        if (!keepEscapes) {
+            return inner.consumeStringLiteral("'expected'");
+        }
+        if (inner.atEnd() || inner.peek() != TokenType.STRING) {
+            inner.rejectInvalid();
+            throw inner.error("expected a string literal for 'expected', got "
+                    + inner.peek());
+        }
+        String raw = inner.text();
+        inner.advance();
+        return raw.substring(1, raw.length() - 1);
     }
 
 }

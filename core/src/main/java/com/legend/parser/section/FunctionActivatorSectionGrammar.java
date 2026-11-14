@@ -145,11 +145,25 @@ public final class FunctionActivatorSectionGrammar
                 null, null, conn, connSpan, span);
     }
 
-    /** One {@code Kind <<dec>> qn { key: value; ... }} activator (or an
-     *  {@code ExecutionEnvironment} — the HostedService section hosts
-     *  them with the SERVICE grammar's shape, probe t2-hostedservice). */
+    /** The kinds whose engine rule opens {@code documentation? KIND}
+     *  (4.145.0: the Snowflake, MemSql, BigQuery, HostedService and
+     *  FunctionJar parser grammars). The deployment configurations, the
+     *  ExecutionEnvironment and the DeephavenApp (whose grammar has no
+     *  documentation at all) are not among them: a literal before them is
+     *  the engine's parse refusal at the keyword. */
+    private static final Set<String> DOCUMENTED_KINDS = Set.of(
+            "SnowflakeApp", "SnowflakeM2MUdf", "MemSqlFunction",
+            "BigQueryFunction", "HostedService", "FunctionJar");
+
+    /** One {@code [documentation] Kind <<dec>> qn { key: value; ... }}
+     *  activator (or an {@code ExecutionEnvironment} — the HostedService
+     *  section hosts them with the SERVICE grammar's shape, probe
+     *  t2-hostedservice). The element's span starts at its documentation,
+     *  which folds into the tagged values, first (Studio's roundtrip
+     *  cases, 2026-11-14). */
     public Protocol.Element parseElement(TokenStreamCursor c) {
         int declStart = c.pos();
+        TokenStreamCursor.Documentation doc = c.parseDocumentation();
         if (!c.isIdentifierToken(c.peek())) {
             throw c.error("unsupported ###" + section + " element: "
                     + c.safeText());
@@ -158,6 +172,9 @@ public final class FunctionActivatorSectionGrammar
         if (!kinds.contains(kind)) {
             throw c.error("unsupported ###" + section + " element: " + kind);
         }
+        if (doc != null && !DOCUMENTED_KINDS.contains(kind)) {
+            throw c.error("Unexpected token '" + kind + "'");
+        }
         if ("ExecutionEnvironment".equals(kind)) {
             return ServiceSectionGrammar.parseExecutionEnvironment(c);
         }
@@ -165,7 +182,8 @@ public final class FunctionActivatorSectionGrammar
             return parseDeploymentConfig(c, kind);
         }
         c.advance();
-        TokenStreamCursor.Decorations dec = c.parseDecorations();
+        TokenStreamCursor.Decorations dec =
+                c.withDocumentation(doc, c.parseDecorations());
         String qn = Protocol.unquotePath(c.parseQualifiedName());
         int cut = qn.lastIndexOf("::");
         String pkg = cut < 0 ? "" : qn.substring(0, cut);

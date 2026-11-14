@@ -164,7 +164,7 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
 
     private static Protocol.PClassView parseClassView(Raw r, int[] start) {
         r.skipWs();
-        String id = r.word();
+        String id = r.viewId();
         r.skipWs();
         r.expect('{');
         String classPath = null;
@@ -256,12 +256,12 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
                 }
                 case "source" -> {
                     int[] ps = r.mark();
-                    sourceView = r.word();
+                    sourceView = r.viewId();
                     sourceViewSpan = r.spanFrom(ps);
                 }
                 case "target" -> {
                     int[] ps = r.mark();
-                    targetView = r.word();
+                    targetView = r.viewId();
                     targetViewSpan = r.spanFrom(ps);
                 }
                 case "points" -> points = r.points();
@@ -310,12 +310,12 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
             switch (key) {
                 case "source" -> {
                     int[] ps = r.mark();
-                    sourceView = r.word();
+                    sourceView = r.viewId();
                     sourceViewSpan = r.spanFrom(ps);
                 }
                 case "target" -> {
                     int[] ps = r.mark();
-                    targetView = r.word();
+                    targetView = r.viewId();
                     targetViewSpan = r.spanFrom(ps);
                 }
                 case "points" -> points = r.points();
@@ -423,6 +423,35 @@ public final class DiagramSectionGrammar implements RawSectionGrammar {
             if (i == s) {
                 throw fail("expected an identifier");
             }
+            return t.substring(s, i);
+        }
+
+        /** A view id — the engine's {@code viewId: identifier |
+         *  VALID_DIAGRAM_VIEW_ID}, read with {@code getText()} (4.145.0,
+         *  DiagramParseTreeWalker): a word, or a quoted STRING kept AS
+         *  WRITTEN, quotes and escapes included ({@code 'person view'} is
+         *  {@code "'person view'"} on the wire, and its span covers the
+         *  quotes; Studio's roundtrip case DSL_Diagram-view-options,
+         *  2026-11-14). The STRING is the core lexer's: {@code '}, then
+         *  {@code \} with any character or any character but {@code '},
+         *  {@code \}, CR and LF, then {@code '}. */
+        String viewId() {
+            if (atEnd() || t.charAt(i) != '\'') {
+                return word();
+            }
+            int s = i;
+            step();
+            while (!atEnd() && t.charAt(i) != '\'') {
+                char c = t.charAt(i);
+                if (c == '\r' || c == '\n') {
+                    throw fail("unterminated view id");
+                }
+                if (c == '\\' && i + 1 < t.length()) {
+                    step();
+                }
+                step();
+            }
+            expect('\'');
             return t.substring(s, i);
         }
 
