@@ -1,5 +1,12 @@
 // THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13: "a compile-time wall on both hosts"; its Python
-// half is python/tests/test_run_wall.py). At run time the run frame (run-frame.ts) refuses a planner entry asked inside a
+// half is python/tests/test_run_wall.py).
+//
+// INTERIM SCAFFOLDING (the user's ruling of 2026-11-14): this wall holds the line until C5 splits the code, and is
+// neither slimmed nor re-engineered meanwhile. C5'S FINISH LINE: TypeScript's run code lives in packages whose build
+// deps exclude the planner, a run frame wraps every send, and this wall is deleted for a plain dependency rule (the
+// build's own, as //core:exec's deps are pinned for Java). Until then its lists (COMPOSER_MODULES, COMPOSER_SIGNATURES,
+// COMPUTED_DOORS) are C5's work list, each entry one to split.
+// At run time the run frame (run-frame.ts) refuses a planner entry asked inside a
 // run, where a frame is kept (Node; not a browser, not the headless V8). This holds, on every host, what the source
 // itself says -- read over DataCube, the engine client, the protocol library, and Studio's and Query's apps with the
 // libraries they import (the final audit of 9af16fbe58's T5, 2026-11-14: each of their run entries is a composer):

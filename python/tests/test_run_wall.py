@@ -1,6 +1,13 @@
 """THE RUN WALL, Python's half (the user's ruling M2, 2026-11-13: "a compile-time wall on both hosts"; its TypeScript half
-is datacube/test/run-wall.test.ts). Read by Python's own parser, over every module of the package. At run time the run
-frame (_runframe.py) refuses a planner entry asked inside a run; this holds, before anything runs, what can be stated:
+is datacube/test/run-wall.test.ts).
+
+INTERIM SCAFFOLDING (the user's ruling of 2026-11-14): this wall holds the line until C5 splits the code, and is neither
+slimmed nor re-engineered meanwhile. C5'S FINISH LINE: Python's run code lives in packages whose build deps exclude the
+planner, a run frame wraps every send, and this wall is deleted for a plain dependency rule (the build's own, as
+//core:exec's deps are pinned for Java). Until then UNFRAMED_SENDERS is C5's work list, each entry one to frame.
+
+Read by Python's own parser, over every module of the package. At run time the run frame (_runframe.py) refuses a
+planner entry asked inside a run; this holds, before anything runs, what can be stated:
 
 - THE SEND SEAM IMPORTS NO PLANNER: `_planned` (the one send, the plan readers, the type) and `_runframe` import, through
   the package's own modules, no module of the planner's (PLANNER_MODULES).
