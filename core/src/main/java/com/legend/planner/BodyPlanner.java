@@ -473,7 +473,7 @@ public final class BodyPlanner {
      *  resolved, the system route's catalog's dialect taken, the body prepared and lowered on the identity lane), or null when
      *  the value is answered with no plan ({@link Prepared}). The driver's {@code planBare} with no rider, no splice
      *  hook and no session: nothing opened, nothing run (the frame's planned CTE reads it). */
-    public static @Nullable Bare bare(TypedSpec value, List<TypedSpec> letPrefix,
+    static @Nullable Bare bare(TypedSpec value, List<TypedSpec> letPrefix,
             SpecCompiler specs, PlanEnv env) {
         List<TypedSpec> body = sideBody(value, letPrefix, specs, env, null);
         SystemRoutes.Route route = SystemRoutes.of(body, env);

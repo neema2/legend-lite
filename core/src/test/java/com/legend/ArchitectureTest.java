@@ -694,6 +694,62 @@ final class ArchitectureTest {
                             && a.getName().equals("prepare")))
             .as("M5 (2026-11-13): a product statement is prepared by the planner and the test planner alone");
 
+    /**
+     * <strong>A lowering is the planners' (the follow-up audit's G1, 2026-11-14, its second part).</strong> Outside the
+     * planner, the test planner and the lowering's own packages, and the root's {@code Compiler} (whose
+     * {@code lowerResolved} refuses an executeInDb's read inside itself), no class constructs a {@code Lowerer} or calls
+     * a public lowering static, by a call or a reference. The public lowering statics, each with its callers today:
+     * {@code BodyPlanner.viewFetch} (the test-data generator's view fetch: testplan's {@code GeneratedTestData}),
+     * {@code SidePlanner.staged} (a side's staging: testplan's {@code BodyDriver}) and
+     * {@code SeedableLets.withSeedableLetPrefix} (a statement's seedable lets: the planner's {@code ProductStatements});
+     * and the {@code Lowerer}'s constructors (the planner's configuration, lowering's {@code SeedableLets}, the root's
+     * {@code lowerResolved}). Every other lowering step is package-private to the planner: {@code PlanMaker.copyInto},
+     * {@code EnginePlans.engineSql} (three), {@code engineTestSql} and {@code planModel}, BodyPlanner's {@code bare},
+     * {@code lowerAndPrepare} (two), {@code lowererFor} and {@code prepare}, and ProductStatements' {@code planned},
+     * {@code lower}, {@code lowerer} (two) and {@code storeWrite}. The planner's public entries that remain refuse an
+     * executeInDb's read first ({@code PlanMaker.plan}, the query door; {@code ProductStatements.lowerTestDataSeed}) or
+     * are pinned ({@code ProductStatements.prepare}, {@link #PREPARE_IS_THE_PLANNERS}; {@code PlanMaker.testProgram},
+     * {@link #PROGRAM_ROAD_TEST_ENTRY}). {@link #theLoweringRuleBitesAPlantedCaller} shows it bites.
+     */
+    @Test
+    void aLoweringIsThePlannersAlone() {
+        LOWERING_IS_THE_PLANNERS.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #aLoweringIsThePlannersAlone} over the hosts' doors as well (//wasm:boundary, //wasm:tab, //native:entry). */
+    @Test
+    void theHostsDoorsLowerNothing() {
+        LOWERING_IS_THE_PLANNERS.check(coreAndTheHostsDoors());
+    }
+
+    /** The public lowering statics {@link #LOWERING_IS_THE_PLANNERS} pins, by owner and name. */
+    static final java.util.Set<String> LOWERING_STATICS = java.util.Set.of(
+            "com.legend.planner.BodyPlanner#viewFetch",
+            "com.legend.planner.SidePlanner#staged",
+            "com.legend.lowering.SeedableLets#withSeedableLetPrefix");
+
+    /** The rule of {@link #aLoweringIsThePlannersAlone}. */
+    static final com.tngtech.archunit.lang.ArchRule LOWERING_IS_THE_PLANNERS = noClasses()
+            .that().resideOutsideOfPackages("com.legend.planner", "com.legend.testplan", "com.legend.lowering")
+            .and().doNotHaveFullyQualifiedName("com.legend.Compiler")
+            .should().accessTargetWhere(reachesCodeUnitWhere("a Lowerer's constructor or a public lowering static",
+                    a -> a.getTargetOwner().getName().equals("com.legend.lowering.Lowerer")
+                            && a.getName().equals(com.tngtech.archunit.core.domain.JavaConstructor.CONSTRUCTOR_NAME)
+                            || LOWERING_STATICS.contains(a.getTargetOwner().getName() + "#" + a.getName())))
+            .as("G1 (2026-11-14): a lowering is the planner's, the test planner's, the lowering's and the root"
+                    + " Compiler's alone");
+
+    /** {@link #aLoweringIsThePlannersAlone} fails on each planted outside caller ({@code server.PlantedLowering}): a
+     *  Lowerer constructed by a call and by a reference, and each public lowering static called or referenced. */
+    @Test
+    void theLoweringRuleBitesAPlantedCaller() {
+        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.Constructs.class);
+        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.ConstructsByReference.class);
+        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.FetchesAView.class);
+        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.StagesASide.class);
+        bites(LOWERING_IS_THE_PLANNERS, com.legend.server.PlantedLowering.SeedsLets.class);
+    }
+
     /** {@link #aProductStatementIsPreparedByThePlannersAlone} fails on a class that prepares a statement past the
      *  planners, by a call and by a reference ({@code server.PlantedPrepare}, test classes planted for this alone). */
     @Test

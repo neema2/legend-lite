@@ -144,8 +144,11 @@ class ProductStatementsTest {
     }
 
     /** The lowering's own steps are the planner's (the C4 audit's M5, 2026-11-13; the follow-up audit's G1,
-     *  2026-11-14): ProductStatements' {@code planned}, {@code lower}, both {@code lowerer}s and {@code storeWrite}, and
-     *  BodyPlanner's {@code lowerAndPrepare}s, {@code lowererFor} and {@code prepare}, package-private. A class past the
+     *  2026-11-14): ProductStatements' {@code planned}, {@code lower}, both {@code lowerer}s and {@code storeWrite},
+     *  BodyPlanner's {@code lowerAndPrepare}s, {@code lowererFor}, {@code prepare} and {@code bare}, PlanMaker's
+     *  {@code copyInto} and EnginePlans' {@code engineSql}s, {@code engineTestSql} and {@code planModel}, package-private;
+     *  the public lowering statics that remain, and the Lowerer's constructors, pinned to the planners by
+     *  ArchitectureTest.LOWERING_IS_THE_PLANNERS. A class past the
      *  planner reaches a lowering by these public routes alone, each refusing an executeInDb's read by name first or
      *  pinned to its callers: the query doors (TypedQuery's plans, Execution's runs, QueryDoor first);
      *  {@code ProductStatements.prepare}, whose callers ArchitectureTest pins to the planner and the test planner; the
@@ -161,12 +164,19 @@ class ProductStatementsTest {
                 open.add("ProductStatements." + m.getName());
             }
         }
-        for (java.lang.reflect.Method m : BodyPlanner.class.getDeclaredMethods()) {
-            if (java.util.Set.of("lowerAndPrepare", "lowererFor", "prepare").contains(m.getName())
-                    && java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
-                open.add("BodyPlanner." + m.getName());
+        // the follow-up audit's G1, its second part (2026-11-14): the snapshot's copy, the engine text's lowerings and the
+        // body planner's bare lowering, whose callers are the planner's own
+        Map<Class<?>, java.util.Set<String>> narrowed = Map.of(
+                BodyPlanner.class, java.util.Set.of("lowerAndPrepare", "lowererFor", "prepare", "bare"),
+                PlanMaker.class, java.util.Set.of("copyInto"),
+                EnginePlans.class, java.util.Set.of("engineSql", "engineTestSql", "planModel"));
+        narrowed.forEach((owner, names) -> {
+            for (java.lang.reflect.Method m : owner.getDeclaredMethods()) {
+                if (names.contains(m.getName()) && java.lang.reflect.Modifier.isPublic(m.getModifiers())) {
+                    open.add(owner.getSimpleName() + "." + m.getName());
+                }
             }
-        }
+        });
         assertEquals(java.util.Set.of(), open, "the lowering's steps reachable past the planner");
         com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(WRITES);
         com.legend.TypedQuery raw = Compiler.query(ctx, "{|" + CONN + "let n = meta::relational::metamodel::execute"
