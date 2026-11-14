@@ -169,8 +169,12 @@ describe('every window DataCube writes plans on Deephaven', () => {
         await planned(extendWindow(trades, 'w', w).lambda(), `${meta.fn} ${JSON.stringify(frame)}`, refused);
       }
     }
-    assert.equal(WINDOW_FUNCTIONS.length, 15);
-    assert.deepEqual(refused, []);
+    assert.equal(WINDOW_FUNCTIONS.length, 16);
+    // 2026-11-14 (main's median window merged into the Deephaven line): the one window with no Deephaven shape yet,
+    // refused by name on each frame -- a running or moving median is a rolling formula there, unmeasured
+    const median = 'PlanError: a window function (MEDIAN) reached Deephaven: no shape yet';
+    assert.deepEqual(refused, [`median undefined: ${median}`, `median "running": ${median}`,
+      `median "partition": ${median}`, `median {"lastRows":3}: ${median}`]);
   });
 
   it('each show-as, on a cube\'s levels', async () => {

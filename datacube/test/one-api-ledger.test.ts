@@ -886,7 +886,8 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:openDataCube:hostTables': { other: `${BOTH} the host's half of grids read together (headless joinTogether, join-open.ts openSources)`, ability: 'join' },
   'src/app/datacube-app.ts:rows:rows.runner': { other: `${BOTH} a timeseries' combined query run by the host's runner (Python's), or the tab's planner and database`, ability: 'rows' },
   // 2026-10-27 (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §11, Phase 6's D3): an example over a project's saved queries
-  'src/app/datacube-app.ts:examplesList:services.queries': { other: `${NATURE} the Open window's examples, one offered where the page compiles against its project; Python has no Open window -- a page of its own opens a saved query by its record (grid(record=...))` },
+  // (src/app/datacube-app.ts:examplesList:services.queries, an example offered where its project compiles: gone 2026-11-14
+  // with the Deephaven branch's D5 -- projects are the model home's released versions, and every example is offered)
   // -- the sources (sources.ts) --
   'src/app/sources.ts:picksSources:database.mountRemote': { other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'remote' },
   'src/app/sources.ts:picksSources:services.warehouse': { count: 2, other: `${BOTH} the picker offered where the host opens any kind of source`, ability: 'warehouse' },

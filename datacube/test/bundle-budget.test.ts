@@ -551,8 +551,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  Measured 433,405.
  *  434,500 -> 437,000 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
- *  file). Measured 436,691. */
-const BUDGET = 437_000;
+ *  file). Measured 436,691.
+ *  437,000 -> 448,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
+ *  D9: main measured 436,691, the line +11,237 over it -- its own steps since its last merge (the desk's screens,
+ *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'
+ *  client). Measured 447,928. */
+const BUDGET = 448_500;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -784,8 +788,12 @@ const BUDGET = 437_000;
  *  date). Measured 421,329.
  *  422,000 -> 425,500 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
- *  file). Measured 425,126. */
-const ENGINE_BUDGET = 425_500;
+ *  file). Measured 425,126.
+ *  425,500 -> 434,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
+ *  D9: main measured 425,126, the line +9,075 over it -- its own steps since its last merge (the desk's screens,
+ *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'
+ *  client). Measured 434,201. */
+const ENGINE_BUDGET = 434_500;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1324,8 +1332,12 @@ const EXAMPLE_BUDGET = 4_000;
  *  date). Measured 449,707.
  *  450,500 -> 453,800 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
- *  file). Measured 453,495. */
-const WIDGET_BUDGET = 453_800;
+ *  file). Measured 453,495.
+ *  453,800 -> 463,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
+ *  D9: main measured 453,495, the line +9,761 over it -- its own steps since its last merge (the desk's screens,
+ *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'
+ *  client). Measured 463,256. */
+const WIDGET_BUDGET = 463_500;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {

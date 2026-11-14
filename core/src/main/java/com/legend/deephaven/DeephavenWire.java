@@ -27,7 +27,7 @@ public final class DeephavenWire {
 
     /** The ticket bytes a plan's parameters table is written as (the dialect's own marker): a sender uploads the
      *  values and replaces it, which no sender does yet. */
-    private static final byte[] PARAMETERS = "legend/parameters".getBytes(StandardCharsets.UTF_8);
+    private static final String PARAMETERS = "legend/parameters";
 
     /** {@code plan}, a Deephaven plan's JSON (its batch of operations), as the request that runs it, its last
      *  operation's result exported as {@code exportId} in the sending session. A plan that already exports a result,
@@ -473,7 +473,7 @@ public final class DeephavenWire {
     }
 
     private static byte[] refuseParameters(byte[] ticket) {
-        if (Arrays.equals(ticket, PARAMETERS)) {
+        if (Arrays.equals(ticket, PARAMETERS.getBytes(StandardCharsets.UTF_8))) {
             throw new UnsupportedOperationException("a Deephaven plan with parameters is not sent yet: its values"
                     + " are uploaded as a one-row table first, which no sender builds yet"
                     + " (docs/DEEPHAVEN_PLAN_2026_10_22.md DH5)");

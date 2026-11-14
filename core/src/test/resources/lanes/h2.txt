@@ -14,6 +14,9 @@
 # 2026-11-11 (B3, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: the text plan renders from the execution plan): 3 pivot
 # lines went -- a pivot whose columns the data names is the keyed plan the lane runs, its text no longer refused at
 # render; the two multi-column SQL-shape lines kept, re-measured (their EXCLUDE assertion is DuckDB's spelling).
+# 2026-11-14 (main's merge into the Deephaven branch): 12 lines went -- the branch's H2 maxBy and minBy (K3a: an
+# array's first place, ordered) and its time buckets (floored from the epoch) pass them; the windowed maxBy and minBy too,
+# their window written on the array's aggregate (H2.windowCall)
 UserFunctionIntegrationTest$RelationGeneric#aChainOfCallsIsTypedOnceEach	not run 2026-10-29 (T-d2): twenty chained calls of a window-extending generic function lower to twenty nested derived tables; H2's planner re-plans every level per candidate plan (QueryExpressionIndex.getQuery) and exhausts the 512 MB heap in Select.getPlanSQL, which JUnit rethrows as unrecoverable, ending the run; passes on DuckDB and SQLite; the start page's track F
 CorrelatedRelationCheckerTest#aRootMapToOneOverAWindowFilter	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
 CypherIslandIntegrationTest#aMarkedListOfTemporalsReadsItsElementsBackOrIsReadWhole	measured 2026-10-29: LIST_GET reached a dialect without a list encoding
@@ -25,12 +28,9 @@ ExtendCheckerTest$BitwiseExtend#testBitOr	measured 2026-10-29: BIT_OR reached a 
 ExtendCheckerTest$BitwiseExtend#testBitShiftLeft	measured 2026-10-29: BIT_SHIFT_LEFT reached a dialect without bit-op support
 ExtendCheckerTest$BitwiseExtend#testBitShiftRight	measured 2026-10-29: BIT_SHIFT_RIGHT reached a dialect without bit-op support
 ExtendCheckerTest$BitwiseExtend#testBitXor	measured 2026-10-29: BIT_XOR reached a dialect without bit-op support
-ExtendCheckerTest$BivariantExtend#testMaxBy	measured 2026-10-29: Function "ARG_MAX" not found; SQL statement:  SELECT "_tds0".*, ARG_MAX("_tds0"."name", "_tds0"."score") OVER () AS "win
-ExtendCheckerTest$BivariantExtend#testMinBy	measured 2026-10-29: Function "ARG_MIN" not found; SQL statement:  SELECT "_tds0".*, ARG_MIN("_tds0"."name", "_tds0"."score") OVER () AS "los
 ExtendCheckerTest$ComparisonExtend#testGreatest	measured 2026-10-29: LIST_MAX reached a dialect without a list encoding
 ExtendCheckerTest$ComparisonExtend#testLeast	measured 2026-10-29: LIST_MIN reached a dialect without a list encoding
 ExtendCheckerTest$DateTimeExtend#testDateConstructor	measured 2026-10-29: Function "MAKE_DATE" not found; SQL statement:  SELECT "_tds0".*, make_date("_tds0"."yr", CASE WHEN "_tds0"."mon" < 1 OR
-ExtendCheckerTest$DateTimeExtend#testTimeBucket	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
 ExtendCheckerTest$MathExtend#testCbrt	measured 2026-11-12 (the total wall's B, the root's star spelled as its columns, labeled): Function "CBRT" not found; SQL statement:  SELECT "_tds0"."val" AS "val", cbrt("_tds0"."val") AS "cube" FROM (VALUES (27), (8)) AS "_
 ExtendCheckerTest$StringExtendAdvanced#testDecodeBase64	measured 2026-10-29: decodeBase64 reached H2, which has no from_base64()
 ExtendCheckerTest$StringExtendAdvanced#testEncodeBase64	measured 2026-10-29: encodeBase64 reached H2, which has no to_base64()
@@ -84,8 +84,6 @@ GraphFetchCheckedIntegrationTest#falseAndTrueArmsKeepTheirSpellings	measured 202
 GraphFetchCheckedIntegrationTest#nestedObjectConstraintsHoistWithPath	measured 2026-10-29: nested checked defects reached a dialect without list lambdas
 GraphFetchCheckedIntegrationTest#nullPredicateReportsUnableToEvaluateDefects	measured 2026-10-29: LIST_FILTER reached a dialect without a list encoding
 GraphFetchCheckedIntegrationTest#reducersOverNavigationsInConstraints	measured 2026-10-29: LIST_FILTER reached a dialect without a list encoding
-GroupByCheckerTest$RowMapperAggregates#testMaxBy	measured 2026-10-29: Function "ARG_MAX" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MAX("_tds0"."name", "_tds0"."employeeNu
-GroupByCheckerTest$RowMapperAggregates#testMinBy	measured 2026-10-29: Function "ARG_MIN" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MIN("_tds0"."name", "_tds0"."employeeNu
 JsonM2MChainIntegrationTest$FileSource#testArrayFilter	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testArrayGraphFetch	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
 JsonM2MChainIntegrationTest$FileSource#testArrayProject	measured 2026-11-05 (H2 2.5.252): sourceUrl reached a dialect without an external-source encoding:
@@ -170,8 +168,6 @@ TypeInferenceIntegrationTest#testForAllTrue	measured 2026-10-29: collection forA
 TypeInferenceIntegrationTest#testFormatDateIsoWithTimezone	measured 2026-10-29: minimal-fraction date format reached a dialect without a trim-zeros token
 TypeInferenceIntegrationTest#testFormatDateIsoWithXTimezone	measured 2026-10-29: minimal-fraction date format reached a dialect without a trim-zeros token
 TypeInferenceIntegrationTest#testFormatFloatSubstitution	measured 2026-10-29: format specifier '%.' reached H2, which has no printf — only %d / %s concatenate
-TypeInferenceIntegrationTest#testGroupByMaxBy	measured 2026-10-29: Function "ARG_MAX" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MAX("_tds0"."name", "_tds0"."employeeNu
-TypeInferenceIntegrationTest#testGroupByMinBy	measured 2026-10-29: Function "ARG_MIN" not found; SQL statement:  SELECT "_tds0"."grp" AS "grp", ARG_MIN("_tds0"."name", "_tds0"."employeeNu
 TypeInferenceIntegrationTest#testHashCodeAggregate	measured 2026-10-29: signed 64-bit hashCode reached a dialect without a spelling
 TypeInferenceIntegrationTest#testHashCodeReturnsInteger	measured 2026-10-29: signed 64-bit hashCode reached a dialect without a spelling
 TypeInferenceIntegrationTest#testIndexOfList	measured 2026-10-29: LIST_POSITION reached a dialect without a list encoding
@@ -207,11 +203,6 @@ TypeInferenceIntegrationTest#testSliceNegativeStart	measured 2026-10-29: UNNEST 
 TypeInferenceIntegrationTest#testSortDescending	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
 TypeInferenceIntegrationTest#testSortWithKeyFunction	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
 TypeInferenceIntegrationTest#testTakeNegative	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
-TypeInferenceIntegrationTest#testTimeBucketDateTime	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
-TypeInferenceIntegrationTest#testTimeBucketDateTime2Weeks	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
-TypeInferenceIntegrationTest#testTimeBucketStrictDate1Day	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
-TypeInferenceIntegrationTest#testTimeBucketStrictDate2Days	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
-TypeInferenceIntegrationTest#testTimeBucketStrictDate2Weeks	measured 2026-10-29: a time bucket reached H2, which has no time_bucket()
 TypeInferenceIntegrationTest#testVariancePopulation	measured 2026-10-29: collection reduction 'VAR_POP' reached a dialect without a list encoding
 TypeInferenceIntegrationTest#testVariantMapsToJson	measured 2026-10-29: UNNEST reached a dialect without an unnest placement
 VariantIntegrationTest#testCastWithFlatten	measured 2026-11-05 (H2 2.5.252): UNNEST reached a dialect without an unnest placement

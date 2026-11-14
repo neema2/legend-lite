@@ -378,8 +378,8 @@ class DeephavenDialectTest {
     @Test
     void aModIsTheRemainderWithTheDivisorsSign() {
         // Pure's mod is floored (the divisor's sign), its rem truncated (the dividend's, Java's %)
-        formulaOver(P, "pid", "$x.pid->mod(3)", "(((t0__pid % 3L) + 3L) % 3L)");
-        formulaOver(P, "pid", "$x.pid->rem(3)", "(t0__pid % 3L)");
+        formulaOver(P, "pid", "$x.pid->mod(3)", "(((pid % 3L) + 3L) % 3L)");
+        formulaOver(P, "pid", "$x.pid->rem(3)", "(pid % 3L)");
     }
 
     @Test
@@ -401,7 +401,7 @@ class DeephavenDialectTest {
 
     @Test
     void aWholeNumberAsTextIsItsDigitsAndADecimalAsAFloatItsOwnDoubleValue() {
-        formulaOver(P, "pid", "$x.pid->toString()", "(`` + t0__pid)");
+        formulaOver(P, "pid", "$x.pid->toString()", "(`` + pid)");
         // a DECIMAL column is a BigDecimal: its doubleValue (DH33 permits BigDecimal's methods), a null kept null
         String books = "#>{risk::Ref.books}#";
         formulaOver(books, "bid", "$x.used->toFloat()", "(t0__used.doubleValue())");
@@ -425,7 +425,7 @@ class DeephavenDialectTest {
         // a decimal over a whole number is a DOUBLE (DuckDB's /), computed in doubles: the server's own BigDecimal division
         // kept fewer digits (1666666.66666667 where SQL answers 1666666.6666666667)
         String books = "#>{risk::Ref.books}#";
-        formulaOver(books, "bid", "$x.used / $x.bid", "((t0__used.doubleValue()) / t0__bid)");
+        formulaOver(books, "bid", "$x.used / $x.bid", "((t0__used.doubleValue()) / bid)");
     }
 
     @Test
@@ -502,9 +502,9 @@ class DeephavenDialectTest {
         // rem by a column that may be zero: the lowering's guard raises Pure's message; a formula has no throw, so the
         // error is a whole number parsed from the message in the raise envelope (U+001F either side), which fails
         // naming the text it could not read -- of the CASE's type: a whole number here, a float for a division
-        formulaOver(P, "pid", "$x.pid->rem($x.pid)", "((t0__pid == 0L) ? parseLong((`` + (char) 31 + (((((`Cannot divide ` + (`` + t0__pid))) + ` by zero`))) + (char) 31)) : (t0__pid % t0__pid))");
-        formulaOver(P, "pid", "$x.pid / ($x.pid - 3)", "(((t0__pid - 3L) == 0L) ? ((double) parseLong((`` + (char) 31"
-                + " + (`Division by zero`) + (char) 31))) : (t0__pid / (t0__pid - 3L)))");
+        formulaOver(P, "pid", "$x.pid->rem($x.pid)", "((pid == 0L) ? parseLong((`` + (char) 31 + (((((`Cannot divide ` + (`` + pid))) + ` by zero`))) + (char) 31)) : (pid % pid))");
+        formulaOver(P, "pid", "$x.pid / ($x.pid - 3)", "(((pid - 3L) == 0L) ? ((double) parseLong((`` + (char) 31"
+                + " + (`Division by zero`) + (char) 31))) : (pid / (pid - 3L)))");
         // sqrt of a negative: Pure's message prints the float as Pure does (sz a double: its cast to a double is itself,
         // 2026-10-26)
         String b = batch(P + "->extend(~r:x|$x.sz->sqrt())->select(~[pid, r])");
@@ -517,7 +517,7 @@ class DeephavenDialectTest {
     void aWholeNumberQuotientIsTheLibrarysFlooredDivisionOfAnExactMultiple() {
         // cut toward zero: the dividend less its remainder is a multiple of the divisor, whose floor is the quotient
         formulaOver(P, "pid", "meta::legend::lite::quotient($x.pid, 7)",
-                "((7L == 0L) ? parseLong((`` + (char) 31 + (((((`Cannot divide ` + (`` + t0__pid))) + ` by zero`))) + (char) 31)) : (floorDiv(t0__pid - (t0__pid % 7L), 7L)))");
+                "((7L == 0L) ? parseLong((`` + (char) 31 + (((((`Cannot divide ` + (`` + pid))) + ` by zero`))) + (char) 31)) : (floorDiv(pid - (pid % 7L), 7L)))");
     }
 
     @Test

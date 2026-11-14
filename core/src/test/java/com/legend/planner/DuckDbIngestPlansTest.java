@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * HOST_SESSION load that survives its JSON and runs on DuckDB as planned. A time retention, a table no ingest makes, a
  * table no Database declares, are refused by name.
  */
-class IngestPlannerTest {
+class DuckDbIngestPlansTest {
 
     private static final String MODEL = """
             ###Lakehouse
@@ -113,6 +113,13 @@ class IngestPlannerTest {
             assertEquals(List.of("10 29 20"), rows(st, "SELECT min(SEQ) || ' ' || max(SEQ) || ' ' || count(*) FROM PRINTS"),
                     "the latest 20 by arrival kept");
             assertEquals(List.of("110.0"), rows(st, "SELECT PRICE FROM PRINTS WHERE SEQ = 10"));
+            // arrival, not value: a batch whose sequence falls as it arrives, and the latest 20 to arrive are kept
+            run(st, p.land(), "SELECT 0.0 AS PRICE, 'MSFT' AS SYMBOL, -1 - i AS SEQ FROM range(25) t(i)");
+            run(st, p.keep(), null);
+            assertEquals(List.of("-25 -6 20"), rows(st, "SELECT min(SEQ) || ' ' || max(SEQ) || ' ' || count(*) FROM PRINTS"));
+            // a table holding fewer than its retention loses none
+            run(st, p.keep(), null);
+            assertEquals(List.of("20"), rows(st, "SELECT count(*) FROM PRINTS"));
         }
     }
 

@@ -1195,13 +1195,38 @@ public class H2 extends AnsiSqlRenderer {
      *  by the key, the rows whose key or value is NULL left out, as DuckDB's arg_min leaves them -- Postgres's spelling
      *  (which leaves out the NULL keys only). A tie on the key takes any of the tied rows' values, as ARG_MAX does. */
     private SqlWriter argExtreme(SqlWriter writer, String direction, com.legend.sql.SqlAgg.Reducer r) {
+        return argExtreme(writer, direction, r, null);
+    }
+
+    /** The same over a window: the window's {@code OVER} on the array's aggregate, inside its first place's read --
+     *  after the read it is no window function at all (2026-11-14, the H2 lane: {@code ARRAY_GET(...) OVER ()} a
+     *  syntax error). */
+    private SqlWriter argExtreme(SqlWriter writer, String direction, com.legend.sql.SqlAgg.Reducer r,
+            SqlExpr.@com.legend.base.Nullable WindowCall window) {
         if (r.args().size() != 2 || r.distinct() || !r.orderBy().isEmpty()) {
             throw new DialectCapability(r.fn() + " of this shape reached H2");
         }
-        return writer.append("ARRAY_GET(ARRAY_AGG(").expr(r.args().get(0), 0).append(" ORDER BY ")
+        writer.append("ARRAY_GET(ARRAY_AGG(").expr(r.args().get(0), 0).append(" ORDER BY ")
                 .expr(r.args().get(1), 0).append(direction).append(") FILTER (WHERE ")
                 .expr(r.args().get(1), 0).append(" IS NOT NULL AND ").expr(r.args().get(0), 0)
-                .append(" IS NOT NULL), 1)");
+                .append(" IS NOT NULL)");
+        if (window != null) {
+            over(writer, window);
+        }
+        return writer.append(", 1)");
+    }
+
+    /** {@inheritDoc} maxBy and minBy as windows: {@link #argExtreme}'s read of the first place wraps the aggregate, so
+     *  the window is written inside it. */
+    @Override
+    protected SqlWriter windowCall(SqlWriter writer, SqlExpr.WindowCall w) {
+        if (w.fn() instanceof com.legend.sql.SqlAgg.Reducer r && r.fn() == com.legend.sql.SqlAgg.Fn.ARG_MAX) {
+            return argExtreme(writer, " DESC", r, w);
+        }
+        if (w.fn() instanceof com.legend.sql.SqlAgg.Reducer r && r.fn() == com.legend.sql.SqlAgg.Fn.ARG_MIN) {
+            return argExtreme(writer, " ASC", r, w);
+        }
+        return super.windowCall(writer, w);
     }
 
     /** An aggregate by its name; an ordered one pins the reference NULL placement too (the sortKey pin's

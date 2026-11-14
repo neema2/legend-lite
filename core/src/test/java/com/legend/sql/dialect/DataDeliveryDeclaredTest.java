@@ -54,6 +54,14 @@ public class DataDeliveryDeclaredTest {
             } catch (com.legend.error.NotImplementedException none) {
                 continue;   // no dialect at all: no query reaches the database
             }
+            // 2026-11-14 (main's JSON pass merged into the Deephaven branch, the user to rule: the desk roadmap's open
+            // items): Deephaven, the one database with no delivery -- a server reads no rows a plan carries (its
+            // DeephavenBatch sources are a server's tables; a plan's values uploaded first are DH5, unbuilt), so its
+            // dialect refuses a data: payload by name rather than default to a form it cannot run
+            if (type == com.legend.model.ConnectionDefinition.DatabaseType.Deephaven) {
+                assertRefusedOnDeephaven(dialect);
+                continue;
+            }
             declared.put(type.name(), kindOf(dialect));
         }
         // the JSON pass (2026-11-11, the user's rulings): bound wherever the database splits one parameter (measured:
@@ -94,6 +102,13 @@ public class DataDeliveryDeclaredTest {
             } catch (com.legend.error.NotImplementedException none) {
                 continue;
             }
+            if (type == com.legend.model.ConnectionDefinition.DatabaseType.Deephaven) {
+                // 2026-11-14: no delivery (eachDatabasesDeliveryIsItsMeasuredOne); an unread source refused by name
+                assertRefusedOnDeephaven(dialect);
+                assertThrows(com.legend.sql.DialectCapability.class, () -> dialect.render(unread), type.name());
+                rendered++;
+                continue;
+            }
             if (kindOf(dialect) == Kind.BOUND_PARAMETER) {
                 // a database that reads the payload itself: one placeholder, the payload its bound value
                 RenderedStatement written = dialect.renderStatement(unread);
@@ -108,6 +123,12 @@ public class DataDeliveryDeclaredTest {
             rendered++;
         }
         assertEquals(true, rendered >= 12, "every database's renderer asked: " + rendered);
+    }
+
+    /** Deephaven's refusal of a payload, by name (2026-11-14: the one database with no delivery). */
+    public static void assertRefusedOnDeephaven(SqlDialect dialect) {
+        var refused = assertThrows(com.legend.sql.DialectCapability.class, () -> kindOf(dialect));
+        assertEquals("a data payload reached Deephaven: a server reads no rows a plan carries", refused.getMessage());
     }
 
     /** On a database that writes the payload as rows (H2), a JSON connection's frame (its RECORDS form) is a row per

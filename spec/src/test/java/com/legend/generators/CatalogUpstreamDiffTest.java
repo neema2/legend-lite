@@ -226,8 +226,11 @@ class CatalogUpstreamDiffTest {
      *  overload, a row's values in several columns as one list without its empty cells, so the timeseries library's
      *  someValued is one function where it was twelve overloads (an answer's 12-column cap); upstream's ColSpecArray is
      *  names alone and no function of either pinned tree takes a row and one (checked per name 2026-11-02), and a list
-     *  literal of [0..1] elements, [$r.a, $r.b], is refused there. */
-    private static final int NOT_UPSTREAM_MAX = 70;
+     *  literal of [0..1] elements, [$r.a, $r.b], is refused there. 71 on 2026-11-14 (main's #77-#98 merged into the
+     *  Deephaven branch, measured): the branch's meta::legend::lite::ema (register S400, 2026-10-25), an exponential
+     *  moving average over an ordered window -- upstream has none, a window's average over a frame its only moving
+     *  average. */
+    private static final int NOT_UPSTREAM_MAX = 71;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

@@ -108,6 +108,12 @@ class DataSourcesDeliveryTest {
             } catch (com.legend.error.NotImplementedException none) {
                 continue;   // no dialect at all: no query reaches the database
             }
+            if (type == DatabaseType.Deephaven) {
+                // 2026-11-14 (main's JSON pass merged into the Deephaven branch, the user to rule): the one database
+                // with no delivery, refused by name (DataDeliveryDeclaredTest.assertRefusedOnDeephaven)
+                com.legend.sql.dialect.DataDeliveryDeclaredTest.assertRefusedOnDeephaven(dialect);
+                continue;
+            }
             assertTrue(BOUND.containsKey(type) || INLINE.contains(type), type + " is bound or inline");
             SqlSource read = dialect.deliver(SqlDialect.DataPayload.alone(source(PAYLOAD), List.of("{\"t\":1}")));
             assertEquals(BOUND.containsKey(type), read instanceof SqlSource.SourceUrl, type.name());

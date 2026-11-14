@@ -315,6 +315,11 @@ junit_test(
     jvm_flags = [
         "-Dhost.sql.rule=$(rlocationpath :host_sql.txt)",
         "-Dinventory.files=$(rlocationpath @repo_inventory//:files.txt)",
+        # 2026-11-14 (the Deephaven branch's merge of main, //gates:local): the module-statement scan's lazy loop
+        # recurses once a character to an import's or export's end -- 2,575 deep over the generated
+        # ts-builder-words.ts -- and overflowed the default 1 MB stack under the gate's load (unoptimized frames
+        # are larger), though it passed alone; a deeper stack changes no verdict
+        "-Xss16m",
     ],
     select = ["--select-class=com.legend.tools.guards.PlannedSqlTest"],
     deps = [

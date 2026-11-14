@@ -34,7 +34,8 @@ class H2ArgExtremeAndTimeBucketTest {
             """;
 
     private static List<String> run(String query) throws Exception {
-        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:argext" + System.nanoTime())) {
+        try (Connection c = DriverManager.getConnection("jdbc:h2:mem:argext" + System.nanoTime()
+                + com.legend.testbackend.TestBackends.h2UrlSettings())) {
             try (Statement st = c.createStatement()) {
                 st.execute("CREATE TABLE t (sym VARCHAR(8), seq INTEGER, px DOUBLE, tm TIMESTAMP NOT NULL)");
                 st.execute("INSERT INTO t VALUES ('A', 2, 10.5, TIMESTAMP '2024-06-03 09:04:59'),"
@@ -60,8 +61,10 @@ class H2ArgExtremeAndTimeBucketTest {
     @Test
     void fiveMinuteBucketsFloorFromTheEpoch() throws Exception {
         // 09:04:59 and 09:00:01 share 09:00, 09:05:00 opens its own, and an instant before 1970 floors DOWN
-        assertEquals(List.of("1969-12-31T23:55:00+0000", "2024-06-03T09:00:00+0000", "2024-06-03T09:00:00+0000",
-                        "2024-06-03T09:05:00+0000", "2024-06-04T00:00:00+0000", "2024-06-04T00:00:00+0000"),
+        // (each instant's text at the column's nanoseconds, as main's H2 writes a TIMESTAMP's: 2026-11-14)
+        assertEquals(List.of("1969-12-31T23:55:00.000000000+0000", "2024-06-03T09:00:00.000000000+0000",
+                        "2024-06-03T09:00:00.000000000+0000", "2024-06-03T09:05:00.000000000+0000",
+                        "2024-06-04T00:00:00.000000000+0000", "2024-06-04T00:00:00.000000000+0000"),
                 run("|#>{local::DB.t}#->extend(~b: x|$x.tm->timeBucket(5, DurationUnit.MINUTES))->select(~[b])"
                         + "->sort([~b->ascending()])"));
     }

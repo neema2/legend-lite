@@ -3792,7 +3792,7 @@ export class CubePage {
     // a value as `region: EMEA`; a range's ends (a period, a bin, a brush) as `sold ≥ 2024-03-01`
     const sign: Partial<Record<string, string>> = { greaterThanEqual: '\u2265', greaterThan: '>', lessThan: '<', lessThanEqual: '\u2264' };
     // a word looked for (a feed's keyword, K15): `headline or body contains "buyback"`, in one or several columns
-    const contains = (c: FilterNode): c is FilterNode & { kind: 'condition' } => c.kind === 'condition'
+    const contains = (c: FilterNode): boolean => c.kind === 'condition'
       && (c.operator === 'contains' || c.operator === 'containsCaseInsensitive');
     const words = chart.conditions.map((c) => c.kind === 'condition'
       ? (c.operator === 'isEmpty' ? `${source.label(c.column)}: (empty)`

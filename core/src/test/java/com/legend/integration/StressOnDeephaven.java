@@ -237,10 +237,20 @@ final class StressOnDeephaven {
     /** The corpus's test data: its tables' CSV. */
     private static List<Protocol.PRelationalCsvTable> seed(ModelContext ctx) {
         DataDefinition data = ctx.findData(DATA).orElseThrow();
-        if (!(data.body().value() instanceof Protocol.PRelationalCsvData csv)) {
-            throw new IllegalStateException(DATA + " is not relational CSV data");
-        }
-        return csv.tables();
+        // each kind classified where it is read (census M17, EmbeddedDataKinds): the corpus's is a store's CSV rows
+        return switch (data.body().value()) {
+            case Protocol.PRelationalCsvData csv -> csv.tables();
+            case Protocol.PDataReference other -> refused(other);
+            case Protocol.PModelStoreData other -> refused(other);
+            case Protocol.PExternalFormatData other -> refused(other);
+            case Protocol.PServiceStoreData other -> refused(other);
+            case Protocol.PRelationData other -> refused(other);
+        };
+    }
+
+    private static List<Protocol.PRelationalCsvTable> refused(Protocol.PEmbeddedDataValue value) {
+        throw new com.legend.error.NotImplementedException(
+                com.legend.protocol.EmbeddedDataKinds.notImplemented(value, "the stress corpus on Deephaven"));
     }
 
     /**

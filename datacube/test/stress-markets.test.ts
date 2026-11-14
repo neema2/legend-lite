@@ -216,8 +216,16 @@ describe('the trading model\'s tables, as its store declares them', () => {
       }
       return undefined;
     };
+    // 2026-11-14 (main's markets merged into the Deephaven branch, whose corpus declares the desk's tables by ingests,
+    // the desk roadmap's A2): a table an ingest's dataset makes from a source -- a view it pulls, a topic it reads --
+    // has its source's columns, in its order
+    const sourceOf = (t: string): string | undefined => {
+      const m = new RegExp(`\\b${t}\\(\\s*\\|#>\\{[\\w:]+\\.(?:"([^"]+)"|(\\w+))\\}#\\s*\\)`).exec(MODEL);
+      return m === null ? undefined : m[1] !== undefined ? `"${m[1]}"` : m[2];
+    };
     for (const t of STRESS_MARKET_TABLES) {
-      const declared = declaredIn(OWN_MARKET_TABLES.includes(t) ? own : store, t);
+      const source = OWN_MARKET_TABLES.includes(t) ? undefined : sourceOf(t);
+      const declared = source !== undefined ? declaredIn(MODEL, source) : declaredIn(OWN_MARKET_TABLES.includes(t) ? own : store, t);
       assert.ok(declared !== undefined, `the store declares ${t}`);
       const names = declared.split(/,(?![^(]*\))/).map((c) => c.trim().split(/\s+/)[0]);
       assert.deepEqual([...STRESS_MARKET_COLUMNS[t]], names, `${t}'s columns`);

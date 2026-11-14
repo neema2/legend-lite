@@ -16,28 +16,22 @@ public final class IngestWords {
 
     /** The write modes, written and on the wire: Legend's three (the wire's values, legend-studio's
      *  {@code V1_WriteModeType}), then lite's. */
-    private static final String[][] WRITE_MODES = {
-            {"AppendOnly", "append_only"},
-            {"BatchMilestoned", "batch_milestoned"},
-            {"BatchMilestonedBusinessTemporal", "batch_milestoned_business_temporal"},
-            {"LatestByKey", "latest_by_key"},
-    };
+    private static final java.util.Map<String, String> WRITE_MODES = java.util.Map.of(
+            "AppendOnly", "append_only",
+            "BatchMilestoned", "batch_milestoned",
+            "BatchMilestonedBusinessTemporal", "batch_milestoned_business_temporal",
+            "LatestByKey", "latest_by_key");
 
     /** The wire's value of a written write mode, null for a word that is none. */
     public static @com.legend.base.Nullable String writeModeWire(String word) {
-        for (String[] m : WRITE_MODES) {
-            if (m[0].equals(word)) {
-                return m[1];
-            }
-        }
-        return null;
+        return WRITE_MODES.get(word);
     }
 
     /** The written word of a wire write mode, null for a value that is none. */
     public static @com.legend.base.Nullable String writeModeWord(String wire) {
-        for (String[] m : WRITE_MODES) {
-            if (m[1].equals(wire)) {
-                return m[0];
+        for (java.util.Map.Entry<String, String> m : WRITE_MODES.entrySet()) {
+            if (m.getValue().equals(wire)) {
+                return m.getKey();
             }
         }
         return null;

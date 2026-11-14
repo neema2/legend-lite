@@ -1493,6 +1493,11 @@ class JavaEvalLedgerTest {
                     // value is a formula of the row's number the DATABASE computes; the planner chooses each column's
                     // formula from its declared type and the request's knob (model and request text, never a value)
                     "Synthesize.java",
+                    // 2026-11-14 (the desk roadmap's C0, the user's go of that day): an ingest dataset's landing as three
+                    // loads -- its table made as declared, a batch the host holds attached by name and put in by the
+                    // write mode, the retention kept by arrival -- each from the ingest's declaration (model text, never
+                    // a value); the database moves every row
+                    "IngestPlanner.java",
                     // 2026-11-12 (the user's ruling "Yes do 5 and 6": Studio's SQL playground through the planner): a
                     // person's one statement as a plan, carried as written -- never parsed, rewritten or split; the
                     // planner computes nothing, the database answers the relation it reports

@@ -83,8 +83,12 @@ class FixtureWriteCensusTest {
      *  set up as its user's -- the price, cash and adversarial tables the #TS tests read (TsIslandTest 4,
      *  TsScaleMeasureTest 5 at 10M rows, TimeseriesLibraryTest 2; the documents', the oracle's, the replay's and the
      *  spike's 1 each), the dialect tests' own tables (SelectLayersTest 2, SharedRelationsInPlaceTest 2) and the
-     *  ClickHouse and Snowflake backends' schemas (2, 3); 25. */
-    private static final int CEILING = 947;
+     *  ClickHouse and Snowflake backends' schemas (2, 3); 25. 947 -> 956 (2026-11-14, main's #77-#98 merged into the
+     *  Deephaven branch, measured by the census's run): the branch's three dialect tests written before this census --
+     *  a session's own table of prints the EMA and the shared subtrees read (EmaTest 4, DuckDbSharedSubtreesTest 2) and
+     *  H2's argMax and time buckets (H2ArgExtremeAndTimeBucketTest 2) -- and the ingest plans' test, whose one write is
+     *  the host's part: the batch it holds, made the relation the land plan attaches (DuckDbIngestPlansTest 1); 9. */
+    private static final int CEILING = 956;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -207,6 +211,11 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2KeywordsTest.java", 4),
             Map.entry("core/src/test/java/com/legend/sql/dialect/H2SplitPartTest.java", 2),
             Map.entry("core/src/test/java/com/legend/sql/dialect/HostOperationsTest.java", 3),
+            // 2026-11-14 (main's #77-#98 merged into the Deephaven branch; the ceiling's note): the branch's own
+            Map.entry("core/src/test/java/com/legend/sql/dialect/EmaTest.java", 4),
+            Map.entry("core/src/test/java/com/legend/sql/dialect/DuckDbSharedSubtreesTest.java", 2),
+            Map.entry("core/src/test/java/com/legend/sql/dialect/H2ArgExtremeAndTimeBucketTest.java", 2),
+            Map.entry("core/src/test/java/com/legend/planner/DuckDbIngestPlansTest.java", 1),
             Map.entry("core/src/test/java/com/legend/sql/dialect/SqlWriterTest.java", 2),
             Map.entry("core/src/test/java/com/legend/sql/dialect/TempTableAsTest.java", 2),
             Map.entry("core/src/test/java/com/legend/testbackend/PostgresBackend.java", 2),

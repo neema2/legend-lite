@@ -140,6 +140,18 @@ final class DeephavenBatch {
             }
             if (s.expr() != null) {
                 w.append(" = ").expr(s.expr(), 0);
+                if (copies != null) {
+                    // 2026-11-14 (main's merge into the Deephaven branch: an extend's source columns now reach its
+                    // select as its own column list, not a star): a source column copied as it is, by its column
+                    // expression (`notional = t0__notional`), is a copy too -- registered once written, so the copy
+                    // itself reads the source
+                    String from = dialect.plainColumn(s.expr());
+                    if (from != null && !from.equals(s.text()) && DeephavenJson.holdsName(s.text())
+                            && !copies.containsKey(from)) {
+                        copies.put(from, s.text());
+                        copied.add(from);
+                    }
+                }
                 if (computed != null && worthNaming(s.expr())) {
                     for (SqlExpr form : forms(s.expr())) {
                         if (!computed.containsKey(form)) {

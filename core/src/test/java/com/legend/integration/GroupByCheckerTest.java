@@ -650,11 +650,11 @@ public class GroupByCheckerTest extends AbstractDatabaseTest {
                         c:x|meta::pure::functions::math::mathUtility::rowMapper($x.px, $x.qty):y|$y->corr()->toOne()->cast(@Float)->round(4)])""");
             assertEquals(2, result.rowCount());
             var sd = CheckerResults.collect(result, "grp", "sd");
-            assertEquals(15.275, ((Number) sd.get(1)).doubleValue(), 0.0, "sd of [10, 20, 40] = 15.2752...");
-            assertEquals(70.711, ((Number) sd.get(2)).doubleValue(), 0.0, "sd of [100, 200] = 70.7106...");
+            assertEquals(15.275, ((Number) sd.get(1L)).doubleValue(), 0.0, "sd of [10, 20, 40] = 15.2752...");
+            assertEquals(70.711, ((Number) sd.get(2L)).doubleValue(), 0.0, "sd of [100, 200] = 70.7106...");
             var corr = CheckerResults.collect(result, "grp", "c");
-            assertEquals(0.3273, ((Number) corr.get(1)).doubleValue(), 0.0, "corr = 0.32732...");
-            assertEquals(-1.0, ((Number) corr.get(2)).doubleValue(), 0.0, "two points lie on a falling line");
+            assertEquals(0.3273, ((Number) corr.get(1L)).doubleValue(), 0.0, "corr = 0.32732...");
+            assertEquals(-1.0, ((Number) corr.get(2L)).doubleValue(), 0.0, "two points lie on a falling line");
         }
 
         @Test

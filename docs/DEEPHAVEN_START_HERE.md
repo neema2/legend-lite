@@ -48,9 +48,17 @@ runs them through the hosts' `runLoad`, each batch attached by name, and spells 
 are the model's (`LastRows`: prints 25,000, news 5,000, executions and order routes 50,000), the world's status table
 an ingest of its own (`market::WorldStatus`), `loadArrow` and the live engine's staged writes deleted. The branch's
 SEMANTICS_REGISTER rows moved to S400-S405 (main holds S300-S399 for the total wall). Main's newer guards caught the
-line's own code: its `as unknown as` casts, an `as never` and two variables named `any` were removed; its connect,
-fetch and send sites (the model home's release index, a Deephaven page's config, the Deephaven session's gRPC-web
-transport, the crypto feed's WebSocket, stage A's measurement) were pinned by name in `PlannedSqlTest`, each dated.
+line's own code: its `as unknown as` casts, an `as never`, a type predicate and two variables named `any` were
+removed, and two static arrays made constants; its connect, fetch and send sites (the model home's release index, a
+Deephaven page's config, the Deephaven session's gRPC-web transport, the crypto feed's WebSocket, stage A's
+measurement) were pinned by name in `PlannedSqlTest`, each dated. One real regression was found and fixed: main's
+lowering now hands an extend its source columns as a column list, not a star, so the batch writer's read of a copied
+column by its own name (2026-10-26: a formula the same text wherever its query sits) stopped firing --
+`DeephavenBatch.view` registers a column copied by its expression too. The line's H2 maxBy and minBy now also run as
+windows (`H2.windowCall`), which took 12 lines off the H2 lane's floor. Two new gaps are open decisions 6 and 7
+below. The pins moved by measurement, each dated: the bare-name arms 188 -> 201 and the non-upstream overloads
+70 -> 71 (the line's own Deephaven and `ema` code), the fixture writes' ceiling 947 -> 956 (the line's tests written
+before that census), the bundle budgets (main's measure plus the line's growth, within D9).
 
 ## What is built (the plan's §9 table; each row's paragraph says what it measured)
 
@@ -169,6 +177,15 @@ normally); `browser_guard_test` fails behind the session's proxy certificate.
    Deephaven. The declarations are not part of the operations' keys: a table kept alive is checked once, when made.
    Not checked: NOT NULL (Deephaven's schema says nothing of it, and a live table may gain a null later; only reading
    rows could).
+6. **A `data:` payload on Deephaven** (found at main's merge, 2026-11-14; the user to rule). Main's JSON pass made it a
+   rule that every database takes a query's `data:` payload, as one bound parameter or as the statement's own rows
+   (`DataDeliveryDeclaredTest`, register S190 withdrawn). Deephaven takes neither: a batch reads a server's tables,
+   and a plan's values uploaded first are DH5, unbuilt. Its dialect refuses the payload by name ("a data payload
+   reached Deephaven: a server reads no rows a plan carries"), and the delivery tests pin that refusal as the one
+   exception, dated. The choice: keep it a named refusal until DH5's upload exists, or build the upload now.
+7. **The median window on Deephaven** (main's new running and moving median, 2026-11-14): refused by name on every
+   frame ("a window function (MEDIAN) reached Deephaven: no shape yet"), pinned so in `window-columns.test.ts`. Its
+   shape is a rolling formula (or the median aggregate for a whole partition), to be measured on the pinned server.
 
 ## The desk under load (measured on the user's Mac, 2026-10-27/28)
 

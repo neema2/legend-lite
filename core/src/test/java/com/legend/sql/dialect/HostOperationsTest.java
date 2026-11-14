@@ -282,9 +282,8 @@ class HostOperationsTest {
         }
     }
 
-    /** An ingest's landing on DuckDB (docs/DESK_DATA_ROADMAP_2026_10_29.md C0): an upsert keeps the latest row a key --
-     *  a batch's last of a key, a later batch's over it -- and a retention keeps a table's latest rows by arrival, its
-     *  row order, whatever its values (a sequence that does not rise with arrival is not what it reads). */
+    /** An ingest's landing on DuckDB (docs/DESK_DATA_ROADMAP_2026_10_29.md C0), as spelled: an upsert keeps the latest
+     *  row a key -- a batch's last of a key -- and a retention keeps a table's latest rows by arrival, its row order. */
     @Test
     void anIngestsUpsertAndRetention() throws Exception {
         var quote = HostOperation.Name.declared(null, "QUOTE");
@@ -300,22 +299,7 @@ class HostOperationsTest {
                 List.of(new HostOperation.Column("BID", "bid")), List.of("SYMBOL"), staged));
         assertThrows(IllegalArgumentException.class, () -> new HostOperation.Bound(tape, 0));
 
-        try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
-            st.execute("CREATE TABLE QUOTE (SYMBOL VARCHAR PRIMARY KEY, BID DOUBLE)");
-            st.execute("CREATE TABLE \"__staged\" AS SELECT * FROM (VALUES ('AAPL', 1.0), ('MSFT', 10.0), ('AAPL', 3.0)) t(SYMBOL, bid)");
-            st.execute(one(upsert));
-            st.execute("CREATE OR REPLACE TABLE \"__staged\" AS SELECT * FROM (VALUES ('MSFT', 12.0)) t(SYMBOL, bid)");
-            st.execute(one(upsert));
-            assertEquals(List.of("AAPL 3.0", "MSFT 12.0"), rows(st, "SELECT SYMBOL || ' ' || BID FROM QUOTE ORDER BY SYMBOL"));
-
-            // arrival, not value: the sequence falls as the rows arrive, and the latest three arrived are kept
-            st.execute("CREATE TABLE TAPE (SEQ BIGINT)");
-            st.execute("INSERT INTO TAPE SELECT 100 - i FROM range(10) t(i)");
-            st.execute(one(keep3));
-            assertEquals(List.of("91 92 93"), rows(st, "SELECT string_agg(SEQ::VARCHAR, ' ' ORDER BY SEQ) FROM TAPE"));
-            st.execute(one(new HostOperation.Bound(tape, 10)));
-            assertEquals(List.of("3"), rows(st, "SELECT count(*) FROM TAPE"), "a table holding fewer than its retention loses none");
-        }
+        // run on DuckDB through an ingest's plans: planner/DuckDbIngestPlansTest
     }
 
     /**
