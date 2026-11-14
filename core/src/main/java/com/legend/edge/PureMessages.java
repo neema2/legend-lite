@@ -66,6 +66,13 @@ public final class PureMessages {
             case CAST_IMPOSSIBLE -> new SqlExpr.StringLit("Cast exception: " + text(r, 0) + " cannot be cast to "
                     + text(r, 1));
             case RANGE_STEP_ZERO -> new SqlExpr.StringLit("range step must not be 0");
+            // legend-pure's rows/_range assert, verbatim (#81's frame guard, merged 2026-11-14)
+            case WINDOW_FRAME_INVERTED -> new SqlExpr.StringLit("Invalid window frame boundary - lower bound of window"
+                    + " frame cannot be greater than the upper bound!");
+            // lite's own sentence (S170: a bound's direction read from its shape), kept for the compatibility road
+            case WINDOW_FRAME_OFFSET_INVALID -> new SqlExpr.StringLit("Invalid window frame boundary - a window frame"
+                    + " bound written -(n) is n before the current row and any other n after it, so a computed n must"
+                    + " be neither negative nor empty (docs/SEMANTICS_REGISTER.md S170)");
             // [the native's name]: lite's own sentence, kept for the compatibility road
             case LIST_LENGTHS_DIFFER -> new SqlExpr.StringLit(text(r, 0) + ": the two value lists differ in length");
             // [the constraint's id]: the engine's milestoning/constraint sentence, in a checked graph's defect row

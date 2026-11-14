@@ -149,6 +149,12 @@ class RaiseTextTest {
         moved.put(new SqlExpr.RaiseText(RaiseKind.CAST_IMPOSSIBLE, List.of(lit("Integer"), lit("Date"))),
                 lit("Cast exception: Integer cannot be cast to Date"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.RANGE_STEP_ZERO, List.of()), lit("range step must not be 0"));
+        // #81's frame guard (merged 2026-11-14): its two sentences, legend-pure's and S170's, as it raised them
+        moved.put(new SqlExpr.RaiseText(RaiseKind.WINDOW_FRAME_INVERTED, List.of()), lit("Invalid window frame boundary"
+                + " - lower bound of window frame cannot be greater than the upper bound!"));
+        moved.put(new SqlExpr.RaiseText(RaiseKind.WINDOW_FRAME_OFFSET_INVALID, List.of()), lit("Invalid window frame"
+                + " boundary - a window frame bound written -(n) is n before the current row and any other n after it,"
+                + " so a computed n must be neither negative nor empty (docs/SEMANTICS_REGISTER.md S170)"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.CONSTRAINT_UNEVALUABLE, List.of(lit("posInt"))),
                 lit("Unable to evaluate constraint [posInt]: data not available - check your mappings"));
         moved.put(new SqlExpr.RaiseText(RaiseKind.USER_FAIL, List.of(lit("my own words"))), lit("my own words"));
