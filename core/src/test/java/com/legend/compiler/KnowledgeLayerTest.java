@@ -523,6 +523,9 @@ class KnowledgeLayerTest {
                 LK2: like())
               View VCASE (UA1: ABS(T.I), UA2: Sum(T.I), UA3: COUNT(T.I), UA4: Max(T.I), UA5: CONCAT(T.V, T.V),
                 UA6: Coalesce(T.I), UA7: abs(T.I), UA8: SUM(T.I), UA9: count(T.I), UA10: AVERAGE(T.I))
+              View VJS (JS1: joinStrings(T.V, ','), JS2: joinStrings(T.I, ','), JS3: joinStrings(T.X, ','),
+                JS4: joinStrings(nope(T.I), ','), JS5: joinStrings(T.C, ','), JS6: joinStrings(T.V), JS7: joinStrings(),
+                JS8: joinStrings(sqlNull(), ','), JS9: joinStrings(T.V, T.X))
             )
             """;
 
@@ -606,6 +609,19 @@ class KnowledgeLayerTest {
         assertEquals("UA3:meta::pure::metamodel::type::Any[0..1]", signature.get(2).text(), "COUNT is no aggregate");
         assertEquals("UA8:meta::pure::metamodel::type::Any[0..1]", signature.get(7).text(), "SUM is no aggregate");
         assertEquals("UA9:Integer[1]", signature.get(8).text(), "count is");
+    }
+
+    /** joinStrings (2026-11-14, the names batch, item 4: register row S378, ruling 34): a VARCHAR of the larger of 4000
+     * and its first argument's CHAR or VARCHAR size, no rule for another first argument (relationalExtension.pure
+     * :1031-1039; {@link #ENGINE_CASES}: the engine's own answers; its own testJoinStringsTypeInference expects
+     * VARCHAR(4000) of a VARCHAR(200)). It was VARCHAR(4000) whatever its arguments. */
+    @Test
+    @DisplayName("kernel: joinStrings is typed by the engine's rule for it")
+    void joinStringsIsTypedByTheEnginesRule() {
+        assertEquals(String.join(" ", """
+                VJS.JS1=Varchar(4000) VJS.JS2=- VJS.JS3=Varchar(5000) VJS.JS4=- VJS.JS5=Varchar(4000) VJS.JS6=Varchar(4000)
+                VJS.JS7=- VJS.JS8=- VJS.JS9=Varchar(4000)
+                """.trim().split("\\s+")), inferenceTable(ENGINE_CASES, "VJS"));
     }
 
     /** S376's join terminal (2026-11-13, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34): a join

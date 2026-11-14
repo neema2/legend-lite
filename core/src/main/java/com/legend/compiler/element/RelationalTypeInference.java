@@ -154,9 +154,18 @@ public final class RelationalTypeInference {
                     RelationalDataType second = infer(f.args().get(1), db, ctx, expanding);
                     yield first != null && second != null && kind(first) == kind(second) ? first : null;
                 }
-                // joinStrings AGGREGATES: the engine assigns the fixed
-                // 4000 buffer size
-                case "joinStrings" -> new RelationalDataType.Varchar(4000);
+                // joinStrings is a VARCHAR of the larger of 4000 and its first argument's CHAR or VARCHAR size; any other
+                // first argument, or none, matches no rule, no type (relationalExtension.pure:1031-1039, asked of the
+                // engine). A joinStrings(...) a Database text writes is a DynaFunction, typed by the map: the
+                // inferRelationalType arm for the JoinStrings OPERATION (:173, its strings', prefix's, separator's and
+                // suffix's sizes summed) types an element only the engine's query translation builds (pureToSQLQuery),
+                // never a parsed one. Until 2026-11-14 VARCHAR(4000) whatever its arguments (S378, the names batch,
+                // item 4, ruling 34)
+                case "joinStrings" -> {
+                    RelationalDataType at = f.args().isEmpty() ? null : infer(f.args().get(0), db, ctx, expanding);
+                    yield at != null && isCharOrVarchar(at) ? new RelationalDataType.Varchar(Math.max(4000, size(at)))
+                            : null;
+                }
                 // string concatenation SUMS the operand sizes (engine
                 // getSize over concat); an operand typed other than CHAR or
                 // VARCHAR leaves it no type -- the engine's one rule asks every
