@@ -212,6 +212,20 @@ final class ConnectionEmitters {
                 srcInfo(b, sq.sourceInformation());
                 b.append('}');
             }
+            case Protocol.PKafkaSpec k -> {
+                // lite's own, as Deephaven (docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6)
+                b.append("{\"_type\":\"kafka\",\"bootstrapServers\":");
+                str(b, k.bootstrapServers());
+                b.append(",\"format\":");
+                str(b, k.format());
+                if (k.schemaRegistry() != null) {
+                    b.append(",\"schemaRegistry\":");
+                    str(b, k.schemaRegistry());
+                }
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, k.sourceInformation());
+                b.append('}');
+            }
             case Protocol.PDeephavenSpec dh -> {
                 // lite's own, as SQLite (docs/DEEPHAVEN_PLAN_2026_10_22.md §4; ONE_CONNECTION_DESK D1)
                 b.append("{\"_type\":\"deephaven\",\"host\":");

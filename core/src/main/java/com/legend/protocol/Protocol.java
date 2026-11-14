@@ -2708,7 +2708,7 @@ public final class Protocol {
             permits PH2Local, PStaticSpec, PH2EmbeddedSpec, PDuckDBSpec,
             PSQLiteSpec, PSnowflakeSpec, PSpannerSpec, PDatabricksSpec,
             PBigQuerySpec, PRedshiftSpec, PTrinoSpec, PAthenaSpec, PAuroraSpec,
-            PGlobalAuroraSpec, PMemSqlSpec, POracleSpec, PDeephavenSpec {
+            PGlobalAuroraSpec, PMemSqlSpec, POracleSpec, PDeephavenSpec, PKafkaSpec {
     }
 
     /** {@code _type:"athena"} — AthenaParserGrammar: {@code region} required,
@@ -2792,6 +2792,16 @@ public final class Protocol {
      *  the emitter refuses it by name, as {@link PSQLiteSpec}. */
     public record PDeephavenSpec(String host, long port, boolean useTls,
                                  @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code Kafka { bootstrapServers: '...'; format: Json; schemaRegistry: '...'; }} -- a DECLARED lite extension
+     *  (docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6, the desk roadmap's B2): the topics a topic store's tables
+     *  are, where its brokers are, the format their records are written in ({@code Json}, {@code Avro}), and the
+     *  schema registry an Avro topic's records are read by (null: none). No query runs on it: a stream's ingest reads
+     *  its topics. No engine wire shape, as {@link PDeephavenSpec}. */
+    public record PKafkaSpec(String bootstrapServers, String format, @com.legend.base.Nullable String schemaRegistry,
+                             @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
 

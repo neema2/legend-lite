@@ -27,6 +27,8 @@ final class DatasourceReader {
             Map.entry("sqlite", w -> new Protocol.PSQLiteSpec(w.optStr("path"), w.span())),
             Map.entry("deephaven", w -> new Protocol.PDeephavenSpec(w.str("host"), w.lng("port"), w.bool("useTls"),
                     w.span())),
+            Map.entry("kafka", w -> new Protocol.PKafkaSpec(w.str("bootstrapServers"), w.str("format"),
+                    w.optStr("schemaRegistry"), w.span())),
             Map.entry("h2Embedded", w -> new Protocol.PH2EmbeddedSpec(w.str("databaseName"), w.str("directory"),
                     w.bool("autoServerMode"), w.span())),
             Map.entry("static", w -> new Protocol.PStaticSpec(w.str("databaseName"), w.str("host"), w.lng("port"),

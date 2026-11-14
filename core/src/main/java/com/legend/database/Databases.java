@@ -85,6 +85,8 @@ public final class Databases {
             case Deephaven -> Runs.HOST;
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
                  Aurora -> Runs.NONE;
+            // a topic store's brokers: no query runs there (a stream's ingest reads its topics; the desk roadmap's B2)
+            case Kafka -> Runs.NONE;
         };
     }
 
@@ -116,6 +118,8 @@ public final class Databases {
                  Redshift, Spanner, Athena, Oracle, Aurora ->
                     throw new com.legend.error.NotImplementedException(
                             "SQL dialect for database type '" + type + "' is not implemented yet");
+            case Kafka -> throw new com.legend.error.NotImplementedException("a Kafka connection is a topic store's"
+                    + " brokers: no query runs on it (a stream's ingest reads its topics)");
         };
     }
 

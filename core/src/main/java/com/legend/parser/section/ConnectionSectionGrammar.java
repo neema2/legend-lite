@@ -50,7 +50,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     /** The database types legend-lite adds to the referee's (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12-13): declared
      *  lite extensions, refused on the drop-in surface. */
     private static final java.util.Set<String> LITE_DATABASE_TYPES = java.util.Set.of("SQLite", "MariaDB", "MySQL",
-            "Deephaven");
+            "Deephaven", "Kafka");
 
     private ConnectionSectionGrammar() {
     }
@@ -902,6 +902,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
                 yield parseSqliteSpec(c, keywordTok);
             }
             case "Deephaven" -> parseDeephavenSpec(c, keywordTok);
+            case "Kafka" -> parseKafkaSpec(c, keywordTok);
             case "Snowflake" -> parseSnowflakeSpec(c, keywordTok);
             case "Redshift" -> parseRedshiftSpec(c, keywordTok);
             case "Trino" -> parseTrinoSpec(c, keywordTok);
@@ -1162,6 +1163,44 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
         }
         return new Protocol.PDeephavenSpec(host, port, useTls,
                 c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** The Kafka datasource spec -- a DECLARED lite extension (docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6):
+     *  {@code Kafka { bootstrapServers: '...'; format: Json; schemaRegistry: '...'; }}, the brokers and the format
+     *  required (no default broker, no default format: AGENTS invariant 4), the schema registry an Avro topic's. */
+    private static Protocol.PDatasourceSpec parseKafkaSpec(TokenStreamCursor c, int keywordTok) {
+        if (c.dialect().refusesLiteExtensions()) {
+            throw c.error("unsupported datasource specification: Kafka");
+        }
+        c.expect(TokenType.BRACE_OPEN);
+        String servers = null;
+        String format = null;
+        String registry = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "bootstrapServers" -> servers = SectionParse.stringValue(c);
+                case "schemaRegistry" -> registry = SectionParse.stringValue(c);
+                case "format" -> {
+                    format = c.parseIdentifier();
+                    if (!"Json".equals(format) && !"Avro".equals(format)) {
+                        throw c.error("a Kafka topic's format is Json or Avro, not " + format);
+                    }
+                }
+                default -> throw c.error("unknown Kafka key: " + key);
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (servers == null || format == null) {
+            throw TokenStreamCursor.throwAt(c.tokens(), keywordTok,
+                    "Kafka needs " + (servers == null ? "bootstrapServers" : "format"));
+        }
+        return new Protocol.PKafkaSpec(servers, format, registry, c.spanOf(keywordTok, c.pos() - 1));
     }
 
     /** {@code PreSharedKey { keyVaultReference: '...'; }} -- a DECLARED lite

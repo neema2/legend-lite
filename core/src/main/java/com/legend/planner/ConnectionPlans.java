@@ -57,6 +57,9 @@ public final class ConnectionPlans {
                     x.projectId(), x.defaultDataset());
             case com.legend.model.ConnectionSpecification.Deephaven x -> new ConnectionSpecification.Deephaven(
                     x.host(), x.port(), x.useTls());
+            // a topic store's brokers: no query runs on them, so no plan carries them (the desk roadmap's B2)
+            case com.legend.model.ConnectionSpecification.Kafka x -> throw new IllegalArgumentException("a Kafka"
+                    + " connection (" + x.bootstrapServers() + ") is a topic store's brokers: no plan runs on it");
         };
     }
 

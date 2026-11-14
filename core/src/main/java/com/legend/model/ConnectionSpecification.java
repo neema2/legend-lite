@@ -18,7 +18,8 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.Spanner,
                 ConnectionSpecification.Databricks,
                 ConnectionSpecification.BigQuery,
-                ConnectionSpecification.Deephaven {
+                ConnectionSpecification.Deephaven,
+                ConnectionSpecification.Kafka {
 
     /** The Pure class of the datasource specification that carries a connection's test data ({@link #testData}) where a
      *  Pure body builds the connection ({@code ^RelationalDatabaseConnection(datasourceSpecification = ^...)}):
@@ -138,4 +139,10 @@ public sealed interface ConnectionSpecification
     /** A Deephaven server (lite's own, docs/DEEPHAVEN_PLAN_2026_10_22.md §4): its host, its gRPC port, and whether the
      *  channel is TLS. Every field is written; none defaults (AGENTS invariant 4). */
     record Deephaven(String host, int port, boolean useTls) implements ConnectionSpecification {}
+
+    /** A topic store's brokers (lite's own, docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6): where its topics are,
+     *  the format their records are written in ({@code Json}, {@code Avro}), an Avro topic's schema registry (null:
+     *  none). No query runs on it; a stream's ingest reads its topics (the desk roadmap's B2). */
+    record Kafka(String bootstrapServers, String format, @com.legend.base.Nullable String schemaRegistry)
+            implements ConnectionSpecification {}
 }

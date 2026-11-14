@@ -167,6 +167,8 @@ final class RelationalConnectionComposer {
                     + " _type 'sqlite'");
             case Protocol.PDeephavenSpec s -> throw Composing.refused("no composer rule for the Deephaven datasource"
                     + " specification (lite's own)");
+            case Protocol.PKafkaSpec s -> throw Composing.refused("no composer rule for the Kafka datasource"
+                    + " specification (lite's own)");
         };
     }
 
