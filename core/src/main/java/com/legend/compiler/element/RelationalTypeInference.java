@@ -83,10 +83,11 @@ public final class RelationalTypeInference {
                 case "distinct" ->
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
-                // sum by its first argument's raw kind, the engine's four rules (relationalExtension.pure:1717-1730):
+                // sum by its first argument's raw kind, the engine's five rules (relationalExtension.pure:1717-1741):
                 // TINYINT, SMALLINT and INTEGER an INTEGER, BIGINT a BIGINT, a DECIMAL or a NUMERIC its own kind with its
-                // precision capped at 31; any other kind (FLOAT and DOUBLE among them) matches no rule, no type. Until
-                // 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (S378, ruling 34)
+                // precision capped at 31, FLOAT and DOUBLE a DOUBLE; any other kind (REAL among them) matches no rule, no
+                // type. Until 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (S378, ruling 34; the
+                // follow-ups' first version read four rules, its fifth missed, and typed a FLOAT or DOUBLE nothing)
                 case "sum" -> {
                     RelationalDataType at = f.args().isEmpty() ? null
                             : infer(f.args().get(0), db, ctx, expanding);
@@ -94,8 +95,9 @@ public final class RelationalTypeInference {
                         case TINYINT, SMALLINT, INTEGER -> new RelationalDataType.Integer_();
                         case BIGINT -> new RelationalDataType.BigInt();
                         case DECIMAL, NUMERIC -> capped(at);
-                        case FLOAT, DOUBLE, REAL, BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME,
-                                TIMESTAMP_NS, DISTINCT, OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> null;
+                        case FLOAT, DOUBLE -> new RelationalDataType.Double_();
+                        case REAL, BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME, TIMESTAMP_NS, DISTINCT,
+                                OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> null;
                     };
                 }
                 // average and divide are DOUBLE whatever their arguments, which the engine's one rule each does not read
@@ -280,7 +282,7 @@ public final class RelationalTypeInference {
         return safeTypeOf(types) != null ? types.get(0) : null;
     }
 
-    /** plus's and sum's DECIMAL and NUMERIC rules (relationalExtension.pure:1408-1436, :1717-1730): the kind kept, its
+    /** plus's and sum's DECIMAL and NUMERIC rules (relationalExtension.pure:1408-1436, :1717-1741): the kind kept, its
      *  precision {@code min([31, precision])}, its scale as it is. Asked of a DECIMAL or NUMERIC alone. */
     private static RelationalDataType capped(RelationalDataType t) {
         if (t instanceof RelationalDataType.Decimal d) {

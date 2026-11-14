@@ -16,7 +16,6 @@ import java.sql.SQLException;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
  * Metamodel-as-relations, group F (2026-09-02): the mapping-metamodel QUERY
@@ -140,12 +139,7 @@ class MetamodelQueryFunctionsTest {
         assertEquals(List.of("VARCHAR(50)"), values(viewColumnType("AV", "orgName")),
                 "the join's terminal column types the element");
         assertEquals(List.of("DATE"), values(viewColumnType("AGG", "maxTs")));
-        // sum over a DOUBLE matches none of the engine's four sum rules (relationalExtension.pure:1717-1730: the integer
-        // kinds, BIGINT, DECIMAL, NUMERIC), so the element has no inferred type and the query over its one type fails
-        // (the engine's own inference fails there: 'Type inference not supported yet! Dyna function: sum'). Until
-        // 2026-11-13 lite typed it DOUBLE (register row S378, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md
-        // §10 ruling 34)
-        assertThrows(com.legend.error.DataError.class, () -> values(viewColumnType("AGG", "total")));
+        assertEquals(List.of("DOUBLE"), values(viewColumnType("AGG", "total")));
         assertEquals(List.of("VARCHAR(20)"), values(viewColumnType("AVV", "aName")),
                 "view on view: through the underlying view's column expression");
     }

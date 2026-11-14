@@ -111,7 +111,7 @@ public final class ViewSignatures {
             throw cantFindColumn(cr.column());
         }
         // an aggregate at any arity, typed as the engine's inferRelationalType types it (relationalExtension.pure:
-        // count BIGINT and average DOUBLE whatever their arguments, :291-300, :543-551; sum by its first, :1717-1730;
+        // count BIGINT and average DOUBLE whatever their arguments, :291-300, :543-551; sum by its first, :1717-1741;
         // max and min over several the safe type when one exists, else the first's, :1151-1197); until 2026-11-13 at
         // exactly one argument only (S376, ruling 32)
         if (expr instanceof RelationalOperation.FunctionCall fc) {
