@@ -100,6 +100,45 @@ describe('the run frame', () => {
     assert.deepEqual(sent, [], 'nothing sent to the server inside the run');
   });
 
+  it('a refused entry that promises a promise rejects it, never throws (the C4 final fix round\'s nit)', async () => {
+    // each called bare, not inside an async callback: a throw would escape the call itself (until 2026-11-14 the
+    // non-async methods threw where they promised a promise)
+    const fetcher = (async () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })) as
+      unknown as typeof fetch;
+    const http = new HttpEngine('http://engine.invalid', fetcher);
+    const routed = new RoutedEngine({} as never, http);
+    const model = { _type: 'text', code: '' } as never;
+    const lambda = {} as never;
+    const input = { function: {}, model: {}, runtime: {} } as never;
+    const g = globalThis as unknown as { Worker?: unknown };
+    g.Worker = class {
+      onmessage: unknown = null;
+      postMessage(): void {}
+    };
+    try {
+      const port = new WorkerPort('worker.js', 'http://planner.invalid/');
+      const calls: [string, () => Promise<unknown>][] = [
+        ['HttpEngine.relationType', () => http.relationType(model, lambda)],
+        ['HttpEngine.compile', () => http.compile(model)],
+        ['HttpEngine.generatePlan', () => http.generatePlan(input)],
+        ['RoutedEngine.relationType', () => routed.relationType(model, lambda)],
+        ['RoutedEngine.compile', () => routed.compile(model)],
+        ['RoutedEngine.returnType', () => routed.returnType(model, lambda)],
+        ['RoutedEngine.generatePlan', () => routed.generatePlan(input)],
+        ['WorkerPort.ask', () => port.ask({ kind: 'plan', handle: 1, query: 'a', runtime: 'r' })],
+      ];
+      await inRun("a test's run", async () => {
+        for (const [name, call] of calls) {
+          let promised: Promise<unknown> | undefined;
+          assert.doesNotThrow(() => { promised = call(); }, `${name} threw where it promised a promise`);
+          await assert.rejects(promised!, /inside a run \(a test's run\)/, name);
+        }
+      });
+    } finally {
+      delete g.Worker;
+    }
+  });
+
   it('refuses the planner\'s in-thread answer inside a run, and answers it outside one', async () => {
     const asked = { kind: 'plan', handle: 1, query: 'a', runtime: 'r' } as const;
     await assert.rejects(inRun("a test's run", async () => answer(module, asked)), REFUSED);

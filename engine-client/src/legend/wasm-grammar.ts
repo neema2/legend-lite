@@ -41,8 +41,9 @@ export class WorkerPort implements PlannerPort {
     };
   }
 
-  ask(request: RequestBody): Promise<string> {
-    // a worker's call is asked here, on the caller's flow: refused inside a run of it (run-frame.ts, the witness)
+  async ask(request: RequestBody): Promise<string> {
+    // a worker's call is asked here, on the caller's flow: refused inside a run of it (run-frame.ts, the witness), by a
+    // rejected promise (async; the C4 final fix round's nit, 2026-11-14)
     planning(request.kind);
     const id = this.#next++;
     return new Promise((resolve, reject) => {
