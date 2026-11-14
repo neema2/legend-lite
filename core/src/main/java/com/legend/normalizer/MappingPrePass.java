@@ -227,8 +227,14 @@ final class MappingPrePass {
     // ====================================================================
 
     private static void detectM2MCycles(LegacyMappingDefinition md) {
-        // Index PureClassMappings by target class FQN for fast walk.
-        Map<String, ClassMapping.Pure> pureByTarget = new HashMap<>();
+        // Index PureClassMappings by target class FQN for fast walk. The walk starts from each target class in
+        // DECLARATION order -- the order its first Pure class mapping is written in (a later one of the same class
+        // replaces the value, as before) -- so the cycle's text starts at the first-declared class of the first
+        // chain that closes. Until 2026-11-14 a HashMap: the text started wherever the class names hashed (both
+        // `A ~src B, B ~src A` and `B ~src A, A ~src B` answered "model::B -> model::A -> model::B"), an order Rust
+        // cannot reproduce (ruling 29's first policy, the normalizer slice's step 1; docs/SEMANTICS_REGISTER.md S380;
+        // MappingNormalizerTest m2mSrcChainCycle_textFollowsDeclarationOrder)
+        Map<String, ClassMapping.Pure> pureByTarget = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Pure pcm) {
                 pureByTarget.put(pcm.className(), pcm);
