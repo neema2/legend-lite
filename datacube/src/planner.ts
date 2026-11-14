@@ -40,6 +40,14 @@ export interface ModelOptions {
    * a project's through its project databases, by the source it opens.
    */
   readonly project?: true;
+  /**
+   * Its model held over DataCube's Pure library from the start (docs/TS_DECISIONS_2026_11_07.md item 8b, 2026-11-07):
+   * the text this planner is given is `withLibrary(model, library)`, the module holds the two apart (A5) under that
+   * text, and a query calling the library plans on it -- a project's model compiled once where a timeseries tile reads
+   * its grid, not again under the library (the trading model, 1.4-1.6 s in the tab). A planner that holds nothing (the
+   * server's, Python's) plans over `model` alone and adds the library as before.
+   */
+  readonly overLibrary?: { readonly model: string; readonly library: string };
 }
 
 export class PlanError extends Error {
@@ -93,8 +101,10 @@ export class UpstreamPlanner implements Planner {
    * of its own. Every request carries its model, so the server holds nothing for either.
    */
   withModel(model: string, runtime: string, how: ModelOptions = {}): UpstreamPlanner {
-    const other = new UpstreamPlanner({ ...this.#options, model, runtime });
-    other.useModel(model, runtime, how);
+    // the server holds no model: over its model alone, the library added where a query calls it (#over)
+    const own = how.overLibrary?.model ?? model;
+    const other = new UpstreamPlanner({ ...this.#options, model: own, runtime });
+    other.useModel(own, runtime, how);
     return other;
   }
 

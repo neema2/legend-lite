@@ -1,0 +1,11 @@
+import json, sys, collections
+d = json.load(open(sys.argv[1]))
+tot = collections.Counter(); cnt = collections.Counter(); rows = collections.Counter()
+def walk(n, depth=0):
+    name = n.get('operator_name') or n.get('name') or '?'
+    t = n.get('operator_timing', n.get('timing', 0)) or 0
+    tot[name] += t; cnt[name] += 1; rows[name] += n.get('operator_cardinality', n.get('cardinality', 0)) or 0
+    for c in n.get('children', []): walk(c, depth+1)
+walk(d)
+print('latency', d.get('latency'), 'total op time %.1f ms' % (sum(tot.values())*1000))
+for k, v in tot.most_common(12): print(f'{v*1000:7.2f} ms  x{cnt[k]:3}  rows {rows[k]:8}  {k}')

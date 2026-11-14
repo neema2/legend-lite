@@ -49,7 +49,11 @@ class RaiseTextGuardTest {
             "lowering/Scalars.java", 1,
             // MongoDB's pipeline raises of a constant text (lite's own sentences, VALUE_NOT_HELD's family): D1.1 moves
             // them; until then counted here
-            "sql/dialect/MongoDb.java", 4);
+            "sql/dialect/MongoDb.java", 4,
+            // 2026-11-14 (merged main 3a217086a, #81): a window frame's computed-bound guard, its two sentences
+            // (legend-pure's lower-above-upper, lite's own sign rule, S170) raised as text; D1.1's follow-up commit
+            // makes them kinds, the edge spelling Pure's
+            "sql/dialect/FrameGuard.java", 1);
 
     @Test
     void everyProductRaiseIsAKind() throws IOException {

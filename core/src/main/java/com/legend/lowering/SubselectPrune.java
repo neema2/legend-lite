@@ -28,7 +28,9 @@ import java.util.Set;
  * ({@code personExtensionTable.NUMBER}, advancedRelationalSetUp.pure:19).
  *
  * <p>CONSERVATIVE by construction: only plain-column projections of a
- * {@link SqlSource.Subselect}'s inner select are dropped, only when the
+ * {@link SqlSource.Subselect}'s inner select are dropped (and, off the
+ * engine-text printer, a computed one whose value raises nothing:
+ * {@link #prune(SqlQuery, boolean)}), only when the
  * output name is unreferenced under the subselect's alias anywhere in the
  * tree (aliases are globally unique — t0..tN, one counter), and never when
  * the inner select is {@code distinct} / grouped / having / qualified
@@ -45,9 +47,9 @@ final class SubselectPrune {
 
     /** Per-alias column reads + star'd aliases + unqualified name reads. */
     private record Refs(Map<String, Set<String>> cols, Set<String> starred,
-                        Set<String> unqualified) {
-        Refs() {
-            this(new HashMap<>(), new HashSet<>(), new HashSet<>());
+                        Set<String> unqualified, boolean computed) {
+        Refs(boolean computed) {
+            this(new HashMap<>(), new HashSet<>(), new HashSet<>(), computed);
         }
 
         void col(@com.legend.base.Nullable String table, String name) {
@@ -60,13 +62,21 @@ final class SubselectPrune {
     }
 
     static SqlQuery prune(SqlQuery q) {
+        return prune(q, false);
+    }
+
+    /** {@link #prune(SqlQuery)}, and with {@code computed} an unread COMPUTED projection dropped too where its value is
+     *  its operands' alone and evaluating it raises nothing ({@link SqlExpr#raisesNothing}): a window aggregate a library function
+     *  computes beside the one its caller reads (a correlation beside a covariance), a working column no one reads
+     *  (2026-11-04, the timeseries SQL's size). Not in legend-engine's text: its column lists are its own. */
+    static SqlQuery prune(SqlQuery q, boolean computed) {
         // FIXPOINT: dropping a projection can strand references one
         // level deeper (an isolation frame's pruned column was the only
         // reader of a union output — ledger cluster 57), and the
         // reference census is taken once per pass. Terminates: each
         // round strictly removes projections or changes nothing.
         for (int round = 0; round < 16; round++) {
-            Refs refs = new Refs();
+            Refs refs = new Refs(computed);
             collectQuery(q, refs);
             SqlQuery next = rewriteQuery(q, refs);
             if (next.equals(q)) {
@@ -474,6 +484,8 @@ final class SubselectPrune {
         Set<String> used = r.cols().getOrDefault(alias, Set.of());
         List<SqlSelect.Projection> kept = new ArrayList<>();
         boolean narrowed = false;
+        // a select with a plain aggregate is one group: its rows are its aggregates', so none of its columns goes
+        boolean grouping = sel.projections().stream().anyMatch(p -> SqlAgg.aggregatesSelect(p.expr()));
         for (SqlSelect.Projection p : sel.projections()) {
             // STAR NARROWING (batch 77): a QUALIFIED star `X.*` inside this
             // aliased subselect expands to the starred source's outputs
@@ -505,7 +517,9 @@ final class SubselectPrune {
             }
             String out = p.alias() != null ? p.alias()
                     : p.expr() instanceof SqlExpr.Column c ? c.name() : null;
-            if (!(p.expr() instanceof SqlExpr.Column) || out == null
+            boolean droppable = p.expr() instanceof SqlExpr.Column
+                    || (r.computed() && !grouping && SqlExpr.raisesNothing(p.expr()));
+            if (!droppable || out == null
                     || used.contains(out) || r.unqualified().contains(out)) {
                 kept.add(p);
             }

@@ -218,7 +218,7 @@ const NOT_ASKED: Readonly<Record<Exclude<RequestKind, 'hold' | 'release' | 'pure
  * holds of that text.
  */
 function pythonWorker(link: PythonLink, project = false): PlannerWorker {
-  const held = new Map<number, string>();
+  const held = new Map<number, { readonly model: string; readonly library?: string }>();
   let next = 1;
   let alive = true;
   const worker: PlannerWorker = {
@@ -251,7 +251,7 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
       switch (body.kind) {
         case 'hold': {
           const handle = next++;
-          held.set(handle, body.model);
+          held.set(handle, body.library === undefined ? { model: body.model } : { model: body.model, library: body.library });
           reply({ id, ok: true, answer: `OK\n${handle}` });
           return;
         }
@@ -266,14 +266,15 @@ function pythonWorker(link: PythonLink, project = false): PlannerWorker {
             ({ id, ok: true, answer: `OK\n${answer.status}\n${answer.headers.get('content-type') ?? ''}\n${text}` }));
           return;
         case 'planJson': {
-          const model = held.get(body.handle);
-          if (model === undefined) {
+          const kept = held.get(body.handle);
+          if (kept === undefined) {
             reply({ id, ok: true, answer: `ERR\nMODEL\nno model held as ${body.handle} on this page` });
             return;
           }
           // the dry run: plan-and-run's planning half, over the model Python holds of that text, never run -- a project's
           // own (a saved query's: ModelOptions.project) said so, as plan-and-run says it
-          call('/plan.json', JSON.stringify({ lambda: body.lambda, model, runtime: body.runtime, ...(project ? { project } : {}) }), (answer, text) =>
+          call('/plan.json', JSON.stringify({ lambda: body.lambda, model: kept.model, runtime: body.runtime,
+            ...(kept.library === undefined ? {} : { library: kept.library }), ...(project ? { project } : {}) }), (answer, text) =>
             (answer.ok
               ? { id, ok: true, answer: (JSON.parse(text) as { plan: string }).plan }
               : { id, ok: false, error: `the engine answered ${answer.status}: ${text}` }));
@@ -767,7 +768,8 @@ export function pythonServices(o: PythonServicesOptions): Services {
         // with Data rows in that project's own database (C5), and refuses any other.
         // PlanAndRun on Python (§15): planned against the model Python holds, by Python's own planner, and run on its
         // DuckDB, in one call
-        return { runner: pythonRunner(link, model, runtime, how ?? {}) };
+        // Python holds its own models, the library with them (A5): over the model alone (item 8b's overLibrary is the tab's)
+        return { runner: pythonRunner(link, how?.overLibrary?.model ?? model, runtime, how ?? {}) };
       },
       database: pythonDatabase(link, o.offers),
       // the model actions: Python's native library writes, a project's facts planned and run in Python (PlanAndRun)
@@ -777,7 +779,7 @@ export function pythonServices(o: PythonServicesOptions): Services {
         rows: (model, runtime) => pythonRunner(link, model, runtime),
       },
       // Python's native library reads a saved query and its project's model (C5)
-      reading: { parse: (text) => compiler.parse(text), elements: (text) => compiler.modelElements(text) },
+      reading: { parse: (text) => compiler.parse(text), elements: (text) => compiler.modelElements(text), tsItem: (text) => compiler.tsItem(text) },
     },
     pages: Promise.resolve(pythonPages(link, o.offers)),
     queries: pythonQueries(link, o.offers),

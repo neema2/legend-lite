@@ -1,0 +1,8 @@
+# The gs-quant oracle's requirements, each at its pin (pins.env; pip expands the variables, which snap.sh exports and,
+# for uv, substitutes).
+gs-quant==${GS_QUANT_VERSION}
+pandas==${PANDAS_VERSION}
+numpy==${NUMPY_VERSION}
+scipy==${SCIPY_VERSION}
+statsmodels==${STATSMODELS_VERSION}
+ta-lib==${TA_LIB_VERSION}

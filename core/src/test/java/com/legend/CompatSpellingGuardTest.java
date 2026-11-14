@@ -152,6 +152,9 @@ class CompatSpellingGuardTest {
             "planner/ProductStatements.java | EnginePlans | 1 | D1.7",
             "queries/SavedCubes.java | Can't find  | 3 | D1.8",
             "queries/SavedQueries.java | Can't find  | 7 | D1.8",
+            // 2026-11-14 (merged main 3a217086a, #81): the #TS island reads a Pure date literal's own text into its SQL
+            // literal, dropping the zone the compiler's text writes ("+0000"): input read, not a spelling written
+            "protocol/ts/TsShow.java | +0000 | 1 | STAYS",
             "resolver/ChainDispatch.java | Cast exception:  | 1 | D1.1",
             "resolver/ClassSources.java | TDS_NULL_CELL | 1 | D1.3",
             "resolver/GraphEmission.java | +0000 | 2 | D1.2",

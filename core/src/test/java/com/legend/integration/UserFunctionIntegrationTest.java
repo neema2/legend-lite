@@ -1580,25 +1580,43 @@ class UserFunctionIntegrationTest {
         }
 
         @Test
-        @DisplayName("an enumeration's value against a string answers as the query does: the database compares the name")
+        @DisplayName("an enumeration's value against a string or another enumeration's is false, in a body and a query")
         void anEnumerationAgainstAString() throws SQLException {
-            // the fold compares two values of one enumeration; Stat.mean == 'mean' it leaves to the database, which
-            // compares the value's name -- the fold had answered false where the same query answers true
+            // legend-pure's equal compares values of one classifier only (EqualityUtilities.equal, CompiledSupport.equal):
+            // Stat.mean == 'mean' is false (the user, 2026-10-30, S169). The database, given the value's name, had
+            // answered true, and the fold had left it to the database so a body and a query answered alike
             String model = modelWith("""
                     Enum test::Stat
                     {
                       mean, total
                     }
+                    Enum test::Other
+                    {
+                      mean
+                    }
                     function test::said(t: TabularDataSet[1]): TabularDataSet[1]
                     {
                         $t->extend([col(r:TDSRow[1]|if(test::Stat.mean == 'mean', |'eq', |'ne'), 'mixed'),
-                                    col(r:TDSRow[1]|if(test::Stat.mean == test::Stat.total, |'eq', |'ne'), 'two')])
+                                    col(r:TDSRow[1]|if(test::Stat.mean == test::Stat.total, |'eq', |'ne'), 'two'),
+                                    col(r:TDSRow[1]|if(test::Stat.mean == test::Other.mean, |'eq', |'ne'), 'others'),
+                                    col(r:TDSRow[1]|if(test::Stat.mean->in(['mean']), |'eq', |'ne'), 'in'),
+                                    col(r:TDSRow[1]|if(['mean']->contains(test::Stat.mean), |'eq', |'ne'), 'contains'),
+                                    col(r:TDSRow[1]|[test::Stat.total, test::Stat.mean]->indexOf(test::Stat.mean), 'at')])
                     }
                     """);
-            var asked = column(exec(model, "|if(test::Stat.mean == 'mean', |'eq', |'ne')"), 0);
+            for (String q : List.of("test::Stat.mean == 'mean'", "test::Stat.mean == test::Other.mean",
+                    "test::Stat.mean->in(['mean'])", "['mean']->contains(test::Stat.mean)",
+                    "[test::Stat.mean]->contains('mean')")) {
+                assertEquals(List.of("ne"), column(exec(model, "|if(" + q + ", |'eq', |'ne')"), 0), q);
+            }
+            assertEquals(List.of("eq"), column(exec(model, "|if(test::Stat.mean != 'mean', |'eq', |'ne')"), 0));
+            assertEquals(List.of("eq"), column(exec(model, "|if([test::Stat.total, test::Stat.mean]"
+                    + "->contains(test::Stat.mean), |'eq', |'ne')"), 0), "one enumeration's values compare");
             var result = exec(model, PEOPLE + "->test::said()->sort('first')");
-            assertEquals(List.of(asked.get(0), asked.get(0), asked.get(0)), column(result, 1), "as the query answers it");
-            assertEquals(List.of("ne", "ne", "ne"), column(result, 2));
+            for (int i = 1; i <= 5; i++) {
+                assertEquals(List.of("ne", "ne", "ne"), column(result, i), "column " + i);
+            }
+            assertEquals(List.of(1L, 1L, 1L), column(result, 6));
         }
     }
 
@@ -1637,6 +1655,51 @@ class UserFunctionIntegrationTest {
                 out.put(String.valueOf(row.get(name)), ((Number) row.get(value)).intValue());
             }
             return out;
+        }
+
+        @Test
+        void aColumnSpecificationsColumnTypePicksTheOverload() throws SQLException {
+            // register S146 (2026-11-03): a library function's columns come as column specifications over a relation
+            // parameter's row (ColSpec<X⊆T>); two overloads that differ only in that column's type are two functions,
+            // ranked as m3 ranks the type argument once T is bound -- a key of All picks the All overload, a text key
+            // (which no All fits) the generic one
+            String lib = """
+                    Enum test::All { all }
+                    function test::which<T,L>(x: Relation<T>[1], key: ColSpec<L⊆T>[1]): Relation<T+(which:String)>[1]
+                    { $x->extend(~which:r|'generic') }
+                    function test::which<T>(x: Relation<T>[1], key: ColSpec<(?:test::All)⊆T>[1]): Relation<T+(which:String)>[1]
+                    { $x->extend(~which:r|'all') }
+                    """;
+            String base = "|" + PEOPLE + "->select(~[AGE_VAL])->rename(~AGE_VAL, ~v)";
+            var all = exec(modelWith(lib), base + "->extend(~key:r|test::All.all)->test::which(~key)");
+            var generic = exec(modelWith(lib), base + "->extend(~key:r|'x')->test::which(~key)");
+            assertEquals("all", String.valueOf(all.rows().get(0).get(2)), "a key of All picks the All overload");
+            assertEquals("generic", String.valueOf(generic.rows().get(0).get(2)), "a text key picks the generic one");
+        }
+
+        @Test
+        void aColumnsTypePicksTheOverload() throws SQLException {
+            // register S146 (2a, the user, 2026-11-03): two overloads differing only in a relation parameter's column
+            // type are two functions, ranked as m3's RelationTypeMatch ranks them -- a key of All picks the All
+            // overload, a text key the generic one
+            String lib = """
+                    Enum test::All { all }
+                    function test::pick<K>(x: Relation<(key:K, v:Integer)>[1]): Relation<(key:K, v:Integer, which:String)>[1]
+                    { $x->extend(~which:r|'generic') }
+                    function test::pick(x: Relation<(key:test::All, v:Integer)>[1]): Relation<(key:test::All, v:Integer, which:String)>[1]
+                    { $x->extend(~which:r|'all') }
+                    """;
+            String base = "|" + PEOPLE + "->select(~[AGE_VAL])->rename(~AGE_VAL, ~v)";
+            var all = exec(modelWith(lib), base + "->extend(~key:r|test::All.all)->select(~[key, v])->test::pick()");
+            var generic = exec(modelWith(lib), base + "->extend(~key:r|'x')->select(~[key, v])->test::pick()");
+            assertEquals("all", String.valueOf(all.rows().get(0).get(2)), "a key of All picks the All version");
+            assertEquals("generic", String.valueOf(generic.rows().get(0).get(2)), "a text key picks the generic one");
+            // legend-pure's spelling names both overloads (a relation its raw type alone): a reference by it is
+            // ambiguous, refused naming lite's two ids (the A2 review, 2026-11-03)
+            var ex = assertThrows(RuntimeException.class, () -> exec(modelWith(lib),
+                    "|test::pick_Relation_1__Relation_1_"));
+            assertTrue(ex.getMessage().contains("names 2 functions that differ only in a relation's column types"),
+                    ex.getMessage());
         }
 
         @Test
@@ -1714,7 +1777,7 @@ class UserFunctionIntegrationTest {
             assertEquals(List.of(), com.legend.Compiler.compileErrors(modelWith(LIBRARY)));
         }
 
-        /** A function of a COLUMN by its name (the DataCube library's form, datacube::ts::*): the column read and the
+        /** A function of a COLUMN by its name (the DataCube library's form, timeseries::*): the column read and the
          *  column written are the call's, renamed to the body's own names and back. */
         private static final String NAMED = """
                 function test::mean<T,X,Z,V,O>(rel: Relation<T>[1], part: ColSpec<X⊆T>[1], order: SortInfo<Z⊆T>[*], value: ColSpec<V⊆T>[1], w: Integer[1], out: ColSpec<O>[1]): Relation<Any>[1]

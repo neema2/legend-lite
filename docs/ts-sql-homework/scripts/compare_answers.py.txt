@@ -1,0 +1,26 @@
+import sys, os, csv, io
+a, b = sys.argv[1], sys.argv[2]
+def load(p):
+    t = open(p).read()
+    if t.startswith('ERROR'): return t.strip(), None
+    rows = list(csv.reader(io.StringIO(t)))
+    return rows[0], rows[1:]
+def num(x):
+    try: return float(x)
+    except: return None
+for f in sorted(os.listdir(a)):
+    ha, ra = load(os.path.join(a, f)); hb, rb = load(os.path.join(b, f))
+    if ra is None or rb is None:
+        print(f'{f:14} {"same error" if ha == hb else "DIFF: " + str(ha)[:60] + " | " + str(hb)[:60]}'); continue
+    if ha != hb: print(f'{f:14} HEADER DIFF {ha} {hb}'); continue
+    if len(ra) != len(rb): print(f'{f:14} ROWS {len(ra)} vs {len(rb)}'); continue
+    worst = 0.0; nullmis = 0; textmis = 0
+    sa = sorted(ra); sb = sorted(rb)
+    for x, y in zip(sa, sb):
+        for u, v in zip(x, y):
+            if u == v: continue
+            if (u == '') != (v == ''): nullmis += 1; continue
+            fu, fv = num(u), num(v)
+            if fu is None or fv is None: textmis += 1; continue
+            worst = max(worst, abs(fu - fv) / max(1.0, abs(fu)))
+    print(f'{f:14} rows {len(ra):5} worst {worst:.1e} nulls {nullmis} text {textmis}')

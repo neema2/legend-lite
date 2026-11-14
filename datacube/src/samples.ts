@@ -470,6 +470,58 @@ export function macroCsv(rows = 360, seed = 20261031): string {
   return `${out.join('\n')}\n`;
 }
 
+/** The cash sample's columns, in order. */
+export const CASH_COLUMNS = ['currency', 'date', 'rate', 'index'] as const;
+
+/** Each currency of gs-quant's risk-free rates (econometrics.RiskFreeRateCurrency): its overnight rate's day count and
+ *  its policy path's steps (a date and the rate in percent from it), shaped like SOFR's, €STR's, SONIA's, TONA's,
+ *  SARON's, AONIA's and SWESTR's through 2020-2024 -- a sample's, not their fixings. */
+const CASH: readonly { readonly currency: string; readonly basis: 360 | 365; readonly steps: readonly (readonly [string, number])[] }[] = [
+  { currency: 'USD', basis: 360, steps: [['2020-01-02', 1.55], ['2020-03-04', 1.1], ['2020-03-16', 0.05], ['2022-03-17', 0.3], ['2022-05-05', 0.8], ['2022-06-16', 1.55],
+    ['2022-07-28', 2.3], ['2022-09-22', 3.05], ['2022-11-03', 3.8], ['2022-12-15', 4.3], ['2023-02-02', 4.55], ['2023-03-23', 4.8], ['2023-05-04', 5.05],
+    ['2023-07-27', 5.31], ['2024-09-19', 4.83], ['2024-11-08', 4.58], ['2024-12-19', 4.33]] },
+  { currency: 'EUR', basis: 360, steps: [['2020-01-02', -0.54], ['2022-07-27', -0.09], ['2022-09-14', 0.66], ['2022-11-02', 1.41], ['2022-12-21', 1.91],
+    ['2023-02-08', 2.41], ['2023-03-22', 2.91], ['2023-05-10', 3.16], ['2023-06-21', 3.41], ['2023-08-02', 3.66], ['2023-09-20', 3.91], ['2024-06-12', 3.66],
+    ['2024-09-18', 3.41], ['2024-10-23', 3.16], ['2024-12-18', 2.91]] },
+  { currency: 'GBP', basis: 365, steps: [['2020-01-02', 0.7], ['2020-03-11', 0.2], ['2020-03-19', 0.05], ['2021-12-16', 0.19], ['2022-02-03', 0.44], ['2022-03-17', 0.69],
+    ['2022-05-05', 0.94], ['2022-06-16', 1.19], ['2022-08-04', 1.69], ['2022-09-22', 2.19], ['2022-11-03', 2.93], ['2022-12-15', 3.43], ['2023-02-02', 3.93],
+    ['2023-03-23', 4.18], ['2023-05-11', 4.43], ['2023-06-22', 4.93], ['2023-08-03', 5.19], ['2024-08-01', 4.95], ['2024-11-07', 4.7]] },
+  { currency: 'JPY', basis: 365, steps: [['2020-01-02', -0.02], ['2024-03-19', 0.08], ['2024-08-01', 0.23]] },
+  { currency: 'CHF', basis: 360, steps: [['2020-01-02', -0.7], ['2022-06-17', -0.2], ['2022-09-23', 0.45], ['2022-12-16', 0.95], ['2023-03-24', 1.45], ['2023-06-23', 1.7],
+    ['2024-03-22', 1.45], ['2024-06-21', 1.2], ['2024-09-27', 0.95], ['2024-12-13', 0.45]] },
+  { currency: 'AUD', basis: 365, steps: [['2020-01-02', 0.75], ['2020-03-04', 0.5], ['2020-03-20', 0.25], ['2020-11-04', 0.03], ['2022-05-04', 0.31], ['2022-06-08', 0.81],
+    ['2022-07-06', 1.31], ['2022-08-03', 1.81], ['2022-09-07', 2.31], ['2022-10-05', 2.56], ['2022-11-02', 2.81], ['2022-12-07', 3.06], ['2023-02-08', 3.31],
+    ['2023-03-08', 3.56], ['2023-05-03', 3.81], ['2023-06-07', 4.06], ['2023-11-08', 4.31]] },
+  { currency: 'SEK', basis: 360, steps: [['2020-01-02', -0.08], ['2022-05-04', 0.17], ['2022-07-06', 0.67], ['2022-09-21', 1.67], ['2022-11-30', 2.42], ['2023-02-15', 2.92],
+    ['2023-05-03', 3.42], ['2023-07-05', 3.67], ['2023-09-27', 3.92], ['2024-05-15', 3.67], ['2024-08-21', 3.42], ['2024-09-25', 3.17], ['2024-11-13', 2.67],
+    ['2024-12-20', 2.42]] },
+];
+
+/**
+ * THE RISK-FREE DATA MODEL'S SAMPLE (docs/TS_DECISIONS_2026_11_07.md item 13b): an overnight rate for each of gs-quant's
+ * seven risk-free currencies over the markets sample's business days, in percent a year to two places (as published),
+ * each its policy path's steps and a basis point's wobble; and its cash index -- 100 at the first date, each the one
+ * before grown by the rate before over the days between on the currency's day count (cash_index's rule, so
+ * `cash_index(rate['USD'])` is `index['USD']`) -- the cash a price's excess returns, and its Sharpe ratio, are over.
+ */
+export function cashCsv(seed = 20261108): string {
+  const rand = rng(seed);
+  const days = businessDays('2020-01-02', '2024-12-31');
+  const out: string[] = [CASH_COLUMNS.join(',')];
+  for (const c of CASH) {
+    let index = 100;
+    let before: { readonly day: string; readonly rate: number } | undefined;
+    for (const day of days) {
+      const step = c.steps.filter(([from]) => from <= day).at(-1)![1];
+      const rate = Math.round((step + normal(rand) * 0.01) * 100) / 100;
+      if (before !== undefined) index *= 1 + before.rate / 100 * ((Date.parse(day) - Date.parse(before.day)) / 86_400_000) / c.basis;
+      out.push([c.currency, day, rate.toFixed(2), index.toFixed(8)].map(csvCell).join(','));
+      before = { day, rate };
+    }
+  }
+  return `${out.join('\n')}\n`;
+}
+
 export const SAMPLES: readonly Sample[] = [
   {
     id: 'trades',
@@ -520,6 +572,14 @@ export const SAMPLES: readonly Sample[] = [
       + 'grid for a timeseries to read beside the daily prices (two calendars combined, a season taken out).',
     defaultRows: 360,
     build: (rows, seed) => macroCsv(rows, seed),
+  },
+  {
+    id: 'cash',
+    label: 'Cash -- overnight rates and their indices',
+    about: 'An overnight rate for each of seven currencies (USD, EUR, GBP, JPY, CHF, AUD, SEK) over the markets sample\'s '
+      + 'days, and its cash index: the risk-free cash a price\'s excess returns and Sharpe ratio are over.',
+    defaultRows: 9_135,
+    build: (_rows, seed) => cashCsv(seed),
   },
   {
     // the sales sample's countries: a table to join its orders to (examples/prep-joins.ts)

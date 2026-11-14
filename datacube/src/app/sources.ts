@@ -17,6 +17,7 @@ import type { Query, QueryReader } from '../../../query-store/src/index.ts';
 import { from, fromJson, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ClassAt, ClassElement, ClassGiven } from '../class-source.ts';
 import type { ClassOf } from '../class-tree.ts';
+import { loadLibrary, withLibrary } from '../pure-library.ts';
 import type { HeldCopy } from '../app.ts';
 import type { CubeConfiguration } from '../config.ts';
 import type { HostSnap, Planner, SnapTarget } from '../cube.ts';
@@ -1158,10 +1159,14 @@ export function pageSources(d: SourcesOf): PageSources {
     // rules 1-4, the one rule (saved-queries.ts savedQueryOpened), typed over its rows where the host reads them; the
     // project's elements read once for every query of it
     let rows: GridRows | undefined;
+    // planned over DataCube's Pure library from the start (docs/TS_DECISIONS_2026_11_07.md item 8b): a timeseries tile
+    // over its grid plans on the one hold, its 4 MB model compiled once; its elements read from the model alone
+    const library = await loadLibrary();
+    const planned = withLibrary(model, library);
     const elements = once(projectElements, key, () => reading.elements(model));
     const read = { parse: (text: string) => reading.parse(text), elements: (text: string) => (text === model ? elements : reading.elements(text)) };
     const { runtime, how, source } = await savedQueryOpened(q, model, read, (at, options) => {
-      rows = services.engine.rows(model, at, options);
+      rows = services.engine.rows(planned, at, { ...options, overLibrary: { model, library } });
       return typer(rows);
     });
     if (rows === undefined) throw new Error('unreachable: a saved query is typed over its rows');
@@ -1171,7 +1176,7 @@ export function pageSources(d: SourcesOf): PageSources {
     // own. On Python, Python runs a project's model in its own (the host's runner). Asked once the query is typed: its
     // model held then, the planner reads it as held (Boundary.projectData), compiled no more.
     const versioned: QueryEngine | undefined = local
-      ? (await (await local.projects()).engineFor(model, local.engine)).engine : undefined;
+      ? (await (await local.projects()).engineFor(planned, local.engine)).engine : undefined;
     const { sharedPart } = await queryStores();
     const cubeSource: QuerySource = {
       _type: 'savedQuery', name: q.name, query: sharedPart(q), columns: columns.map((c) => ({ name: c.name, type: c.type })),
@@ -1209,7 +1214,9 @@ export function pageSources(d: SourcesOf): PageSources {
     const { model, left, source, tree, measures, supertypes } = await classOpened(at,
       await home.client.pure({ project: at.project, workspace: at.workspace, revision: at.revision }),
       async (text) => await services.engine.reading.elements(text) as ClassElement[]);
-    const rows = services.engine.rows(model, at.runtime, { mapping: at.mapping });
+    // over DataCube's Pure library from the start, as a saved query's (item 8b)
+    const library = await loadLibrary();
+    const rows = services.engine.rows(withLibrary(model, library), at.runtime, { mapping: at.mapping, overLibrary: { model, library } });
     try {
       const columns = await sourceColumns(typer(rows), source);
       // its rows, asked for once: a table its store names that is not open in this tab is said now, by the database

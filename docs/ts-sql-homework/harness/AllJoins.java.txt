@@ -1,0 +1,47 @@
+package com.legend.integration;
+
+import java.sql.*;
+import java.util.*;
+
+/** Scratch: every example of the documents -- its SQL's size, SELECTs, windows and joins, its planning time, and its best run of three on the seeded DuckDB. */
+public final class AllJoins {
+    public static void main(String[] a) throws Exception {
+        var backend = com.legend.testbackend.TestBackends.platform();
+        var m = TsDocumentsTest.class.getDeclaredMethod("model", com.legend.testbackend.TestBackend.class);
+        m.setAccessible(true);
+        var ctx = com.legend.Compiler.compileModel((String) m.invoke(null, backend));
+        var ex = TsDocumentsTest.class.getDeclaredMethod("examples", java.nio.file.Path.class);
+        ex.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        Map<String, String> examples = (Map<String, String>) ex.invoke(null, java.nio.file.Path.of(a[0]));
+        try (Connection c = backend.open()) {
+            var seed = TsDocumentsTest.class.getDeclaredMethod("seed", com.legend.testbackend.TestBackend.class, Connection.class);
+            seed.setAccessible(true);
+            seed.invoke(null, backend, c);
+            System.out.println("id\tchars\tselects\twindows\tjoins\trows\tplan_ms\trun_ms");
+            for (var e : examples.entrySet()) {
+                String id = e.getKey();
+                try {
+                    long p0 = System.nanoTime();
+                    String sql = com.legend.Compiler.query(ctx, "|#TS{" + e.getValue() + "}#").plan("docs::RT").sql();
+                    long planMs = (System.nanoTime() - p0) / 1_000_000;
+                    int selects = sql.split("SELECT", -1).length - 1;
+                    int windows = sql.split(" OVER ", -1).length - 1;
+                    int joins = sql.split(" JOIN ", -1).length - 1;
+                    long best = Long.MAX_VALUE;
+                    int rows = 0;
+                    for (int k = 0; k < 3; k++) {
+                        long t0 = System.nanoTime();
+                        rows = 0;
+                        try (Statement s = c.createStatement(); ResultSet r = s.executeQuery(sql)) { while (r.next()) rows++; }
+                        best = Math.min(best, (System.nanoTime() - t0) / 1_000_000);
+                    }
+                    System.out.println(id + "\t" + sql.length() + "\t" + selects + "\t" + windows + "\t" + joins + "\t" + rows + "\t" + planMs + "\t" + best);
+                } catch (Throwable t) {
+                    String msg = String.valueOf(t.getMessage());
+                    System.out.println(id + "\tERROR\t" + t.getClass().getSimpleName() + ": " + msg.substring(0, Math.min(140, msg.length())).replace('\n', ' '));
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,218 @@
+AGREE       gs-quant    abs A                        abs(returns(close['SPX'], 1, 'simple'))                                1303 points
+AGREE       gs-quant    abs B                        mean(abs(returns(close['SPX'], 1, 'simple')), 21)                      1283 points
+NOT-CHECKED -           align A                      px.close['SPX'] / macro.value['CPI'] * 100                             align
+NOT-CHECKED -           align B                      px.close['SPX']                                                        align
+AGREE       gs-quant    annualize A                  annualize(std(returns(close['SPX'], 1, 'simple'), 21))                 1283 points
+AGREE       gs-quant    annualize B                  std(returns(close['SPX'], 1, 'simple'), 21)                            1283 points
+AGREE       gs-quant    atr-stochastic A             close['NVDA']                                                          1304 points
+AGREE       TA-Lib      atr-stochastic B             atr(high['NVDA'], low['NVDA'], close['NVDA'], w => 14)                 1290 points
+AGREE       TA-Lib      atr-stochastic C             stochastic(high['NVDA'], low['NVDA'], close['NVDA'], w => 14)          1291 points
+AGREE       gs-quant    basket A                     basket(close['SPX'], 0.6, close['TLT'], 0.4, rebalance => 'daily')     1304 points
+AGREE       gs-quant    basket B                     basket(close['SPX'], 0.6, close['TLT'], 0.4, rebalance => 'monthly')   1304 points
+AGREE       pandas      benchmark A                  tracking_error(close['NVDA'], close['SPX'], w => 63)                   1241 points
+AGREE       pandas      benchmark B                  information_ratio(close['NVDA'], close['SPX'], w => 63)                1241 points
+AGREE       gs-quant    beta A                       beta(close['AAPL'], close['SPX'], w => 126)                            1178 points
+AGREE       gs-quant    beta B                       beta(close['MSFT'], close['SPX'], w => 126)                            1178 points
+AGREE       gs-quant    beta C                       beta(close['NVDA'], close['SPX'], w => 126)                            1178 points
+AGREE       gs-quant    bollinger A                  close['GLD']                                                           1304 points
+AGREE       gs-quant    bollinger B                  bollinger_bands(close['GLD'], w => 20, k => 2)                         1284 points
+AGREE       gs-quant    bollinger C                  mean(close['GLD'], 20)                                                 1284 points
+AGREE       gs-quant    bonds A                      px.close['TLT']                                                        1304 points
+AGREE       gs-quant    bonds B                      rates.yield['10Y']                                                     1304 points
+AGREE       gs-quant    bonds C                      correlation(px.close['TLT'], rates.yield['10Y'], w => 63)              1241 points
+AGREE       gs-quant    calendar A                   weekday(close['SPX'])                                                  1304 points
+AGREE       gs-quant    calendar B                   month(close['SPX'])                                                    1304 points
+AGREE       gs-quant    calendar C                   quarter(close['SPX'])                                                  1304 points
+AGREE       gs-quant    calendar D                   day(close['SPX'])                                                      1304 points
+AGREE       gs-quant    calendar E                   year(close['SPX'])                                                     1304 points
+AGREE       pandas      candles-volume A             ohlc(open['MSFT'], high['MSFT'], low['MSFT'], close['MSFT'])           open 1304 points; high 1304 points; low 1304 points; close 1304 points
+AGREE       gs-quant    candles-volume B             volume['MSFT']                                                         1304 points
+NOT-CHECKED -           candles-weekly A             ohlc(open['SPX'], high['SPX'], low['SPX'], close['SPX'])               grain
+AGREE       pandas      capture A                    up_capture(close['NDX'], close['SPX'], w => 252)                       1052 points
+AGREE       pandas      capture B                    down_capture(close['NDX'], close['SPX'], w => 252)                     1052 points
+AGREE       gs-quant    change A                     change(close['GLD'])                                                   1304 points
+NOT-CHECKED -           change A from 2022-03-15     change(close['GLD'])                                                   anchor
+AGREE       gs-quant    change B                     change(close['TLT'])                                                   1304 points
+NOT-CHECKED -           change B from 2022-03-15     change(close['TLT'])                                                   anchor
+AGREE       gs-quant    channels A                   close['SPX']                                                           1304 points
+DEPARTS     TA-Lib      channels B                   keltner_channels(high['SPX'], low['SPX'], close['SPX'], w => 20, a =>  keltner_channels: the middle line's exponential mean from the first close (the word's sentence; TA-Lib's EMA seeds with the first w closes' mean) -- lower: 1285 common, 86 differ, 0 lite's alone, 0 gs-quant's alone; 2020-01-29: lite 3071.70587, gs-quant 3054.893578; 2020-01-30: lite 3075.727444, gs-quant 3060.516323; 2020-01-31: lite 3078.874178, gs-quant 3065.111736; upper: 1285 common, 85 differ, 0 lite's alone, 0 gs-quant's alone; 2020-01-29: lite 3264.041713, gs-quant 3247.229422; 2020-01-30: lite 3262.733703, gs-quant 3247.522582; 2020-01-31: lite 3267.927812, gs-quant 3254.165369
+AGREE       TA-Lib      channels C                   donchian_channels(high['SPX'], low['SPX'], w => 20)                    lower 1285 points; upper 1285 points; width 1285 points
+AGREE       gs-quant    compare A                    close['SPX']                                                           1304 points
+AGREE       gs-quant    compare B                    close['TLT']                                                           1304 points
+AGREE       gs-quant    compare C                    close['GLD']                                                           1304 points
+AGREE       gs-quant    compare D                    close['EURUSD']                                                        1304 points
+AGREE       pandas      compounded A                 rebase(close['NVDA'], base => 100)                                     1304 points
+NOT-CHECKED -           compounded A from 2022-03-15 rebase(close['NVDA'], base => 100)                                     anchor
+AGREE       gs-quant    compounded B                 prices(returns(close['NVDA'], 1, 'simple'), initial => 100, type => 's 1304 points
+AGREE       gs-quant    compounded C                 returns(close['NVDA'], 1, 'simple')                                    1303 points
+AGREE       gs-quant    compounded-to-date A         geometrically_aggregate(returns(close['MSFT'], 1, 'simple'))           1303 points
+AGREE       gs-quant    compounded-to-date B         returns(close['MSFT'], 1, 'simple')                                    1303 points
+AGREE       gs-quant    condition A                  px.close['SPX']                                                        1304 points
+AGREE       gs-quant    condition B                  rates.yield['10Y'] - rates.yield['2Y'] < 0                             1304 points
+AGREE       gs-quant    condition C                  rates.yield['10Y'] - rates.yield['2Y']                                 1304 points
+AGREE       gs-quant    correlation A                correlation(close['SPX'], close['TLT'], w => 63)                       1241 points
+AGREE       gs-quant    correlation B                correlation(close['SPX'], close['GLD'], w => 63)                       1241 points
+AGREE       gs-quant    cov A                        cov(returns(close['AAPL'], 1, 'simple'), returns(close['MSFT'], 1, 'si 1241 points
+NOT-CHECKED -           cross-section A              zscores(returns(close[asset_class = 'Equity'], 63, 'simple'), w => acr split
+NOT-CHECKED -           curve A                      yield                                                                  split
+AGREE       gs-quant    curve B                      yield['10Y'] - yield['2Y']                                             1304 points
+NOT-CHECKED -           decompose A                  value['RETAIL']                                                        grain
+NOT-CHECKED -           decompose B                  trend(value['RETAIL'], method => 'multiplicative', freq => 'year')     grain
+NOT-CHECKED -           decompose C                  seasonally_adjusted(value['RETAIL'], method => 'multiplicative', freq  grain
+AGREE       gs-quant    diff-lag A                   close['GLD']                                                           1304 points
+AGREE       gs-quant    diff-lag B                   lag(close['GLD'], 5, 'truncate')                                       1299 points
+AGREE       gs-quant    diff-lag C                   diff(close['GLD'], 5)                                                  1299 points
+AGREE       pandas      drawdown A                   drawdown(close['NVDA'], w => all)                                      1304 points
+AGREE       gs-quant    drawdown B                   max_drawdown(close['NVDA'], w => all)                                  1304 points
+AGREE       pandas      drawdowns A                  drawdown(close['SPX'], w => all)                                       1304 points
+AGREE       pandas      drawdowns B                  drawdown(close['NVDA'], w => all)                                      1304 points
+AGREE       pandas      drawdowns C                  drawdown(close['TLT'], w => all)                                       1304 points
+AGREE       gs-quant    drawn A                      close['SPX']                                                           1304 points
+AGREE       gs-quant    excess A                     close['SPX']                                                           1304 points
+AGREE       gs-quant    excess B                     excess_returns(close['SPX'], 0.05)                                     1304 points
+AGREE       gs-quant    excess C                     excess_returns(close['SPX'], close['TLT'])                             1304 points
+AGREE       gs-quant+pandas excess D                     excess_returns(close['SPX'], cash_index(cash.rate['USD'], day_count => 1304 points
+AGREE       gs-quant    exponential A                close['SPX']                                                           1304 points
+AGREE       gs-quant    exponential B                exponential_moving_average(close['SPX'], beta => 0.9)                  1304 points
+AGREE       gs-quant    exponential C                smoothed_moving_average(close['SPX'], w => 20)                         1284 points
+AGREE       gs-quant    exponential D                exponential_std(close['SPX'], beta => 0.95)                            1303 points
+AGREE       gs-quant    exponential-volatility A     exponential_volatility(px.close['SPX'], beta => 0.94)                  1302 points
+AGREE       gs-quant    exponential-volatility B     volatility(px.close['SPX'], w => 63, type => 'simple')                 1241 points
+AGREE       gs-quant    exponential-volatility C     exponential_spread_volatility(rates.yield['10Y'] - rates.yield['2Y'],  1302 points
+AGREE       gs-quant    filter-smooth A              filter(close['GLD'], operator => 'greater_than', value => 200)         1192 points
+AGREE       gs-quant    filter-smooth B              smooth_spikes(close['GLD'], threshold => 0.02, type => 'percentage')   1302 points
+AGREE       gs-quant+pandas filter-smooth C              weighted_sum(rebase(close['SPX'], base => 100), 0.6, rebase(close['TLT 1304 points
+NOT-CHECKED -           filter-smooth C from 2022-03-15 weighted_sum(rebase(close['SPX'], base => 100), 0.6, rebase(close['TLT anchor
+AGREE       gs-quant    first-last-count A           close['SPX']                                                           1304 points
+AGREE       gs-quant    first-last-count B           first(close['SPX'], all)                                               1304 points
+AGREE       gs-quant    first-last-count C           last(close['SPX'], whole)                                              1304 points
+AGREE       gs-quant    first-last-count D           count(close['SPX'], all)                                               1304 points
+AGREE       gs-quant    floor-ceil A                 zscores(close['EURUSD'], w => 63)                                      1241 points
+AGREE       gs-quant    floor-ceil B                 ceil(floor(zscores(close['EURUSD'], w => 63), -2), 2)                  1241 points
+AGREE       gs-quant    if-compare A                 if(close['SPX'] < mean(close['SPX'], 200), close['SPX'], mean(close['S 1104 points
+DEPARTS     gs-quant    if-compare B                 compare(close['SPX'], mean(close['SPX'], 200))                         S145: lite's step does not backfill before a line's first value (gs-quant's align bfills) -- 1304 common, 200 differ, 0 lite's alone, 0 gs-quant's alone; 2020-01-02: lite 0, gs-quant -1; 2020-01-03: lite 0, gs-quant -1; 2020-01-06: lite 0, gs-quant -1
+AGREE       gs-quant    if-compare C                 NOT close['SPX'] > mean(close['SPX'], 200)                             1104 points
+AGREE       gs-quant    index A                      index(close['JPM'], initial => 1)                                      1304 points
+NOT-CHECKED -           index A from 2022-03-15      index(close['JPM'], initial => 1)                                      anchor
+AGREE       gs-quant    index B                      index(close['XOM'], initial => 1)                                      1304 points
+NOT-CHECKED -           index B from 2022-03-15      index(close['XOM'], initial => 1)                                      anchor
+AGREE       gs-quant    interpolate A                interpolate(macro.value['CPI'], px.close['SPX'], method => 'step')     1304 points
+AGREE       gs-quant    interpolate B                macro.value['CPI']                                                     120 points
+AGREE       pandas      lead-lag A                   lead_lag(close['NVDA'], close['SPX'], lag => 1, w => 63)               1240 points
+AGREE       pandas      lead-lag B                   lead_lag(close['NVDA'], close['SPX'], lag => -1, w => 63)              1240 points
+AGREE       gs-quant    log-exp A                    close['SPX']                                                           1304 points
+AGREE       gs-quant    log-exp B                    exp(ln(close['SPX']))                                                  1304 points
+AGREE       gs-quant    log-exp C                    ln(close['SPX'])                                                       1304 points
+AGREE       gs-quant    log-scale A                  close['NVDA']                                                          1304 points
+AGREE       gs-quant    log-scale B                  close['SPX']                                                           1304 points
+AGREE       gs-quant    macd A                       macd(close['SPX'], m => 12, n => 26, s => 1)                           1304 points
+AGREE       gs-quant    macd B                       macd(close['SPX'], m => 12, n => 26, s => 9)                           1304 points
+AGREE       gs-quant    macd C                       macd(close['SPX'], m => 12, n => 26, s => 1) - macd(close['SPX'], m => 1304 points
+AGREE       gs-quant    max-drawdown-year A          max_drawdown(close['SPX'], w => 252)                                   1052 points
+AGREE       gs-quant    max-drawdown-year B          max_drawdown(close['NDX'], w => 252)                                   1052 points
+AGREE       gs-quant    mean A                       close['SPX']                                                           1304 points
+AGREE       gs-quant    mean B                       mean(close['SPX'], 50)                                                 1254 points
+AGREE       gs-quant    mean C                       mean(close['SPX'], 200)                                                1104 points
+AGREE       gs-quant    min-max-range A              close['MSFT']                                                          1304 points
+AGREE       gs-quant    min-max-range B              max(close['MSFT'], 252)                                                1052 points
+AGREE       gs-quant    min-max-range C              min(close['MSFT'], 252)                                                1052 points
+AGREE       gs-quant    min-max-range D              range(close['MSFT'], w => 252)                                         1052 points
+NOT-CHECKED -           monthly A                    close['SPX']                                                           grain
+NOT-CHECKED -           monthly B                    returns(close['SPX'], 12, 'simple')                                    grain
+AGREE       gs-quant    pair A                       close['AAPL'] / close['MSFT']                                          1304 points
+AGREE       gs-quant    pair B                       zscores(close['AAPL'] / close['MSFT'], w => 126)                       1178 points
+AGREE       pandas      percent-change A             percent_change(close['AAPL'])                                          1304 points
+NOT-CHECKED -           percent-change A from 2022-03-15 percent_change(close['AAPL'])                                          anchor
+AGREE       pandas      percent-change B             percent_change(close['MSFT'])                                          1304 points
+NOT-CHECKED -           percent-change B from 2022-03-15 percent_change(close['MSFT'])                                          anchor
+AGREE       pandas      percent-change C             percent_change(close['NVDA'])                                          1304 points
+NOT-CHECKED -           percent-change C from 2022-03-15 percent_change(close['NVDA'])                                          anchor
+AGREE       gs-quant    percentiles A                close['GLD']                                                           1304 points
+AGREE       gs-quant    percentiles B                median(close['GLD'], w => 1y)                                          1042 points
+AGREE       gs-quant    percentiles C                percentile(close['GLD'], n => 90, w => 1y)                             1042 points
+AGREE       gs-quant    percentiles D                percentiles(close['GLD'], w => 1y)                                     1042 points
+AGREE       gs-quant    performance A                close['SPX']                                                           1304 points
+AGREE       gs-quant    performance B                close['NDX']                                                           1304 points
+AGREE       gs-quant    performance C                close['GLD']                                                           1304 points
+AGREE       gs-quant    performance D                close['TLT']                                                           1304 points
+AGREE       gs-quant    performance E                volatility(close['SPX'], w => 21, type => 'simple')                    1283 points
+AGREE       gs-quant    product-streaks A            product(1 + returns(close['EURUSD'], 1, 'simple'), w => 5) - 1         1299 points
+AGREE       gs-quant    product-streaks B            consecutive(returns(close['EURUSD'], 1, 'simple'), direction => 'posit 1304 points
+AGREE       gs-quant    product-streaks C            0 - consecutive(returns(close['EURUSD'], 1, 'simple'), direction => 'n 1304 points
+AGREE       gs-quant    projected A                  close['SPX']                                                           1304 points
+AGREE       gs-quant    ramp A                       zscores(close['NVDA'], w => 63, r => 0)                                1304 points
+AGREE       gs-quant    ramp B                       volatility(close['NVDA'], w => 22, type => 'simple', r => 5)           1299 points
+AGREE       gs-quant    ramp C                       sharpe_ratio(close['NVDA'], w => 63, r => 10)                          1293 points
+AGREE       pandas      rebase A                     rebase(close['SPX'], base => 100)                                      1304 points
+NOT-CHECKED -           rebase A from 2022-03-15     rebase(close['SPX'], base => 100)                                      anchor
+AGREE       pandas      rebase B                     rebase(close['XOM'], base => 100)                                      1304 points
+NOT-CHECKED -           rebase B from 2022-03-15     rebase(close['XOM'], base => 100)                                      anchor
+AGREE       pandas      rebase C                     rebase(close['JPM'], base => 100)                                      1304 points
+NOT-CHECKED -           rebase C from 2022-03-15     rebase(close['JPM'], base => 100)                                      anchor
+AGREE       pandas      rebase D                     rebase(close['EURUSD'], base => 100)                                   1304 points
+NOT-CHECKED -           rebase D from 2022-03-15     rebase(close['EURUSD'], base => 100)                                   anchor
+AGREE       statsmodels regression A                 alpha(close['NVDA'], close['SPX'], w => 126)                           1178 points
+AGREE       statsmodels regression B                 r_squared(close['NVDA'], close['SPX'], w => 126)                       1178 points
+AGREE       statsmodels regression C                 hedge_ratio(close['MSFT'], close['AAPL'], w => 126)                    1179 points
+AGREE       statsmodels regression D                 residual(close['MSFT'], close['AAPL'], w => 126)                       1179 points
+AGREE       gs-quant    returns A                    returns(close['SPX'], 1, 'simple')                                     1303 points
+AGREE       gs-quant    returns B                    returns(close['SPX'], 1, 'log')                                        1303 points
+AGREE       gs-quant    reversion A                  close['AAPL'] / close['MSFT']                                          1304 points
+AGREE       statsmodels reversion B                  dickey_fuller(close['AAPL'] / close['MSFT'], w => 252)                 1052 points
+AGREE       statsmodels reversion C                  half_life(close['AAPL'] / close['MSFT'], w => 252)                     1052 points
+AGREE       gs-quant    rsi A                        close['NVDA']                                                          1304 points
+AGREE       gs-quant    rsi B                        rsi(close['NVDA'], w => 14)                                            1289 points
+AGREE       gs-quant    sharpe A                     sharpe_ratio(excess_returns(close['SPX'], cash.index['USD']), w => 252 1051 points
+AGREE       gs-quant    sharpe B                     sharpe_ratio(excess_returns(close['GLD'], cash.index['USD']), w => 252 1051 points
+AGREE       gs-quant    sharpe C                     sharpe_ratio(excess_returns(close['TLT'], cash.index['USD']), w => 252 1051 points
+AGREE       gs-quant    splice A                     append(filter(if(year(close['GLD']) < 2023, close['GLD'], 0), operator 1304 points
+AGREE       gs-quant    splice B                     prepend(close['GLD'], filter(if(year(close['TLT']) >= 2023, close['TLT 1304 points
+AGREE       gs-quant    splice C                     union(filter(close['GLD'], operator => 'greater_than', value => 190),  1304 points
+NOT-CHECKED -           split A                      volatility(close[asset_class = 'Equity'], w => 63, type => 'simple')   split
+AGREE       gs-quant    sqrt-power A                 std(close['GLD'], 63)                                                  1241 points
+AGREE       gs-quant    sqrt-power B                 sqrt(var(close['GLD'], 63))                                            1241 points
+AGREE       gs-quant    sqrt-power C                 power(std(close['GLD'], 63), 2)                                        1241 points
+AGREE       gs-quant    std-var A                    std(close['GLD'], 63)                                                  1241 points
+AGREE       gs-quant    std-var B                    var(close['GLD'], 63)                                                  1241 points
+AGREE       gs-quant    styles A                     close['JPM']                                                           1304 points
+AGREE       gs-quant    styles B                     max(close['JPM'], 21)                                                  1283 points
+AGREE       gs-quant    styles C                     mean(close['JPM'], 21)                                                 1283 points
+AGREE       gs-quant    styles D                     returns(close['JPM'], 1, 'simple')                                     1303 points
+AGREE       gs-quant    styles E                     volume['JPM']                                                          1304 points
+AGREE       gs-quant    sum A                        sum(volume['AAPL'], 21)                                                1283 points
+AGREE       gs-quant    sum B                        sum(volume['AAPL'], all)                                               1304 points
+AGREE       pandas      technicals A                 ohlc(open['AAPL'], high['AAPL'], low['AAPL'], close['AAPL'])           open 1304 points; high 1304 points; low 1304 points; close 1304 points
+AGREE       gs-quant    technicals B                 bollinger_bands(close['AAPL'], w => 20, k => 2)                        1284 points
+AGREE       gs-quant    technicals C                 mean(close['AAPL'], 50)                                                1254 points
+AGREE       gs-quant    technicals D                 mean(close['AAPL'], 200)                                               1104 points
+AGREE       gs-quant    technicals E                 rsi(close['AAPL'], w => 14)                                            1289 points
+AGREE       pandas      technicals F                 sum(volume['AAPL'])                                                    1304 points
+AGREE       gs-quant    total-return A               close['SPX']                                                           1304 points
+AGREE       pandas      total-return B               total_return(close['SPX'], 0.015)                                      1304 points
+AGREE       gs-quant    two-grids A                  px.close['SPX']                                                        1304 points
+AGREE       gs-quant    two-grids B                  rates.yield['2Y']                                                      1304 points
+AGREE       gs-quant    two-grids C                  correlation(px.close['SPX'], rates.yield['2Y'], w => 63)               1241 points
+NOT-CHECKED -           view-curve A                 yield                                                                  split
+AGREE       gs-quant    view-histogram A             returns(close['SPX'], 1, 'simple')                                     1303 points
+AGREE       gs-quant    view-scatter A               returns(close['SPX'], 1, 'simple')                                     1303 points
+AGREE       gs-quant    view-scatter B               returns(close['NDX'], 1, 'simple')                                     1303 points
+NOT-CHECKED -           view-seasonality A           close['SPX']                                                           grain
+AGREE       gs-quant    vol-corr A                   volatility(close['SPX'], w => 63, type => 'simple')                    1241 points
+AGREE       gs-quant    vol-corr B                   volatility(close['NVDA'], w => 63, type => 'simple')                   1241 points
+AGREE       gs-quant    vol-corr C                   correlation(close['AAPL'], close['MSFT'], w => 63)                     1241 points
+AGREE       gs-quant    vol-corr D                   correlation(close['SPX'], close['TLT'], w => 63)                       1241 points
+AGREE       gs-quant    vol-corr E                   beta(close['NVDA'], close['SPX'], w => 126)                            1178 points
+AGREE       gs-quant    vol-swap A                   vol_swap_volatility(close['SPX'], w => 21)                             1284 points
+AGREE       gs-quant    vol-swap B                   volatility(close['SPX'], w => 21, type => 'simple')                    1283 points
+AGREE       gs-quant    volatility A                 volatility(close['SPX'], w => 21, type => 'simple')                    1283 points
+AGREE       gs-quant    volatility B                 volatility(close['SPX'], w => 63, type => 'simple')                    1241 points
+AGREE       gs-quant    volatility C                 volatility(close['SPX'], w => 252, type => 'simple')                   1052 points
+AGREE       gs-quant    volume-flow A                close['AAPL']                                                          1304 points
+AGREE       pandas      volume-flow B                vwap(close['AAPL'], volume['AAPL'], w => 20)                           1285 points
+DEPARTS     TA-Lib      volume-flow C                obv(close['AAPL'], volume['AAPL'])                                     obv: from 0 (StockCharts', the word's sentence; TA-Lib's from the first volume) -- value: 1304 common, 1304 differ, 0 lite's alone, 0 gs-quant's alone; 2020-01-02: lite 0, gs-quant 66238231; 2020-01-03: lite -89618847, gs-quant -23380616; 2020-01-06: lite -26593908, gs-quant 39644323
+DEPARTS     gs-quant    winsorize A                  winsorize(returns(close['EURUSD'], 1, 'simple'), limit => 1.5)         S150: to date, where gs-quant reads the whole series (winsorize(x, 1.5, whole) is gs-quant's) -- 1303 common, 164 differ, 0 lite's alone, 0 gs-quant's alone; 2020-01-08: lite 0.008287541663, gs-quant 0.007328164541; 2020-01-09: lite -0.01000625391, gs-quant -0.007589420966; 2020-01-28: lite 0.007185239185, gs-quant 0.007328164541
+AGREE       gs-quant    winsorize B                  returns(close['EURUSD'], 1, 'simple')                                  1303 points
+AGREE       gs-quant    zscores A                    zscores(close['NVDA'], w => 63)                                        1241 points
+
+AGREE 185, DEPARTS 4, NOT-CHECKED 26
+by oracle: - 26, TA-Lib 5, gs-quant 153, gs-quant+pandas 2, pandas 23, statsmodels 6

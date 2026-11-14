@@ -3,9 +3,12 @@
 // bans actually happened here.
 
 import assert from 'node:assert/strict';
+import { posix } from 'node:path';
 import { describe, it } from 'node:test';
 
 import { Sources } from '../../tools/js/runfiles.mts';
+import { WORD_SIGNATURES } from '../src/generated/ts-signatures.ts';
+import { SCALARS, TS_FUNCTION_NAMES } from '../src/timeseries-words.ts';
 
 // the sources this reads, as the BUILD target declares them (Bazel workplan P3-29): it walks no directory
 const SOURCES = new Sources('SOURCES', 'datacube');
@@ -225,6 +228,10 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     // example's two saved queries, the text a person saved in Query -- a query store's content is text -- each written
     // out, never assembled, and held parsed to the tree its grid reads (stress-markets.test.ts)
     ['src/examples/markets-classes.ts', 'the saved queries\' text, as Query saved it'],
+    // added 2026-11-07 (docs/TS_DECISIONS_2026_11_07.md §4, a': the markets page and the gallery over classes): the
+    // copies' three saved queries, each written out as markets-classes.ts's are, held to the tree its grid reads
+    // (stress-markets.test.ts answers every series of the copies over them)
+    ['src/examples/on-classes.ts', 'the copies\' saved queries\' text, as Query saved it'],
   ]);
 
   /**
@@ -267,6 +274,9 @@ describe('queries are protocol, never Pure text (docs/DATACUBE_TYPES_TO_SERVER_2
     assert.equal(count('src/ui/multi-field-form.ts'), 4, "multi-field-form.ts: the window's examples");
     assert.equal(count('src/ui/pure-form.ts'), 9, "pure-form.ts: the window's steps and its example");
     assert.equal(count('src/examples/markets-classes.ts'), 2, 'markets-classes.ts: its two saved queries');
+    // 3 -> 4 (2026-11-08, docs/TS_DECISIONS_2026_11_07.md item 13b): the cash's (markets::CashRate), the gallery's Sharpe
+    // ratios over dollar cash
+    assert.equal(count('src/examples/on-classes.ts'), 4, 'on-classes.ts: its four saved queries');
   });
 
   it('calls no TDS function: the Relation API only (the user, 2026-09-27)', () => {
@@ -625,5 +635,92 @@ describe('nothing is built and left unreachable', () => {
     // The exact hole the audit found: the menu was built and tested
     // as data, and `grep -c contextmenu src/grid/grid.ts` returned 0.
     assert.ok(APP.includes("addEventListener('contextmenu'"));
+  });
+});
+
+describe('the timeseries language has one reader, core\'s', () => {
+  // THE ORDER TO ONE READER (docs/TS_DECISIONS_2026_11_07.md §4, step 3, 2026-11-08): the tile read its formulas with a
+  // grammar of its own (timeseries-expr.ts parseExpr and its tokenizer, printed by exprText and exprSource, its marks'
+  // matches by parseMatches), which drifted from core's #TS -- two grammars of one language. A series' text is read by
+  // core alone (LitePlanner.tsItem, timeseries-text.ts readSeriesTexts) and written by timeseries-text.ts seriesText;
+  // tests build trees with the builder (timeseries-builder.ts). None of that grammar may come back.
+  const GRAMMAR = /\b(parseExpr|parseMatches|exprText|exprSource|TsSyntaxError)\b|\btokeni[sz]e/;
+
+  it('reads no series\' text itself: no tokenizer, no parser of the language', () => {
+    const hits: string[] = [];
+    for (const f of sources('src').filter((f) => !f.includes('generated'))) {
+      const timeseries = /timeseries|\/ts-/.test(f);
+      SOURCES.read(f).split('\n').forEach((line, i) => {
+        if (isComment(line)) return;
+        const m = GRAMMAR.exec(line);
+        // a tokenizer is banned where the timeseries live; the old grammar's names everywhere
+        if (m !== null && (m[1] !== undefined || timeseries)) hits.push(`${f}:${i + 1}: ${line.trim()}`);
+      });
+    }
+    assert.deepEqual(hits, [], `a series' text is core's to read (LitePlanner.tsItem):\n${hits.join('\n')}`);
+  });
+
+  /** The catalog's words the tile draws none of yet, each joining TS_FUNCTION_NAMES when it does: only allowed to shrink
+   *  (2026-11-08, the order's step 3: the library's per-point rounding words, a rank across a line, a value as of one
+   *  date -- core reads each in #TS; the tile has no gesture or tree for them). */
+  const UNDRAWN = ['rank', 'round_down', 'round_up', 'value_at'];
+
+  it('keeps no word table by hand: the tile\'s words are core\'s catalog\'s, and SQL\'s per point', () => {
+    const tile = new Set<string>(TS_FUNCTION_NAMES);
+    const strays = TS_FUNCTION_NAMES.filter((w) => WORD_SIGNATURES[w] === undefined && SCALARS[w] === undefined);
+    assert.deepEqual(strays, [], 'every word of TS_FUNCTION_NAMES (timeseries-words.ts) is core\'s generated catalog\'s or SCALARS\'');
+    assert.deepEqual(Object.keys(WORD_SIGNATURES).filter((w) => !tile.has(w)).sort(), UNDRAWN,
+      'the catalog\'s words the tile does not draw: a new one is drawn or named in UNDRAWN with why; one drawn leaves it');
+  });
+});
+
+describe('the chart API stands apart from the screen (docs/TS_DECISIONS_2026_11_07.md §5, the ruling of 2026-11-09)', () => {
+  // A tile's spec is the page's; every edit of it is one change (timeseries-edit.ts TsChange) made by the one rule
+  // (editTimeseries) -- the screen, Python and TypeScript's Chart its three fronts, each held to every change kind by the
+  // change-parity ledger (one-api-ledger.test.ts). Two more holds: the API is no part of the screen, and the screen tells
+  // the page a tile's spec through one door, which takes a change.
+  const API = [
+    'src/timeseries-spec.ts', 'src/timeseries-edit.ts', 'src/timeseries-chart.ts', 'src/timeseries-builder.ts',
+    'src/timeseries-builder-source.ts', 'src/timeseries-builder-wire.ts', 'src/timeseries-text.ts',
+  ];
+  const IMPORT = /\bfrom\s+'(\.[^']+)'|\bimport\(\s*'(\.[^']+)'\s*\)/g;
+  // the DOM's globals, never a property of that name (a chart's own `d.window.column`)
+  const DOM = /(?<![.\w])(?:document|window)\.|\bHTMLElement\b|\baddEventListener\(/;
+
+  it('the API reaches nothing of the screen, the page or the DOM, however far its imports go', () => {
+    const known = new Set(SOURCES.under('src', '.ts').concat(SOURCES.under('../engine-client/src', '.ts')));
+    const reached = new Set<string>();
+    const wrong: string[] = [];
+    const visit = (f: string, from: string): void => {
+      if (reached.has(f)) return;
+      reached.add(f);
+      if (f.startsWith('src/ui/') || f.startsWith('src/page/')) {
+        wrong.push(`${from} reaches ${f}`);
+        return;
+      }
+      const code = SOURCES.read(f).split('\n').filter((l) => !isComment(l));
+      code.forEach((line, i) => {
+        if (DOM.test(line)) wrong.push(`${f}:${i + 1} (reached from ${from}) touches the DOM: ${line.trim()}`);
+      });
+      for (const m of code.join('\n').matchAll(IMPORT)) {
+        const next = posix.normalize(posix.join(posix.dirname(f), m[1] ?? m[2]!));
+        if (known.has(next)) visit(next, f);
+      }
+    };
+    for (const f of API) {
+      assert.ok(known.has(f), `${f} is one of the sources read`);
+      visit(f, f);
+    }
+    assert.ok(reached.size > API.length, `the walk reads the API's imports (${reached.size} modules)`);
+    assert.deepEqual(wrong, [], 'the chart API is no part of the screen (the ruling of 2026-11-09)');
+  });
+
+  it('the screen tells the page a tile\'s spec in one place, and that place takes a change', () => {
+    const code = SOURCES.read('src/ui/timeseries-view.ts').split('\n').filter((l) => !isComment(l));
+    const tells = code.flatMap((l, i) => (/\.setSpec\(/.test(l) ? [i] : []));
+    assert.equal(tells.length, 1, `the tile view tells the page its spec in one place, not ${tells.length}`);
+    // the method it is in: the nearest method declared above it
+    const head = code.slice(0, tells[0]).reverse().find((l) => /^ {2}#?\w+\(/.test(l)) ?? '';
+    assert.match(head, /^ {2}#tell\(change: TsChange\b/, `the one door takes a change (TsChange), not a spec: ${head.trim()}`);
   });
 });

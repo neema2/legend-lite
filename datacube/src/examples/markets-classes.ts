@@ -126,10 +126,10 @@ export function marketsClassesPage(): PageDocument {
     tile('sectors', 'Technology, line by line; energy and financials beside it, rebased to 100', {
       sources: [QUOTES],
       series: [
-        s('A', 'close[sector="Information Technology"]', { name: 'Technology', split: 'ticker' }),
-        s('B', 'close[sector="Energy"]', { name: 'Energy' }),
-        s('C', 'close[sector="Financials"]', { name: 'Financials' }),
-        s('D', 'volume[sector="Information Technology"].sum', { name: 'Technology volume', pane: 1, style: { kind: 'bars' } }),
+        s('A', "close[sector = 'Information Technology']", { name: 'Technology', split: 'ticker' }),
+        s('B', "close[sector = 'Energy']", { name: 'Energy' }),
+        s('C', "close[sector = 'Financials']", { name: 'Financials' }),
+        s('D', "sum(volume[sector = 'Information Technology'])", { name: 'Technology volume', pane: 1, style: { kind: 'bars' } }),
       ],
       range: { last: '2y' },
       view: { compare: 'rebase' },
@@ -139,8 +139,8 @@ export function marketsClassesPage(): PageDocument {
     tile('venues', 'Volume by listing venue, and the Nasdaq\'s share', {
       sources: [QUOTES],
       series: [
-        s('A', 'mean(volume.sum, 21)', { name: 'Volume, 21d average', split: 'exchange' }),
-        s('B', 'mean(volume[exchange="Nasdaq"].sum / volume.sum, 21)', { name: 'Nasdaq share, 21d', pane: 1 }),
+        s('A', "mean(sum(volume), 21)", { name: 'Volume, 21d average', split: 'exchange' }),
+        s('B', "mean(sum(volume[exchange = 'Nasdaq']) / sum(volume), 21)", { name: 'Nasdaq share, 21d', pane: 1 }),
       ],
       range: { last: '3y' },
       panes: [{ height: 2 }, { height: 1 }],
@@ -150,10 +150,10 @@ export function marketsClassesPage(): PageDocument {
     tile('trades-vs-close', 'Apple: the bank\'s trades against the close (two grids, one tile)', {
       sources: [QUOTES, TRADES],
       series: [
-        s('A', 'px:close[AAPL]', { name: 'Apple close' }),
-        s('B', 'tr:quantity[AAPL, side="BUY"].sum', { name: 'Bought', pane: 1, style: { kind: 'bars' } }),
-        s('C', 'tr:quantity[AAPL, side="SELL"].sum', { name: 'Sold', pane: 1, style: { kind: 'bars' } }),
-        s('D', 'tr:notional.sum', { name: 'Notional by sector', split: 'sector', pane: 2, style: { kind: 'bars' } }),
+        s('A', "px.close['AAPL']", { name: 'Apple close' }),
+        s('B', "sum(tr.quantity['AAPL', side = 'BUY'])", { name: 'Bought', pane: 1, style: { kind: 'bars' } }),
+        s('C', "sum(tr.quantity['AAPL', side = 'SELL'])", { name: 'Sold', pane: 1, style: { kind: 'bars' } }),
+        s('D', "sum(tr.notional)", { name: 'Notional by sector', split: 'sector', pane: 2, style: { kind: 'bars' } }),
       ],
       // by day: the quotes' times (their close) and the trades' days on one axis
       grain: 'day',

@@ -42,7 +42,7 @@ from ._planned import Answered, Database, across_the_bridge, connect, send
 from ._library import Library, library
 from ._pool import library_thread
 
-from ._planner import KINDS, REFUSED, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
+from ._planner import KINDS, OVER, REFUSED, answer  # noqa: F401 -- the planner protocol's table, answered here and by the engine
 
 # WebCrypto's digests, by the names crypto.subtle.digest takes
 _DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512': 'sha512'}
@@ -146,12 +146,13 @@ def check_interface(bundle_kinds: list[str], lib: Library) -> None:
     """The bundle's request kinds against ``KINDS`` and the kinds this host refuses by name (``REFUSED``), and each
     function ``KINDS`` names against the library's exports."""
     sent, answered = set(bundle_kinds), set(KINDS) | set(REFUSED)
-    missing = sorted(k for k in KINDS if not lib.exports(KINDS[k][0]))
+    functions = [f for f, _ in KINDS.values()] + [f for f, _ in OVER.values()]
+    missing = sorted(f for f in functions if not lib.exports(f))
     if sent != answered or missing:
         raise InterfaceMismatch(
             "DataCube's bundle and legend-lite's native library do not agree on the planner's requests: "
             f'the bundle sends {sorted(sent)}; this host answers {sorted(answered)}'
-            + (f'; the library exports none of {[KINDS[k][0] for k in missing]}' if missing else ''))
+            + (f'; the library exports none of {missing}' if missing else ''))
 
 
 class Headless:
@@ -178,6 +179,7 @@ class Headless:
         self._db: Database = connect() if connection is None else connection
         if self._own_db:
             _host.run(self._db, {'op': 'fileSearchPath', 'folder': str(self._folder)})
+        _start_v8()
         self._loop = asyncio.new_event_loop()
         self._thread = threading.Thread(target=self._serve, name='legend-lite-datacube', daemon=True)
         self._thread.start()

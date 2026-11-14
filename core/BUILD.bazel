@@ -8,6 +8,7 @@ load("@rules_java//java:defs.bzl", "java_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
+load("//tools/clickhouse:defs.bzl", "EMBEDDED_CLICKHOUSE_COMPATIBLE")
 load("//tools/postgres:defs.bzl", "EMBEDDED_POSTGRES_COMPATIBLE")
 load("//tools/mongodb:defs.bzl", "EMBEDDED_MONGODB_COMPATIBLE")
 load("//tools/java_run:defs.bzl", "java_run")
@@ -343,6 +344,7 @@ legend_java_library(
         "src/main/java/com/legend/server/ModelChanges.java",
         "src/main/java/com/legend/server/ModelInput.java",
         "src/main/java/com/legend/server/PureV1Api.java",
+        "src/main/java/com/legend/server/TsTree.java",
     ],
     deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
 )
@@ -357,6 +359,7 @@ legend_java_library(
             "src/main/java/com/legend/server/ModelChanges.java",
             "src/main/java/com/legend/server/ModelInput.java",
             "src/main/java/com/legend/server/PureV1Api.java",
+            "src/main/java/com/legend/server/TsTree.java",
         ],
     ),
     # 2026-11-09 (the full audit): no runtime library -- the server hands pure/v1 the product door and names no exec
@@ -581,6 +584,34 @@ legend_java_library(
             # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
             "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
             "src/test/java/com/legend/integration/SqlParityTest.java",
+            # DataCube's timeseries library on every in-process database is :timeseries_library_test's alone: it reads
+            # DataCube's Pure file (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B)
+            "src/test/java/com/legend/integration/TimeseriesLibraryTest.java",
+            # the #TS{...}# island over the timeseries library is :ts_island_test's alone: it reads the timeseries
+            # project's file too (2026-10-30, docs/TS_LANGUAGE_BUILD_2026_10_30.md P2)
+            "src/test/java/com/legend/integration/TsIslandTest.java",
+            # the adversarial markets fixture on DuckDB is :ts_adversarial_test's alone: it reads the fixture's files,
+            # the timeseries project's file and its ledger (2026-11-07)
+            "src/test/java/com/legend/integration/TsAdversarialTest.java",
+            # the documents' examples are :ts_documents_test's alone: they read the timeseries project's file and the
+            # examples (2026-11-03, docs/TS_V1_PROGRAM_2026_11_01.md A9)
+            "src/test/java/com/legend/integration/TsDocumentsTest.java",
+            # the line-level spike is :ts_line_spike_test's alone (manual): it reads the timeseries project's file
+            # (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md)
+            "src/test/java/com/legend/integration/TsLineSpikeTest.java",
+            # the scale measurement is :ts_scale_measure's and :ts_scale_measure_postgres's alone (manual): it reads the
+            # timeseries project's file and makes ten million rows (2026-11-07, docs/TS_SCALE_2026_11_07.md)
+            "src/test/java/com/legend/integration/TsScaleMeasureTest.java",
+            # the gallery's replay is the ts_replay targets' alone: it reads the gallery's statements and samples
+            # (2026-11-07, docs/TS_DECISIONS_2026_11_07.md item 9)
+            "src/test/java/com/legend/integration/TsReplayTest.java",
+            # their shared comparison with DuckDB's answer, the replay's and the documents' lanes' (item 9b)
+            "src/test/java/com/legend/integration/TsAnswers.java",
+            # the gs-quant parity is :ts_gsquant_parity_test's alone: it reads the oracle's answers and the samples
+            # (2026-11-07, tools/gs-quant-oracle/README.md)
+            "src/test/java/com/legend/integration/TsGsquantParityTest.java",
+            # the frame-offset probe is :frame_offset_probe_test's alone (manual): the embedded servers in its runfiles
+            "src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java",
             # the #IQ{...}# island's parity lanes are :iq_parity_test's and :iq_parity_postgres_test's, its syntax-case
             # ratchet :iq_syntax_cases_test's
             "src/test/java/com/legend/integration/IqParityTest.java",
@@ -629,6 +660,8 @@ legend_java_library(
             # the #IQ{...}# island's cases, schema, snapped answers and ledger: :iq_parity_test's and
             # :iq_parity_postgres_test's data, read as files
             "src/test/resources/iq-parity/**",
+            # the adversarial markets fixture's ledger: :ts_adversarial_test's, read as a file
+            "src/test/resources/ts-adversarial/**",
             # the #Cypher{...}# island's cases, the TCK, the snapped answers and the ledger: :cypher_parity_test's and
             # :cypher_parity_postgres_test's data, read as files
             "src/test/resources/cypher-parity/**",
@@ -1252,6 +1285,516 @@ junit_test(
         "//testing",
         "@maven_test//:org_junit_jupiter_junit_jupiter_api",
     ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# DATACUBE'S TIMESERIES LIBRARY ON THE PLATFORM (2026-10-28, docs/TIMESERIES_ON_THE_PLATFORM_2026_10_28.md step B):
+# timeseries::, the timeseries project's Pure file as it is -- a program, input to the compiler (docs/WORLD_MAP.md), read here as a
+# test's input as the linked projects' files are -- compiles (a body generic over relations typed where a call reaches
+# it: register S112), and a person's Pure calling it answers as
+# arithmetic on every in-process database (a calendar period's as-of join where the dialect writes one)
+junit_test(
+    name = "timeseries_library_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TimeseriesLibraryTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TimeseriesLibraryTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE, v0 (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): a #TS{...}# query over a class, a WITH source,
+# a table and a variable answers as the timeseries library's calls written in Pure, on every in-process database, and
+# every refusal says its fix
+junit_test(
+    name = "ts_island_test",
+    memory_mb = 512,
+    # large (900 s): 79 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE ADVERSARIAL MARKETS FIXTURE (projects/timeseries/fixtures/adversarial, 2026-11-07): per trap, a #TS query on
+# DuckDB judged against the fixture's correct answer, each case's status held by ts-adversarial/ledger.tsv, and the
+# manifest's naive SQL run as written, which must give its naive answer and not the correct one (the trap bites)
+junit_test(
+    name = "ts_adversarial_test",
+    memory_mb = 512,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsAdversarialTest.java"],
+    data = [
+        "src/test/resources/ts-adversarial/ledger.tsv",
+        "//projects:timeseries/fixtures/adversarial/calendar.csv",
+        "//projects:timeseries/fixtures/adversarial/manifest.yaml",
+        "//projects:timeseries/fixtures/adversarial/prices.csv",
+        "//projects:timeseries/fixtures/adversarial/prices_adjusted.csv",
+        "//projects:timeseries/model.pure",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.adversarial.calendar=$(rlocationpath //projects:timeseries/fixtures/adversarial/calendar.csv)",
+        "-Dts.adversarial.manifest=$(rlocationpath //projects:timeseries/fixtures/adversarial/manifest.yaml)",
+        "-Dts.adversarial.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices.csv)",
+        "-Dts.adversarial.prices_adjusted=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices_adjusted.csv)",
+        "-Dts.adversarial.ledger=$(rlocationpath src/test/resources/ts-adversarial/ledger.tsv)",
+        # the database the manifest's naive SQL is written for
+        "-Dts.backend=duckdb",
+    ],
+    select = ["--select-class=com.legend.integration.TsAdversarialTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE GS-QUANT PARITY OF #TS (tools/gs-quant-oracle/README.md, 2026-11-07): every case of the oracle's mapping -- a
+# word of the library as a #TS item -- run on DuckDB and judged against gs-quant's own function at the oracle's pin
+# (tools/gs-quant-oracle/pins.env), snapped by tools/gs-quant-oracle/snap.py (1e-9 absolute, 1e-8 relative for a
+# volatility, a correlation, a beta), over three datasets: the gallery's samples and the adversarial fixture's two price
+# files, raw and adjusted, each its own answers and ledger. Each case's verdict is held by its ledger, a DIFF written
+# with lite's SQL to the undeclared outputs (gsquant-findings.md); JDK_JAVA_OPTIONS=-Dts.gsquant.update=<the oracle's
+# directory in the workspace> rewrites the ledgers' verdicts (the JUnit launcher takes no -D).
+junit_test(
+    name = "ts_gsquant_parity_test",
+    memory_mb = 1024,
+    # large (900 s): 82 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
+    srcs = [
+        "src/test/java/com/legend/integration/TsAnswers.java",
+        "src/test/java/com/legend/integration/TsGsquantParityTest.java",
+    ],
+    data = [
+        "//datacube:test/fixtures/timeseries/show-ts.txt",
+        "//datacube:ts_replay_samples",
+        "//projects:timeseries/fixtures/adversarial/prices.csv",
+        "//projects:timeseries/fixtures/adversarial/prices_adjusted.csv",
+        "//projects:timeseries/model.pure",
+        "//tools/gs-quant-oracle:answers-adversarial-adjusted.jsonl.gz",
+        "//tools/gs-quant-oracle:answers-adversarial-raw.jsonl.gz",
+        "//tools/gs-quant-oracle:answers-gallery.jsonl.gz",
+        "//tools/gs-quant-oracle:answers.jsonl.gz",
+        "//tools/gs-quant-oracle:gallery.jsonl",
+        "//tools/gs-quant-oracle:ledger-adversarial-adjusted.tsv",
+        "//tools/gs-quant-oracle:ledger-adversarial-raw.tsv",
+        "//tools/gs-quant-oracle:ledger-gallery.tsv",
+        "//tools/gs-quant-oracle:ledger.tsv",
+        "//tools/gs-quant-oracle:calls.tsv",
+        "//tools/gs-quant-oracle:mapping.yaml",
+        "//tools/gs-quant-oracle:pins.env",
+        "//tools/gs-quant-oracle:references.py",
+        "//tools/gs-quant-oracle:snap.py",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.gsquant.pins=$(rlocationpath //tools/gs-quant-oracle:pins.env)",
+        # the oracle's own code: each answer file records its sha256, and an edit of either makes the answers STALE
+        "-Dts.gsquant.snap=$(rlocationpath //tools/gs-quant-oracle:snap.py)",
+        "-Dts.gsquant.references=$(rlocationpath //tools/gs-quant-oracle:references.py)",
+        "-Dts.gsquant.mapping=$(rlocationpath //tools/gs-quant-oracle:mapping.yaml)",
+        # each case's #TS item as Show Python prints it: the gs-quant call of a case the mapping writes `printed` (14f)
+        "-Dts.gsquant.calls=$(rlocationpath //tools/gs-quant-oracle:calls.tsv)",
+        "-Dts.gsquant.samples=$(rlocationpath //datacube:ts_replay_samples)",
+        "-Dts.gsquant.answers=$(rlocationpath //tools/gs-quant-oracle:answers.jsonl.gz)",
+        "-Dts.gsquant.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger.tsv)",
+        "-Dts.gsquant.adversarial-raw.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices.csv)",
+        "-Dts.gsquant.adversarial-raw.answers=$(rlocationpath //tools/gs-quant-oracle:answers-adversarial-raw.jsonl.gz)",
+        "-Dts.gsquant.adversarial-raw.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger-adversarial-raw.tsv)",
+        "-Dts.gsquant.adversarial-adjusted.prices=$(rlocationpath //projects:timeseries/fixtures/adversarial/prices_adjusted.csv)",
+        "-Dts.gsquant.adversarial-adjusted.answers=$(rlocationpath //tools/gs-quant-oracle:answers-adversarial-adjusted.jsonl.gz)",
+        "-Dts.gsquant.adversarial-adjusted.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger-adversarial-adjusted.tsv)",
+        # the gallery's and the markets example's series (item 14f, step 4b): each its gs-quant call (gallery.jsonl,
+        # Show Python's), its answer, its verdict, and its Show #TS statement, run over the pages' samples
+        "-Dts.gsquant.gallery=$(rlocationpath //tools/gs-quant-oracle:gallery.jsonl)",
+        "-Dts.gsquant.gallery.statements=$(rlocationpath //datacube:test/fixtures/timeseries/show-ts.txt)",
+        "-Dts.gsquant.gallery.answers=$(rlocationpath //tools/gs-quant-oracle:answers-gallery.jsonl.gz)",
+        "-Dts.gsquant.gallery.ledger=$(rlocationpath //tools/gs-quant-oracle:ledger-gallery.tsv)",
+    ],
+    select = ["--select-class=com.legend.integration.TsGsquantParityTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE ON POSTGRES (docs/TS_V1_PROGRAM_2026_11_01.md B1): the island's cases on the embedded
+# Postgres server, not in-process, each query in a workspace of its own. In the core lane where the embedded server
+# runs, as the other Postgres targets; as root, run it through tools/postgres/as_unprivileged.sh (docs/CLOUD_SESSIONS.md).
+junit_test(
+    name = "ts_island_postgres_test",
+    memory_mb = 768,
+    # large (900 s): 66 s here, past medium's 300 s on CI's Windows (run 42574044591, 2026-11-09)
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = [
+        "//projects:timeseries/model.pure",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE TIMESERIES LANGUAGE ON SNOWFLAKE (docs/TS_DECISIONS_2026_11_07.md item 10, 2026-11-07): the island's cases on a
+# real Snowflake account, each query in a workspace of its own (a schema made for it, dropped with everything in it as it
+# closes: SnowflakeBackend.openWorkspace). The account's coordinates and credentials come as //pct:pct_snowflake's do,
+# from the properties file LEGENDLITE_PCT_CLOUD_PROPERTIES names (docs/CLOUD_BACKENDS_PCT_2026_10_11.md). Manual, in
+# //gates:heavy: a run needs the account and costs money.
+junit_test(
+    name = "ts_island_snowflake_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = ["src/test/java/com/legend/integration/TsIslandTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=snowflake",
+        # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    ],
+    select = ["--select-class=com.legend.integration.TsIslandTest"],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE GALLERY ON ANOTHER DATABASE (docs/TS_DECISIONS_2026_11_07.md item 9, 2026-11-07): every series of the timeseries
+# gallery and the markets example as Show #TS prints it (the parity test's statements, held to the datacube fixture),
+# over the pages' samples (//datacube:ts_replay_samples) loaded into each database, each answer held to DuckDB's run
+# beside it -- the same dates and lines, each figure within 1e-9 of its series' scale (as ruled that day). One target per
+# v1 database besides DuckDB (P4 as widened 2026-11-07: DuckDB, Postgres, ClickHouse and Snowflake): the embedded
+# Postgres (as root, through tools/postgres/as_unprivileged.sh, docs/CLOUD_SESSIONS.md), the embedded ClickHouse, and a
+# Snowflake account (manual: it needs the account).
+_TS_REPLAY_SRCS = [
+    "src/test/java/com/legend/integration/TsAnswers.java",
+    "src/test/java/com/legend/integration/TsReplayTest.java",
+]
+
+_TS_REPLAY_DATA = [
+    "//projects:timeseries/model.pure",
+    "//datacube:test/fixtures/timeseries/show-ts.txt",
+    "//datacube:ts_replay_samples",
+]
+
+_TS_REPLAY_FLAGS = [
+    "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+    "-Dts.replay.statements=$(rlocationpath //datacube:test/fixtures/timeseries/show-ts.txt)",
+    "-Dts.replay.samples=$(rlocationpath //datacube:ts_replay_samples)",
+]
+
+_TS_REPLAY_DEPS = [
+    ":core",
+    ":test_backends",
+    ":test_cases",
+    "//json",
+    "//testing",
+    "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+]
+
+junit_test(
+    name = "ts_replay_postgres_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_REPLAY_SRCS,
+    data = _TS_REPLAY_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _TS_REPLAY_FLAGS + [
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        # a statement bounded at two minutes: one past it is named, not waited on
+        "'-Dts.replay.session=SET statement_timeout = 120000'",
+    ],
+    select = ["--select-class=com.legend.integration.TsReplayTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = _TS_REPLAY_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_replay_clickhouse_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_REPLAY_SRCS,
+    data = _TS_REPLAY_DATA + [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+    ],
+    jvm_flags = _TS_REPLAY_FLAGS + [
+        "-Dts.backend=clickhouse",
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        # a statement bounded at two minutes (seconds there): one past it is named, not waited on
+        "'-Dts.replay.session=SET max_execution_time = 120'",
+    ],
+    select = ["--select-class=com.legend.integration.TsReplayTest"],
+    runtime_deps = [
+        ":drivers",
+        "@clickhouse_jdbc//jar",
+    ],
+    target_compatible_with = EMBEDDED_CLICKHOUSE_COMPATIBLE,
+    deps = _TS_REPLAY_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_replay_snowflake_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_REPLAY_SRCS,
+    data = _TS_REPLAY_DATA,
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = _TS_REPLAY_FLAGS + [
+        "-Dts.backend=snowflake",
+        # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    ],
+    select = ["--select-class=com.legend.integration.TsReplayTest"],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    deps = _TS_REPLAY_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+# #TS AT SCALE, MEASURED (docs/TS_V1_PROGRAM_2026_11_01.md B2; docs/TS_DECISIONS_2026_11_07.md item 7, 2026-11-07):
+# about ten million daily rows and as many minute bars, made by the database; each query's plan time, SQL size and run.
+# Manual, a measurement (in //gates:heavy): the budgets are proposed from it and ruled by the user (P5). On Postgres the
+# as-of forms besides (lite's correlated MAX, the experts' LATERAL), without and with an index; the bars there are 20
+# instruments' (the session's disk), the wide table not run and the basket 100 members (the session's memory). As root, the Postgres one through tools/postgres/as_unprivileged.sh.
+junit_test(
+    name = "ts_scale_measure",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/TsScaleMeasureTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsScaleMeasureTest"],
+    runtime_deps = [":drivers"],
+    tags = ["manual"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_scale_measure_postgres",
+    memory_mb = 2048,
+    size = "enormous",
+    srcs = ["src/test/java/com/legend/integration/TsScaleMeasureTest.java"],
+    data = [
+        "//projects:timeseries/model.pure",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+        "-Dts.backend=postgres",
+        "-Dts.scale.barInstruments=20",
+        # the 100 lines' query grows one backend past the session's memory, at 1M rows as at 10M (F3: the statement's,
+        # not the data's; 2026-11-07, again after F6)
+        "-Dts.scale.wideLines=0",
+        "-Dts.scale.basket=100",
+        "-Dts.scale.handForms=true",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+    ],
+    select = ["--select-class=com.legend.integration.TsScaleMeasureTest"],
+    runtime_deps = [":drivers"],
+    tags = ["manual"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE DOCUMENTS' EXAMPLES (docs/TS_V1_PROGRAM_2026_11_01.md A9): every query of the #TS spec and of the guide for quants
+# (docs/timeseries/examples.sql, their one source) runs on the platform's own database over tables shaped as the
+# documents name them, or is listed with why (only allowed to shrink)
+_TS_DOCUMENTS_SRCS = [
+    "src/test/java/com/legend/integration/TsAnswers.java",
+    "src/test/java/com/legend/integration/TsDocumentsTest.java",
+]
+
+_TS_DOCUMENTS_DATA = [
+    "//docs:timeseries/examples.sql",
+    "//projects:timeseries/model.pure",
+]
+
+_TS_DOCUMENTS_FLAGS = [
+    "-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)",
+    "-Dts.examples=$(rlocationpath //docs:timeseries/examples.sql)",
+]
+
+_TS_DOCUMENTS_DEPS = [
+    ":core",
+    ":test_backends",
+    ":test_cases",
+    "//testing",
+    "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+]
+
+junit_test(
+    name = "ts_documents_test",
+    memory_mb = 1024,
+    size = "medium",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA,
+    jvm_flags = _TS_DOCUMENTS_FLAGS,
+    # the platform's own check; each lane target below selects the lane's
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleOfTheSpecAndTheGuideRuns"],
+    runtime_deps = [":drivers"],
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+# THE DOCUMENTS' EXAMPLES ON EVERY V1 DATABASE (docs/TS_DECISIONS_2026_11_07.md item 9b, 2026-11-07: "All four"): each
+# example on DuckDB and on the lane's database, each answer held to DuckDB's (TsAnswers), a statement bounded at two
+# minutes where the database takes a bound. Postgres as root through tools/postgres/as_unprivileged.sh; Snowflake manual.
+junit_test(
+    name = "ts_documents_clickhouse_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA + [
+        "@embedded_clickhouse//:clickhouse",
+        "@embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT",
+    ],
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=clickhouse",
+        "-Dembedded.clickhouse.root=$(rlocationpath @embedded_clickhouse//:clickhouse/CLICKHOUSE_ROOT)",
+        "'-Dts.documents.session=SET max_execution_time = 120'",
+    ],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
+    runtime_deps = [
+        ":drivers",
+        "@clickhouse_jdbc//jar",
+    ],
+    target_compatible_with = EMBEDDED_CLICKHOUSE_COMPATIBLE,
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_documents_postgres_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA + [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=postgres",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        "'-Dts.documents.session=SET statement_timeout = 120000'",
+    ],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = _TS_DOCUMENTS_DEPS,
+    visibility = ["//gates:__pkg__"],
+)
+
+junit_test(
+    name = "ts_documents_snowflake_test",
+    memory_mb = 1024,
+    size = "large",
+    srcs = _TS_DOCUMENTS_SRCS,
+    data = _TS_DOCUMENTS_DATA,
+    env_inherit = ["LEGENDLITE_PCT_CLOUD_PROPERTIES"],
+    jvm_flags = _TS_DOCUMENTS_FLAGS + [
+        "-Dts.backend=snowflake",
+        # the Snowflake driver's Arrow result format reads direct buffers, which JDK 17+ opens only on request
+        "--add-opens=java.base/java.nio=ALL-UNNAMED",
+    ],
+    select = ["--select-method=com.legend.integration.TsDocumentsTest#everyExampleAnswersAsOnThePlatform"],
+    runtime_deps = [
+        ":drivers",
+        "@snowflake_jdbc//jar",
+    ],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    deps = _TS_DOCUMENTS_DEPS,
     visibility = ["//gates:__pkg__"],
 )
 
@@ -2149,3 +2692,54 @@ core_layer_queries(not_layers = {
 })
 
 guards_package()
+
+# SPIKE (2026-10-31, evidence for docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md): the language's functions as
+# line-level Pure against today's #TS. Manual: no gate runs it; `bazel test //core:ts_line_spike_test --test_output=all`.
+junit_test(
+    name = "ts_line_spike_test",
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/integration/TsLineSpikeTest.java"],
+    data = ["//projects:timeseries/model.pure"],
+    jvm_flags = ["-Dtimeseries.library=$(rlocationpath //projects:timeseries/model.pure)"],
+    select = ["--select-class=com.legend.integration.TsLineSpikeTest"],
+    runtime_deps = [":drivers"],
+    deps = [
+        ":core",
+        ":test_backends",
+        ":test_cases",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# PROBE (2026-10-31, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md, C1): each database's window frame offsets -- a
+# constant expression, a bound parameter, a negative offset, a reversed window: the in-process three and the embedded
+# Postgres (MariaDB's, MySQL's and ClickHouse's drivers are //pct's alone, tools/deps/jars_table.bzl). Manual: no gate runs it;
+# `bazel test //core:frame_offset_probe_test --test_output=all`, as root under a copy of
+# tools/postgres/as_unprivileged.sh outside the workspace (docs/CLOUD_SESSIONS.md).
+junit_test(
+    name = "frame_offset_probe_test",
+    tags = ["manual"],
+    memory_mb = 1024,
+    size = "medium",
+    srcs = ["src/test/java/com/legend/sql/dialect/FrameOffsetProbeTest.java"],
+    data = [
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
+    ],
+    jvm_flags = [
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
+        "-Dprobe.servers=Postgres",
+    ],
+    select = ["--select-class=com.legend.sql.dialect.FrameOffsetProbeTest"],
+    runtime_deps = [":drivers"],
+    target_compatible_with = EMBEDDED_POSTGRES_COMPATIBLE,
+    deps = [
+        ":core",
+        ":test_backends",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)

@@ -17,5 +17,7 @@
 # own_corpus.matched 3166 -> 3179 (2026-11-12, the B2d.3 audit's findings M1-M5, L1-L9): their tests' models (TestDataPlannerTest's route text, seed shapes, default-schema and view-with-note models, TestDataTextAsWrittenTest's two-database connection, TestDataRoutesTest's view and unmapped runtime, PostgresArmTest's seed model)
 # own_corpus.matched 3179 -> 3192 (2026-11-12, L9's printing merged, 7d1bfcf8e; it measured 3164 -> 3177 on its branch): its tests' models (TestDataPlannerTest's timestamp store, GeneratedTestDataPrintingTest's, TestDataRoutesTest's timestamp route)
 # own_corpus.matched 3192 -> 3211 (2026-11-13, the final full audit's fixes, d7c037ebf, found red by the gate on that head): their tests' models (TestDataRoutesTest's temporal keys, TdsTemporalCellTest, EngineSeedRowTest's refusals, DuckDbOutputPlanTest's every-type and decimal-sum tables, the snapshot-copy and output-plan tests)
+# own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS island's, the library's, the documents', the adversarial fixture's and the frame and as-of tests')
+# own_corpus.matched 3246 -> 3251 (2026-11-14, main 3a217086a (#81) merged into claude/total-wall-d, whose own tests had not been measured: phase D's, the edge's and the raise kinds'), as measured on the merged tree, not attributed
 mutation.deck	950
-own_corpus.matched	3211
+own_corpus.matched	3251

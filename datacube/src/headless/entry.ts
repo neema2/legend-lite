@@ -23,7 +23,7 @@ import {
 import { joinCube, joinQuestions, joinSides, joinTogether } from './join.ts';
 import {
   timeseriesAsks, timeseriesCode, timeseriesCurveOrder, timeseriesEdit, timeseriesLineNames, timeseriesMade, timeseriesNotes, timeseriesQuery, timeseriesStatNotes, timeseriesTables,
-  timeseriesWindow,
+  timeseriesTermText, timeseriesWindow,
 } from './timeseries.ts';
 
 /** The request kinds this bundle's planner sends: the host checks, before anything runs, that it answers each (§7). */
@@ -152,13 +152,15 @@ export { nameGiven };
  *  Join window shows them -- the tab's Join…, with no screen, and its answers for a tab on the host's page (B11). */
 export { joinCube, joinQuestions, joinSides, joinTogether };
 
-/** A timeseries tile's spec as Python tells it, made by DataCube's own rules -- its expressions by DataCube's parser, a
+/** A timeseries tile's spec as Python tells it, made by DataCube's own rules -- its series' #TS texts read by core, a
  *  source's columns by its defaults -- and read by the tile's one reader (timeseriesMade: Python's page.timeseries and
  *  Timeseries's setters; docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §7). */
 export { timeseriesMade };
 /** A timeseries tile changed by its one rule (timeseries-edit.ts editTimeseries, which its viewer asks): Python's
  *  Timeseries methods. */
 export { timeseriesEdit };
+/** A term of Python's builder as its #TS text, written by this builder and read by core (B3's Python twin). */
+export { timeseriesTermText };
 /** A timeseries tile's series as its query (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md §5), over the host's tables, for
  *  the host to plan and run where the rows are: Python's Timeseries.frame. */
 export { timeseriesQuery };

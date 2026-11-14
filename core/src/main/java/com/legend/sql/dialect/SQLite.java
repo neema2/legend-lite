@@ -251,7 +251,10 @@ public class SQLite extends AnsiSqlRenderer {
         return List.of(new CarrierStrategies(CAPS), new StarExceptToColumns(),
                 new SubstringClamp(), new WholePartitionOrderedSets(), new ExplosionMarkers.LateralUnnestAsMarker(),
                 new ExplosionMarkers.SelectListUnnestAsLateral(), new ExplosionMarkers.StarOverExplosionUnwrapped(),
-                new QualifyToSubselect(true), new ConstantKeysAsExpressions(), new CommonSubexpressions());
+                // a select over one subselect merged into it where the answer is kept (SelectMerge, 2026-11-04), and a
+                // chain of windowed levels laid out again, each value once (SelectLayers, 2026-11-04, #169)
+                new QualifyToSubselect(true), new SelectMerge(java.util.function.UnaryOperator.identity()), new SelectLayers(java.util.function.UnaryOperator.identity()), new ConstantKeysAsExpressions(),
+                new CommonSubexpressions());
     }
 
     @Override
@@ -2797,9 +2800,14 @@ public class SQLite extends AnsiSqlRenderer {
             case MAX -> aggregate(writer, "MAX", r);
             // any non-NULL value: the least (SQLite has no any_value)
             case ANY_VALUE -> writer.append("min(").piece(aggregateArgs(r)).append(")");
-            // the driver's statistics extension: stdev and variance are the sample ones
-            case STDDEV_SAMP, STDDEV -> writer.append("stdev(").piece(aggregateArgs(r)).append(")");
-            case VAR_SAMP, VARIANCE -> writer.append("variance(").piece(aggregateArgs(r)).append(")");
+            // the driver's statistics extension: stdev and variance are the sample ones -- each of one value 0 there,
+            // where the sample statistic of one value is none (DuckDB's, Postgres's, and the windowed moments' own
+            // n > 1 below), so none where fewer than two values are read (W10, 2026-11-06, measured: a calendar
+            // window's deviation of its first day, 0.0 by the join, none by the frame and in Java)
+            case STDDEV_SAMP, STDDEV -> writer.append("(CASE WHEN count(").piece(aggregateArgs(r))
+                    .append(") > 1 THEN stdev(").piece(aggregateArgs(r)).append(") END)");
+            case VAR_SAMP, VARIANCE -> writer.append("(CASE WHEN count(").piece(aggregateArgs(r))
+                    .append(") > 1 THEN variance(").piece(aggregateArgs(r)).append(") END)");
             case VAR_POP -> writer.piece(populationVariance(r));
             case STDDEV_POP -> writer.append("sqrt(").piece(populationVariance(r)).append(")");
             case COVAR_POP, COVAR_SAMP, CORR -> writer.piece(moments(r));
@@ -3061,10 +3069,19 @@ public class SQLite extends AnsiSqlRenderer {
         }
         if (f != null) {
             boolean inDays = days;
-            writer.append(any ? " " : "").append(f.kind().toString()).append(" BETWEEN ")
-                    .append(frameBound(f.from(), inDays)).append(" AND ").append(frameBound(f.to(), inDays));
+            writer.append(any ? " " : "").append(f.kind().toString()).append(" BETWEEN ");
+            frameBound(writer, f.from(), inDays).append(" AND ");
+            frameBound(writer, f.to(), inDays);
         }
         return writer.append(")");
+    }
+
+    /** A frame bound into the writer: an offset the database computes as its expression (writeBound; measured
+     *  2026-10-31: SQLite takes an expression and a parameter, refuses a negative offset), any other as its text. */
+    private SqlWriter frameBound(SqlWriter writer, SqlExpr.WindowCall.Frame.Bound b, boolean days) {
+        return b instanceof SqlExpr.WindowCall.Frame.Bound.ComputedPreceding
+                || b instanceof SqlExpr.WindowCall.Frame.Bound.ComputedFollowing
+                ? writeBound(writer, b) : writer.append(frameBound(b, days));
     }
 
     private static boolean intervalBound(SqlExpr.WindowCall.Frame.Bound b) {

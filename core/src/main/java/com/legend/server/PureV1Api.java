@@ -127,6 +127,8 @@ public final class PureV1Api {
             Models models) {
         return switch (path) {
             case "/api/lite/v1/compilation/compile" -> compileEveryError(body);
+            case "/api/lite/v1/grammar/jsonToTs/lambda" -> jsonToTsLambda(body, models);
+            case "/api/lite/v1/grammar/tsItem" -> tsItem(body);
             case "/api/lite/v1/model/createClass" -> modelChanges(body, ModelChanges::createClass);
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
@@ -170,6 +172,72 @@ public final class PureV1Api {
             }
             return Json.toCompact(Map.of("errors", errors));
         });
+    }
+
+    /**
+     * {@code /api/lite/v1/grammar/jsonToTs/lambda} (D12, Show #TS; upstream has no #TS): {@code {model, lambda}}, a
+     * query of {@code #TS} over grids -- the lambda's protocol JSON, each grid bound by {@code let} and the island
+     * reading it -- as the one statement a person would write, each grid a flat source named by WITH ({@link TsShow}):
+     * {@code {"statement": text}}, or {@code {"refused": why}} where a grid's relation has no flat form yet. The model
+     * is the query's, as {@link #lambdaRelationType} reads one: its compiler answers the type a calculated column's
+     * {@code +} reads (A6, 2026-11-03).
+     */
+    public static Answer jsonToTsLambda(String body, Models models) {
+        return answer(400, "COMPILATION", () -> {
+            Json.Obj request = request(body);
+            ModelInput model = ModelInput.of(request.getObj("model"));
+            LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
+            com.legend.protocol.ts.TsShow.Shown shown = model.with(models, ctx -> com.legend.protocol.ts.TsShow.of(
+                    lambda, tsTypes(ctx)));
+            return Json.toCompact(shown.statement() != null ? Map.of("statement", shown.statement())
+                    : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
+        });
+    }
+
+    /**
+     * {@code /api/lite/v1/grammar/tsItem} (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md; upstream has no #TS):
+     * {@code {text}}, one #TS item as a formula box holds a series, read by core's parser -- the one reader
+     * ({@link com.legend.protocol.ts.TsParser#item}): {@code {"text": canonical, "item": {alias, expr}}}, the item's
+     * tree as data ({@link TsTree}), or {@code {"error": {message, line, column}}} where the text
+     * is no item. An error is the box's answer, never a failed request: 200 either way.
+     */
+    public static Answer tsItem(String body) {
+        return answer(400, "COMPILATION", () -> {
+            String text = request(body).getString("text");
+            Map<String, Object> out = new LinkedHashMap<>();
+            try {
+                com.legend.protocol.ts.TsAst.Line line = com.legend.protocol.ts.TsParser.item(text);
+                // both made before either is answered: an item whose tree is refused (a parameter, $A) is an error alone,
+                // never a text with no tree (item 11b, 2026-11-07: the tile read the text and found no tree)
+                String printed = com.legend.protocol.ts.TsPrinter.print(line);
+                Map<String, Object> tree = TsTree.of(line);
+                out.put("text", printed);
+                out.put("item", tree);
+            } catch (com.legend.protocol.sql.SqlTranslationException e) {
+                Map<String, Object> error = new LinkedHashMap<>();
+                error.put("message", e.getMessage());
+                error.put("line", e.line());
+                error.put("column", e.column());
+                out.put("error", error);
+            }
+            return Json.toCompact(out);
+        });
+    }
+
+    /**
+     * Show #TS's types over {@code ctx} ({@link com.legend.protocol.ts.TsShow.Types}): a column of a query's relation
+     * typed as the compiler types it, read off the query's result -- the compiler's answer, never the printer's.
+     */
+    public static com.legend.protocol.ts.TsShow.Types tsTypes(com.legend.compiler.element.ModelContext ctx) {
+        return (query, column) -> {
+            for (com.legend.compiler.element.type.Type.Column c : UpstreamRelationType.columns(com.legend.Compiler
+                    .query(ctx, query).resultType())) {
+                if (c.name().equals(column)) {
+                    return UpstreamRelationType.typePath(c.type());
+                }
+            }
+            throw new IllegalStateException("the relation has no column " + column);
+        };
     }
 
     /**

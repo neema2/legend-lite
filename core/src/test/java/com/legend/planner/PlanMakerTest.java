@@ -174,13 +174,16 @@ class PlanMakerTest {
     @Test
     void eachDatabaseWritesItsOwnDatePlaceholder() {
         // each database, its Date placeholder, its DateTime placeholder (tab-separated; the names in a text block)
+        // (ClickHouse's raise as the timeseries branch writes it since #81's final review, 2026-11-09: each ends in an
+        // empty text of a rand(n) of its own, no materialize -- main's #95 merged in 2026-11-13; with phase D's kind,
+        // VALUE_NOT_HELD, merged 2026-11-14)
         java.util.Map<String, String[]> spelled = new java.util.LinkedHashMap<>();
         for (String line : """
                 Trino	CAST(? AS TIMESTAMP(9))	CAST(? AS TIMESTAMP(9))
                 Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
                 BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
-                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('VALUE_NOT_HELD'	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(materialize(concat(char(31), replaceAll(toString('VALUE_NOT_HELD'
+                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('VALUE_NOT_HELD'	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('VALUE_NOT_HELD'
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");
             spelled.put(cells[0], new String[] {cells[1], cells[2]});
@@ -212,6 +215,76 @@ class PlanMakerTest {
             + "->sort(~name->ascending())";
     private static final String GRAPH = "|s::Item.all()->graphFetch(#{s::Item{id, name, price}}#)"
             + "->serialize(#{s::Item{id, name, price}}#)";
+
+    /** #81's final review, item 14k (9), 2026-11-10, and S360 (MongoDB, 2026-11-13): where a database computes a WITH
+     *  again at each read and has no table to compute a shared relation once in, one that picks its rows by no order (a limit with no sort,
+     *  here or in a WITH it reads) is refused; one that is the same rows each time, or sorted, stays a WITH. */
+    @Test
+    void aSharedRelationPickedByNoOrderIsRefusedWhereEachReadComputesItAgain() {
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null, null);
+        com.legend.sql.SqlSource.Table table = new com.legend.sql.SqlSource.Table("t", "t0", List.of(), false,
+                java.util.Map.of(), com.legend.sql.NameQuoting.BARE);
+        com.legend.sql.SqlSelect limited = com.legend.sql.SqlSelect.starOf(table).withLimit(3L);
+        com.legend.sql.SqlSelect sorted = limited.withOrderBy(List.of(new com.legend.sql.SqlSelect.SortKey(
+                com.legend.sql.SqlExpr.Column.of("t0", new com.legend.sql.OutputCol("a",
+                        com.legend.sql.SqlType.Scalar.BIGINT, false)), true, null, null)));
+        java.util.function.Function<com.legend.sql.SqlQuery, com.legend.sql.SqlWith> shared = body ->
+                new com.legend.sql.SqlWith(List.of(new com.legend.sql.SqlWith.Cte("__let0", body)),
+                        com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+        // the databases that compute a WITH again at each read and have no table to stage one in, by their facts:
+        // Trino, BigQuery, and MongoDB, whose pipeline writes each read in place (the user's ruling, 2026-11-13, S360)
+        List<com.legend.sql.dialect.SqlDialect> unstaged = Databases.implemented().stream().map(Databases::dialect)
+                .filter(d -> d.writesEachReadOfAWithAgain() && !d.stagesSharedRelations()).toList();
+        assertEquals(java.util.Set.of("Trino", "BigQuery", "MongoDb"), unstaged.stream()
+                .map(d -> d.getClass().getSimpleName()).collect(java.util.stream.Collectors.toSet()));
+        for (com.legend.sql.dialect.SqlDialect d : unstaged) {
+            var refused = assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> PlanMaker.stagedShared(d, shared.apply(limited), target, 0));
+            assertTrue(refused.getMessage().contains("picks its rows by no order"), refused.getMessage());
+            // read through another WITH of the statement
+            com.legend.sql.SqlWith through = new com.legend.sql.SqlWith(List.of(
+                    new com.legend.sql.SqlWith.Cte("picked", limited),
+                    new com.legend.sql.SqlWith.Cte("__let0", com.legend.sql.SqlSelect.starOf(
+                            new com.legend.sql.SqlSource.Cte("picked", "p", List.of())))),
+                    com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+            assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> PlanMaker.stagedShared(d, through, target, 0));
+            // the same rows each time: the WITH as it is, no table
+            for (com.legend.sql.SqlQuery body : List.of(sorted, com.legend.sql.SqlSelect.starOf(table))) {
+                PlanMaker.Staged staged = PlanMaker.stagedShared(d, shared.apply(body), target, 0);
+                assertTrue(staged.tables().isEmpty(), d.getClass().getSimpleName());
+            }
+        }
+    }
+
+    /** #81's final review, item 14k (4), 2026-11-10: a shared relation staged as a table of the session
+     *  carries the WITH's other relations it reads -- staged without them, its statement named one it did not have. */
+    @Test
+    void aStagedRelationCarriesTheWithsItReads() {
+        ExecutionPlan.Target target = new ExecutionPlan.Target(new ExecutionPlan.Database.Platform(
+                com.legend.planner.ConnectionPlans.type(Databases.PLATFORM), null), List.of(), List.of(), null, null, null);
+        com.legend.sql.SqlSelect base = com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Table("t", "t0",
+                List.of(), false, java.util.Map.of(), com.legend.sql.NameQuoting.BARE));
+        com.legend.sql.SqlWith with = new com.legend.sql.SqlWith(List.of(
+                new com.legend.sql.SqlWith.Cte("plain", base),
+                new com.legend.sql.SqlWith.Cte("unread", base),
+                new com.legend.sql.SqlWith.Cte("__let0", com.legend.sql.SqlSelect.starOf(
+                        new com.legend.sql.SqlSource.Cte("plain", "p", List.of())))),
+                com.legend.sql.SqlSelect.starOf(new com.legend.sql.SqlSource.Cte("__let0", "a", List.of())));
+        // the databases that stage a shared relation as a table of the session, by their facts
+        List<com.legend.sql.dialect.SqlDialect> staging = Databases.relational().stream().map(Databases::dialect)
+                .filter(d -> d.writesEachReadOfAWithAgain() && d.stagesSharedRelations()).toList();
+        assertFalse(staging.isEmpty(), "some database stages a shared relation");
+        for (com.legend.sql.dialect.SqlDialect d : staging) {
+            PlanMaker.Staged staged = PlanMaker.stagedShared(d, with, target, 0);
+            assertEquals(1, staged.tables().size(), staged.tables().toString());
+            com.legend.sql.SqlQuery made = staged.queries().get(staged.tables().get(0));
+            assertInstanceOf(com.legend.sql.SqlWith.class, made, "the staged relation carries what it reads");
+            assertEquals(List.of("plain"), ((com.legend.sql.SqlWith) made).ctes().stream()
+                    .map(com.legend.sql.SqlWith.Cte::name).toList(), "what it reads, and nothing it does not");
+        }
+    }
 
     @Test
     void aRelationsPlanAnswersAsTodaysPaths_everyOutput() throws Exception {

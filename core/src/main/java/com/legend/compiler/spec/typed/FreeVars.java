@@ -39,6 +39,63 @@ public final class FreeVars {
         return out;
     }
 
+    /** {@link #of} of a term whose subterms are SHARED (a let's value spliced at every read, the inliner's): each node's
+     *  free variables computed once, bottom-up, and kept in {@code memo} by identity -- the same answer as {@link #of},
+     *  in time of the distinct nodes, where {@link #of} walks every read again (2026-11-04, a relation read more than
+     *  once lowered once, {@code lowering.SharedRelations}). The same binders as {@link #of}'s walk. */
+    public static Set<String> ofShared(TypedSpec term, java.util.Map<TypedSpec, Set<String>> memo) {
+        Set<String> known = memo.get(term);
+        if (known != null) {
+            return known;
+        }
+        Set<String> out = new LinkedHashSet<>();
+        switch (term) {
+            case TypedVariable v -> out.add(v.name());
+            case TypedLambda l -> {
+                Set<String> scope = new LinkedHashSet<>(l.parameters());
+                for (TypedSpec st : l.body()) {
+                    for (String f : ofShared(st, memo)) {
+                        if (!scope.contains(f)) {
+                            out.add(f);
+                        }
+                    }
+                    if (st instanceof TypedLet let) {
+                        scope.add(let.name());
+                    }
+                }
+            }
+            case TypedMatch m -> {
+                out.addAll(ofShared(m.input(), memo));
+                m.extra().ifPresent(e -> out.addAll(ofShared(e, memo)));
+                for (String f : ofShared(m.body(), memo)) {
+                    if (!f.equals(m.param()) && !m.extraParam().map(f::equals).orElse(false)) {
+                        out.add(f);
+                    }
+                }
+            }
+            case TypedMatchRuntime mr -> {
+                out.addAll(ofShared(mr.input(), memo));
+                mr.extra().ifPresent(e -> out.addAll(ofShared(e, memo)));
+                mr.dynamicArms().ifPresent(d -> out.addAll(ofShared(d, memo)));
+                for (TypedMatchRuntime.Arm a : mr.arms()) {
+                    for (String f : ofShared(a.body(), memo)) {
+                        if (!f.equals(a.param()) && !mr.extraParam().map(f::equals).orElse(false)) {
+                            out.add(f);
+                        }
+                    }
+                }
+            }
+            default -> {
+                for (TypedSpec c : term.children()) {
+                    out.addAll(ofShared(c, memo));
+                }
+            }
+        }
+        Set<String> result = java.util.Collections.unmodifiableSet(out);
+        memo.put(term, result);
+        return result;
+    }
+
     /** The free variables of {@code term}, given that its subterm
      * {@code known} (the same node, wherever it stands) has the free
      * variables {@code knownFree}: the walk does not enter it. A term

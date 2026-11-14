@@ -2,16 +2,17 @@
 
 A real ClickHouse server -- ClickHouse's own static build (clickhouse-common-static), pinned by version and sha256,
 downloaded from its GitHub release and unpacked by Bazel itself: no Docker, no host tool. A test starts the server from
-it (//testing EmbeddedClickHouse). ClickHouse 25.8, a long-term release. The build is one self-contained binary; only it
+it (//testing EmbeddedClickHouse). ClickHouse 26.3, the long-term release (26.3.60.2; 25.8.2.29 until 2026-11-07, the
+user: "Upgrade to 26.3 LTS", docs/TS_DECISIONS_2026_11_07.md §4). The build is one self-contained binary; only it
 is kept (the tarball's other files are its package scripts). Pinned for Linux x86_64; the hub skips the ClickHouse
 targets as incompatible elsewhere.
 """
 
-VERSION = "25.8.2.29"
+VERSION = "26.3.60.2"
 
 # platform (//tools/platforms) -> (the tarball's architecture, its sha256)
 BUILDS = {
-    "linux_x86_64": ("amd64", "adaf1075539f3f95d663064e7066746b0823067df6f79bd49dcbed40b935d571"),
+    "linux_x86_64": ("amd64", "507593f610c009f8b51214948f88134550913189a553a6a0c52fc0e4730aa371"),
 }
 
 def _embedded_clickhouse_platform_impl(rctx):
