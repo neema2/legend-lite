@@ -139,8 +139,11 @@ ATTACHES = {
 # admits, never a send.
 # 2026-11-14 (the final audit of 9af16fbe58's P7): InvalidInputException, a statement's parameters not as many as its
 # `?`s -- an error, as the rule admits.
+# 2026-11-14 (the C4 final fix round's B1): PermissionException, refused before its statement runs, and IOException, a
+# file not there, which a read tells apart (frames._REFUSED_BEFORE_RUNNING, frames._ABORTS_UNLESS_ABORTED) -- errors, as
+# the rule admits.
 DUCKDB_NAMES = {'Error', 'TransactionException', 'ParserException', 'CatalogException', 'BinderException',
-                'InvalidInputException', 'DuckDBPyConnection', '__version__'}
+                'InvalidInputException', 'PermissionException', 'IOException', 'DuckDBPyConnection', '__version__'}
 SUBMITS = {'warehouse.py': 1}
 NETWORK = {
     # the SQL API's client (the one): its HTTP, its errors
