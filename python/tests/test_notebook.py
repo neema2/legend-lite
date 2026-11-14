@@ -391,6 +391,7 @@ class InMarimo(Widget):
             for view in list(session.pages):
                 view.close()
         datacube._marimo_sessions.clear()
+        datacube._gone.clear()
         super().tearDown()
 
     def cell_runs_again(self):
@@ -432,10 +433,18 @@ class InMarimo(Widget):
 
     def test_a_session_let_go_lets_its_cubes_and_frames_go(self):
         cube = ll.show(trades())
+        first = id(self.context)
         self.context = self.Context(self)
         self.items.clear()
         gc.collect()
-        self.assertEqual(len(datacube._marimo_sessions), 0, 'the first session\'s context is gone, and its session')
+        # its finalizer queues it, and sends nothing where the collector fired (the user's ruling (b) of 2026-11-14, the
+        # C4 final fix round's D2): the next call that finds its session lets it go, outside any run
+        self.assertIn(first, datacube._gone, 'the first session\'s context is gone: its session queued')
+        self.assertIn(first, datacube._marimo_sessions)
+        self.assertFalse(cube._closed)
+        datacube._current()
+        self.assertEqual(len(datacube._gone), 0)
+        self.assertNotIn(first, datacube._marimo_sessions, 'the first session let go')
         self.assertTrue(cube._closed)
 
     def test_inline_false_still_opens_a_tab(self):

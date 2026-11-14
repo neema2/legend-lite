@@ -17,6 +17,7 @@ it is open waits there, saying so, until Ctrl-C (or an IDE's Stop).
 from __future__ import annotations
 
 import atexit
+import collections
 import os
 import sys
 import threading
@@ -472,6 +473,9 @@ _session = _Session()
 # thread of the server's under `marimo run`)
 _marimo_sessions: dict[int, _Session] = {}
 _marimo_lock = threading.Lock()
+# the marimo sessions gone, each key queued by its finalizer (_release) and let go by _let_go_gone, outside any run: a
+# deque's append and popleft are each atomic, so the finalizer takes no lock
+_gone: collections.deque[int] = collections.deque()
 
 
 def _current() -> _Session:
@@ -480,6 +484,7 @@ def _current() -> _Session:
     viewer's cube never shows another's frame, and they are let go with the viewer's session (marimo's runtime context,
     collected when marimo lets the session go). marimo has no public name for a session: its runtime context is the
     one its own widgets live by."""
+    _let_go_gone()
     if not _marimo():
         return _session
     try:
@@ -497,11 +502,29 @@ def _current() -> _Session:
 
 
 def _release(key: int) -> None:
-    """A marimo session gone: its cubes closed, its frames out of their database. A finalizer (weakref.finalize) runs it
-    wherever garbage collection fires, inside a run's flow too: its work is no run's, so it steps out of any run it
-    lands in, by its named crossing (_runframe.GONE_SESSION; the final audit of 9af16fbe58's P6)."""
-    from ._runframe import GONE_SESSION, exempt
-    with exempt(GONE_SESSION):
+    """A marimo session gone (its runtime context's finalizer, weakref.finalize): its key queued, and nothing else.
+    Garbage collection runs a finalizer wherever the collector fires -- inside a run's flow, and on a thread that holds
+    _marimo_lock -- so it sends nothing, plans nothing and takes no lock; the session is let go by _let_go_gone, outside
+    any run (the user's ruling (b) of 2026-11-14, the C4 final fix round's D2: until then the finalizer let the session
+    go itself, stepping out of the run it landed in by a named crossing, _runframe's GONE_SESSION)."""
+    _gone.append(key)
+
+
+def _let_go_gone() -> None:
+    """Every queued gone marimo session let go (_release_now): its cubes closed, its frames out of their database.
+    Called by _current, the call every public entry (show, query, studio, a page's and a notebook's) makes to find its
+    session: a person's call, which no run makes -- a run sends a plan's statements and calls no session's entry -- so
+    the drops are planned and sent outside any run; and it is made before the session is looked up, so a new marimo
+    context that takes a collected one's id never finds the gone session. A call inside a run leaves the queue for the
+    next: the drain is the queue's only way out, and a run plans nothing (G4)."""
+    from ._runframe import current_run
+    if current_run() is not None:
+        return
+    while True:
+        try:
+            key = _gone.popleft()
+        except IndexError:
+            return
         _release_now(key)
 
 

@@ -54,12 +54,11 @@ def runs(what: str) -> Callable[[F], F]:
 # Its first entry, "a read's re-pin after its statement failed" (found by the witness 2026-11-13: frames.Reading.execute
 # re-pinned a read whose statement failed, the pin's statement asked of the planner inside the read's run), went with the
 # user's ruling (1b): a read ends at the failure that aborts its transaction, re-pinned never.
-# 2026-11-14 (the final audit of 9af16fbe58's P6): a gone marimo session's frames let go by its finalizer
-# (datacube._release, weakref.finalize). Garbage collection runs a finalizer wherever the collector fires, a run's flow
-# included; its drops are host operations, planned, and were refused there, so the session's tables stayed held. The
-# finalizer's work is no run's: it steps out of any run it lands in, by this name.
-GONE_SESSION = "a gone session's frames let go (its finalizer may land inside a run)"
-EXEMPTIONS: frozenset[str] = frozenset({GONE_SESSION})
+# Its second, "a gone session's frames let go (its finalizer may land inside a run)" (2026-11-14, the final audit of
+# 9af16fbe58's P6: datacube._release, a weakref.finalize, let a gone marimo session's frames go wherever garbage
+# collection fired, a run's flow included), went with the user's ruling (b) of 2026-11-14 (the C4 final fix round's D2):
+# the finalizer only queues the session, and the queue is drained outside any run (datacube._let_go_gone).
+EXEMPTIONS: frozenset[str] = frozenset()
 
 
 @contextlib.contextmanager

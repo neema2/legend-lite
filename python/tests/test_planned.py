@@ -520,39 +520,88 @@ class RunFrameTest(unittest.TestCase):
             _on_compiler_threads(held.close)
         self.assertTrue(_on_compiler_threads(lambda: library().call('lite_session_setup', 'DuckDB')).startswith('OK'))
 
-    def test_the_known_crossings_are_named_and_none_other_is_exempt(self):
-        # shrink-only: the read's re-pin went with the user's ruling (1b), 2026-11-13; a gone session's finalizer is
-        # named, 2026-11-14 (the final audit of 9af16fbe58's P6)
-        from legend_lite._runframe import EXEMPTIONS, GONE_SESSION, exempt
-        self.assertEqual(EXEMPTIONS, frozenset({GONE_SESSION}))
+    def test_no_crossing_is_known_and_none_is_exempt(self):
+        # shrink-only: the read's re-pin went with the user's ruling (1b), 2026-11-13; a gone session's finalizer (named
+        # 2026-11-14, the final audit of 9af16fbe58's P6) went with the user's ruling (b) that day, the C4 final fix
+        # round's D2: it queues its session, drained outside any run. The mechanism stays, refusing every name
+        from legend_lite._runframe import EXEMPTIONS, exempt
+        self.assertEqual(EXEMPTIONS, frozenset())
         with in_run("a test's run"):
-            for crossing in ("a read's re-pin after its statement failed", 'a crossing of my own'):
+            for crossing in ("a read's re-pin after its statement failed",
+                             "a gone session's frames let go (its finalizer may land inside a run)",
+                             'a crossing of my own'):
                 with self.assertRaisesRegex(ValueError, 'no known crossing is named'):
                     with exempt(crossing):
                         pass
             with self.assertRaisesRegex(RuntimeError, 'inside a run'):
                 planning('plan')
 
-    def test_a_gone_sessions_finalizer_lets_its_frames_go_inside_a_run(self):
-        # the final audit of 9af16fbe58's P6: garbage collection runs datacube._release (a weakref.finalize) wherever it
-        # fires, a run's flow included; its drops are host operations, planned, refused there until it stepped out of
-        # the run by its named crossing -- the session's tables stayed held
+    def _gone_session(self, connection):
+        """A marimo session over ``connection``, a frame registered, held as marimo's sessions are (its key)."""
         import pyarrow as pa
         from legend_lite import datacube
+        from legend_lite.frames import Frames
         session = datacube._Session()
+        session.frames = Frames(connection)
         session.frames.register('gone_t', pa.table({'a': [1, 2]}))
         key = id(session)
         with datacube._marimo_lock:
             datacube._marimo_sessions[key] = session
-        try:
-            with in_run("a test's run"):
-                datacube._release(key)
-                self.assertEqual(current_run(), "a test's run")
-            self.assertEqual(session.frames._tables, {})
-            self.assertNotIn(key, datacube._marimo_sessions)
-        finally:
-            with datacube._marimo_lock:
-                datacube._marimo_sessions.pop(key, None)
+        self.addCleanup(lambda: datacube._marimo_sessions.pop(key, None))
+        return session, key
+
+    def test_a_gone_sessions_finalizer_sends_nothing_inside_a_run_and_its_frames_go_after_it(self):
+        # the user's ruling (b) of 2026-11-14, the C4 final fix round's D2: garbage collection runs datacube._release (a
+        # weakref.finalize) wherever it fires, a run's flow included -- it queues the session and sends nothing there;
+        # the next call that finds its session (_current), outside any run, lets the session's frames go
+        from legend_lite import datacube
+        witness = _RunWitness(duckdb.connect())
+        session, key = self._gone_session(witness)
+        sent = len(witness.runs)
+        with in_run("a test's run"):
+            datacube._release(key)
+            self.assertEqual(current_run(), "a test's run")
+            # a call that finds its session inside a run leaves the queue for the next
+            datacube._current()
+        self.assertEqual(len(witness.runs), sent, 'the finalizer sent nothing inside the run')
+        self.assertIn('gone_t', session.frames._tables)
+        self.assertIn(key, datacube._marimo_sessions)
+        datacube._current()
+        self.assertEqual(session.frames._tables, {})
+        self.assertNotIn(key, datacube._marimo_sessions)
+        self.assertNotIn(key, datacube._gone)
+        self.assertGreater(len(witness.runs), sent)
+        self.assertNotIn("a test's run", witness.runs[sent:])
+
+    def test_no_drop_of_a_gone_session_interleaves_with_a_runs_statements(self):
+        # D2: a run's statements on one database, the finalizer of another session firing between them: every statement
+        # the gone session's frames send comes after the run's last, each inside its own host operations' run
+        from legend_lite import datacube
+        log = []
+
+        class Logged(_RunWitness):
+            def __init__(self, con, who):
+                super().__init__(con)
+                self.who = who
+
+            def execute(self, sql, params=None):
+                log.append((self.who, current_run(), str(sql)))
+                return super().execute(sql, params)
+
+        session, key = self._gone_session(Logged(duckdb.connect(), 'gone'))
+        running = Database(Logged(duckdb.connect(), 'run'))
+        del log[:]
+        with in_run("a test's run"):
+            send(running, PlannedSql('SELECT 1'))
+            datacube._release(key)
+            send(running, PlannedSql('SELECT 2'))
+        datacube._current()
+        whose = [who for who, _, _ in log]
+        self.assertEqual(whose[:2], ['run', 'run'], log)
+        gone = log[2:]
+        self.assertTrue(gone and all(who == 'gone' for who, _, _ in gone), log)
+        self.assertTrue(any('DROP' in sql.upper() for _, _, sql in gone), log)
+        self.assertEqual({run for _, run, _ in gone}, {"a host's operations"}, log)
 
     def test_each_runner_sends_inside_its_run(self):
         import os
