@@ -22156,9 +22156,13 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     activity SQL, its column-lineage and relation-lineage scans, and HostAsserts' assertIs lowering catch the lowering's
     NotImplementedException and IllegalStateException. The ModelException now escapes them by name, where the bare
     IllegalStateException was read as "no rows" (pinned by
-    `BodyRouterParityTest.aMalformedDatePatternInAScannedQueryIsRefusedByName`). Upstream's answer, read in legend-pure
-    5.99.0's `DateFormatPattern.parseQuotedText`: IllegalArgumentException "Missing closing quote in format string:
-    ...", when the format runs; lite refuses at planning in its own words (posted for a ruling; no register row).
+    `BodyRouterParityTest.aMalformedDatePatternInAScannedQueryIsRefusedByName`). Upstream's answer, read again for the
+    C4 last two rulings (the first reading -- `DateFormatPattern.parseQuotedText`'s "Missing closing quote in format
+    string: ...", when the format runs -- was wrong: that is pure's pattern parser's, never reached through `%t`):
+    legend-pure 5.99.0 finds `%t{`'s end with `FormatTools.findEndOfDateFormatString` and refuses an unended pattern
+    as "Could not find end of date format starting at index <i> of: <format string>", at compile time for a literal
+    (`FormatValidator`). Lite refuses at planning in its own words. Ruled 2026-11-14: unchanged in C4 (frozen); pure's
+    way is C5's follow-up below, with no register row until it lands.
   - **D3, recorded (ruled (a): keep):** be5faae7f's message called its change wording; one line of it changed the
     census route (`TestDataRoutes.census`, `DONOTUSE_generateTestData`): it now TYPES the query
     (`Compiler.query`) and refuses an executeInDb's read by name before its scan, which reads the raw lambda untyped
@@ -22194,4 +22198,7 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     tests' expectations, starting with the D1 probe's three shapes; S307's column-lineage sentences gone once it lands
     (the terms: start-here §6.1, under D's batch);
   - Node's promise cost (a flag, or Node 24);
+  - the date-format end found as pure finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
+    quoted-brace gap closed (B3's option A, held out of C4 by its freeze; with it, DateFormats' unread backslash escape
+    inside quotes and the zone-shifted pattern's quoted `Z`; the terms: start-here §6.1, C5's list);
   - the TypeScript wall on the type checker once its program API is available.

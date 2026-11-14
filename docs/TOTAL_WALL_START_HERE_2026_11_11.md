@@ -1034,7 +1034,27 @@ In order. Nothing here is in the A/B/C PR.
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses
-       lite's witness pays about 45 ns.
+       lite's witness pays about 45 ns;
+     - the date-format end found as pure finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
+       quoted-brace gap closed (B3's option A; held out of C4 by its freeze of 2026-11-14, where the refusal stays as at
+       4a8e448917, named, at planning; S342 was reserved for its register row):
+       - pure (legend-pure 5.99.0) finds the end of `%t{` with `FormatTools.findEndOfDateFormatString`: a `"` opens and
+         closes quoted text, a backslash inside quotes escapes the next character, and the first `}` outside quotes ends
+         the pattern. A pattern that never ends -- no `}`, or one inside an unclosed quote -- is refused as "Could not
+         find end of date format starting at index <the `{`'s index> of: <the whole format string>": at compile time
+         for a literal format string (`FormatValidator`, a PureCompilationException; pure's own
+         `TestFormat.testPatternWithNoEnd` pins `%t{yyyy "abc}`), and as an IllegalArgumentException when a computed one
+         runs. "Missing closing quote in format string" is pure's pattern parser's, never reached through `%t`;
+       - lite: `Scalars.rewriteFormatDirectives` finds the `}` with `indexOf`, blind to quotes, so `%t{yyyy"}"}` is
+         refused where pure plans it; an unclosed `%t{` is a bare IllegalStateException ("unterminated %t{ in format",
+         answered 500 as a bug); `DateFormats` refuses `%t{yyyy"P}` as "unterminated quote in date pattern: yyyy"P"
+         (ModelException, LOWER);
+       - two more gaps found beside it: `DateFormats` reads no backslash escape inside quotes (`"a\"b"`), and a quoted
+         `Z` in a zone-shifted pattern (`%t{[UTC]yyyy"Z"}`) is refused as the offset (`Scalars.dateWithPattern` checks
+         the raw text for `Z`, quotes included);
+       - the javadocs of `AuditRound3Test.malformedDatePatternsAreRefusedByName` and
+         `BodyRouterParityTest.aMalformedDatePatternInAScannedQueryIsRefusedByName` still give upstream's answer as
+         "Missing closing quote ... when the format runs" (the freeze left them); they are corrected with it.
    - **RULED by the user, 2026-11-14:** "let's finish the foolproof separation and get that out for all hosts" and
      "yes, separate safety stream". The scope is now set as follows.
      - **C4 is the plan/exec separation (G4) only:** proven on Java; fenced and frozen on TypeScript and Python (the
@@ -1087,7 +1107,11 @@ In order. Nothing here is in the A/B/C PR.
          before its scan; be5faae7f called it wording) and recorded.
        - **B3, kept:** DateFormats' malformed-pattern ModelException escapes five catch sites by name -- the plan,
          column-lineage and relation-lineage scans, the activity SQL and HostAsserts (b915e2940 said no caller relied on
-         the class: the claim corrected; "four" until the C4 second small round's item 3); upstream's answer recorded.
+         the class: the claim corrected; "four" until the C4 second small round's item 3). Upstream's answer, read
+         again for the C4 last two rulings (the first reading, "Missing closing quote in format string" when the
+         format runs, was wrong): legend-pure refuses an unended `%t{` pattern as "Could not find end of date format
+         starting at index <i> of: <format string>", at compile time for a literal. **RULED by the user, 2026-11-14:
+         C4 is frozen; the refusal stays as at 4a8e448917,** and pure's way is a follow-up (C5's list above).
        - **The TypeScript and Python split is C5's,** after C4 merges (C5's list below, first item).
    - **Moved to D's batch** (compatibility questions C4 only surfaced):
      - **Stream D's follow-up: lineage rebuilt upstream's way, for everything** (the user, 2026-11-14, ruling the C4
