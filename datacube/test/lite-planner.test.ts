@@ -492,6 +492,20 @@ describe('LitePlanner off the main thread: the models its worker holds', () => {
     }
   });
 
+  // the C4 second small round's item 4, 2026-11-14: #handle is not async, so the hold's refusal must be the promise it
+  // returns (#call async), never a throw -- relationType (and tsStatement) catch a failed hold (`.catch(() =>
+  // undefined)`: a model that does not hold says why in the request after it), so inside a run the refusal that reaches
+  // the caller is that request's, 'pureV1'. Were #call's planning() a throw, it would escape #handle past the catch,
+  // named 'hold'
+  it('a hold refused inside a run is its promise\'s, caught where a failed hold is: relationType is refused at its own request', async () => {
+    if (!frameKept) return;
+    const p = planner(() => ok('SELECT 1'), { cache: false });
+    const query = fromElement('trades::T').select(['a']).lambda();
+    await assert.rejects(inRun('a test\'s run', async () => p.relationType(query)),
+      /the planner was asked 'pureV1' inside a run \(a test's run\)/);
+    p.dispose();
+  });
+
   // the Phase 6 review's 3: a host's worker (Python's) keeps the models it holds in the host, not in itself -- a typer's
   // hold of a 4 MB model outlived it, the release never sent once the worker was ended
   it('dispose lets its model go on a host\'s worker before it ends the worker', async () => {
