@@ -141,6 +141,13 @@ With `Snapshot`, keys that vanish from a pull vanish: what decision P's runner w
 **What stays lite's** (S402 shrinks to these): a function source may read stores, not only datasets; a pull's
 schedule; a delivered ingest's records on a topic, not only as files; the deployment (§8).
 
+**A materialized view needs no word of its own.** Upstream puts a dataset made by a function over landed datasets
+in an ordinary ingest, beside delivered ones, under the ingest's read mode; and an ingest may have no read mode
+(legend-studio `TEST_DATA__IngestDefinitionFlow.json`: `RANKED_POSITIONS` reads
+`#I{markets::ingest::TradePositionsIngest.EOD_POSITIONS}#` in an ingest read as `Delta<CSV>`; the fixture's second
+ingest has no read mode). So a dataset whose function reads `#I{...}#` is a materialized view, by upstream's rule;
+`Derived`, proposed earlier as its read mode, is dropped.
+
 ## 6. Reading: unchanged
 
 `include Ingest` is upstream's (`includedStoreSpecifications` with `storeType: 'Ingest'`, legend-studio
@@ -249,9 +256,9 @@ serving functions, later.
   2026-10-30: Kafka's empty delete record fails the table, a flagged record works); a day travels as text and is made
   a `LocalDate` on the server (42.7's JSON reader takes none, measured in B1). The loader replaces the generated
   Groovy (`DeephavenProgram`, deleted).
-- **In the tab:** exec runs the plans C0 built (make, land, keep, as host-session loads). The world publishes to a log
-  in the tab, since a browser cannot open a Kafka connection; the tab lands from it with the same plans, and the
-  direct-write `Simulated` path is deleted.
+- **In the tab:** exec runs the plans C0 built (make, land, keep, as host-session loads). The simulated world
+  publishes its topics inside the tab (the source `Simulated`: a browser cannot open a Kafka connection); the tab
+  lands from it with the same plans, and the world's direct writes into the tables are deleted.
 - **In the lake:** a writer lands the topics as Iceberg or Parquet tables, keyed datasets with every version
   (upstream's milestoning columns, which lite refuses today: S404).
 - **The checks:** after installing, every table and view exists with its declared types, or the install fails naming
@@ -290,7 +297,9 @@ falling behind) need a long-running test.
   half of yesterday's positions with half of today's): files, `Snapshot<Parquet>`, at a drop location the environment
   declares (a `Files` connection).
 - **Decision P** (how pulled reference data reaches Deephaven; options (a) to (d), docs/DESK_DATA_ROADMAP_2026_10_29.md
-  §2) is deferred: it returns only if a team cannot publish, and (c) -- lite runs the pull and publishes to a keyed
+  §2) is deferred: with the masters publishing, the desk holds no pull -- its five pulls become topic reads, like
+  prices -- so P has nothing to decide, and a pull on a Deephaven target is refused by name until a model needs one.
+  It returns only if a team cannot publish, and (c) -- lite runs the pull and publishes to a keyed
   topic -- is still the recommendation then. A pull is `Snapshot` of a database query on its schedule.
 
 ## 12. Risks and unknowns (to measure before promising)
@@ -319,20 +328,31 @@ falling behind) need a long-running test.
   one path, but with different config" (the user's aim, agreed).
 - Legend is the schema registry (the user's question, agreed).
 - The function activators not reused, the bridge recorded: "Add it to doc".
+- `Deployment` in `###Lakehouse`: "Deployment in lakehouse yes".
+- Upstream's ingest words (§5): "Upstream ingest yes".
+- The masters publish (§11): "Reference published yes".
+- A lane against a real Kafka-compatible broker: "Real Kafka maybe at the end" (the last step, §15).
 - Standing from before: "if DeepHaven cannot do something refuse and keep going" (2026-11-14); "door for sure, no need
   for tansu just use door" (2026-10-29); no push to main and no PR without the user's word.
 
 **Open, the recommendation first:**
-1. The element's name and place: `Deployment` in `###Lakehouse` (it deploys Lakehouse elements); or a `###Deployment`
-   section; or a name after `PersistenceContext`.
-2. Upstream's ingest words (§5): adopt, retiring `Stream`, `LatestByKey`, `retention` and `deleted=`.
-3. The masters publish (§11): yes, and decision P deferred.
-4. Data products (§7): at step 2; or later, the deployment listing ingests until then.
-5. Ownership (`Deployment { identifier }`): when production needs it.
-6. `Derived` as a materialized view's read mode: its spelling.
-7. The connection types `Files` (the positions' drop location), `Iceberg` and `TabLog`.
-8. A lane against a real Kafka-compatible broker (it reopens 2026-10-29's "just use door").
-9. A sandbox stage (the activators'): not now; the demo is a deployment like any other.
+1. Data products (§7): at step 2 in the small form -- one product, `desk::Desk`, over today's mapping -- with the
+   domain products (and splitting the desk's mapping by domain) a later decision of their own; or all of it later,
+   the deployment listing ingests until then.
+2. Decision P: deferred until a model holds a pull on Deephaven (§11); or ruled now as (c), for whenever one is
+   needed.
+3. A deployment's owner (`ownership: Deployment { identifier }`, the activators'): added when production needs to
+   know who may install an environment. An ingest's owner (`owner=AppDir(...)`, upstream's) stays as it is.
+4. The positions' drop location: upstream's nearest connection (`ExternalFormatConnection` with a `UrlStream`
+   source, to be read in legend-engine before choosing), or a lite `Files` type. Upstream's lakehouse needs neither:
+   its ingest platform answers the write location from the owner's deployment.
+5. The history tier's connection (`Iceberg`, or the firm's Snowflake or Databricks where they expose Iceberg): at
+   the history step.
+6. `Simulated` as the tab's source (§9), meaning "the topics the simulated world publishes in this tab": the word of
+   2026-10-29 kept, its first meaning (the world writing the tables directly) retired. `TabLog`, proposed earlier,
+   is dropped.
+7. A sandbox stage (the activators': unreleased work installed somewhere to try it, production taking only released
+   versions): not now; a development environment is a deployment like any other.
 
 ## 14. Differences from upstream, to register
 
@@ -342,8 +362,8 @@ Each becomes a docs/SEMANTICS_REGISTER.md row, ruled by the user, when it is bui
 - a function source that reads stores (topics, databases), not only datasets;
 - a pull's schedule;
 - a delivered ingest's records on a topic, not only as files;
-- the spellings `deleteIndicator=(...)`, `LH(|...)` and `Derived`;
-- the connection types `Kafka`, `Files`, `Iceberg` and `TabLog`;
+- the spellings `deleteIndicator=(...)` and `LH(|...)`;
+- the connection types `Kafka`, `Files` and `Iceberg`, and the source `Simulated`;
 - an access point with no target served on every target of the deployment that deploys its product.
 
 ## 15. The order
@@ -359,11 +379,11 @@ Each becomes a docs/SEMANTICS_REGISTER.md row, ruled by the user, when it is bui
 4. **Reference data as published topics; positions as files.**
 5. **The tab on the same path:** the world publishes to the tab's log, the tab lands with the same plans.
 6. **`market.groovy` deleted:** every Deephaven lane green with only the feed and the plan.
+7. **Last, maybe:** a lane against a real Kafka-compatible broker (the user: "Real Kafka maybe at the end").
 
 Then, each its own decision: materialized views on both live targets; the history tier (Iceberg or Parquet, read by
 Deephaven and DuckDB; the cut between history and live); data products served wherever deployed; production
-configuration (Avro with Legend's schemas published to a registry, a lane against a real broker, reading less on
-restart). The full local gate runs after step 1: since B1 and B2 only their targeted suites have run.
+configuration (Avro with Legend's schemas published to a registry, reading less on restart). The full local gate runs after step 1: since B1 and B2 only their targeted suites have run.
 
 ## 16. Upstream, read
 
@@ -436,10 +456,11 @@ already the one entry with a generator per backend.
 
 One of each kind: an event stream, a keyed stream, reference data with deletes, a delivered snapshot, a delivered
 topic, a materialized view, two environments. New against today: upstream's ingest words (`Delta<JSON>`,
-`deleteIndicator`, `BatchMilestoned`, the key taken from the topic); `Derived` for a materialized view (spelling
-open); an access point with no target, `LH(|...)` (lite's spelling); the connection types `Files`, `Iceberg` and
-`TabLog`; a Kafka connection with no `format` (it is the read mode's) and no `store` (the deployment says what it
-feeds); the `Deployment` element. Everything else exists today.
+`deleteIndicator`, `BatchMilestoned`, the key taken from the topic; a materialized view a dataset of an ingest with
+no read mode, as upstream's); an access point with no target, `LH(|...)` (lite's spelling); the connection types
+`Files` and `Iceberg` (both open, §13) and the tab's source `Simulated`; a Kafka connection with no `format` (it is
+the read mode's) and no `store` (the deployment says what it feeds); the `Deployment` element. Everything else
+exists today.
 
 ```
 // ================================================================
@@ -521,8 +542,8 @@ Ingest market::WorldStatus Delta<JSON>
     pk=[ ITEM ] writeMode=BatchMilestoned;
 ]
 
-// A materialized view over landed datasets
-Ingest desk::Views Derived
+// A materialized view over landed datasets (an ingest with no read mode, as upstream's)
+Ingest desk::Views
 [
   TRADED_VOLUME(
     |#I{marketdata::MarketDataFeed.MARKET_TRADE}#
@@ -720,11 +741,11 @@ RelationalDatabaseConnection market::InTab
   auth: Test;
 }
 
-// the world's log and files inside the browser tab
-RelationalDatabaseConnection market::TabLog
+// the simulated world, publishing its topics inside the browser tab
+RelationalDatabaseConnection market::SimulatedWorld
 {
-  type: TabLog;
-  specification: TabLog { };
+  type: Simulated;
+  specification: Simulated { world: 'market'; };
   auth: Test;
 }
 
@@ -766,9 +787,9 @@ Deployment market::DeskInTab
              positions::StartOfDay,
              market::WorldStatus,
              desk::Views ];
-  sources: [ market::TabLog: [ tickerplant::Topics,
-                               secmaster::Topics,
-                               market::WorldStatus ],
+  sources: [ market::SimulatedWorld: [ tickerplant::Topics,
+                                       secmaster::Topics,
+                                       market::WorldStatus ],
              market::TabFiles: [ positions::StartOfDay ] ];
   live: market::InTab
     keep [ appended: LastRows(5000),
@@ -835,3 +856,6 @@ So a later session does not walk them again:
 9. **Function activators:** not reused; `DeploymentConfiguration` is the bridge (§8).
 10. **Data products as what is deployed:** proposed; everything works without them (§7).
 11. **Reference data:** from pulls under decision P to the masters publishing, on the user's question (§11).
+12. **`Derived`:** proposed as a materialized view's read mode, dropped once upstream's fixture showed views in
+    ordinary ingests (§5).
+13. **`TabLog`:** proposed for the tab's source, replaced by 2026-10-29's `Simulated` (§13).
