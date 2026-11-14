@@ -1026,6 +1026,8 @@ In order. Nothing here is in the A/B/C PR.
        not a fix in C4 (the C4 second small round's item 3);
      - the resolver's reads of lowering helpers (`lowering.Aggregates`, `lowering.AsorRef`: spelling and
        classification, listed in `ArchitectureTest.PLANNER_ENTRIES`) moved below both;
+     - cross-listed so it is not lost (stream D's, not C5's): lineage rebuilt upstream's way, for everything -- its
+       terms are under "Moved to D's batch" below;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
        20 TS sites);
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
@@ -1074,7 +1076,10 @@ In order. Nothing here is in the A/B/C PR.
        fixed in C4, each commit naming its item, each test red on revert; `docs/GATES.md`'s C4 entry has the list).
        The user's rulings in it:
        - **D1, investigate and report only, no code:** the column-lineage scan's refusal of a query holding an
-         executeInDb read (on main it lowered); the findings went to the orchestrator.
+         executeInDb read (on main it lowered); the findings went to the orchestrator. **RULED by the user, 2026-11-14:
+         (a)** -- the refusal kept and recorded in S307 (upstream's `scanColumns` answers from the mapping's property
+         paths and never reads SQL; main's answer was wrong where it answered), and a follow-up logged for stream D,
+         "lineage rebuilt upstream's way, for everything" (below, under D's batch, and cross-listed in C5's list).
        - **D2 (b):** a gone marimo session's finalizer only queues it, and the queue drains outside any run
          (`datacube._let_go_gone`, called first by `_current`); `_runframe.EXEMPTIONS` is empty again, the mechanism
          kept shrink-only.
@@ -1085,6 +1090,18 @@ In order. Nothing here is in the A/B/C PR.
          the class: the claim corrected; "four" until the C4 second small round's item 3); upstream's answer recorded.
        - **The TypeScript and Python split is C5's,** after C4 merges (C5's list below, first item).
    - **Moved to D's batch** (compatibility questions C4 only surfaced):
+     - **Stream D's follow-up: lineage rebuilt upstream's way, for everything** (the user, 2026-11-14, ruling the C4
+       final fix round's D1 (a): "we need to fix the lineage for everything so can't forget to add that as a follow
+       up"):
+       - lite's lineage (`scanColumns`, `scanRelations` and every other lineage function lite answers) is computed as
+         upstream computes it: from the model, through the mapping's property paths, never from lowered SQL;
+       - it scans the expression it is handed (it honours `->at(0)`; today it lowers the whole lambda);
+       - `scanColumns`, `scanRelations` and `executionPlan` treat a query holding `executeInDb` alike (today only
+         `scanColumns` refuses it);
+       - upstream's answers are the tests' expectations, starting with C4's D1 probe's three shapes (S307's evidence:
+         the let reading the raw read's `columnNames` before a Firm project `[]`, `{|ex}` `[]`, the read inside the
+         Firm project's lambda `[FIRM.NAME]`);
+       - once it lands, S307's column-lineage sentences go.
      - the engine-text printer's name rule: (a) engine's exactly, (b) lite's quoting plus a row, or (c) engine's where
        engine spells a name right and a refusal by name where it would mangle or break it (the orchestrator recommends
        c);

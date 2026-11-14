@@ -22165,8 +22165,13 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     (`TestDataCensus.of`, over ScanRelations). So the query must now type: one that does not is refused (400
     COMPILATION) before the scan reads it (`TestDataRoutesTest.theCensusRefusesARawReadByNameBeforeItsScan` pins the
     raw read's refusal).
-  - **D1, investigated (no code):** the column-lineage scan's refusal of a query holding an executeInDb read; the
-    findings went to the orchestrator.
+  - **D1, investigated (no code); RULED by the user, 2026-11-14: (a), keep the refusal, record it, log a follow-up:**
+    the column-lineage scan (`scanColumns`, `PlanAllocations.registerColumnLineageRows`) refuses a query holding an
+    executeInDb read by name, now a row of S307: upstream's `scanColumns` (legend-engine 4.145.0) answers from the
+    mapping's property paths and never reads SQL, so a raw read adds no columns; main read the lowered SQL and answered
+    `[FIRM.NAME]` where upstream answers `[]` (the probe's three shapes are S307's evidence). The follow-up is stream
+    D's: lineage rebuilt upstream's way, for everything (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §6.1, under D's
+    batch), cross-listed in C5's list below.
 - **C5 (start none without the user):**
   - first, the structural split: TypeScript's and Python's run code in packages whose build deps exclude the planner,
     a run frame around every send, and the run walls deleted for a plain dependency rule (the walls' headers name this
@@ -22176,5 +22181,11 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     `registerColumnLineageRows` (:492) and `registerLineageRows` (:561), and FramePlanner's legendQuery activity SQL
     (:149, which catches LegendCompileException and so still swallows a malformed date pattern; it predates C4);
   - the resolver's reads of lowering helpers (`lowering.Aggregates`, `lowering.AsorRef`) moved below both;
+  - cross-listed so it is not lost (stream D's, not C5's): lineage rebuilt upstream's way, for everything --
+    `scanColumns`, `scanRelations` and every lineage function lite answers computed from the model through the
+    mapping's property paths, never from lowered SQL; the expression handed in scanned (`->at(0)` honoured);
+    `scanColumns`, `scanRelations` and `executionPlan` alike over a query holding `executeInDb`; upstream's answers the
+    tests' expectations, starting with the D1 probe's three shapes; S307's column-lineage sentences gone once it lands
+    (the terms: start-here §6.1, under D's batch);
   - Node's promise cost (a flag, or Node 24);
   - the TypeScript wall on the type checker once its program API is available.
