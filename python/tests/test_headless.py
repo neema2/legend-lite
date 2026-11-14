@@ -8,6 +8,7 @@ import contextlib
 import datetime
 import json
 import os
+import re
 import threading
 import unittest
 from pathlib import Path
@@ -1000,6 +1001,18 @@ class Joins(unittest.TestCase):
                                                                   'how': self.HOW, **sheet})))
 
 
+# A failure at a fetch, as DuckDB raises it: a value that does not convert -- or, now and then, DuckDB's interrupt in its
+# place. DuckDB 1.5.5 answers a worker's conversion failure as an interrupt in a race of its threads (measured on the
+# pinned DuckDB, 2026-11-14, with no legend-lite code: about 1 in 20 on a cursor or in a transaction, 0 in 60 with one
+# thread), and aborts the transaction either way (100 of 100), so the read ends there, named by what DuckDB raised.
+_FETCH_FAILED = r'Conversion|INTERRUPT Error: Interrupted!'
+
+
+def _named(failed: BaseException) -> str:
+    """The words a read's end names ``failed`` by, as a pattern: the failure DuckDB raised at the fetch."""
+    return re.escape('INTERRUPT Error: Interrupted!') if 'Conversion' not in str(failed) else 'Conversion'
+
+
 class OneRead(unittest.TestCase):
     """A CALL INTO DATACUBE HOLDS NO LOCK, AND WHAT IT ASKS IS ANSWERED ON ITS OWN THREAD (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md
     D15): a call made in a read of the frames (Frames.reading) reads them as they were when the read began, through the
@@ -1147,11 +1160,11 @@ class OneRead(unittest.TestCase):
         # and that failure aborts the transaction as one at the statement does: the read's later query names it
         late = ("SELECT (CASE WHEN i < 2900000 THEN '1' ELSE 'x' END)::INTEGER AS v FROM range(3000000) t(i)")
         with self.frames.reading():
-            with self.assertRaisesRegex(Exception, 'Conversion'):
+            with self.assertRaisesRegex(Exception, _FETCH_FAILED) as failed:
                 self.rows(late)
             with self.assertRaises(Exception) as ended:
                 self.rows('SELECT count(*) AS n FROM trades')
-            self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
+            self.assertRegex(str(ended.exception), r'aborted its transaction \(' + _named(failed.exception))
 
     def test_a_plans_run_records_a_failure_at_its_fetch(self):
         # Reading.run fetches through the read too (the follow-up audit's G3, 2026-11-14): a plan whose rows fail as
@@ -1159,11 +1172,11 @@ class OneRead(unittest.TestCase):
         from legend_lite import compiler
         late = ("SELECT (CASE WHEN i < 2900000 THEN '1' ELSE 'x' END)::INTEGER AS v FROM range(3000000) t(i)")
         with self.frames.reading() as read:
-            with self.assertRaisesRegex(Exception, 'Conversion'):
+            with self.assertRaisesRegex(Exception, _FETCH_FAILED) as failed:
                 read.run(compiler.Plan(PlannedSql(late), ()))
             with self.assertRaises(duckdb.TransactionException) as ended:
                 read.execute(PlannedSql('SELECT 1'))
-            self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion')
+            self.assertRegex(str(ended.exception), r'aborted its transaction \(' + _named(failed.exception))
 
     def test_a_failure_said_after_blank_lines_is_named_by_its_first_words(self):
         # a message led by a line break or spaces is named by its first line that says something; one that says

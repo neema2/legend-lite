@@ -470,7 +470,10 @@ class Reading:
         """``result``'s rows as this read fetches them: a failure AT THE FETCH (DuckDB converts as it streams, so a
         value that does not convert past the first rows it hands over fails here, not at the statement: measured at
         3M rows, 2026-11-14) is the read's failure as one at the statement is -- it aborts the transaction, and the
-        read ends there, named by it (the follow-up audit's G3: until then a fetch's failure went unrecorded)."""
+        read ends there, named by it (the follow-up audit's G3: until then a fetch's failure went unrecorded). Named by
+        what DuckDB raises: DuckDB 1.5.5 now and then answers a worker's conversion failure as its interrupt, a race of
+        its own threads (measured 2026-11-14 with no legend-lite code: about 1 in 20 on a cursor or in a transaction),
+        and the read is named by that."""
         try:
             return result.to_arrow_table()
         except duckdb.TransactionException:
