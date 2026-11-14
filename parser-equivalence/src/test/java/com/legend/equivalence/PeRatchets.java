@@ -75,7 +75,10 @@ public final class PeRatchets {
                     + " snapshot-copy and output-plan tests)",
             "own_corpus.matched 3211 -> 3226 (2026-11-14, C4's must-haves M1-M5, found red by the gate on b915e29405):"
                     + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
-                    + " them)");
+                    + " them)",
+            "own_corpus.matched 3226 -> 3232 (2026-11-14, stream S's Phase 1 on claude/injection-safety, the DuckDB DDL"
+                    + " breakout): DeclaredNameBreakoutTest's model's six elements (a class, a database, a mapping, a"
+                    + " connection, a runtime and a Data element)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

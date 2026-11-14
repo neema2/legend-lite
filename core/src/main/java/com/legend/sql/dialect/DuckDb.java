@@ -749,10 +749,15 @@ public final class DuckDb extends AnsiSqlRenderer {
      * spelled FOLDED here — the same identity on every target, which is the
      * dialect's job — and a declared-quoted name keeps its case, as everywhere.
      * Matching is unaffected (DuckDB compares case-insensitively); only what the
-     * database REPORTS as the name changes, to what the standard reports. */
+     * database REPORTS as the name changes, to what the standard reports.
+     *
+     * A declared-quoted name is {@link #delimited}: its quote doubled, as DuckDB's lexer reads a delimited
+     * identifier and as every other dialect writes one. It was {@code '"' + name + '"'} until 2026-11-14 (stream S,
+     * injection safety): a name holding {@code "} closed the identifier, and DuckDB's driver ran the rest as
+     * statements -- the audit's breakout through a project's {@code ###Data} load ({@code DeclaredNameBreakoutTest}). */
     @Override
     protected String ddlIdentifier(String name, boolean declaredQuoted) {
-        return declaredQuoted ? '"' + name + '"' : ident(name.toUpperCase(java.util.Locale.ROOT));
+        return declaredQuoted ? delimited(name) : ident(name.toUpperCase(java.util.Locale.ROOT));
     }
 
     /** DuckDB's native list carrier: {@code list_aggregate(list,
