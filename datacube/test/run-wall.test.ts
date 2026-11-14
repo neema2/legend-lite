@@ -16,9 +16,12 @@
 // - A RUN SIGNATURE TAKES NO PLANNER: no function, class member or interface member a RUN module declares (exported or
 //   not, so an `export { f }` list hides nothing; a private member is the class's own and is skipped) takes a planner's
 //   type -- any type a PLANNER module exports, or a type alias or interface declared anywhere that answers a PlannedSql
-//   or names a planner's type -- or anything else that answers a PlannedSql (a function's result, a method's, a stream
-//   or an array of them, a record holding one). Taking a statement to send is the run's own work and is not named. One
-//   composer function is named, by its reason (COMPOSER_SIGNATURES): shrink-only.
+//   or names a planner's type -- or anything else that answers a PlannedSql, a PlanText or a PLANNED RECORD (a
+//   function's result, a method's, a stream or an array of them, a record holding one). A planned record is a type
+//   alias or interface whose text outside its parameter lists names a statement, a plan or another planned record, by
+//   any alias (relation-type.ts's Plan: the final audit of 9af16fbe58's T3). Taking a statement, a plan or a planned
+//   record to run is the run's own work and is not named. Each composer function is named, by its reason
+//   (COMPOSER_SIGNATURES): shrink-only.
 // - THE RUN SIDE WRITES NO `any`: the word in any type position (`: any`, `as any`, `=> any`, a union's `| any`, a
 //   type argument), its strings and comments aside. A planner smuggled in untyped would need one, and no lint bans it
 //   (no ESLint runs on these packages; tsconfig's strict refuses an IMPLICIT any only).
@@ -121,6 +124,9 @@ const COMPOSER_SIGNATURES = new Map([
   ['../engine-client/src/duckdb-tab.ts startDuckDbInTab', ASKS('TabDuckDbPlanner')],
   ['../engine-client/src/host-operations.ts runHostOperations', ASKS('HostOperationsSource')],
   ['../engine-client/src/model-data.ts loadFileTable', ASKS('FileLoadSource')],
+  // 2026-11-14 (the final audit of 9af16fbe58's T3: a function answering a planned record now seen): projectData
+  // answers ProjectDataStatements, a record holding the database's statements
+  ['../engine-client/src/project-data.ts ProjectDatabases.constructor', ASKS('ProjectDataSource')],
   ['../engine-client/src/snap.ts SnapManager.constructor', ASKS('HostOperationsSource')],
   ['../engine-client/src/tab-data.ts TabTables.constructor', ASKS('FileLoadSource')],
   ['src/remote.ts accessRemote', ASKS('RemoteMountSource')],
@@ -148,10 +154,11 @@ const RUN_CALL = /\b(?:runPlan|runLoad|inRun)\s*\(|\b[\w$]*(?:[sS]ession|[eE]ngi
 /** The planner's answers: a statement (PlannedSql) and a plan (PlanText, the plan's JSON), each a brand only the
  *  planned-sql module mints. Taking one is a run's work; answering one is planning. */
 const PLANNED_NAMES = 'PlannedSql|PlanText';
-const PLANNED = `(?:${PLANNED_NAMES})`;
 
-/** A word naming a planner's answer. */
-const NAMES_PLANNED = new RegExp(`\\b${PLANNED}\\b`);
+/** Whether `text` names a planner's answer: a statement, a plan, or a planned record (`records`). */
+function namesPlanned(text: string, records: ReadonlySet<string>): boolean {
+  return [...text.matchAll(/[\w$]+/g)].some((w) => w[0] === 'PlannedSql' || w[0] === 'PlanText' || records.has(w[0]));
+}
 
 /** The run entries: each module that calls a run or has a function taking a statement or a plan, with why. */
 export function runEntries(files: Map<string, string>): Map<string, string[]> {
@@ -309,7 +316,7 @@ export function declaredSignatures(text: string): Map<string, string> {
  *  an arrow's `=>` or a method's `):`, to the end of that result's type (a stream or an array of them, a promise, a
  *  record holding one). A statement or a plan TAKEN -- a parameter's, a field's, an arrow's parameter -- is the run's
  *  own work and is not an answer. */
-function answersPlanned(text: string): boolean {
+function answersPlanned(text: string, records: ReadonlySet<string>): boolean {
   for (const m of text.matchAll(/=>|\)\s*:/g)) {
     const from = m.index! + m[0].length;
     let depth = 0;
@@ -321,33 +328,80 @@ function answersPlanned(text: string): boolean {
         if (--depth < 0) break;
       } else if (depth === 0 && (c === ',' || c === ';' || (c === '=' && text[i + 1] !== '>'))) break;
     }
-    if (NAMES_PLANNED.test(text.slice(from, i))) return true;
+    if (namesPlanned(text.slice(from, i), records)) return true;
   }
   return false;
 }
 
-/** A planner's types: the classes, interfaces and type aliases the planner's modules export; and every type alias or
- *  interface any module declares that answers a PlannedSql (a function's result, a method's, a record holding one: a
- *  planner under another name) or names a planner's type, to a fixed point. */
-export function plannerTypes(files: Map<string, string>, planner: ReadonlySet<string>): Set<string> {
-  const out = new Set<string>();
+/** Each type alias's and interface's body any module declares, by name (two declarations of one name: both bodies). */
+function declaredTypes(files: Map<string, string>): Map<string, string> {
   const declared = new Map<string, string>();
-  for (const [f, text] of files) {
+  const add = (name: string, body: string): void => { declared.set(name, `${declared.get(name) ?? ''}\n${body}`); };
+  for (const text of files.values()) {
     const code = withoutStrings(withoutComments(text));
-    if (planner.has(f)) {
-      for (const m of code.matchAll(/export\s+(?:abstract\s+)?(?:class|interface|type)\s+(\w+)/g)) out.add(m[1]!);
-    }
-    for (const m of code.matchAll(/\btype\s+([\w$]+)\s*(?:<[^=]*>)?\s*=\s*([^;]+);/g)) declared.set(m[1]!, m[2]!);
+    for (const m of code.matchAll(/\btype\s+([\w$]+)\s*(?:<[^=]*>)?\s*=\s*([^;]+);/g)) add(m[1]!, m[2]!);
     for (const m of code.matchAll(/\binterface\s+([\w$]+)[^{]*\{/g)) {
       const open = m.index! + m[0].length - 1;
-      declared.set(m[1]!, code.slice(open, closing(code, open)));
+      add(m[1]!, code.slice(open, closing(code, open)));
     }
   }
+  return declared;
+}
+
+/** `text` with each parameter list blanked: a parenthesised group an arrow or a result's colon follows (`(q) =>`,
+ *  `plan(q):`). What remains of a type is its fields and its results: a statement a method TAKES is a run's. */
+function withoutParameters(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '(') {
+      const close = closing(text, i);
+      if (/^\s*(?:=>|:)/.test(text.slice(close))) {
+        out += '()';
+        i = close - 1;
+        continue;
+      }
+    }
+    out += text[i]!;
+  }
+  return out;
+}
+
+/** The planned records (the final audit of 9af16fbe58's T3): each type alias or interface whose text outside its
+ *  parameter lists names a PlannedSql, a PlanText or another planned record, to a fixed point -- a record holding a
+ *  statement (relation-type.ts's Plan: the statement with its columns), an alias of one, a list of them, and a type
+ *  whose method answers one. Taking one is a run's work; answering one is planning. */
+export function plannedRecords(files: Map<string, string>): Set<string> {
+  const declared = declaredTypes(files);
+  const out = new Set<string>();
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [name, body] of declared) {
+      if (!out.has(name) && namesPlanned(withoutParameters(body), out)) {
+        out.add(name);
+        grew = true;
+      }
+    }
+  }
+  return out;
+}
+
+/** A planner's types: the classes, interfaces and type aliases the planner's modules export; and every type alias or
+ *  interface any module declares that answers a planner's statement, plan or planned record (a function's result, a
+ *  method's: a planner under another name) or names a planner's type, to a fixed point. */
+export function plannerTypes(files: Map<string, string>, planner: ReadonlySet<string>): Set<string> {
+  const out = new Set<string>();
+  for (const [f, text] of files) {
+    if (!planner.has(f)) continue;
+    const code = withoutStrings(withoutComments(text));
+    for (const m of code.matchAll(/export\s+(?:abstract\s+)?(?:class|interface|type)\s+(\w+)/g)) out.add(m[1]!);
+  }
+  const declared = declaredTypes(files);
+  const records = plannedRecords(files);
   for (let grew = true; grew;) {
     grew = false;
     for (const [name, body] of declared) {
       if (out.has(name)) continue;
-      if (answersPlanned(body) || [...body.matchAll(/\b([A-Z][\w$]*)\b/g)].some((t) => out.has(t[1]!))) {
+      if (answersPlanned(body, records) || [...body.matchAll(/\b([A-Z][\w$]*)\b/g)].some((t) => out.has(t[1]!))) {
         out.add(name);
         grew = true;
       }
@@ -370,12 +424,13 @@ function takes(signature: string): string {
  *  PlanText. */
 export function signatureBreaches(files: Map<string, string>, run: readonly string[], types: ReadonlySet<string>): string[] {
   const out: string[] = [];
+  const records = plannedRecords(files);
   for (const file of run) {
     for (const [name, signature] of declaredSignatures(files.get(file) ?? '')) {
       const taken = takes(signature);
       const typed = [...taken.matchAll(/\b([A-Z][\w$]*)\b/g)].map((m) => m[1]!).find((t) => types.has(t));
       if (typed !== undefined) out.push(`${file} ${name}: takes the planner's ${typed}`);
-      else if (answersPlanned(taken)) out.push(`${file} ${name}: takes something that answers a planner's statement or plan`);
+      else if (answersPlanned(taken, records)) out.push(`${file} ${name}: takes something that answers a planner's statement or plan`);
     }
   }
   return out.sort();
@@ -518,6 +573,30 @@ export interface PlantedHeld { readonly sql: PlannedSql; readonly plans: readonl
       "../engine-client/src/values.ts plantedLoad: takes something that answers a planner's statement or plan",
       "../engine-client/src/values.ts plantedRecord: takes something that answers a planner's statement or plan",
       "../engine-client/src/values.ts plantedStream: takes something that answers a planner's statement or plan",
+    ]);
+  });
+
+  it('names a function answering a Plan, a record holding a statement, however spelled (T3)', () => {
+    const planted = new Map(files);
+    planted.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}
+type PlantedPlan = Plan;
+type PlantedPlanMaker = (query: string) => Promise<Plan>;
+interface PlantedHolder { readonly plan: PlantedPlan; readonly at: number }
+export function plantedArrow(make: (q: string) => Promise<Plan>): void { void make; }
+export function plantedMethod(source: { plan(q: string): Promise<Plan> }): void { void source; }
+export function plantedAliased(make: PlantedPlanMaker, again: () => PlantedPlan): void { void make; void again; }
+export function plantedHeld(make: () => Promise<readonly PlantedHolder[]>): void { void make; }
+export function plantedTaken(plan: Plan, held: PlantedHolder, run: (plan: Plan) => Promise<void>): void { void plan; void held; void run; }
+`);
+    const records = plannedRecords(planted);
+    assert.ok(['Plan', 'PlantedPlan', 'PlantedHolder', 'PlantedPlanMaker'].every((r) => records.has(r)), [...records].join(', '));
+    const found = signatureBreaches(planted, ['../engine-client/src/values.ts'], plannerTypes(planted, PLANNER));
+    // a Plan TAKEN, a record holding one taken, a function TAKING one (plantedTaken) is the run's own: not named
+    assert.deepEqual(found, [
+      "../engine-client/src/values.ts plantedAliased: takes the planner's PlantedPlanMaker",
+      "../engine-client/src/values.ts plantedArrow: takes something that answers a planner's statement or plan",
+      "../engine-client/src/values.ts plantedHeld: takes something that answers a planner's statement or plan",
+      "../engine-client/src/values.ts plantedMethod: takes something that answers a planner's statement or plan",
     ]);
   });
 
