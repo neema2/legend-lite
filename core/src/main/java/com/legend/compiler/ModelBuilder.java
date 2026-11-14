@@ -273,6 +273,8 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
      *         contains two {@link ClassMapping}s with the same class FQN
      */
     public static ModelBuilder from(ParsedModel model) {
+        // the final audit of 9af16fbe58's J5 (2026-11-14): this entry asked nothing
+        com.legend.base.RunScope.planning("index a model's elements (phases E and F)");
         Objects.requireNonNull(model, "model");
         ModelBuilder mb = new ModelBuilder(model.imports(),
                 model.elementImports());

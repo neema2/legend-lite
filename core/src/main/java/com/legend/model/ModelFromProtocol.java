@@ -29,6 +29,8 @@ public final class ModelFromProtocol {
     /** A model given as records, as the compiler's parsed model. A shape the model cannot represent is refused by
      *  name ({@link Unrepresentable}), never dropped. */
     public static ParsedModel of(Protocol.PureModelContextData model) {
+        // the final audit of 9af16fbe58's J5 (2026-11-14): this entry asked nothing
+        com.legend.base.RunScope.planning("read a model's records (phase B)");
         return of(model, null, List.of());
     }
 
@@ -36,6 +38,7 @@ public final class ModelFromProtocol {
      *  and the sections no grammar claimed (the platform dialect records them). */
     public static ParsedModel of(Protocol.PureModelContextData model, @com.legend.base.Nullable String source,
             List<ParsedModel.UnclaimedSection> unclaimed) {
+        com.legend.base.RunScope.planning("read a model's records (phase B)");
         Map<String, Protocol.PSection> sectionOf = new HashMap<>();
         // the model's whole import scope: every section's, a section with no element included
         ImportScope.Builder all = new ImportScope.Builder();
