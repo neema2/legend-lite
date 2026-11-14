@@ -25,6 +25,16 @@ public final class PlantedRootDoor {
         return runtime + streaming;
     }
 
+    /** A public static field: a door too (the final audit of 9af16fbe58's J3, 2026-11-14: the census read methods and
+     *  constructors alone). */
+    public static final String PLANTED_SQL = "select 1";
+
+    /** A query by its type, a {@code ValueSpecification}: the census derives that it takes a query from the type, so a
+     *  row that labels it otherwise is named (J3). */
+    public static String typed(com.legend.protocol.spec.ValueSpecification query) {
+        return String.valueOf(query);
+    }
+
     /** A public nested type: its constructor takes a statement, and its accessor is a door too (the C4 audit's M3,
      *  2026-11-13: the census read the root doors' own methods alone). */
     public record Statement(String sql) {

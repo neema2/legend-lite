@@ -408,7 +408,8 @@ class PlannerSurfaceTest {
             "pureV1(body)", "a pure/v1 route's body, dispatched by its path (ROUTES)",
             "executePlan(body)", "an ExecuteInput, planned as its plan half in upstream's Arrow format",
             "executeJsonPlan(body)", "an ExecuteInput, planned as its plan half in the engine's JSON",
-            "PureV1Api.java", "the pure/v1 routes' bodies: an ExecuteInput, a lambda's or a model's text or JSON",
+            "PureV1Api.java", "the pure/v1 routes' bodies: an ExecuteInput, a lambda's or a model's text or JSON (lite's "
+                    + "own routes in it each by their reason: LITE_ROUTES)",
             "TestDataRoutes.java", "the test-data generator's requests: an ExecuteInput, its mapping, its row "
                     + "identifiers",
             "ModelInput.java", "a request's model: a PureModelContextText or a PureModelContextData"));
@@ -422,6 +423,62 @@ class PlannerSurfaceTest {
      *  protocol JSON ({@link Kind#LAMBDA}), which the protocol reader closes (register S29). */
     static final Set<String> CLOSED_ROUTE_FILES = Set.of("ModelChanges.java", "CreateClass.java",
             "CreateAssociation.java", "CreateDataSpace.java");
+
+    /** LITE'S OWN ROUTES, EACH BY ITS REASON (the final audit of 9af16fbe58's J4, 2026-11-14: #TS's two sat under the
+     *  {@code PureV1Api.java} row of {@link #UPSTREAM_PROTOCOL}, open, though upstream has no #TS): every
+     *  {@code /api/lite/} route, CLOSED -- by its method's {@code only(...)} over exactly the keys listed, or by its
+     *  route file ({@link #CLOSED_ROUTE_FILES}) -- or OPEN because its body is upstream's own shape, said why.
+     *  {@link #liteRouteViolations} holds each row to the route switch and each closed method to its {@code only}. */
+    static final Map<String, String> LITE_ROUTES = new TreeMap<>(Map.of(
+            "/api/lite/v1/compilation/compile", "OPEN: its body is a model, upstream's PureModelContext, read as"
+                    + " upstream's compile reads one (ModelInput)",
+            "/api/lite/v1/grammar/jsonToTs/lambda", "CLOSED jsonToTsLambda: model, lambda",
+            "/api/lite/v1/grammar/tsItem", "CLOSED tsItem: text",
+            "/api/lite/v1/model/createClass", "CLOSED FILE ModelChanges.java",
+            "/api/lite/v1/model/createAssociation", "CLOSED FILE ModelChanges.java",
+            "/api/lite/v1/model/createDataSpace", "CLOSED FILE ModelChanges.java"));
+
+    /** Every violation of {@link #LITE_ROUTES} in {@code pureV1Source}: a lite route its switch dispatches that no row
+     *  names, a row for no such route, and a closed method whose {@code ModelChanges.only(...)} is not over exactly its
+     *  row's keys. */
+    static List<String> liteRouteViolations(String pureV1Source, Map<String, String> rows) {
+        List<String> out = new ArrayList<>();
+        Set<String> routes = new TreeSet<>();
+        Matcher r = Pattern.compile("case \"(/api/lite/[^\"]+)\" ->").matcher(pureV1Source);
+        while (r.find()) {
+            routes.add(r.group(1));
+        }
+        for (String route : routes) {
+            if (!rows.containsKey(route)) {
+                out.add("a lite route no row names: " + route);
+            }
+        }
+        rows.forEach((route, reason) -> {
+            if (!routes.contains(route)) {
+                out.add("a row for no lite route: " + route);
+            }
+            Matcher c = Pattern.compile("CLOSED (\\w+): (.*)").matcher(reason);
+            if (c.matches()) {
+                String method = c.group(1);
+                int at = pureV1Source.indexOf("public static Answer " + method + "(");
+                int end = at < 0 ? -1 : pureV1Source.indexOf("\n    }\n", at);
+                Matcher only = Pattern.compile("ModelChanges\\.only\\(request, \"[^\"]*\"((?:, \"\\w+\")*)\\);")
+                        .matcher(at < 0 ? "" : pureV1Source.substring(at, end));
+                List<String> keys = new ArrayList<>();
+                if (only.find()) {
+                    Matcher k = Pattern.compile("\"(\\w+)\"").matcher(only.group(1));
+                    while (k.find()) {
+                        keys.add(k.group(1));
+                    }
+                }
+                if (!keys.equals(List.of(c.group(2).split(", ")))) {
+                    out.add("a closed lite route whose method is not closed over its keys: " + route + " (" + method
+                            + " closes " + keys + ")");
+                }
+            }
+        });
+        return out;
+    }
 
     /** The fields named for a statement that are the plan's own, read back: where, and why. */
     private static final Set<String> PLAN_STATEMENTS = Set.of("PureV1Api.java.planned.sql");
@@ -642,8 +699,15 @@ class PlannerSurfaceTest {
     /** Every violation of {@link #QUERY_ROADS} over {@code doors} (a signature to its kinds): a door that takes a
      *  query -- a LAMBDA parameter, or {@code TypedQuery} its owner -- with no road, and a road for no such door. */
     static List<String> queryRoadViolations(Map<String, List<Kind>> doors, Map<String, QueryRoad> roads) {
+        return queryRoadViolations(doors, roads, queryTypedDoors(ROOT_CLASSES));
+    }
+
+    /** {@link #queryRoadViolations(Map, Map)}, the doors that take a query BY TYPE given (J3: derived from the
+     *  parameters' types, so a door a row mislabels still needs its road). */
+    static List<String> queryRoadViolations(Map<String, List<Kind>> doors, Map<String, QueryRoad> roads,
+            Set<String> typed) {
         List<String> out = new ArrayList<>();
-        Set<String> taking = new TreeSet<>();
+        Set<String> taking = new TreeSet<>(typed);
         doors.forEach((sig, kinds) -> {
             if (kinds.contains(LAMBDA) || sig.startsWith("TypedQuery#")) {
                 taking.add(sig);
@@ -916,6 +980,55 @@ class PlannerSurfaceTest {
     /** Every violation of the root doors' surface over {@code classes}: each public method listed by its signature,
      *  its kinds one per parameter, none SQL. */
     static List<String> rootViolations(List<Class<?>> classes) {
+        return rootViolations(classes, ROOT_DOORS, ROOT_FIELDS);
+    }
+
+    /** THE ROOT CLASSES' PUBLIC STATIC FIELDS, each a door (the final audit of 9af16fbe58's J3, 2026-11-14: the census
+     *  read their methods and constructors alone), with what it holds. */
+    static final Map<String, Kind> ROOT_FIELDS = new TreeMap<>(Map.of(
+            // the options with nothing set: no edge, no data store, no feature
+            "ExecuteOptions#NONE", OPTION,
+            // the refusal's words for a query given no runtime (found by the field check's first run)
+            "Compiler#NO_RUNTIME", MESSAGE));
+
+    /** Whether a parameter's type is a query's (J3: "takes a query" derived from the type, not the row's label): a
+     *  {@code TypedQuery}, a {@code ValueSpecification} (a lambda is one), a {@code TypedSpec}, or a type holding one
+     *  (a list of them). */
+    static boolean queryTyped(java.lang.reflect.Type t) {
+        if (t instanceof Class<?> c) {
+            return TypedQuery.class.isAssignableFrom(c)
+                    || com.legend.protocol.spec.ValueSpecification.class.isAssignableFrom(c)
+                    || com.legend.compiler.spec.typed.TypedSpec.class.isAssignableFrom(c);
+        }
+        if (t instanceof java.lang.reflect.ParameterizedType p) {
+            return Arrays.stream(p.getActualTypeArguments()).anyMatch(PlannerSurfaceTest::queryTyped);
+        }
+        if (t instanceof java.lang.reflect.WildcardType w) {
+            return Arrays.stream(w.getUpperBounds()).anyMatch(PlannerSurfaceTest::queryTyped);
+        }
+        return false;
+    }
+
+    /** The root doors that take a query BY TYPE: a parameter {@link #queryTyped}. */
+    static Set<String> queryTypedDoors(List<Class<?>> classes) {
+        Set<String> out = new TreeSet<>();
+        for (Class<?> top : classes) {
+            for (Class<?> c : withPublicNested(top)) {
+                List<java.lang.reflect.Executable> all = new ArrayList<>(Arrays.asList(c.getDeclaredMethods()));
+                all.addAll(Arrays.asList(c.getDeclaredConstructors()));
+                for (var d : all) {
+                    if (Modifier.isPublic(d.getModifiers()) && !d.isSynthetic()
+                            && Arrays.stream(d.getGenericParameterTypes()).anyMatch(PlannerSurfaceTest::queryTyped)) {
+                        out.add(d instanceof Method m ? signature(m) : signature((java.lang.reflect.Constructor<?>) d));
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    /** {@link #rootViolations(List)} over {@code rows} (a door's kinds) and {@code fields} (a public static field's). */
+    static List<String> rootViolations(List<Class<?>> classes, Map<String, List<Kind>> rows, Map<String, Kind> fields) {
         List<String> out = new ArrayList<>();
         Set<String> seen = new TreeSet<>();
         for (Class<?> top : classes) {
@@ -938,21 +1051,41 @@ class PlannerSurfaceTest {
                         }
                     }
                 }
+                for (java.lang.reflect.Field f : c.getDeclaredFields()) {
+                    if (Modifier.isPublic(f.getModifiers()) && Modifier.isStatic(f.getModifiers()) && !f.isSynthetic()
+                            && !f.isEnumConstant()) {
+                        String key = signature(c, f.getName(), new java.lang.reflect.Type[0]).replace("()", "");
+                        Kind kind = fields.get(key);
+                        if (kind == null) {
+                            out.add("a root field no row lists: " + key);
+                        } else if (kind == AUTHORED_SQL) {
+                            out.add("a root field that carries SQL: " + key);
+                        }
+                    }
+                }
                 for (var d : doors) {
                     String sig = d instanceof Method m ? signature(m) : signature((java.lang.reflect.Constructor<?>) d);
                     seen.add(sig);
-                    List<Kind> kinds = ROOT_DOORS.get(sig);
+                    List<Kind> kinds = rows.get(sig);
                     if (kinds == null) {
                         out.add("a root door no row lists: " + sig);
                     } else if (kinds.size() != d.getParameterCount()) {
                         out.add("a root door's kinds are not one per parameter: " + sig);
                     } else if (kinds.contains(AUTHORED_SQL)) {
                         out.add("a root door that carries SQL: " + sig);
+                    } else {
+                        // the query, by its TYPE: a row labelling it otherwise is named (J3)
+                        java.lang.reflect.Type[] types = d.getGenericParameterTypes();
+                        for (int i = 0; i < types.length; i++) {
+                            if (queryTyped(types[i]) && kinds.get(i) != LAMBDA) {
+                                out.add("a root door's query, by its type, not labelled LAMBDA: " + sig + " #" + i);
+                            }
+                        }
                     }
                 }
             }
         }
-        for (String sig : ROOT_DOORS.keySet()) {
+        for (String sig : rows.keySet()) {
             if (!seen.contains(sig)) {
                 out.add("a listed root door that is gone: " + sig);
             }
@@ -1456,6 +1589,25 @@ class PlannerSurfaceTest {
     }
 
     /** The check names a route no row lists, a request field that carries SQL, and an HTTP route no row lists. */
+    /** Lite's own routes, each closed over exactly its keys or open by its reason; a route whose closure is removed,
+     *  widened, or a new lite route, is named. */
+    @Test
+    void liteRoutesAreEachClosedOrOpenByTheirReason() {
+        String source = routeFiles().get("PureV1Api.java");
+        assertEquals(List.of(), liteRouteViolations(source, LITE_ROUTES));
+        String unclosed = source.replace("ModelChanges.only(request, \"a tsItem request\", \"text\");", "");
+        String widened = source.replace("\"a jsonToTs/lambda request\", \"model\", \"lambda\");",
+                "\"a jsonToTs/lambda request\", \"model\", \"lambda\", \"sql\");");
+        String added = source.replace("case \"/api/lite/v1/grammar/tsItem\" ->",
+                "case \"/api/lite/v1/grammar/planted\" -> tsItem(body);\n            case \"/api/lite/v1/grammar/tsItem\" ->");
+        assertEquals(List.of("a closed lite route whose method is not closed over its keys: /api/lite/v1/grammar/tsItem"
+                + " (tsItem closes [])"), liteRouteViolations(unclosed, LITE_ROUTES));
+        assertEquals(List.of("a closed lite route whose method is not closed over its keys: /api/lite/v1/grammar/jsonToTs"
+                + "/lambda (jsonToTsLambda closes [model, lambda, sql])"), liteRouteViolations(widened, LITE_ROUTES));
+        assertEquals(List.of("a lite route no row names: /api/lite/v1/grammar/planted"),
+                liteRouteViolations(added, LITE_ROUTES));
+    }
+
     @Test
     void theServersSurfaceRefusesAPlantedRoute() {
         Map<String, String> files = routeFiles();
@@ -1591,6 +1743,15 @@ class PlannerSurfaceTest {
     @Test
     void theRootDoorsRefuseAPlantedDoor() {
         List<String> found = rootViolations(List.of(com.legend.planner.PlantedRootDoor.class));
+        // a public static field is a door, and a query is known by its type, whatever a row labels it (J3)
+        assertTrue(found.contains("a root field no row lists: PlantedRootDoor#PLANTED_SQL"), found.toString());
+        Map<String, List<Kind>> mislabelled = new TreeMap<>(ROOT_DOORS);
+        mislabelled.put("PlantedRootDoor#typed(ValueSpecification)", List.of(NAME));
+        assertTrue(rootViolations(List.of(com.legend.planner.PlantedRootDoor.class), mislabelled, ROOT_FIELDS).contains(
+                "a root door's query, by its type, not labelled LAMBDA: PlantedRootDoor#typed(ValueSpecification) #0"));
+        assertTrue(queryRoadViolations(mislabelled, QUERY_ROADS, queryTypedDoors(List.of(
+                com.legend.planner.PlantedRootDoor.class))).contains(
+                "a root door that takes a query names no road: PlantedRootDoor#typed(ValueSpecification)"));
         assertTrue(found.contains("a root door no row lists: PlantedRootDoor#runSql(String)"), found.toString());
         assertTrue(found.contains("a root door no row lists: PlantedRootDoor#lower(String, boolean)"),
                 found.toString());

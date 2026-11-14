@@ -806,6 +806,24 @@ class PureV1ApiTest {
      * error alone, since it stops the compile; none when the model compiles. A request it cannot read is refused as
      * legend-engine's route refuses it.
      */
+    /** Lite's own #TS routes are closed: a key neither reads is refused by name, before anything is read (the final
+     *  audit of 9af16fbe58's J4, 2026-11-14: they sat under the census's upstream-protocol row, open); the keys each
+     *  reads are answered as before. */
+    @Test
+    void liteTsRoutes_refuseAKeyTheyDoNotRead() {
+        PureV1Api.Answer item = PureV1Api.route("/api/lite/v1/grammar/tsItem", null,
+                "{\"text\":\"a = b\",\"sql\":\"select 1\"}", NO_RUN);
+        // refused as the model routes' closed requests are (ModelChangesRequestsAreClosedTest): by name, never answered
+        assertTrue(item.status() != 200, item.json());
+        assertTrue(item.json().contains("a tsItem request has no key sql"), item.json());
+        PureV1Api.Answer read = PureV1Api.route("/api/lite/v1/grammar/tsItem", null, "{\"text\":\"a = b\"}", NO_RUN);
+        assertEquals(200, read.status(), read.json());
+        PureV1Api.Answer shown = PureV1Api.route("/api/lite/v1/grammar/jsonToTs/lambda", null,
+                "{\"model\":{},\"lambda\":{},\"sql\":\"select 1\"}", NO_RUN);
+        assertTrue(shown.status() != 200, shown.json());
+        assertTrue(shown.json().contains("a jsonToTs/lambda request has no key sql"), shown.json());
+    }
+
     @Test
     void liteCompile_answersEveryError_whereTheEnginesRouteAnswersTheFirst() {
         String lite = "/api/lite/v1/compilation/compile";
