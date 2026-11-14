@@ -166,10 +166,12 @@ _SCANNED = {
     ],
     "menu-ids": [":src"],
     # THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13): the run side's imports and signatures, read
-    # over DataCube's planner and the engine client
+    # over DataCube's planner and the engine client, and the protocol library the snapshot's runner imports (the
+    # follow-up audit's G2, 2026-11-14)
     "run-wall": [
         ":src",
         "//engine-client:engine_client",
+        "//pure-protocol:pure_protocol",
     ],
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],

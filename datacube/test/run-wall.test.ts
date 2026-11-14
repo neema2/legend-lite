@@ -3,18 +3,31 @@
 // run, where a frame is kept (Node; not a browser, not the headless V8). This holds, on every host, what the source
 // itself says:
 //
-// - THE RUN SIDE IMPORTS NO PLANNER: the modules that run a plan (RUN_ROOTS) and every module they import, `import type`
-//   included, transitively -- the RUN set -- hold no module of the planner's (PLANNER). A RUN module importing a file
-//   this guard does not read is named too: the wall has no door it cannot see.
-// - A RUN SIGNATURE TAKES NO PLANNER: no exported function, class method or interface member of a RUN module takes a
-//   planner's type (any class or interface a PLANNER module exports) or a function that answers a PlannedSql (a
-//   planner handed in under another name). One composer is named, by its reason (KNOWN_COMPOSERS): shrink-only.
-// - THE RUN SIDE WRITES NO `any`: a planner smuggled in untyped would need one, and no lint bans it (no ESLint runs on
-//   these packages; tsconfig's strict refuses an IMPLICIT any only). Measured 2026-11-13: none in either src.
+// - THE RUN SIDE IS COMPUTED (the follow-up audit's G2, 2026-11-14: until then eight hand-listed roots): every module
+//   that calls a run -- runPlan, runLoad, inRun, a session's or an engine's run -- or has a function that takes a
+//   PlannedSql (a statement to send) is a run entry (runEntries), and a root of the RUN set beside the named roots
+//   (RUN_ROOTS). A run entry that also plans -- its imports reach the planner, or it is a planner module -- is a
+//   composer, named by module and reason (COMPOSER_MODULES): shrink-only, each C5's to split.
+// - THE RUN SIDE IMPORTS NO PLANNER: the RUN set -- the roots and every module they import, `import type` included,
+//   `export ... from`, a dynamic `import()`, a worker's or a `new URL(..., import.meta.url)`'s module and a `require`,
+//   transitively -- holds no module of the planner's (PLANNER). A module it imports this guard does not read (another
+//   package's, a `#subpath` import) is named too: the wall has no door it cannot see.
+// - A RUN SIGNATURE TAKES NO PLANNER: no function, class member or interface member a RUN module declares (exported or
+//   not, so an `export { f }` list hides nothing; a private member is the class's own and is skipped) takes a planner's
+//   type -- any type a PLANNER module exports, or a type alias or interface declared anywhere that answers a PlannedSql
+//   or names a planner's type -- or anything else that answers a PlannedSql (a function's result, a method's, a stream
+//   or an array of them, a record holding one). Taking a statement to send is the run's own work and is not named. One
+//   composer function is named, by its reason (COMPOSER_SIGNATURES): shrink-only.
+// - THE RUN SIDE WRITES NO `any`: the word in any type position (`: any`, `as any`, `=> any`, a union's `| any`, a
+//   type argument), its strings and comments aside. A planner smuggled in untyped would need one, and no lint bans it
+//   (no ESLint runs on these packages; tsconfig's strict refuses an IMPLICIT any only).
 //
-// ITS LIMIT, said plainly: an untyped closure slips through -- a function of no declared type handed to a run, or a
-// planner reached through a value the run is given at run time (an object whose method plans). The `any` ban narrows
-// the first; the run frame is the backstop at run time where a frame is kept. Each list moves only with a dated
+// ITS LIMIT, said plainly: this reads text, not types. A run is seen by its callee's spelling (runPlan, runLoad, inRun,
+// a receiver named for a session or an engine): a run reached through another name -- a callback handed in, an object
+// whose method sends -- is seen only where its parameter is typed with a PlannedSql. An untyped closure slips through,
+// a planner reached through a value the run is given at run time (an object literal's method, a value from a map), a
+// type inferred rather than written, and a type that reaches a PlannedSql through a generic parameter. The `any` ban
+// narrows the first; the run frame is the backstop at run time where a frame is kept. Each list moves only with a dated
 // justification naming the task, and shrinks.
 
 import assert from 'node:assert/strict';
@@ -28,13 +41,17 @@ const SOURCES = new Sources('SOURCES', 'datacube');
 /** Every .ts source this guard reads, by its path from the datacube package. */
 function realSources(): Map<string, string> {
   const out = new Map<string, string>();
-  for (const f of [...SOURCES.under('src', '.ts'), ...SOURCES.under('../engine-client/src', '.ts')]) {
+  for (const f of [...SOURCES.under('src', '.ts'), ...SOURCES.under('../engine-client/src', '.ts'),
+    // the protocol library, imported by the snapshot's runner (the follow-up audit's G2, 2026-11-14)
+    ...SOURCES.under('../pure-protocol/src', '.ts')]) {
     if (!f.endsWith('.d.ts')) out.set(f, SOURCES.read(f));
   }
   return out;
 }
 
-// The modules that run a plan: the plan runner, the tab's DuckDB engines, the result's readers. 2026-11-13 (M2). The
+// The modules that run a plan, named: the plan runner, the tab's DuckDB engines, the result's readers (2026-11-13, M2);
+// the model's data, the host's operations, the warehouse, the tab's DuckDB and its data (the follow-up audit's G2,
+// 2026-11-14: five modules that run and passed as roots). The rest of the run side is computed (runEntries). The
 // branded statement's own module is in the run set through the plan runner's and DuckDB's imports of it, never named
 // here: PlannedSqlTest pins every reference to it as an import (the gate's finding on b915e29405, 2026-11-14).
 const RUN_ROOTS = [
@@ -45,6 +62,11 @@ const RUN_ROOTS = [
   '../engine-client/src/connection-settings.ts',
   '../engine-client/src/values.ts',
   '../engine-client/src/result.ts',
+  '../engine-client/src/model-data.ts',
+  '../engine-client/src/host-operations.ts',
+  '../engine-client/src/warehouse.ts',
+  '../engine-client/src/duckdb-tab.ts',
+  '../engine-client/src/tab-data.ts',
 ];
 
 // The planner's modules: the WebAssembly planner's protocol, its answer, its worker and its grammar; the engine with no
@@ -60,29 +82,99 @@ const PLANNER = new Set([
   'src/planner.ts',
 ]);
 
+// A RUN entry that plans too: its imports reach the planner, or it is a planner module that runs (the follow-up audit's
+// G2, 2026-11-14, measured: each C5's to split, so the run takes its statements alone). Shrink-only.
+const COMPOSER_MODULES = new Map([
+  ['src/runner.ts', "DataCube's runner: runs a page's statements in a run frame and imports its cube (C5)"],
+  ['src/app/services.ts', "the app's services: an engine that runs a PlannedSql beside the runner that plans (C5)"],
+  ['src/app/sources.ts', "the app's sources: an engine's run beside the page model that plans (C5)"],
+  ['src/services/browser.ts', "the browser's services: DuckDB's engine run beside the app's services (C5)"],
+  ['src/headless/host.ts', "the headless host: its query takes a PlannedSql beside the Python host's services (C5)"],
+  ['../engine-client/src/legend/browser-engine.ts', 'the engine with no server: plans, then runs on its engine (C5)'],
+]);
+
 // A RUN module's function that takes a planner, by module and name, with its reason. Shrink-only.
 // 2026-11-13 (M2): setUpSession asks the planner's session setup for EVERY statement before it sends the first (plan
 // first, then run); C5 moves the ask to its caller, so the run takes the statements alone.
-const KNOWN_COMPOSERS = new Map([
+// 2026-11-14 (the follow-up audit's G2, measured once the guard read every declaration and every type that answers a
+// statement or a plan): each takes a source of the planner's answers -- an object whose method answers a PlannedSql or
+// a PlanText -- and runs what it answers. C5 moves each ask to its caller, so the run takes the statements alone.
+const ASKS = (type: string): string => `takes the planner's ${type} and runs what it answers (C5 moves the ask out)`;
+const COMPOSER_SIGNATURES = new Map([
   ['../engine-client/src/engine.ts setUpSession', "asks the planner's session setup whole, then runs it (C5 moves the ask out)"],
+  ['../engine-client/src/duckdb-tab.ts ownExtensions', ASKS('HostOperationsSource')],
+  ['../engine-client/src/duckdb-tab.ts startDuckDbInTab', ASKS('TabDuckDbPlanner')],
+  ['../engine-client/src/host-operations.ts runHostOperations', ASKS('HostOperationsSource')],
+  ['../engine-client/src/model-data.ts loadFileTable', ASKS('FileLoadSource')],
+  ['../engine-client/src/snap.ts SnapManager.constructor', ASKS('HostOperationsSource')],
+  ['../engine-client/src/tab-data.ts TabTables.constructor', ASKS('FileLoadSource')],
+  ['src/remote.ts accessRemote', ASKS('RemoteMountSource')],
+  ['src/remote.ts mountRemote', ASKS('RemoteMountSource')],
+  ['src/remote.ts runMount', ASKS('RemoteMountSource')],
+  ['src/table-output.ts TableWriteHost.models', ASKS('TableModels')],
+  ['src/table-output.ts writeTable', ASKS('TableWriteHost')],
+  ['src/upload.ts catalogColumns', ASKS('TableModels')],
+  ['src/upload.ts catalogColumnsOf', ASKS('TableModels')],
+  ['src/upload.ts dropFileTable', ASKS('TableModels')],
+  ['src/upload.ts forgetUpload', ASKS('TableModels')],
+  ['src/upload.ts ingestFile', ASKS('TableModels')],
+  ['src/upload.ts modelLanded', ASKS('TableModels')],
+  ['src/upload.ts mountRemoteView', ASKS('TableModels')],
+  ['src/upload.ts mountedView', ASKS('TableModels')],
+  ['src/upload.ts readFileInto', ASKS('TableModels')],
 ]);
+
+/** A call of a run: the plan runner's, the frame's, a session's or an engine's. */
+const RUN_CALL = /\b(?:runPlan|runLoad|inRun)\s*\(|\b[\w$]*(?:[sS]ession|[eE]ngine)\??\.run\s*\(/g;
+
+/** The planner's answers: a statement (PlannedSql) and a plan (PlanText, the plan's JSON), each a brand only the
+ *  planned-sql module mints. Taking one is a run's work; answering one is planning. */
+const PLANNED_NAMES = 'PlannedSql|PlanText';
+const PLANNED = `(?:${PLANNED_NAMES})`;
+
+/** A word naming a planner's answer. */
+const NAMES_PLANNED = new RegExp(`\\b${PLANNED}\\b`);
+
+/** The run entries: each module that calls a run or has a function taking a statement or a plan, with why. */
+export function runEntries(files: Map<string, string>): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const [file, text] of files) {
+    const code = withoutStrings(withoutComments(text));
+    const why = [...new Set([...code.matchAll(RUN_CALL)].map((m) => `calls ${m[0].replace(/\s+/g, '')}`))];
+    // a parameter list's statement or plan (a record's field holding one is data, not a run)
+    const taken = [...code.matchAll(new RegExp(`[(,]\\s*(?:readonly\\s+)?[\\w$]+\\??\\s*:\\s*(?:readonly\\s+)?(?:\\w+<\\s*)?(${PLANNED_NAMES})\\b`, 'g'))];
+    for (const m of new Set(taken.map((t) => t[1]!))) why.push(`takes a ${m}`);
+    if (why.length > 0) out.set(file, why.sort());
+  }
+  return out;
+}
+
+/** `code` with each string literal blanked (a template's text too). */
+function withoutStrings(code: string): string {
+  return code.replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, '""');
+}
 
 /** `text` with its comments blanked (each kept as spaces, so offsets hold). */
 function withoutComments(text: string): string {
   return text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' ')).replace(/(^|[^:'"`\\])\/\/[^\n]*/g, (m, lead: string) => lead + ' '.repeat(m.length - lead.length));
 }
 
-/** The relative modules `file` imports -- `import`, `import type`, `export ... from`, a bare `import '...'`, a dynamic
- *  `import('...')` -- each resolved to its path from the package. */
+/** The modules `file` imports -- `import`, `import type`, `export ... from`, a bare `import '...'`, a dynamic
+ *  `import('...')`, a `require('...')`, a worker's module (`new Worker('...')`) and a `new URL('...', import.meta.url)`'s
+ *  (a worker's too) -- each relative one resolved to its path from the package; a `#subpath` import as written (a
+ *  package's own map: this guard reads none, so it is named). A bare package name is a dependency's, not this tree's. */
 export function importsOf(file: string, text: string): string[] {
   const code = withoutComments(text);
   const specs = [
     ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,$]+?\s+from\s+)?['"]([^'"\n]+)['"]/g),
-    ...code.matchAll(/\bimport\(\s*['"]([^'"\n]+)['"]\s*\)/g),
+    ...code.matchAll(/\b(?:import|require)\(\s*['"]([^'"\n]+)['"]\s*\)/g),
+    ...code.matchAll(/\bnew\s+(?:Shared)?Worker\(\s*['"]([^'"\n]+)['"]/g),
+    ...code.matchAll(/\bnew\s+URL\(\s*['"]([^'"\n]+)['"]\s*,\s*import\.meta\.url\s*\)/g),
   ].map((m) => m[1]!);
   // a path back into this package (`../datacube/src/x.ts`, from the engine client) is its own: `src/x.ts`
-  return specs.filter((s) => s.startsWith('.'))
-    .map((s) => posix.normalize(posix.join(posix.dirname(file), s)).replace(/^\.\.\/datacube\//, ''));
+  return specs.filter((s) => s.startsWith('.') || s.startsWith('#'))
+    .map((s) => (s.startsWith('#') ? s
+      : posix.normalize(posix.join(posix.dirname(file), s)).replace(/^\.\.\/datacube\//, '')));
 }
 
 /** The RUN set's breaches: a planner module reached (the import path to it), or a module it imports this guard cannot
@@ -141,21 +233,29 @@ function closing(code: string, open: number): number {
   return code.length;
 }
 
-/** Each exported signature of a module, by name: a function's parameters and return type, a class's non-private
- *  methods' and constructor's, an interface's members. */
-export function exportedSignatures(text: string): Map<string, string> {
-  const code = withoutComments(text);
+/** Each signature a module declares, exported or not (an `export { f }` list names a declared one), by name: a
+ *  function's parameters and return type, an arrow const's, a class's non-private methods' and constructor's and its
+ *  fields', an interface's members. */
+export function declaredSignatures(text: string): Map<string, string> {
+  const code = withoutStrings(withoutComments(text));
   const out = new Map<string, string>();
-  for (const m of code.matchAll(/export\s+(?:default\s+)?(?:async\s+)?function\s*\*?\s*(\w+)\s*(?:<[^(]*>)?\s*\(/g)) {
+  for (const m of code.matchAll(/\b(?:async\s+)?function\s*\*?\s*([\w$]+)\s*(?:<[^(]*>)?\s*\(/g)) {
     const paren = m.index! + m[0].length - 1;
     const end = code.indexOf('{', closing(code, paren));
     out.set(m[1]!, code.slice(paren, end < 0 ? code.length : end));
   }
-  for (const m of code.matchAll(/export\s+const\s+(\w+)\s*(?::[^=]+)?=\s*(?:async\s*)?\(/g)) {
+  // an arrow bound to a name: its parameters and its return type (a parenthesised value that is no arrow is skipped)
+  for (const m of code.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*(?::[^=;]+)?=\s*(?:async\s*)?(?:<[^(=]*>\s*)?\(/g)) {
     const paren = m.index! + m[0].length - 1;
-    out.set(m[1]!, code.slice(paren, closing(code, paren)) + code.slice(closing(code, paren)).split('=>')[0]);
+    const close = closing(code, paren);
+    const arrow = /^\s*(?::[^=;{]+)?=>/.exec(code.slice(close));
+    if (arrow !== null) out.set(m[1]!, code.slice(paren, close) + arrow[0].replace(/=>$/, ''));
   }
-  for (const m of code.matchAll(/export\s+(?:abstract\s+)?(class|interface)\s+(\w+)[^{]*\{/g)) {
+  // a name bound with a declared function type: `const run: (sql: PlannedSql) => ... = ...`
+  for (const m of code.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*:\s*([^=;]+?=>[^=;]+?)\s*=[^=>]/g)) {
+    if (!out.has(m[1]!)) out.set(m[1]!, `: ${m[2]!}`);
+  }
+  for (const m of code.matchAll(/\b(?:abstract\s+)?(class|interface)\s+([\w$]+)[^{]*\{/g)) {
     const open = m.index! + m[0].length - 1;
     const isClass = m[1] === 'class';
     const body = code.slice(open + 1, closing(code, open) - 1);
@@ -179,7 +279,7 @@ export function exportedSignatures(text: string): Map<string, string> {
     }
     function add(text: string): void {
       const member = text.trim();
-      const name = /^(?:(?:public|static|readonly|async|get|set|override)\s+)*([\w$]+)\??\s*[(<:]/.exec(member)?.[1];
+      const name = /^(?:(?:public|static|readonly|async|get|set|override|declare)\s+)*([\w$]+)\??\s*[(<:]/.exec(member)?.[1];
       if (member === '' || name === undefined || /^(?:private|protected)\b|^#/.test(member)) return;
       out.set(`${m![2]}.${name}`, (out.get(`${m![2]}.${name}`) ?? '') + member);
     }
@@ -187,11 +287,53 @@ export function exportedSignatures(text: string): Map<string, string> {
   return out;
 }
 
-/** The class and interface names the planner's modules export: a planner's types. */
+/** Whether `text` (a type, or a parameter list) ANSWERS a planner's statement or plan: one is named in a result -- after
+ *  an arrow's `=>` or a method's `):`, to the end of that result's type (a stream or an array of them, a promise, a
+ *  record holding one). A statement or a plan TAKEN -- a parameter's, a field's, an arrow's parameter -- is the run's
+ *  own work and is not an answer. */
+function answersPlanned(text: string): boolean {
+  for (const m of text.matchAll(/=>|\)\s*:/g)) {
+    const from = m.index! + m[0].length;
+    let depth = 0;
+    let i = from;
+    for (; i < text.length; i++) {
+      const c = text[i]!;
+      if (c === '(' || c === '[' || c === '{' || c === '<') depth++;
+      else if (c === ')' || c === ']' || c === '}' || (c === '>' && text[i - 1] !== '=')) {
+        if (--depth < 0) break;
+      } else if (depth === 0 && (c === ',' || c === ';' || (c === '=' && text[i + 1] !== '>'))) break;
+    }
+    if (NAMES_PLANNED.test(text.slice(from, i))) return true;
+  }
+  return false;
+}
+
+/** A planner's types: the classes, interfaces and type aliases the planner's modules export; and every type alias or
+ *  interface any module declares that answers a PlannedSql (a function's result, a method's, a record holding one: a
+ *  planner under another name) or names a planner's type, to a fixed point. */
 export function plannerTypes(files: Map<string, string>, planner: ReadonlySet<string>): Set<string> {
   const out = new Set<string>();
-  for (const f of planner) {
-    for (const m of withoutComments(files.get(f) ?? '').matchAll(/export\s+(?:abstract\s+)?(?:class|interface|type)\s+(\w+)/g)) out.add(m[1]!);
+  const declared = new Map<string, string>();
+  for (const [f, text] of files) {
+    const code = withoutStrings(withoutComments(text));
+    if (planner.has(f)) {
+      for (const m of code.matchAll(/export\s+(?:abstract\s+)?(?:class|interface|type)\s+(\w+)/g)) out.add(m[1]!);
+    }
+    for (const m of code.matchAll(/\btype\s+([\w$]+)\s*(?:<[^=]*>)?\s*=\s*([^;]+);/g)) declared.set(m[1]!, m[2]!);
+    for (const m of code.matchAll(/\binterface\s+([\w$]+)[^{]*\{/g)) {
+      const open = m.index! + m[0].length - 1;
+      declared.set(m[1]!, code.slice(open, closing(code, open)));
+    }
+  }
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [name, body] of declared) {
+      if (out.has(name)) continue;
+      if (answersPlanned(body) || [...body.matchAll(/\b([A-Z][\w$]*)\b/g)].some((t) => out.has(t[1]!))) {
+        out.add(name);
+        grew = true;
+      }
+    }
   }
   return out;
 }
@@ -206,56 +348,84 @@ function takes(signature: string): string {
   return colon >= 0 ? s.slice(colon + 1) : '';
 }
 
-/** Each RUN signature that takes a planner: a planner's type by name, or a function -- an arrow's type or a method's --
- *  that answers a PlannedSql. */
+/** Each RUN signature that takes a planner: a planner's type by name, or anything else that answers a PlannedSql or a
+ *  PlanText. */
 export function signatureBreaches(files: Map<string, string>, run: readonly string[], types: ReadonlySet<string>): string[] {
   const out: string[] = [];
   for (const file of run) {
-    for (const [name, signature] of exportedSignatures(files.get(file) ?? '')) {
+    for (const [name, signature] of declaredSignatures(files.get(file) ?? '')) {
       const taken = takes(signature);
-      const typed = [...taken.matchAll(/\b([A-Z]\w*)\b/g)].map((m) => m[1]!).find((t) => types.has(t));
-      const answers = /(?:=>|\)\s*:)\s*(?:Promise<\s*)?(?:readonly\s+)?(?:\(\s*readonly\s+)?PlannedSql\b/.test(taken);
+      const typed = [...taken.matchAll(/\b([A-Z][\w$]*)\b/g)].map((m) => m[1]!).find((t) => types.has(t));
       if (typed !== undefined) out.push(`${file} ${name}: takes the planner's ${typed}`);
-      else if (answers) out.push(`${file} ${name}: takes a function that answers a PlannedSql`);
+      else if (answersPlanned(taken)) out.push(`${file} ${name}: takes something that answers a planner's statement or plan`);
     }
   }
   return out.sort();
 }
 
-/** Each RUN module's `any`. */
+/** Each RUN module's `any`: the word wherever a type is written (strings and comments aside). */
 export function anyBreaches(files: Map<string, string>, run: readonly string[]): string[] {
   const out: string[] = [];
   for (const file of run) {
-    const code = withoutComments(files.get(file) ?? '').replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, '""');
-    for (const m of code.matchAll(/:\s*any\b|\bas\s+any\b|<any>|\bany\s*\[\]|[<,]\s*any\s*[,>]/g)) {
-      out.push(`${file}:${code.slice(0, m.index).split('\n').length}: ${m[0].trim()}`);
+    const code = withoutStrings(withoutComments(files.get(file) ?? ''));
+    // (a member or a function named `any` is a name, never a type: `static any(...)`, `AbortSignal.any(...)`)
+    for (const m of code.matchAll(/(?<![\w$.])any(?![\w$]|\s*\()/g)) {
+      const line = code.slice(0, m.index).split('\n').length;
+      out.push(`${file}:${line}: ${code.split('\n')[line - 1]!.trim()}`);
     }
   }
   return out;
 }
 
+/** The run entries that plan too: a planner module that runs, or one whose imports reach the planner. */
+export function planningEntries(files: Map<string, string>, planner: ReadonlySet<string>): string[] {
+  return [...runEntries(files).keys()]
+    .filter((f) => planner.has(f) || importBreaches(files, [f], planner).length > 0).sort();
+}
+
+/** The roots of the RUN set: the named roots and every run entry but a composer. */
+export function runRoots(files: Map<string, string>, planner: ReadonlySet<string>): string[] {
+  return [...new Set([...RUN_ROOTS, ...runEntries(files).keys()])]
+    .filter((f) => !COMPOSER_MODULES.has(f) && !planner.has(f)).sort();
+}
+
 describe('the run wall (TypeScript)', () => {
   const files = realSources();
-  const run = runSet(files, RUN_ROOTS);
+  const roots = runRoots(files, PLANNER);
+  const run = runSet(files, roots);
 
-  it('reads the run side: the roots and what they import', () => {
+  it('reads the run side: the named roots, the computed entries and what they import', () => {
     for (const root of RUN_ROOTS) assert.ok(files.has(root), `${root} is not among the sources read`);
     for (const p of PLANNER) assert.ok(files.has(p), `${p} is not among the sources read`);
-    assert.ok(run.length >= RUN_ROOTS.length + 5, `the RUN set is ${run.length} modules: the guard is not looking`);
+    assert.ok(files.has('../pure-protocol/src/index.ts'), 'the protocol library is not among the sources read');
+    const entries = runEntries(files);
+    // the plan runner is found by its calls, a session by the statement it takes: the computation is looking
+    assert.ok(entries.get('../engine-client/src/plan-runner.ts')?.includes('calls runPlan('), [...entries.keys()].join(', '));
+    assert.ok(entries.get('../engine-client/src/duckdb.ts')?.includes('takes a PlannedSql'), [...entries.keys()].join(', '));
+    assert.ok(roots.length > RUN_ROOTS.length + 5, `the RUN roots are ${roots.length}: the computation is not looking`);
+    assert.ok(run.length >= roots.length + 5, `the RUN set is ${run.length} modules: the guard is not looking`);
+  });
+
+  it('each composer is a run entry that plans, and each run entry that plans is a named composer (shrink-only)', () => {
+    assert.deepEqual(planningEntries(files, PLANNER), [...COMPOSER_MODULES.keys()].sort());
   });
 
   it('the run side imports no planner module, import type included, transitively', () => {
-    assert.deepEqual(importBreaches(files, RUN_ROOTS, PLANNER), []);
+    assert.deepEqual(importBreaches(files, roots, PLANNER), []);
   });
 
-  it("no run signature takes a planner's type or a function that answers a PlannedSql, but the named composers", () => {
+  it("no run signature takes a planner's type or anything that answers a statement or a plan, but the named composers", () => {
     const types = plannerTypes(files, PLANNER);
     assert.ok(types.has('Planner') && types.has('WasmGrammar') && types.has('PlannerModule'), [...types].join(', '));
     const found = signatureBreaches(files, run, types);
-    const named = found.filter((f) => KNOWN_COMPOSERS.has(f.split(':')[0]!));
+    const named = found.filter((f) => COMPOSER_SIGNATURES.has(f.split(':')[0]!));
     assert.deepEqual(found.filter((f) => !named.includes(f)), []);
-    // each named composer still is one (shrink-only: a fixed one leaves the list)
-    assert.deepEqual(named.map((f) => f.split(':')[0]).sort(), [...KNOWN_COMPOSERS.keys()].sort());
+    // each named composer still is one (shrink-only: a fixed one leaves the list), and takes the type its reason names
+    assert.deepEqual([...new Set(named.map((f) => f.split(':')[0]))].sort(), [...COMPOSER_SIGNATURES.keys()].sort());
+    for (const f of named) {
+      const type = /takes the planner's (\w+)/.exec(f)?.[1];
+      if (type !== undefined) assert.ok(COMPOSER_SIGNATURES.get(f.split(':')[0]!)!.includes(`planner's ${type}`), f);
+    }
   });
 
   it('the run side writes no any', () => {
@@ -298,16 +468,79 @@ export interface PlantedSession {
     const found = signatureBreaches(planted, ['../engine-client/src/values.ts'], plannerTypes(files, PLANNER));
     // run(sql: PlannedSql) takes a statement, never a planner: not named
     assert.deepEqual(found, [
-      "../engine-client/src/values.ts PlantedRunner.ask: takes a function that answers a PlannedSql",
+      "../engine-client/src/values.ts PlantedRunner.ask: takes something that answers a planner's statement or plan",
       "../engine-client/src/values.ts PlantedSession.planner: takes the planner's WasmGrammar",
-      "../engine-client/src/values.ts plantedMaker: takes a function that answers a PlannedSql",
+      "../engine-client/src/values.ts plantedMaker: takes something that answers a planner's statement or plan",
       "../engine-client/src/values.ts plantedPlanner: takes the planner's Planner",
     ]);
   });
 
+  it('names the typed evasions: an alias, an export list, a stream or an array answered, a plan answered', () => {
+    const planted = new Map(files);
+    planted.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}
+type PlantedMaker = () => PlannedSql;
+type PlantedMakers = PlantedMaker[];
+export function plantedAlias(make: PlantedMaker, makers: PlantedMakers): void { void make; void makers; }
+function hidden(p: Planner): void { void p; }
+export { hidden };
+const plantedArrow = (make: () => Array<PlannedSql>): void => { void make; };
+export { plantedArrow as plantedArray };
+export function plantedStream(make: () => AsyncIterable<PlannedSql>): void { void make; }
+export function plantedLoad(source: { load(): Promise<PlanText> }): void { void source; }
+export function plantedRecord(make: () => Promise<{ readonly sql: PlannedSql }>): void { void make; }
+export function plantedRuns(sqls: AsyncIterable<PlannedSql>, all: Array<PlannedSql>, plan: PlanText): void { void sqls; void all; void plan; }
+export interface PlantedHeld { readonly sql: PlannedSql; readonly plans: readonly PlanText[] }
+`);
+    const found = signatureBreaches(planted, ['../engine-client/src/values.ts'], plannerTypes(planted, PLANNER));
+    // a statement, a stream of them or a plan TAKEN is the run's own (plantedRuns, PlantedHeld): not named
+    assert.deepEqual(found, [
+      "../engine-client/src/values.ts hidden: takes the planner's Planner",
+      "../engine-client/src/values.ts plantedAlias: takes the planner's PlantedMaker",
+      "../engine-client/src/values.ts plantedArrow: takes something that answers a planner's statement or plan",
+      "../engine-client/src/values.ts plantedLoad: takes something that answers a planner's statement or plan",
+      "../engine-client/src/values.ts plantedRecord: takes something that answers a planner's statement or plan",
+      "../engine-client/src/values.ts plantedStream: takes something that answers a planner's statement or plan",
+    ]);
+  });
+
+  it('names a planted #subpath import and a worker reached by a URL', () => {
+    const planted = new Map(files);
+    planted.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}\n${line('{ host }', '#test-host')}\n`);
+    planted.set('../engine-client/src/result.ts', `${files.get('../engine-client/src/result.ts')}
+export const plantedWorker = (): Worker => new Worker(new URL('./legend/planner-worker.ts', import.meta.url), { type: 'module' });
+`);
+    const found = importBreaches(planted, runRoots(planted, PLANNER), PLANNER);
+    assert.ok(found.some((f) => f.startsWith('#test-host, which this guard does not read, reached by ')), found.join('\n'));
+    assert.ok(found.some((f) => f.startsWith("the planner's ../engine-client/src/legend/planner-worker.ts, reached by ")
+      && f.endsWith('result.ts -> ../engine-client/src/legend/planner-worker.ts')), found.join('\n'));
+  });
+
+  it('computes a planted run: a new module that runs is a root, and one that plans too is a composer to name', () => {
+    const planted = new Map(files);
+    planted.set('src/planted-run.ts', `${line('{ runPlan }', '../../engine-client/src/plan-runner.ts')}
+export async function plantedRun(plan: unknown, session: unknown): Promise<void> { await runPlan(plan, session); }
+`);
+    planted.set('src/planted-session.ts', 'export interface PlantedSession { run(sql: PlannedSql): Promise<void> }\n');
+    planted.set('src/planted-composer.ts', `${line('{ cube }', './cube.ts')}
+export async function plantedCompose(session: { run(sql: unknown): Promise<void> }): Promise<void> { await session.run(cube); }
+`);
+    const entries = runEntries(planted);
+    assert.deepEqual(entries.get('src/planted-run.ts'), ['calls runPlan(']);
+    assert.deepEqual(entries.get('src/planted-session.ts'), ['takes a PlannedSql']);
+    assert.ok(runRoots(planted, PLANNER).includes('src/planted-run.ts'));
+    assert.ok(planningEntries(planted, PLANNER).includes('src/planted-composer.ts'));
+    assert.notDeepEqual(planningEntries(planted, PLANNER), [...COMPOSER_MODULES.keys()].sort());
+  });
+
   it('names a planted any on the run side', () => {
     const planted = new Map(files);
-    planted.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}\nexport const planted = (x: any) => x as any;\n`);
-    assert.equal(anyBreaches(planted, ['../engine-client/src/values.ts']).length, 2);
+    planted.set('../engine-client/src/values.ts', `${files.get('../engine-client/src/values.ts')}
+export const planted = (x: any) => x as any;
+export type PlantedAnswer = () => any;
+export function plantedUnion(x: string | any, y: Map<string, any>): void { void x; void y; }
+export class PlantedSignals { static any(signals: unknown[]): unknown { return AbortSignal.any(signals as AbortSignal[]); } }
+`);
+    // a member or a call named any is a name, never a type: not named
+    assert.equal(anyBreaches(planted, ['../engine-client/src/values.ts']).length, 5);
   });
 });
