@@ -75,6 +75,31 @@ describe('the run frame', () => {
     assert.deepEqual(sent, [], 'nothing sent to the server inside the run');
   });
 
+  it('refuses a server engine\'s typing inside a run, before anything is sent (the last list, T2\'s neighbours)', async () => {
+    const sent: string[] = [];
+    const fetcher = (async (url: string) => {
+      sent.push(String(url));
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as unknown as typeof fetch;
+    const http = new HttpEngine('http://engine.invalid', fetcher);
+    const routed = new RoutedEngine({} as never, http);
+    const model = { _type: 'text', code: '' } as never;
+    const lambda = {} as never;
+    for (const engine of [http, routed]) {
+      const asks: [string, () => Promise<unknown>][] = [
+        ['relationType', () => engine.relationType(model, lambda)],
+        ['compile', () => engine.compile(model)],
+        ['returnType', () => engine.returnType(model, lambda)],
+      ];
+      if (engine === http) asks.push(['compileErrors', () => http.compileErrors('')]);
+      for (const [kind, ask] of asks) {
+        await assert.rejects(inRun("a test's run", async () => ask()),
+          new RegExp(`the planner was asked '${kind}' inside a run \\(a test's run\\)`), kind);
+      }
+    }
+    assert.deepEqual(sent, [], 'nothing sent to the server inside the run');
+  });
+
   it('refuses the planner\'s in-thread answer inside a run, and answers it outside one', async () => {
     const asked = { kind: 'plan', handle: 1, query: 'a', runtime: 'r' } as const;
     await assert.rejects(inRun("a test's run", async () => answer(module, asked)), REFUSED);
