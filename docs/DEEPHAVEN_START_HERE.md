@@ -322,7 +322,11 @@ tested); and this branch carries the MongoDB line's commits, which are not on `m
 ## Now: the desk's data, end to end (agreed 2026-10-29)
 
 **2026-11-14:** C0 (ingest plans) and B1 (the world as a feed behind our own Kafka door, read by the pinned Deephaven,
-every row once) are done; next is B2, the generated startup program (docs/DESK_DATA_ROADMAP_2026_10_29.md §3).
+every row once) are done, and B2's program: the planner generates the server's startup program from the model (a Kafka
+connection for the topic stores, lite's own type), and the pinned Deephaven runs it, nine tables typed as declared,
+every row once. B2's last done-when, the market and desk lanes on that program, waits on B3: `market.groovy` makes the
+reference tables from its own world, and switching the streams alone would mix two worlds on one desk. B3 waits on
+decision P (how pulled reference data reaches Deephaven; recommended (c), a keyed topic through the door).
 
 **docs/DESK_DATA_ROADMAP_2026_10_29.md**: every desk table declared by an ingest and made by the platform; on Deephaven
 a generated startup program fed through our own Kafka door, `market.groovy` deleted; the tab written directly; the desk
