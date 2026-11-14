@@ -29,4 +29,9 @@ public interface StoreLookups {
 
     /** The VIEW {@code name} ({@code V} or {@code SCHEMA.V}) reached from {@code dbFqn}. */
     Optional<DatabaseDefinition.ViewDefinition> findView(String dbFqn, String name);
+
+    /** The JOIN {@code joinName} reached from {@code dbFqn} (own first, then the includes); none for no database.
+     *  Added 2026-11-13 (the names follow-ups, S376's join terminal, ruling 34): a view's join navigation's terminal is
+     *  checked once its joins resolve, as the engine resolves them first ({@code ViewSignatures}). */
+    Optional<DatabaseDefinition.JoinDefinition> findJoin(@com.legend.base.Nullable String dbFqn, String joinName);
 }

@@ -1028,6 +1028,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
      * O(1). Returns the {@link JoinDefinition} named {@code joinName}
      * inside database {@code dbFqn}, if any.
      */
+    @Override
     public Optional<JoinDefinition> findJoin(@com.legend.base.Nullable String dbFqn,
             String joinName) {
         return findJoin(dbFqn, joinName, new java.util.HashSet<>());

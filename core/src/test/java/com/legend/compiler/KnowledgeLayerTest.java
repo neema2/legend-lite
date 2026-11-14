@@ -476,6 +476,58 @@ class KnowledgeLayerTest {
         assertEquals("L1:Float[0..1]", signature.get(17).text());
     }
 
+    /** S376's join terminal (2026-11-13, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34): a join
+     * navigation's terminal is compiled as any other operation once the navigation's joins resolve
+     * (HelperRelationalBuilder.java:1181-1186), in the database of its last join (RelationalParseTreeWalker.java
+     * :1024-1044), so a terminal reading a column or table its database lacks refuses the view in the engine's words,
+     * plain, nested in the terminal, or with the navigation inside a function; a navigation whose join is missing is left
+     * to the lift, which refuses the join first, as the engine resolves the joins first. The terminal was not checked. */
+    @Test
+    @DisplayName("kernel: a view's join terminal reading a column its database has not is refused once its joins resolve")
+    void aViewsJoinTerminalReadingAMissingColumnIsRefused() {
+        ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
+                ###Relational
+                Database b::Far (
+                  Table T3 (ID INTEGER PRIMARY KEY, C VARCHAR(10))
+                  Table T4 (ID INTEGER PRIMARY KEY)
+                  Join K(T4.ID = T3.ID)
+                )
+                Database a::Main (
+                  Table T (ID INTEGER PRIMARY KEY, S VARCHAR(10))
+                  Table T2 (ID INTEGER PRIMARY KEY, C VARCHAR(10))
+                  Join J(T.ID = T2.ID)
+                  View V1 (X: T.ID PRIMARY KEY, Y: @J | T2.NOPE)
+                  View V2 (X: T.ID PRIMARY KEY, Y: @J | U.C)
+                  View V3 (X: T.ID PRIMARY KEY, Y: @J | concat(T2.C, T2.NOPE))
+                  View V4 (X: T.ID PRIMARY KEY, Y: concat(T.S, @J | T2.NOPE))
+                  View V5 (X: T.ID PRIMARY KEY, Y: @Nope | T2.NOPE)
+                  View V6 (X: T.ID PRIMARY KEY, Y: [a::Main]@J > [b::Far]@K | T3.C)
+                  View V7 (X: T.ID PRIMARY KEY, Y: [a::Main]@J > [b::Far]@K | T3.NOPE)
+                  View V8 (X: T.ID PRIMARY KEY, Y: @J | T2.C)
+                )
+                """)));
+        java.util.function.Function<String, String> signature = name -> {
+            try {
+                return com.legend.compiler.element.ViewSignatures.of(ix, "a::Main",
+                        ix.findView("a::Main", name).orElseThrow()).columns().stream()
+                        .map(com.legend.compiler.element.type.Type.Column::text)
+                        .collect(java.util.stream.Collectors.joining(", "));
+            } catch (com.legend.error.ModelException e) {
+                return "REFUSED " + e.getMessage();
+            }
+        };
+        assertTrue(signature.apply("V1").endsWith("Can't find column 'NOPE'"), signature.apply("V1"));
+        assertTrue(signature.apply("V2").endsWith("Can't find table 'U' in schema 'default' and database 'Main'"),
+                signature.apply("V2"));
+        assertTrue(signature.apply("V3").endsWith("Can't find column 'NOPE'"), signature.apply("V3"));
+        assertTrue(signature.apply("V4").endsWith("Can't find column 'NOPE'"), signature.apply("V4"));
+        assertEquals("X:Integer[1], Y:meta::pure::metamodel::type::Any[0..1]", signature.apply("V5"),
+                "a missing join is the lift's to refuse, first");
+        assertEquals("X:Integer[1], Y:String[0..1]", signature.apply("V6"), "the terminal reads its last join's database");
+        assertTrue(signature.apply("V7").endsWith("Can't find column 'NOPE'"), signature.apply("V7"));
+        assertEquals("X:Integer[1], Y:String[0..1]", signature.apply("V8"));
+    }
+
     /** S376 (2026-11-13, the names landings, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 32): a view column whose
      * operation reads a column or a table its database does not have is refused in the engine's words, as the engine
      * refuses it when the database compiles (HelperRelationalBuilder.getColumn :160-165, getRelation :284-293), the

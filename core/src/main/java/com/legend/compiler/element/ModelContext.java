@@ -336,6 +336,13 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    /** StoreLookups' join lookup, relayed as {@link #findJoinDefinition} (2026-11-13, the names follow-ups). */
+    @Override
+    default Optional<com.legend.model.DatabaseDefinition.JoinDefinition>
+            findJoin(@com.legend.base.Nullable String dbFqn, String joinName) {
+        return findJoinDefinition(dbFqn, joinName);
+    }
+
     /** The PARSED definition of a user function (module-resolved body) —
      * spec-walking consumers (PK inference #78, derived-property scans). */
     default Optional<com.legend.model.FunctionDefinition>

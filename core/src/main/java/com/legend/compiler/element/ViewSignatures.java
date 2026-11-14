@@ -29,7 +29,8 @@ import java.util.Set;
  *       view's signature column (view-on-view);</li>
  *   <li>a column the operation reads that its database does not have, plain or
  *       nested, refuses the view in the engine's words, as the engine refuses it
- *       when the database compiles (S376, 2026-11-13, ruling 32);</li>
+ *       when the database compiles (S376, 2026-11-13, ruling 32); a join
+ *       navigation's terminal too, once its joins resolve (2026-11-13, ruling 34);</li>
  *   <li>an aggregate column, at any arity, carries its reducer's Pure result over the
  *       argument's store type ({@code count} Integer[1]; {@code sum} and
  *       {@code average} [1]; {@code max} / {@code min} [0..1]; Integer, Float
@@ -157,9 +158,8 @@ public final class ViewSignatures {
     }
 
     /** Every column reference of {@code op} (a function's arguments, a comparison's and a boolean's sides, a group, a
-     *  null test, an array literal, a lambda's body; a join navigation's terminal reads the join's far table and is
-     *  not one of them) names a table or view of its database (the include closure, the index's spellings) and a
-     *  column of it. */
+     *  null test, an array literal, a lambda's body, a join navigation's terminal once its joins resolve) names a table
+     *  or view of its database (the include closure, the index's spellings) and a column of it. */
     private static void requireColumns(StoreLookups store, String dbFqn, RelationalOperation op) {
         switch (op) {
             case RelationalOperation.ColumnRef cr -> {
@@ -194,7 +194,22 @@ public final class ViewSignatures {
             case RelationalOperation.Group g -> requireColumns(store, dbFqn, g.inner());
             case RelationalOperation.ArrayLiteral a -> a.elements().forEach(e -> requireColumns(store, dbFqn, e));
             case RelationalOperation.Lambda l -> requireColumns(store, dbFqn, l.body());
-            case RelationalOperation.JoinNavigation ignored -> { }
+            // a join navigation's terminal is compiled as any other operation, after the navigation's joins
+            // (HelperRelationalBuilder.java:1181-1186: buildElementWithJoinsJoinTreeNode's getJoin first, :1255,
+            // :167-192, then processRelationalOperationElement over the terminal, each TableAliasColumn through getRelation
+            // and getColumn, :1170-1171; a {target} column a self-join's, unchecked, :1162-1168), in the database of the
+            // navigation's last join (RelationalParseTreeWalker.java:1024-1044; the model writes the terminal relative to
+            // the navigation's own database, RelOpFromProtocol). So a terminal reading a column or table its database
+            // lacks refuses the view in the same words, once every join resolves: a missing join is refused first, by the
+            // lift in lite's own words (JoinChainEmission). Until 2026-11-13 the terminal was not checked (S376's join
+            // terminal, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34)
+            case RelationalOperation.JoinNavigation j -> {
+                String navDb = j.databaseName() != null ? j.databaseName() : dbFqn;
+                if (j.terminal() != null && j.chain().stream().allMatch(hop -> store.findJoin(
+                        hop.databaseName() != null ? hop.databaseName() : navDb, hop.joinName()).isPresent())) {
+                    requireColumns(store, navDb, j.terminal());
+                }
+            }
             case RelationalOperation.TargetColumnRef ignored -> { }
             case RelationalOperation.Literal ignored -> { }
             case RelationalOperation.LambdaParam ignored -> { }
