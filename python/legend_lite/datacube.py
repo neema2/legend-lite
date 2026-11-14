@@ -497,7 +497,15 @@ def _current() -> _Session:
 
 
 def _release(key: int) -> None:
-    """A marimo session gone: its cubes closed, its frames out of their database."""
+    """A marimo session gone: its cubes closed, its frames out of their database. A finalizer (weakref.finalize) runs it
+    wherever garbage collection fires, inside a run's flow too: its work is no run's, so it steps out of any run it
+    lands in, by its named crossing (_runframe.GONE_SESSION; the final audit of 9af16fbe58's P6)."""
+    from ._runframe import GONE_SESSION, exempt
+    with exempt(GONE_SESSION):
+        _release_now(key)
+
+
+def _release_now(key: int) -> None:
     with _marimo_lock:
         session = _marimo_sessions.pop(key, None)
     if session is None:

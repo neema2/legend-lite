@@ -520,10 +520,11 @@ class RunFrameTest(unittest.TestCase):
             _on_compiler_threads(held.close)
         self.assertTrue(_on_compiler_threads(lambda: library().call('lite_session_setup', 'DuckDB')).startswith('OK'))
 
-    def test_no_crossing_is_known_and_none_is_exempt(self):
-        # shrink-only, and empty since 2026-11-13: the read's re-pin, its one entry, went with the user's ruling (1b)
-        from legend_lite._runframe import EXEMPTIONS, exempt
-        self.assertEqual(EXEMPTIONS, frozenset())
+    def test_the_known_crossings_are_named_and_none_other_is_exempt(self):
+        # shrink-only: the read's re-pin went with the user's ruling (1b), 2026-11-13; a gone session's finalizer is
+        # named, 2026-11-14 (the final audit of 9af16fbe58's P6)
+        from legend_lite._runframe import EXEMPTIONS, GONE_SESSION, exempt
+        self.assertEqual(EXEMPTIONS, frozenset({GONE_SESSION}))
         with in_run("a test's run"):
             for crossing in ("a read's re-pin after its statement failed", 'a crossing of my own'):
                 with self.assertRaisesRegex(ValueError, 'no known crossing is named'):
@@ -531,6 +532,27 @@ class RunFrameTest(unittest.TestCase):
                         pass
             with self.assertRaisesRegex(RuntimeError, 'inside a run'):
                 planning('plan')
+
+    def test_a_gone_sessions_finalizer_lets_its_frames_go_inside_a_run(self):
+        # the final audit of 9af16fbe58's P6: garbage collection runs datacube._release (a weakref.finalize) wherever it
+        # fires, a run's flow included; its drops are host operations, planned, refused there until it stepped out of
+        # the run by its named crossing -- the session's tables stayed held
+        import pyarrow as pa
+        from legend_lite import datacube
+        session = datacube._Session()
+        session.frames.register('gone_t', pa.table({'a': [1, 2]}))
+        key = id(session)
+        with datacube._marimo_lock:
+            datacube._marimo_sessions[key] = session
+        try:
+            with in_run("a test's run"):
+                datacube._release(key)
+                self.assertEqual(current_run(), "a test's run")
+            self.assertEqual(session.frames._tables, {})
+            self.assertNotIn(key, datacube._marimo_sessions)
+        finally:
+            with datacube._marimo_lock:
+                datacube._marimo_sessions.pop(key, None)
 
     def test_each_runner_sends_inside_its_run(self):
         import os
