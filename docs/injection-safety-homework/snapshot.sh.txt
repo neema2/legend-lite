@@ -1,0 +1,17 @@
+#!/bin/bash
+# The byte-identity snapshot (stream S, 2026-11-14; the orchestrator's condition before S2): every in-process test
+# target run with the sent-SQL dump (LEGEND_LITE_DUMP_SQL), each target's unique sent statements, normalized by
+# extract_sql.py, kept as one gzip per target under <out>/<tag>/. Run from the repository root:
+#   bash docs/injection-safety-homework/snapshot.sh.txt <out-dir> <tag>
+# Then the corpora (corpus_snap.sh.txt), and diff two tags with diff_snapshots.py.txt.
+OUT=$1; TAG=$2; H=docs/injection-safety-homework; mkdir -p $OUT/$TAG
+CORE=$(bazel query 'tests(//core:all)' 2>/dev/null | grep -E '//core:core_tests_[a-z0-9_]+$' | grep -v _judge_)
+PCT=$(for s in essential grammar relation standard unclassified; do echo //pct:pct_duckdb_$s //pct:pct_sqlite_$s //pct:pct_channel_b_$s; done; echo //pct:pct_h2)
+for batch in "$CORE" "$PCT"; do
+  bazel test $batch --test_env=LEGEND_LITE_DUMP_SQL=1 --nocache_test_results --test_output=summary \
+    --local_test_jobs=2 2>&1 | grep -E 'PASSED|FAILED|TIMEOUT|NO STATUS' >> $OUT/$TAG/_status.txt
+  for t in $batch; do
+    p=${t#//}; p=${p/://}; f=bazel-testlogs/$p/test.log
+    [ -f $f ] && echo "$t $(python3 -I $H/extract_sql.py.txt $f $OUT/$TAG/$(echo $p | tr / _).gz)" >> $OUT/$TAG/_counts.txt
+  done
+done

@@ -1,0 +1,19 @@
+"""Diff two snapshot tags: per target, the statements only one side sent. Exit 1 when any differ.
+   python3 -I docs/injection-safety-homework/diff_snapshots.py.txt <out-dir>/<before> <out-dir>/<after>"""
+import glob, gzip, os, sys
+a_dir, b_dir = sys.argv[1], sys.argv[2]
+def read(p):
+    return set(gzip.open(p, 'rt', encoding='utf-8').read().split('\0')) - {''} if os.path.exists(p) else None
+moved = 0
+for name in sorted({os.path.basename(p) for p in glob.glob(a_dir + '/*.gz') + glob.glob(b_dir + '/*.gz')}):
+    a, b = read(os.path.join(a_dir, name)), read(os.path.join(b_dir, name))
+    if a is None or b is None:
+        print(f'{name}: only in {"after" if a is None else "before"}'); moved += 1; continue
+    gone, new = sorted(a - b), sorted(b - a)
+    if gone or new:
+        moved += 1
+        print(f'== {name}: {len(gone)} gone, {len(new)} new')
+        for s in gone[:5]: print('  - ' + s[:400].replace('\n', ' '))
+        for s in new[:5]: print('  + ' + s[:400].replace('\n', ' '))
+print(f'{moved} target(s) moved')
+sys.exit(1 if moved else 0)

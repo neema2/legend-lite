@@ -1,0 +1,15 @@
+#!/bin/bash
+# The corpora's part of the snapshot: //spec:corpus_one, DuckDB and H2, the host and the database judge, with the
+# sent-SQL dump. corpus_one's runner writes the pass's whole output to a log in java.io.tmpdir, gigabytes with the
+# dump, so the log goes to /dev/shm (memory, outside a cloud container's disk allowance), is read, and is deleted.
+#   bash docs/injection-safety-homework/corpus_snap.sh.txt <out-dir> <tag>
+OUT=$1; TAG=$2; H=docs/injection-safety-homework; SHM=/dev/shm/corpus; mkdir -p $OUT/$TAG $SHM
+for lane in duckdb h2; do for pass in host database; do
+  rm -rf $SHM/*
+  LEGEND_LITE_DUMP_SQL=1 JAVA_TOOL_OPTIONS=-Djava.io.tmpdir=$SHM timeout 3000 bazel run //spec:corpus_one -- $lane $pass \
+    > /dev/null 2>&1
+  log=$(ls $SHM/corpus-one*/pass.log | head -1)
+  echo "$lane $pass exit $? $(python3 -I $H/extract_sql.py.txt $log $OUT/$TAG/spec_corpus_${lane}_${pass}.gz)" \
+    >> $OUT/$TAG/_corpus.txt
+  rm -rf $SHM/*
+done; done

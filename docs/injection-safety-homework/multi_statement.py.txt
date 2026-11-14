@@ -1,0 +1,51 @@
+"""S8 measurement (approximate; the shipped check must be exact): sent statements whose text holds a ';' outside a
+string, a quoted identifier or a comment followed by more text. Lexer: '...' ('' doubled; E'...' backslash),
+"..." and `...` (doubled), -- and /* */ comments, $$...$$ / $tag$...$tag$ (DuckDB/Postgres)."""
+import gzip, re, sys, collections
+def splits(s):
+    i, n, parts, start = 0, len(s), [], 0
+    while i < n:
+        c = s[i]
+        if c == "'":
+            esc = i > 0 and s[i-1] in 'eE' and (i < 2 or not (s[i-2].isalnum() or s[i-2] == '_'))
+            i += 1
+            while i < n:
+                if esc and s[i] == '\\': i += 2; continue
+                if s[i] == "'":
+                    if i + 1 < n and s[i+1] == "'": i += 2; continue
+                    break
+                i += 1
+        elif c in '"`':
+            q = c; i += 1
+            while i < n:
+                if s[i] == q:
+                    if i + 1 < n and s[i+1] == q: i += 2; continue
+                    break
+                i += 1
+        elif s.startswith('--', i):
+            j = s.find('\n', i); i = n if j < 0 else j
+        elif s.startswith('/*', i):
+            j = s.find('*/', i + 2); i = n if j < 0 else j + 1
+        elif c == '$':
+            m = re.match(r'\$([A-Za-z_]*)\$', s[i:])
+            if m:
+                tag = m.group(0); j = s.find(tag, i + len(tag)); i = n if j < 0 else j + len(tag) - 1
+        elif c == ';':
+            parts.append(s[start:i]); start = i + 1
+        i += 1
+    parts.append(s[start:])
+    return [p for p in parts if p.strip()]
+tot = collections.Counter(); multi = collections.Counter(); ex = {}
+for f in sys.argv[1:]:
+    name = f.rsplit('/', 1)[-1][:-3]
+    for st in gzip.open(f, 'rt').read().split('\0'):
+        if not st: continue
+        origin, _, sql = st.partition('] ')
+        tot[name] += 1
+        if len(splits(sql)) > 1:
+            multi[name] += 1; ex.setdefault(name, []).append(origin + '] ' + sql[:240].replace('\n', ' '))
+for k in sorted(tot):
+    print(f'{k}\t{tot[k]}\t{multi[k]}')
+for k in sorted(ex):
+    print('==', k)
+    for e in ex[k][:4]: print('   ', e)
