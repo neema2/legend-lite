@@ -22172,6 +22172,12 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     `[FIRM.NAME]` where upstream answers `[]` (the probe's three shapes are S307's evidence). The follow-up is stream
     D's: lineage rebuilt upstream's way, for everything (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §6.1, under D's
     batch), cross-listed in C5's list below.
+  - **Windows small-test timeouts, as a class (2026-11-14):** PR #101's run 43641250351 timed
+    `//datacube:brand_casts_test` out on Windows at 60.1 s (inputs byte-identical to 5fdeb94d54's, where it took 30
+    s), after `//python:run_wall_test` the round before. Every `short`-timeout test (368) was measured from the lanes'
+    test.xml in three CI runs (main 3a217086a, 5fdeb94d54, 4a8e448917): the ten with CI Linux at 12 s or more, or CI
+    Windows at 20 s or more, are `medium` now, with the times in `datacube/BUILD.bazel`'s `_SLOW_ON_CI_TESTS` note.
+    None grew by C4.
 - **C5 (start none without the user):**
   - first, the structural split: TypeScript's and Python's run code in packages whose build deps exclude the planner,
     a run frame around every send, and the run walls deleted for a plain dependency rule (the walls' headers name this
