@@ -114,6 +114,11 @@ test_suite(
     tests = [
         "//:generated",
         "//projects:tests",
+        # the unstructured study's corpus-free tests (2026-11-09, branch abs/unstructured-study: the review found the freeze
+        # checked only by hand, and these three in no lane, which the lane guard refuses)
+        "//projects/unstructured:freeze_test",
+        "//projects/unstructured:unstructured_test",
+        "//tools/unstructured-oracle:judge_logic_test",
         "//tools/deps:core_closure_test",
         "//tools/deps:core_layering_test",
         "//tools/deps:pools_list_test",
@@ -372,6 +377,8 @@ test_suite(
     name = "heavy",
     tags = ["manual"],
     tests = [
+        # needs the EDGAR corpus, never committed: a person rebuilds it first (2026-11-09, branch abs/unstructured-study)
+        "//projects/unstructured:corpus_test",
         "//spec:reference_lane",
         "//spec:update_reference_lane_test",
         "//spec:corpus_warehouse_verdict",

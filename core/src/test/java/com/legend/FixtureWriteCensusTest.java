@@ -83,8 +83,11 @@ class FixtureWriteCensusTest {
      *  set up as its user's -- the price, cash and adversarial tables the #TS tests read (TsIslandTest 4,
      *  TsScaleMeasureTest 5 at 10M rows, TimeseriesLibraryTest 2; the documents', the oracle's, the replay's and the
      *  spike's 1 each), the dialect tests' own tables (SelectLayersTest 2, SharedRelationsInPlaceTest 2) and the
-     *  ClickHouse and Snowflake backends' schemas (2, 3); 25. */
-    private static final int CEILING = 947;
+     *  ClickHouse and Snowflake backends' schemas (2, 3); 25. 947 -> 949 (2026-11-13, PR #93, the unstructured study,
+     *  rebased onto main at 3a217086a, measured by the census's run): the study's F-U5 pin, written before this census
+     *  (2026-11-09), its DuckDB table and the one row outside ColorMap that is the finding (OpenMappingGapsPinTest, 2;
+     *  its F-U1/F-U2 follow-up PR is the place to move them onto the plan's loads). */
+    private static final int CEILING = 949;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -94,6 +97,8 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/StoreTypesDuckDbTest.java", 2),
             Map.entry("core/src/test/java/com/legend/TabularFunctionTest.java", 3),
             Map.entry("core/src/test/java/com/legend/WireDecidedCellTest.java", 6),
+            // 2026-11-13, PR #93: the unstructured study's F-U5 pin, its table and row (the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/compiler/OpenMappingGapsPinTest.java", 2),
             Map.entry("core/src/test/java/com/legend/compiler/spec/UserCallInlinerTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java", 6),
             Map.entry("core/src/test/java/com/legend/exec/ContainsOverloadTest.java", 2),

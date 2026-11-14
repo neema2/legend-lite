@@ -1,0 +1,8 @@
+route	arm	backend	road	rows	PASS	DROPPED	STALE_HIT	EMPTY_OK	FALSE_HIT	REFUSED	ERROR	UNRESOLVED
+structured	pure	duckdb	lite	24	22	0	0	2	0	0	0	0
+text	hybrid	duckdb	direct-sql	44	16	22	2	2	2	0	0	0
+text	hybrid	postgres	direct-sql	44	0	0	0	0	0	44	0	0
+text	keyword	duckdb	direct-sql	44	15	20	5	2	2	0	0	0
+text	keyword	postgres	direct-sql	44	16	19	5	2	2	0	0	0
+text	vector	duckdb	direct-sql	44	12	24	4	0	4	0	0	0
+text	vector	postgres	direct-sql	44	0	0	0	0	0	44	0	0

@@ -1,0 +1,13 @@
+AGREEMENT_ID,BORROWER_ID,TITLE,AGREEMENT_DATE,ADMINISTRATIVE_AGENT,GOVERNING_LAW,PDF_PATH,TEXT_SHA256
+CA-001,B-01,Credit Agreement,2023-03-02,"Pellbrook Bank, N.A.",New York,agreements/CA-001.pdf,f523f8d1753e3e018fc7507f1693c5fcd30916b538372e6c54ba5d7f807db71e
+CA-002,B-02,Credit Agreement,2023-01-13,"Pellbrook Bank, N.A.",New York,agreements/CA-002.pdf,00c7bfc647e545e13e36c9a3ab8f0a822a8c55d35f7bee4a403206b697b41360
+CA-003,B-03,Credit Agreement,2023-11-07,"Stannard Harbour Bank, N.A.",New York,agreements/CA-003.pdf,3d32b4b5d18a4e469ec16a323c5391012666a46e75b6102d3e0bf601cb355455
+CA-004,B-04,Credit Agreement,2023-07-18,"Pellbrook Bank, N.A.",New York,agreements/CA-004.pdf,99913a615fd1c73b79d9fe944bcca7dfdff3236764a6555e0338234c46613587
+CA-005,B-05,Credit Agreement,2023-06-02,"Pellbrook Bank, N.A.",New York,agreements/CA-005.pdf,35c80b190c898912c27330af140654a7e9af6acf76fb7325108bf29eea22d318
+CA-006,B-06,Credit Agreement,2023-08-18,"Stannard Harbour Bank, N.A.",New York,agreements/CA-006.pdf,f467a41a86f003ca845f24037f15c9645b2ba2ec81bea5c049a52c46c31c5dc6
+CA-007,B-01,Amended and Restated Credit Agreement,2025-06-09,"Stannard Harbour Bank, N.A.",New York,agreements/CA-007.pdf,ae3504521f0a34774a7f21b27b1ef6a6ee7f827ca4715fb9b89c762f4426fbca
+CA-008,B-02,Amended and Restated Credit Agreement,2025-06-09,"Pellbrook Bank, N.A.",New York,agreements/CA-008.pdf,58b62126e56f19eb0c3cb7fe20954c9e44485103af70419d59e0525d3e59e322
+CA-009,B-03,Amended and Restated Credit Agreement,2025-09-21,Merrowfield Capital Funding LLC,New York,agreements/CA-009.pdf,c2e46d47e5faa7757084c47d6a483fbd209130bd2a8ffeb91a5127172636fcdf
+CA-010,B-04,Amended and Restated Credit Agreement,2025-10-24,Merrowfield Capital Funding LLC,New York,agreements/CA-010.pdf,a69a9bb685c00aaaaa416c5b44e56c92626919f94ba9a8b2b7687f5125b1ca71
+CA-011,B-05,Amended and Restated Credit Agreement,2025-03-13,Merrowfield Capital Funding LLC,New York,agreements/CA-011.pdf,54e261f695175700a97097437ddceed8e72bd221b8d4cf94ff577dc519f4b8af
+CA-012,B-06,Amended and Restated Credit Agreement,2025-09-13,"Stannard Harbour Bank, N.A.",New York,agreements/CA-012.pdf,5e726c51c6da58582d28692cb1c61033888fa17fb94a7824cae8493b7b6e904a
