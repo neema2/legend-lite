@@ -1,0 +1,30 @@
+id	chars	selects	windows	joins	rows	plan_ms	run_ms
+spec-01	22651	51	32	10	53	914	31
+spec-02	15553	20	19	8	2568	199	22
+spec-03	12026	28	6	7	262	80	20
+spec-04	5494	14	6	2	262	32	7
+spec-05	ERROR	TypeInferenceException: #TS{...}# at line 3, column 96: a source names its date column: FROM prices ON date [BY symbol]
+spec-06	4956	5	5	0	522	66	8
+spec-07	14142	39	2	9	262	144	17
+spec-08	4317	7	7	0	3930	43	33
+spec-09	8609	21	1	6	1304	88	12
+spec-10	9272	18	4	4	786	61	28
+spec-11	10842	27	5	6	1304	71	16
+spec-12	4629	15	2	4	56	34	10
+spec-13	21007	29	15	5	522	173	26
+spec-14	16398	28	14	5	72	88	38
+spec-15	51036	130	63	30	157	520	79
+spec-16	19935	36	22	7	7	109	57
+guide-02	1973	5	6	0	522	15	5
+guide-03	20853	27	21	3	1283	38	21
+guide-04	4222	14	5	2	1304	18	7
+guide-05	5761	13	6	3	53	49	18
+guide-06	ERROR	TypeInferenceException: #TS{...}# at line 1, column 27: latest is not a column of prices: its columns are symbol, asset_class, date, open, high, low, close, volume
+guide-07	6041	8	7	0	5474	20	23
+guide-08	8721	21	7	4	132	62	20
+guide-09	12289	37	15	4	1304	51	44
+guide-10	5121	12	0	3	1304	30	9
+guide-11	8106	23	4	5	1321	51	17
+guide-12	16402	27	28	6	1179	42	18
+guide-13	21318	27	18	5	522	69	22
+guide-14	16398	28	14	5	72	65	27

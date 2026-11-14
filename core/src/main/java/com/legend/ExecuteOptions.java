@@ -30,7 +30,8 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
             com.legend.executionplan.DataStores stores,
             java.util.Set<com.legend.platform.Feature> features) {
         this(new PlanningOptions(edge, stores, features, PlanningOptions.JudgeMode.HOST,
-                PlanningOptions.rules(edge != null), com.legend.database.Databases.PRODUCT_SPELLING), stores);
+                PlanningOptions.rules(edge != null), com.legend.database.Databases.PRODUCT_SPELLING, java.util.Set.of()),
+                stores);
     }
 
     public static final ExecuteOptions NONE = new ExecuteOptions(null, com.legend.executionplan.DataStores.none(),
@@ -65,6 +66,12 @@ public record ExecuteOptions(PlanningOptions planning, com.legend.executionplan.
      *  the one ambient source (the engine's testable runner has the same knob). */
     public ExecuteOptions withFeatures(java.util.Set<com.legend.platform.Feature> f) {
         return new ExecuteOptions(planning.withFeatures(f), stores);
+    }
+
+    /** Lite's own planning options for every query of the run ({@link com.legend.platform.PlanOption}): the tests turn
+     *  on {@code DETERMINISTIC_AS_OF}. Planning's, as the features are. */
+    public ExecuteOptions withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
+        return new ExecuteOptions(planning.withOptions(o), stores);
     }
 
     /** BACKWARDS-COMPATIBILITY MODE (the user, 2026-11-04: "I want ours to be super clean, but be able to pass

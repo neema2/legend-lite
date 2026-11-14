@@ -46,7 +46,7 @@ class CypherIslandRoundTripTest {
         String json = ProtocolEmitter.emitLambda((LambdaFunction) Compiler.parseQuery("|#Cypher{RETURN 1}#"));
         assertTrue(json.contains("\"type\":\"Cypher\",\"value\":{\"cypher\":\"RETURN 1\"}"), json);
         SqlIsland island = (SqlIsland) ((LambdaFunction) Compiler.parseQuery("|#Cypher{RETURN 1}#")).body().get(0);
-        assertEquals(SqlIsland.CYPHER, island.language());
+        assertEquals(com.legend.protocol.spec.IslandLanguage.CYPHER, island.language());
         assertEquals("RETURN 1", island.sql());
         assertNull(island.profile());
         assertEquals("#Cypher{", island.opening());

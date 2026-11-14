@@ -81,8 +81,16 @@ class FixtureWriteCensusTest {
      *  (1). 922 -> 923 (2026-11-12, E1 item 3, the orchestrator's ask; merged onto 922 on 2026-11-13): a read-only
      *  catalog source's zoned column is read through the product door from a user's own table holding a zoned value
      *  (CatalogModelTest, 1: one CREATE TABLE AS, as a catalog source finds a table; no plan's load makes a user's
-     *  table). */
-    private static final int CEILING = 923;
+     *  table).
+     *  (1). 922 -> 947 (2026-11-13, main's #95 merged into the timeseries branch, measured by the census's run): the
+     *  timeseries branch's twelve files, written before this census, each a fixture's own rows or a lane's own database
+     *  set up as its user's -- the price, cash and adversarial tables the #TS tests read (TsIslandTest 4,
+     *  TsScaleMeasureTest 5 at 10M rows, TimeseriesLibraryTest 2; the documents', the oracle's, the replay's and the
+     *  spike's 1 each), the dialect tests' own tables (SelectLayersTest 2, SharedRelationsInPlaceTest 2) and the
+     *  ClickHouse and Snowflake backends' schemas (2, 3); 25.
+     *  923/947 -> 948 (2026-11-14, merged main 3a217086a (#81) into claude/total-wall-e, measured on the merged tree):
+     *  E's side's one (CatalogModelTest) and main's twenty-five, joined. */
+    private static final int CEILING = 948;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(
@@ -225,7 +233,20 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/testplan/RenderedTextTest.java", 2),
             Map.entry("spec/src/test/java/com/legend/harness/ReplayReferee.java", 7),
             Map.entry("testing/src/main/java/com/legend/testing/EmbeddedPostgres.java", 1),
-            Map.entry("warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java", 12));
+            Map.entry("warehouse/src/test/java/com/legend/warehouse/WarehouseJdbcTest.java", 12),
+            // 2026-11-13, main's #95 merged into the timeseries branch: the branch's own fixtures (the ceiling's note)
+            Map.entry("core/src/test/java/com/legend/integration/TimeseriesLibraryTest.java", 2),
+            Map.entry("core/src/test/java/com/legend/integration/TsAdversarialTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsDocumentsTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsGsquantParityTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsIslandTest.java", 4),
+            Map.entry("core/src/test/java/com/legend/integration/TsLineSpikeTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsReplayTest.java", 1),
+            Map.entry("core/src/test/java/com/legend/integration/TsScaleMeasureTest.java", 5),
+            Map.entry("core/src/test/java/com/legend/sql/dialect/SelectLayersTest.java", 2),
+            Map.entry("core/src/test/java/com/legend/sql/dialect/SharedRelationsInPlaceTest.java", 2),
+            Map.entry("core/src/test/java/com/legend/testbackend/ClickHouseBackend.java", 2),
+            Map.entry("core/src/test/java/com/legend/testbackend/SnowflakeBackend.java", 3));
 
     static int writes(String source) {
         int n = 0;

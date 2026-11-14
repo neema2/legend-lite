@@ -1285,7 +1285,10 @@ final class ArchitectureTest {
     private static final java.util.Set<String> PLANNING_API = java.util.Set.of("com.legend.Compiler",
             "com.legend.TypedQuery", "com.legend.HeldModels", "com.legend.compiler.element.ModelContext",
             "com.legend.compiler.element.PureModelContext", "com.legend.planner.ProgramFacts",
-            "com.legend.testplan.PlanningOptions", "com.legend.platform.Feature");
+            "com.legend.testplan.PlanningOptions", "com.legend.platform.Feature",
+            // lite's own planning options beside the engine's flags (PlanOption: the tests' deterministic as-of), a
+            // planning input as Feature is (the timeseries branch's, S156; added at main's merge (#92), 2026-11-09)
+            "com.legend.platform.PlanOption");
 
     /** Planning's INPUT a caller builds and hands the compiler (R4): the parsed program, Pure's protocol values (a test
      *  runner composes a test body's call; the full audit's widening of R4 to every planning library, 2026-11-09). */
@@ -2944,6 +2947,9 @@ final class ArchitectureTest {
             java.util.Map.entry("com.legend.exec.H2Connector.PRIVATE_IDS", StaticKind.RESOURCE),
             // the boot model compiled once; a bare name's referents and a built call's names over the platform's tables
             java.util.Map.entry("com.legend.Compiler.BOOT", StaticKind.CACHE),
+            // a library's text compiled once a process, by its content (the timeseries branch's A5, docs/TS_V1_PROGRAM
+            // A5; registered at main's merge (#92) into it, 2026-11-09): an answer kept is the answer computed again
+            java.util.Map.entry("com.legend.Compiler.LIBRARIES", StaticKind.CACHE),
             java.util.Map.entry("com.legend.compiler.BareNames.REFERENTS", StaticKind.CACHE),
             java.util.Map.entry("com.legend.compiler.NameResolver.BUILT", StaticKind.CACHE),
             java.util.Map.entry("com.legend.diagnostics.Census.COUNTS", StaticKind.MEASUREMENT),
@@ -3281,6 +3287,10 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.compiler.spec.TdsNullForms", 1),
                     java.util.Map.entry("com.legend.compiler.spec.TypeAnnotations", 1),
                     java.util.Map.entry("com.legend.compiler.spec.Typer", 17),
+                    // 2026-11-01 (docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md M3): the #TS model's facts -- a word's
+                    // overloads and parameters (TsToPure.Overload, Parameter), records of the model's signatures that
+                    // TsToPure reads, no program: the protocol package holds the #TS translator they are the input of
+                    java.util.Map.entry("com.legend.compiler.spec.TsIslands", 2),
                     java.util.Map.entry("com.legend.lineage.ScanRelations", 2),
                     java.util.Map.entry("com.legend.model.MappingFromProtocol", 4),
                     java.util.Map.entry("com.legend.test.PureTestRunner", 2),

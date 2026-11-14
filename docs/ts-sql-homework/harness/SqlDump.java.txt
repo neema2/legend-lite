@@ -1,0 +1,18 @@
+package com.legend.integration;
+
+/** Scratch: an example of the documents, its SQL to stdout (no database run). */
+public final class SqlDump {
+    public static void main(String[] a) throws Exception {
+        var backend = com.legend.testbackend.TestBackends.platform();
+        var m = TsDocumentsTest.class.getDeclaredMethod("model", com.legend.testbackend.TestBackend.class);
+        m.setAccessible(true);
+        var ctx = com.legend.Compiler.compileModel((String) m.invoke(null, backend));
+        var ex = TsDocumentsTest.class.getDeclaredMethod("examples", java.nio.file.Path.class);
+        ex.setAccessible(true);
+        @SuppressWarnings("unchecked")
+        java.util.Map<String, String> examples = (java.util.Map<String, String>) ex.invoke(null,
+                java.nio.file.Path.of(a[1]));
+        String q = a[0].startsWith("|") ? a[0] : "|#TS{" + examples.get(a[0]) + "}#";
+        System.out.print(com.legend.Compiler.query(ctx, q).plan("docs::RT").sql());
+    }
+}

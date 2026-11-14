@@ -1942,6 +1942,10 @@ public class Trino extends AnsiSqlRenderer {
             case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> super.bound(b);
             case SqlExpr.WindowCall.Frame.Bound.Following f -> super.bound(b);
             case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> super.bound(b);
+            // an offset the database computes: written by writeBound (measured 2026-10-31: Trino takes an expression
+            // and a parameter, refuses a negative offset)
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> super.bound(b);
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> super.bound(b);
         };
     }
 
@@ -2023,6 +2027,19 @@ public class Trino extends AnsiSqlRenderer {
     // ==================================================================
     // Session tables and DDL
     // ==================================================================
+
+    /** {@inheritDoc} Yes: Trino writes a WITH's query in place at each read, never once for every read (#81's final
+     *  review, item 14k (9), 2026-11-10). */
+    @Override
+    public boolean writesEachReadOfAWithAgain() {
+        return true;
+    }
+
+    /** {@inheritDoc} No: Trino has no temporary table to stage one in. */
+    @Override
+    public boolean stagesSharedRelations() {
+        return false;
+    }
 
     /** Trino DDL: a nullable column says nothing (an explicit NULL is a syntax error). */
     @Override

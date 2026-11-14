@@ -423,6 +423,10 @@ public interface InputDialect {
     interface TypeDetail {
     }
 
+    /** An enumeration's column: its values the enumeration {@code path}'s (A6, 2026-11-03). */
+    record Enumeration(String path) implements TypeDetail {
+    }
+
     /** The refusals whose wording is the dialect's own, each with the arguments its message reads, in order. */
     enum Problem {
         /** A qualified column the qualifier's FROM item does not have: the qualifier and the column as written, and

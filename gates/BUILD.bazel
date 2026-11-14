@@ -55,6 +55,27 @@ test_suite(
         # Postgres 16, each case's status held by core/src/test/resources/sql-parity/ledger.tsv
         "//core:sql_parity_test",
         "//core:sql_parity_postgres_test",
+        # The timeseries library (projects/timeseries/model.pure, package timeseries::) on every in-process database: it compiles,
+        # and a person's Pure calling it answers as arithmetic (2026-10-28)
+        "//core:timeseries_library_test",
+        # the #TS{...}# island (docs/TS_LANGUAGE_BUILD_2026_10_30.md P2): its queries answer as the library's calls
+        "//core:ts_island_test",
+        # the adversarial markets fixture's traps on DuckDB, each case's status held by ts-adversarial/ledger.tsv; the
+        # fixture's naive SQL must bite (2026-11-07)
+        "//core:ts_adversarial_test",
+        # ... and its fixture's files held to their generator (generate.py --check)
+        "//projects:timeseries_adversarial_fixture_test",
+        # every example of the #TS spec and the guide for quants runs, or is listed with why (A9, 2026-11-03)
+        "//core:ts_documents_test",
+        # the #TS{...}# island's cases on the embedded Postgres 16 (docs/TS_V1_PROGRAM_2026_11_01.md B1)
+        "//core:ts_island_postgres_test",
+        # every example of the #TS documents on the embedded Postgres 16 against DuckDB (docs/TS_DECISIONS_2026_11_07.md
+        # item 9; found in no lane by CI's lane guard on #81, 2026-11-09)
+        "//core:ts_documents_postgres_test",
+        # every mapped word of #TS against gs-quant's own function at the oracle's pin (tools/gs-quant-oracle/pins.env),
+        # snapped by tools/gs-quant-oracle (2026-11-07),
+        # each case's verdict held by tools/gs-quant-oracle/ledger.tsv
+        "//core:ts_gsquant_parity_test",
         # the #IQ{...}# island's parity cases (core/src/test/resources/iq-parity), on DuckDB and on Postgres 16, judged
         # against SQL Anywhere 17's snapped answers, each run's status held by iq-parity/ledger.tsv
         "//core:iq_parity_test",
@@ -150,6 +171,9 @@ test_suite(
         "//tools/iq-oracle:tools_build_test",
         # the #Cypher{}# island's oracle (tools/neo4j-oracle/README.md): built here, run by hand where a Neo4j runs
         "//tools/neo4j-oracle:tools_build_test",
+        # the #TS{...}# island's gs-quant oracle (tools/gs-quant-oracle/README.md): built here, run by hand (snap.sh installs
+        # the pin, tools/gs-quant-oracle/pins.env)
+        "//tools/gs-quant-oracle:tools_build_test",
         "//tools/junit:tools_build_test",
     ],
 )
@@ -234,6 +258,9 @@ test_suite(
         "//python:engine_test",
         # the markets example over the trading model's classes on Python: its saved queries, tiles and marks (Phase 6, D6)
         "//python:markets_test",
+        # #TS's Python builders: gs-quant's names over core's catalog, every Show Python fixture read back (item 13;
+        # found in no lane by CI's lane guard on #81, 2026-11-09)
+        "//python:ts_builder_test",
         "//python:frames_test",
         # the one send: a statement no plan carries refused by name (the total wall's C3, 2026-11-12)
         "//python:planned_test",
@@ -362,6 +389,33 @@ test_suite(
         "//spec:phase3b_probes",
         # the DataCube model design's measurement (docs/DATACUBE_MODEL_DESIGN_2026_10_10.md §11, 2026-10-10): manual
         "//datacube:model_scale_measure",
+        # the timeseries SQL's measurement (docs/DATACUBE_TIMESERIES_DESIGN_2026_10_25.md, the SQL's size, 2026-10-30):
+        # manual, its numbers printed
+        "//datacube:timeseries_sql_measure",
+        "//datacube:ts_examples_measure",
+        # #TS at scale (docs/TS_DECISIONS_2026_11_07.md item 7, 2026-11-07): manual, its numbers printed
+        "//core:ts_scale_measure",
+        "//core:ts_scale_measure_postgres",
+        # the #TS island on Snowflake (docs/TS_DECISIONS_2026_11_07.md item 10, 2026-11-07): manual, a real account's
+        # credentials (LEGENDLITE_PCT_CLOUD_PROPERTIES) and its cost
+        "//core:ts_island_snowflake_test",
+        "//core:ts_replay_snowflake_test",
+        "//core:ts_documents_snowflake_test",
+        # #TS's replay and documents on the embedded ClickHouse against DuckDB (docs/TS_DECISIONS_2026_11_07.md item 9):
+        # manual until a per-push ClickHouse lane is the user's call, as //pct:pct_clickhouse is; found in no lane by
+        # CI's lane guard on #81 (2026-11-09)
+        "//core:ts_replay_clickhouse_test",
+        "//core:ts_documents_clickhouse_test",
+        # every gallery and markets series' Show #TS on the embedded Postgres 16 against DuckDB (item 9): manual until
+        # the Sharpe ratio's Postgres plan is fixed -- `sharpe A` and `B` take 53 s and 52 s each here (DuckDB 72 ms), and
+        # on CI's Windows runner sharpe A passed the replay's two-minute statement bound (run 42676077309, 2026-11-09);
+        # the core lane held it for one run
+        "//core:ts_replay_postgres_test",
+        # the library-defines-the-language spike and C1's frame-offset probe (2026-10-31,
+        # docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md §3 and §3a): manual evidence, run by hand; found in no lane
+        # by the lane guard on PR #86 (2026-11-01)
+        "//core:ts_line_spike_test",
+        "//core:frame_offset_probe_test",
         # the DataCube screenshot tour (docs/DATACUBE_TOUR.md, 2026-10-17): manual, run from time to time; its gallery
         # in the test's outputs
         "//datacube:tour_test",

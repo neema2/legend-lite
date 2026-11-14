@@ -25,26 +25,45 @@ public final class TypedQuery {
     private final com.legend.protocol.spec.ValueSpecification resolved;
     private final SpecCompiler specs;
     private @com.legend.base.Nullable List<TypedSpec> body;
+    /** Lite's own planning options this query is planned under (none unless asked for: {@link #withOptions}). */
+    private final java.util.Set<com.legend.platform.PlanOption> options;
 
     TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved) {
         this.ctx = ctx;
         this.resolved = resolved;
         this.specs = new SpecCompiler(ctx);
+        this.options = java.util.Set.of();
     }
 
     /** This query with {@code body} as its typed statements (a body the test door rewrote statement for statement, the
      *  places kept: {@code LetPlanner.unreadAsStatements}); the model, the resolved query and the spec compiler shared.
      *  An internal of the execution door's, public for the driver's tests as {@link #specs} is. */
     public TypedQuery withBody(List<TypedSpec> body) {
-        TypedQuery q = new TypedQuery(ctx, resolved, specs);
+        TypedQuery q = new TypedQuery(ctx, resolved, specs, options);
         q.body = List.copyOf(body);
         return q;
     }
 
-    private TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved, SpecCompiler specs) {
+    /** This query planned under lite's own planning options ({@link com.legend.platform.PlanOption}: each off unless
+     *  asked for -- the tests ask for {@code DETERMINISTIC_AS_OF}). */
+    public TypedQuery withOptions(java.util.Set<com.legend.platform.PlanOption> o) {
+        TypedQuery q = new TypedQuery(ctx, resolved, specs,
+                o.isEmpty() ? java.util.Set.of() : java.util.Collections.unmodifiableSet(java.util.EnumSet.copyOf(o)));
+        q.body = body;
+        return q;
+    }
+
+    /** The planning options this query is planned under. */
+    public java.util.Set<com.legend.platform.PlanOption> options() {
+        return options;
+    }
+
+    private TypedQuery(ModelContext ctx, com.legend.protocol.spec.ValueSpecification resolved, SpecCompiler specs,
+            java.util.Set<com.legend.platform.PlanOption> options) {
         this.ctx = ctx;
         this.resolved = resolved;
         this.specs = specs;
+        this.options = options;
     }
 
     /** The compiled model this query is typed against. */
@@ -243,7 +262,10 @@ public final class TypedQuery {
             throw new com.legend.error.NotImplementedException("a text plan is the statement that answers, and this"
                     + " query's execution plan " + (!plan.answers() ? "answers nothing"
                     : !plan.sendsTheAnswer() ? "answers a value the program wrote, sending no statement"
-                    : "is a program of steps (a write)") + ": run the execution plan");
+                    // (a reading plan is steps too where its statement's shared relations are made as tables first:
+                    // ClickHouse's, PR #81's staging -- main's #95 merged in, 2026-11-13)
+                    : "is a program of steps (a write, or a statement's shared relations made as tables ahead of"
+                    + " it)") + ": run the execution plan");
         }
         com.legend.compiler.element.type.ExprType root = resultType();
         com.legend.plan.ResultShape shape = switch (plan.answerShape()) {

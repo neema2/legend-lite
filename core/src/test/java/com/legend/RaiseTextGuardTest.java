@@ -49,7 +49,11 @@ class RaiseTextGuardTest {
             "lowering/Scalars.java", 1,
             // MongoDB's pipeline raises of a constant text (lite's own sentences, VALUE_NOT_HELD's family): D1.1 moves
             // them; until then counted here
-            "sql/dialect/MongoDb.java", 4);
+            "sql/dialect/MongoDb.java", 4,
+            // main 3a217086a (#81), joined at its merge into claude/total-wall-e (2026-11-14, the orchestrator's (a)):
+            // FrameGuard's window-frame check raises upstream's ORDER sentence and S170's SIGN text. TO CONVERT, D's:
+            // two RaiseKinds worded at the edge; this row goes when D's conversion is taken
+            "sql/dialect/FrameGuard.java", 1);
 
     @Test
     void everyProductRaiseIsAKind() throws IOException {

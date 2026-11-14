@@ -1299,10 +1299,12 @@ public final class ProtocolEmitter {
         b.append("{\"_type\":\"classInstance\",\"sourceInformation\":");
         srcInfo(b, span != null ? span : si.pos());
         b.append(",\"type\":");
-        str(b, si.language());
-        // the Cypher island's value is its text under "cypher" (docs/CYPHER_STUDY_2026_10_15.md §5.3)
-        b.append(si.language().equals(com.legend.protocol.spec.SqlIsland.CYPHER) ? ",\"value\":{\"cypher\":"
-                : ",\"value\":{\"sql\":");
+        str(b, si.language().opener());
+        // the text under its language's key ({@code sql}; the Cypher island's {@code cypher},
+        // docs/CYPHER_STUDY_2026_10_15.md §5.3)
+        b.append(",\"value\":{");
+        str(b, si.language().textKey());
+        b.append(':');
         str(b, si.sql());
         if (si.profile() != null) {
             // the IQ island's named profile (docs/IQ_SQL_STUDY_2026_10_13.md §5.3)

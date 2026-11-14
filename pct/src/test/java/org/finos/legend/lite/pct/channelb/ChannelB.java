@@ -286,6 +286,8 @@ public final class ChannelB {
      *  mode and upstream's spellings. */
     private static final com.legend.ExecuteOptions OPTIONS = com.legend.ExecuteOptions.NONE.withFeatures(java.util.Set.of(
                     com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
+            // the tests' planning options: as-of joins the same row on every database (PlanOption)
+            .withOptions(java.util.Set.of(com.legend.platform.PlanOption.DETERMINISTIC_AS_OF))
             // the walker-deletion program's measurement (2026-11-02): -Dpct.channelb.judge runs the
             // bodies under one judge, to read which shapes the program road plans for it
             .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.valueOf(

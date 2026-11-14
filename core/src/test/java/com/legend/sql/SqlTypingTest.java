@@ -24,6 +24,27 @@ class SqlTypingTest {
     }
 
     @Test
+    void aCastOfTextToANumberMayRaise() {
+        // #81's final review, item 14k (5), 2026-11-10: text read as a number, a decimal, a Boolean or a date raises on
+        // a text that spells none (parseFloat('x')), so no merge or prune may drop it as raising nothing
+        org.junit.jupiter.api.Assertions.assertFalse(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER)));
+        org.junit.jupiter.api.Assertions.assertFalse(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), new SqlType.Decimal(10, 2), SqlExpr.Reason.USER)));
+        org.junit.jupiter.api.Assertions.assertFalse(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), SqlType.Scalar.BOOLEAN, SqlExpr.Reason.USER)));
+        org.junit.jupiter.api.Assertions.assertFalse(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), SqlType.Scalar.DATE, SqlExpr.Reason.USER)));
+        // a number to a number, and anything to text, still raise nothing
+        org.junit.jupiter.api.Assertions.assertTrue(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.IntLit(1), SqlType.Scalar.DOUBLE, SqlExpr.Reason.USER)));
+        org.junit.jupiter.api.Assertions.assertTrue(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.IntLit(1), SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)));
+        org.junit.jupiter.api.Assertions.assertTrue(SqlExpr.raisesNothing(
+                new SqlExpr.Cast(new SqlExpr.StringLit("x"), SqlType.Scalar.VARCHAR, SqlExpr.Reason.USER)));
+    }
+
+    @Test
     void literalsAndCastsCarryTheirTypes() {
         assertEquals(SqlTyping.typed(SqlType.Scalar.VARCHAR),
                 t(new SqlExpr.StringLit("a")));

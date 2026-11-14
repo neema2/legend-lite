@@ -1,0 +1,239 @@
+# THE GS-QUANT ORACLE'S LEDGER (tools/gs-quant-oracle/README.md): each case of mapping.yaml, `<word> <args>`, its
+# gs-quant side (snap.py: OK, GS_ERROR, SKIP) and its lite side on DuckDB (//core:ts_gsquant_parity_test: PASS,
+# DIFF, REFUSED, GS_ERROR, SKIP), the register row a DIFF is ruled by, gs-quant's series' sha256 (snap.py: --check
+# holds a live run to it), a note (dup-span: the series covers a date with two rows of one line), and why. A
+# verdict moves only with the test's -Dts.gsquant.update, never by hand.
+# snapped under pins.env: GS_QUANT_VERSION=2.2.3;NUMPY_VERSION=2.5.4;PANDAS_VERSION=3.1.1;PYTHON_VERSION=3.12;SCIPY_VERSION=1.18.1;STATSMODELS_VERSION=0.15.0;TA_LIB_VERSION=0.6.8
+case	gsquant	duckdb	register	digest	note	why
+series performance A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series performance B	OK	PASS	-	a334e05cad4abbc2d08fb3cdebc3770d98806a86bc7a93574f73e713d10da3cd	-	1304 points
+series performance C	OK	PASS	-	8ddf55011971d07cf326da9839537d94ec7b79ae1c2f10f9d40e71e5c0ea69f1	-	1304 points
+series performance D	OK	PASS	-	3f7348de288ff8d845cc26a5babe4fd6e681be763da0cf30c6efbc40b8fcc32a	-	1304 points
+series performance E	OK	PASS	-	964dfb44275266cd578fbbc11b2386a6b4366dfb166e76c9604082e759b5df9b	-	1283 points
+series drawdowns A	OK	PASS	-	511ad19a44a13da5ed80ab8d6da97e564def6d3b1d4f3b5212e2d6557278ba5a	-	1304 points
+series drawdowns B	OK	PASS	-	3f305b81b8bd8380f422dcec1e4caf45ced15f9f80f3d678f058c592d7717690	-	1304 points
+series drawdowns C	OK	PASS	-	4facd8d6726409e08bb6e7bb6d00e43834f91e1c49e814f0c6b9d33bda654854	-	1304 points
+series vol-corr A	OK	PASS	-	db8b36c229f8ddfdb9fd4d8c77824cf861396f3edd3525c9c440d7955016446a	-	1241 points
+series vol-corr B	OK	PASS	-	e6c781878457065a70fea9a3ae1199074f7bcc9099659d4083ee923468e510c4	-	1241 points
+series vol-corr C	OK	PASS	-	e9e4db3df3450a5a10f59bb6aa484234e5ed403c35bb09f336736d58930d76f2	-	1241 points
+series vol-corr D	OK	PASS	-	65548fcda9bd25d9d39276e3e326640d6a86ac76b5cc440faa23cad3ae6b0903	-	1241 points
+series vol-corr E	OK	PASS	-	886cc1cb8ff539656950412e1f3e0386d6a94c622da6b6dc94e591230a7fe68d	-	1178 points
+series technicals A.open	OK	PASS	-	940e8c5d25d2cd3312a362356bcc66ab142c2507ec4fbbb085a438f33afbf353	-	1304 points
+series technicals A.high	OK	PASS	-	a7fe96e76842fc57337566e43f533c368b7f5828b33ef18cc8d3118b861c37b0	-	1304 points
+series technicals A.low	OK	PASS	-	ecc2cb41332d6f0560d401d8384478bee4735caf3c9f9f6316fb0e0c87872cab	-	1304 points
+series technicals A.close	OK	PASS	-	a0f27bc08e11a6a47a43702015a3ef6e88f054d45f71347a45d1b1b0b6b0187a	-	1304 points
+series technicals B.lower	OK	PASS	-	23b5ccabd29f9395a3a9932e7d86d0bfc47d7a1ec1f05d38d4604a29b046e432	-	1284 points
+series technicals B.upper	OK	PASS	-	a5d30a5d420c23bbfbef746a050f8666d952e4e43c91d5842b42987a3ca42925	-	1284 points
+series technicals B.width	SKIP	SKIP	-	-	-	gs-quant's answer has no width
+series technicals C	OK	PASS	-	7dca4944c87f34c008e019b06088f811b9f9236d01043f1d1a2ee5e2f6c054f9	-	1254 points
+series technicals D	OK	PASS	-	5a8fd457cf6cde3132fdecdf14d957a44fa8fcf005bff8871cd26a0dd0cfb12d	-	1104 points
+series technicals E	OK	PASS	-	2362ca93d982d6a297fda247123897d2dc27f64420d5f8d6a7161d49974ec9ed	-	1289 points
+series technicals F	OK	PASS	-	6e5731a339b1ad0b572160c5f699280d22c9f12e98aff0584c880188f4c4e6de	-	1304 points
+series curve B	OK	PASS	-	a230c6f9db58935d0e3768dc2e4adebdb8d762417bcd3d2ce87d318d8bb6a9e0	-	1304 points
+series bonds A	OK	PASS	-	3f7348de288ff8d845cc26a5babe4fd6e681be763da0cf30c6efbc40b8fcc32a	-	1304 points
+series bonds B	OK	PASS	-	6b5669ca115e0ed83bde0cc5db3cbb03e572d9581fd7c9e890a08aa6ead0aa6f	-	1304 points
+series bonds C	OK	PASS	-	5c6eb96a50bb836dd78917da0d9f313cd48750c95e091cff5c6d5c74b7d06149	-	1241 points
+series returns A	OK	PASS	-	a4ec84066018b70afde593ea9de01d28764d40911b6b20c427c32cc37e7e5c60	-	1303 points
+series returns B	OK	PASS	-	78509a1bd25156c811865620cc9ebe68d4e4c1566320fb5f73c323cf7a23a8b9	-	1303 points
+series diff-lag A	OK	PASS	-	8ddf55011971d07cf326da9839537d94ec7b79ae1c2f10f9d40e71e5c0ea69f1	-	1304 points
+series diff-lag B	OK	PASS	-	770c7b1d25f9af80d72f13488a98484ae3c8dc51bab03f502ef7e81fd688c2bf	-	1299 points
+series diff-lag C	OK	PASS	-	797aca643fe3eb36d6c613363f2333b09f1e165ea1fc663124c4727e34b2d64b	-	1299 points
+series compounded A	OK	PASS	-	b214cb9a1a732b3535483d5ee42681d8898c3dcde9b0c45378df84b4eb7294cc	-	1304 points
+series compounded B	OK	PASS	-	cea037c88f2639f088bd1ec8724bec2411f8596aaf1a79a058f8138db8ba4841	-	1304 points
+series compounded C	OK	PASS	-	07a35c55790ddfd14cb6c134139a3dccf036a99ae8822b007c4e283430dd0226	-	1303 points
+series annualize A	OK	PASS	-	03f4529fc4e6e60df7efe934e53cdfe342e7da35fc823e8856325902dd3ae9d9	-	1283 points
+series annualize B	OK	PASS	-	ab8416f7cc886ad5940b99d722cfb37504b7241f6fb607e8c4e7afb62a2f4cf6	-	1283 points
+series excess A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series excess B	OK	PASS	-	01dfd53c63cd11d6b1c59b31deb9da5303f21896540f9c12ebc05a5788541c83	-	1304 points
+series excess C	OK	PASS	-	a2380b260d34c6f3ccf2bc9fda9b21a55eea3536e685ef612ee44f8c36e67532	-	1304 points
+series excess D	OK	PASS	-	9407bf247f74558f512254899bacba3929d7de59ab449796129402cadddc73b0	-	1304 points
+series compounded-to-date A	OK	PASS	-	b5cdb0ee157abfb3df1ccf51122d3a9d6a335cc24dcae08ac0354f404d9e4d1f	-	1303 points
+series compounded-to-date B	OK	PASS	-	f9c23bb6cf3059f1d829416fc3c25bc5e7c64ac5071e9907b2afa66a0662d2f9	-	1303 points
+series total-return A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series total-return B	OK	PASS	-	8bd69278cdbdb2611b5c4474291d5df6fe519dfc6f964b1e88414f8fdc53c714	-	1304 points
+series rebase A	OK	PASS	-	a2c3c8ed4a1ce464db6a9f88bbd7970d263da3e17e1d9d087587ea46c27486cb	-	1304 points
+series rebase B	OK	PASS	-	51b9f028927dbfb43a552bf29f1dcdf2310c1ffdf88876a4ea8cf7080ff914dc	-	1304 points
+series rebase C	OK	PASS	-	07b64559d24b5560b969ed867ba53325d2026dbe93c223e676d8ce3f95a8c252	-	1304 points
+series rebase D	OK	PASS	-	f1e3e30230d3250a9d8fcdb9343ae1aa45c3aa826ddef8540fefea62e0e3ef36	-	1304 points
+series index A	OK	PASS	-	7f197c64748b0b3b17d1ad5b37622b986012b32528ae53c3ef281c40f29a1b0e	-	1304 points
+series index B	OK	PASS	-	f733064dcbb2c8d9f1faeded6086c17373a88fc918cd83d1d0237c4a4bd09d2d	-	1304 points
+series change A	OK	PASS	-	daba6a43b6c606c6b7e4b0b36c8e8e872f266faa5eeb6065c29e467702fa179f	-	1304 points
+series change B	OK	PASS	-	bef2e87ef71a4edf6337b0f17d66d875a4a21dc4085739b43417437e11e0180e	-	1304 points
+series percent-change A	OK	PASS	-	32bb8d0992c42f41631df4ba55856f0f9e2de307faa9ef656814a599e1107426	-	1304 points
+series percent-change B	OK	PASS	-	4ea7ca2e35bcd0af907f1753115110ea34dd923ae1fca76630448dc0600ce640	-	1304 points
+series percent-change C	OK	PASS	-	c6b2a6ff0973bce6d038d75c02528841d276ee9687228fc2544d69ab0366c896	-	1304 points
+series mean A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series mean B	OK	PASS	-	802794b18034b17cc44db2464a279d3e4bce259a8c1c77be5ed63f896f04962f	-	1254 points
+series mean C	OK	PASS	-	738aa5d5d86e59d9cb9cac832c93ea62acd24e2fb3ada4fc75315ad23a756268	-	1104 points
+series min-max-range A	OK	PASS	-	82378d741aef0b27edb6b7d5a317ab424cb699af1d1a166d33f31d0200be5be5	-	1304 points
+series min-max-range B	OK	PASS	-	44b2144c52872e05ea7b00b43e83fddd8f1f6fe78ec7513396e2b421bc07d4e8	-	1052 points
+series min-max-range C	OK	PASS	-	0a29e066b485693793382cd64c06bfc2ddae6fd2ba32a4a5fdae05e12f65a7b3	-	1052 points
+series min-max-range D	OK	PASS	-	e575211c0a0eba8a13d7389e0aaac65b3fd71ca06c75aaa002a9cb7da56efb4d	-	1052 points
+series sum A	OK	PASS	-	8c5cd5e5dd5350e545731d93444c3ae03f775158eadc8387a62c9ceebfec43db	-	1283 points
+series sum B	OK	PASS	-	c37c9f859f72322ab534acfca8224bc5c59f3e6ee4be4408b359d403bf93c683	-	1304 points
+series std-var A	OK	PASS	-	3d75c4919c50326667725ba5fa695b1de53b5110f2ccc2b401e1530a993a3c8b	-	1241 points
+series std-var B	OK	PASS	-	6d74f643a5c626713c3e226e575146120649a6539e45729acb56e097aeafa7a3	-	1241 points
+series zscores A	OK	PASS	-	e68d65ecfe3c8c0d22c4d8517a2a2da0e958d40954123d06f69da8c5098f3099	-	1241 points
+series winsorize B	OK	PASS	-	6f9ff878d44135cf61635063abf8474f52da603139a0ebeb87c438ea8054aafb	-	1303 points
+series exponential A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series exponential B	OK	PASS	-	8487789d1a0715855c1ffdf99eeecc431b47fc6a5a95d36b696357f69077e6fa	-	1304 points
+series exponential C	OK	PASS	-	10f31068da5fd0015760bc658eb49807438f8c05ae0458edc21694771a4b8cda	-	1284 points
+series exponential D	OK	PASS	-	d73874291ec9b3e67822425fce466d343e79e6e1bd6aff6149c414a498f8874f	-	1303 points
+series percentiles A	OK	PASS	-	8ddf55011971d07cf326da9839537d94ec7b79ae1c2f10f9d40e71e5c0ea69f1	-	1304 points
+series percentiles B	OK	PASS	-	b2af7fd547417b5209742b722682fca80ff9a30c48681b0f228af5b8e0490127	-	1042 points
+series percentiles C	OK	PASS	-	178decd4a238462b5fc7e74db391506c67e954fa5bb76a06367ed47f8dacb0f1	-	1042 points
+series percentiles D	OK	PASS	-	f58545613a6828f682f6fedaddb95b8430334bff1eaa4569847a6c4476121526	-	1042 points
+series product-streaks A	OK	PASS	-	e18f198433b65e50fb1b85a5bed1fe7be5aac8b698269cd93e29a6a184400e4b	-	1299 points
+series product-streaks B	OK	PASS	-	432984a91adde8e7adbb8e25ff7802fc4cf109bfb4a7baf464de9aaf96ae4dde	-	1304 points
+series product-streaks C	OK	PASS	-	77e14735eaf03b2a3732332eaa7d4ff90330f2b49cfd8bf0c7173b4a28af3897	-	1304 points
+series ramp A	OK	PASS	-	28a5456853210ec3cbd3ebedddfe7183cb34f800c54303328203b25f49c0949c	-	1304 points
+series ramp B	OK	PASS	-	4ea73a79855d83ff747f93d15476d81fc45a68c4b8a502e794ca9e42315b0fed	-	1299 points
+series ramp C	OK	PASS	-	c131af3eea3c448d38a7f7eaf26ab20c30bb7d904e3153eb2b1e7eab21fc57ad	-	1293 points
+series volatility A	OK	PASS	-	964dfb44275266cd578fbbc11b2386a6b4366dfb166e76c9604082e759b5df9b	-	1283 points
+series volatility B	OK	PASS	-	db8b36c229f8ddfdb9fd4d8c77824cf861396f3edd3525c9c440d7955016446a	-	1241 points
+series volatility C	OK	PASS	-	bd225d31508a83eff5e7f153b991ba77623b55c16fb2e750fce787fc0e181156	-	1052 points
+series drawdown A	OK	PASS	-	3f305b81b8bd8380f422dcec1e4caf45ced15f9f80f3d678f058c592d7717690	-	1304 points
+series drawdown B	OK	PASS	-	e4c85fec605b3e9b761c7fe1e18898cbaceeabc07da01a0162f5e7e8de636d97	-	1304 points
+series sharpe A	OK	PASS	-	1bca23301e4a4bea1dfe2b27e0146f87113007ea5d9f9fbbec469aae79776b01	-	1051 points
+series sharpe B	OK	PASS	-	bceed011dcfa1fa06dc9de9dbbe6b0ade95ac30e8d0ef450153188c0291a3aa6	-	1051 points
+series sharpe C	OK	PASS	-	cf15147fed9c5211a5de84efb2196a90512c8a2bb7925f8fe9a7ed4b8d761e9e	-	1051 points
+series max-drawdown-year A	OK	PASS	-	3e58c6d4268214f40064371a92a684a740a8281b4b7909b72216d5d2c16f6bb4	-	1052 points
+series max-drawdown-year B	OK	PASS	-	c89be2345edc028721579e53e7a057ac4e8a21cd5bfa88c3a10dd41191bf8e80	-	1052 points
+series exponential-volatility A	OK	PASS	-	d0748b7ea7eb80e1aca74797c9e17b88cd0fdcab994f952ba9f46fc4aac25617	-	1302 points
+series exponential-volatility B	OK	PASS	-	db8b36c229f8ddfdb9fd4d8c77824cf861396f3edd3525c9c440d7955016446a	-	1241 points
+series exponential-volatility C	OK	PASS	-	c20dec7add556bcf9ddf2d4685b61df8e8b26aaca6d6cc0e6148b95b02c3c129	-	1302 points
+series vol-swap A	OK	PASS	-	aa967b2b4afed5c71bf51d1a5f49b778d7701e7381f26fb3a6bee3b9e301f51c	-	1284 points
+series vol-swap B	OK	PASS	-	964dfb44275266cd578fbbc11b2386a6b4366dfb166e76c9604082e759b5df9b	-	1283 points
+series benchmark A	OK	PASS	-	26c205cd7ae7b23fe15956b7ffa5e73f03f579f9420746f9cb285dde7d7544eb	-	1241 points
+series benchmark B	OK	PASS	-	3c5063ab66f75b160c9e46a0549d13a2ff3b8887fe88c76797532a1ce0d73f5f	-	1241 points
+series capture A	OK	PASS	-	744467dd75d968236ddc4cbb398841f307ed475205276762b8f18f5bacae309b	-	1052 points
+series capture B	OK	PASS	-	6aa5ddd0fde676ae9737369a5889798b52336eb42e0f1b47782453f2ab64ad68	-	1052 points
+series correlation A	OK	PASS	-	65548fcda9bd25d9d39276e3e326640d6a86ac76b5cc440faa23cad3ae6b0903	-	1241 points
+series correlation B	OK	PASS	-	1c93aad2a25de34de7164698e311473581a1abb235def1a337655499a348dca3	-	1241 points
+series beta A	OK	PASS	-	ce98ac1279dc50d197250c6ded00a996abc17e97fee8ba12206a9fbcdd006432	-	1178 points
+series beta B	OK	PASS	-	d64533b670d7237dee42f3d8404682ad240fb50f8a3ecc2282c7a56ca83e225c	-	1178 points
+series beta C	OK	PASS	-	886cc1cb8ff539656950412e1f3e0386d6a94c622da6b6dc94e591230a7fe68d	-	1178 points
+series cov A	OK	PASS	-	5803132f26198d799f9ee424d4883a52207d32c24c80c39aac89e00110770969	-	1241 points
+series regression A	OK	PASS	-	b1d7f7901d007e90944a96a6243703dd96aeafc1fcbd7716b0efb16eb2a3a17b	-	1178 points
+series regression B	OK	PASS	-	8165e83d10cef16cc75233effe2cd058c17ec45d6e6301a72b85848ed50ad8a8	-	1178 points
+series regression C	OK	PASS	-	ae2b8346a86af2bfd19f23df2d5134eefb449f4a2f0e76f4eba6a2a84158ae61	-	1179 points
+series regression D	OK	PASS	-	99136d7c75d334ea4d625913c1dc60629db8c90002457aaf2ab4b1969c1e0001	-	1179 points
+series pair A	OK	PASS	-	c678a9ef6af8a55a330b37b5cb8274c74c61d8e14a804de0a7c6fd786bd3bb70	-	1304 points
+series pair B	OK	PASS	-	4bb143c01e0f4685c3de5b0cb97a29b93c39fbab97d78d3916cffd15b0ae8ba0	-	1178 points
+series lead-lag A	OK	PASS	-	2ddb09adb5814714bcd360af94a12109ad0ff446973bb75607687babc67353e9	-	1240 points
+series lead-lag B	OK	PASS	-	83bf902df3c12a3c9d716d49371413e7b035309b7fec646dfdcfcce476006f29	-	1240 points
+series reversion A	OK	PASS	-	c678a9ef6af8a55a330b37b5cb8274c74c61d8e14a804de0a7c6fd786bd3bb70	-	1304 points
+series reversion B	OK	PASS	-	f03489879a2839190c398fe1c8213f6e8b49e4daf3ee6e282470136793a4de98	-	1052 points
+series reversion C	OK	PASS	-	bb19e879a5d3d5a67af0dcc78af88c6033d89db5021e33ff99fac43cdfab8020	-	1052 points
+series bollinger A	OK	PASS	-	8ddf55011971d07cf326da9839537d94ec7b79ae1c2f10f9d40e71e5c0ea69f1	-	1304 points
+series bollinger B.lower	OK	PASS	-	bbcbd579e3f0cd79483a6e4d2aff46421637654f94f605d17c643786dac895e0	-	1284 points
+series bollinger B.upper	OK	PASS	-	6a0fa64983eb71c19f1e8bf466cd79c8156a7b2f76d5e2aad041546e19047a0c	-	1284 points
+series bollinger B.width	SKIP	SKIP	-	-	-	gs-quant's answer has no width
+series bollinger C	OK	PASS	-	aff177fd55e889255d208a36e9cfc67cc54066bc60e33b92450fb2eae86d3134	-	1284 points
+series rsi A	OK	PASS	-	78d0c105e72da3f50e196c5d17c02133796f36a801d0877f1ddb18bf05ed36c0	-	1304 points
+series rsi B	OK	PASS	-	5b7ef93d6ab4c4074377daf79523636ff4432c7ad6f59052518cacdb1c666424	-	1289 points
+series candles-volume A.open	OK	PASS	-	6777db9f09c636fe72872da6a4d78abcb95915dac5d84f6a31b6dd9f4871f3ed	-	1304 points
+series candles-volume A.high	OK	PASS	-	a8fb474a31efbbd58776817841b80856e7825bf0eeb24e0f13c404a7648882e8	-	1304 points
+series candles-volume A.low	OK	PASS	-	d697d58b6849d13bbf677d365378e89196c760c867483d44c6957c7743abca73	-	1304 points
+series candles-volume A.close	OK	PASS	-	82378d741aef0b27edb6b7d5a317ab424cb699af1d1a166d33f31d0200be5be5	-	1304 points
+series candles-volume B	OK	PASS	-	9c2666dcc5984d1547d10ac1d4b535b5226a794c41f970f4ad4a7e58b981140a	-	1304 points
+series macd A	OK	PASS	-	41054f9f4f0fcb821006226f1db97ff1bae52d1a083e12d80a4754abc02d9e7c	-	1304 points
+series macd B	OK	PASS	-	2080ec80fd263da7f6fa37de0b5f8f1009c7a01c34820615aaaf63d920b22500	-	1304 points
+series macd C	OK	PASS	-	9dd1f311ae235fc3942e1911ed70c05d59aef23bcfb56ac3553780e7ba8f0c03	-	1304 points
+series atr-stochastic A	OK	PASS	-	78d0c105e72da3f50e196c5d17c02133796f36a801d0877f1ddb18bf05ed36c0	-	1304 points
+series atr-stochastic B	OK	PASS	-	12c3285389578ba2f04127096d03cdc960dafc718c2031b0acc9c1ea41869775	-	1290 points
+series atr-stochastic C	OK	PASS	-	1fb9e99211e2c199baa72dcd33455babe6238d25776b0067bbc6345767441613	-	1291 points
+series channels A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series channels B.lower	OK	DIFF	sentence	ad12d01fc10a1b9418939a0423dcfc5b0391ec8430742b2f3d38ab9a0c3ea92e	-	1285 points | lite: 1285 gs-quant points, 1285 lite's; 148 dates apart (worst absolute 16.812291722251302), 0 gs-quant's alone, 0 lite's alone; 2020-01-29: gs-quant 3054.893578329872, lite 3071.7058700521234; 2020-01-30: gs-quant 3060.516322877838, lite 3075.7274439598746; 2020-01-31: gs-quant 3065.1117356013915, lite 3078.8741784851395
+series channels B.upper	OK	DIFF	sentence	c9ab55f8ca6fa5f72f661df2ab3bf477f66f3c6895ce0488414736046a594792	-	1285 points | lite: 1285 gs-quant points, 1285 lite's; 147 dates apart (worst absolute 16.812291722251302), 0 gs-quant's alone, 0 lite's alone; 2020-01-29: gs-quant 3247.2294216701284, lite 3264.0417133923797; 2020-01-30: gs-quant 3247.5225818840677, lite 3262.7337029661053; 2020-01-31: gs-quant 3254.165368706999, lite 3267.927811590747
+series channels B.width	OK	PASS	-	4865a5ff82371d009354fb095fc77480d6449c093d592c4ab7d06926e7b88a3f	-	1285 points
+series channels C.lower	OK	PASS	-	ced6b639a4683c722e13d2646edeb905f1777b8010623cd053d1c96edfb8231e	-	1285 points
+series channels C.upper	OK	PASS	-	61b5aec92caaf347aac66d5797d783832c2b4d99ef9c5cba8c7351f62dbd6c9d	-	1285 points
+series channels C.width	OK	PASS	-	d4f70d1c124366ec3e44daf63d55883d50e6b83a6891043ad071e9e327834cbf	-	1285 points
+series volume-flow A	OK	PASS	-	a0f27bc08e11a6a47a43702015a3ef6e88f054d45f71347a45d1b1b0b6b0187a	-	1304 points
+series volume-flow B	OK	PASS	-	bf7c65c06324338978b1343b1c02c3a7cc7ce52c03e3685b6d3ae1aa533c17b6	-	1285 points
+series volume-flow C	OK	DIFF	sentence	8213ef0ff2677c3c4f917fe57f5c4717202c3531d557b354c95bee2e945d85d4	-	1304 points | lite: 1304 gs-quant points, 1304 lite's; 1304 dates apart (worst absolute 6.6238231E7), 0 gs-quant's alone, 0 lite's alone; 2020-01-02: gs-quant 6.6238231E7, lite 0.0; 2020-01-03: gs-quant -2.3380616E7, lite -8.9618847E7; 2020-01-06: gs-quant 3.9644323E7, lite -2.6593908E7
+series log-exp A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series log-exp B	OK	PASS	-	1bfb568c9da7c6c57bd26f67f6aa23b04c06f75412ca6d753ef6aea9f64fdf04	-	1304 points
+series log-exp C	OK	PASS	-	85f9bef0bcbf6ca524ab5ce3f2d390e85860034dac6162a0fb09c6585935323c	-	1304 points
+series sqrt-power A	OK	PASS	-	3d75c4919c50326667725ba5fa695b1de53b5110f2ccc2b401e1530a993a3c8b	-	1241 points
+series sqrt-power B	OK	PASS	-	3d75c4919c50326667725ba5fa695b1de53b5110f2ccc2b401e1530a993a3c8b	-	1241 points
+series sqrt-power C	OK	PASS	-	0221579dabeb1956b9ea14cf5a021978fcda73a5e675a5ca371599509e0ea335	-	1241 points
+series abs A	OK	PASS	-	2eec6079cf30f937dafc021ec5ecfaa238eed1fc7c609deabd423af63ddacc60	-	1303 points
+series abs B	OK	PASS	-	59808dac8ca0fb2c802d311e55d871a5536bf39d935fabd700efa4b4fc5be298	-	1283 points
+series floor-ceil A	OK	PASS	-	42860ca971d9f5c88bde1e6732d3835450f767b5c90f8f1bf6430e0421d8e776	-	1241 points
+series floor-ceil B	OK	PASS	-	765daa33c3344ff377132e085ffb5d0b6de734184d47ba52bd7ae0c8ef9aef79	-	1241 points
+series if-compare A	OK	PASS	-	25bcced1435a7c24df2408b48cbabac539f354541802fcc6f777e2149132d24e	-	1104 points
+series if-compare B	OK	DIFF	S145	71111af88e919885d700484f270d2f7d87d970b2d2752d7597821493a7ad5576	-	1304 points | lite: 1304 gs-quant points, 1304 lite's; 200 dates apart (worst absolute 1.0), 0 gs-quant's alone, 0 lite's alone; 2020-01-02: gs-quant -1.0, lite 0.0; 2020-01-03: gs-quant -1.0, lite 0.0; 2020-01-06: gs-quant -1.0, lite 0.0
+series if-compare C	OK	PASS	-	2d4fa871c1470c9bf9f16d861c0d83c2adb19499095e717478404e514c096045	-	1104 points
+series filter-smooth A	OK	PASS	-	a6cdd0e8e38ae3b0521a284042ffd621b069cf97394523765f5ee72bebd03a0a	-	1192 points
+series filter-smooth B	OK	PASS	-	b9e7a3e4917ac687232e0dc899a7c128646ae45c04cd519b99374b144246a644	-	1302 points
+series filter-smooth C	OK	PASS	-	2986116f0baa9a727593e1ec3533afee375b80f5bf14f3d1c21a04f8d4e1911a	-	1304 points
+series basket A	OK	PASS	-	2186c861ca1d309a76377a27de78f99a3e18ec7a72a497e32b6aab43d31b2a0b	-	1304 points
+series basket B	OK	PASS	-	7ccce54397b80b761bc014604fb3a513873a06e7f08cd4cd2d405d8aad4be73e	-	1304 points
+series interpolate A	OK	PASS	-	e66455d6fe784597f14be3e20a6c3ccae7be838159e9f05235e9b74887f8c6ef	-	1304 points
+series interpolate B	OK	PASS	-	6c4f3c2c92255e83595c0aa15475e148ba1a6dc33543a94afee9f83b58aa6d83	-	120 points
+series splice A	OK	PASS	-	fa5cd937bf126e5a60fa92e7aa80ffc513109794f66f58fdefcb1cef1965fe86	-	1304 points
+series splice B	OK	PASS	-	fa5cd937bf126e5a60fa92e7aa80ffc513109794f66f58fdefcb1cef1965fe86	-	1304 points
+series splice C	OK	PASS	-	7c78c933285ca73ff4045077084686c9ce80c063dc51d9649d9adfff3b267f41	-	1304 points
+series calendar A	OK	PASS	-	19149c4d1fbe61a6eb78da403afcf766e21c280a0c6b00fbe5693d15c3a5d1ac	-	1304 points
+series calendar B	OK	PASS	-	bf3d38d4dc87b035920349c746297eb48f7810d94972c7930d80e66e695e7586	-	1304 points
+series calendar C	OK	PASS	-	2d6b56bd153f3b18d7a89f36bc63741b58d0dbc3bf378163170308750ba46b56	-	1304 points
+series calendar D	OK	PASS	-	a66e4e6ef8b309303a36d19ef81a3efe11a21f46e49a168054cdf1c2f88ca285	-	1304 points
+series calendar E	OK	PASS	-	2735e1969d73c838b1497e0788c95b96c5cbdec2c47c36000e5f9f72c6368b85	-	1304 points
+series first-last-count A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series first-last-count B	OK	PASS	-	2f17932b743ffb9c56222ab861fcbfdd4a5c4411cb83f65910f08c134f86c5ec	-	1304 points
+series first-last-count C	OK	PASS	-	eea6c851432c47341cffb3257c1ad49cc5ea7a710309aa7ee30f64a48920e162	-	1304 points
+series first-last-count D	OK	PASS	-	9555fe2a09abfd3b6390657d6416da40fb277b6bfb0befbbb7bc229be4d84a8b	-	1304 points
+series log-scale A	OK	PASS	-	78d0c105e72da3f50e196c5d17c02133796f36a801d0877f1ddb18bf05ed36c0	-	1304 points
+series log-scale B	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series compare A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series compare B	OK	PASS	-	3f7348de288ff8d845cc26a5babe4fd6e681be763da0cf30c6efbc40b8fcc32a	-	1304 points
+series compare C	OK	PASS	-	8ddf55011971d07cf326da9839537d94ec7b79ae1c2f10f9d40e71e5c0ea69f1	-	1304 points
+series compare D	OK	PASS	-	92b28295c85e9a386133ba992cac06ea678d9d826ed14badab5f800a9d4e61d9	-	1304 points
+series styles A	OK	PASS	-	79bfacbe20c4c104dd62ef26310b42ce0bd31574aa21414098e1e7b6407886d9	-	1304 points
+series styles B	OK	PASS	-	c492559834cbd62ec5457db517c6466f076319725f9210eebd52a5ac0eadd822	-	1283 points
+series styles C	OK	PASS	-	3666f6f038ee940cc63651f02e1dca57abbad55a9947e5264109d101c7d19e78	-	1283 points
+series styles D	OK	PASS	-	70ed8d6f8f2d5e1ab6e5f422741920cc7d90d1430da1cdcc7d1f370abb603720	-	1303 points
+series styles E	OK	PASS	-	7191487d3715d2aabcea14339c65ac92e6f6bd5f36dd48ae139a9087e8a8a20c	-	1304 points
+series condition A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series condition B	OK	PASS	-	6839af0ac29291d16005cccc9ab84d60202dabf7d57123d0badf42c86f51ac05	-	1304 points
+series condition C	OK	PASS	-	a230c6f9db58935d0e3768dc2e4adebdb8d762417bcd3d2ce87d318d8bb6a9e0	-	1304 points
+series two-grids A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series two-grids B	OK	PASS	-	20a9c87c9221d4af4b5b488d5035786231cc02774e977b49ff27492e0e4f85ad	-	1304 points
+series two-grids C	OK	PASS	-	94f0113deaf3436c9f80a249230ba4d263a0fad9eaabb3a1c5e20d87ac455977	-	1241 points
+series view-scatter A	OK	PASS	-	a4ec84066018b70afde593ea9de01d28764d40911b6b20c427c32cc37e7e5c60	-	1303 points
+series view-scatter B	OK	PASS	-	c0929acb573fe092d0f77909ca7a317be13b9e12d8d3b234a792dde55cdecf46	-	1303 points
+series view-histogram A	OK	PASS	-	a4ec84066018b70afde593ea9de01d28764d40911b6b20c427c32cc37e7e5c60	-	1303 points
+series projected A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series drawn A	OK	PASS	-	aae225baacf9e94b6a9805ff13fc8bc77d683e2fcb71f4f5a060d8bb380969a0	-	1304 points
+series curve A	SKIP	SKIP	-	-	-	the tile's a split by tenor: none of gs-quant's call
+series compounded A from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series rebase A from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series rebase B from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series rebase C from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series rebase D from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series index A from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series index B from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series change A from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series change B from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series percent-change A from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series percent-change B from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series percent-change C from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series decompose A	SKIP	SKIP	-	-	-	the tile's a frequency (month): none of gs-quant's call
+series decompose B	SKIP	SKIP	-	-	-	the tile's a frequency (month): none of gs-quant's call
+series decompose C	SKIP	SKIP	-	-	-	the tile's a frequency (month): none of gs-quant's call
+series winsorize A	SKIP	SKIP	-	-	-	DataCube's own spelling, no call of gs-quant's: ToDate()
+series cross-section A	SKIP	SKIP	-	-	-	the tile's a split by symbol: none of gs-quant's call
+series candles-weekly A.open	SKIP	SKIP	-	-	-	the tile's a frequency (week): none of gs-quant's call
+series candles-weekly A.high	SKIP	SKIP	-	-	-	the tile's a frequency (week): none of gs-quant's call
+series candles-weekly A.low	SKIP	SKIP	-	-	-	the tile's a frequency (week): none of gs-quant's call
+series candles-weekly A.close	SKIP	SKIP	-	-	-	the tile's a frequency (week): none of gs-quant's call
+series filter-smooth C from 2022-03-15	SKIP	SKIP	-	-	-	the tile's a base date shown (2022-03-15): none of gs-quant's call
+series align A	SKIP	SKIP	-	-	-	the tile's an alignment (step): none of gs-quant's call
+series align B	SKIP	SKIP	-	-	-	the tile's an alignment (step): none of gs-quant's call
+series split A	SKIP	SKIP	-	-	-	the tile's a split by symbol: none of gs-quant's call
+series monthly A	SKIP	SKIP	-	-	-	the tile's a frequency (month): none of gs-quant's call
+series monthly B	SKIP	SKIP	-	-	-	the tile's a frequency (month): none of gs-quant's call
+series view-seasonality A	SKIP	SKIP	-	-	-	the tile's a frequency (week): none of gs-quant's call
+series view-curve A	SKIP	SKIP	-	-	-	the tile's a split by tenor: none of gs-quant's call

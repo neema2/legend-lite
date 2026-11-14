@@ -41,19 +41,50 @@ public final class SignatureMangle {
 
     /** The engine id of {@code def}. */
     public static String mangle(Function def) {
+        // a user function's relation parameter spells its columns (register S146, the user's 2a, 2026-11-03), so two
+        // overloads that differ only in a column's type are two functions, ranked by m3's RelationTypeMatch. A native
+        // keeps upstream's id, which spells a relation's raw type alone, and so does every function of upstream's own
+        // namespace, meta::, bodied or native: its id is legend-pure's (the catalog and the census compare it with the
+        // pinned sources; the A2 gate found average, zScore and joinStrings spelled with their columns, 2026-11-03)
+        return mangle(def, !(def instanceof NativeFunctionDefinition) && !def.qualifiedName().startsWith("meta::"));
+    }
+
+    /** {@code def}'s tail as legend-pure spells it ({@code FunctionDescriptor}: a relation its raw type alone) --
+     *  the same as {@link #tail} for a function with no relation parameter of named columns (S146). */
+    static String upstreamTail(Function def) {
+        return mangle(def, false).substring(def.qualifiedName().length());
+    }
+
+    private static String mangle(Function def, boolean columns) {
         StringBuilder id = new StringBuilder(def.qualifiedName());
         if (def.parameters().isEmpty()) {
             id.append('_');
         }
         for (var p : def.parameters()) {
-            segment(id, p.type(), p.multiplicity());
+            segment(id, p.type(), p.multiplicity(), columns);
         }
-        segment(id, def.returnType(), def.returnMultiplicity());
+        segment(id, def.returnType(), def.returnMultiplicity(), false);
         return id.toString();
     }
 
-    private static void segment(StringBuilder id, TypeExpression type, Multiplicity mult) {
-        id.append('_').append(typeId(type)).append('_').append(multId(mult)).append('_');
+    private static void segment(StringBuilder id, TypeExpression type, Multiplicity mult, boolean columns) {
+        id.append('_').append(typeId(type));
+        if (columns && type instanceof TypeExpression.Generic g) {
+            for (TypeExpression a : g.arguments()) {
+                // a relation's columns; a column specification's concrete column ({@code ColSpec<(?:All)⊆T>}: the
+                // left of its ⊆), so its overload by the column's type is another function too (S146)
+                TypeExpression row = "Relation".equals(typeId(g)) ? a
+                        : a instanceof TypeExpression.SchemaAlgebra sa && sa.op() == TypeExpression.Op.SUBSET
+                                ? sa.left() : null;
+                if (row instanceof TypeExpression.RelationType r) {
+                    id.append('$');
+                    for (TypeExpression.Column c : r.columns()) {
+                        id.append(c.name()).append('~').append(typeId(c.type())).append('$');
+                    }
+                }
+            }
+        }
+        id.append('_').append(multId(mult)).append('_');
     }
 
     /** The raw simple name — a type parameter is its own name; a function
@@ -121,6 +152,17 @@ public final class SignatureMangle {
                 Function d = def.apply(c);
                 if (d != null && ref.equals(ref.substring(0, i) + tail(d))) {
                     exact.add(c);
+                }
+            }
+            // a reference in legend-pure's own spelling (a relation parameter its raw type alone, S146): the
+            // declarations it spells, exactly -- two overloads that differ only in a column's type are both, for the
+            // caller to refuse as ambiguous
+            if (exact.isEmpty()) {
+                for (F c : cands) {
+                    Function d = def.apply(c);
+                    if (d != null && ref.equals(ref.substring(0, i) + upstreamTail(d))) {
+                        exact.add(c);
+                    }
                 }
             }
             if (!exact.isEmpty()) {

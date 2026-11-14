@@ -3,6 +3,7 @@
 
 package com.legend.sql.dialect;
 
+import com.legend.sql.DialectCapability;
 import com.legend.sql.OutputCol;
 import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
@@ -248,6 +249,11 @@ final class WindowAggregatesAsCorrelated extends SqlRewriter {
                     throw new IllegalStateException("an interval bound passed rewritable()");
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing ignored ->
                     throw new IllegalStateException("an interval bound passed rewritable()");
+            // MariaDB takes no computed frame offset (MariaDb.computedOffset, measured 2026-10-31)
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding ignored -> throw new DialectCapability(
+                    "a window frame offset the database computes reached MariaDB's correlated window");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing ignored -> throw new DialectCapability(
+                    "a window frame offset the database computes reached MariaDB's correlated window");
         };
     }
 

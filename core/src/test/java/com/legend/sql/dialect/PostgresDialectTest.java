@@ -50,6 +50,22 @@ class PostgresDialectTest {
     }
 
     @Test
+    void aConditionThatRaisesIsABooleanThere() {
+        // a filter whose condition IS fail(...) (the timeseries library's refusals): Postgres's raise is text, which a
+        // WHERE refuses ("argument of WHERE must be type boolean", B1 2026-11-06); there it is raised as a boolean
+        String sql = plan("->filter(r|fail('no'))");
+        assertTrue(sql.contains("AS VARCHAR) AS BOOLEAN)"), sql);
+        // and an operand of AND, which Postgres requires to be boolean as well ("argument of AND must be type boolean")
+        String and = plan("->filter(r|($r.qty > 1) && fail('no'))");
+        assertTrue(and.contains("AS VARCHAR) AS BOOLEAN)"), and);
+        // NOT's operand and a CASE's condition too (the third review's finding 7, 2026-11-07)
+        String not = plan("->filter(r|!fail('no'))");
+        assertTrue(not.contains("NOT CAST(") && not.contains("AS VARCHAR) AS BOOLEAN)"), not);
+        String when = plan("->extend(~k: r|if(fail('no'), |1, |2))");
+        assertTrue(when.contains("WHEN CAST(") && when.contains("AS VARCHAR) AS BOOLEAN)"), when);
+    }
+
+    @Test
     void aggregatesDeliverTheirDeclaredKinds() {
         // avg(int) is numeric on Postgres: cast to the platform's DOUBLE; median and
         // mode are ordered-set aggregates

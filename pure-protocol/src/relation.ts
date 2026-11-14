@@ -189,7 +189,7 @@ export class Relation {
     return this.#then('lateral', each);
   }
 
-  /** `->pkg::f(args)`: a function of the relation by its path -- a library's (DataCube's datacube::ts::*), the relation
+  /** `->pkg::f(args)`: a function of the relation by its path -- a library's (DataCube's timeseries::*), the relation
    *  its first parameter. */
   call(function_: string, ...args: ValueSpecification[]): Relation {
     return this.#then(function_, ...args);

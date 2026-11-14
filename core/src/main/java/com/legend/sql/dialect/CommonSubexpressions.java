@@ -272,7 +272,7 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
             return known;
         }
         boolean ok = switch (e) {
-            case SqlExpr.Call c -> !RAISING.contains(c.fn());
+            case SqlExpr.Call c -> !SqlFn.RAISING.contains(c.fn());
             case SqlExpr.Cast c -> c.target() != SqlType.Scalar.JSON;
             case SqlExpr.CheckedOne c -> false;
             case SqlExpr.CheckedDefects c -> false;
@@ -345,8 +345,4 @@ final class CommonSubexpressions extends com.legend.sql.SqlRewriter {
         return false;
     }
 
-    /** The calls that raise (or answer a fresh value) when evaluated: never moved out of a branch. */
-    private static final Set<SqlFn> RAISING = Set.of(SqlFn.ERROR, SqlFn.PARSE_INT, SqlFn.PARSE_DATE, SqlFn.ACOS,
-            SqlFn.ASIN, SqlFn.ADD_INTERVAL, SqlFn.ADD_INTERVAL_TEMPORAL, SqlFn.STRPTIME, SqlFn.GUID, SqlFn.TIMEZONE,
-            SqlFn.MAKE_DATE, SqlFn.MAKE_TIMESTAMP);
 }

@@ -409,9 +409,9 @@ Database types planned with it: SQLite.
 | `MIN` | spelled | `MIN` |  | 11 |
 | `MAX` | spelled | `MAX` |  | 11 |
 | `ANY_VALUE` | emulated | `aggregateArgs: min(…)` |  | 0 |
-| `STDDEV_SAMP` | emulated | `aggregateArgs: stdev(…)` |  | 2 |
+| `STDDEV_SAMP` | emulated | `aggregateArgs: (CASE WHEN count(…) > 1 THEN stdev(…) END)` |  | 2 |
 | `STDDEV_POP` | emulated | `populationVariance: sqrt(…)` |  | 5 |
-| `VAR_SAMP` | emulated | `aggregateArgs: variance(…)` |  | 2 |
+| `VAR_SAMP` | emulated | `aggregateArgs: (CASE WHEN count(…) > 1 THEN variance(…) END)` |  | 2 |
 | `VAR_POP` | emulated | `populationVariance` |  | 2 |
 | `MEDIAN` | emulated | `median` |  | 6 |
 | `MODE` | emulated | `json: (SELECT __m.value FROM json_each(json_group_array(…)) AS __m WHERE __m.value ...` |  | 6 |
@@ -430,8 +430,8 @@ Database types planned with it: SQLite.
 | `BOOL_OR` | emulated | `aggregateArgs: max(…)` |  | 0 |
 | `IS_DISTINCT_MARK` | not_here | `lowering marker reached the renderer` |  | 0 |
 | `UNIQUE_VALUE_ONLY` | not_here | `lowering marker reached the renderer` |  | 0 |
-| `VARIANCE` | emulated | `aggregateArgs: variance(…)` |  | 0 |
-| `STDDEV` | emulated | `aggregateArgs: stdev(…)` |  | 0 |
+| `VARIANCE` | emulated | `aggregateArgs: (CASE WHEN count(…) > 1 THEN variance(…) END)` |  | 0 |
+| `STDDEV` | emulated | `aggregateArgs: (CASE WHEN count(…) > 1 THEN stdev(…) END)` |  | 0 |
 | `ROW_NUMBER` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |
 | `DENSE_RANK` | not_here | `is a window function: windowCall writes it` |  | 0 |

@@ -45,11 +45,15 @@ final class DecimalKindRules {
             // NumericAccumulator receipts); only the DOUBLE lane yields
             // Infinity. The rem idiom guards the integer pair;
             // Float/Decimal lanes keep their lane semantics.
+            // A divisor written as a literal other than 0 needs no guard: its spelled token is compared, nothing
+            // computed (2026-10-30, //datacube:timeseries_sql_measure: Wilder's (w - 1) / w guarded at each of RSI's
+            // 64 terms, 122 bytes each).
             if (args.size() == 2
                     && n.args().get(0).info().type()
                             == Type.Primitive.INTEGER
                     && n.args().get(1).info().type()
-                            == Type.Primitive.INTEGER) {
+                            == Type.Primitive.INTEGER
+                    && !(args.get(1) instanceof SqlExpr.IntLit k && k.value() != 0)) {
                 return Scalars.guarded(
                         SqlExpr.Call.of(SqlFn.EQUAL, args.get(1),
                                 new SqlExpr.IntLit(0)),

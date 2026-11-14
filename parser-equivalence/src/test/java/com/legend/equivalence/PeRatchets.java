@@ -79,7 +79,14 @@ public final class PeRatchets {
                     + " LetBindingTest, FusedHostColumnsTest and their siblings); the ten models were not traced one by"
                     + " one",
             "own_corpus.matched 3221 -> 3222 (2026-11-13, D3 and S341 on claude/total-wall-e): TypeToStringTest's model"
-                    + " (its d3::Car class)");
+                    + " (its d3::Car class)",
+            "own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR"
+                    + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
+                    + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
+                    + " tests')",
+            "own_corpus.matched 3222/3246 -> 3257 (2026-11-14, merged main 3a217086a (#81) into claude/total-wall-e, measured on"
+                    + " the merged tree):"
+                    + " both sides' models joined, 3222 + 3246 - 3211 = 3257, not one side's number");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

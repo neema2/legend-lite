@@ -144,6 +144,19 @@ public class MongoDb extends AnsiSqlRenderer {
         scopes.push(new Scope(List.copyOf(variables), flat));
     }
 
+    /** A subselect's own pipeline inside a lookup: the lookup's variables kept, no alias read flat -- the subselect's
+     *  sources are its own, wrapped under their aliases, whatever they are named (the deterministic as-of's ranked
+     *  right side reads a source of the side's own alias inside it, which the lookup reads flat outside: PR #81, the
+     *  timeseries round T2, 2026-11-13). Whether a level was pushed, for the caller to pop. */
+    boolean enterSubselect() {
+        Scope top = scopes.peek();
+        if (top == null || top.flatAlias == null) {
+            return false;
+        }
+        scopes.push(new Scope(top.variableAliases, null));
+        return true;
+    }
+
     void popScope() {
         scopes.pop();
     }
@@ -202,7 +215,24 @@ public class MongoDb extends AnsiSqlRenderer {
 
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> passes() {
-        return List.of(new CarrierStrategies(CAPS));
+        // a relation read more than once written where each read stands: a pipeline holds no WITH
+        // (SharedRelationsInPlace, 2026-11-04)
+        return List.of(SharedRelationsInPlace.all(), new CarrierStrategies(CAPS));
+    }
+
+    /** {@inheritDoc} Yes: a pipeline holds no WITH, so each read of a relation the statement reads more than once is
+     *  its own copy, computed again ({@link SharedRelationsInPlace}); the planner refuses one that picks its rows by no
+     *  order, as on Trino and BigQuery (the tenet audit of PR #81 and the user's ruling, 2026-11-13: MongoDB had
+     *  answered it, its two reads free to pick other rows; S360). */
+    @Override
+    public boolean writesEachReadOfAWithAgain() {
+        return true;
+    }
+
+    /** {@inheritDoc} No: the platform makes no collection of a query's rows on MongoDB. */
+    @Override
+    public boolean stagesSharedRelations() {
+        return false;
     }
 
     /** {@inheritDoc} A collection's {@code _id} declared {@code OTHER} (an objectId) is read as its hex text. */

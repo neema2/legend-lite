@@ -463,8 +463,19 @@ final class Scalars {
         Pure.AT_COLLECTION_DEFAULT_IF_EMPTY.forEach(f -> RULES.put(f, (n, args) -> listValued(n.args().get(0))   // col unless empty
                 ? new SqlExpr.Case(List.of(new SqlExpr.Case.When(new SqlExpr.Call(SqlFn.EQUAL, List.of(SqlExpr.Call.of(SqlFn.COALESCE,
                         SqlExpr.Call.of(SqlFn.LIST_LENGTH, args.get(0)), new SqlExpr.IntLit(0)), new SqlExpr.IntLit(0))), args.get(1))), args.get(0), SqlExpr.Reason.OPERATOR) : SqlExpr.Call.of(SqlFn.COALESCE, args.get(0), args.get(1))));
+        // read(row, ~[a, b]) (2026-11-02): the row's values in several columns. It is no SQL list: isEmpty and
+        // isNotEmpty over it read the cells themselves (the Lowerer hands them over, Lowerer.overCells), no column
+        // with a value / some column with one, which every database spells; any other use is refused by name
+        RULES.put(com.legend.model.FunctionId.of(Pure.READ__T_1__COL_SPEC_ARRAY_1), (n, args) -> {
+            throw new com.legend.error.NotImplementedException("read over several columns, " + n.args().size()
+                    + " of them, is read by isEmpty or isNotEmpty over a row's cells (a filter's or an extend's row);"
+                    + " read each column with read(row, ~name) for any other use");
+        });
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_EMPTY) {
-            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.TaggedList tl
+            RULES.put(f, (n, args) -> overCells(n)
+                    ? args.stream().<SqlExpr>map(c -> SqlExpr.Call.of(SqlFn.IS_NULL, c))
+                            .reduce((a, b) -> SqlExpr.Call.of(SqlFn.AND, a, b)).orElseThrow()
+                    : args.get(0) instanceof SqlExpr.TaggedList tl
                     ? SqlExpr.Call.of(SqlFn.EQUAL, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
                     : listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.EQUAL, List.of(
@@ -475,7 +486,10 @@ final class Scalars {
                     : new SqlExpr.Call(SqlFn.IS_NULL, args));
         }
         for (com.legend.model.FunctionId f : Pure.AT_COLLECTION_IS_NOT_EMPTY) {
-            RULES.put(f, (n, args) -> args.get(0) instanceof SqlExpr.TaggedList tl
+            RULES.put(f, (n, args) -> overCells(n)
+                    ? args.stream().<SqlExpr>map(c -> SqlExpr.Call.of(SqlFn.IS_NOT_NULL, c))
+                            .reduce((a, b) -> SqlExpr.Call.of(SqlFn.OR, a, b)).orElseThrow()
+                    : args.get(0) instanceof SqlExpr.TaggedList tl
                     ? SqlExpr.Call.of(SqlFn.GREATER, TaggedLists.size(tl), new SqlExpr.IntLit(0))   // track L
                     : listValued(n.args().get(0))
                     ? new SqlExpr.Call(SqlFn.GREATER, List.of(
@@ -1259,6 +1273,10 @@ final class Scalars {
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
                             : new SqlExpr.Call(SqlFn.LEAST, args);
                 }
+                SqlExpr fused = reducedOverRelation(args.get(0), SqlAgg.Fn.MIN);
+                if (fused != null) {
+                    return fused;
+                }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
                         : SqlExpr.Call.of(SqlFn.LIST_MIN, emptyConformed(args.get(0), n.args().get(0)));
@@ -1286,6 +1304,10 @@ final class Scalars {
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
                             : new SqlExpr.Call(SqlFn.GREATEST, args);
+                }
+                SqlExpr fused = reducedOverRelation(args.get(0), SqlAgg.Fn.MAX);
+                if (fused != null) {
+                    return fused;
                 }
                 return isToOne(n.args().get(0))
                         ? args.get(0)
@@ -2758,6 +2780,16 @@ final class Scalars {
         return arg.info().multiplicity().isMany();
     }
 
+    /** Is {@code call} an {@code isEmpty} or {@code isNotEmpty} over a {@code read(row, ~[a, b])}? Its lowered
+     *  arguments are then the read's cells, one per column ({@link Lowerer}'s arm for it), not the read. */
+    static boolean overCells(TypedNativeCall call) {
+        return (Pure.AT_COLLECTION_IS_EMPTY.contains(call.callee().id())
+                        || Pure.AT_COLLECTION_IS_NOT_EMPTY.contains(call.callee().id()))
+                && call.args().size() == 1
+                && call.args().get(0) instanceof TypedNativeCall read
+                && read.callee().id().equals(com.legend.model.FunctionId.of(Pure.READ__T_1__COL_SPEC_ARRAY_1));
+    }
+
 
 
 
@@ -3720,6 +3752,30 @@ final class Scalars {
      *  database's print of a Number or a Date refuses (BigQuery: []->cast(@Number)->max() compared a STRING with a
      *  FLOAT64, []->cast(@Date)->max() was a FORMAT_DATETIME of a STRING; on the lane 2026-10-21). A typed list passes
      *  untouched. */
+    /**
+     * A REDUCTION OF A RELATION'S MAP, {@code $px->map(r|$r.date)->max()}: the relation's values aggregated where they
+     * are, {@code (SELECT MAX(value) FROM ...)}, never collected into a list first -- the list a database without
+     * lists cannot hold (decision 8 of docs/TS_DECISIONS_2026_11_07.md, 2026-11-07: the data's last date as a
+     * scalar). {@code arg} is {@link ValueCollections#collectAsList}'s subquery, its nulls dropped (CompactList) or
+     * not; MAX and MIN skip NULLs and answer NULL over no rows, as the list's reduction does.
+     * Null where {@code arg} is no such list.
+     */
+    private static @com.legend.base.Nullable SqlExpr reducedOverRelation(SqlExpr arg, SqlAgg.Fn fn) {
+        SqlExpr list = arg instanceof SqlExpr.CompactList c ? c.list() : arg;
+        if (!(list instanceof SqlExpr.ScalarSubquery q) || !(q.subquery() instanceof com.legend.sql.SqlSelect s)
+                || s.projections().size() != 1 || !(s.projections().get(0).expr() instanceof SqlAgg.Reducer r)
+                || r.fn() != SqlAgg.Fn.LIST || r.args().size() != 1 || r.distinct() || !r.orderBy().isEmpty()
+                || r.args().get(0) instanceof SqlExpr.ArrayLit || !s.groupBy().isEmpty()) {
+            return null;
+        }
+        SqlAgg.Reducer reduced = new SqlAgg.Reducer(fn, r.args(), false, List.of());
+        if (!(reduced.type() instanceof com.legend.sql.TypeFact.Typed t)) {
+            return null;
+        }
+        return new SqlExpr.ScalarSubquery(s.withProjections(List.of(new com.legend.sql.SqlSelect.Projection(reduced,
+                null, new com.legend.sql.OutputCol("value", t.type(), true)))));
+    }
+
     private static SqlExpr emptyConformed(SqlExpr list, TypedSpec arg) {
         return list.type() instanceof com.legend.sql.TypeFact.Bottom
                 ? PureSql.typedList(list, arg.info().type())

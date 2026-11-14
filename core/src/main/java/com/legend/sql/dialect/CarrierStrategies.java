@@ -93,10 +93,11 @@ public final class CarrierStrategies extends SqlRewriter {
     }
 
     @Override
-    protected com.legend.sql.SqlQuery select(SqlSelect s) {
+    protected com.legend.sql.SqlQuery select(SqlSelect written) {
         if (caps.nativeLists()) {
-            return s;
+            return written;
         }
+        SqlSelect s = spelledOverAsOf(written);
         // FULL OUTER emulation (PV3, witnessed: H2 rejects FULL OUTER
         // JOIN outright, RIGHT works — probed): LEFT branch UNION ALL
         // RIGHT branch anti-joined on a fresh copy of the LEFT source
@@ -359,6 +360,10 @@ public final class CarrierStrategies extends SqlRewriter {
         if (s instanceof com.legend.sql.SqlSource.Join aj
                 && aj.kind() == com.legend.sql.SqlSource.Join.Kind.ASOF_LEFT
                 && aj.on() != null) {
+            com.legend.sql.SqlSource byWindow = asOfByWindow(aj);
+            if (byWindow != null) {
+                return byWindow;
+            }
             com.legend.sql.SqlSource em = asOfEmulation(aj);
             if (em != null) {
                 return em;
@@ -452,6 +457,299 @@ public final class CarrierStrategies extends SqlRewriter {
                 com.legend.sql.SqlSource.Join.Kind.LEFT, on);
     }
 
+    /** The frame name of an as-of join's left side that carries each row's match ({@link #asOfByWindow}), and the
+     *  match's column: a select over the join spells its stars without it ({@link #spelledOverAsOf}). */
+    static final String AS_OF_MATCHED = "asOfMatched";
+    static final String AS_OF_MATCH = "__asof_m";
+
+    /**
+     * AS-OF AS ONE WINDOW PASS (docs/TS_SCALE_2026_11_07.md F2, 2026-11-07): {@code l ASOF LEFT JOIN r ON keys AND
+     * l.t >= r.t} on a database without an ASOF JOIN. The correlated MAX ({@link #asOfEmulation}) probes the right
+     * side once a left row, and where the right side is a derived table no index reaches (a line's CTE) each probe
+     * scans it: quadratic, 8.2 s for one line of 5,040 dates on Postgres. Here the two sides' keys and dates are one
+     * stream (the left's own rows, the right's rows under the ON's right-only conditions), ordered by
+     * keys and date, and a running MAX of the right's dates ({@code ROWS UNBOUNDED PRECEDING}) is each left date's
+     * match -- one sort; the left side, under its own alias, carries it ({@link #AS_OF_MATCH}) and the join is the
+     * ON as written AND the right's date equal to it (an equality, hashed). The ON as written stays: a match the
+     * pass proposes is still tested whole, so a left-only condition, a NULL key or date, falls to the LEFT JOIN's
+     * miss as before. At an equal date the right row sorts first for {@code >=} and last for {@code >}; {@code <=},
+     * {@code <} take the least right date at or after, the stream in descending order. Ties on the right (two rows
+     * at the matched date) both join, as the correlated MAX's did. Only the shape it reads: one source a side, the
+     * keys and the dates the sides' own columns, one inequality, no other condition over both -- else null (the
+     * correlated MAX).
+     */
+    private static com.legend.sql.@com.legend.base.Nullable SqlSource asOfByWindow(
+            com.legend.sql.SqlSource.Join j) {
+        com.legend.sql.SqlSource left = j.left();
+        com.legend.sql.SqlSource right = j.right();
+        if (left instanceof com.legend.sql.SqlSource.Join || right instanceof com.legend.sql.SqlSource.Join) {
+            return null;
+        }
+        String la = left.alias();
+        String ra = right.alias();
+        if (la == null || ra == null || la.equals(ra)) {
+            return null;
+        }
+        List<SqlExpr> conjuncts = new ArrayList<>();
+        flattenAnd(java.util.Objects.requireNonNull(j.on()), conjuncts);
+        List<SqlExpr.Column> leftKeys = new ArrayList<>();
+        List<SqlExpr.Column> rightKeys = new ArrayList<>();
+        List<SqlExpr> rightOnly = new ArrayList<>();
+        SqlExpr.Column lt = null;
+        SqlExpr.Column rt = null;
+        com.legend.sql.SqlFn op = null;
+        for (SqlExpr c : conjuncts) {
+            boolean ml = mentionsAlias(c, la);
+            boolean mr = mentionsAlias(c, ra);
+            if (!ml) {
+                rightOnly.add(c);   // the right's own condition (or a constant): which right rows may match
+                continue;
+            }
+            if (!mr) {
+                continue;           // the left's own: the ON as written tests it
+            }
+            if (!(c instanceof SqlExpr.Call cc) || cc.args().size() != 2
+                    || !(cc.args().get(0) instanceof SqlExpr.Column a)
+                    || !(cc.args().get(1) instanceof SqlExpr.Column b)) {
+                return null;
+            }
+            SqlExpr.Column l;
+            SqlExpr.Column r;
+            com.legend.sql.SqlFn fn = cc.fn();
+            if (la.equals(a.table()) && ra.equals(b.table())) {
+                l = a;
+                r = b;
+            } else if (ra.equals(a.table()) && la.equals(b.table())) {
+                l = b;
+                r = a;
+                fn = switch (fn) {
+                    case GREATER -> com.legend.sql.SqlFn.LESS;
+                    case GREATER_EQUAL -> com.legend.sql.SqlFn.LESS_EQUAL;
+                    case LESS -> com.legend.sql.SqlFn.GREATER;
+                    case LESS_EQUAL -> com.legend.sql.SqlFn.GREATER_EQUAL;
+                    default -> fn;
+                };
+            } else {
+                return null;
+            }
+            switch (fn) {
+                case EQUAL -> {
+                    leftKeys.add(l);
+                    rightKeys.add(r);
+                }
+                case GREATER, GREATER_EQUAL, LESS, LESS_EQUAL -> {
+                    if (op != null) {
+                        return null;
+                    }
+                    lt = l;
+                    rt = r;
+                    op = fn;
+                }
+                default -> {
+                    return null;
+                }
+            }
+        }
+        if (op == null || lt == null || rt == null) {
+            return null;
+        }
+        List<com.legend.sql.OutputCol> lOuts = new ArrayList<>();
+        for (SqlExpr.Column k : leftKeys) {
+            lOuts.add(slot(left.outputs(), k.name()));
+        }
+        lOuts.add(slot(left.outputs(), lt.name()));
+        com.legend.sql.OutputCol matchType = slot(right.outputs(), rt.name());
+        if (lOuts.contains(null) || matchType == null) {
+            return null;
+        }
+        for (SqlExpr.Column k : rightKeys) {
+            if (slot(right.outputs(), k.name()) == null) {
+                return null;
+            }
+        }
+        boolean greatest = op == com.legend.sql.SqlFn.GREATER || op == com.legend.sql.SqlFn.GREATER_EQUAL;
+        boolean strict = op == com.legend.sql.SqlFn.GREATER || op == com.legend.sql.SqlFn.LESS;
+        // at an equal date: inclusive, the right row first (it is the match); strict, last (it is not)
+        long rightSide = strict ? 1 : 0;
+        long leftSide = 1 - rightSide;
+        int n = leftKeys.size();
+        // the stream: the left's own rows, each its (keys, date), and the right's (keys, date) under its own
+        // conditions, the left's columns NULL there -- so the left is read once (#81's final review, item 14k (7),
+        // 2026-11-10: it was read twice, its distinct (keys, date) in the stream and its rows joined to them after,
+        // and two reads of a side that is not deterministic -- a random value, a LIMIT -- could disagree)
+        com.legend.sql.SqlSource lCopy = copyWithAlias(left, "_asl");
+        com.legend.sql.SqlSource rCopy = copyWithAlias(right, "_asr");
+        if (lCopy == null || rCopy == null) {
+            return null;
+        }
+        for (com.legend.sql.OutputCol oc : left.outputs()) {
+            if (!(oc.type() instanceof com.legend.sql.SqlType.Scalar s) || s == com.legend.sql.SqlType.Scalar.JSON) {
+                if (!(oc.type() instanceof com.legend.sql.SqlType.Decimal)) {
+                    return null;   // a NULL of the column's type in the right's branch: a scalar's or a decimal's
+                }
+            }
+        }
+        List<SqlSelect.Projection> lps = new ArrayList<>();
+        List<SqlSelect.Projection> rps = new ArrayList<>();
+        List<com.legend.sql.OutputCol> streamOuts = new ArrayList<>();
+        List<com.legend.sql.OutputCol> carriedOuts = new ArrayList<>();
+        for (com.legend.sql.OutputCol oc : left.outputs()) {
+            com.legend.sql.OutputCol c = new com.legend.sql.OutputCol(oc.name(), oc.type(), true);
+            carriedOuts.add(c);
+            lps.add(new SqlSelect.Projection(SqlExpr.Column.of("_asl", oc), oc.name(), c));
+            rps.add(new SqlSelect.Projection(new SqlExpr.Cast(new SqlExpr.NullLit(), oc.type(), SqlExpr.Reason.DIALECT), oc.name(), c));
+        }
+        for (int i = 0; i <= n; i++) {
+            String name = i < n ? "__k" + i : "__t";
+            com.legend.sql.OutputCol oc = new com.legend.sql.OutputCol(name, lOuts.get(i).type(), true);
+            streamOuts.add(oc);
+            SqlExpr.Column lc = i < n ? leftKeys.get(i) : lt;
+            SqlExpr.Column rc = i < n ? rightKeys.get(i) : rt;
+            lps.add(new SqlSelect.Projection(remapAlias(lc, la, "_asl"), name, oc));
+            rps.add(new SqlSelect.Projection(remapAlias(rc, ra, "_asr"), name, oc));
+        }
+        com.legend.sql.OutputCol sideOut = new com.legend.sql.OutputCol("__s", com.legend.sql.SqlType.Scalar.BIGINT,
+                false);
+        streamOuts.add(sideOut);
+        lps.add(new SqlSelect.Projection(new SqlExpr.IntLit(leftSide), "__s", sideOut));
+        rps.add(new SqlSelect.Projection(new SqlExpr.IntLit(rightSide), "__s", sideOut));
+        SqlExpr rightWhere = null;
+        for (SqlExpr c : rightOnly) {
+            SqlExpr rc = remapAlias(c, ra, "_asr");
+            rightWhere = rightWhere == null ? rc : SqlExpr.Call.of(com.legend.sql.SqlFn.AND, rightWhere, rc);
+        }
+        List<com.legend.sql.OutputCol> unionOuts = new ArrayList<>(carriedOuts);
+        unionOuts.addAll(streamOuts);
+        SqlSelect lBranch = SqlSelect.starOf(lCopy).withProjections(lps);
+        SqlSelect rBranch = SqlSelect.starOf(rCopy).withProjections(rps).withWhere(rightWhere);
+        com.legend.sql.SqlSource stream = new com.legend.sql.SqlSource.Subselect(
+                new com.legend.sql.SqlUnion(List.of(lBranch, rBranch), true, List.copyOf(unionOuts)), "_asu", null);
+        // each row's match: the running MAX (MIN) of the right's dates, the stream by keys, date, then side
+        List<SqlExpr> partition = new ArrayList<>();
+        List<SqlSelect.Projection> wps = new ArrayList<>();
+        for (com.legend.sql.OutputCol oc : carriedOuts) {
+            wps.add(new SqlSelect.Projection(SqlExpr.Column.of("_asu", oc), oc.name(), oc));
+        }
+        for (int i = 0; i < n; i++) {
+            partition.add(SqlExpr.Column.of("_asu", streamOuts.get(i)));
+        }
+        SqlExpr.Column side = SqlExpr.Column.of("_asu", sideOut);
+        SqlExpr.Column date = SqlExpr.Column.of("_asu", streamOuts.get(n));
+        SqlExpr rightDate = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, side, new SqlExpr.IntLit(rightSide)), date)), null,
+                SqlExpr.Reason.DIALECT);
+        SqlExpr running = new SqlExpr.WindowCall(
+                new SqlAgg.Reducer(greatest ? SqlAgg.Fn.MAX : SqlAgg.Fn.MIN, List.of(rightDate), false, List.of()),
+                partition,
+                List.of(new SqlSelect.SortKey(date, greatest, null, null), new SqlSelect.SortKey(side, true, null, null)),
+                new SqlExpr.WindowCall.Frame(SqlExpr.WindowCall.Frame.Kind.ROWS,
+                        new SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding(),
+                        new SqlExpr.WindowCall.Frame.Bound.CurrentRow()));
+        com.legend.sql.OutputCol mOut = new com.legend.sql.OutputCol("__m", matchType.type(), true);
+        wps.add(new SqlSelect.Projection(side, "__s", sideOut));
+        wps.add(new SqlSelect.Projection(running, "__m", mOut));
+        SqlSelect windowed = SqlSelect.starOf(stream).withProjections(wps);
+        com.legend.sql.SqlSource w = new com.legend.sql.SqlSource.Subselect(windowed, "_asw", null);
+        // the left side's rows, under its own alias, each with its match: the stream's left rows
+        List<SqlSelect.Projection> ops = new ArrayList<>();
+        for (com.legend.sql.OutputCol oc : left.outputs()) {
+            ops.add(new SqlSelect.Projection(SqlExpr.Column.of("_asw", oc), oc.name(), oc));
+        }
+        com.legend.sql.OutputCol matchOut = new com.legend.sql.OutputCol(AS_OF_MATCH, matchType.type(), true);
+        ops.add(new SqlSelect.Projection(SqlExpr.Column.of("_asw", mOut), AS_OF_MATCH, matchOut));
+        SqlSelect carried = SqlSelect.starOf(w).withProjections(ops).withWhere(SqlExpr.Call.of(
+                com.legend.sql.SqlFn.EQUAL, SqlExpr.Column.of("_asw", sideOut), new SqlExpr.IntLit(leftSide)));
+        com.legend.sql.SqlSource matched = new com.legend.sql.SqlSource.Subselect(carried, la, AS_OF_MATCHED);
+        SqlExpr on = SqlExpr.Call.of(com.legend.sql.SqlFn.AND, j.on(), SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL,
+                rt, SqlExpr.Column.of(la, matchOut)));
+        return new com.legend.sql.SqlSource.Join(matched, right, com.legend.sql.SqlSource.Join.Kind.LEFT, on);
+    }
+
+    /** {@code s} with its stars over an as-of join's matched left side ({@link #asOfByWindow}) spelled column by
+     *  column without the match's column -- the answer is the join's columns, as the star over the ASOF JOIN was. */
+    private static SqlSelect spelledOverAsOf(SqlSelect s) {
+        List<com.legend.sql.SqlSource> leaves = new ArrayList<>();
+        List<Boolean> padded = new ArrayList<>();
+        leaves(s.from(), false, leaves, padded);
+        if (leaves.stream().noneMatch(CarrierStrategies::matchedAsOf)) {
+            return s;
+        }
+        boolean bare = s.projections().isEmpty();
+        List<SqlSelect.Projection> in = bare
+                ? List.of(new SqlSelect.Projection(new SqlExpr.Star(null), null, null)) : s.projections();
+        List<SqlSelect.Projection> out = new ArrayList<>();
+        boolean changed = false;
+        for (SqlSelect.Projection p : in) {
+            String table;
+            java.util.Set<String> except;
+            if (p.expr() instanceof SqlExpr.Star st) {
+                table = st.table();
+                except = java.util.Set.of();
+            } else if (p.expr() instanceof SqlExpr.StarExcept se) {
+                table = se.table();
+                except = new java.util.HashSet<>(se.except());
+            } else {
+                out.add(p);
+                continue;
+            }
+            boolean touches = false;
+            for (com.legend.sql.SqlSource leaf : leaves) {
+                touches |= matchedAsOf(leaf) && (table == null || table.equals(leaf.alias()));
+            }
+            if (!touches) {
+                out.add(p);
+                continue;
+            }
+            changed = true;
+            for (int i = 0; i < leaves.size(); i++) {
+                com.legend.sql.SqlSource leaf = leaves.get(i);
+                if (table != null && !table.equals(leaf.alias())) {
+                    continue;
+                }
+                for (com.legend.sql.OutputCol oc : leaf.outputs()) {
+                    if (matchedAsOf(leaf) && oc.name().equals(AS_OF_MATCH) || except.contains(oc.name())) {
+                        continue;
+                    }
+                    com.legend.sql.OutputCol slot = padded.get(i) && !oc.nullable()
+                            ? new com.legend.sql.OutputCol(oc.name(), oc.type(), true, oc.origin()) : oc;
+                    out.add(new SqlSelect.Projection(SqlExpr.Column.of(leaf.alias(), oc), oc.name(), slot));
+                }
+            }
+        }
+        if (!changed) {
+            return s;
+        }
+        if (bare) {
+            // a star frame's outputs are its caller's fact: each spelled column keeps its declared slot
+            if (out.size() != s.outputs().size()) {
+                throw new IllegalStateException("a star over an as-of join spelled as " + out.size()
+                        + " columns, its frame declares " + s.outputs().size());
+            }
+            List<SqlSelect.Projection> kept = new ArrayList<>();
+            for (int i = 0; i < out.size(); i++) {
+                kept.add(new SqlSelect.Projection(out.get(i).expr(), out.get(i).alias(), s.outputs().get(i)));
+            }
+            return s.withProjections(kept, s.outputs());
+        }
+        return s.withProjections(out);
+    }
+
+    private static boolean matchedAsOf(com.legend.sql.SqlSource s) {
+        return s instanceof com.legend.sql.SqlSource.Subselect sub && AS_OF_MATCHED.equals(sub.frameName());
+    }
+
+    /** {@code s}'s sources in order, each with whether a join pads it. */
+    private static void leaves(com.legend.sql.SqlSource s, boolean pad, List<com.legend.sql.SqlSource> into,
+            List<Boolean> padded) {
+        if (s instanceof com.legend.sql.SqlSource.Join j) {
+            leaves(j.left(), pad || j.kind().padsLeft(), into, padded);
+            leaves(j.right(), pad || j.kind().padsRight(), into, padded);
+            return;
+        }
+        into.add(s);
+        padded.add(pad);
+    }
+
     /** A fresh re-aliased copy of a simple source (Table / Subselect /
      * Values), or null — the correlated-copy pattern the ASOF and FULL
      * emulations share. */
@@ -506,6 +804,12 @@ public final class CarrierStrategies extends SqlRewriter {
     }
 
     private static void flattenAnd(SqlExpr e, List<SqlExpr> out) {
+        // a parenthesized conjunction is one (the library's as-of match, (bd IS NOT NULL AND at >= bd): the third
+        // review's Postgres lane, 2026-11-07)
+        if (e instanceof SqlExpr.Group g) {
+            flattenAnd(g.inner(), out);
+            return;
+        }
         if (e instanceof SqlExpr.Call c
                 && c.fn() == com.legend.sql.SqlFn.AND) {
             for (SqlExpr a : c.args()) {

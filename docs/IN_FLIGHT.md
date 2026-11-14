@@ -12,6 +12,17 @@ word. The milestone lanes' baseline is GATES 2026-11-07.
 **the corpus burn-down** (branch `claude/wizardly-dirac-rw6tim-seam`, restarted from `main`), then the walk's deletion.
 A session picking it up starts at `docs/PCT_CORE_CLOSEOUT_START_HERE_2026_11_06.md` (§0 the state, §10 the order).
 
+**The adversarial markets fixture, 2026-11-07** (branch `abs/ts-adversarial-fixture`, on `claude/timeseries-language`;
+`docs/TS_ADVERSARIAL_FIXTURE_2026_11_07.md`): `projects/timeseries/fixtures/adversarial/` (generate.py and its four
+files) with `//projects:timeseries_adversarial_fixture_test`, and `//core:ts_adversarial_test` with its ledger
+(`core/src/test/resources/ts-adversarial/`). Beyond them: `core/BUILD.bazel` (the target; its source and ledger left
+out of `core_tests_lib`), `gates/BUILD.bazel` (the core lane), `projects/BUILD.bazel` (the fixture's exports and its
+test), the parser-equivalence ratchet (`own_corpus.matched` 3117 -> 3119: this PR's +1, the test's model; the other +1
+the base's own drift, 3118 on the bare base). The register file untouched (a contributor never edits it): the
+last-print-wins proposal's full row is in PR #90, for the owner to rule and land. The gs-quant oracle (`tools/gs-quant-oracle`) is the companion PR's and reads the same files:
+prices.csv is in file order on purpose, and the consumer sorts by (symbol, date); the oracle's PR leaves the ratchet
+alone, so this one merges first.
+
 **Active lines and their order (the user, 2026-10-04).** Several sessions push to `main`; each announces a cross-area
 edit here before landing it and lands with the full chain. The priorities are **Bazel, Studio, and the database owner
 with the compiler's plan/execution split**, in this order:
@@ -3491,3 +3502,21 @@ Status lives in the plan's Progress table (rule 0b.16).
     case-sensitive clone (each pair compared directly, all identical), and three datacube browser tests
     (`live_channel_test`, `live_soak_test`, `page_app_test`) that run past their limit here even alone and depend on no
     file the branch changes (`bazel query`).
+
+## A fifteenth line, 2026-11-07: the gs-quant oracle for #TS (the user's ask, rule 5)
+
+Branch `abs/ts-gsquant-oracle` (absnarang/legend-lite), stacked on #90 (`abs/ts-adversarial-fixture`, the adversarial
+markets fixture, at `0f76abe80` on `claude/timeseries-language` `aad8e762a`): #90 merges first. Every word of `#TS`
+held to `gs_quant.timeseries` itself at one pinned release (`tools/gs-quant-oracle/README.md`; GATES "The gs-quant
+oracle for #TS").
+
+- **Its own files:** `tools/gs-quant-oracle/` (new), `core/src/test/java/com/legend/integration/TsGsquantParityTest.java`
+  (new).
+- **Cross-area (announced 2026-11-07, before it lands):** `core/BUILD.bazel` (the timeseries line's and the Bazel
+  program's: the target `:ts_gsquant_parity_test` beside #90's `:ts_adversarial_test`, reading #90's two price files,
+  and its source excluded from `:core_tests`' glob beside the other `Ts*` lanes'); `gates/BUILD.bazel` (the `core` lane
+  gains `//core:ts_gsquant_parity_test`, `checks` `//tools/gs-quant-oracle:tools_build_test`); the root `BUILD.bazel`
+  (`//:generated` gains `//tools/gs-quant-oracle:update_generated_tests`, `//:update_generated` its two writers);
+  `docs/GATES.md`; this file. No main source, no word of the library and no register row is touched (a contributor
+  never edits `docs/SEMANTICS_REGISTER.md`, the user's standing rule, 2026-11-08): each DIFF is posted with the PR and
+  its proposed register row written there in full, for the user to rule.

@@ -393,15 +393,15 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (s.where() != null) {
             nl(writer, depth).append("WHERE ");
-            writer.expr(s.where(), 0);
+            condition(writer, s.where());
         }
         if (!s.groupBy().isEmpty()) {
             nl(writer, depth).append("GROUP BY ");
-            writer.list(s.groupBy());
+            groupByKeys(writer, s);
         }
         if (s.having() != null) {
             nl(writer, depth).append("HAVING ");
-            writer.expr(s.having(), 0);
+            condition(writer, s.having());
         }
         if (s.qualify() != null) {
             appendQualify(writer, s, depth);
@@ -496,6 +496,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** A column reference, qualified by its source's alias when it has one. */
     protected String columnRef(SqlExpr.Column c) {
         return c.table() == null ? columnName(c) : aliasIdent(c.table()) + "." + columnName(c);
+    }
+
+    /** {@code s}'s GROUP BY keys, written: each its expression here (a dialect whose one expression is written two
+     *  ways in a statement, ClickHouse's numbered raises, writes a key its select names by that name). */
+    protected SqlWriter groupByKeys(SqlWriter writer, SqlSelect s) {
+        return writer.list(s.groupBy());
     }
 
     protected SqlWriter projection(SqlWriter writer, SqlSelect.Projection p) {
@@ -665,7 +671,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 source(writer, j.right(), depth);
                 SqlExpr on = j.on();
                 if (on != null) {
-                    writer.append(" ON ").expr(joinCondition(j.kind(), on), 0);
+                    writer.append(" ON ");
+                    condition(writer, joinCondition(j.kind(), on));
                 }
                 yield writer;
             }
@@ -949,7 +956,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     "deferred relation-toString reached the renderer — the"
                     + " execution boundary must resolve the dynamic column"
                     + " list first (DeferredTdsString id " + d.id() + ")");
-            case SqlExpr.WindowCall w -> windowCall(writer, w);
+            // a window with a computed frame offset is written inside its check (FrameGuard), by this dialect's CASE
+            case SqlExpr.WindowCall w -> FrameGuard.guarded(w) instanceof SqlExpr.Case check
+                    ? caseExpr(writer, check) : windowCall(writer, w);
             case SqlExpr.Lambda l -> lambda(writer, l);
             // a cast to the tagged carrier is the identity: the column holds the tag, an index, and the label says
             // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
@@ -1059,9 +1068,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             if (i > 0) {
                 writer.append(pad).append(infix.sql()).append(pad);
             }
-            writer.expr(c.args().get(i),
-                    (i > 0 && trailingOwnValue) || nonAssociative
-                            ? infix.prec() + 1 : infix.prec());
+            int prec = (i > 0 && trailingOwnValue) || nonAssociative ? infix.prec() + 1 : infix.prec();
+            if (c.fn() == SqlFn.AND || c.fn() == SqlFn.OR) {
+                // a logical operand, where the database requires a boolean (condition's rule)
+                booleanOperand(writer, c.args().get(i), prec);
+            } else {
+                writer.expr(c.args().get(i), prec);
+            }
         }
         if (wrap) {
             writer.append(")");
@@ -1156,7 +1169,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (3 < parentPrec) {
             writer.append("(");
         }
-        writer.append("NOT ").expr(a.get(0), 3);
+        writer.append("NOT ");
+        booleanOperand(writer, a.get(0), 3);
         if (3 < parentPrec) {
             writer.append(")");
         }
@@ -1408,12 +1422,26 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.append("CAST(").expr(c.value(), 0).append(" AS ").append(castTypeName(c.target())).append(")");
     }
 
+    /** A statement's condition -- its WHERE, its HAVING, a join's ON -- where the database requires a boolean: the
+     *  expression as any other unless the dialect writes one there otherwise (Postgres's raise: {@code
+     *  Postgres#condition}). */
+    protected SqlWriter condition(SqlWriter writer, SqlExpr e) {
+        return booleanOperand(writer, e, 0);
+    }
+
+    /** A value where a boolean is required -- a condition ({@link #condition}), an operand of AND or OR -- at precedence
+     *  {@code prec}: the expression as any other unless the dialect writes one there otherwise. */
+    protected SqlWriter booleanOperand(SqlWriter writer, SqlExpr e, int prec) {
+        return writer.expr(e, prec);
+    }
+
     // ---- window / aggregate / case (ANSI) ----
 
     protected SqlWriter caseExpr(SqlWriter writer, SqlExpr.Case c) {
         writer.append("CASE");
         for (SqlExpr.Case.When w : c.whens()) {
-            writer.append(" WHEN ").expr(w.condition(), 0).append(" THEN ").expr(w.then(), 0);
+            writer.append(" WHEN ");
+            condition(writer, w.condition()).append(" THEN ").expr(w.then(), 0);
         }
         if (c.otherwise() != null) {
             writer.append(" ELSE ").expr(c.otherwise(), 0);
@@ -1444,10 +1472,29 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         }
         if (w.frame() != null) {
             writer.append(" ").append(keyword(w.frame().kind().toString())).append(" ").append(keyword("BETWEEN"))
-                    .append(" ").append(bound(w.frame().from())).append(" ").append(keyword("AND")).append(" ")
-                    .append(bound(w.frame().to()));
+                    .append(" ");
+            writeBound(writer, w.frame().from()).append(" ").append(keyword("AND")).append(" ");
+            writeBound(writer, w.frame().to());
         }
         return writer.append(")");
+    }
+
+    /** A frame bound into the writer: an offset the database computes as its expression, parenthesized, so a bound
+     *  parameter is written at its place ({@code (? - 1) PRECEDING}); any other as {@link #bound}'s text. */
+    protected final SqlWriter writeBound(SqlWriter writer, SqlExpr.WindowCall.Frame.Bound b) {
+        return switch (b) {
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c ->
+                    writer.append("(").expr(c.offset(), 0).append(") ").append(keyword("PRECEDING"));
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c ->
+                    writer.append("(").expr(c.offset(), 0).append(") ").append(keyword("FOLLOWING"));
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedPreceding u -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.Preceding p -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.CurrentRow c -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.Following f -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.UnboundedFollowing u -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.IntervalPreceding p -> writer.append(bound(b));
+            case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f -> writer.append(bound(b));
+        };
     }
 
     /** A keyword of the window and aggregate syntax ({@code OVER}, {@code ORDER BY}, {@code DISTINCT} ...) as this
@@ -1476,6 +1523,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     keyword("INTERVAL") + " " + p.n() + " " + p.unit() + " " + keyword("PRECEDING");
             case SqlExpr.WindowCall.Frame.Bound.IntervalFollowing f ->
                     keyword("INTERVAL") + " " + f.n() + " " + f.unit() + " " + keyword("FOLLOWING");
+            // an offset the database computes is an expression: written into the writer (writeBound), never as text
+            case SqlExpr.WindowCall.Frame.Bound.ComputedPreceding c -> throw new IllegalStateException(
+                    "a computed frame offset is written by writeBound, into the writer");
+            case SqlExpr.WindowCall.Frame.Bound.ComputedFollowing c -> throw new IllegalStateException(
+                    "a computed frame offset is written by writeBound, into the writer");
         };
     }
 
@@ -2143,15 +2195,28 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     // (translateCreateTableStatementDefault)
                     sb.append(", PRIMARY KEY(").append(String.join(",", pks)).append(')');
                 }
-                yield sb.append(");").toString();
+                yield sb.append(")").append(ddlTableOptions(ct)).append(";").toString();
             }
-            case com.legend.sql.SqlDdl.DropTable dt ->
-                    "Drop table if exists " + ddlQualified(dt.schema(), dt.table(), dt.quoting()) + ";";
+            case com.legend.sql.SqlDdl.DropTable dt -> (dt.temporary() ? dropTemporaryTable() : "Drop table if exists ")
+                    + ddlQualified(dt.schema(), dt.table(), dt.quoting()) + ";";
             case com.legend.sql.SqlDdl.CreateSchema cs ->
                     "Create Schema if not exists " + storedName(cs.schema(), cs.quoted()) + ";";
             case com.legend.sql.SqlDdl.DropSchema ds ->
                     "Drop schema if exists " + storedName(ds.schema(), ds.quoted()) + " cascade;";
         };
+    }
+
+    /** What a CREATE TABLE writes after its columns, before its ';': nothing here (a dialect whose database needs a
+     *  table's engine or storage said, ClickHouse's, writes it). */
+    protected String ddlTableOptions(com.legend.sql.SqlDdl.CreateTable ct) {
+        return "";
+    }
+
+    /** The words that drop a session's own table ({@link com.legend.sql.SqlDdl.DropTable#temporary}), before its
+     *  name: the plain drop here (a session's temporary table hides the database's of its name, and the drop takes the
+     *  session's); a dialect whose plain drop falls through to the database's table (ClickHouse's) names it. */
+    protected String dropTemporaryTable() {
+        return "Drop table if exists ";
     }
 
     @Override
@@ -2302,7 +2367,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     .expr(read.projections().get(i).expr(), 0);
         }
         if (read.where() != null) {
-            writer.append(" WHERE ").expr(read.where(), 0);
+            condition(writer.append(" WHERE "), read.where());
         }
         return writer.append(";");
     }
@@ -2313,7 +2378,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         SqlWriter writer = newWriter().append("DELETE FROM ").append(ddlQualified(dw.schema(), dw.table(), dw.quoting()))
                 .append(" AS ").append(aliasIdent(dw.alias()));
         if (read.where() != null) {
-            writer.append(" WHERE ").expr(read.where(), 0);
+            condition(writer.append(" WHERE "), read.where());
         }
         return writer.append(";");
     }

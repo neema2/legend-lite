@@ -572,6 +572,8 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       if (!togetherOf) return Promise.reject(new Error('this page\'s host reads no grids together: a series reads one grid here'));
       return togetherOf(cubes);
     },
+    // A TIMESERIES SERIES' TEXT, read by core (A3 step 3): the host's legend-lite module, as a saved query's text is
+    readText: (text: string) => services.engine.reading.tsItem(text),
     // THE HOST'S TEXT, IN THE STATUS BAR (planner progress, errors, the planner's word): the page's first grid's, at the
     // right of its status bar -- a readout belongs there, not in the bar that says what is on screen. MOVED rather than
     // copied, on each render of that bar: `status` is the same node the planner writes to.
@@ -693,7 +695,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       };
     }
     if (opensTogether) {
-      togetherOf = (cubes) => lazily(() => import('./join-app.ts')).then(({ openTogether }) => openTogether(cubes, {
+      // grids of one project read together over its model where their rows are (projectTogether), else the tab's tables
+      togetherOf = (cubes) => lazily(() => import('./join-app.ts')).then(({ openTogether, projectTogether }) =>
+        projectTogether(cubes, { page, sources, rowsOf }) ?? openTogether(cubes, {
         open: opensTogether,
         rows: (model, runtime) => {
           const rows = services.engine.rows(model, runtime);

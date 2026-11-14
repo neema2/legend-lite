@@ -1,0 +1,32 @@
+package com.legend.integration;
+
+import java.sql.*;
+
+/** Scratch: seeded docs data; a SQL file's prepare time, run time, and DuckDB's profile of the run. */
+public final class Profile {
+    public static void main(String[] a) throws Exception {
+        var backend = com.legend.testbackend.TestBackends.platform();
+        try (Connection c = backend.open()) {
+            var m = TsDocumentsTest.class.getDeclaredMethod("seed", com.legend.testbackend.TestBackend.class, Connection.class);
+            m.setAccessible(true);
+            m.invoke(null, backend, c);
+            String sql = java.nio.file.Files.readString(java.nio.file.Path.of(a[0]));
+            if (System.getProperty("legend.dis") != null) { try (Statement d = c.createStatement()) { d.execute("SET disabled_optimizers = '" + System.getProperty("legend.dis") + "'"); } }
+            for (int k = 0; k < 3; k++) {
+                long t0 = System.nanoTime();
+                try (PreparedStatement p = c.prepareStatement(sql)) {
+                    long t1 = System.nanoTime();
+                    int rows = 0;
+                    try (ResultSet r = p.executeQuery()) { while (r.next()) rows++; }
+                    long t2 = System.nanoTime();
+                    System.err.println("PREPARE " + (t1 - t0) / 1_000_000 + " ms, RUN " + (t2 - t1) / 1_000_000 + " ms, " + rows + " rows");
+                }
+            }
+            try (Statement s = c.createStatement()) {
+                s.execute("PRAGMA enable_profiling='json'"); s.execute("SET profiling_mode='detailed'");
+                s.execute("PRAGMA profiling_output='" + a[1] + "'");
+                try (ResultSet r = s.executeQuery(sql)) { while (r.next()) { } }
+            }
+        }
+    }
+}

@@ -126,8 +126,10 @@ final class PostgresCasts {
         }
         String from = x.kind().name().toLowerCase(Locale.ROOT);
         String convert = switch (target) {
+            // an enumeration's value as text: its name, as Postgres's cast of an enum gives its label
             case STRING -> x.kind() == Kind.INTEGER || x.kind() == Kind.WHOLE || x.kind() == Kind.DECIMAL
-                    || x.kind() == Kind.BOOLEAN || x.kind() == Kind.DATE ? "toString" : null;
+                    || x.kind() == Kind.BOOLEAN || x.kind() == Kind.DATE
+                    || x.kind() == Kind.OTHER && x.detail() instanceof InputDialect.Enumeration ? "toString" : null;
             // a numeric rounds half away from zero, a double half to even (Pure's round of a Float, measured). Text
             // is not read: a database's cast reads what Postgres's input rejects ('1.5' and '1e3' are 2 and 1000 on
             // DuckDB, errors in Postgres)

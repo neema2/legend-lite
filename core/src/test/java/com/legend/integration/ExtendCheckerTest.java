@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -102,6 +103,61 @@ public class ExtendCheckerTest extends AbstractDatabaseTest {
         void aTableIsNotARow() {
             var ex = assertThrows(Exception.class, () -> executeRelation(SCORES + "->read(~score)"));
             assertTrue(ex.getMessage().contains("read takes a row"), ex.getMessage());
+        }
+
+        // read(row, ~[a, b]) (2026-11-02): the row's values in several columns, a list without the columns that have
+        // none -- so a function over any number of a table's columns asks whether a row has any value, in one call
+        private static final String GROUPS = """
+                |#TDS
+                id, grp, score
+                1, a, 10
+                2, a, 20
+                3, b, 30
+                #->extend(over(~grp, [~id->ascending()]), ~before:{p,w,r|$p->lag($r)->read(~score)})\
+                ->extend(over(~grp, [~id->ascending()]), ~after:{p,w,r|$p->lead($r)->read(~score)})""";
+
+        @Test
+        @DisplayName("several columns read as one list: not empty where any column has a value")
+        void severalColumnsAnyValue() throws SQLException {
+            var result = executeRelation(GROUPS + "->filter(r|$r->read(~[before, after])->isNotEmpty())"
+                    + "->sort(ascending(~id))");
+            assertEquals(List.of(1, 2), result.rows().stream().map(r -> ((Number) r.get(0)).intValue()).toList());
+        }
+
+        @Test
+        @DisplayName("several columns read as one list: empty where no column has a value")
+        void severalColumnsNoValue() throws SQLException {
+            var result = executeRelation(GROUPS + "->filter(r|$r->read(~[before, after])->isEmpty())");
+            assertEquals(List.of(3), result.rows().stream().map(r -> ((Number) r.get(0)).intValue()).toList());
+        }
+
+        @Test
+        @DisplayName("several columns: a use other than isEmpty/isNotEmpty is refused by name, as a value of no SQL list")
+        void severalColumnsOtherUse() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(
+                    GROUPS + "->extend(~n:r|$r->read(~[before, after])->size())"));
+            assertTrue(ex.getMessage().contains("is read by isEmpty or isNotEmpty"), ex.getMessage());
+        }
+
+        @Test
+        @DisplayName("its SQL is the columns' null tests, as written by hand")
+        void theSqlOfSeveralColumns() {
+            String people = "model::Person.all()->project(~[name:p|$p.firstName, age:p|$p.age])";
+            assertEquals(generateSql(people + "->filter(r|$r.name->isNotEmpty() || $r.age->isNotEmpty())"),
+                    generateSql(people + "->filter(r|$r->read(~[name, age])->isNotEmpty())"));
+            assertEquals(generateSql(people + "->filter(r|$r.name->isEmpty() && $r.age->isEmpty())"),
+                    generateSql(people + "->filter(r|$r->read(~[name, age])->isEmpty())"));
+        }
+
+        @Test
+        @DisplayName("several columns: a column the row has not is refused by name, as is no column")
+        void severalColumnsRefused() {
+            var ex = assertThrows(Exception.class, () -> executeRelation(
+                    SCORES + "->filter(r|$r->read(~[score, nope])->isNotEmpty())"));
+            assertTrue(ex.getMessage().contains("nope"), ex.getMessage());
+            var none = assertThrows(Exception.class, () -> executeRelation(
+                    SCORES + "->filter(r|$r->read(~[])->isNotEmpty())"));
+            assertTrue(none.getMessage().contains("at least one column"), none.getMessage());
         }
     }
 

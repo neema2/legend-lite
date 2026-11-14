@@ -131,7 +131,13 @@ public final class PureModelContext implements ModelContext {
      * platform bug and throws), over the index Phase E built for it. */
     public static CheckedLayer checkLayer(com.legend.model.NormalizedModel normalized,
             ModelBuilder index, com.legend.platform.Registrations registrations) {
-        PureModelContext alone = from(normalized, index, registrations);
+        return layerOf(from(normalized, index, registrations));
+    }
+
+    /** {@code alone}'s elements as a layer a graph is checked over: every element its index holds, which the
+     *  integrity check passed when {@code alone} was made (the boot layer; a library over it, Compiler.compileModel's
+     *  two-argument form). */
+    public static CheckedLayer layerOf(PureModelContext alone) {
         CheckedLayer out = new CheckedLayer();
         alone.model.classes().forEach(out.elements::add);
         alone.model.functions().forEach(f -> {

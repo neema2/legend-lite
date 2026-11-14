@@ -251,8 +251,7 @@ mysql	Relation	meta::pure::functions::relation::tests::lateral::testLateralJoin_
 # clickhouse: measured by its lane session at fb8ee3da (2026-11-03, round 14)
 # Pure's indexOf is 0-based, the lowering answers 1-based (channel A fails the same tests on every lane measured)
 clickhouse	Essential	meta::pure::functions::collection::tests::indexof::testIndexOfOneElement	AssertFailed: ⏎ expected: 0 ⏎ actual:   1
-# a mixed list's sort: ClickHouse's Nullable cannot hold the sort's tagged tuple -- channel A passes, the engine's ClickHouse manifest fails it too (pinned among the lane's wire bugs since 2026-10-12)
-clickhouse	Essential	meta::pure::functions::collection::tests::removeDuplicates::testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes	DataError: Code: 43. DB::Exception: Nested type Tuple(g Nullable(Int64), n Nullable(Float64), d Nullable(DateTime64(6, 'UTC')), s Nullable(String)) cannot be in
+# (testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes left 2026-11-09: ClickHouse 26.3 holds the mixed list's sort's tagged tuple in a Nullable, which 25.8 refused; measured by the lane round on PR #81 at 0a1d84b2c)
 # a date outside ClickHouse's dates (1900 to 2299): the dialect refuses it, as ClickHouse would clamp it
 clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByMonthsBigNumber	DialectCapability: the date 800002016-02-29 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)
 clickhouse	Essential	meta::pure::functions::date::tests::testAdjustByWeeksBigNumber	DialectCapability: the date 236611261-10-03 reached ClickHouse, whose dates are 1900 to 2299 (it clamps a date past either end)

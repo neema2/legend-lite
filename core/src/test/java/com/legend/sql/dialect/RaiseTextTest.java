@@ -50,10 +50,12 @@ class RaiseTextTest {
     @Test
     void aProductRaiseWritesItsKindAndNoOperand() {
         for (DatabaseType type : Databases.implemented()) {
-            SqlDialect dialect = Databases.dialect(type);
-            String with = text(dialect, select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of(OPERAND,
-                    new SqlExpr.StringLit("by")))));
-            String without = text(dialect, select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of())));
+            // each render on its own dialect: a dialect numbers the raises it writes (ClickHouse's rand(n), main's #81),
+            // so one instance's second render differs from its first by the number alone
+            String with = text(Databases.dialect(type), select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO,
+                    List.of(OPERAND, new SqlExpr.StringLit("by")))));
+            String without = text(Databases.dialect(type), select(new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO,
+                    List.of())));
             assertEquals(without, with, type.name());
             assertFalse(with.contains("operand_col"), type + ": " + with);
             if (!with.startsWith("refused: ")) {
