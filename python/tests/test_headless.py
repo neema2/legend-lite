@@ -1154,6 +1154,56 @@ class OneRead(unittest.TestCase):
             self.assertRegex(str(ended.exception), r'aborted its transaction \(Invalid Input Error: Values were not'
                              r' provided')
 
+    def test_a_file_not_there_never_replaces_the_failure_that_ended_the_read_in_either_order(self):
+        # the C4 final fix round's B1, 2026-11-14: a view over a parquet file that is gone raises an IOException at bind,
+        # and it aborts a standing transaction -- yet DuckDB still raises it as itself after an abort (measured on the
+        # pinned DuckDB): after a conversion ended the read it never replaces that failure; first, it is the read's end
+        import tempfile
+        import pyarrow.parquet as pq
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        for order in ('the conversion first', 'the file first'):
+            parquet = Path(folder.name) / 'gone.parquet'
+            pq.write_table(pyarrow.table({'a': [1]}), parquet)
+            with self.frames.reading() as read:
+                read.execute(PlannedSql(f"CREATE VIEW gone AS SELECT * FROM read_parquet('{parquet.as_posix()}')"))
+                parquet.unlink()
+                if order == 'the conversion first':
+                    with self.assertRaisesRegex(Exception, 'Conversion'):
+                        self.rows("SELECT CAST('x' AS INTEGER) AS n")
+                # through DataCube's code, the failure is DuckDB's words (the JavaScript bridge carries no class)
+                with self.assertRaisesRegex(Exception, 'IO Error: No files found'):
+                    self.rows('SELECT * FROM gone')
+                with self.assertRaises(Exception) as ended:
+                    self.rows('SELECT count(*) AS n FROM trades')
+                self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion' if order ==
+                                 'the conversion first' else r'aborted its transaction \(IO Error: No files found', order)
+
+    def test_a_file_the_database_may_not_touch_never_ends_the_read_nor_names_its_end(self):
+        # the C4 final fix round's B1, 2026-11-14: a PermissionException is refused before its statement runs -- it
+        # leaves the transaction standing (the next statement runs, measured on the pinned DuckDB) -- and DuckDB raises
+        # it as itself after an abort too: first, the read goes on and the failure that then aborts it names the end;
+        # after the abort, it never replaces that failure
+        for n, order in enumerate(('the refusal first', 'the conversion first')):
+            if n:
+                # the setting is the database's own, so each order reads a fresh one
+                self.setUp()
+            with self.frames.reading() as read:
+                read.execute(PlannedSql('SET enable_external_access = false'))
+                touch = "SELECT * FROM read_csv('no_such_folder/x.csv')"
+                if order == 'the refusal first':
+                    with self.assertRaisesRegex(Exception, 'Permission Error'):
+                        self.rows(touch)
+                    self.assertEqual(self.rows('SELECT count(*) AS n FROM trades'), [{'n': len(TRADES)}])
+                with self.assertRaisesRegex(Exception, 'Conversion'):
+                    self.rows("SELECT CAST('x' AS INTEGER) AS n")
+                if order == 'the conversion first':
+                    with self.assertRaisesRegex(Exception, 'Permission Error'):
+                        self.rows(touch)
+                with self.assertRaises(Exception) as ended:
+                    self.rows('SELECT count(*) AS n FROM trades')
+                self.assertRegex(str(ended.exception), r'aborted its transaction \(Conversion', order)
+
     def test_a_failure_at_the_fetch_ends_the_read_by_its_own_words(self):
         # the follow-up audit's G3, 2026-11-14: DuckDB converts as it streams, so a value that does not convert past the
         # first rows it hands over fails at the FETCH (to_arrow_table), not at the statement -- measured at 3M rows --
