@@ -133,7 +133,7 @@ public final class RelationalTypeInference {
                     }
                     RelationalDataType first = infer(f.args().get(0), db, ctx, expanding);
                     RelationalDataType second = infer(f.args().get(1), db, ctx, expanding);
-                    yield first != null && second != null && first.getClass() == second.getClass() ? first : null;
+                    yield first != null && second != null && kind(first) == kind(second) ? first : null;
                 }
                 // joinStrings AGGREGATES: the engine assigns the fixed
                 // 4000 buffer size
@@ -228,52 +228,68 @@ public final class RelationalTypeInference {
 
     // ---- the engine's safe type (S378, 2026-11-13, ruling 32): relationalExtension.pure:1926-2033, exactly
 
+    /** A relational type's raw kind: the engine's datatype class, which its safeTypeMap and sub's rule compare. */
+    enum Kind {
+        TINYINT, SMALLINT, INTEGER, BIGINT, FLOAT, DOUBLE, REAL, BIT, VARCHAR, CHAR, BINARY, VARBINARY, DECIMAL,
+        NUMERIC, TIMESTAMP, DATE, TIME, TIMESTAMP_NS, DISTINCT, OTHER, SEMISTRUCTURED, ARRAY, OBJECT
+    }
+
+    static Kind kind(RelationalDataType t) {
+        return switch (t) {
+            case RelationalDataType.TinyInt ignored -> Kind.TINYINT;
+            case RelationalDataType.SmallInt ignored -> Kind.SMALLINT;
+            case RelationalDataType.Integer_ ignored -> Kind.INTEGER;
+            case RelationalDataType.BigInt ignored -> Kind.BIGINT;
+            case RelationalDataType.Float_ ignored -> Kind.FLOAT;
+            case RelationalDataType.Double_ ignored -> Kind.DOUBLE;
+            case RelationalDataType.Real ignored -> Kind.REAL;
+            case RelationalDataType.Bit ignored -> Kind.BIT;
+            case RelationalDataType.Varchar ignored -> Kind.VARCHAR;
+            case RelationalDataType.Char_ ignored -> Kind.CHAR;
+            case RelationalDataType.Binary ignored -> Kind.BINARY;
+            case RelationalDataType.Varbinary ignored -> Kind.VARBINARY;
+            case RelationalDataType.Decimal ignored -> Kind.DECIMAL;
+            case RelationalDataType.Numeric ignored -> Kind.NUMERIC;
+            case RelationalDataType.Timestamp ignored -> Kind.TIMESTAMP;
+            case RelationalDataType.Date_ ignored -> Kind.DATE;
+            case RelationalDataType.Time ignored -> Kind.TIME;
+            case RelationalDataType.TimestampNs ignored -> Kind.TIMESTAMP_NS;
+            case RelationalDataType.Distinct ignored -> Kind.DISTINCT;
+            case RelationalDataType.Other ignored -> Kind.OTHER;
+            case RelationalDataType.SemiStructured ignored -> Kind.SEMISTRUCTURED;
+            case RelationalDataType.Array ignored -> Kind.ARRAY;
+            case RelationalDataType.Object_ ignored -> Kind.OBJECT;
+        };
+    }
+
     /** The engine's safeTypeMap (relationalExtension.pure:2014-2033): a kind's safe partners. A kind it does not list
      *  (REAL, BINARY, VARBINARY, TIME, TIMESTAMP_NS, DISTINCT, SEMISTRUCTURED, ARRAY, OBJECT) has none, itself
      *  included. */
-    private static final java.util.Map<Class<? extends RelationalDataType>, List<Class<? extends RelationalDataType>>>
-            SAFE_TYPE_MAP = safeTypeMap();
-
-    private static java.util.Map<Class<? extends RelationalDataType>, List<Class<? extends RelationalDataType>>>
-            safeTypeMap() {
-        Class<? extends RelationalDataType> tiny = RelationalDataType.TinyInt.class;
-        Class<? extends RelationalDataType> small = RelationalDataType.SmallInt.class;
-        Class<? extends RelationalDataType> integer = RelationalDataType.Integer_.class;
-        Class<? extends RelationalDataType> big = RelationalDataType.BigInt.class;
-        Class<? extends RelationalDataType> flt = RelationalDataType.Float_.class;
-        Class<? extends RelationalDataType> dbl = RelationalDataType.Double_.class;
-        Class<? extends RelationalDataType> numeric = RelationalDataType.Numeric.class;
-        Class<? extends RelationalDataType> decimal = RelationalDataType.Decimal.class;
-        Class<? extends RelationalDataType> chr = RelationalDataType.Char_.class;
-        Class<? extends RelationalDataType> varchar = RelationalDataType.Varchar.class;
-        Class<? extends RelationalDataType> date = RelationalDataType.Date_.class;
-        Class<? extends RelationalDataType> timestamp = RelationalDataType.Timestamp.class;
-        Class<? extends RelationalDataType> bit = RelationalDataType.Bit.class;
-        Class<? extends RelationalDataType> other = RelationalDataType.Other.class;
-        java.util.Map<Class<? extends RelationalDataType>, List<Class<? extends RelationalDataType>>> m =
-                new java.util.LinkedHashMap<>();
-        m.put(tiny, List.of(tiny, small, integer, flt, big, dbl, numeric, decimal));
-        m.put(small, List.of(small, integer, flt, big, dbl, numeric, decimal));
-        m.put(integer, List.of(integer, flt, big, dbl, numeric, decimal));
-        m.put(big, List.of(big, dbl, numeric, decimal));
-        m.put(flt, List.of(flt, dbl, numeric, decimal));
-        m.put(dbl, List.of(dbl, numeric, decimal));
-        m.put(numeric, List.of(numeric, decimal));
-        m.put(decimal, List.of(decimal, numeric));
-        m.put(chr, List.of(chr, varchar));
-        m.put(varchar, List.of(chr, varchar));
-        m.put(date, List.of(date));
-        m.put(timestamp, List.of(timestamp));
-        m.put(bit, List.of(bit));
-        m.put(other, List.of(tiny, small, integer, flt, big, dbl, numeric, decimal, chr, varchar, date, timestamp, bit,
-                other));
-        return java.util.Collections.unmodifiableMap(m);
+    private static List<Kind> partners(Kind k) {
+        return switch (k) {
+            case TINYINT -> List.of(Kind.TINYINT, Kind.SMALLINT, Kind.INTEGER, Kind.FLOAT, Kind.BIGINT, Kind.DOUBLE,
+                    Kind.NUMERIC, Kind.DECIMAL);
+            case SMALLINT -> List.of(Kind.SMALLINT, Kind.INTEGER, Kind.FLOAT, Kind.BIGINT, Kind.DOUBLE, Kind.NUMERIC,
+                    Kind.DECIMAL);
+            case INTEGER -> List.of(Kind.INTEGER, Kind.FLOAT, Kind.BIGINT, Kind.DOUBLE, Kind.NUMERIC, Kind.DECIMAL);
+            case BIGINT -> List.of(Kind.BIGINT, Kind.DOUBLE, Kind.NUMERIC, Kind.DECIMAL);
+            case FLOAT -> List.of(Kind.FLOAT, Kind.DOUBLE, Kind.NUMERIC, Kind.DECIMAL);
+            case DOUBLE -> List.of(Kind.DOUBLE, Kind.NUMERIC, Kind.DECIMAL);
+            case NUMERIC -> List.of(Kind.NUMERIC, Kind.DECIMAL);
+            case DECIMAL -> List.of(Kind.DECIMAL, Kind.NUMERIC);
+            case CHAR, VARCHAR -> List.of(Kind.CHAR, Kind.VARCHAR);
+            case DATE -> List.of(Kind.DATE);
+            case TIMESTAMP -> List.of(Kind.TIMESTAMP);
+            case BIT -> List.of(Kind.BIT);
+            case OTHER -> List.of(Kind.TINYINT, Kind.SMALLINT, Kind.INTEGER, Kind.FLOAT, Kind.BIGINT, Kind.DOUBLE,
+                    Kind.NUMERIC, Kind.DECIMAL, Kind.CHAR, Kind.VARCHAR, Kind.DATE, Kind.TIMESTAMP, Kind.BIT, Kind.OTHER);
+            case REAL, BINARY, VARBINARY, TIME, TIMESTAMP_NS, DISTINCT, SEMISTRUCTURED, ARRAY, OBJECT -> List.of();
+        };
     }
 
     /** {@code safeTypeMap->get(t1).values->contains(t2)}, by raw kind. */
     private static boolean lists(RelationalDataType t1, RelationalDataType t2) {
-        List<Class<? extends RelationalDataType>> partners = SAFE_TYPE_MAP.get(t1.getClass());
-        return partners != null && partners.contains(t2.getClass());
+        return partners(kind(t1)).contains(kind(t2));
     }
 
     /** The engine's isSafeTypePossible(type1, type2) (:1954-1965). */
@@ -283,18 +299,20 @@ public final class RelationalTypeInference {
 
     /** The engine's getSafeType(type1, type2) (:1967-1985): type2 when type1 lists it, else type1; a CHAR or VARCHAR
      *  safe type is a VARCHAR of the larger size (an OTHER sized 0); a NUMERIC or DECIMAL one a DECIMAL of the larger
-     *  integer digits plus the larger scale. Asked only where {@link #isSafeTypePossible} holds. */
+     *  integer digits plus the larger scale (getDecimalScale and getDecimalIntegerPrecision: 0 for any other kind).
+     *  Asked only where {@link #isSafeTypePossible} holds. */
     static RelationalDataType getSafeType(RelationalDataType t1, RelationalDataType t2) {
         RelationalDataType safe = lists(t1, t2) ? t2 : t1;
-        if (safe instanceof RelationalDataType.Char_ || safe instanceof RelationalDataType.Varchar) {
-            return new RelationalDataType.Varchar(Math.max(size(t1), size(t2)));
-        }
-        if (safe instanceof RelationalDataType.Numeric || safe instanceof RelationalDataType.Decimal) {
-            int scale = Math.max(scale(t1), scale(t2));
-            int precision = Math.max(integerDigits(t1), integerDigits(t2)) + scale;
-            return new RelationalDataType.Decimal(precision, scale);
-        }
-        return safe;
+        return switch (kind(safe)) {
+            case CHAR, VARCHAR -> new RelationalDataType.Varchar(Math.max(size(t1), size(t2)));
+            case NUMERIC, DECIMAL -> {
+                int scale = Math.max(scale(t1), scale(t2));
+                int precision = Math.max(integerDigits(t1), integerDigits(t2)) + scale;
+                yield new RelationalDataType.Decimal(precision, scale);
+            }
+            case TINYINT, SMALLINT, INTEGER, BIGINT, FLOAT, DOUBLE, REAL, BIT, BINARY, VARBINARY, TIMESTAMP, DATE, TIME,
+                    TIMESTAMP_NS, DISTINCT, OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> safe;
+        };
     }
 
     /** The engine's list fold (isSafeTypePossible / getSafeType over types, :1926-1951): from the first type, each next
@@ -317,28 +335,41 @@ public final class RelationalTypeInference {
         return acc;
     }
 
+    /** A CHAR's or VARCHAR's size, an OTHER's 0 (getSafeType's own rule); no other kind meets a CHAR or VARCHAR safe
+     *  type (only CHAR, VARCHAR and OTHER list them). */
     private static int size(RelationalDataType t) {
-        return switch (t) {
-            case RelationalDataType.Char_ c -> c.size();
-            case RelationalDataType.Varchar v -> v.size();
-            default -> 0;
-        };
+        if (t instanceof RelationalDataType.Char_ c) {
+            return c.size();
+        }
+        if (t instanceof RelationalDataType.Varchar v) {
+            return v.size();
+        }
+        if (t instanceof RelationalDataType.Other) {
+            return 0;
+        }
+        throw new IllegalStateException("a " + kind(t) + " met a CHAR or VARCHAR safe type: the safeTypeMap lists none");
     }
 
+    /** getDecimalScale (:1987-1994): a NUMERIC's or DECIMAL's scale, any other kind's none (0, the engine's arm). */
     private static int scale(RelationalDataType t) {
-        return switch (t) {
-            case RelationalDataType.Numeric n -> n.scale();
-            case RelationalDataType.Decimal d -> d.scale();
-            default -> 0;
-        };
+        if (t instanceof RelationalDataType.Numeric n) {
+            return n.scale();
+        }
+        if (t instanceof RelationalDataType.Decimal d) {
+            return d.scale();
+        }
+        return 0;
     }
 
+    /** getDecimalIntegerPrecision (:1996-2003): a NUMERIC's or DECIMAL's integer digits, any other kind's none (0). */
     private static int integerDigits(RelationalDataType t) {
-        return switch (t) {
-            case RelationalDataType.Numeric n -> n.precision() - n.scale();
-            case RelationalDataType.Decimal d -> d.precision() - d.scale();
-            default -> 0;
-        };
+        if (t instanceof RelationalDataType.Numeric n) {
+            return n.precision() - n.scale();
+        }
+        if (t instanceof RelationalDataType.Decimal d) {
+            return d.precision() - d.scale();
+        }
+        return 0;
     }
 
     /** The declared type of {@code table.column}: in the op's OWN database

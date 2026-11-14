@@ -2040,13 +2040,13 @@ class NameResolverTest {
         // a section no grammar claims (the platform's dialect leaves one unclaimed, lite's refuses it), set on the
         // records: the own-corpus guards keep a test's text to the engine's grammar (2026-11-13, the names landings;
         // the names fixes' first version parsed one, `###Unknown`, at the platform's dialect)
-        ParsedModel p = com.legend.door.ModelFromText.parse("""
+        ParsedModel p = com.legend.testing.Own.model("""
                 import app::*;
                 Class app::A { b: B[1]; }
                 Class app::B { b: String[0..1]; }
                 Enum app::E { x }
                 function app::g():Any[*] { [E.x, E.x] }
-                """, com.legend.parser.Dialect.LEGEND_PLATFORM);
+                """);
         ParsedModel m = new ParsedModel(p.elements(), p.imports(), p.source(), p.elementOffsets(), p.elementImports(),
                 p.elementSources(), List.of(new ParsedModel.UnclaimedSection("Unknown", 0, 8)), p.elementSpans());
         assertEquals(1, m.unclaimedSections().size());
@@ -2082,7 +2082,7 @@ class NameResolverTest {
     void aPrimitiveExtensionsTypeVariablesRideTheRebuildAndTheirTypesResolve() {
         java.util.function.BiFunction<String, String, String> compile = (primitive, rest) -> {
             String[] p = primitive.split("\\|");   // fqn|variable|type
-            ParsedModel parsed = com.legend.door.ModelFromText.parse(rest, com.legend.parser.Dialect.LEGEND_LITE);
+            ParsedModel parsed = com.legend.testing.Own.model(rest);
             List<PackageableElement> elements = new java.util.ArrayList<>();
             elements.add(new com.legend.model.PrimitiveExtensionDefinition(p[0], "Integer", List.of(
                     new com.legend.protocol.ParameterDefinition(p[1], new TypeExpression.NameRef(p[2]),
@@ -2107,13 +2107,13 @@ class NameResolverTest {
                 "Wrong type variables count (0) for type: IntCap(x:Integer)"), refused);
         // resolution itself: the rebuilt extension keeps its variable, whose type resolves through the imports, and a
         // class's type variable's type resolves too
-        ParsedModel parsed = com.legend.door.ModelFromText.parse("""
+        ParsedModel parsed = com.legend.testing.Own.model("""
                 import a::*;
                 Class a::C
                 {
                   x : Integer[1];
                 }
-                """, com.legend.parser.Dialect.LEGEND_LITE);
+                """);
         List<PackageableElement> elements = new java.util.ArrayList<>(parsed.elements());
         elements.add(new com.legend.model.PrimitiveExtensionDefinition("a::P", "a::Base", List.of(
                 new com.legend.protocol.ParameterDefinition("x", new TypeExpression.NameRef("C"),
