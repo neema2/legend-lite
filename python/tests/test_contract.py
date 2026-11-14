@@ -348,7 +348,7 @@ class ConformanceSuiteTest(_Served):
             results = json.loads(h.evaluate(f'legendLiteConformance.run({json.dumps(json.dumps(fixture))})'))
         for r in results:
             print(f"{'ok  ' if r['ok'] else 'FAIL'} {r['name']}{'' if r['ok'] else ': ' + r.get('error', '')}", flush=True)
-        self.assertGreaterEqual(len(results), 29)
+        self.assertGreaterEqual(len(results), 30)
         self.assertEqual([r for r in results if not r['ok']], [])
         # every case runs against Python headless but C29, by name: its model home's SDLC refuses to save a project file
         # declaring one of lite's extensions (in upstream's words), so no version here holds one (Q31)

@@ -937,6 +937,9 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:factsOf:local': { count: 4, other: `${BOTH} a grid's facts read through its runner: the start's grid's through the tab's engine over the page's own model, a warehouse's live grid over the tab's database (step 6); a host's grid comes with its runner`, ability: 'model' },
   'src/app/datacube-app.ts:factsOf:place.runner': { count: 3, other: `${BOTH} a grid's facts read through its runner, its source the model the page wrote or its host's plan-and-run's`, ability: 'model' },
   'src/app/datacube-app.ts:tableWriter:place.runner': { other: `${BOTH} the source a tab's grid's table Output is written over: its own, or the start's the page's planner's; a host's grid's is written by that host (flow.run)`, ability: 'write' },
+  // 2026-11-14 (the DataCube engine stream's merge of main 3a217086a, #81): projectTogether reads a project's grids
+  // together through the first grid's runner (the engine holds the version's database) -- the tab's alone, as #81 had it
+  'src/app/datacube-app.ts:togetherOf:tabEngine': { other: `${BOTH} a project's grids read together in the tab through the first grid's runner; a host's (Python's) through its own together (hostTables.together)`, ability: 'rows' },
   // -- a grid (app.ts) --
   'src/app.ts:constructor:options.runner': { count: 3, other: `${BOTH} a grid's rows run by the host's runner, or the tab's planner`, ability: 'rows' },
   'src/app.ts:#signInOffer:options.runner': { other: `${BOTH} signed in again by the tab's warehouse engine, or the host's own sign-in`, ability: 'warehouse' },

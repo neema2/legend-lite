@@ -428,7 +428,20 @@ const SOURCES: readonly Case[] = [
 ];
 
 // a library's functions and its enumerations (Q17, Q27): DataCube's own declares both
-const LIBRARY = '###Pure\nEnum conformance::lib::Size\n{\n  small, large\n}\n\nfunction conformance::lib::twice(x: Integer[1]): Integer[1]\n{\n  $x * 2\n}\n';
+const LIBRARY = '###Pure\nProfile conformance::lib::Words\n{\n  tags: [given];\n}\n\nEnum conformance::lib::Size\n{\n  small, large\n}\n\n'
+  // a profile its function is tagged by (Q33: DataCube's own library tags its words, timeseries::Words)
+  + "function {conformance::lib::Words.given = 'x'} conformance::lib::twice(x: Integer[1]): Integer[1]\n{\n  $x * 2\n}\n";
+/** One library per kind a library may NOT declare (Q17, Q27, Q33), each read alone: its kind as the engines' own reading
+ *  names it, and the element's path a refusal names. */
+const NOT_LIBRARIES: readonly (readonly [string, string, string])[] = [
+  ['class', '###Pure\nClass conformance::lib::Row\n{\n  id: Integer[0..1];\n}\n', 'conformance::lib::Row'],
+  ['association', '###Pure\nAssociation conformance::lib::RowRow\n{\n  a: conformance::lib::Row[*];\n  b: conformance::lib::Row[*];\n}\n', 'conformance::lib::RowRow'],
+  ['store', '###Relational\nDatabase conformance::lib::DB ( Table T ( ID INTEGER ) )\n', 'conformance::lib::DB'],
+  ['mapping', '###Mapping\nMapping conformance::lib::M\n(\n)\n', 'conformance::lib::M'],
+  ['connection', '###Connection\nRelationalDatabaseConnection conformance::lib::C\n{\n  store: conformance::lib::DB;\n  type: DuckDB;\n  specification: DuckDB { };\n  auth: Test;\n}\n', 'conformance::lib::C'],
+  ['runtime', '###Runtime\nRuntime conformance::lib::R\n{\n  mappings: [conformance::lib::M];\n  connections: [conformance::lib::DB: [c: conformance::lib::C]];\n}\n', 'conformance::lib::R'],
+  ['data', "###Data\nData conformance::lib::D\n{\n  Relational\n  #{\n    default.T: 'ID\\n1\\n';\n  }#\n}\n", 'conformance::lib::D'],
+];
 // a function generic over relations (lite's declared extension S112), as DataCube's library writes them: upstream's grammar
 // refuses its type parameter, lite's own dialect -- the planner's, and an engine's own reading (Q27) -- reads it
 const GENERIC = '###Pure\nfunction conformance::ext::firstRows<T>(t: Relation<T>[1], n: Integer[1]): Relation<T>[1]\n{\n  $t->limit($n)\n}\n';
@@ -436,7 +449,7 @@ const NOT_A_LIBRARY = '###Pure\nClass conformance::lib::Row\n{\n  id: Integer[0.
 
 const READING: readonly Case[] = [
   {
-    name: "C20 a library beside the model: its functions called, an enumeration in it admitted; a library holding anything else refused by name (Q17, Q27)",
+    name: "C20 a library beside the model: its functions called, an enumeration and a profile its function is tagged by admitted (Q17, Q27, Q33)",
     async run(_e, s, caps, f) {
       if (!caps.calls.query) return;
       const query = lambda([], fn('extend', f.source, {
@@ -446,6 +459,19 @@ const READING: readonly Case[] = [
       for (let i = 0; i < 2; i += 1) equal((await rowsOf(s, { ...ask(f, query), library: LIBRARY })).count, f.rowCount, `the library's call, asked ${i + 1}`);
       await rejects(() => rowsOf(s, { ...ask(f, query), library: NOT_A_LIBRARY }), 'refused', 'a library declaring a class', 'conformance::lib::Row');
       await rejects(() => rowsOf(s, ask(f, query)), 'compile', 'a call of a library not sent');
+    },
+  },
+  {
+    name: 'C30 a library declaring any kind but functions, enumerations and profiles is refused, naming the element: a class, an association, a store, a mapping, a connection, a runtime, data (Q17, Q27, Q33)',
+    async run(_e, s, caps, f) {
+      if (!caps.calls.query) return;
+      const query = lambda([], fn('extend', f.source, {
+        _type: 'classInstance', type: 'colSpec',
+        value: { name: 'twice', function1: lambda(['x'], fn('conformance::lib::twice', fn('toOne', { _type: 'property', property: f.keyColumn, parameters: [{ _type: 'var', name: 'x' }] } as unknown as ValueSpecification))) },
+      } as unknown as ValueSpecification));
+      for (const [kind, library, path] of NOT_LIBRARIES) {
+        await rejects(() => rowsOf(s, { ...ask(f, query), library: `${LIBRARY}\n${library}` }), 'refused', `a library declaring a ${kind}`, path);
+      }
     },
   },
   {

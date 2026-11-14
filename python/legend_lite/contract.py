@@ -315,7 +315,7 @@ class ContractDoor:
             raise ContractError('compile', call, failure.message) from None
         other = sorted({f"a {e.get('_type')} '{_path(e)}'" for e in elements if e.get('_type') not in _LIBRARY_KINDS})
         if other:
-            raise refused(call, f'a library declaring {other[0]}', 'a library holds functions and enumerations alone (Q17)')
+            raise refused(call, f'a library declaring {other[0]}', 'a library holds functions, enumerations and profiles alone (Q17, Q33)')
         with self._lock:
             self._libraries.add(digest)
 
@@ -810,8 +810,10 @@ def _version(project: Mapping[str, str]) -> bool:
     """Whether coordinates name a version (its rows the project's own Data, C5) rather than a workspace's revision."""
     return set(project) == _VERSION_KEYS
 
-# a library's elements (Q17, Q27: the orchestrator, 2026-11-13): its functions and its enumerations, nothing else
-_LIBRARY_KINDS = frozenset({'function', 'Enumeration', 'sectionIndex'})
+# a library's elements (Q17, Q27: the orchestrator, 2026-11-13): its functions and its enumerations -- and its profiles,
+# their stereotypes and tags (Q27 amended by Q33, 2026-11-14: #81's library declares Profile timeseries::Words) --
+# nothing else
+_LIBRARY_KINDS = frozenset({'function', 'Enumeration', 'profile', 'sectionIndex'})
 
 
 def _query_ask(asked: Mapping[str, Any], call: str) -> dict[str, Any]:

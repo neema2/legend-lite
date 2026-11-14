@@ -79,7 +79,7 @@ describe("the tab's engine, held to the engine contract's conformance suite", ()
       // no `served`: DuckDB-WASM in Node makes no request (engine-client node-require.ts), so the remote case says so
     };
     const results = await runConformance(tab, fixture);
-    assert.ok(results.length >= 29, `${results.length} cases ran`);
+    assert.ok(results.length >= 30, `${results.length} cases ran`);
     assert.deepEqual(results.filter((r) => !r.ok), []);
     // the one case not run here, by name and why: a remote file over HTTP (run against Python headless instead)
     assert.deepEqual(results.filter((r) => r.notRun !== undefined).map((r) => [r.name.slice(0, 3), r.notRun]),

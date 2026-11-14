@@ -235,6 +235,10 @@ today); the UI's look.
   warehouse grid keeps its own Snap until step 6.
 - **Q27 the engines' own reading:** (1) a library admits FUNCTIONS and ENUMERATIONS (DataCube's own declares both);
   anything else -- a class, an association, a store, a mapping, a connection, a runtime -- is refused by name.
+  **Q27 amended by Q33, 2026-11-14 (the orchestrator; #81's library declares Profile timeseries::Words):** a library
+  admits functions, enumerations AND PROFILES (stereotypes and tags only); classes, associations, stores, mappings,
+  connections, runtimes and data stay refused by name (C20 admits a profile its function is tagged by; C30 refuses
+  each other kind).
   (2) An engine reads a model for its own checks (R3a, a library's, a write's tables) in lite's OWN dialect -- a new
   planner door, reading only: `Boundary.elements(text)` (`PmcdParser.parse(text, Dialect.LEGEND_LITE)`'s elements,
   no source information; the module's `elementsOrError`, the native library's `lite_elements`; one parameter, the

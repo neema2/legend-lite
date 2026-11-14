@@ -37,8 +37,10 @@ const ENGINE = 'the tab';
 /** The kinds of element a model sent to an engine may not hold (R3a (a)), as the parser names them. */
 const OWNED_KINDS = new Set(['connection', 'runtime']);
 const SECTION_INDEX = 'sectionIndex';
-/** What a library may declare (Q17, Q27: the orchestrator, 2026-11-13): functions and enumerations, nothing else. */
-const LIBRARY_KINDS = new Set(['function', 'Enumeration']);
+/** What a library may declare (Q17, Q27: the orchestrator, 2026-11-13): functions and enumerations -- and profiles, their
+ *  stereotypes and tags (Q27 amended by Q33, 2026-11-14: #81's library declares Profile timeseries::Words) -- nothing
+ *  else: no class, association, store, mapping, connection, runtime or data. */
+const LIBRARY_KINDS = new Set(['function', 'Enumeration', 'profile']);
 
 /** What the tab's engine runs on: its database, held for a write alone, the plane's planner and its writer. */
 export interface TabEngineOptions {
@@ -277,7 +279,7 @@ export function tabEngine(o: TabEngineOptions): TabEngine {
     const digest = await sha256(new TextEncoder().encode(library));
     if (libraries.has(digest)) return;
     const other = (await elementsOf(library, call)).find((e) => !LIBRARY_KINDS.has(e._type ?? ''));
-    if (other !== undefined) throw new Refused(call, `a library declaring a ${other._type} '${pathOf(other)}'`, ENGINE, 'a library holds functions and enumerations alone (Q17)');
+    if (other !== undefined) throw new Refused(call, `a library declaring a ${other._type} '${pathOf(other)}'`, ENGINE, 'a library holds functions, enumerations and profiles alone (Q17, Q33)');
     libraries.add(digest);
   };
   const planned = async <T>(call: CallName, work: () => Promise<T>, executionId?: string): Promise<T> => {
