@@ -354,7 +354,10 @@ class PlannerSurfaceTest {
             // the lite routes, closed (CLOSED_ROUTE_FILES, 2026-11-13): INTERNAL keys are the project's own elements as
             // the route's parse of its text writes them, never the request's; "serializer" (the C4 audit's M4,
             // 2026-11-13): the protocol's serializer object upstream's clients send on a project and a source, closed
-            // to its name and version and read past, as upstream's PureModelContextText carries it
+            // to its name and version and read past, as upstream's PureModelContextText carries it. "version" since the
+            // C4 final fix round's B2 (2026-11-14): the serializer is closed through a variable now (a null is none),
+            // so this census reads its only(...) list -- its name a NAME row already, its version the protocol's
+            // version word, admitted and never read: a VALUE
             "ModelChanges.java", new TreeMap<>(fields("_type", OPTION, "association", OBJECT, "associations", OBJECT,
                     "class", OBJECT, "classMappings", INTERNAL, "classes", OBJECT, "code", MODEL_TEXT, "column",
                     INTERNAL, "dataSpace", OBJECT, "elements", INTERNAL, "endColumn", INTERNAL, "endLine", INTERNAL,
@@ -362,7 +365,7 @@ class PlannerSurfaceTest {
                     "properties", INTERNAL, "property", INTERNAL, "propertyMappings", INTERNAL, "pureCode", INTERNAL,
                     "relationFunction", INTERNAL, "runtimeValue", INTERNAL, "serializer", OBJECT, "source", OBJECT,
                     "sourceInformation",
-                    INTERNAL, "startColumn", INTERNAL, "startLine", INTERNAL, "type", INTERNAL)),
+                    INTERNAL, "startColumn", INTERNAL, "startLine", INTERNAL, "type", INTERNAL, "version", VALUE)),
             "ModelInput.java", new TreeMap<>(fields("_type", OPTION, "code", MODEL_TEXT, "model", MODEL_TEXT)),
             // a class made from a grid: its sample rows a Data element's CSV in the model, never a statement
             "CreateClass.java", new TreeMap<>(fields("_type", OPTION, "as", NAME, "body", LAMBDA, "columns", OBJECT,
