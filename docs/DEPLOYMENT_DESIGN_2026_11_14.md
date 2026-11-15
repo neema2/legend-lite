@@ -457,6 +457,13 @@ keyed tables' latest-version filters. (Both done 2026-11-15: §15.6a.)
 
 7. **Last, maybe:** a lane against a real Kafka-compatible broker (the user: "Real Kafka maybe at the end").
 
+**State, 2026-11-15:** steps 0 to 6 built (§15.1 to §15.5a), the filtered-mapping join fixed and the 26 latest-version
+filters on (§15.6a); the full local gate green on `claude/deephaven-3-browser` at 5a34e63d (529 of 541, the ten
+Postgres lanes and `verify_app_test` green under `tools/postgres/as_unprivileged.sh`, this container's root). Item 7
+is not built: a real broker is a binary this cloud session may not download and run; it waits on a machine or an
+environment that has one. Three things wait on the user's ruling: the positions' format (Parquet to CSV, §15.4),
+`Simulated` (S410) and the check on connect's narrowing (§15.4a).
+
 ### 15.1 Step 0 in detail (planned 2026-11-15)
 
 Measured first: 16 keyed desk tables (`MARKET_QUOTE`, `FX_RATE`, `TRADE_ORDER`, `RFQ`, `INSTRUMENT`, `EQUITY`,
