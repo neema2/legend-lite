@@ -18,6 +18,8 @@ parts. Appendix A is the whole model written out; Appendix B the turns taken on 
 - **An ingest says what lands, in upstream's Lakehouse words:** `Delta` or `Snapshot` (with a `deleteIndicator`),
   `append_only` or `batch_milestoned`. A dataset read from a topic or a database is a function of it; a dataset
   delivered to the ingest declares its own columns.
+- **A keyed dataset keeps every version** (upstream's batch milestoning, `LAKE_IN_ID` and `LAKE_OUT_ID`); its latest
+  rows are `LAKE_OUT_ID = 999999999`, read through an ordinary relational filter (§13, option A, recommended).
 - **Materialized views** are datasets made by a function over landed datasets. **Data products** publish access
   points, each with an optional target.
 - **Reading is unchanged:** a database includes ingests (`include Ingest`, upstream's), and the classes, mapping and
@@ -139,6 +141,11 @@ mixed:
 
 With `Snapshot`, keys that vanish from a pull vanish: what decision P's runner would have done by comparing runs.
 
+**A milestoned dataset's columns** (option A, §13): `batch_milestoned` keeps every version and adds `LAKE_DIGEST`,
+`LAKE_IN_ID` and `LAKE_OUT_ID` to every reader; the open versions are `LAKE_OUT_ID = 999999999`, upstream's
+persistence component's open batch id. The read database declares a filter per keyed table and each keyed class
+mapping uses it (`~filter`): the latest rows on every target, every version on the history tier by leaving it out.
+
 **What stays lite's** (S402 shrinks to these): a function source may read stores, not only datasets; a pull's
 schedule; a delivered ingest's records on a topic, not only as files; the deployment (§8).
 
@@ -253,13 +260,15 @@ serving functions, later.
   server, so starting and changing are one act. **`uninstall`** removes what the deployment made.
 - **On Deephaven:** the plan is data for one fixed, versioned loader that ships with lite. Each table subscribes with
   Deephaven's own reader (`KafkaTools.consumeToTable`); an appended table is a ring or an append table; a milestoned
-  table kept `current` is a blink table, `lastBy` its key, with the delete indicator's rows dropped (measured
+  table kept `current` is a blink table, `lastBy` its key, its milestoning columns filled (`LAKE_IN_ID` the record's
+  batch, `LAKE_OUT_ID` 999999999, `LAKE_DIGEST` a hash of its own columns), with the delete indicator's rows dropped (measured
   2026-10-30: Kafka's empty delete record fails the table, a flagged record works); a day travels as text and is made
   a `LocalDate` on the server (42.7's JSON reader takes none, measured in B1). The loader replaces the generated
   Groovy (`DeephavenProgram`, deleted).
 - **In the tab:** exec runs the plans C0 built (make, land, keep, as host-session loads). The simulated world
   publishes its topics inside the tab (the source `Simulated`: a browser cannot open a Kafka connection); the tab
-  lands from it with the same plans, and the world's direct writes into the tables are deleted.
+  lands from it with the same plans (a milestoned table's columns filled, closed versions dropped where it keeps
+  `current`), and the world's direct writes into the tables are deleted.
 - **In the lake:** a writer lands the topics as Iceberg or Parquet tables, keyed datasets with every version
   (upstream's milestoning columns, which lite refuses today: S404).
 - **The checks:** after installing, every table and view exists with its declared types, or the install fails naming
@@ -474,9 +483,12 @@ One of each kind: an event stream, a keyed stream, reference data with deletes, 
 topic, a materialized view, two environments. New against today: upstream's ingest words (`Delta<JSON>`,
 `deleteIndicator`, `BatchMilestoned`, the key taken from the topic; a materialized view a dataset of an ingest with
 no read mode, as upstream's); an access point with no target, `LH(|...)` (lite's spelling); the connection types
-`Files` and `Iceberg` (both open, §13) and the tab's source `Simulated`; a Kafka connection with no `format` (it is
-the read mode's) and no `store` (the deployment says what it feeds); the `Deployment` element. Everything else
-exists today.
+`Files` and `Iceberg` (`Files` until upstream's nearest connection is read, `Iceberg` at the history step) and the
+tab's source `Simulated`; a Kafka connection with no `format` (it is the read mode's) and no `store` (the deployment
+says what it feeds); the `Deployment` element; the keyed tables' latest-version filters (option A, awaiting the
+user's yes, §13); the data product `desk::Desk`, deployed whole and providing the data space's mapping (step 2).
+Everything else exists today. Before step 2, `deploys` lists the ingests and each environment names `mapping:`
+(§7).
 
 ```
 // ================================================================
@@ -585,6 +597,10 @@ Database store::DB
     MARKET_TRADE.INSTRUMENT_ID = INSTRUMENT.INSTRUMENT_ID)
   Join Position_Instrument(
     POSITION.INSTRUMENT_ID = INSTRUMENT.INSTRUMENT_ID)
+
+  // the latest version of each key (upstream's open batch id)
+  Filter Instrument_Latest(INSTRUMENT.LAKE_OUT_ID = 999999999)
+  Filter Position_Latest(POSITION.LAKE_OUT_ID = 999999999)
 )
 
 
@@ -631,6 +647,7 @@ Mapping desk::DeskMapping
 (
   products::Instrument: Relational
   {
+    ~filter [store::DB] Instrument_Latest
     ~mainTable [store::DB] INSTRUMENT
     instrumentId: [store::DB] INSTRUMENT.INSTRUMENT_ID,
     ticker:       [store::DB] INSTRUMENT.TICKER,
@@ -646,6 +663,7 @@ Mapping desk::DeskMapping
   }
   positions::Position: Relational
   {
+    ~filter [store::DB] Position_Latest
     ~mainTable [store::DB] POSITION
     positionId: [store::DB] POSITION.POSITION_ID,
     bookId:     [store::DB] POSITION.BOOK_ID,
@@ -687,12 +705,12 @@ function desk::screens::tape(): Relation<(at: DateTime[1],
 ###DataProduct
 // THE PUBLISHED API
 
-DataProduct marketdata::MarketData
+DataProduct desk::Desk
 {
-  title: 'Market data'
-  description: 'Trades and quotes from the ticker plant, live'
+  title: 'Trading desk'
+  description: 'The desk\'s classes, live, and its published views'
   accessPoints: [
-    model ('The market data classes') Model
+    model ('The desk classes') Model
     {
       mapping: desk::DeskMapping;
       compatibleRuntimes: [ deephaven: market::DeephavenRuntime,
@@ -778,11 +796,7 @@ RelationalDatabaseConnection market::TabFiles
 
 Deployment market::DeskOnDeephaven
 {
-  deploys: [ marketdata::MarketDataFeed,
-             products::SecurityMaster,
-             positions::StartOfDay,
-             market::WorldStatus,
-             desk::Views ];
+  deploys: [ desk::Desk ];      // what the product reads lands with it
   sources: [ market::Kafka: [ tickerplant::Topics,
                               secmaster::Topics,
                               market::WorldStatus ],
@@ -798,11 +812,7 @@ Deployment market::DeskOnDeephaven
 
 Deployment market::DeskInTab
 {
-  deploys: [ marketdata::MarketDataFeed,
-             products::SecurityMaster,
-             positions::StartOfDay,
-             market::WorldStatus,
-             desk::Views ];
+  deploys: [ desk::Desk ];      // what the product reads lands with it
   sources: [ market::SimulatedWorld: [ tickerplant::Topics,
                                        secmaster::Topics,
                                        market::WorldStatus ],
@@ -838,12 +848,12 @@ DataSpace market::TradingDesk
   [
     {
       name: 'Deephaven';
-      mapping: desk::DeskMapping;
+      mappingProvider: desk::Desk.model;
       defaultRuntime: market::DeephavenRuntime;
     },
     {
       name: 'In this tab';
-      mapping: desk::DeskMapping;
+      mappingProvider: desk::Desk.model;
       defaultRuntime: market::InTabRuntime;
     }
   ];
@@ -875,3 +885,6 @@ So a later session does not walk them again:
 12. **`Derived`:** proposed as a materialized view's read mode, dropped once upstream's fixture showed views in
     ordinary ingests (§5).
 13. **`TabLog`:** proposed for the tab's source, replaced by 2026-10-29's `Simulated` (§13).
+14. **`LatestByKey` onto `batch_milestoned`:** first mapped as a rename, then found to add milestoning columns to
+    every reader, then (the user: "there is a deterministic way to get latest which is lake out = 99999999") read
+    through an ordinary filter on the open batch id, 999999999 (§5, §13).
