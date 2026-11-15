@@ -157,6 +157,12 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    /** The {@code ###DataProduct} data product for {@code fqn}, if present &mdash; what a deployment deploys and a data
+     *  space's {@code mappingProvider} names. */
+    default Optional<com.legend.model.DataProductDefinition> findDataProduct(String fqn) {
+        return Optional.empty();
+    }
+
     /** The {@code ###DataSpace} element for {@code fqn}, if present &mdash; the graph a Cypher island's
      *  {@code USE} names (docs/CYPHER_STUDY_2026_10_15.md §12.45). */
     default Optional<com.legend.model.DataSpaceDefinition> findDataSpace(String fqn) {

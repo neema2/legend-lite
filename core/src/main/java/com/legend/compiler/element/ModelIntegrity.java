@@ -117,6 +117,7 @@ final class ModelIntegrity {
         model.dataSpaces().filter(fresh).forEach(ds -> withElement(ds.qualifiedName(), () -> {
             for (com.legend.model.DataSpaceDefinition.ExecutionContext ec : ds.executionContexts()) {
                 requireMapping(ec.mapping(), model);
+                requireProvider(ec.mappingProvider(), model);
                 requireRuntime(ec.defaultRuntime(), model);
             }
         }, wallSink));
@@ -195,6 +196,29 @@ final class ModelIntegrity {
             throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
                     "Can't find mapping '" + mapping + "'");
         }
+    }
+
+    /** A mapping provider names a data product, and one key that names a model access group of it, whose mapping
+     *  exists (docs/DEPLOYMENT_DESIGN_2026_11_14.md §7; {@code null}: none written). */
+    private static void requireProvider(com.legend.model.DataSpaceDefinition.@com.legend.base.Nullable MappingProvider p,
+            ModelBuilder model) {
+        if (p == null) {
+            return;
+        }
+        com.legend.model.DataProductDefinition product = model.findDataProduct(p.element()).orElseThrow(() ->
+                new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                        "Can't find data product '" + p.element() + "' (a mapping provider)"));
+        if (p.keys().size() != 1) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                    "the mapping provider " + p.element() + " names " + p.keys().size() + " groups: lite reads one"
+                            + " model access group's mapping");
+        }
+        String mapping = product.mappingOf(p.keys().get(0));
+        if (mapping == null) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                    "the data product " + p.element() + " has no model access group '" + p.keys().get(0) + "'");
+        }
+        requireMapping(mapping, model);
     }
 
     /** A named runtime exists ({@code null}: none written, or an inline one). */

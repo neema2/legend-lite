@@ -528,6 +528,29 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
   `install` and the check on connect at step 3; the ingest's `retention` stays for the tab's landing and the door's
   topics until step 5.
 
+### 15.3 Step 2, built (2026-11-15)
+
+- **`###DataProduct`, the small form** (register S408): the title, description, decorations and access point groups --
+  default groups and model groups with their mapping, holding lakehouse access points -- in the written forms Studio
+  shows (its round-trip fixtures' comments), lite's own for a model group (`id ('...') Model { mapping: m::M; } [ ... ]`;
+  Studio shows none, and a model group carries no runtimes at legend-studio `9775e72`, so Appendix A's
+  `compatibleRuntimes` was withdrawn) and for an access point with no target (`LH(|...)`). Every other field refused
+  by name, in text and JSON. The JSON is held to Studio's `TEST_DATA__DataProductRoundtrip.ts`
+  (`core/src/test/resources/dataproduct/`).
+- **`deploys` takes a data product:** it lands the datasets the product reads -- its model groups' mappings' main
+  tables, as the compiled bindings stamp them, and its access points' table reads -- each found among the ingests its
+  store includes (`planner/DataProducts`, upstream's `dependencyDatasets`); a table no ingest makes is named.
+- **The desk:** `desk::Desk` in `market.pure` over `stress::AllMapping`; the data space's two contexts read their
+  mapping from it (`mappingProvider: desk::Desk.model;`), checked by the compiler (the product, its one model group,
+  its mapping) and resolved by query-store's context reader for DataCube's saved queries. The desk's deployment still
+  lists its ingests: deploying `desk::Desk` would land the pulls and position files a Deephaven server does not land
+  yet (step 4).
+- **The bespoke world, until step 6:** `market.groovy` publishes the three milestoning columns on its keyed tables
+  (the store has declared them since step 0, and the Deephaven desk lane had been refused on `LAKE_DIGEST`).
+- **Measured:** `deephaven_desk_test`, `deephaven_market_test`, `deephaven_feed_test`, `deephaven_door_test` and
+  `verify_live_desk_test` green; the loader now checks each table against the plan before publishing it (step 3's
+  check after installing), and `datacube/demo/deephaven/install.ts` writes a deployment's install (step 3).
+
 ## 16. Upstream, read
 
 Pinned: legend-studio `9775e7283cf2e768293db9982573cecbe8280c4b`, legend-engine
@@ -828,13 +851,7 @@ DataProduct desk::Desk
   title: 'Trading desk'
   description: 'The desk\'s classes, live, and its published views'
   accessPoints: [
-    model ('The desk classes') Model
-    {
-      mapping: desk::DeskMapping;
-      compatibleRuntimes: [ deephaven: market::DeephavenRuntime,
-                            inTab: market::InTabRuntime ];
-      defaultRuntime: deephaven;
-    }
+    model ('The desk classes') Model { mapping: desk::DeskMapping; }
     [
       // no target: served wherever the product is deployed
       volume ('Traded volume by instrument'):

@@ -55,8 +55,15 @@ public record IngestDefinition(String qualifiedName, Protocol.PIngest ingest) im
     public static @com.legend.base.Nullable TableRead tableRead(Protocol.PIngestDataset d) {
         if (!(d.source() instanceof Protocol.PIngestFunction f) || !f.function().parameters().isEmpty()
                 || f.function().body().size() != 1
-                || !(f.function().body().get(0) instanceof com.legend.protocol.spec.AppliedFunction call)
-                || !call.isTableReference() || call.parameters().size() != 2
+                || !(f.function().body().get(0) instanceof com.legend.protocol.spec.AppliedFunction call)) {
+            return null;
+        }
+        return tableRead(call);
+    }
+
+    /** The table a call reads when it is a table reference ({@code #>{db.table}#}), or null for any other call. */
+    public static @com.legend.base.Nullable TableRead tableRead(com.legend.protocol.spec.AppliedFunction call) {
+        if (!call.isTableReference() || call.parameters().size() != 2
                 || !(call.parameters().get(0) instanceof com.legend.protocol.spec.PackageableElementPtr db)
                 || !(call.parameters().get(1) instanceof com.legend.protocol.spec.CString table)) {
             return null;

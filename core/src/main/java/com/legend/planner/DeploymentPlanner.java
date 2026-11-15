@@ -24,8 +24,10 @@ import java.util.Optional;
  * environment lands ({@code deploys}), from which sources ({@code sources}), on which targets ({@code live},
  * {@code history}), keeping how much ({@code keep}).
  *
- * <p>{@link #validate} names every reason the deployment cannot be landed: a name that is not what it should be (an
- * ingest deployed, a connection, a store a source feeds); a topic whose store no source binds to one Kafka
+ * <p>{@code deploys} names ingests and data products; a product lands the datasets it reads ({@link DataProducts}).
+ * {@link #validate} names every reason the deployment cannot be landed: a name that is not what it should be (an
+ * ingest or a data product deployed, a connection, a store a source feeds; a table a product reads that no ingest
+ * makes); a topic whose store no source binds to one Kafka
  * connection; a dataset with no {@code keep} on a live target, or one that does not fit its write mode (an appended
  * dataset keeps rows, a span or all of them; a milestoned one its {@code current} version a key, or its
  * {@code versions}) -- the compiler assumes no default (AGENTS.md invariant 4); and what is not landed yet, each by
@@ -56,9 +58,8 @@ public final class DeploymentPlanner {
         Protocol.PDeploymentTarget live = java.util.Objects.requireNonNull(d.live());
         Map<String, Protocol.PKeepRule> keep = keepByScope(live);
         List<DeephavenLoad.Table> tables = new ArrayList<>();
-        for (String name : d.deploys()) {
-            IngestDefinition ingest = ctx.findIngest(name).orElseThrow();
-            for (IngestTopics.Topic t : IngestTopics.ofIngest(ctx, ingest)) {
+        for (Deployed deployed : deployed(ctx, d, new ArrayList<>())) {
+            for (IngestTopics.Topic t : deployed.topics(ctx)) {
                 ConnectionSpecification.Kafka kafka = kafka(ctx, d, t.store()).orElseThrow();
                 Protocol.PKeepRule rule = ruleOf(keep, t.table(), !t.key().isEmpty());
                 DeephavenLoad.Keep k = switch (java.util.Objects.requireNonNull(rule)) {
@@ -82,6 +83,53 @@ public final class DeploymentPlanner {
     private static DeploymentDefinition find(ModelContext ctx, String deployment) {
         return ctx.findDeployment(deployment).orElseThrow(() -> new IllegalArgumentException("the model declares no"
                 + " Deployment " + deployment));
+    }
+
+    /** An ingest a deployment lands, and which of its datasets: all of them ({@code datasets} null) when it is deployed
+     *  itself, those a deployed data product reads otherwise. */
+    private record Deployed(IngestDefinition ingest, java.util.@com.legend.base.Nullable Set<String> datasets) {
+        /** Its datasets' topics, those it lands alone. */
+        List<IngestTopics.Topic> topics(ModelContext ctx) {
+            return IngestTopics.ofIngest(ctx, ingest).stream()
+                    .filter(t -> datasets == null || datasets.contains(t.table())).toList();
+        }
+
+        List<String> datasetNames() {
+            return ingest.ingest().datasets().stream().map(Protocol.PIngestDataset::name)
+                    .filter(n -> datasets == null || datasets.contains(n)).toList();
+        }
+    }
+
+    /** What {@code d} deploys, as ingests: each ingest it names, and the datasets each data product it names reads
+     *  (DataProducts), in its order, an ingest named twice once; a name that is neither, and a table a product reads
+     *  that no ingest makes, added to {@code problems}. */
+    private static List<Deployed> deployed(ModelContext ctx, Protocol.PDeployment d, List<String> problems) {
+        Map<String, Deployed> out = new LinkedHashMap<>();
+        String where = "the deployment " + d.qualifiedName();
+        for (String name : d.deploys()) {
+            Optional<IngestDefinition> ingest = ctx.findIngest(name);
+            Optional<com.legend.model.DataProductDefinition> product = ctx.findDataProduct(name);
+            if (ingest.isPresent()) {
+                out.put(name, new Deployed(ingest.get(), null));
+            } else if (product.isPresent()) {
+                DataProducts.Read read = DataProducts.datasets(ctx, product.get());
+                read.unlanded().forEach(u -> problems.add(where + "'s data product " + name + " reads " + u));
+                read.datasets().forEach((ing, sets) -> {
+                    Deployed had = out.get(ing);
+                    if (had == null || had.datasets() != null) {
+                        java.util.Set<String> all = new java.util.LinkedHashSet<>();
+                        if (had != null) {
+                            all.addAll(java.util.Objects.requireNonNull(had.datasets()));
+                        }
+                        all.addAll(sets);
+                        out.put(ing, new Deployed(ctx.findIngest(ing).orElseThrow(), all));
+                    }
+                });
+            } else {
+                problems.add(where + " deploys " + name + ", which is no Ingest or DataProduct the model declares");
+            }
+        }
+        return new ArrayList<>(out.values());
     }
 
     /** A target's {@code keep}, by scope: a dataset's name, or {@code appended} / {@code milestoned}. */
@@ -137,7 +185,7 @@ public final class DeploymentPlanner {
         }
 
         List<String> run() {
-            List<IngestDefinition> ingests = deployed();
+            List<Deployed> ingests = deployed(ctx, d, problems);
             sources();
             if (d.history() != null) {
                 problems.add(where + " lands a history tier on " + d.history().connection() + ", which lite does not"
@@ -151,26 +199,12 @@ public final class DeploymentPlanner {
                 return problems;
             }
             if (liveIsDeephaven(live)) {
-                for (IngestDefinition ingest : ingests) {
+                for (Deployed ingest : ingests) {
                     landed(ingest, live);
                 }
                 scopes(live, ingests);
             }
             return problems;
-        }
-
-        /** Each name {@code deploys} lists, an ingest: the ingests, in its order. */
-        private List<IngestDefinition> deployed() {
-            List<IngestDefinition> ingests = new ArrayList<>();
-            for (String name : d.deploys()) {
-                Optional<IngestDefinition> ingest = ctx.findIngest(name);
-                if (ingest.isEmpty()) {
-                    problems.add(where + " deploys " + name + ", which is no Ingest the model declares");
-                } else {
-                    ingests.add(ingest.get());
-                }
-            }
-            return ingests;
         }
 
         /** Each source a connection, each store it feeds a Database or an Ingest. */
@@ -209,7 +243,8 @@ public final class DeploymentPlanner {
 
         /** An ingest's datasets on the live Deephaven target: arriving on topics, each topic's store bound to one Kafka
          *  connection, each dataset kept by a rule that fits its write mode. */
-        private void landed(IngestDefinition ingest, Protocol.PDeploymentTarget live) {
+        private void landed(Deployed deployed, Protocol.PDeploymentTarget live) {
+            IngestDefinition ingest = deployed.ingest();
             String of = where + "'s ingest " + ingest.qualifiedName();
             if (!IngestTopics.readsTopics(ingest)) {
                 Protocol.PIngestReadMode read = ingest.ingest().readMode();
@@ -221,7 +256,7 @@ public final class DeploymentPlanner {
             }
             List<IngestTopics.Topic> topics;
             try {
-                topics = IngestTopics.ofIngest(ctx, ingest);
+                topics = deployed.topics(ctx);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 problems.add(of + ": " + e.getMessage());
                 return;
@@ -269,10 +304,10 @@ public final class DeploymentPlanner {
         }
 
         /** Each {@code keep} scope a write mode's or a deployed dataset's, its rule one that write mode keeps. */
-        private void scopes(Protocol.PDeploymentTarget live, List<IngestDefinition> ingests) {
+        private void scopes(Protocol.PDeploymentTarget live, List<Deployed> ingests) {
             List<String> datasets = new ArrayList<>();
-            for (IngestDefinition ingest : ingests) {
-                ingest.ingest().datasets().forEach(x -> datasets.add(x.name()));
+            for (Deployed ingest : ingests) {
+                datasets.addAll(ingest.datasetNames());
             }
             for (Protocol.PKeep k : live.keep()) {
                 boolean rows = !(k.rule() instanceof Protocol.PKeepCurrent || k.rule() instanceof Protocol.PKeepVersions);

@@ -81,7 +81,7 @@ public final class Protocol {
             PDataQualityRelationComparison, PSchemaSet, PBinding,
             PServiceStoreDefinition,
             PMapping, PDataElement, PRelationalMapper,
-            PNativeFunction, PPrimitive, POpaqueElement, PAssociationProjection, PIngest, PDeployment {
+            PNativeFunction, PPrimitive, POpaqueElement, PAssociationProjection, PIngest, PDeployment, PDataProduct {
     }
 
     /** {@code ###Data Data [decorations] qn { <body> }} — {@code _type:
@@ -2097,6 +2097,64 @@ public final class Protocol {
         }
     }
 
+    /**
+     * A {@code ###DataProduct} DataProduct -- upstream's ({@code _type:"dataProduct"}, legend-studio
+     * {@code V1_DataProduct.ts}), the part lite carries (docs/DEPLOYMENT_DESIGN_2026_11_14.md §7, step 2: the small
+     * form): its title, description and decorations, and its access point groups -- each a default group or a model
+     * group with its mapping, holding lakehouse access points. Every other field of upstream's is refused by name.
+     */
+    public record PDataProduct(String pkg, String name,
+                               List<PStereotype> stereotypes,
+                               List<PTaggedValue> taggedValues,
+                               @com.legend.base.Nullable String title,
+                               @com.legend.base.Nullable String description,
+                               List<PAccessPointGroup> accessPointGroups,
+                               @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public PDataProduct {
+            accessPointGroups = List.copyOf(accessPointGroups);
+        }
+
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+
+        /** This product with {@code groups} in place of its own (the name resolver's rewrite). */
+        public PDataProduct withGroups(List<PAccessPointGroup> groups) {
+            return new PDataProduct(pkg, name, stereotypes, taggedValues, title, description, groups,
+                    sourceInformation);
+        }
+    }
+
+    /** An access point group: a default group ({@code defaultAccessPointGroup}), or a model group
+     *  ({@code modelAccessPointGroup}) when it names a {@code mapping} -- the classes a reader queries. */
+    public record PAccessPointGroup(String id, @com.legend.base.Nullable String description,
+                                    List<PStereotype> stereotypes, @com.legend.base.Nullable String mapping,
+                                    List<PLakehouseAccessPoint> accessPoints) {
+        public PAccessPointGroup {
+            stereotypes = List.copyOf(stereotypes);
+            accessPoints = List.copyOf(accessPoints);
+        }
+
+        /** This group with its mapping and access points in place of its own (the name resolver's rewrite). */
+        public PAccessPointGroup withNames(@com.legend.base.Nullable String mapping,
+                List<PLakehouseAccessPoint> accessPoints) {
+            return new PAccessPointGroup(id, description, stereotypes, mapping, accessPoints);
+        }
+    }
+
+    /** A lakehouse access point: its id, description, target engine (none: wherever its product is deployed),
+     *  classification and function ({@code _type:"lakehouseAccessPoint"}); {@code reproducible} as upstream writes it. */
+    public record PLakehouseAccessPoint(String id, @com.legend.base.Nullable String description,
+                                        @com.legend.base.Nullable String targetEnvironment,
+                                        @com.legend.base.Nullable String classification,
+                                        com.legend.protocol.spec.LambdaFunction func, boolean reproducible) {
+        /** This access point with {@code func} in place of its own (the name resolver's rewrite). */
+        public PLakehouseAccessPoint withFunc(com.legend.protocol.spec.LambdaFunction func) {
+            return new PLakehouseAccessPoint(id, description, targetEnvironment, classification, func, reproducible);
+        }
+    }
+
     /** {@code market::Kafka: [ tickerplant::Topics, ... ]}: a source connection and the stores it feeds. */
     public record PDeploymentSource(String connection, List<String> stores) {
         public PDeploymentSource {
@@ -3733,6 +3791,7 @@ public final class Protocol {
             case PMongoDatabase m -> m.qualifiedName();
             case PIngest i -> i.qualifiedName();
             case PDeployment d -> d.qualifiedName();
+            case PDataProduct d -> d.qualifiedName();
             case PDataQualityValidation v -> v.qualifiedName();
             case PDataQualityRelationValidation v -> v.qualifiedName();
             case PDataQualityRelationComparison v -> v.qualifiedName();

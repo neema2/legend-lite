@@ -21,6 +21,20 @@ Database market::World
   include Ingest market::WorldStatus
 )
 
+###DataProduct
+// THE DESK'S PUBLISHED API (docs/DEPLOYMENT_DESIGN_2026_11_14.md §7, step 2: the small form): the desk's classes through
+// the one trading model's mapping -- what the data space's environments read (their mappingProvider) and what a
+// deployment of the product lands (the datasets the mapping reads)
+DataProduct desk::Desk
+{
+  title: 'Trading desk'
+  description: 'The desk\'s classes, live: the market, the bank\'s books, its orders, options and FX'
+  accessPoints: [
+    model ('The desk\'s classes') Model { mapping: stress::AllMapping; } [
+    ]
+  ]
+}
+
 ###Pure
 // BLACK AND SCHOLES (K11), as a textbook writes it: a European option's price and its greeks from its underlying's
 // price s, its strike k, its time to expiry t in years, its volatility v and the rate r. A put is priced by put-call

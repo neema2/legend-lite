@@ -46,6 +46,7 @@ public sealed interface PackageableElement
                 DatabaseDefinition,
                 IngestDefinition,
                 DeploymentDefinition,
+                DataProductDefinition,
                 MappingDefinition,
                 LegacyMappingDefinition,
                 PrimitiveExtensionDefinition,

@@ -571,6 +571,12 @@ public final class PureModelContext implements ModelContext {
     }
 
     @Override
+    public java.util.Optional<com.legend.model.DataProductDefinition> findDataProduct(String fqn) {
+        Objects.requireNonNull(fqn, "fqn");
+        return model.findDataProduct(fqn);
+    }
+
+    @Override
     public java.util.Optional<com.legend.model.DataSpaceDefinition> findDataSpace(String fqn) {
         Objects.requireNonNull(fqn, "fqn");
         return model.findDataSpace(fqn);

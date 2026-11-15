@@ -1,0 +1,115 @@
+[
+  {
+    "_type": "dataProduct",
+    "accessPointGroups": [
+      {
+        "_type": "defaultAccessPointGroup",
+        "accessPoints": [
+          {
+            "_type": "lakehouseAccessPoint",
+            "classification": "classification1",
+            "description": "Id description",
+            "func": {
+              "_type": "lambda",
+              "body": [
+                {
+                  "_type": "integer",
+                  "value": 1
+                }
+              ],
+              "parameters": []
+            },
+            "id": "myId",
+            "reproducible": false,
+            "targetEnvironment": "Snowflake"
+          },
+          {
+            "_type": "lakehouseAccessPoint",
+            "classification": "classification1",
+            "description": "Other Id description",
+            "func": {
+              "_type": "lambda",
+              "body": [
+                {
+                  "_type": "integer",
+                  "value": 1
+                }
+              ],
+              "parameters": []
+            },
+            "id": "myOtherId",
+            "reproducible": false,
+            "targetEnvironment": "Snowflake"
+          }
+        ],
+        "description": "Group description",
+        "id": "group",
+        "stereotypes": [
+          {
+            "profile": "meta::pure::profiles::temporal",
+            "value": "bitemporal"
+          }
+        ]
+      },
+      {
+        "_type": "defaultAccessPointGroup",
+        "accessPoints": [
+          {
+            "_type": "lakehouseAccessPoint",
+            "classification": "classification1",
+            "func": {
+              "_type": "lambda",
+              "body": [
+                {
+                  "_type": "integer",
+                  "value": 1
+                }
+              ],
+              "parameters": []
+            },
+            "id": "latest",
+            "reproducible": false,
+            "targetEnvironment": "Snowflake"
+          }
+        ],
+        "id": "group2"
+      }
+    ],
+    "name": "A",
+    "package": "x"
+  },
+  {
+    "_type": "dataProduct",
+    "accessPointGroups": [
+      {
+        "_type": "modelAccessPointGroup",
+        "accessPoints": [
+          {
+            "_type": "lakehouseAccessPoint",
+            "classification": "classification1",
+            "func": {
+              "_type": "lambda",
+              "body": [
+                {
+                  "_type": "integer",
+                  "value": 1
+                }
+              ],
+              "parameters": []
+            },
+            "id": "myId",
+            "reproducible": false,
+            "targetEnvironment": "Snowflake"
+          }
+        ],
+        "description": "des",
+        "id": "grp",
+        "mapping": {
+          "path": "model::dummyMapping"
+        }
+      }
+    ],
+    "name": "A",
+    "package": "x"
+  }
+]

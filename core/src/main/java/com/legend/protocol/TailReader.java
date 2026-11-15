@@ -224,6 +224,65 @@ final class TailReader {
                 w.span());
     }
 
+    /** Upstream's data product fields lite does not carry yet, refused by name. */
+    private static final java.util.Set<String> DATA_PRODUCT_NOT_CARRIED = java.util.Set.of("icon", "nativeModelAccess",
+            "supportInfo", "type", "sampleValues", "operationalMetadata", "owner", "testSuites",
+            "prodDataProductOverride");
+
+    /** {@code _type:"dataProduct"}: upstream's (legend-studio {@code V1_DataProductSerializationHelper.ts}), the part
+     *  lite carries; a list upstream leaves out when empty is read as empty. */
+    static Protocol.Element dataProduct(Wire w) {
+        for (String k : DATA_PRODUCT_NOT_CARRIED) {
+            if (w.has(k)) {
+                throw Wire.refuse("a data product's '" + k + "': lite does not carry it yet");
+            }
+        }
+        List<Protocol.PAccessPointGroup> groups = w.list("accessPointGroups", n -> {
+            Wire g = Wire.of(n, "access point group");
+            String type = g.type();
+            boolean model = "modelAccessPointGroup".equals(type);
+            if (!model && !"defaultAccessPointGroup".equals(type)) {
+                throw Wire.refuse("an access point group '" + type + "' (defaultAccessPointGroup,"
+                        + " modelAccessPointGroup)");
+            }
+            for (String k : List.of("featuredElements", "diagrams", "secureViews", "targets", "title")) {
+                if (g.has(k) && !(g.take(k) instanceof Json.Arr a && a.items().isEmpty())) {
+                    throw Wire.refuse("an access point group's '" + k + "': lite does not carry it yet");
+                }
+            }
+            String mapping = null;
+            if (model) {
+                Wire m = g.obj("mapping");
+                mapping = m.done(m.str("path"));
+            }
+            List<Protocol.PLakehouseAccessPoint> points = g.list("accessPoints", TailReader::lakehouseAccessPoint);
+            return g.done(new Protocol.PAccessPointGroup(g.str("id"), g.optStr("description"),
+                    g.has("stereotypes") ? DomainReader.stereotypes(g) : List.of(), mapping, points));
+        });
+        return new Protocol.PDataProduct(w.str("package"), w.str("name"),
+                w.has("stereotypes") ? DomainReader.stereotypes(w) : List.of(),
+                w.has("taggedValues") ? DomainReader.taggedValues(w) : List.of(), w.optStr("title"),
+                w.optStr("description"), groups, w.span());
+    }
+
+    private static Protocol.PLakehouseAccessPoint lakehouseAccessPoint(Json.Node n) {
+        Wire a = Wire.of(n, "access point");
+        String type = a.type();
+        if (!"lakehouseAccessPoint".equals(type)) {
+            throw Wire.refuse("an access point '" + type + "': lite carries lakehouse access points");
+        }
+        if (a.has("title")) {
+            throw Wire.refuse("an access point's 'title': lite does not carry it yet");
+        }
+        if (a.has("stereotypes") && !(a.take("stereotypes") instanceof Json.Arr s && s.items().isEmpty())) {
+            throw Wire.refuse("an access point's stereotypes: lite does not carry them yet");
+        }
+        boolean reproducible = a.has("reproducible") && a.bool("reproducible");
+        return a.done(new Protocol.PLakehouseAccessPoint(a.str("id"), a.optStr("description"),
+                a.optStr("targetEnvironment"), a.optStr("classification"),
+                ProtocolReader.lambdaNode(a.take("func")), reproducible));
+    }
+
     private static Protocol.PDeploymentTarget deploymentTarget(Wire t) {
         List<Protocol.PKeep> keep = t.list("keep", n -> {
             Wire k = Wire.of(n, "keep");

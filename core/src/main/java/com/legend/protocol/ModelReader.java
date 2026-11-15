@@ -165,6 +165,7 @@ public final class ModelReader {
             Map.entry("MongoDatabase", TailReader::mongoDatabase),
             Map.entry("ingestDefinition", TailReader::ingest),
             Map.entry("lakehouseDeployment", TailReader::deployment),
+            Map.entry("dataProduct", TailReader::dataProduct),
             Map.entry("externalFormatSchemaSet", TailReader::schemaSet),
             Map.entry("binding", TailReader::binding),
             Map.entry("serviceStore", TailReader::serviceStore),

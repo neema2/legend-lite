@@ -41,8 +41,10 @@ export interface ModelElement {
     readonly name: string;
     readonly title?: string;
     readonly mapping?: { readonly path: string };
+    readonly mappingProvider?: { readonly element: { readonly path: string }; readonly keys: readonly string[] };
     readonly defaultRuntime?: { readonly path: string };
   }[];
+  readonly accessPointGroups?: readonly { readonly id: string; readonly mapping?: { readonly path: string } }[];
 }
 
 const pathOf = (e: ModelElement): string => (e.package ? `${e.package}::${e.name ?? ''}` : (e.name ?? ''));
@@ -60,7 +62,8 @@ export function contextOf(
   q: Pick<Query, 'executionContext' | 'groupId' | 'artifactId' | 'versionId'>,
   elements: readonly ModelElement[],
 ): QueryContext {
-  return readContext(q, (path) => elements.find((e) => e._type === 'dataSpace' && pathOf(e) === path));
+  return readContext(q, (path) => elements.find((e) => e._type === 'dataSpace' && pathOf(e) === path),
+    (path) => elements.find((e) => e._type === 'dataProduct' && pathOf(e) === path));
 }
 
 export { projectOf };

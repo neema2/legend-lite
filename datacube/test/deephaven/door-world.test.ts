@@ -8,12 +8,13 @@
 
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
 
 import { runfileFromEnv } from '../../../tools/js/runfiles.mts';
+import { installDeephaven, planOf } from '../../demo/deephaven/install.ts';
 import { DESK_MODEL, DESK_ON_DEEPHAVEN, ON_DEEPHAVEN } from '../../demo/deephaven/market/model.ts';
 import { startFeed } from '../../demo/market-sim/door/feed.ts';
 import { plannerFor } from '../catalog-builder.ts';
@@ -68,19 +69,9 @@ describe('the desk\'s stream tables on the pinned Deephaven, made by the loader 
     // the deployment's plan for the desk's Deephaven server, its brokers this test's door (a test's copy of the
     // environments): data, never code -- the loader beside it is lite's own, the same for every deployment
     const atDoor = DESK_MODEL(corpus, desk, environments.replaceAll(BROKERS, `bootstrapServers: '127.0.0.1:${port}';`));
-    const answer = await plannerFor(atDoor, ON_DEEPHAVEN.runtime).deephaven('plan', { model: atDoor, deployment: DESK_ON_DEEPHAVEN });
-    assert.ok(answer.startsWith('OK\n'), answer.slice(0, 400));
-    const { plan } = JSON.parse(answer.slice(3)) as { readonly plan: { readonly tables: readonly { readonly name: string }[] } };
+    const plan = planOf(await plannerFor(atDoor, ON_DEEPHAVEN.runtime).deephaven('plan', { model: atDoor, deployment: DESK_ON_DEEPHAVEN }));
     assert.deepEqual(plan.tables.map((t) => t.name).sort(), topics.map((t) => t.table).sort(), 'a table a stream');
-    const dir = shared('door-app');
-    mkdirSync(dir, { recursive: true });
-    const planFile = join(dir, 'plan.json');
-    writeFileSync(planFile, JSON.stringify(plan));
-    copyFileSync(runfileFromEnv('DOOR_LOADER'), join(dir, 'legend-loader.groovy'));
-    copyFileSync(runfileFromEnv('DOOR_CHECK'), join(dir, 'check.groovy'));
-    writeFileSync(join(dir, 'desk.app'), ['type=script', 'scriptType=groovy', 'enabled=true', 'id=legend.desk.load',
-      'name=the desk\'s deployment, landed by lite\'s loader, and a test\'s check', 'file_0=legend-loader.groovy',
-      'file_1=check.groovy', ''].join('\n'));
+    const installed = installDeephaven(shared('door-app'), plan, runfileFromEnv('DOOR_LOADER'), [runfileFromEnv('DOOR_CHECK')]);
     // the tables the check reads: each one's id (its key, else its first column, every desk dataset's own key) and its
     // columns with the types the store declares -- a keyed (batch milestoned) table's record columns, then the three
     // its landing adds (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5: LAKE_DIGEST a string, the two batch ids longs)
@@ -91,8 +82,8 @@ describe('the desk\'s stream tables on the pinned Deephaven, made by the loader 
       .join('\n') + '\n');
     const doneFile = shared('door-done.tsv');
     const outFile = shared('door-out.tsv');
-    const deephaven = await startServer(join(dir, 'desk.app'),
-      { LEGEND_DEEPHAVEN_PLAN: planFile, DOOR_TABLES: tablesFile, DOOR_DONE: doneFile, DOOR_OUT: outFile });
+    const deephaven = await startServer(installed.app,
+      { ...installed.env, DOOR_TABLES: tablesFile, DOOR_DONE: doneFile, DOOR_OUT: outFile });
     stop = async () => {
       await deephaven.stop();
       await feed.close();

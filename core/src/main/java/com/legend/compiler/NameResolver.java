@@ -439,6 +439,7 @@ public final class NameResolver {
                     resolveDataSpace(ds, scope);
             case com.legend.model.IngestDefinition ing -> resolveIngest(ing, scope);
             case com.legend.model.DeploymentDefinition dp -> resolveDeployment(dp, scope);
+            case com.legend.model.DataProductDefinition dp -> resolveDataProduct(dp, scope);
             case com.legend.model.ModelConnectionDefinition mc -> {
                 String cls = resolveName(mc.className(), scope);
                 yield cls.equals(mc.className()) ? mc
@@ -1556,6 +1557,26 @@ public final class NameResolver {
         return !changed ? ing : new com.legend.model.IngestDefinition(ing.qualifiedName(), g.withDatasets(datasets));
     }
 
+    /** A data product names a mapping in each model group, and stores and classes in its access points' functions. */
+    private static com.legend.model.DataProductDefinition resolveDataProduct(com.legend.model.DataProductDefinition dp,
+            Scope scope) {
+        com.legend.protocol.Protocol.PDataProduct p = dp.dataProduct();
+        List<com.legend.protocol.Protocol.PAccessPointGroup> groups = new java.util.ArrayList<>();
+        boolean changed = false;
+        for (com.legend.protocol.Protocol.PAccessPointGroup g : p.accessPointGroups()) {
+            List<com.legend.protocol.Protocol.PLakehouseAccessPoint> points = new java.util.ArrayList<>();
+            for (com.legend.protocol.Protocol.PLakehouseAccessPoint ap : g.accessPoints()) {
+                LambdaFunction r = resolveLambda(ap.func(), scope);
+                changed |= r != ap.func();
+                points.add(r == ap.func() ? ap : ap.withFunc(r));
+            }
+            String mapping = g.mapping() == null ? null : resolveName(g.mapping(), scope);
+            changed |= !java.util.Objects.equals(mapping, g.mapping());
+            groups.add(g.withNames(mapping, points));
+        }
+        return !changed ? dp : new com.legend.model.DataProductDefinition(dp.qualifiedName(), p.withGroups(groups));
+    }
+
     /** A deployment names ingests, connections and stores: each to its full path. */
     private static com.legend.model.DeploymentDefinition resolveDeployment(com.legend.model.DeploymentDefinition dp,
             Scope scope) {
@@ -1587,11 +1608,14 @@ public final class NameResolver {
             String m = ctx.mapping() == null ? null : resolveName(ctx.mapping(), scope);
             String r = ctx.defaultRuntime() == null ? null
                     : resolveName(ctx.defaultRuntime(), scope);
+            var mp = ctx.mappingProvider() == null ? null : new com.legend.model.DataSpaceDefinition
+                    .MappingProvider(resolveName(ctx.mappingProvider().element(), scope), ctx.mappingProvider().keys());
             changed |= !java.util.Objects.equals(m, ctx.mapping())
-                    || !java.util.Objects.equals(r, ctx.defaultRuntime());
+                    || !java.util.Objects.equals(r, ctx.defaultRuntime())
+                    || !java.util.Objects.equals(mp, ctx.mappingProvider());
             contexts.add(new com.legend.model.DataSpaceDefinition
                     .ExecutionContext(ctx.name(), ctx.title(),
-                            ctx.description(), m, r, ctx.testDataSource()));
+                            ctx.description(), m, mp, r, ctx.testDataSource()));
         }
         var executables = new java.util.ArrayList<com.legend.model
                 .DataSpaceDefinition.Executable>(ds.executables().size());

@@ -56,10 +56,19 @@ public record DataSpaceDefinition(
             @com.legend.base.Nullable String title,
             @com.legend.base.Nullable String description,
             @com.legend.base.Nullable String mapping,
+            @com.legend.base.Nullable MappingProvider mappingProvider,
             @com.legend.base.Nullable String defaultRuntime,
             @com.legend.base.Nullable String testDataSource) {
         public ExecutionContext {
             Objects.requireNonNull(name, "Context name cannot be null");
+        }
+    }
+
+    /** {@code mappingProvider: x::P.k;} (4.145.0): the element that provides a context's mapping -- a data product,
+     *  its mapping the model access group the key names (docs/DEPLOYMENT_DESIGN_2026_11_14.md §7) -- and its keys. */
+    public record MappingProvider(String element, java.util.List<String> keys) {
+        public MappingProvider {
+            keys = java.util.List.copyOf(keys);
         }
     }
 

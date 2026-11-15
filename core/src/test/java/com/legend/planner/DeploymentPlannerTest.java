@@ -139,6 +139,59 @@ class DeploymentPlannerTest {
         assertEquals(List.of(), DeploymentPlanner.validate(Compiler.compileModel(STORES + DEPLOYMENT), "t::OnDeephaven"));
     }
 
+    /** A data product over the stores: its model group's mapping maps classes onto QUOTES and NEWS; its access point
+     *  reads TRADES. Deployed, it lands exactly those three datasets -- upstream's dependencyDatasets. */
+    private static final String PRODUCT = """
+            ###Pure
+            Class t::Quote { sym: String[1]; }
+            Class t::Story { id: String[1]; }
+
+            ###Mapping
+            Mapping t::M
+            (
+              t::Quote: Relational { ~mainTable [t::DB] QUOTES sym: [t::DB] QUOTES.SYM }
+              t::Story: Relational { ~mainTable [t::DB] NEWS id: [t::DB] NEWS.STORY }
+            )
+
+            ###DataProduct
+            DataProduct t::Product
+            {
+              accessPoints: [
+                model ('The classes') Model { mapping: t::M; } [
+                  tape: LH(|#>{t::DB.TRADES}#)
+                ]
+              ]
+            }
+            """;
+
+    @Test
+    void aDeployedDataProductLandsTheDatasetsItReads() {
+        Map<String, Object> data = DeploymentPlanner.deephaven(Compiler.compileModel(STORES + PRODUCT + """
+                ###Lakehouse
+                Deployment t::OnDeephaven
+                {
+                  deploys: [ t::Product ];
+                  sources: [ t::Brokers: [ t::Topics ] ];
+                  live: t::Server keep [ appended: LastRows(500), milestoned: current ];
+                }
+                """), "t::OnDeephaven").data();
+        assertEquals(List.of("TRADES", "QUOTES", "NEWS"), ((List<?>) data.get("tables")).stream()
+                .map(t -> ((Map<?, ?>) t).get("name")).toList(), "BOOKS is not read: not landed");
+        // a table the product reads that no ingest makes is named: nothing would land it
+        List<String> found = DeploymentPlanner.validate(Compiler.compileModel(STORES + PRODUCT.replace(
+                "LH(|#>{t::DB.TRADES}#)", "LH(|#>{t::Ref.SECURITY}#)") + """
+                ###Lakehouse
+                Deployment t::OnDeephaven
+                {
+                  deploys: [ t::Product ];
+                  sources: [ t::Brokers: [ t::Topics ] ];
+                  live: t::Server keep [ appended: LastRows(500), milestoned: current ];
+                }
+                """), "t::OnDeephaven");
+        assertTrue(found.stream().anyMatch(p -> p.contains("data product t::Product reads the table SECURITY of t::Ref,"
+                + " which no ingest makes")), found.toString());
+    }
+
     private static List<String> problems(String deployment) {
         return DeploymentPlanner.validate(Compiler.compileModel(STORES + deployment), "t::OnDeephaven");
     }
@@ -155,7 +208,7 @@ class DeploymentPlannerTest {
     void eachCheckIsRefusedByName() {
         String sources = "sources: [ t::Brokers: [ t::Topics ] ];";
         String keep = "live: t::Server keep [ appended: LastRows(500), milestoned: current ];";
-        refused("deploys: [ t::Feed, t::DB ]; " + sources + keep, "deploys t::DB, which is no Ingest");
+        refused("deploys: [ t::Feed, t::DB ]; " + sources + keep, "deploys t::DB, which is no Ingest or DataProduct");
         refused("deploys: [ t::Feed ]; " + keep, "which the deployment's sources bind to no Kafka connection");
         refused("deploys: [ t::Feed ]; sources: [ t::Brokers: [ t::Topics ], t::Brokers: [ t::Topics ] ]; " + keep,
                 "2 Kafka connections");

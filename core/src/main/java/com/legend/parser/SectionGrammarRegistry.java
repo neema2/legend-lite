@@ -72,6 +72,9 @@ public final class SectionGrammarRegistry {
         // engine's never asks the registry for it, refusing it as an unknown section (PmcdParser)
         m.put("Lakehouse",
                 com.legend.parser.section.LakehouseSectionGrammar.INSTANCE);
+        // ###DataProduct, the part lite carries (S408): read as ###Lakehouse is, the engine's dialect refusing it
+        m.put("DataProduct",
+                com.legend.parser.section.DataProductSectionGrammar.INSTANCE);
         // the FUNCTION-ACTIVATOR family shares ONE typed grammar class,
         // each instance registered with its censused activator-kind set
         m.put("Snowflake",

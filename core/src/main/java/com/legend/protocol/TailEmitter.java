@@ -386,6 +386,64 @@ final class TailEmitter {
         b.append('}');
     }
 
+    /** {@code _type:"dataProduct"}: upstream's (legend-studio {@code V1_DataProductSerializationHelper.ts}), the part lite
+     *  carries, every key sorted and every list present (the engine's shape). */
+    static void dataProduct(StringBuilder b, Protocol.PDataProduct p) {
+        b.append("{\"_type\":\"dataProduct\",\"accessPointGroups\":[");
+        for (int i = 0; i < p.accessPointGroups().size(); i++) {
+            Protocol.PAccessPointGroup g = p.accessPointGroups().get(i);
+            b.append(i > 0 ? "," : "").append("{\"_type\":\"")
+                    .append(g.mapping() == null ? "defaultAccessPointGroup" : "modelAccessPointGroup")
+                    .append("\",\"accessPoints\":[");
+            for (int j = 0; j < g.accessPoints().size(); j++) {
+                Protocol.PLakehouseAccessPoint ap = g.accessPoints().get(j);
+                b.append(j > 0 ? "," : "").append("{\"_type\":\"lakehouseAccessPoint\"");
+                optional(b, "classification", ap.classification());
+                optional(b, "description", ap.description());
+                b.append(",\"func\":");
+                ProtocolEmitter.lambda(b, ap.func());
+                b.append(",\"id\":");
+                ProtocolEmitter.str(b, ap.id());
+                b.append(",\"reproducible\":").append(ap.reproducible()).append(",\"stereotypes\":[]");
+                optional(b, "targetEnvironment", ap.targetEnvironment());
+                b.append('}');
+            }
+            b.append(']');
+            optional(b, "description", g.description());
+            b.append(",\"id\":");
+            ProtocolEmitter.str(b, g.id());
+            if (g.mapping() != null) {
+                b.append(",\"mapping\":{\"path\":");
+                ProtocolEmitter.str(b, g.mapping());
+                b.append('}');
+            }
+            b.append(",\"stereotypes\":");
+            ProtocolEmitter.stereotypes(b, g.stereotypes());
+            b.append('}');
+        }
+        b.append(']');
+        optional(b, "description", p.description());
+        b.append(",\"name\":");
+        ProtocolEmitter.str(b, p.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, p.pkg());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, p.sourceInformation());
+        b.append(",\"stereotypes\":");
+        ProtocolEmitter.stereotypes(b, p.stereotypes());
+        b.append(",\"taggedValues\":");
+        ProtocolEmitter.taggedValues(b, p.taggedValues());
+        optional(b, "title", p.title());
+        b.append('}');
+    }
+
+    private static void optional(StringBuilder b, String key, @com.legend.base.Nullable String value) {
+        if (value != null) {
+            b.append(",\"").append(key).append("\":");
+            ProtocolEmitter.str(b, value);
+        }
+    }
+
     private static void deploymentTarget(StringBuilder b, Protocol.PDeploymentTarget t) {
         b.append("{\"connection\":");
         ProtocolEmitter.str(b, t.connection());

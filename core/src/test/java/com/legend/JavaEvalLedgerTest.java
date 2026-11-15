@@ -1507,6 +1507,11 @@ class JavaEvalLedgerTest {
                     // plan rendered as data -- each landing table's topic, brokers (the deployment's source), columns and
                     // keep, read from the model's declarations; model text alone, no row and no value
                     "DeploymentPlanner.java",
+                    // 2026-11-15 (docs/DEPLOYMENT_DESIGN_2026_11_14.md step 2): what a deployed data product reads --
+                    // its model groups' mappings' main tables as the compiled bindings stamp them, and its access
+                    // points' table reads -- each found among the ingests its store includes; model text alone, no row
+                    // and no value
+                    "DataProducts.java",
                     // 2026-11-12 (the user's ruling "Yes do 5 and 6": Studio's SQL playground through the planner): a
                     // person's one statement as a plan, carried as written -- never parsed, rewritten or split; the
                     // planner computes nothing, the database answers the relation it reports

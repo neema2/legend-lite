@@ -118,6 +118,8 @@ final class ElementFamilies {
             new Family("MongoDB", false, (e, s) -> MongoComposer.store(as(e, Protocol.PMongoDatabase.class)),
                     List.of("MongoDatabase")),
             // lite's (LITE-DESIGN-lakehouse): no reference engine prints it, so its place in the order is lite's own
+            new Family("DataProduct", false,
+                    (e, s) -> DataProductComposer.dataProduct(as(e, Protocol.PDataProduct.class), s), List.of("dataProduct")),
             new Family("Lakehouse", false, LakehouseComposer::element, List.of("ingestDefinition", "lakehouseDeployment"),
                     true),
             new Family("Persistence", false, PersistenceComposer::element, List.of("persistenceContext", "persistence"), true),
@@ -201,6 +203,7 @@ final class ElementFamilies {
             case Protocol.PMongoDatabase m -> "MongoDatabase";
             case Protocol.PIngest i -> "ingestDefinition";
             case Protocol.PDeployment d -> "lakehouseDeployment";
+            case Protocol.PDataProduct d -> "dataProduct";
             case Protocol.PDataQualityValidation v -> "dataQualityValidation";
             case Protocol.PDataQualityRelationValidation v -> "dataqualityRelationValidation";
             case Protocol.PDataQualityRelationComparison c -> "dataQualityRelationComparison";

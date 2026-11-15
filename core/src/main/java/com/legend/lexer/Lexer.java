@@ -333,7 +333,7 @@ public final class Lexer {
                     "BigQuery", "HostedService", "FunctionJar", "Text",
                     "GenerationSpecification", "DataQualityValidation",
                     "ServiceStore", "MongoDB", "Deephaven", "Elasticsearch",
-                    "QueryPostProcessor", "Lakehouse");
+                    "QueryPostProcessor", "Lakehouse", "DataProduct");
 
     /** Opaque sections raw-skipped by {@link #skipSectionHeader} — RECORDED,
      *  never silent (GRAMMAR_EXTENSIBILITY.md step 1): the parser surfaces

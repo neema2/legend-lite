@@ -2346,6 +2346,18 @@ bankDay = new Day(bank, orderBooks, pairs, clientIds, clientEdges, deskTraders['
 pairs.each { p -> RateRows r = new RateRows(); r.rate(p, Instant.now()); ratePublisher.add(r.rates()) }
 marketClock.scheduleAtFixedRate({ bankDay.beat() } as Runnable, 10L, 100L, TimeUnit.MILLISECONDS)
 
+// THE MILESTONING COLUMNS a batch milestoned dataset lands with (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5, the live
+// column: the store declares them since its step 0): each keyed table its three after its own columns -- a hash of its
+// key, the open batch's ids -- until this bespoke world goes (the design's step 6: the loader fills them from the plan)
+[MARKET_QUOTE: 'QUOTE_ID', FX_RATE: 'RATE_ID', TRADE_ORDER: 'ORDER_ID', RFQ: 'RFQ_ID', INSTRUMENT: 'INSTRUMENT_ID',
+ EQUITY: 'EQUITY_ID', OPTION: 'OPTION_ID', EXCHANGE: 'MIC', SECTOR: 'SECTOR_ID', BUSINESS_UNIT: 'BU_ID', DESK: 'DESK_ID',
+ TRADER: 'TRADER_ID', COUNTERPARTY: 'COUNTERPARTY_ID', RISK_LIMIT: 'LIMIT_ID', POSITION: 'POSITION_ID', BOOK: 'BOOK_ID',
+ world: 'item'].each { name, key ->
+    binding.setVariable(name, binding.getVariable(name).update(
+            'LAKE_DIGEST = Integer.toHexString(java.util.Objects.hash(' + key + '))', 'LAKE_IN_ID = 1L',
+            'LAKE_OUT_ID = 999999999L'))
+}
+
 // the server's formula compiler started before a page asks: its first formula pays for loading the compiler, and on a
 // server just started the trading desk's first query paid it (1.7 s, where the next took 0.15: 2026-10-26)
 TableTools.emptyTable(1).update('WARM = ii * 2.0 + 1.0')

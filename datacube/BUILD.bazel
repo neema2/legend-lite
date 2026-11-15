@@ -2836,6 +2836,7 @@ node_test(
         "demo/market-sim/**/*.ts",
         "demo/deephaven/market/*.ts",
     ]) + [
+        "demo/deephaven/install.ts",
         "demo/deephaven/market/environments.pure",
         "demo/deephaven/market/market.pure",
         "test/catalog-builder.ts",

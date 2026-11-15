@@ -84,13 +84,13 @@ DataSpace market::TradingDesk
     {
       name: 'In this tab';
       title: 'In this tab (DuckDB)';
-      mapping: stress::AllMapping;
+      mappingProvider: desk::Desk.model;
       defaultRuntime: market::InTabRuntime;
     },
     {
       name: 'Deephaven';
       title: 'Deephaven (localhost:10000)';
-      mapping: stress::AllMapping;
+      mappingProvider: desk::Desk.model;
       defaultRuntime: market::DeephavenRuntime;
     }
   ];

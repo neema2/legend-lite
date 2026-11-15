@@ -685,6 +685,8 @@ public final class FromProtocol {
         for (Protocol.PDataSpaceContext ctx : pcs) {
             contexts.add(new DataSpaceDefinition.ExecutionContext(ctx.name(),
                     ctx.title(), ctx.description(), ctx.mapping(),
+                    ctx.mappingProvider() == null ? null : new DataSpaceDefinition.MappingProvider(
+                            ctx.mappingProvider().element(), ctx.mappingProvider().keys()),
                     ctx.defaultRuntime(),
                     ctx.testData() == null ? null
                             : ctx.testData().kind() + " #{"

@@ -6,8 +6,9 @@
 // measured 2026-10-30), then kept as the plan says -- an appended table its latest n rows (a ring) or all of them; a
 // milestoned table each key's latest record (a blink table, lastBy its key), the delete indicator's keys dropped, its
 // milestoning columns filled: the record's partition-prefixed offset its batch, the open batch id, a hash of its own
-// columns -- and published under its name, its declared columns alone, in order, the milestoning columns after. The
-// planner checked every name and value this reads (the dialect's part), so the loader checks only that the plan is one.
+// columns -- and published under its name, its declared columns alone, in order, the milestoning columns after, each
+// checked against the plan before it is published (a table not as declared fails the install, naming it). The planner
+// checked every name and value this reads (the dialect's part), so the loader checks only that the plan is one.
 import groovy.json.JsonSlurper
 import io.deephaven.engine.table.ColumnDefinition
 import io.deephaven.kafka.KafkaTools
@@ -69,5 +70,18 @@ plan.tables.each { t ->
                 m.digest + ' = Integer.toHexString(java.util.Objects.hash(' + view.join(', ') + '))')
         view += [m.digest as String, m.batchIn as String, m.batchOut as String]
     }
-    binding.setVariable(t.name as String, table.view(view as String[]))
+    table = table.view(view as String[])
+    // THE CHECK AFTER INSTALLING (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): the table made is its declared columns, in
+    // order, each of the type the plan names (a milestoned table's three after them), or the install fails naming it
+    def expected = t.columns.collect { [it.name as String, it.type as String] }
+    if (keep.kind == 'current') {
+        def m = keep.milestones
+        expected += [[m.digest as String, 'java.lang.String'], [m.batchIn as String, 'long'], [m.batchOut as String, 'long']]
+    }
+    def made = table.getDefinition().getColumns().collect { [it.getName(), it.getDataType().getName()] }
+    if (made != expected) {
+        throw new IllegalStateException('the Legend loader made ' + t.name + ' as ' + made + ', not as its plan declares it: '
+                + expected)
+    }
+    binding.setVariable(t.name as String, table)
 }
