@@ -319,6 +319,33 @@ describe("a table's rows from a person's file (plan A2)", () => {
     assert.match(party!.countFailed ?? '', /the rows of PARTY\.PARTY were counted as null, which is no count/);
   });
 
+  it("a planner answering the wrong counts is refused by name, never said as a failed count on each row (the C5-T re-check's item 2)", async () => {
+    // two tables the model's data fills (PARTY and DESK), and the planner's answer one count short, then each count two
+    // statements
+    const m = await modelOf(partyText(V1, ''));
+    let answer: ((ops: readonly HostOperation[]) => ReturnType<typeof unplanned>[][]) | undefined;
+    const wrong = new Proxy(planner, {
+      get(target, key) {
+        if (key === 'hostOperations') {
+          return async (databaseType: string, ops: readonly HostOperation[]) => (answer !== undefined && ops.every((o) => o.op === 'count')
+            ? answer(ops)
+            : target.hostOperations(databaseType, ops));
+        }
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const made = new TabTables(projectsOf(), new ProjectRunner(engine), engine, asTheBrowserTakesThem, wrong);
+    await made.load(m);
+    answer = (ops) => ops.slice(1).map(() => [unplanned('SELECT 1 AS n')]);
+    await assert.rejects(made.tables(m), /the planner answered 2 tables' counts with 1 plans of \[1\] statements/);
+    answer = (ops) => ops.map(() => [unplanned('SELECT 1 AS n'), unplanned('SELECT 1 AS n')]);
+    await assert.rejects(made.tables(m), /the planner answered 2 tables' counts with 2 plans of \[2, 2\] statements/);
+    // and answered right, each table is counted on its own row again
+    answer = undefined;
+    assert.deepEqual((await made.tables(m)).map((t) => [t.table, t.rows]), [['PARTY', 2], ['DESK', undefined]]);
+  });
+
   it("holds its databases to itself: reached through its runs alone (the C5-T final audit's item 4)", () => {
     const door = projectsOf();
     // a private field: no caller -- an app least of all -- makes, drops or sends on one outside the door's run

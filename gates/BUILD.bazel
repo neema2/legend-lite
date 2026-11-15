@@ -152,6 +152,8 @@ test_suite(
         "//tools/teavm:data_offsets_test",
         "//tools/java_run:pins_test",
         "//tools/js:lock_matches_package_json_test",
+        # a browser bundle declared after its package's guards_package() is refused (2026-11-15, the C5-T re-check's item 3)
+        "//tools/js:late_bundle_test",
         "//tools/junit:pins_test",
         "//tools/junit:runner_test",
         "//tools/python:lock_matches_requirements",

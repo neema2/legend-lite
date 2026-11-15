@@ -51,7 +51,8 @@ export function currentRun(): string | undefined {
  */
 export function sending(where: string): void {
   if (frames !== null && frames.getStore() === undefined) {
-    throw new Error(`${where} was sent a statement outside a run: a statement is sent by a run (a door's, or the plan`
-      + " runner's: run-frame.ts inRun), which plans nothing first (G4)");
+    // in few words: the grid's startup script carries this text, within its budget (2026-11-15, the C5-T re-check's
+    // MUST 1: Windows measured the grid 14 bytes over, and this tail, a door's or the plan runner's, was 34 of them)
+    throw new Error(`${where} was sent a statement outside a run: a statement is sent by a run (inRun, G4)`);
   }
 }

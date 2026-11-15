@@ -179,14 +179,22 @@ export class TabTables {
     const counts = made.length === 0 ? [] : await this.#source.hostOperations(this.#host.databaseType, made.map(({ t }) => ({
       op: 'count' as const, from: { relation: { schema: t.schema, name: t.table, declared: true } },
     })));
+    // one count of one statement for each made table, or the planner's answer is wrong, said once by name -- never as a
+    // count that failed on every row (the C5-T re-check's item 2, 2026-11-15: the row's catch is the run's and the
+    // count's alone)
+    if (counts.length !== made.length || counts.some((c) => c.length !== 1)) {
+      throw new Error(`the planner answered ${made.length} tables' counts with ${counts.length} plans of `
+        + `[${counts.map((c) => c.length).join(', ')}] statements, not one plan of one statement each`);
+    }
     const out: TableState[] = [];
     for (const d of declared) {
       const { t, refused, source } = d;
       let rows: number | undefined;
       let countFailed: string | undefined;
       if (source.kind !== 'none') {
+        const count = counts[made.indexOf(d)]![0]!;
         try {
-          const counted = await inRun("a table's rows counted", () => engine.run(counts[made.indexOf(d)]![0]!, 0));
+          const counted = await inRun("a table's rows counted", () => engine.run(count, 0));
           const raw = counted.rowCount === 1 ? counted.columns[0]?.values[0] : undefined;
           const n = raw === null || raw === undefined ? Number.NaN : Number(raw);
           if (!Number.isSafeInteger(n) || n < 0) throw new Error(`the rows of ${t.schema}.${t.table} were counted as ${String(raw)}, which is no count`);

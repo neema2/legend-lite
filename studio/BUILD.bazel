@@ -256,8 +256,6 @@ test_suite(
     ],
 )
 
-guards_package()
-
 # THE APP'S DIRECT DEPS, as Bazel resolves them (the C5-T last round's T1, 2026-11-15): //tools/deps:ts_layering_test
 # holds them to tools/deps/ts-layers.txt -- an app reaches no run layer, the run side through the doors alone
 genquery(
@@ -274,3 +272,7 @@ js_library(
     srcs = glob(["demo/**/*.ts"]),
     visibility = ["//tools/deps:__pkg__"],
 )
+
+# last, so it sees every rule of the package (tools/guards/defs.bzl; 2026-11-15, the C5-T re-check's item 3: the two
+# targets above were declared after it)
+guards_package()

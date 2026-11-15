@@ -8,8 +8,10 @@
 // Each bundle writes, in its `bundle_inputs` output group (tools/js/esbuild.bzl), esbuild's metafile (every module it
 // read) and the files it declares; guards_package collects them in every package, so a new bundle is read without a
 // list to update. A read is mapped to its path in the workspace whichever way esbuild spelled it: from the bundle's
-// directory in the output tree, or through the sandbox's symlink to the real output tree. A read of npm's packages is
-// rules_js's to lay out and is not checked here; a read from anywhere else is a failure, named.
+// directory in the output tree, or through the sandbox's symlink to the real output tree. An npm package's file is
+// declared by its package's directory (a tree artifact, listed with a trailing `/`): esbuild finds an undeclared
+// package as it finds an undeclared module (2026-11-15, the C5-T re-check's item 4). A read from anywhere else is a
+// failure, named.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { posix } from 'node:path';
@@ -17,29 +19,28 @@ import { describe, it } from 'node:test';
 
 import { runfilesFromEnv } from '../js/runfiles.mts';
 
-/** A read's path in the workspace, or `undefined` for one outside the workspace's own files (npm's, external). */
-export function workspacePath(pkg: string, read: string): string | undefined {
+/** A read's path in the workspace (an external repository's under `external/`), or as esbuild spelled one outside it. */
+export function workspacePath(pkg: string, read: string): string {
   const path = read.replaceAll('\\', '/');
   // through the sandbox's symlink: the real output tree, at any depth
   const bin = /(?:^|\/)bazel-out\/[^/]+\/bin\/(.+)$/.exec(path);
-  const inWorkspace =
-    bin !== null
-      ? bin[1]!
-      : path.startsWith('/') || /^[A-Za-z]:\//.test(path)
-        ? path
-        : posix.normalize(posix.join(pkg, path));
-  if (inWorkspace.includes('node_modules/') || inWorkspace.startsWith('external/')) return undefined;
-  return inWorkspace;
+  return bin !== null
+    ? bin[1]!
+    : path.startsWith('/') || /^[A-Za-z]:\//.test(path)
+      ? path
+      : posix.normalize(posix.join(pkg, path));
 }
 
-/** The modules a bundle read that it does not declare, by path in the workspace (or as esbuild spelled one outside it). */
+/** The modules a bundle read that it does not declare, by path in the workspace (or as esbuild spelled one outside it):
+ *  declared as a file, or under a declared directory (an npm package's). */
 export function undeclared(pkg: string, declared: ReadonlySet<string>, reads: readonly string[]): string[] {
+  const directories = [...declared].filter((d) => d.endsWith('/'));
   const missing = new Set<string>();
   for (const read of reads) {
     // a module esbuild made itself, in a namespace of its own (`(disabled):fs`, `dataurl:...`), is no file
     if (/^(?:\([^)]*\)|[a-z][\w-]+):/i.test(read)) continue;
     const path = workspacePath(pkg, read);
-    if (path !== undefined && !declared.has(path)) missing.add(path);
+    if (!declared.has(path) && !directories.some((d) => path.startsWith(d))) missing.add(path);
   }
   return [...missing].sort();
 }
@@ -81,7 +82,12 @@ describe('every module a bundle reads is one it declares', () => {
   });
 
   it('reads every spelling esbuild gives a module (planted)', () => {
-    const declared = new Set(['engine-client/src/legend/planner-worker.ts', 'engine-client/src/legend/planner-answer.ts']);
+    const declared = new Set([
+      'engine-client/src/legend/planner-worker.ts',
+      'engine-client/src/legend/planner-answer.ts',
+      // an npm package, declared by its directory
+      'engine-client/node_modules/.aspect_rules_js/apache-arrow@17.0.0/node_modules/apache-arrow/',
+    ]);
     const reads = [
       // in the bundle's directory, as an unsandboxed build spells it
       'src/legend/planner-worker.ts',
@@ -90,15 +96,21 @@ describe('every module a bundle reads is one it declares', () => {
       '../../../../../../../../../execroot/_main/bazel-out/k8-fastbuild/bin/engine-client/src/plan-guard.ts',
       // Windows' separators
       '..\\..\\execroot\\_main\\bazel-out\\x64_windows-fastbuild\\bin\\engine-client\\src\\run-frame.ts',
-      // npm's, and esbuild's own namespaces: not this check's
-      '../node_modules/.aspect_rules_js/apache-arrow@19.0.1/node_modules/apache-arrow/Arrow.mjs',
+      // a declared npm package's file, and one of a package the bundle does not declare (the re-check's item 4)
+      '../../../../../../../../../execroot/_main/bazel-out/k8-fastbuild/bin/engine-client/node_modules/.aspect_rules_js/apache-arrow@17.0.0/node_modules/apache-arrow/Arrow.mjs',
+      '../../../../../../../../../execroot/_main/bazel-out/k8-fastbuild/bin/engine-client/node_modules/.aspect_rules_js/flatbuffers@24.12.23/node_modules/flatbuffers/mjs/builder.js',
+      // a package's directory name is no prefix of another's: apache-arrow/ declares nothing of apache-arrow-extra
+      'node_modules/.aspect_rules_js/apache-arrow@17.0.0/node_modules/apache-arrow-extra/index.mjs',
+      // esbuild's own namespace: no file
       '(disabled):fs',
       // outside the output tree altogether
       '../../../../../../../../../../home/someone/legend-lite/engine-client/src/records.ts',
     ];
     assert.deepEqual(undeclared('engine-client', declared, reads), [
       // normalized from the bundle's directory, it climbs out of the workspace: named as it resolves
-      posix.normalize(posix.join('engine-client', reads[6]!)),
+      posix.normalize(posix.join('engine-client', reads[8]!)),
+      'engine-client/node_modules/.aspect_rules_js/apache-arrow@17.0.0/node_modules/apache-arrow-extra/index.mjs',
+      'engine-client/node_modules/.aspect_rules_js/flatbuffers@24.12.23/node_modules/flatbuffers/mjs/builder.js',
       'engine-client/src/plan-guard.ts',
       'engine-client/src/run-frame.ts',
     ]);
