@@ -316,20 +316,10 @@ final class LetBinding {
         return closedAndPlain(e, java.util.Set.of()) && (!canRaise(e) || always.contains(e));
     }
 
-    /**
-     * The calls that may skip an argument on SOME dialect: AND, OR and COALESCE (SQL promises no order of evaluation),
-     * and every function a dialect renders with a branch -- a CASE, ClickHouse's {@code if}/{@code multiIf} (its
-     * short_circuit_function_evaluation), an IIF, an IF or a DECODE -- found by reading each dialect's render arms
-     * (round 55k, 2026-11-15, the orchestrator's ruling under the user's delegation: widen the set, never across a
-     * rendering that can skip). A call not listed evaluates all its arguments on every dialect.
-     */
-    private static final java.util.Set<SqlFn> LAZY = java.util.Set.of(SqlFn.AND, SqlFn.OR, SqlFn.COALESCE,
-            SqlFn.ADD_INTERVAL, SqlFn.ADD_INTERVAL_TEMPORAL, SqlFn.ASCII_CODE, SqlFn.BIT_SHIFT_RIGHT,
-            SqlFn.BOOL_TO_TEXT, SqlFn.CBRT, SqlFn.FLOOR_RAW, SqlFn.INT_DIVIDE, SqlFn.JSON_TYPE, SqlFn.LIST_BOOL_AND,
-            SqlFn.LIST_BOOL_OR, SqlFn.LIST_CONCAT, SqlFn.LIST_DISTINCT, SqlFn.LIST_GET, SqlFn.LIST_POSITION,
-            SqlFn.LIST_PRODUCT, SqlFn.MAP_EXTRACT, SqlFn.MAP_FROM_ENTRIES, SqlFn.MAP_FROM_LISTS, SqlFn.MAP_KEYS,
-            SqlFn.MAP_VALUES, SqlFn.MOD, SqlFn.PARSE_INT, SqlFn.REM, SqlFn.REPEAT_STR, SqlFn.REPEAT_VALUE, SqlFn.RIGHT,
-            SqlFn.SPLIT, SqlFn.SPLIT_PART);
+    /** The calls that may skip an argument on some dialect ({@link SqlFn#MAY_SKIP_AN_ARGUMENT}: the SQL layer's own
+     *  record of its renderings; round 55k, 2026-11-15, the orchestrator's ruling under the user's delegation: widen the
+     *  set, never across a rendering that can skip). */
+    private static final java.util.Set<SqlFn> LAZY = SqlFn.MAY_SKIP_AN_ARGUMENT;
 
     /**
      * Every expression {@code e} evaluates whatever its values, into {@code into}: itself, and through each node that
