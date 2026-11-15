@@ -2854,12 +2854,14 @@ public class MongoDb extends AnsiSqlRenderer {
         return null;
     }
 
-    /** {@inheritDoc} The double rounded to six places, as MongoDB writes it ({@code $round}, then {@code $toString}). */
+    /** {@inheritDoc} The value as a Decimal128 rounded to six places, whose text MongoDB writes plain with its six
+     *  decimals, then its trailing zeros and point trimmed ({@code $rtrim}): a double's own {@code $toString} writes an
+     *  exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        writer.append("{\"$toString\": {\"$round\": [");
-        MongoJson.op1(writer, "$toDouble", x);
-        return writer.append(", 6]}}");
+        writer.append("{\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$toString\": {\"$round\": [");
+        MongoJson.op1(writer, "$toDecimal", x);
+        return writer.append(", 6]}}, \"chars\": \"0\"}}, \"chars\": \".\"}}");
     }
 }

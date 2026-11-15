@@ -102,9 +102,11 @@ class ProductRaiseProbeTest {
                 + StorelessRuntime.RUNTIME + ")");
         expectKind(wrong, "toOne over two rows", two, com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY, "[1]");
         // 4. a print site: a Float's text (D1.2, register S311): six decimals, trimmed, the same on every database
-        Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n#->extend(~t: r|"
+        Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n  100000000000000000000.0\n"
+                + "  0.0000001\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
-        if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2\"},{\"t\":\"-1.25\"}]")) {
+        if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2\"},{\"t\":\"-1.25\"},"
+                + "{\"t\":\"100000000000000000000\"},{\"t\":\"0\"}]")) {
             wrong.add("a Float's text: " + describe(text));
         }
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)

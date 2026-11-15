@@ -425,11 +425,4 @@ public class MySql extends MariaDb {
         return w -> w.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", " + stringLit(pat) + ", "
                 + stringLit(icu.toString()) + ", 1, " + occurrence + ")");
     }
-
-    /** {@inheritDoc} The double rounded to six places as MySQL writes it: its shortest digits, already without trailing zeros, an exponent from 10^15 (register S311; a DECIMAL(65, 6) cast saturates past 10^59; measured on the embedded MySQL, 2026-11-15). */
-    @Override
-    @SpellingArm
-    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        return writer.append("CAST(ROUND(").expr(asDouble(x), 0).append(", 6) AS CHAR)");
-    }
 }

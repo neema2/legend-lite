@@ -3605,10 +3605,15 @@ public class MariaDb extends AnsiSqlRenderer {
                 || composite && (wire.equals("JSON") || wire.equals("VARCHAR"));
     }
 
-    /** {@inheritDoc} The double rounded to six places, whose text MariaDB writes with its six decimals, trimmed by the standard's trailing trim (a DECIMAL(65, 6) cast saturates past 10^59; measured on the embedded MariaDB, 2026-11-15). No NaN or infinity is stored. */
+    /** {@inheritDoc} {@code FORMAT}'s six decimals in the {@code en_US} locale, its grouping commas taken out, trimmed
+     *  by the standard's trailing trim: the same text as the other databases at every magnitude (measured 2026-11-15 on
+     *  the embedded MariaDB and MySQL, from 1e-7 to 1.7976931348623157e308: a DECIMAL(65, 6) cast saturates past
+     *  10^59, and MySQL's text of ROUND writes an exponent from 10^15; the orchestrator's rule, the same text on every
+     *  database). No NaN or infinity is stored. MySQL inherits it. */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        return trimmedSixStandard(writer, w -> w.append("CAST(ROUND(").expr(asDouble(x), 0).append(", 6) AS CHAR)"));
+        return trimmedSixStandard(writer, w -> w.append("REPLACE(FORMAT(").expr(asDouble(x), 0)
+                .append(", 6, 'en_US'), ',', '')"));
     }
 }
