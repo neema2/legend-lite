@@ -66,11 +66,13 @@ PLANE_SENDS = frozenset({'arrow_chunks'})
 # stream's landing (the Database's Arrow import). 2026-11-15 (C5-P, the audit's item 4); and a transaction's bounds,
 # run acts (C5-P's A3), called by run modules alone.
 TRANSACTION_METHODS = frozenset({'begin', 'commit', 'rollback'})
-SEND_METHODS = frozenset({'execute', 'arrow_chunks', 'import_stream'}) | TRANSACTION_METHODS
+# 2026-11-15 (C5-P's final round, item 4): an HTTP request opened (`opener.open(...)`, `urllib.request.urlopen(...)`),
+# the warehouse's or any run module's.
+SEND_METHODS = frozenset({'execute', 'arrow_chunks', 'import_stream', 'open', 'urlopen'}) | TRANSACTION_METHODS
 
 # The calls that reach the warehouse's SQL API over HTTP (warehouse._urlopen, its one place a request goes out).
 # 2026-11-15 (C5-P, A2).
-SEND_NAMES = frozenset({'send', '_urlopen'})
+SEND_NAMES = frozenset({'send', '_urlopen', 'urlopen'})
 
 # THE SENDING HELPERS: run-module functions that send outside a frame of their own, each called only where a frame
 # holds -- in a run, or in another helper. 2026-11-15 (C5-P, the audit's item 4): a statement run with a failure's held
@@ -80,7 +82,9 @@ SEND_NAMES = frozenset({'send', '_urlopen'})
 # itself: Unframed).
 # 2026-11-15 (C5-P's audit M2): execute_redacted a run of its own (`with in_run(...)`), no helper -- frames.py
 # re-exports it, and a door takes no sending helper.
-SENDING_HELPERS = frozenset({'_stream', '_reach', 'arrow_chunks'})
+# 2026-11-15 (C5-P's final round, item 4): _urlopen, the warehouse's one place a request goes out, refusing outside a
+# run itself.
+SENDING_HELPERS = frozenset({'_stream', '_reach', 'arrow_chunks', '_urlopen'})
 
 # What a module outside the run side takes from NO module, by name, alias, attribute or star: the one send, an opener
 # of a run, a sending helper (C5-P's audit M2, 2026-11-15: until then read only as taken from _planned and _runframe,
@@ -95,10 +99,16 @@ STAR_IMPORTS = {'timeseries': {'_ts_words'}}
 # `loaded` from the service key, which binds it, and called any name).
 LOADER_NAMES = frozenset({'loaded', 'Loaded', '_loader'})
 
-# A planner module imports no door, at any level (C5-P's audit M2, 2026-11-15), but these, each by its reason: the
-# package's facade, whose lazy names ARE the doors (Frames, Engine, show, DataCube, Page); the timeseries builder, which
-# hands its query to DataCube's session (datacube._session) when asked to show it.
-PLANNER_DOORS = {'__init__': {'frames', 'engine', 'datacube', 'notebook', 'page'}, 'timeseries': {'datacube'}}
+# A planner module imports no door, at any level (C5-P's audit M2, 2026-11-15), but these, each by its reason and
+# pinned to the names it takes (C5-P's final round, item 3, 2026-11-15: until then a carve-out admitted any name): the
+# package's facade, whose lazy names ARE the doors -- Frames, Engine, show, DataCube, Page, and DataCube's module, whose
+# query and studio it reads by name -- and the timeseries builder, which hands its query to DataCube's session
+# (datacube._session) when asked to show it. ('', m) is the module m itself, taken by `from . import m`.
+PLANNER_DOORS = {
+    '__init__': {('frames', 'Frames'), ('engine', 'Engine'), ('datacube', 'show'), ('', 'datacube'),
+                 ('notebook', 'DataCube'), ('page', 'Page')},
+    'timeseries': {('datacube', '_session')},
+}
 
 # A PLANNER'S TYPES, which no run function takes or answers (the run wall's L2, restored by C5-P's A5, 2026-11-15): a held
 # model, the planning key, the loader; and a callable answering a plan or a planner's text (a planner handed in under
@@ -151,13 +161,14 @@ def unreadable(tree: ast.AST) -> list[str]:
     return out
 
 
-def imported(tree: ast.AST) -> tuple[list[tuple[str, str, str]], dict[str, set[str]], set[str]]:
+def imported(tree: ast.AST) -> tuple[list[tuple[str, str, str]], dict[str, set[str]], dict[str, str], set[str]]:
     """Every name a module takes from the package's modules, ``(module, name, bound as)``; every star it imports, by
     module (the package's or not); and the names it binds to a package module (``from . import x``, ``import
     legend_lite.x as y``), whose attributes are the module's names."""
     taken: list[tuple[str, str, str]] = []
     stars: dict[str, set[str]] = {}
-    bound: set[str] = set()
+    bound: dict[str, str] = {}
+    packages: set[str] = set()
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom):
             own = node.level == 1 or node.module == 'legend_lite' or (node.module or '').startswith('legend_lite.')
@@ -169,12 +180,29 @@ def imported(tree: ast.AST) -> tuple[list[tuple[str, str, str]], dict[str, set[s
                 elif own and base:
                     taken.append((base.split('.')[0], a.name, a.asname or a.name))
                 elif own:
-                    bound.add(a.asname or a.name)
+                    bound[a.asname or a.name] = a.name
         elif isinstance(node, ast.Import):
             for a in node.names:
                 if a.name.startswith('legend_lite.') and a.asname:
-                    bound.add(a.asname)
-    return taken, stars, bound
+                    bound[a.asname] = a.name.split('.')[1]
+                elif a.name == 'legend_lite' or a.name.startswith('legend_lite.'):
+                    # `import legend_lite [as ll]`, and `import legend_lite.x`, which binds the package's own name
+                    # (C5-P's final round, item 2: read as `legend_lite.x.<name>`, a read off module x)
+                    packages.add(a.asname or 'legend_lite')
+    return taken, stars, bound, packages
+
+
+def read_off(node: ast.AST, bound: dict[str, str], packages: set[str]) -> tuple[str, str] | None:
+    """The package module and the name an attribute reads off it, or None: `x.name` with x bound to a module of the
+    package, or `legend_lite.x.name` / `ll.x.name` through the package itself (C5-P's final round, item 2)."""
+    if not isinstance(node, ast.Attribute):
+        return None
+    if isinstance(node.value, ast.Name) and node.value.id in bound:
+        return bound[node.value.id], node.attr
+    if isinstance(node.value, ast.Attribute) and isinstance(node.value.value, ast.Name) and \
+            node.value.value.id in packages:
+        return node.value.attr, node.attr
+    return None
 
 
 def imports(tree: ast.AST) -> tuple[set[str], set[str], set[str], bool]:
@@ -433,9 +461,9 @@ def broken(sources: dict[str, str]) -> list[str]:
         except AssertionError as refused:
             out.append(f'{name}: {refused}')
             continue
-        if name in RUN | SEAM and package:
-            out.append(f'{name} imports the package itself, whose __init__ imports the compiler: a run or seam module'
-                       ' imports its own modules by name')
+        if name in (RUN | SEAM | PLANNER) - {'__init__'} and package:
+            out.append(f'{name} imports the package itself, whose __init__ imports the compiler and reaches the doors: a'
+                       ' run, seam or planner module imports its own modules by name (C5-P\'s final round, item 1)')
         if name in RUN and not modules <= RUN | SEAM | LOADER:
             out.append(f'{name} (run) imports {sorted(modules - RUN - SEAM - LOADER)}: the run side imports the run side'
                        ' and the seam alone (the loader by its service key alone)')
@@ -443,13 +471,13 @@ def broken(sources: dict[str, str]) -> list[str]:
             out.append(f'{name} imports the native library\'s loader: its two keys alone do (_library, _services)')
         if name in LOADER and not modules <= SEAM:
             out.append(f'{name} (the loader) imports {sorted(modules - SEAM)}: it imports the seam alone (the run frame)')
-        taken, stars, bound = imported(tree)
+        taken, stars, bound, packages = imported(tree)
         if name not in LOADER | set(KEYS):
             # the loader's names, wherever an import binds them: taken from any module of the package (a key binds
             # `loaded`), or read off a module of it (`_services.loaded`)
             reached = sorted({f'{what} from {source}' for source, what, _ in taken if what in LOADER_NAMES} |
-                             {ast.unparse(n) for n in ast.walk(tree) if isinstance(n, ast.Attribute)
-                              and isinstance(n.value, ast.Name) and n.value.id in bound and n.attr in LOADER_NAMES})
+                             {ast.unparse(n) for n in ast.walk(tree)
+                              if (read_off(n, bound, packages) or ('', ''))[1] in LOADER_NAMES})
             if reached:
                 out.append(f'{name} reaches {reached}: the native library\'s loader is referred to by its two keys alone'
                            ' (_library, _services)')
@@ -463,14 +491,17 @@ def broken(sources: dict[str, str]) -> list[str]:
                     out.append(f'{name} takes {what} from {source}: the one send, a run\'s opener and a sending helper'
                                ' are the run side\'s alone')
             for node in ast.walk(tree):
-                if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in bound \
-                        and node.attr in RUN_ONLY:
+                if (read_off(node, bound, packages) or ('', ''))[1] in RUN_ONLY:
                     out.append(f'{name}: line {node.lineno}: {ast.unparse(node)}: the one send, a run\'s opener and a'
                                ' sending helper are the run side\'s alone')
         if name in PLANNER:
-            doors = modules - RUN - SEAM - PLANNER - LOADER - PLANNER_DOORS.get(name, set())
+            door_modules = modules - RUN - SEAM - PLANNER - LOADER
+            reached = {(source, what) for source, what, _ in taken if source in door_modules} | \
+                      {('', module) for module in bound.values() if module in door_modules}
+            doors = sorted(f'{what} from {source}' if source else source + what
+                           for source, what in reached - PLANNER_DOORS.get(name, set()))
             if doors:
-                out.append(f'{name} (planner) imports {sorted(doors)}: a planner module imports no door')
+                out.append(f'{name} (planner) imports {doors}: a planner module imports no door')
         if name in RUN | SEAM:
             out += [f'{name}: {r}' for r in late_imports(tree)]
         if name in RUN:
@@ -633,6 +664,18 @@ class RunClosureTest(unittest.TestCase):
             ('compiler', 'def f():\n    from .frames import run_plan'): 'a planner module imports no door',
             ('_home', 'from . import engine'): 'a planner module imports no door',
             ('timeseries', 'from .frames import Frames'): 'a planner module imports no door',
+            # the final round's four forms (C5-P, 2026-11-15)
+            ('compiler', 'def f(con, plan):\n    import legend_lite\n    return legend_lite.Frames(con).run(plan)'):
+                'imports the package itself',
+            ('_home', 'import legend_lite as ll\nll.datacube._session().frames.run(plan)'): 'imports the package itself',
+            ('engine', 'import legend_lite._runs\nwith legend_lite._runs.in_run("x"):\n    legend_lite._runs.send(db, s)'):
+                "the run side's alone",
+            ('frames', 'import legend_lite._services\nlegend_lite._services.loaded()'): 'loader is referred',
+            ('__init__', 'def run(con, q):\n    from .frames import run_plan'): 'a planner module imports no door',
+            ('timeseries', 'from .datacube import Frames'): 'a planner module imports no door',
+            ('warehouse', 'def f(req):\n    _OPENER.open(req)'): 'in no run',
+            ('warehouse', 'import urllib.request\ndef f(req):\n    urllib.request.urlopen(req)'): 'in no run',
+            ('_reads', 'def f(req):\n    urlopen(req)'): 'in no run',
             # a run takes and answers no planner, through an alias, a Protocol, a rename (C5-P's audit S1)
             ('_reads', 'Maker = Callable[[], PlanText]\ndef f(make: Maker): pass'): 'a run takes and answers no planner',
             ('_reads', 'class Maker(Protocol):\n    def __call__(self) -> PlanText: ...\ndef f(make: "Maker"): pass'):

@@ -114,17 +114,18 @@ _OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 def _urlopen(request: urllib.request.Request) -> Any:
-    """The one place a request goes out (a test answers in its stead)."""
+    """The one place a request goes out (a test answers in its stead). Every request is a run's: refused by name outside
+    one (C5-P's audit S3, here since its final round, item 4, 2026-11-15: until then _reach checked, and a request
+    opened past it went unchecked)."""
+    if current_run() is None:
+        raise Unframed("a call of the warehouse's SQL API is made only inside a run (_runframe.runs, in_run): the run"
+                       ' side makes it (G4)')
     return _OPENER.open(request, timeout=_WIRE_TIMEOUT_S)
 
 
 def _reach(base_url: str, call: dict[str, Any]) -> tuple[int, bytes]:
-    """The call made, and its answer's status and bytes; a refused connection said as what it is. Every call is a run's:
-    refused by name outside one (C5-P's audit S3, 2026-11-15: until then a statement's chunks after its first were
-    fetched unchecked)."""
-    if current_run() is None:
-        raise Unframed("a call of the warehouse's SQL API is made only inside a run (_runframe.runs, in_run): the run"
-                       ' side makes it (G4)')
+    """The call made, and its answer's status and bytes; a refused connection said as what it is. Every call is a run's,
+    refused outside one where the request goes out (``_urlopen``)."""
     body = call['body']
     request = urllib.request.Request(base_url.rstrip('/') + call['path'], method=call['method'],
                                      data=body.encode('utf-8') if body is not None else None, headers=call['headers'])

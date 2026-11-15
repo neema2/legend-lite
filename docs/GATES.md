@@ -22218,11 +22218,15 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
     `_RUN_SRCS`, `_COMPILER_SRCS`, handed in by name).
   - **And by the sources, both ways, every import read (a function's own too):** run modules import run and seam
     modules alone, never the package itself (its `__init__` imports the compiler); seam modules seam modules alone;
-    every module of `:compiler` imports no run module and no door (the package's facade and the timeseries builder
-    excepted by name: `PLANNER_DOORS`), and takes no sending name from `_planned`; a module outside the run side takes
-    the one send, a run's opener or a sending helper from no module, by name, alias, attribute or star; a star import
-    is one `STAR_IMPORTS` lists; a remote plane's send (`arrow_chunks`) and a sending helper are called by run modules
-    alone. What the rule cannot read is refused: importlib under any
+    every module of `:compiler` imports no run module and no door -- neither the package itself (`import legend_lite`,
+    its `__init__` alone excepted, the facade) -- the facade and the timeseries builder taking only the door names
+    `PLANNER_DOORS` pins for each, and takes no sending name from `_planned`; a module outside the run side takes the
+    one send, a run's opener or a sending helper from no module, by name, alias, attribute (`x.name`, or
+    `legend_lite.x.name` through the package) or star; a star import is one `STAR_IMPORTS` lists; a remote plane's send
+    (`arrow_chunks`) and a sending helper are called by run modules alone. **These static rules catch drift, not a
+    determined adversary** (C5-P's final round, 2026-11-15: no further form-hunting): the run-time checks -- the one
+    send's frame, the loader's planning check, the warehouse's request check, the transaction acts -- are the
+    backstop. What the rule cannot read is refused: importlib under any
     name but the `importlib.util.find_spec` chain, any reference to `__import__` or `import_module`.
   - **A run is opened on the run side alone, spelled one way:** `runs`, `in_run` and `exempt` are imported from
     `_runframe` by run modules alone, by their own names, and used only as `@runs(...)` on a function or `with
@@ -22262,7 +22266,7 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   | the warehouse send's own frame check | `planned_test` (`test_the_warehouse_is_sent_a_plans_statement_only_inside_a_run`) |
   | each rule of the closure test (the package import, the BUILD's planner set, the framed sends, importlib's name, `__import__`, the openers' import, their spelling) | `run_closure_test`'s planted cases, each |
 
-- **What ran, green under Bazel in the worker's session at dd04bf7f1 (the final audit round's code; the docs after it):**
+- **What ran, green under Bazel in the worker's session at dd04bf7f1 (the final audit round's code; the docs after it), and again at the final round's commit, the same counts:**
   run_closure 4, planned 56, planned_guard 7, frames 41, headless 73, notebook 31, engine 345 (test_warehouse in it),
   model 19 (1 skipped), bindings 29, ts_builder 7, markets 3, host_sql 3.
   `//gates:local` was not run there: it did not fit the session's disk allowance (453 targets failed to build, "No space
@@ -22307,8 +22311,14 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
     form; star imports default-deny (`STAR_IMPORTS`); a planner module imports no door. `execute_redacted` (re-exported
     as `frames.execute_redacted`) is a run of its own.
   - **S1:** the signature rule reads type aliases, a Protocol's `__call__`, renamed imports; an annotation it cannot
-    parse is refused. **S2:** the late-import forms above. **S3:** `Database.import_stream` and every warehouse call
-    (`_reach`) refuse outside a run. **S4:** the pool's `submit` carries the caller's context.
+    parse is refused. **S2:** the late-import forms above. **S3:** `Database.import_stream` refuses outside a run, and so
+    does a request to the warehouse outside one -- a statement's chunk fetched in no run is refused (`_urlopen`, where
+    every request goes out, since the final round's item 4); the SQL API's calls are runs of their own (`_exchange`).
+    **S4:** the pool's `submit` carries the caller's context.
+  - **The final round (four forms, 2026-11-15; the last static-form round):** a planner module importing the package
+    itself; a door reading a run module's names through `legend_lite.x.name`; the facade's and the timeseries builder's
+    door imports pinned to their names; the warehouse's HTTP checked where every request goes out (`_urlopen`), and
+    `.open(` / `urlopen` read as sends in run modules. Each red on revert.
 - **Held out (start-here §6.1's C5 list, the final audit's):** `_stream`'s one copied context re-entered at each pull
   (two DuckDB threads pulling at once would raise "cannot enter context"; measured on one); `_reads.end_read`'s
   `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
