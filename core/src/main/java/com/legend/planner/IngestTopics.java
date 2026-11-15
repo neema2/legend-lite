@@ -73,16 +73,28 @@ public final class IngestTopics {
             }
             var ingest = ctx.findIngest(name);
             if (ingest.isPresent()) {
-                Protocol.PIngestReadMode read = ingest.get().ingest().readMode();
-                if (read != null && read.kind().equals("Delta")
-                        && ("JSON".equals(read.format()) || "Avro".equals(read.format()))) {
-                    for (Protocol.PIngestDataset d : ingest.get().ingest().datasets()) {
-                        topics.add(topic(ctx, ingest.get(), d));
-                    }
-                }
+                topics.addAll(ofIngest(ctx, ingest.get()));
                 continue;
             }
             ctx.findDatabase(name).ifPresent(db -> next.addAll(db.includes()));
+        }
+        return topics;
+    }
+
+    /** Whether {@code ingest}'s datasets arrive as records on topics: a {@code Delta} in a message format. */
+    public static boolean readsTopics(IngestDefinition ingest) {
+        Protocol.PIngestReadMode read = ingest.ingest().readMode();
+        return read != null && read.kind().equals("Delta")
+                && ("JSON".equals(read.format()) || "Avro".equals(read.format()));
+    }
+
+    /** The topics {@code ingest}'s datasets read, in its order: none when its rows do not arrive on topics. */
+    public static List<Topic> ofIngest(ModelContext ctx, IngestDefinition ingest) {
+        List<Topic> topics = new ArrayList<>();
+        if (readsTopics(ingest)) {
+            for (Protocol.PIngestDataset d : ingest.ingest().datasets()) {
+                topics.add(topic(ctx, ingest, d));
+            }
         }
         return topics;
     }

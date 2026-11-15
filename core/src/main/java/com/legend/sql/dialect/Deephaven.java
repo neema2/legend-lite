@@ -1785,8 +1785,8 @@ public final class Deephaven extends AnsiSqlRenderer {
         throw new DialectCapability("a data payload reached Deephaven: a server reads no rows a plan carries");
     }
 
-    /** {@inheritDoc} A Deephaven server's tables are made by the startup program the planner writes (DeephavenProgram):
-     *  each stream's a subscription to its topic (the desk roadmap's B2). */
+    /** {@inheritDoc} A Deephaven server's tables are made at start by lite's fixed loader from a deployment's plan
+     *  ({@link DeephavenLoad}: data, docs/DEPLOYMENT_DESIGN_2026_11_14.md §9), each stream's a subscription to its topic. */
     @Override
     public boolean tablesMadeAtStartup() {
         return true;

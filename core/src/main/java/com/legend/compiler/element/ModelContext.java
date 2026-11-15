@@ -151,6 +151,12 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    /** The {@code ###Lakehouse} deployment for {@code fqn}, if present &mdash; what an environment lands, from where,
+     *  on what ({@code planner.DeploymentPlanner}). */
+    default Optional<com.legend.model.DeploymentDefinition> findDeployment(String fqn) {
+        return Optional.empty();
+    }
+
     /** The {@code ###DataSpace} element for {@code fqn}, if present &mdash; the graph a Cypher island's
      *  {@code USE} names (docs/CYPHER_STUDY_2026_10_15.md §12.45). */
     default Optional<com.legend.model.DataSpaceDefinition> findDataSpace(String fqn) {

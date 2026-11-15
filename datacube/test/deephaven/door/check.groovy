@@ -1,7 +1,7 @@
-// THE STARTUP PROGRAM'S TABLES, CHECKED ON THE PINNED DEEPHAVEN (docs/DESK_DATA_ROADMAP_2026_10_29.md B1 and B2; a test's
-// check, run after the program the planner generated, in the same application): each table the test names
+// THE DEPLOYMENT'S TABLES, CHECKED ON THE PINNED DEEPHAVEN (docs/DESK_DATA_ROADMAP_2026_10_29.md B1 and B2; a test's
+// check, run after lite's loader made the deployment's tables, in the same application): each table the test names
 // (DOOR_TABLES: a line a table, its id columns and its columns with the Deephaven types the store declares, tab-separated)
-// read by its name from the program's scope -- its columns' types the declared ones (DH16's check) -- and, once the test
+// read by its name from the loader's scope -- its columns' types the declared ones (DH16's check) -- and, once the test
 // says the world has stopped (DOOR_DONE: a line a table, the records and keys written), its rows and distinct ids written
 // to DOOR_OUT when they reach what was written (or at 90 s), then "done".
 import io.deephaven.engine.context.ExecutionContext

@@ -81,7 +81,7 @@ public final class Protocol {
             PDataQualityRelationComparison, PSchemaSet, PBinding,
             PServiceStoreDefinition,
             PMapping, PDataElement, PRelationalMapper,
-            PNativeFunction, PPrimitive, POpaqueElement, PAssociationProjection, PIngest {
+            PNativeFunction, PPrimitive, POpaqueElement, PAssociationProjection, PIngest, PDeployment {
     }
 
     /** {@code ###Data Data [decorations] qn { <body> }} — {@code _type:
@@ -2064,6 +2064,95 @@ public final class Protocol {
         }
     }
 
+    /**
+     * A {@code ###Lakehouse} Deployment -- lite's, {@code _type:"lakehouseDeployment"} (docs/DEPLOYMENT_DESIGN_2026_11_14.md
+     * §8; the user's rulings of 2026-11-15, "Deployment in lakehouse yes"): what one environment lands ({@code deploys}:
+     * ingests), from which sources ({@code sources}: each connection and the stores it feeds, upstream's runtime
+     * {@code connectionStores} shape), on which targets ({@code live}, {@code history}: each a connection and what it
+     * keeps). It points at what it deploys, as a {@code PersistenceContext} at its persistence; nothing points at it.
+     */
+    public record PDeployment(String pkg, String name,
+                              List<PStereotype> stereotypes,
+                              List<PTaggedValue> taggedValues,
+                              List<String> deploys,
+                              List<PDeploymentSource> sources,
+                              @com.legend.base.Nullable PDeploymentTarget live,
+                              @com.legend.base.Nullable PDeploymentTarget history,
+                              @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+            implements Element {
+        public PDeployment {
+            deploys = List.copyOf(deploys);
+            sources = List.copyOf(sources);
+        }
+
+        public String qualifiedName() {
+            return pkg.isEmpty() ? name : pkg + "::" + name;
+        }
+
+        /** This deployment with its names in place of its own (the name resolver's rewrite to full paths). */
+        public PDeployment withNames(List<String> deploys, List<PDeploymentSource> sources,
+                @com.legend.base.Nullable PDeploymentTarget live, @com.legend.base.Nullable PDeploymentTarget history) {
+            return new PDeployment(pkg, name, stereotypes, taggedValues, deploys, sources, live, history,
+                    sourceInformation);
+        }
+    }
+
+    /** {@code market::Kafka: [ tickerplant::Topics, ... ]}: a source connection and the stores it feeds. */
+    public record PDeploymentSource(String connection, List<String> stores) {
+        public PDeploymentSource {
+            stores = List.copyOf(stores);
+        }
+
+        /** This source with its names in place of its own (the name resolver's rewrite to full paths). */
+        public PDeploymentSource withNames(String connection, List<String> stores) {
+            return new PDeploymentSource(connection, stores);
+        }
+    }
+
+    /** {@code market::Deephaven keep [ appended: LastRows(10000), MARKET_TRADE: LastRows(25000) ]}: a target's connection
+     *  and what it keeps, each entry a scope -- {@code appended}, {@code milestoned} (a write mode's default) or a
+     *  dataset's name -- and its rule. */
+    public record PDeploymentTarget(String connection, List<PKeep> keep) {
+        public PDeploymentTarget {
+            keep = List.copyOf(keep);
+        }
+
+        /** This target on {@code connection} (the name resolver's rewrite to a full path). */
+        public PDeploymentTarget withConnection(String connection) {
+            return new PDeploymentTarget(connection, keep);
+        }
+    }
+
+    /** One {@code keep} entry: its scope and rule. */
+    public record PKeep(String scope, PKeepRule rule) {
+    }
+
+    /** What a target keeps of a dataset: an appended one's latest rows ({@code LastRows(n)}), those of a span
+     *  ({@code Last('PT8H')}), or {@code all}; a milestoned one's {@code current} version a key, or every one of its
+     *  {@code versions} (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5). */
+    public sealed interface PKeepRule permits PKeepRows, PKeepFor, PKeepAll, PKeepCurrent, PKeepVersions {
+    }
+
+    /** {@code LastRows(n)}. */
+    public record PKeepRows(long rows) implements PKeepRule {
+    }
+
+    /** {@code Last('PT8H')}, an ISO 8601 duration. */
+    public record PKeepFor(String duration) implements PKeepRule {
+    }
+
+    /** {@code all}. */
+    public record PKeepAll() implements PKeepRule {
+    }
+
+    /** {@code current}. */
+    public record PKeepCurrent() implements PKeepRule {
+    }
+
+    /** {@code versions}. */
+    public record PKeepVersions() implements PKeepRule {
+    }
+
     /** {@code owner=AppDir(production='111111', prodParallel='222222')}: the application directory deployments that
      *  own the ingest, each an id of digits ({@code {appDirId, level: 'DEPLOYMENT'}} on the wire). */
     public record PIngestOwner(String production, @com.legend.base.Nullable String prodParallel) {
@@ -3643,6 +3732,7 @@ public final class Protocol {
             case PElasticsearch7Cluster s -> s.qualifiedName();
             case PMongoDatabase m -> m.qualifiedName();
             case PIngest i -> i.qualifiedName();
+            case PDeployment d -> d.qualifiedName();
             case PDataQualityValidation v -> v.qualifiedName();
             case PDataQualityRelationValidation v -> v.qualifiedName();
             case PDataQualityRelationComparison v -> v.qualifiedName();

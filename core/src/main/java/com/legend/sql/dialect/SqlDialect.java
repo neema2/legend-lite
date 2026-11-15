@@ -234,8 +234,9 @@ public interface SqlDialect {
         return true;
     }
 
-    /** Whether a server of this database makes its tables by a startup program the planner writes from the model
-     *  (Deephaven's: the desk roadmap's B2, DeephavenProgram) rather than by a plan's statements. Default: not. */
+    /** Whether a server of this database makes its tables at start from a deployment's plan, read by a fixed loader
+     *  (Deephaven's: {@code DeephavenLoad}, docs/DEPLOYMENT_DESIGN_2026_11_14.md §9) rather than by a plan's statements.
+     *  Default: not. */
     default boolean tablesMadeAtStartup() {
         return false;
     }

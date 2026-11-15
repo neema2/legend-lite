@@ -19,6 +19,54 @@ final class LakehouseComposer {
     private LakehouseComposer() {
     }
 
+    /** A {@code ###Lakehouse} element: an Ingest or a Deployment. */
+    static String element(Protocol.Element e, PureComposer.Style style) {
+        return switch (e) {
+            case Protocol.PIngest g -> ingest(g, style);
+            case Protocol.PDeployment d -> deployment(d);
+            default -> throw Composing.refused("no Lakehouse printer for a " + e.getClass().getSimpleName());
+        };
+    }
+
+    /** {@code Deployment qn { deploys: [...]; sources: [...]; live: conn keep [...]; history: ...; }}. */
+    static String deployment(Protocol.PDeployment d) {
+        StringBuilder b = new StringBuilder("Deployment ")
+                .append(DomainComposer.annotations(d.stereotypes(), d.taggedValues()))
+                .append(Composing.elementPath(d.pkg(), d.name())).append("\n{\n");
+        b.append(TAB).append("deploys: [ ").append(String.join(", ", d.deploys())).append(" ];\n");
+        if (!d.sources().isEmpty()) {
+            List<String> sources = new ArrayList<>();
+            for (Protocol.PDeploymentSource s : d.sources()) {
+                sources.add(s.connection() + ": [ " + String.join(", ", s.stores()) + " ]");
+            }
+            b.append(TAB).append("sources: [ ").append(String.join(", ", sources)).append(" ];\n");
+        }
+        if (d.live() != null) {
+            b.append(TAB).append("live: ").append(target(d.live())).append(";\n");
+        }
+        if (d.history() != null) {
+            b.append(TAB).append("history: ").append(target(d.history())).append(";\n");
+        }
+        return b.append('}').toString();
+    }
+
+    private static String target(Protocol.PDeploymentTarget t) {
+        if (t.keep().isEmpty()) {
+            return t.connection();
+        }
+        List<String> keep = new ArrayList<>();
+        for (Protocol.PKeep k : t.keep()) {
+            keep.add(k.scope() + ": " + switch (k.rule()) {
+                case Protocol.PKeepRows r -> "LastRows(" + r.rows() + ")";
+                case Protocol.PKeepFor f -> "Last(" + quoted(f.duration()) + ")";
+                case Protocol.PKeepAll a -> "all";
+                case Protocol.PKeepCurrent c -> "current";
+                case Protocol.PKeepVersions v -> "versions";
+            });
+        }
+        return t.connection() + " keep [ " + String.join(", ", keep) + " ]";
+    }
+
     static String ingest(Protocol.PIngest g, PureComposer.Style style) {
         StringBuilder b = new StringBuilder("Ingest ")
                 .append(DomainComposer.annotations(g.stereotypes(), g.taggedValues()))

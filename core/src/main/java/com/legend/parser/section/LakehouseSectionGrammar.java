@@ -51,7 +51,7 @@ public final class LakehouseSectionGrammar implements ElementwiseSectionGrammar 
 
     @Override
     public String qualifiedNameOf(Protocol.Element e) {
-        return ((Protocol.PIngest) e).qualifiedName();
+        return Protocol.pathOf(e);
     }
 
     @Override
@@ -59,7 +59,128 @@ public final class LakehouseSectionGrammar implements ElementwiseSectionGrammar 
         if (c.dialect().refusesLiteExtensions()) {
             throw c.error("'Lakehouse' is not a known section parser");
         }
-        return parseIngest(c);
+        if (!c.isIdentifierToken(c.peek())) {
+            throw c.error("unsupported ###Lakehouse element: " + c.safeText());
+        }
+        return switch (c.safeText()) {
+            case "Ingest" -> parseIngest(c);
+            case "Deployment" -> parseDeployment(c);
+            default -> throw c.error("unsupported ###Lakehouse element: " + c.safeText() + " (Ingest, Deployment)");
+        };
+    }
+
+    /**
+     * {@code Deployment qn { deploys: [ ... ]; sources: [ conn: [ store, ... ], ... ]; live: conn keep [ ... ];
+     * history: conn keep [ ... ]; }} -- lite's (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8): every field once, the
+     * deployed elements and a target required.
+     */
+    private static Protocol.PDeployment parseDeployment(TokenStreamCursor c) {
+        SectionParse.Head h = SectionParse.head(c, "Deployment");
+        c.expect(TokenType.BRACE_OPEN);
+        List<String> deploys = null;
+        List<Protocol.PDeploymentSource> sources = List.of();
+        Protocol.PDeploymentTarget live = null;
+        Protocol.PDeploymentTarget history = null;
+        Set<String> seen = new HashSet<>();
+        while (c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c);
+            c.expect(TokenType.COLON);
+            switch (key) {
+                case "deploys" -> deploys = pathList(c);
+                case "sources" -> {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    List<Protocol.PDeploymentSource> out = new ArrayList<>();
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        String connection = c.parseQualifiedName();
+                        c.expect(TokenType.COLON);
+                        out.add(new Protocol.PDeploymentSource(connection, pathList(c)));
+                        if (c.peek() != TokenType.BRACKET_CLOSE) {
+                            c.expect(TokenType.COMMA);
+                        }
+                    }
+                    c.expect(TokenType.BRACKET_CLOSE);
+                    sources = List.copyOf(out);
+                }
+                case "live" -> live = parseTarget(c);
+                case "history" -> history = parseTarget(c);
+                default -> throw c.error("unknown Deployment field '" + key + "' (deploys, sources, live, history)");
+            }
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        if (deploys == null || deploys.isEmpty()) {
+            throw c.error("the deployment '" + h.name() + "' deploys nothing (deploys: [ ... ])");
+        }
+        if (live == null && history == null) {
+            throw c.error("the deployment '" + h.name() + "' names no target (live: ..., history: ...)");
+        }
+        return new Protocol.PDeployment(h.pkg(), h.name(), h.dec().stereotypes(), h.dec().taggedValues(), deploys,
+                sources, live, history, c.spanOf(h.declStart(), c.pos() - 1));
+    }
+
+    /** {@code [ a::B, c::D ]}. */
+    private static List<String> pathList(TokenStreamCursor c) {
+        c.expect(TokenType.BRACKET_OPEN);
+        List<String> out = new ArrayList<>();
+        while (c.peek() != TokenType.BRACKET_CLOSE) {
+            out.add(c.parseQualifiedName());
+            if (c.peek() != TokenType.BRACKET_CLOSE) {
+                c.expect(TokenType.COMMA);
+            }
+        }
+        c.expect(TokenType.BRACKET_CLOSE);
+        return List.copyOf(out);
+    }
+
+    /** {@code conn keep [ scope: rule, ... ]}, the keep list optional (an engine that keeps all it is sent). */
+    private static Protocol.PDeploymentTarget parseTarget(TokenStreamCursor c) {
+        String connection = c.parseQualifiedName();
+        List<Protocol.PKeep> keep = new ArrayList<>();
+        if (c.isIdentifierToken(c.peek()) && "keep".equals(c.safeText())) {
+            c.advance();
+            c.expect(TokenType.BRACKET_OPEN);
+            Set<String> scopes = new HashSet<>();
+            while (c.peek() != TokenType.BRACKET_CLOSE) {
+                String scope = c.parseIdentifier();
+                if (!scopes.add(scope)) {
+                    throw c.error("the keep scope '" + scope + "' is given twice");
+                }
+                c.expect(TokenType.COLON);
+                keep.add(new Protocol.PKeep(scope, parseKeepRule(c)));
+                if (c.peek() != TokenType.BRACKET_CLOSE) {
+                    c.expect(TokenType.COMMA);
+                }
+            }
+            c.expect(TokenType.BRACKET_CLOSE);
+        }
+        return new Protocol.PDeploymentTarget(connection, keep);
+    }
+
+    /** {@code LastRows(n)}, {@code Last('PT8H')}, {@code all}, {@code current}, {@code versions}. */
+    private static Protocol.PKeepRule parseKeepRule(TokenStreamCursor c) {
+        String kind = c.parseIdentifier();
+        return switch (kind) {
+            case "all" -> new Protocol.PKeepAll();
+            case "current" -> new Protocol.PKeepCurrent();
+            case "versions" -> new Protocol.PKeepVersions();
+            case "LastRows" -> {
+                c.expect(TokenType.PAREN_OPEN);
+                long rows = c.consumeLong();
+                if (rows <= 0) {
+                    throw c.error("a keep holds at least one row, not " + rows);
+                }
+                c.expect(TokenType.PAREN_CLOSE);
+                yield new Protocol.PKeepRows(rows);
+            }
+            case "Last" -> {
+                c.expect(TokenType.PAREN_OPEN);
+                String d = duration(c, "a keep");
+                c.expect(TokenType.PAREN_CLOSE);
+                yield new Protocol.PKeepFor(d);
+            }
+            default -> throw c.error("unknown keep '" + kind + "' (LastRows(n), Last('PT8H'), all, current, versions)");
+        };
     }
 
     /** {@code Ingest qn [<read mode>] [key=value ...] [ <datasets> ]}. */

@@ -3,10 +3,12 @@
 **Status: AGREED 2026-10-29 but for decision P (§2); work under way.** Written to read with the user first (the
 user, 2026-10-29: "Let's write down full roadmap so we can start after we look at it together").
 
-**2026-11-14: a redesign is proposed, not ratified:** docs/DEPLOYMENT_DESIGN_2026_11_14.md. If ratified it
-replaces B2's generated Groovy program with a plan of data and a fixed loader, B3's pulls and decision P with the
-masters publishing to Kafka, and the ingest words `Stream`, `Pull`, `LatestByKey` and `retention` with upstream's
-Lakehouse words; it adds one element, a deployment. Read it before working on B2 to B4.
+**2026-11-15: the redesign is agreed and being built:** docs/DEPLOYMENT_DESIGN_2026_11_14.md (every decision ruled,
+its §13). It replaces B2's generated Groovy program with a plan of data and a fixed loader (built 2026-11-15, its step
+1: the `Deployment` element, `planner/DeploymentPlanner`, `sql/dialect/DeephavenLoad`,
+`core/src/main/deephaven/legend-loader.groovy`; `DeephavenProgram` and `DeephavenStartup` deleted), B3's pulls and
+decision P with the masters publishing to Kafka, and the ingest words `Stream`, `Pull`, `LatestByKey` with upstream's
+Lakehouse words (its step 0). Read it before working on B2 to B4: its §15 is the order now.
 
 This orders the work of the data products design, docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md ("the design"). It
 also takes in what is left of the one-connection plan (docs/ONE_CONNECTION_DESK_2026_10_28.md: steps 6 and 7, "Next
@@ -220,7 +222,9 @@ Python model reads `###Lakehouse` (its generated files byte-identical).
   `LocalDate` on the server, the declared columns alone published under the table's name. A time retention and an Avro
   topic are refused by name (not generated yet). The desk's environments bind the four topic stores (the three topic
   databases and the world's status ingest) to the door at 127.0.0.1:19092. Answered by the `deephaven` request's op
-  `program`. **Measured** (`//datacube:deephaven_door_test`): the pinned Deephaven runs the generated program for the
+  `program`. **Replaced 2026-11-15** (docs/DEPLOYMENT_DESIGN_2026_11_14.md step 1): the program is a plan of data now
+  (`DeephavenLoad`, the op `plan` over a `Deployment`), read by lite's fixed loader; the brokers are the deployment's
+  source (one `market::Kafka` connection, no runtime binding); what a table keeps is the deployment's `keep`. **Measured** (`//datacube:deephaven_door_test`): the pinned Deephaven runs the generated program for the
   desk's Deephaven runtime with the feed behind the door -- all nine tables typed as the store declares them, every
   appended row once (trades 12,615 of 12,615), each keyed table one row a key (quotes 38, orders 17, RFQs 46).
 - **Done when:**

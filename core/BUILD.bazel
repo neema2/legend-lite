@@ -6,6 +6,7 @@
 
 load("@rules_java//java:defs.bzl", "java_test")
 load("//tools/java:defs.bzl", "legend_java_binary", "legend_java_library")
+load("@bazel_lib//lib:copy_to_bin.bzl", "copy_to_bin")
 load("@bazel_lib//lib:write_source_files.bzl", "write_source_files")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/clickhouse:defs.bzl", "EMBEDDED_CLICKHOUSE_COMPATIBLE")
@@ -22,6 +23,14 @@ load(":stress.bzl", "LINKED_PROJECTS", "STRESS_GENERATED", "stress_index", "stre
 
 # PRIVATE BY DEFAULT (Bazel workplan P1-20): a target is visible outside core only where it says to whom.
 package(default_visibility = ["//visibility:private"])
+
+# lite's fixed, versioned Deephaven loader: what a server runs at start to make a deployment's tables from its plan
+# (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9; com.legend.sql.dialect.DeephavenLoad's VERSION)
+copy_to_bin(
+    name = "deephaven_loader",
+    srcs = ["src/main/deephaven/legend-loader.groovy"],
+    visibility = ["//datacube:__pkg__"],
+)
 
 # legend-engine's own Arrow answer to execute (4.145.0, recorded with upstream-api/e8-arrow-groupby-sort.json): DataCube's
 # remote client reads it in //datacube:python_engine_test, as it reads Python's engine

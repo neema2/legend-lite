@@ -40,32 +40,11 @@ RelationalDatabaseConnection market::DeephavenStatus
 }
 
 // THE TOPICS' BROKERS, on this machine: the market world behind legend-lite's own Kafka door (bazel run
-// //datacube:market_feed, docs/DESK_DATA_ROADMAP_2026_10_29.md B1) -- what the Deephaven server's startup program
-// subscribes to (B2); in the tab nothing is consumed, the world writes the landing tables itself
-RelationalDatabaseConnection market::TickerPlant
+// //datacube:market_feed, docs/DESK_DATA_ROADMAP_2026_10_29.md B1) -- one connection a cluster, no store: the
+// deployment below says what it feeds (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8). No runtime binds it: no query runs on
+// a topic's brokers
+RelationalDatabaseConnection market::Kafka
 {
-  store: tickerplant::Topics;
-  type: Kafka;
-  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
-  auth: Test;
-}
-RelationalDatabaseConnection market::Newswire
-{
-  store: newswire::Topics;
-  type: Kafka;
-  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
-  auth: Test;
-}
-RelationalDatabaseConnection market::OrderSystem
-{
-  store: oms::Topics;
-  type: Kafka;
-  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
-  auth: Test;
-}
-RelationalDatabaseConnection market::WorldTopic
-{
-  store: market::WorldStatus;
   type: Kafka;
   specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
   auth: Test;
@@ -81,9 +60,20 @@ Runtime market::InTabRuntime
 Runtime market::DeephavenRuntime
 {
   mappings: [ stress::AllMapping ];
-  connections: [ store::DB: [ live: market::Deephaven ], market::World: [ status: market::DeephavenStatus ],
-    tickerplant::Topics: [ tickerplant: market::TickerPlant ], newswire::Topics: [ newswire: market::Newswire ],
-    oms::Topics: [ oms: market::OrderSystem ], market::WorldStatus: [ world: market::WorldTopic ] ];
+  connections: [ store::DB: [ live: market::Deephaven ], market::World: [ status: market::DeephavenStatus ] ];
+}
+
+###Lakehouse
+// WHAT LANDS ON THE DEEPHAVEN SERVER, from where, keeping how much (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8): the
+// desk's streams and the world's status, each read from its topic on the door's brokers; an appended table its latest
+// rows, a milestoned one its current version a key. Rendered as data for lite's fixed loader (the planner's
+// DeploymentPlanner; core/src/main/deephaven/legend-loader.groovy), applied when the server starts
+Deployment market::DeskOnDeephaven
+{
+  deploys: [ marketdata::MarketDataFeed, marketdata::NewsFeed, trading::OrderFlowFeed, market::WorldStatus ];
+  sources: [ market::Kafka: [ tickerplant::Topics, newswire::Topics, oms::Topics, market::WorldStatus ] ];
+  live: market::Deephaven keep [ appended: LastRows(50000), milestoned: current, MARKET_TRADE: LastRows(25000),
+    NEWS_STORY: LastRows(5000) ];
 }
 
 ###DataSpace

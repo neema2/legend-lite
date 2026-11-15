@@ -158,6 +158,8 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     private final ArrayList<com.legend.model.DataSpaceDefinition> dataSpaces = new ArrayList<>();
     /** {@code ###Lakehouse} ingests (LITE-DESIGN-lakehouse); each one's database is indexed with the databases. */
     private final ArrayList<com.legend.model.IngestDefinition> ingests = new ArrayList<>();
+    /** {@code ###Lakehouse} deployments (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8). */
+    private final ArrayList<com.legend.model.DeploymentDefinition> deployments = new ArrayList<>();
     /** An ingest whose database could not be made, and why: thrown by the integrity pass (poison-not-drop). */
     private final java.util.LinkedHashMap<String, String> ingestErrors = new java.util.LinkedHashMap<>();
     private final ArrayList<RuntimeDefinition>     runtimes      = new ArrayList<>();
@@ -373,6 +375,8 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
                         putAtId(dataElements, intern(dd.qualifiedName()), dd);
                 case com.legend.model.DataSpaceDefinition ds ->
                         putAtId(dataSpaces, intern(ds.qualifiedName()), ds);
+                case com.legend.model.DeploymentDefinition dp ->
+                        putAtId(deployments, intern(dp.qualifiedName()), dp);
                 case ConnectionDefinition cd -> putAtId(connections, intern(cd.qualifiedName()), cd);
                 case com.legend.model.ModelConnectionDefinition mc ->
                         modelConnections.put(mc.qualifiedName(), mc);
@@ -412,6 +416,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             case com.legend.model.DataDefinition dd -> idGet(dataElements, id) == dd;
             case com.legend.model.DataSpaceDefinition ds -> idGet(dataSpaces, id) == ds;
             case com.legend.model.IngestDefinition ing -> idGet(ingests, id) == ing;
+            case com.legend.model.DeploymentDefinition dp -> idGet(deployments, id) == dp;
             case ConnectionDefinition cd -> idGet(connections, id) == cd;
             case RuntimeDefinition rd -> idGet(runtimes, id) == rd;
             case Function fn -> {
@@ -1394,6 +1399,16 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
     /** All ingests in ingest order. */
     public Stream<com.legend.model.IngestDefinition> ingests() {
         return inOrder(ingests);
+    }
+
+    /** O(1). Returns the {@code ###Lakehouse} deployment for {@code fqn}, if any. */
+    public Optional<com.legend.model.DeploymentDefinition> findDeployment(String fqn) {
+        return Optional.ofNullable(idGet(deployments, symbols.resolveId(fqn)));
+    }
+
+    /** All deployments in ingest order. */
+    public Stream<com.legend.model.DeploymentDefinition> deployments() {
+        return inOrder(deployments);
     }
 
     /** Each ingest whose database could not be made, and why. */

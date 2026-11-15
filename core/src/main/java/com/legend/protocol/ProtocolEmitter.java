@@ -166,6 +166,7 @@ public final class ProtocolEmitter {
                     TailEmitter.elasticsearchStore(b, es);
             case Protocol.PMongoDatabase mg -> TailEmitter.mongoDatabase(b, mg);
             case Protocol.PIngest ig -> TailEmitter.ingest(b, ig);
+            case Protocol.PDeployment dp -> TailEmitter.deployment(b, dp);
             case Protocol.PDataQualityValidation dq ->
                     TailEmitter.dataQualityValidation(b, dq);
             case Protocol.PDataQualityRelationValidation dq ->

@@ -2842,6 +2842,7 @@ node_test(
         "test/deephaven/door/check.groovy",
         "test/host/node.ts",
         "test/lite-compiler.ts",
+        "//core:deephaven_loader",
         ":deephaven_door_fixture",
         ":deephaven_door_fixture_executable",
         ":src",
@@ -2853,6 +2854,7 @@ node_test(
     env = {
         "DOOR_CHECK": "$(rlocationpath test/deephaven/door/check.groovy)",
         "DOOR_FIXTURE": "$(rlocationpath :deephaven_door_fixture_executable)",
+        "DOOR_LOADER": "$(rlocationpath //core:deephaven_loader)",
         "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
         "MARKET_PURE": "$(rlocationpath demo/deephaven/market/market.pure)",
         "TRADING_MODEL": "$(rlocationpath //scripts/corpus:trading_model)",

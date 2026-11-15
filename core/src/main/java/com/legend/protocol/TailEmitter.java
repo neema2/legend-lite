@@ -351,6 +351,66 @@ final class TailEmitter {
         b.append('}');
     }
 
+    /** {@code _type:"lakehouseDeployment"}: lite's own (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8), every slot
+     *  alphabetical as the ingest's. */
+    static void deployment(StringBuilder b, Protocol.PDeployment d) {
+        b.append("{\"_type\":\"lakehouseDeployment\",\"deploys\":");
+        strings(b, d.deploys());
+        if (d.history() != null) {
+            b.append(",\"history\":");
+            deploymentTarget(b, d.history());
+        }
+        if (d.live() != null) {
+            b.append(",\"live\":");
+            deploymentTarget(b, d.live());
+        }
+        b.append(",\"name\":");
+        ProtocolEmitter.str(b, d.name());
+        b.append(",\"package\":");
+        ProtocolEmitter.str(b, d.pkg());
+        b.append(",\"sourceInformation\":");
+        ProtocolEmitter.srcInfo(b, d.sourceInformation());
+        b.append(",\"sources\":[");
+        for (int i = 0; i < d.sources().size(); i++) {
+            Protocol.PDeploymentSource s = d.sources().get(i);
+            b.append(i > 0 ? "," : "").append("{\"connection\":");
+            ProtocolEmitter.str(b, s.connection());
+            b.append(",\"stores\":");
+            strings(b, s.stores());
+            b.append('}');
+        }
+        b.append("],\"stereotypes\":");
+        ProtocolEmitter.stereotypes(b, d.stereotypes());
+        b.append(",\"taggedValues\":");
+        ProtocolEmitter.taggedValues(b, d.taggedValues());
+        b.append('}');
+    }
+
+    private static void deploymentTarget(StringBuilder b, Protocol.PDeploymentTarget t) {
+        b.append("{\"connection\":");
+        ProtocolEmitter.str(b, t.connection());
+        b.append(",\"keep\":[");
+        for (int i = 0; i < t.keep().size(); i++) {
+            Protocol.PKeep k = t.keep().get(i);
+            b.append(i > 0 ? "," : "").append("{\"rule\":");
+            switch (k.rule()) {
+                case Protocol.PKeepRows r -> b.append("{\"_type\":\"LastRows\",\"rows\":").append(r.rows()).append('}');
+                case Protocol.PKeepFor f -> {
+                    b.append("{\"_type\":\"Last\",\"duration\":");
+                    ProtocolEmitter.str(b, f.duration());
+                    b.append('}');
+                }
+                case Protocol.PKeepAll a -> b.append("{\"_type\":\"All\"}");
+                case Protocol.PKeepCurrent c -> b.append("{\"_type\":\"Current\"}");
+                case Protocol.PKeepVersions v -> b.append("{\"_type\":\"Versions\"}");
+            }
+            b.append(",\"scope\":");
+            ProtocolEmitter.str(b, k.scope());
+            b.append('}');
+        }
+        b.append("]}");
+    }
+
     private static void appDirNode(StringBuilder b, String id) {
         b.append("{\"appDirId\":").append(id).append(",\"level\":\"DEPLOYMENT\"}");
     }

@@ -210,6 +210,38 @@ final class TailReader {
                 w.list("datasets", TailReader::ingestDataset), w.span());
     }
 
+    /** {@code _type:"lakehouseDeployment"}: the writer's inverse (lite's own). */
+    static Protocol.Element deployment(Wire w) {
+        List<Protocol.PDeploymentSource> sources = w.list("sources", n -> {
+            Wire s = Wire.of(n, "deployment source");
+            return s.done(new Protocol.PDeploymentSource(s.str("connection"), s.strings("stores")));
+        });
+        Wire live = w.optObj("live");
+        Wire history = w.optObj("history");
+        return new Protocol.PDeployment(w.str("package"), w.str("name"), DomainReader.stereotypes(w),
+                DomainReader.taggedValues(w), w.strings("deploys"), sources,
+                live == null ? null : deploymentTarget(live), history == null ? null : deploymentTarget(history),
+                w.span());
+    }
+
+    private static Protocol.PDeploymentTarget deploymentTarget(Wire t) {
+        List<Protocol.PKeep> keep = t.list("keep", n -> {
+            Wire k = Wire.of(n, "keep");
+            Wire r = k.obj("rule");
+            String type = r.type();
+            Protocol.PKeepRule rule = switch (type == null ? "" : type) {
+                case "LastRows" -> r.done(new Protocol.PKeepRows(r.lng("rows")));
+                case "Last" -> r.done(new Protocol.PKeepFor(r.str("duration")));
+                case "All" -> r.done(new Protocol.PKeepAll());
+                case "Current" -> r.done(new Protocol.PKeepCurrent());
+                case "Versions" -> r.done(new Protocol.PKeepVersions());
+                default -> throw Wire.refuse("a keep rule '" + type + "' (LastRows, Last, All, Current, Versions)");
+            };
+            return k.done(new Protocol.PKeep(k.str("scope"), rule));
+        });
+        return t.done(new Protocol.PDeploymentTarget(t.str("connection"), keep));
+    }
+
     private static String appDirNode(Wire n) {
         n.constant("level", "DEPLOYMENT");
         String id = String.valueOf(n.lng("appDirId"));

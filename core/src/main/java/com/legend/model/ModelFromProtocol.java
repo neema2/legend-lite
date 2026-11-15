@@ -208,6 +208,8 @@ public final class ModelFromProtocol {
             case Protocol.PMongoDatabase m -> MongoDeclarations.toDatabaseDefinition(m);
             // 2026-10-29 (LITE-DESIGN-lakehouse): an ingest, whose database the model builder makes
             case Protocol.PIngest i -> new IngestDefinition(i.qualifiedName(), i);
+            // 2026-11-15 (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8): what an environment lands, from where, on what
+            case Protocol.PDeployment d -> new DeploymentDefinition(d.qualifiedName(), d);
             case Protocol.PDataQualityValidation v ->
                     carried("DataQualityValidation", "DataQualityValidation", v.qualifiedName());
             case Protocol.PDataQualityRelationValidation v ->
@@ -287,6 +289,7 @@ public final class ModelFromProtocol {
             case Protocol.PElasticsearch7Cluster s -> s.sourceInformation();
             case Protocol.PMongoDatabase m -> m.sourceInformation();
             case Protocol.PIngest i -> i.sourceInformation();
+            case Protocol.PDeployment d -> d.sourceInformation();
             case Protocol.PDataQualityValidation v -> v.sourceInformation();
             case Protocol.PDataQualityRelationValidation v -> v.sourceInformation();
             case Protocol.PDataQualityRelationComparison v -> v.sourceInformation();

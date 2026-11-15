@@ -884,9 +884,13 @@ public final class Boundary {
             // each landing table's rows to its topic, and the door keeps each as its dataset lands)
             case "topics" -> MODELS.withText(a.getString("model"), ctx -> topics(
                     com.legend.planner.IngestTopics.of(ctx, a.getString("database"))));
-            // the startup program of the Deephaven servers a runtime names (B2): Groovy for the server's application
-            case "program" -> MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(
-                    java.util.Map.of("program", com.legend.planner.DeephavenStartup.program(ctx, a.getString("runtime")))));
+            // a deployment's plan for its live Deephaven server (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): data, for
+            // lite's fixed loader (core/src/main/deephaven/legend-loader.groovy); never code
+            case "plan" -> MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(java.util.Map.of(
+                    "plan", com.legend.planner.DeploymentPlanner.deephaven(ctx, a.getString("deployment")).data())));
+            // every reason a deployment cannot be landed (its validate), empty when it can
+            case "validate" -> MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(java.util.Map.of(
+                    "problems", com.legend.planner.DeploymentPlanner.validate(ctx, a.getString("deployment")))));
             case "keys" -> com.legend.json.Json.toCompact(java.util.Map.of("keys",
                     com.legend.deephaven.DeephavenWire.keys(a.getString("plan"))));
             case "send" -> {

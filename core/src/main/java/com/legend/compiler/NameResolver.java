@@ -438,6 +438,7 @@ public final class NameResolver {
             case com.legend.model.DataSpaceDefinition ds ->
                     resolveDataSpace(ds, scope);
             case com.legend.model.IngestDefinition ing -> resolveIngest(ing, scope);
+            case com.legend.model.DeploymentDefinition dp -> resolveDeployment(dp, scope);
             case com.legend.model.ModelConnectionDefinition mc -> {
                 String cls = resolveName(mc.className(), scope);
                 yield cls.equals(mc.className()) ? mc
@@ -1553,6 +1554,25 @@ public final class NameResolver {
             datasets.add(d);
         }
         return !changed ? ing : new com.legend.model.IngestDefinition(ing.qualifiedName(), g.withDatasets(datasets));
+    }
+
+    /** A deployment names ingests, connections and stores: each to its full path. */
+    private static com.legend.model.DeploymentDefinition resolveDeployment(com.legend.model.DeploymentDefinition dp,
+            Scope scope) {
+        com.legend.protocol.Protocol.PDeployment d = dp.deployment();
+        List<String> deploys = d.deploys().stream().map(n -> resolveName(n, scope)).toList();
+        List<com.legend.protocol.Protocol.PDeploymentSource> sources = d.sources().stream()
+                .map(s -> s.withNames(resolveName(s.connection(), scope),
+                        s.stores().stream().map(n -> resolveName(n, scope)).toList()))
+                .toList();
+        com.legend.protocol.Protocol.PDeployment r = d.withNames(deploys, sources, resolveTarget(d.live(), scope),
+                resolveTarget(d.history(), scope));
+        return r.equals(d) ? dp : new com.legend.model.DeploymentDefinition(dp.qualifiedName(), r);
+    }
+
+    private static com.legend.protocol.Protocol.@com.legend.base.Nullable PDeploymentTarget resolveTarget(
+            com.legend.protocol.Protocol.@com.legend.base.Nullable PDeploymentTarget t, Scope scope) {
+        return t == null ? null : t.withConnection(resolveName(t.connection(), scope));
     }
 
     private static com.legend.model.DataSpaceDefinition resolveDataSpace(

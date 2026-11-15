@@ -495,6 +495,39 @@ Then, each its own decision: materialized views on both live targets; the histor
 Deephaven and DuckDB; the cut between history and live); data products served wherever deployed; production
 configuration (Avro with Legend's schemas published to a registry, reading less on restart). The full local gate runs after step 1: since B1 and B2 only their targeted suites have run.
 
+### 15.2 Step 1, built (2026-11-15)
+
+- **The element.** `Deployment` in `###Lakehouse` (`parser/section/LakehouseSectionGrammar` `parseDeployment`; the
+  record `Protocol.PDeployment`, its JSON `_type:"lakehouseDeployment"` with keep rules `LastRows`, `Last`, `All`,
+  `Current`, `Versions`; printed by `LakehouseComposer`; the model's `DeploymentDefinition`, found by
+  `ModelContext.findDeployment`, its names resolved to full paths). Fields: `deploys` and a target required, each field
+  once, a `keep` scope once. Register row S407.
+- **`validate`** (`planner/DeploymentPlanner.validate`): every reason, by name -- a deployed name that is no ingest; a
+  source that is no connection, or feeds what is no store; a topic whose store the sources bind to no Kafka
+  connection, or to several; a dataset with no rule on the live target (none assumed), or one its write mode does not
+  keep (an appended dataset kept `current`, a milestoned one `LastRows(n)`); a scope that is no deployed dataset; and,
+  not landed yet, each by name: the history tier, `versions` on a live target, `Last('PT..')` on Deephaven, a live
+  target other than Deephaven (the tab's is step 5), a pull, a file or a view on Deephaven (step 4 and later).
+- **`render`** (`DeploymentPlanner.deephaven`): the live Deephaven target's plan as data (`sql/dialect/DeephavenLoad`,
+  `kind: legend.deephaven.load`, `version: 1`): each table its name, topic, the brokers of the source's one Kafka
+  connection, the format, its columns with the Java types a Deephaven column holds them as, and its keep (`rows`,
+  `all`, or `current` with the key, the milestoning columns, the open batch id, the partition prefix and the delete
+  indicator). The dialect checks every name and value there, so the loader meets none it must check. The boundary's
+  `deephaven` request answers `plan` and `validate`; `program` is gone.
+- **The loader** (`core/src/main/deephaven/legend-loader.groovy`, `//core:deephaven_loader`): fixed, versioned, never
+  generated; it refuses a plan of another kind or version. `DeephavenProgram`, `DeephavenStartup` and their test are
+  deleted.
+- **The desk.** `environments.pure` declares `market::DeskOnDeephaven` (the three streams and the world's status, from
+  one `market::Kafka` connection with no store; appended tables `LastRows(50000)`, trades 25,000, news 5,000; milestoned
+  `current`); the four per-store Kafka connections and the runtime's topic bindings are gone (no query ran on them).
+- **Measured** (`//datacube:deephaven_door_test`, the pinned Deephaven with the feed behind the door): the loader made
+  all nine tables from the plan, each typed as its store declares it (the milestoned ones with their three columns),
+  every appended row read once (trades 12,823 of 12,823), each milestoned table one row a key (quotes 38, orders 26,
+  RFQs 50, world 4).
+- **Left for later steps, as planned:** `deploys` takes data products at step 2 (lite has no data product element yet);
+  `install` and the check on connect at step 3; the ingest's `retention` stays for the tab's landing and the door's
+  topics until step 5.
+
 ## 16. Upstream, read
 
 Pinned: legend-studio `9775e7283cf2e768293db9982573cecbe8280c4b`, legend-engine
