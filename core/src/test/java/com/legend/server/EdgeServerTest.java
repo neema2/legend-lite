@@ -70,6 +70,13 @@ class EdgeServerTest {
             assertEquals(200, lambda.statusCode(), lambda.body());
             assertTrue(lambda.body().contains("\"_type\":\"lambda\""), lambda.body());
             assertEquals(200, send(server, "GET", "/api/server/v1/currentUser", null).statusCode());
+            // pure/v1 reads the decoded path, as its handler always did, and answers an unknown path in its old words
+            // (the D part 1 audit's nits, 2026-11-15)
+            HttpResponse<String> encoded = send(server, "POST", "/api/pure/v1/grammar/grammarToJson%2Flambda", "|1");
+            assertEquals(200, encoded.statusCode(), encoded.body());
+            HttpResponse<String> unknown = send(server, "POST", "/api/pure/v1/no/such/route", "{}");
+            assertEquals(404, unknown.statusCode(), unknown.body());
+            assertTrue(unknown.body().contains("no such legend-engine API in legend-lite"), unknown.body());
         } finally {
             server.stop();
         }

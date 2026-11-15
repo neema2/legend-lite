@@ -60,6 +60,13 @@ public class LegendHttpServer {
         /** The path prefix it answers under ({@code /api/pure/v1/}). */
         String prefix();
 
+        /** Whether it reads the request's RAW path, decoding its own segments (the saved-query store: an encoded
+         *  {@code ../} stays one segment, a refused id); every other module reads the decoded path, as pure/v1's
+         *  handler always did (the D part 1 audit's nit, 2026-11-15). */
+        default boolean rawPath() {
+            return false;
+        }
+
         /** The answer of one request: its method, path, raw query string (or null) and body. */
         PureV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery, String body)
                 throws IOException;
@@ -254,6 +261,11 @@ public class LegendHttpServer {
             }
 
             @Override
+            public boolean rawPath() {
+                return true;
+            }
+
+            @Override
             public PureV1Api.Answer answer(String method, String path, @com.legend.base.Nullable String rawQuery,
                     String body) {
                 String rest = path.substring(prefix.length());
@@ -287,10 +299,12 @@ public class LegendHttpServer {
             try (InputStream in = exchange.getRequestBody()) {
                 body = new String(in.readAllBytes(), StandardCharsets.UTF_8);
             }
-            // the RAW path, as the query store's route read it before the modules (main's LegendHttpServer): a module
+            // the RAW path for the query store, as its route read it before the modules (main's LegendHttpServer): it
             // decodes its own segments (SavedQueries' and SavedCubes' ids), so an encoded "../" stays one segment, a
-            // refused id, never a path that leaves its route (#81's saved-pages test; D1.0b's mount had read it decoded)
-            PureV1Api.Answer answer = module.answer(exchange.getRequestMethod(), exchange.getRequestURI().getRawPath(),
+            // refused id (#81's saved-pages test); the DECODED path for every other module, as pure/v1's handler read it
+            // (the D part 1 audit's nit, 2026-11-15: a percent-encoded pure/v1 path 404ed)
+            PureV1Api.Answer answer = module.answer(exchange.getRequestMethod(), module.rawPath()
+                    ? exchange.getRequestURI().getRawPath() : exchange.getRequestURI().getPath(),
                     exchange.getRequestURI().getRawQuery(), body);
             answer.headers().forEach((k, v) -> exchange.getResponseHeaders().add(k, v));
             if (answer.status() == 204) {

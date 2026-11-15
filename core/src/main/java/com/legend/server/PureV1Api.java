@@ -133,7 +133,9 @@ public final class PureV1Api {
             case "/api/lite/v1/model/createAssociation" -> modelChanges(body, ModelChanges::createAssociation);
             case "/api/lite/v1/model/createDataSpace" -> modelChanges(body, ModelChanges::createDataSpace);
             // legend-engine's routes are the edge's (com.legend.edge.PureV1Routes, D1.0b, 2026-11-12)
-            default -> error(404, null, "no such legend-lite API: " + path);
+            // a pure/v1 path is legend-engine's API, answered in its old words (the D part 1 audit's nit, 2026-11-15)
+            default -> error(404, null, (path.startsWith("/api/pure/v1/") ? "no such legend-engine API in legend-lite: "
+                    : "no such legend-lite API: ") + path);
         };
     }
 
