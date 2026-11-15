@@ -655,9 +655,59 @@ public class Databricks extends AnsiSqlRenderer {
         };
     }
 
+    /** The list functions Databricks writes as a higher-order function ({@code filter}, {@code transform},
+     *  {@code aggregate}) over their list. */
+    private static final java.util.Set<SqlFn> HIGHER_ORDER = java.util.EnumSet.of(SqlFn.LIST_FILTER,
+            SqlFn.LIST_TRANSFORM, SqlFn.LIST_DISTINCT, SqlFn.LIST_PRODUCT, SqlFn.LIST_TAIL, SqlFn.LIST_INIT,
+            SqlFn.LIST_SLICE, SqlFn.LIST_REDUCE);
+
+    /** {@code body} over {@code xs} computed once in a select of its own and read as a column: a list that holds a
+     *  subquery, out of the higher-order function {@code body} writes (Spark refuses a subquery inside one). */
+    private SqlWriter hoisted(SqlWriter writer, SqlExpr xs, java.util.function.Function<SqlExpr, SqlWriter.Piece> body) {
+        if (!(xs.type() instanceof com.legend.sql.TypeFact.Typed t)) {
+            throw new DialectCapability("a list of no known type holding a subquery, under a higher-order function");
+        }
+        SqlExpr l = SqlExpr.Column.of("__hof", "__l", t.type(), true, com.legend.sql.OutputCol.Origin.DERIVED);
+        return writer.append("(SELECT ").piece(body.apply(l)).append(" FROM (SELECT ").expr(xs, 0)
+                .append(" AS `__l`) AS `__hof`)");
+    }
+
+    /** Whether {@code e} holds a subquery. */
+    private static boolean holdsSubquery(SqlExpr e) {
+        if (e instanceof SqlExpr.ScalarSubquery || e instanceof SqlExpr.Exists || e instanceof SqlExpr.InSubquery
+                || e instanceof SqlExpr.Quantified) {
+            return true;
+        }
+        for (SqlExpr c : e.children()) {
+            if (holdsSubquery(c)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     @Override
     protected SqlWriter listCall(SqlWriter writer, SqlFn fnName, List<SqlExpr> args) {
         SqlExpr xs = args.get(0);
+        // Spark refuses a subquery inside a higher-order function ("[UNSUPPORTED_SUBQUERY_EXPRESSION_CATEGORY.
+        // HIGHER_ORDER_FUNCTION]", measured on the lane's order probe, 2026-11-15): a list that holds one is computed
+        // once in a select of its own, and the function reads it as a column (which also reads the list once where
+        // the function writes it twice); a lambda that holds one has no such form, and is refused by name
+        if (HIGHER_ORDER.contains(fnName)) {
+            for (int i = 1; i < args.size(); i++) {
+                if (args.get(i) instanceof SqlExpr.Lambda l && holdsSubquery(l.body())) {
+                    throw new DialectCapability("a subquery inside a higher-order function's lambda: Spark refuses"
+                            + " it (UNSUPPORTED_SUBQUERY_EXPRESSION_CATEGORY.HIGHER_ORDER_FUNCTION)");
+                }
+            }
+            if (holdsSubquery(xs)) {
+                return hoisted(writer, xs, l -> {
+                    List<SqlExpr> read = new java.util.ArrayList<>(args);
+                    read.set(0, l);
+                    return w -> listCall(w, fnName, read);
+                });
+            }
+        }
         return switch (fnName) {
             case LIST_FILTER -> writer.append("filter(").piece(list(xs)).append(", ")
                     .expr(oneBasedIndex((SqlExpr.Lambda) args.get(1)), 0).append(")");
@@ -714,18 +764,27 @@ public class Databricks extends AnsiSqlRenderer {
 
     @Override
     protected SqlWriter listExists(SqlWriter writer, List<SqlExpr> args) {
+        if (holdsSubquery(args.get(0))) {
+            return hoisted(writer, args.get(0), l -> w -> listExists(w, List.of(l, args.get(1))));
+        }
         return writer.append("coalesce(exists(").piece(list(args.get(0))).append(", ").expr(args.get(1), 0)
                 .append("), FALSE)");
     }
 
     @Override
     protected SqlWriter listForAll(SqlWriter writer, List<SqlExpr> args) {
+        if (holdsSubquery(args.get(0))) {
+            return hoisted(writer, args.get(0), l -> w -> listForAll(w, List.of(l, args.get(1))));
+        }
         return writer.append("coalesce(forall(").piece(list(args.get(0))).append(", ").expr(args.get(1), 0)
                 .append("), TRUE)");
     }
 
     @Override
     protected SqlWriter allDistinct(SqlWriter writer, List<SqlExpr> args) {
+        if (holdsSubquery(args.get(0))) {
+            return hoisted(writer, args.get(0), l -> w -> allDistinct(w, List.of(l)));
+        }
         return writer.append("coalesce(array_size(array_distinct(").piece(list(args.get(0))).append(")) = array_size(")
                 .piece(list(args.get(0))).append("), TRUE)");
     }
@@ -739,6 +798,15 @@ public class Databricks extends AnsiSqlRenderer {
      *  measured), else as rows ({@link #overRows}). NULL elements are skipped, as an aggregate skips them. */
     @Override
     protected SqlWriter reduceCollection(SqlWriter writer, SqlExpr.ReduceCollection rc) {
+        boolean higherOrder = switch (rc.reducer()) {
+            case STRING_AGG -> rc.extras().size() == 1;
+            case COUNT, STDDEV_SAMP, STDDEV_POP, VAR_SAMP, VAR_POP, VARIANCE, STDDEV -> true;
+            default -> false;
+        };
+        if (higherOrder && holdsSubquery(rc.collection())) {
+            return hoisted(writer, rc.collection(), l -> w -> reduceCollection(w,
+                    new SqlExpr.ReduceCollection(rc.reducer(), l, rc.extras(), rc.type())));
+        }
         SqlWriter.Piece xs = list(rc.collection());
         SqlWriter.Piece present = w -> w.append("filter(").piece(xs).append(", `__x` -> `__x` IS NOT NULL)");
         return switch (rc.reducer()) {

@@ -767,7 +767,12 @@ public final class Lowerer {
         }
         // A terminal concatenate is a BARE set operation — no wrapping SELECT *.
         if (spec instanceof TypedConcatenate c) {
-            return union(c);
+            SqlUnion u = union(c);
+            // a LIST's concatenation keeps its order, the left's elements before the right's, each in its own: SQL
+            // promises no order for a UNION ALL (2026-11-15, the lean program's order probe: BigQuery answered a
+            // sorted list ++ another 3;1;2;3;1;2) -- its rows numbered by branch and within it, as a side's are
+            // (SideOrdinal). A relation's concatenation is upstream's UNION ALL, its order the database's.
+            return outputsOf(c.info()).isEmpty() ? SideOrdinal.inBranchOrder(u) : u;
         }
         // ANY relation-ish root — a table, the .rows collection, or ONE
         // ROW (an at()-pick: a one-row TABULAR, matching ResultShape) —

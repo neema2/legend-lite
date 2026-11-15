@@ -583,6 +583,30 @@ _CHANNEL_B_LANES = {
 ) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items()
     if lane in ("h2", "sqlite", "snowflake", "databricks", "bigquery")]
 
+# A list keeps its order on every lane (ListOrderTest, 2026-11-15): the order probe's cases, asserted. Each lane's
+# target carries its lane's tags (the in-process lanes run in the gate's sweep; the server and cloud lanes in theirs).
+[junit_test(
+    name = "pct_list_order_%s" % lane,
+    memory_mb = 1024,
+    data = data,
+    env = {"LEGENDLITE_PCT_BACKEND": lane},
+    env_inherit = inherit,
+    jvm_flags = flags,
+    select = ["--select-class=org.finos.legend.lite.pct.order.ListOrderTest"],
+    tags = tags,
+    target_compatible_with = compat,
+    runtime_deps = [":pct_tests_lib"] + deps,
+) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items()
+    if lane != "mongodb"]
+
+# ... and on the platform's own database (DuckDB, the reference lane), in the gate
+junit_test(
+    name = "pct_list_order_duckdb",
+    memory_mb = 1024,
+    select = ["--select-class=org.finos.legend.lite.pct.order.ListOrderTest"],
+    runtime_deps = [":pct_tests_lib"],
+)
+
 # The lean program's two open order items (measure only, 2026-11-15): how each lane's database orders an explode written
 # as a UNION ALL of multi-row branches, or of branches reading the enclosing row (UnionOrderProbeTest); always passes,
 # prints [order-probe] lines. The cloud lanes run it in their own sessions.

@@ -3766,8 +3766,9 @@ final class Scalars {
         SqlExpr list = arg instanceof SqlExpr.CompactList c ? c.list() : arg;
         if (!(list instanceof SqlExpr.ScalarSubquery q) || !(q.subquery() instanceof com.legend.sql.SqlSelect s)
                 || s.projections().size() != 1 || !(s.projections().get(0).expr() instanceof SqlAgg.Reducer r)
-                || r.fn() != SqlAgg.Fn.LIST || r.args().size() != 1 || r.distinct() || !r.orderBy().isEmpty()
+                || r.fn() != SqlAgg.Fn.LIST || r.args().size() != 1 || r.distinct()
                 || r.args().get(0) instanceof SqlExpr.ArrayLit || !s.groupBy().isEmpty()) {
+            // (a collect's order, its aggregate's since 2026-11-15, does not change a MAX or a MIN)
             return null;
         }
         SqlAgg.Reducer reduced = new SqlAgg.Reducer(fn, r.args(), false, List.of());

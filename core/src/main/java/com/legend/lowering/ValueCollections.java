@@ -58,13 +58,15 @@ final class ValueCollections {
      * contract holds (C1). */
     static SqlExpr collectAsList(SqlSelect proj, boolean collMapper,
             boolean scalarCells, String sub) {
+        Ordered ordered = orderInside(proj, sub);
+        proj = ordered.source();
         SqlExpr cellRead = SqlExpr.Column.of(sub, proj.outputs(), "value");
         SqlExpr collected = scalarCells
                 ? new SqlExpr.ArrayLit(List.of(cellRead)) : cellRead;
         SqlSelect agg = SqlSelect.starOf(new SqlSource.Subselect(proj, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
                         new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
-                                collected), false, List.of()),
+                                collected), false, ordered.keys()),
                         null,
                         new OutputCol("value",
                                 SqlType.Scalar.VARCHAR, true))));
@@ -74,15 +76,62 @@ final class ValueCollections {
                 : listed;
     }
 
+    /** A collect's source and the order its LIST aggregate takes (2026-11-15, the lean program's order probe: SQL
+     *  never promises that a subquery's ORDER BY reaches an aggregate over it -- Trino and Databricks drop it, and
+     *  {@code array_agg} saw 3;1;2 for a sorted 1;2;3). The source's ORDER BY keys become the aggregate's, read by
+     *  the names the source shows them under ({@link Sorts#carriedName}), a key it does not show projected beside its
+     *  columns; the source keeps its ORDER BY only where a LIMIT or an OFFSET needs it. An order no column can carry
+     *  (a DISTINCT or star source's unshown key) stays where it was. */
+    record Ordered(SqlSelect source, List<SqlSelect.SortKey> keys) {
+    }
+
+    static Ordered orderInside(SqlSelect src, String sub) {
+        if (src.orderBy().isEmpty()) {
+            return new Ordered(src, List.of());
+        }
+        boolean star = src.projections().isEmpty() || src.projections().stream().anyMatch(
+                p -> p.expr() instanceof SqlExpr.Star || p.expr() instanceof SqlExpr.StarExcept);
+        List<SqlSelect.Projection> projections = new ArrayList<>(src.projections());
+        List<OutputCol> outputs = new ArrayList<>(src.outputs());
+        List<String> names = new ArrayList<>();
+        for (SqlSelect.SortKey k : src.orderBy()) {
+            String name = Sorts.carriedName(src, k);
+            if (name == null) {
+                if (src.distinct() || star || !(k.expr().type() instanceof com.legend.sql.TypeFact.Typed t)) {
+                    return new Ordered(src, List.of());
+                }
+                name = "__ok" + names.size();
+                OutputCol o = new OutputCol(name, t.type(), true, OutputCol.Origin.DERIVED);
+                projections.add(new SqlSelect.Projection(k.expr(), name, o));
+                outputs.add(o);
+            }
+            names.add(name);
+        }
+        SqlSelect shown = projections.size() == src.projections().size() ? src
+                : src.withProjections(projections, outputs);
+        if (shown.limit() == null && shown.offset() == null) {
+            shown = shown.withOrderBy(List.of());
+        }
+        List<SqlSelect.SortKey> keys = new ArrayList<>(names.size());
+        for (int i = 0; i < names.size(); i++) {
+            SqlSelect.SortKey k = src.orderBy().get(i);
+            keys.add(new SqlSelect.SortKey(SqlExpr.Column.of(sub, shown.outputs(), names.get(i)), k.ascending(),
+                    k.nullOrder(), null));
+        }
+        return new Ordered(shown, keys);
+    }
+
     /** {@code SELECT LIST(col)} over {@code rel} — the single-column
      * value collection. */
     static SqlSelect columnList(SqlSelect rel, String col, String sub) {
-        return SqlSelect.starOf(new SqlSource.Subselect(rel, sub, null))
+        Ordered ordered = orderInside(rel, sub);
+        SqlSelect src = ordered.source();
+        return SqlSelect.starOf(new SqlSource.Subselect(src, sub, null))
                 .withProjections(List.of(new SqlSelect.Projection(
                         new SqlAgg.Reducer(SqlAgg.Fn.LIST, List.of(
-                                SqlExpr.Column.of(sub, rel.outputs(),
+                                SqlExpr.Column.of(sub, src.outputs(),
                                         col)),
-                                false, java.util.List.of()),
+                                false, ordered.keys()),
                         null,
                         new OutputCol(col, SqlType.Scalar.VARCHAR,
                                 true))));
