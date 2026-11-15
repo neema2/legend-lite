@@ -287,9 +287,16 @@ final class LetBinding {
         return closedAndPlain(e, java.util.Set.of()) && (!canRaise(e) || always.contains(e));
     }
 
-    /** Every expression {@code e} evaluates whatever its values, into {@code into}: itself, then the children every
-     *  evaluation reads -- a CASE's first condition (never a branch, nor a later condition), the first argument of an
-     *  AND, an OR or a COALESCE (the rest may be skipped), never a lambda's body. */
+    /** The operators every database evaluates both of whose operands, whatever their values: arithmetic and a
+     *  comparison (no database short-circuits them; AND, OR and COALESCE promise no order of evaluation in SQL, and a
+     *  CASE's later conditions and branches may be skipped, so none of those counts). */
+    private static final java.util.Set<SqlFn> STRICT = java.util.EnumSet.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES,
+            SqlFn.DIVIDE, SqlFn.NEGATE, SqlFn.EQUAL, SqlFn.NOT_EQUAL, SqlFn.LESS, SqlFn.LESS_EQUAL, SqlFn.GREATER,
+            SqlFn.GREATER_EQUAL);
+
+    /** Every expression {@code e} evaluates whatever its values, into {@code into} (the narrow set every one of the
+     *  thirteen databases guarantees, the orchestrator's check of 2026-11-15): itself; a CASE's first condition; the
+     *  operands of a {@link #STRICT} operator; a cast's value. Nothing else is assumed evaluated. */
     static void alwaysEvaluated(SqlExpr e, java.util.Set<SqlExpr> into) {
         into.add(e);
         switch (e) {
@@ -298,14 +305,9 @@ final class LetBinding {
                     alwaysEvaluated(c.whens().get(0).condition(), into);
                 }
             }
-            case SqlExpr.Lambda l -> {
-            }
-            case SqlExpr.Call c when (c.fn() == SqlFn.AND || c.fn() == SqlFn.OR || c.fn() == SqlFn.COALESCE)
-                    && !c.args().isEmpty() -> alwaysEvaluated(c.args().get(0), into);
+            case SqlExpr.Cast c -> alwaysEvaluated(c.value(), into);
+            case SqlExpr.Call c when STRICT.contains(c.fn()) -> c.args().forEach(a -> alwaysEvaluated(a, into));
             default -> {
-                for (SqlExpr child : e.children()) {
-                    alwaysEvaluated(child, into);
-                }
             }
         }
     }
