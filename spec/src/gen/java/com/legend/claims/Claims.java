@@ -61,8 +61,8 @@ public final class Claims {
     public enum Kind {
         /** a key in {@code Scalars.RULES} — a SQL expression rule */
         SCALAR_RULE,
-        /** a key in {@code Reducers.REDUCERS} ({@code compiler.element}; {@code Aggregates.REDUCERS} until C5-J item 3,
-         *  2026-11-15) — a SQL aggregate */
+        /** a key in {@code Aggregates.REDUCERS} — a SQL aggregate (its membership {@code compiler.element.Reducers}',
+         *  below the resolver and the lowering: C5-J, 2026-11-15) */
         REDUCER,
         /** a key in {@code Windows.FNS} — a window function */
         WINDOW_FN,
@@ -99,7 +99,7 @@ public final class Claims {
                 claim(d, Kind.SCALAR_RULE, "Scalars.RULES");
             }
             if (RegistryKeys.reducers().contains(key)) {
-                claim(d, Kind.REDUCER, "Reducers.REDUCERS");
+                claim(d, Kind.REDUCER, "Aggregates.REDUCERS");
             }
             if (RegistryKeys.windowFunctions().contains(key)) {
                 claim(d, Kind.WINDOW_FN, "Windows.FNS");
