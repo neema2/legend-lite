@@ -36,6 +36,18 @@ final class ChannelBLane {
         return PctBackend.isReference();
     }
 
+    /** E-5d, the PCT half: {@code suite}'s judge SQL held to its pins by the product's rule (growth fails, a shrink past
+     *  1% re-pins: bazel run //pct:update_ratchets), on the reference lane under BOTH, the pins' own mode; each suite's
+     *  reference test calls it after its ledger. */
+    static void judgeSqlHeld(String suite) {
+        if (ChannelB.measuresJudgeSql()) {
+            long[] j = ChannelB.judgeSql();
+            String key = "channel_b." + suite.toLowerCase(java.util.Locale.ROOT) + ".judge.";
+            held(suite + " judge statements", j[0], PctRatchets.measured(key + "statements"));
+            held(suite + " judge characters", j[1], PctRatchets.measured(key + "chars"));
+        }
+    }
+
     /** {@code measured} held to {@code pinned}: growth fails, and so does a shrink past 1% (a re-pin is due). */
     private static void held(String what, long measured, long pinned) {
         if (measured > pinned) {
@@ -75,14 +87,7 @@ final class ChannelBLane {
         // let a failure change kind, or a body the closed walk refused, pass unseen): every failure a row of the lane's
         // ledger with its text, every row's test failing (ChannelBLedger, ledger.tsv)
         ChannelBLedger.judge(lane + " " + suite, out, ChannelBLedger.of(lane, suite));
-        // E-5d, the PCT half: the suite's judge SQL held to its pins by the product's rule (growth fails, a shrink past
-        // 1% re-pins: bazel run //pct:update_ratchets), on the reference lane under BOTH, the pins' own mode
-        if (ChannelB.measuresJudgeSql()) {
-            long[] j = ChannelB.judgeSql();
-            String key = "channel_b." + suite.toLowerCase(java.util.Locale.ROOT) + ".judge.";
-            held(suite + " judge statements", j[0], PctRatchets.measured(key + "statements"));
-            held(suite + " judge characters", j[1], PctRatchets.measured(key + "chars"));
-        }
+
         // (the label-lie pin, SqlTypeCensus.mismatchCount() == 0, deleted 2026-11-09: its census had no feeder -- probe()
         // lost its last caller -- so it read zero by construction, a dead gate; the census is deleted)
     }

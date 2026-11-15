@@ -1509,10 +1509,17 @@ public final class VerdictSql {
     /** One column a member's row carries for the HOST judge (E-5c, the user's ruling O5 of 2026-11-13): {@code value},
      *  a single-value side's own expression (its select of no FROM), under {@code out}, named as the fused statement's
      *  column the host reads it from. */
-    public record HostColumn(SqlExpr value, OutputCol out) {
+    /** {@code side}, {@code column}: the side's own statement and the projection {@code value} is (unprefixed) -- what
+     *  {@link #batchOf} finds inside the verdict's own statement, so the column reads the value its verdict computes
+     *  once instead of computing it again (O5's "one evaluation of each side", 2026-11-15); null where none is known. */
+    public record HostColumn(SqlExpr value, OutputCol out, @com.legend.base.Nullable SqlQuery side, int column) {
         public HostColumn {
             java.util.Objects.requireNonNull(value, "value");
             java.util.Objects.requireNonNull(out, "out");
+        }
+
+        public HostColumn(SqlExpr value, OutputCol out) {
+            this(value, out, null, -1);
         }
     }
 
@@ -1544,7 +1551,8 @@ public final class VerdictSql {
                 return null;
             }
             OutputCol o = s.outputs().get(p);
-            out.add(new HostColumn(value, new OutputCol(names.get(p), o.type(), o.nullable(), OutputCol.Origin.DERIVED)));
+            out.add(new HostColumn(value, new OutputCol(names.get(p), o.type(), o.nullable(), OutputCol.Origin.DERIVED),
+                    side, p));
         }
         return out;
     }
@@ -1610,6 +1618,9 @@ public final class VerdictSql {
      *  for the rest (cast to it, so no member's NULL widens the column the host decodes by its declared type). With
      *  no host columns, exactly {@link #batch}'s statement. */
     public static SqlQuery batchOf(List<Member> members, java.util.Map<String, SqlQuery> frames) {
+        List<Member> reading = new ArrayList<>(members.size());
+        members.forEach(m -> reading.add(readingTheVerdictsValues(m)));
+        members = reading;
         List<OutputCol> base = batchOutputs();
         List<OutputCol> outs = new ArrayList<>(base);
         java.util.Set<String> columnNames = new java.util.HashSet<>();
@@ -1670,6 +1681,123 @@ public final class VerdictSql {
         SqlQuery union = branches.size() == 1 ? branches.get(0) : new SqlUnion(branches, true, outs);
         return ctes.isEmpty() ? union : new SqlWith(ctes, union);
     }
+
+    /**
+     * {@code m} with each host column that its verdict's statement already evaluates READ from it (O5's "one evaluation
+     * of each side", the orchestrator's go of 2026-11-15): where the side's own statement ({@link HostColumn#side}) is a
+     * subquery of one of the statement's CTEs that the verdict row reads by a table alias, the column reads that CTE's
+     * projection of the side's value -- added to the CTE where it does not project it already -- instead of computing
+     * the side's expression again. The same statement, so the same value, evaluated once; any other host column keeps
+     * its expression.
+     */
+    private static Member readingTheVerdictsValues(Member m) {
+        if (m.host().isEmpty() || !(m.statement() instanceof SqlWith w) || !(w.body() instanceof SqlSelect top)) {
+            return m;
+        }
+        List<SqlWith.Cte> ctes = new ArrayList<>(w.ctes());
+        List<HostColumn> host = new ArrayList<>(m.host().size());
+        boolean changed = false;
+        for (HostColumn h : m.host()) {
+            HostColumn read = null;
+            // a literal is cheaper written again than read: it keeps its expression (it computes nothing)
+            SqlQuery side = literal(h.value()) ? null : h.side();
+            for (int c = 0; side != null && read == null && c < ctes.size(); c++) {
+                SqlWith.Cte cte = ctes.get(c);
+                String reader = tableAlias(top.from(), cte.name());
+                if (reader == null || !(cte.query() instanceof SqlSelect q)) {
+                    continue;
+                }
+                OutputCol sideOut = side.outputs().get(h.column());
+                String name = exposedBy(q, side, sideOut.name());
+                SqlExpr source = null;
+                if (name == null) {
+                    // the CTE reads the side's value from a subquery of its own: projected here under the column's name
+                    source = sourceOf(q.from(), side, sideOut.name());
+                    if (source == null) {
+                        continue;
+                    }
+                    // a name of the side's column alone, so two members' identical CTEs stay identical (batchOf
+                    // hoists one copy)
+                    name = "__hv_" + sideOut.name();
+                    OutputCol projected = new OutputCol(name, sideOut.type(), sideOut.nullable(),
+                            OutputCol.Origin.DERIVED);
+                    List<SqlSelect.Projection> ps = new ArrayList<>(q.projections());
+                    ps.add(new SqlSelect.Projection(source, name, projected));
+                    List<OutputCol> outs = new ArrayList<>(q.outputs());
+                    outs.add(projected);
+                    ctes.set(c, new SqlWith.Cte(cte.name(), new SqlSelect(ps, q.distinct(), q.from(), q.where(),
+                            q.groupBy(), q.having(), q.qualify(), q.orderBy(), q.limit(), q.offset(), outs),
+                            cte.materialized()));
+                }
+                read = new HostColumn(SqlExpr.Column.of(reader, name, sideOut.type(), sideOut.nullable(),
+                        OutputCol.Origin.DERIVED), h.out(), null, -1);
+            }
+            changed |= read != null;
+            host.add(read == null ? h : read);
+        }
+        return changed ? new Member(new SqlWith(ctes, top), host) : m;
+    }
+
+    /** Whether {@code e} is a literal, or a literal cast: nothing to evaluate once. */
+    private static boolean literal(SqlExpr e) {
+        return e instanceof SqlExpr.Cast c ? literal(c.value())
+                : e instanceof SqlExpr.NullLit || e instanceof SqlExpr.IntLit || e instanceof SqlExpr.StringLit
+                        || e instanceof SqlExpr.BoolLit || e instanceof SqlExpr.FloatLit
+                        || e instanceof SqlExpr.DecimalLit || e instanceof SqlExpr.DateLit
+                        || e instanceof SqlExpr.TimeLit || e instanceof SqlExpr.TimestampLit;
+    }
+
+    /** The alias of a projection of {@code q} that IS the column {@code col} of {@code side} -- read straight from a
+     *  subquery of {@code q} that is {@code side}, or from a subquery of {@code q} that exposes it in turn -- else
+     *  null. */
+    private static @com.legend.base.Nullable String exposedBy(SqlSelect q, SqlQuery side, String col) {
+        SqlExpr source = sourceOf(q.from(), side, col);
+        if (source == null) {
+            return null;
+        }
+        for (SqlSelect.Projection p : q.projections()) {
+            if (p.expr() instanceof SqlExpr.Column pc && source instanceof SqlExpr.Column sc
+                    && pc.name().equals(sc.name())
+                    && (pc.table() == null || pc.table().equals(sc.table()))) {
+                return p.alias();
+            }
+        }
+        return null;
+    }
+
+    /** A column reference, in a select over {@code from}, that reads the column {@code col} of {@code side}: from a
+     *  subquery that is {@code side}, or from a subquery whose own select exposes it ({@link #exposedBy}); else null. */
+    private static @com.legend.base.Nullable SqlExpr sourceOf(@com.legend.base.Nullable SqlSource from,
+            SqlQuery side, String col) {
+        if (from instanceof SqlSource.Subselect sub) {
+            if (sub.inner().equals(side)) {
+                return SqlExpr.Column.derived(sub.alias(), col);
+            }
+            if (sub.inner() instanceof SqlSelect inner) {
+                String name = exposedBy(inner, side, col);
+                return name == null ? null : SqlExpr.Column.derived(sub.alias(), name);
+            }
+            return null;
+        }
+        if (from instanceof SqlSource.Join j) {
+            SqlExpr left = sourceOf(j.left(), side, col);
+            return left != null ? left : sourceOf(j.right(), side, col);
+        }
+        return null;
+    }
+
+    /** The alias the select's {@code from} reads the CTE {@code name} under, else null. */
+    private static @com.legend.base.Nullable String tableAlias(@com.legend.base.Nullable SqlSource from, String name) {
+        if (from instanceof SqlSource.Table t) {
+            return t.name().equals(name) ? t.alias() : null;
+        }
+        if (from instanceof SqlSource.Join j) {
+            String left = tableAlias(j.left(), name);
+            return left != null ? left : tableAlias(j.right(), name);
+        }
+        return null;
+    }
+
 
     /** {@code SELECT i AS __ix, <the row's columns>}: the verdict row's own
      * select with the index prepended (its projections matched to the batch
