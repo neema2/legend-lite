@@ -482,14 +482,15 @@ class PlanMakerTest {
      * each copy binding its key; every output and every database alike. Judged against the legacy probe route's text
      * on DuckDB, and the same answers on H2 and SQLite, which have no dynamic PIVOT (the row-as-JSON form this replaces
      * had no form there; DuckDB's streamed rows dropped the generated columns). Every carrier names a generated column
-     * as the engine labels it, the quotes part of the name (the pivot homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md).
+     * bare (the user's ruling of 2026-11-10, D1.4 2026-11-15: until then as the engine labels it, the quotes part of the
+     * name, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md; legend-engine's quoting is the edge's writer's).
      */
     @Test
     void aDynamicPivotsPlanReadsItsKeysFirst_everyOutputEveryDatabase() throws Exception {
         String query = TREES + "->pivot(~[year], ~['newCol' : x | $x.treePlanted : y | $y->plus()])"
                 + "->sort(~city->ascending())";
-        String json = "[{\"city\":\"NYC\",\"'2000__|__newCol'\":15,\"'2011__|__newCol'\":5},"
-                + "{\"city\":\"SAN\",\"'2000__|__newCol'\":3,\"'2011__|__newCol'\":2}]";
+        String json = "[{\"city\":\"NYC\",\"2000__|__newCol\":15,\"2011__|__newCol\":5},"
+                + "{\"city\":\"SAN\",\"2000__|__newCol\":3,\"2011__|__newCol\":2}]";
         for (DatabaseType type : IN_PROCESS) {
             String model = model(type.name());
             ExecutionPlan typed = Compiler.query(Compiler.compileModel(model), query).executionPlan("s::RT");
@@ -498,7 +499,7 @@ class PlanMakerTest {
             for (Written output : List.of(Written.CSV, Written.JSON)) {
                 try (Connection c = fresh(type)) {
                     assertEquals(output == Written.CSV
-                            ? "city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n" : json,
+                            ? "city,2000__|__newCol,2011__|__newCol\r\nNYC,15,5\r\nSAN,3,2\r\n" : json,
                             PlanCases.write(typed, c, java.util.Map.of(), output::writer), type + " " + output);
                 }
             }
@@ -510,7 +511,7 @@ class PlanMakerTest {
         String model = model(Databases.PLATFORM.name());
         try (Connection c = fresh(Databases.PLATFORM)) {
             ExecutionPlan typed = Compiler.query(Compiler.compileModel(model), statics).executionPlan("s::RT");
-            assertEquals("city,'2000__|__newCol','2011__|__newCol'\r\nNYC,15,5\r\nSAN,3,2\r\n",
+            assertEquals("city,2000__|__newCol,2011__|__newCol\r\nNYC,15,5\r\nSAN,3,2\r\n",
                     PlanCases.write(typed, c, java.util.Map.of(), Written.CSV::writer));
             assertEquals(json, PlanCases.write(typed, c, java.util.Map.of(), Written.JSON::writer));
         }

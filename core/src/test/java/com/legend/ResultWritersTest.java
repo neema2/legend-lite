@@ -253,9 +253,11 @@ class ResultWritersTest {
     }
 
     @Test
-    void aCsvOfNoRowIsItsHeader_aPivotsGeneratedNameQuoted() throws IOException {
+    void aCsvOfNoRowIsItsHeader_aPivotsGeneratedNameBare() throws IOException {
+        // a pivot's generated name bare (the user's ruling of 2026-11-10; D1.4, 2026-11-15: legend-engine's quotes
+        // were written here until then)
         StringWriter out = new StringWriter();
-        assertEquals("'a__|__b',x\r\n", write(new CsvWriter(out, Shape.RELATION), out,
+        assertEquals("a__|__b,x\r\n", write(new CsvWriter(out, Shape.RELATION), out,
                 List.of(col("a__|__b", "Integer", "BIGINT"), col("x", "String", "VARCHAR")), List.of()));
     }
 
