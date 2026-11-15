@@ -358,7 +358,25 @@ public final class StoreResolver {
      * dispatches by variant, INERT is the identity. Guard ORDER is now
      * structure: an arm's precedence is the space level it lives in.
      */
+    /** Each node's resolution under each context, by the node's IDENTITY: a node the inliner shares between two reads
+     *  (a relation let read twice) resolves to ONE tree, so the lowering's identity-sharing (SharedRelations) shares it
+     *  as one relation -- as it already does for a table read, which passes through as itself (2026-11-15, the
+     *  derivative-pricing review's finding: a class read was rebuilt at every visit, two equal trees, pasted twice).
+     *  A node under two contexts (two mappings) still resolves twice: {@code Context} is a value. */
+    private final java.util.IdentityHashMap<TypedSpec, Map<Context, TypedSpec>> resolvedOnce =
+            new java.util.IdentityHashMap<>();
+
     private TypedSpec resolveNode(TypedSpec n, Context context) {
+        Map<Context, TypedSpec> byContext = resolvedOnce.get(n);
+        if (byContext != null && byContext.containsKey(context)) {
+            return byContext.get(context);
+        }
+        TypedSpec r = resolveNodeOnce(n, context);
+        resolvedOnce.computeIfAbsent(n, k -> new java.util.HashMap<>()).put(context, r);
+        return r;
+    }
+
+    private TypedSpec resolveNodeOnce(TypedSpec n, Context context) {
         // ---- space-independent normalizations (fire in ANY space) ----
         // withFeatureFlags = IDENTITY (executionPlanFeature.pure:27);
         // evaluateAndDeactivate over a metamodel ROW is the row (a tree-as-

@@ -47,6 +47,17 @@ class LetSharingTest extends AbstractDatabaseTest {
             }
             """;
 
+    /** A let over a mapped CLASS read twice (2026-11-15, the derivative-pricing review: a class read was rebuilt at
+     *  each visit of the store resolver, so the two reads reached the lowering as two equal trees and were pasted). */
+    private static final String CLASS_TWICE = """
+            ###Pure
+            function test::classTwice(): Relation<(n:String, a:Integer)>[1]
+            {
+              let base = model::Person.all()->filter(p|$p.age > 0)->project(~[n:p|$p.firstName, a:p|$p.age]);
+              $base->concatenate($base);
+            }
+            """;
+
     private static final String PEOPLE =
             "#>{store::PersonDatabase.T_PERSON}#->select(~[ID, AGE_VAL])";
 
@@ -65,7 +76,7 @@ class LetSharingTest extends AbstractDatabaseTest {
 
     @Override
     protected String getCompletePureModelWithRuntime() {
-        return super.getCompletePureModelWithRuntime() + "\n" + FUNCTIONS + "\n" + UNIONED;
+        return super.getCompletePureModelWithRuntime() + "\n" + FUNCTIONS + "\n" + UNIONED + "\n" + CLASS_TWICE;
     }
 
     private static int count(String sql, String pattern) {
@@ -136,6 +147,18 @@ class LetSharingTest extends AbstractDatabaseTest {
         assertEquals(List.of(List.of(1, 30), List.of(2, 28), List.of(3, 45)),
                 result.rows().stream().map(r -> List.of(((Number) r.get(0)).intValue(),
                         ((Number) r.get(1)).intValue())).toList());
+    }
+
+    @Test
+    @DisplayName("a let over a mapped class read twice is one common table expression, as a let over a table is")
+    void aClassLetReadTwiceIsWrittenOnce() throws SQLException {
+        String q = "test::classTwice()->from(test::TestRuntime)";
+        String sql = generateSql(q);
+        assertEquals(1, tableReads(sql), sql);
+        assertTrue(sql.contains("__let0"), sql);
+        var result = executeRelation(q);
+        assertEquals(2 * executeRelation(PEOPLE + "->filter(r|$r.AGE_VAL > 0)->from(test::TestRuntime)").rows().size(),
+                result.rows().size(), sql);
     }
 
     @Test
