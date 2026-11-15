@@ -1,7 +1,7 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.test;
+package com.legend.edge;
 
 
 import com.legend.Compiler;
@@ -20,6 +20,8 @@ import com.legend.protocol.spec.AppliedFunction;
 import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.LambdaFunction;
 import com.legend.protocol.spec.ValueSpecification;
+import com.legend.test.PureTestRunner;
+import com.legend.test.TestAssertions;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -72,6 +74,11 @@ import java.util.Map;
  *       (null ≡ missing, unordered arrays, exact decimals). Other assertion
  *       kinds are SKIPPED, loudly — never a silent pass.</li>
  * </ul>
+  *
+ * <p>At the compatibility edge (phase D's D1.4, 2026-11-15): a Legend service's test is legend-engine's, its expected
+ * data in legend-engine's serialization formats ({@code PURE_TDSOBJECT}, {@link TdsObjectsWriter}; a graph fetch's
+ * JSON envelope), so the runner and its writer moved here from {@code com.legend.test} and {@code com.legend.result}
+ * (the edge depends on the product, never the reverse: G5).
  */
 public final class ServiceTestRunner implements AutoCloseable {
 
@@ -493,7 +500,7 @@ public final class ServiceTestRunner implements AutoCloseable {
      *  assembled the tree in Java from a materialized side -- its own cell rules until track Z, the boundary's
      *  {@code CellText.engine} after). A graph fetch's objects as legend-engine's JSON envelope
      *  ({@link com.legend.result.PureV1Writer#objects}); a relation or a value as {@code PURE_TDSOBJECT}
-     *  ({@link com.legend.result.TdsObjectsWriter}: objects keyed by column, legend-engine's cell tokens); another
+     *  ({@link com.legend.edge.TdsObjectsWriter}: objects keyed by column, legend-engine's cell tokens); another
      *  format of a relation is not rendered by this runner. The text is read back as the plain tree the assertions
      *  compare. */
     /** The service's answer as the test reads it back: told the answer's shape before its columns, it writes in the
@@ -521,7 +528,7 @@ public final class ServiceTestRunner implements AutoCloseable {
                     && !format.equals("PURE_TDSOBJECT") && !format.equals("RAW")) {
                 throw new Skip("serialization format " + format + " of a tabular result is not rendered by this runner");
             }
-            writer = new com.legend.result.TdsObjectsWriter(out, shape);
+            writer = new com.legend.edge.TdsObjectsWriter(out, shape);
         }
 
         @Override

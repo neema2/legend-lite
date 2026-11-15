@@ -1371,18 +1371,29 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** {@code text} -- a value's fixed-point text with six fraction digits -- with its trailing zeros, then a trailing
      *  point, dropped, by the trailing trim {@code trim} names ({@code rtrim}, {@code RTRIM}): {@code 2.000000} is
-     *  {@code 2}, {@code 0.300000} is {@code 0.3}. Six digits always follow the point, so no digit before it is cut. */
+     *  {@code 2}, {@code 0.300000} is {@code 0.3}. Six digits always follow the point, so no digit before it is cut. A
+     *  negative value that rounds to zero ({@code -0.000000}: -1e-7, -0.0) is {@code 0}, its sign dropped -- one form on
+     *  every database (the orchestrator's round 56, 2026-11-15: DuckDB, SQLite, ClickHouse, Trino, MySQL, MongoDB and
+     *  Databricks printed {@code -0}, MariaDB, Postgres and H2 {@code 0}); the whole six-digit text alone matches. */
     protected static SqlWriter trimmedSix(SqlWriter writer, String trim, java.util.function.Consumer<SqlWriter> text) {
         writer.append(trim).append("(").append(trim).append("(");
-        text.accept(writer);
+        unsignedZero(writer, text);
         return writer.append(", '0'), '.')");
+    }
+
+    /** {@code text}, a six-digit fixed-point text, with {@code -0.000000} written {@code 0.000000} ({@link #trimmedSix}):
+     *  no other text holds that run ({@code -10.000000} holds {@code 10.000000}, its sign before a 1). */
+    private static void unsignedZero(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
+        writer.append("REPLACE(");
+        text.accept(writer);
+        writer.append(", '-0.000000', '0.000000')");
     }
 
     /** {@link #trimmedSix} spelled by the SQL standard's trailing trim ({@code TRIM(TRAILING '0' FROM ...)}), for a
      *  database whose {@code RTRIM} takes no character. */
     protected static SqlWriter trimmedSixStandard(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
         writer.append("TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM ");
-        text.accept(writer);
+        unsignedZero(writer, text);
         return writer.append("))");
     }
 
@@ -2699,6 +2710,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     static String plainFloat(double v) {
+        // a negative zero keeps its sign, as a double literal: BigDecimal has no -0, and a plain -0.0 is a decimal,
+        // which has none either (the orchestrator's round 56, 2026-11-15: -0.0 was written 0.0, the value rewritten
+        // before the database saw it)
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "-0.0E0";
+        }
         // the numeric charter's Rule 1, one owner (SqlTyping.floatDecimal; the runner binds a Float by it): plain
         // digits, or an extreme magnitude in exponent form
         java.math.BigDecimal plain = com.legend.sql.SqlTyping.floatDecimal(v);

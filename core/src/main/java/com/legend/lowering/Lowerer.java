@@ -2782,7 +2782,8 @@ public final class Lowerer {
                         throw new IllegalStateException("a TDS cell is the plan parameter '" + parameter + "', which"
                                 + " the statement's lowering does not bind (bindPlanParam)");
                     }
-                    cells.add(bound);
+                    // an execution's trace text: the id in the product, legend-engine's comment at the edge (D1.4)
+                    cells.add(SqlExpr.Call.of(SqlFn.TRACE_TEXT, bound));
                     continue;
                 }
                 cells.add(Scalars.tdsCell(row.get(i), schema.columns().get(i).type()));

@@ -1724,11 +1724,8 @@ class JavaEvalLedgerTest {
                     // a tagged column's cell as a decoder hands it to the batch (track F, 2026-10-29; D57 (5)): the
                     // slot index and the slot's carrier, a record of two fields and nothing computed
                     "TaggedCell.java",
-                    // legend-engine's PURE_TDSOBJECT serialization (the doors, 2026-10-29; D63): the service test
-                    // runner's answer as a writer at the boundary -- objects keyed by the presented column name, each
-                    // cell legend-engine's token (CellText.engine); a to-one value as its one cell; spells, decides
-                    // nothing
-                    "TdsObjectsWriter.java",
+                    // TdsObjectsWriter.java went to the edge 2026-11-15 (phase D's D1.4: legend-engine's PURE_TDSOBJECT,
+                    // the service test runner's; listed in the edge's funnel below)
                     // where a run's answer goes, as data (2026-11-09, the user's question "why do we have any
                     // callbacks?"): a closed set of formats and their streams, the writer chosen by the answer's shape
                     // from the plan before any statement runs (PureV1Writer.Facts, the envelope's facts read before the
@@ -1768,7 +1765,13 @@ class JavaEvalLedgerTest {
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
                             // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
-                            "RefereeLoad.java"),
+                            "RefereeLoad.java",
+                            // legend-engine's service tests (D1.4, 2026-11-15, moved from com.legend.test and
+                            // com.legend.result): the runner -- a test's data seeded and its query run through the
+                            // test door, its answer compared as the test's JSON -- and legend-engine's PURE_TDSOBJECT
+                            // writer, objects keyed by the presented column name, each cell legend-engine's token
+                            // (CellText.engine); spells, decides nothing
+                            "ServiceTestRunner.java", "TdsObjectsWriter.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

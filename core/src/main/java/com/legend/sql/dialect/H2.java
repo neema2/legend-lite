@@ -687,7 +687,7 @@ public class H2 extends AnsiSqlRenderer {
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
@@ -1534,5 +1534,15 @@ public class H2 extends AnsiSqlRenderer {
                 .append(" AS VARCHAR) ELSE ");
         trimmedSix(writer, "rtrim", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS DECIMAL(1000, 6)) AS VARCHAR)"));
         return writer.append(" END");
+    }
+
+    /** A Float literal: the base's, but a negative zero, cast from its text -- an exponent literal is a NUMERIC here,
+     *  which has no -0 (the orchestrator's round 56, 2026-11-15: -0.0 was written 0.0). */
+    @Override
+    protected String floatLiteral(double v) {
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "CAST('-0.0' AS DOUBLE PRECISION)";
+        }
+        return super.floatLiteral(v);
     }
 }

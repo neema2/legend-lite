@@ -480,20 +480,20 @@ class DataDeliveryMatrixTest {
         com.legend.model.ServiceDefinition svc = com.legend.testing.Own.model(model).elements().stream()
                 .filter(e -> e instanceof com.legend.model.ServiceDefinition s && s.qualifiedName().equals("x::S"))
                 .map(e -> (com.legend.model.ServiceDefinition) e).findFirst().orElseThrow();
-        try (com.legend.test.ServiceTestRunner runner = new com.legend.test.ServiceTestRunner(ctx,
+        try (com.legend.edge.ServiceTestRunner runner = new com.legend.edge.ServiceTestRunner(ctx,
                 () -> {
                     try {
                         return TestSessions.owning(session(db));
                     } catch (java.sql.SQLException e) {
                         throw new com.legend.error.DataError(String.valueOf(e.getMessage()), e);
                     }
-                }, com.legend.test.ServiceTestRunner.Sessions.FRESH_PER_TEST, db)) {
-            List<com.legend.test.ServiceTestRunner.Result> results = runner.run(svc);
+                }, com.legend.edge.ServiceTestRunner.Sessions.FRESH_PER_TEST, db)) {
+            List<com.legend.edge.ServiceTestRunner.Result> results = runner.run(svc);
             if (results.size() != 1) {
                 throw new AssertionError("one test result, not " + results);
             }
             var r = results.get(0);
-            if (r.status() != com.legend.test.ServiceTestRunner.Status.PASS) {
+            if (r.status() != com.legend.edge.ServiceTestRunner.Status.PASS) {
                 // a suite's failure as the reason it gives: a refusal where it names one, else a wrong answer
                 throw new ServiceFailed(String.valueOf(r.reason()));
             }

@@ -1245,7 +1245,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS ->
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
                     throw expandedFirst(c);
             // ---- raising
             case ERROR -> raise(writer, a);
@@ -2879,7 +2879,8 @@ public class MongoDb extends AnsiSqlRenderer {
         MongoJson.op1(writer, "$toDecimal", x);
         return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
-                + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": \"$$s\", \"chars\": \"0\"}}, \"chars\": \".\"}},"
+                + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
+                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"
                 + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
                 + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
                 + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"

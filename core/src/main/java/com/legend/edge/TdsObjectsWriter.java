@@ -1,10 +1,13 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.result;
+package com.legend.edge;
 
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
+import com.legend.result.Batch;
+import com.legend.result.CellText;
+import com.legend.result.ResultSink;
 
 import java.io.IOException;
 import java.io.Writer;

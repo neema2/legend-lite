@@ -123,9 +123,10 @@ class CompatSpellingGuardTest {
             "exec/PlanParameters.java | Missing external parameter(s) | 1 | D1.6",
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
-            "exec/PlanRunner.java | traceComment | 1 | D1.4",
-            "executionplan/ExecutionPlan.java | executionTraceID | 1 | D1.4",
-            "executionplan/ExecutionPlan.java | traceComment | 1 | D1.4",
+            // exec/PlanRunner.java | traceComment and executionplan/ExecutionPlan.java's executionTraceID and traceComment:
+            // gone 2026-11-15 (D1.4: the runner binds the execution's id; an activity row's comment is the TRACE_TEXT
+            // node, the id in the product, legend-engine's comment around it written by the edge, PurePrintForms; the
+            // comment's one Java spelling, the engine answer's activity, moved into PureV1Writer, which goes at D1.8)
             "lowering/DateFormats.java | +0000 | 1 | STAYS",
             // 8 -> 7 (2026-11-15, D1.2: dateTimeText's composition moved to sql/dialect/DateTimePrintText, the judges' and
             // the edge's node DATETIME_PRINT; the product's DateTime text is DATETIME_TO_TEXT, ISO with Z). What stays:
@@ -173,7 +174,9 @@ class CompatSpellingGuardTest {
             "normalizer/MappingClosures.java | Can't find  | 2 | D1.6",
             "normalizer/MappingNormalizer.java | Can't find  | 1 | D1.6",
             "normalizer/MappingValidation.java | Can't find  | 1 | D1.6",
-            "plan/PlanNode.java | executionTraceID | 1 | D1.4",
+            // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
+            // engine's post-processor's constant: it moves with EnginePlans' text half
+            "plan/PlanNode.java | executionTraceID | 1 | D1.7",
             "planner/BodyPlanner.java | EnginePlans | 3 | D1.7",
             "planner/EnginePlans.java | EnginePlans | 2 | D1.7",
             // 20 -> 12 (2026-11-13, phase D's O3: the printers reached through the plan style, PlanStyle.engineText)
@@ -208,15 +211,22 @@ class CompatSpellingGuardTest {
             "resolver/Substitution.java | Cast exception:  | 1 | D1.1",
             "result/CellText.java | +0000 | 1 | D1.4",
             "result/CellText.java | @_ | 1 | D1.4",
-            "result/CellText.java | presentedName | 1 | D1.4",
-            "result/CsvWriter.java | presentedName | 1 | D1.4",
-            "result/JsonRowsWriter.java | presentedName | 1 | D1.4",
-            "result/Output.java | PureV1Writer | 12 | D1.4",
-            "result/PureV1Writer.java | PureV1Writer | 6 | D1.4",
-            "result/PureV1Writer.java | presentedName | 2 | D1.4",
-            "result/PureV1Writer.java | traceComment | 1 | D1.4",
-            "result/TdsObjectsWriter.java | TdsObjectsWriter | 2 | D1.4",
-            "result/TdsObjectsWriter.java | presentedName | 1 | D1.4",
+            // D1.4 -> D1.8 (2026-11-15): legend-engine's pivot quoting, CellText's engine half, read by the engine writers
+            "result/CellText.java | presentedName | 1 | D1.8",
+            // result/CsvWriter.java and result/JsonRowsWriter.java | presentedName: gone 2026-11-15 (D1.4: a pivot's
+            // generated name bare in lite's writers, register S315)
+            // D1.4 -> D1.8 (2026-11-15, the orchestrator's ruling: no exception; PureV1Writer, Output.Engine/Arrow and
+            // CellText's engine half move at D1.8, with D-1's host halves un-parked): the engine's answer writer and its
+            // formats. traceComment 1 -> 2 and executionTraceID +1 (2026-11-15): the trace comment's method moved here
+            // from ExecutionPlan (its two rows gone above), the engine answer's activity its one Java reader
+            "result/Output.java | PureV1Writer | 12 | D1.8",
+            "result/PureV1Writer.java | PureV1Writer | 6 | D1.8",
+            "result/PureV1Writer.java | executionTraceID | 1 | D1.8",
+            "result/PureV1Writer.java | presentedName | 2 | D1.8",
+            "result/PureV1Writer.java | traceComment | 2 | D1.8",
+            // result/TdsObjectsWriter.java (TdsObjectsWriter 2, presentedName 1) and test/ServiceTestRunner.java
+            // (PureV1Writer 1, TdsObjectsWriter 1): gone 2026-11-15 (D1.4: legend-engine's service tests and their
+            // PURE_TDSOBJECT writer moved to the edge, //core:edge_service_tests)
             "server/PureV1Api.java | Missing external parameter(s) | 1 | D1.6",
             "server/PureV1Api.java | PureV1Writer | 17 | D1.8",
             // D1.3 -> D1.9 (2026-11-15): the constant PlatformTypes names, the judges' and the edge's (above)
@@ -267,8 +277,6 @@ class CompatSpellingGuardTest {
             "sql/dialect/StableScanOrder.java | StableScanOrder | 1 | D1.5",
             "sql/dialect/Trino.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
-            "test/ServiceTestRunner.java | PureV1Writer | 1 | D1.4",
-            "test/ServiceTestRunner.java | TdsObjectsWriter | 1 | D1.4",
             "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",
             "testdatagen/TestDataGenerator.java | EngineTextDialect | 3 | D1.7",
             // retagged 2026-11-15 (D1.2's end): the generator's CLEAN timestamp text mirrors lite's writers (CellText's

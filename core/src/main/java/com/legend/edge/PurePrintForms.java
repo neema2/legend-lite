@@ -117,6 +117,12 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FORMAT_PADDED) {
             return signedZeroPad(expr(c.args().get(0)), c.args().get(1));
         }
+        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.TRACE_TEXT) {
+            // legend-engine's trace comment around the execution's id (its executor's, RelationalExecutor.java:332;
+            // D1.4, 2026-11-15: the runner bound it until then)
+            return new SqlExpr.Call(SqlFn.CONCAT, java.util.List.of(new SqlExpr.StringLit("-- \"executionTraceID\" : \""),
+                    c.args().get(0), new SqlExpr.StringLit("\"")));
+        }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.TEXT_FORMS) {
             return c.args().get(1);
         }

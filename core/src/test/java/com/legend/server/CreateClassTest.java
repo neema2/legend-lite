@@ -12,7 +12,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.legend.json.Json;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ServiceDefinition;
-import com.legend.test.ServiceTestRunner;
+import com.legend.edge.ServiceTestRunner;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

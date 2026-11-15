@@ -3666,7 +3666,7 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.lineage.ScanRelations", 2),
                     java.util.Map.entry("com.legend.model.MappingFromProtocol", 4),
                     java.util.Map.entry("com.legend.test.PureTestRunner", 2),
-                    java.util.Map.entry("com.legend.test.ServiceTestRunner", 2),
+                    java.util.Map.entry("com.legend.edge.ServiceTestRunner", 2),
                     java.util.Map.entry("com.legend.validation.ValidateDesugar", 22)
             ));
 

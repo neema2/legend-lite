@@ -152,7 +152,9 @@ class WriterCarriageGuardTest {
         // track Z, 2026-10-29 (the final audit's finding 2): the service test runner spelled a program's last side
         // itself; since door 1 (2026-10-29) it reads its answer from the boundary's writers -- scanned here with an
         // empty register so that it never spells a cell again
-        files.add(SourceFiles.file("core/src/main/java/com/legend/test/ServiceTestRunner.java"));
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/ServiceTestRunner.java"));
+        // legend-engine's PURE_TDSOBJECT writer, moved from result/ to the edge with its runner (D1.4, 2026-11-15)
+        files.add(SourceFiles.file("core/src/main/java/com/legend/edge/TdsObjectsWriter.java"));
         GuardCoverage.assertFloor("WriterCarriageGuardTest", files.size(), 10);
         StringBuilder drift = new StringBuilder();
         for (Path f : files) {
