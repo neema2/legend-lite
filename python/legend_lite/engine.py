@@ -42,7 +42,7 @@ import socketserver
 import sys
 import threading
 import traceback
-from collections.abc import Callable, Container, Iterable, Iterator, Mapping
+from collections.abc import Callable, Container, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
 from pathlib import Path
@@ -58,11 +58,13 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
-from ._planned import PlannedSql, across_the_bridge, connect, from_plan, send
+from ._planned import PlannedSql, across_the_bridge, connect, from_plan
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
+from .frames import Frames, Reading, UntypedColumn, redact_held
+# the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
+from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from .keeper import PageKeeper, Refused
 from .projects import ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -210,15 +212,6 @@ def _snap_refused(headless: Any, rows: int) -> Answer:
     """A copy of ``rows`` rows past this machine's limit (N3: each host its own), refused in the tab's own sentence
     (headless snapRefused: snap.ts snapRefusal)."""
     return _said(422, headless.call('snapRefused', str(rows), str(_MAX_SNAP_ROWS)))
-
-
-def _arrow_of(chunks: Iterable[bytes]) -> pa.Table:
-    """A result's Arrow IPC streams, one per chunk, as one table: the first chunk's schema (every chunk carries it;
-    the warehouse's DuckDB writes one at least, its schema alone for no rows)."""
-    tables = [pyarrow.ipc.open_stream(c).read_all() for c in chunks]
-    if not tables:
-        raise pa.ArrowInvalid('the warehouse answered no chunk, not even its columns')
-    return pa.concat_tables(tables) if len(tables) > 1 else tables[0]
 
 
 def _on_planner_threads() -> Callable[..., Any]:
@@ -1492,7 +1485,7 @@ class Engine:
             return _said(422, f'{type(failure).__name__}: {failure}')
         try:
             # counted where the rows are, before anything is copied (the tab's preflight)
-            counted = _arrow_of(table.warehouse.arrow_chunks(plan.sql))
+            counted = read_plane(table.warehouse, plan.sql)
             # the count is the warehouse's one value: none is refused by name, never read as no rows (G7; the final
             # audit, 2026-11-12)
             if counted.num_rows != 1 or counted.num_columns != 1 or counted.column(0)[0].as_py() is None:
@@ -1547,7 +1540,7 @@ class Engine:
             except (LegendError, ValueError) as refused:
                 return _said(422, f'the snap could not be planned: {refused}')
             try:
-                rows = int(send(self.frames.connection, plan.sql, list(plan.params)).fetchone()[0])
+                rows = count_of(self.frames.connection, plan)
             except duckdb.Error as refused:
                 return _said(422, f'the snap could not be counted: {refused}')
             if rows > _MAX_SNAP_ROWS:
@@ -1601,7 +1594,7 @@ class Engine:
             return _planned({'plan': planned, 'error': _WAREHOUSE_BINDS_NONE}, 422)
         try:
             said: dict[str, Any] = {}
-            rows = typed_by_plan(_arrow_of(table.warehouse.arrow_chunks(plan.sql, said.update)), plan)
+            rows = run_on_plane(table.warehouse, plan, said.update)
             # the warehouse's own receipt: where, as whom, its statement and its count (the tab's live reads carry it)
             receipt = {'plane': 'warehouse', 'where': said.get('where', ''), 'as': said.get('as', ''),
                        **({'statementId': said['statementId']} if 'statementId' in said else {}),
@@ -1724,7 +1717,8 @@ class Engine:
             except LegendError:
                 return _planned({'plan': planned})
             try:
-                rows = typed_by_plan(send(project.cursor, plan.sql, plan.params).to_arrow_table(), plan)
+                # a project's database binds no value this engine holds: nothing to take out of a failure's words
+                rows = run_plan(project.cursor, plan, ())
             except (duckdb.Error, UntypedColumn) as failure:
                 return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
@@ -1776,9 +1770,9 @@ class Engine:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 planned = json.loads(answer.body)
                 # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
-                # value this engine holds (a bearer URL: M2)
-                rows = execute_redacted(connection, from_plan(planned['sql']), self.frames.held_values(),
-                                        compiler.plan_params(planned.get('plan'))).to_arrow_table()
+                # value this engine holds (a bearer URL: M2) -- the plan read here, then handed to its run
+                sql, params = from_plan(planned['sql']), compiler.plan_params(planned.get('plan'))
+                rows = run_arrow(connection, sql, self.frames.held_values(), params)
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
                       {'x-legend-response-format': 'FormatNotSet'})
@@ -1795,10 +1789,9 @@ class Engine:
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
                 said = json.loads(planned.body)
-                cursor = execute_redacted(connection, from_plan(said['run']), self.frames.held_values(),
-                                          compiler.plan_params(said.get('plan')))
-                names = [d[0] for d in cursor.description]
-                rows = compiler.host_rows(names, cursor.fetchall())
+                # the plan read here, then handed to its run, which hands its rows back as the driver read them
+                sql, params = from_plan(said['run']), compiler.plan_params(said.get('plan'))
+                rows = run_rows_json(connection, sql, self.frames.held_values(), params)
         answer = self.planner.execute_json_answer(planned.body, rows)
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 

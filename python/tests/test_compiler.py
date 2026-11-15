@@ -353,9 +353,12 @@ class Hosting(unittest.TestCase):
             ll.parse('|$x.')
         self.assertEqual(lib.unfreed(), before, 'an answer was not freed')
         # the count is live: an answer taken and not yet freed shows in it
-        p = lib._lib.lite_session_setup(lib._thread(), b'DuckDB')
+        # the loader's own functions, reached past the keys (C5-P: the library's loader is _loader.py since A1)
+        from legend_lite._loader import loaded
+        raw = loaded()
+        p = raw._lib.lite_session_setup(raw._thread(), b'DuckDB')
         self.assertEqual(lib.unfreed(), before + 1)
-        lib._lib.lite_free(lib._thread(), p)
+        raw._lib.lite_free(raw._thread(), p)
         self.assertEqual(lib.unfreed(), before)
 
 
