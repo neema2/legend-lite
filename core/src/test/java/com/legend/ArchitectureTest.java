@@ -986,7 +986,11 @@ final class ArchitectureTest {
      *  and its callers are listed with it, so a listed entry reached from another class is refused; the root's Compiler
      *  is checked as every class is, its own entries listed (QueryDoor's (List, SpecCompiler) overload among them, which
      *  the key by name admitted to every caller). {@link #thePlannerEntriesAreTheMeasuredOnesExactly} pins the list to
-     *  what is reached, so an entry no class reaches any more goes. Moves only with a dated note naming the task. */
+     *  what is reached, so an entry no class reaches any more goes. Moves only with a dated note naming the task.
+     *  2026-11-15 (C5-J item 6): 70 entries -> 61, still exactly what is measured over core and the hosts' doors. Item 3
+     *  took out the resolver's 7 (its reads of the lowering's helpers moved below both); item 2 took out 4 (the PCT
+     *  runner's reads of ProgramFacts' seedsInlineCsv, shape and verdicts, and the constructor's entry; effects() keeps
+     *  its Compiler caller alone) and added 2, ProgramFacts#of (Compiler) and TestPlanner#facts (the test door). */
     static final java.util.Map<String, java.util.Set<String>> PLANNER_ENTRIES = entries(
             // the query door, from the root's TypedQuery: a query's plan (QueryDoor first), its runtime, its parameters
             "planner.PlanMaker#plan(com.legend.TypedQuery, java.lang.String, java.util.Set, boolean)",
