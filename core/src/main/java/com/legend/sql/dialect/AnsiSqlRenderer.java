@@ -962,6 +962,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             case SqlExpr.Lambda l -> lambda(writer, l);
             // a cast to the tagged carrier is the identity: the column holds the tag, an index, and the label says
             // what it indexes (docs/RESULTS_AND_RENDERERS_2026_10_22.md §5a), as a LITERAL label rides on text
+            // a cast of a cast to the same target is the inner cast (P2, the lean program, 2026-11-15: idempotent on every
+            // database; CAST(CAST(ARRAY[..] AS BIGINT[]) AS BIGINT[]) wrote the type twice)
+            case SqlExpr.Cast c when c.value() instanceof SqlExpr.Cast inner && inner.target().equals(c.target()) ->
+                    writer.expr(inner, parentPrec);
             case SqlExpr.Cast c -> c.target() instanceof com.legend.sql.SqlType.Tagged
                     ? writer.expr(c.value(), parentPrec) : variantAwareCast(writer, c);
             case SqlExpr.FoldCall f -> foldCall(writer, f);

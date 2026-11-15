@@ -114,4 +114,24 @@ class BigQueryDialectTest {
         assertTrue(render(new SqlExpr.DateLit("9999-12-31"), null).contains("DATE '9999-12-31'"));
         assertTrue(render(new SqlExpr.TimestampLit("2024-01-02T10:30:00"), null).contains("DATETIME '2024-01-02 10:30:00'"));
     }
+
+    /** A Pure list keeps its order, and SQL promises none for a UNION ALL: a literal list exploded as a union of its
+     *  elements' one-row selects -- filtered or not -- is read ordered by each branch's position (lane round 52,
+     *  2026-11-15: BigQuery answered testFilterInstance's two instances reversed). The rule is the carrier pass's,
+     *  shared by every dialect that places an explode in FROM; BigQuery is the database that showed it. */
+    @Test
+    void aLiteralListExplodedAsAUnionIsReadInItsOrder() {
+        SqlExpr list = new SqlExpr.ArrayLit(List.of(new SqlExpr.IntLit(1), new SqlExpr.IntLit(2), new SqlExpr.IntLit(3)));
+        SqlExpr kept = SqlExpr.Call.of(SqlFn.LIST_FILTER, list, new SqlExpr.Lambda(List.of("x"),
+                SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Column.derived(null, "x"), new SqlExpr.IntLit(1))));
+        for (SqlExpr exploded : List.of(list, kept)) {
+            OutputCol out = new OutputCol("value", SqlType.Scalar.BIGINT, true);
+            String sql = new BigQuery().render(new SqlSelect(List.of(new SqlSelect.Projection(
+                    SqlExpr.Call.of(SqlFn.UNNEST, exploded), "value", out)), false, new SqlSource.Dual(), null,
+                    List.of(), null, null, List.of(), null, null, List.of(out)));
+            assertTrue(sql.contains("UNION ALL"), sql);
+            assertTrue(sql.replace("`", "").contains("ORDER BY __u.__pos"),
+                    "the union read in its branches' order: " + sql);
+        }
+    }
 }

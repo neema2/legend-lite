@@ -163,10 +163,89 @@ public final class CarrierStrategies extends SqlRewriter {
             com.legend.sql.SqlQuery ex = explode(u.args().get(0), s,
                     s.projections().get(0).alias());
             if (ex != null) {
-                return ex;
+                return inBranchOrder(ex, s);
             }
         }
         return s;
+    }
+
+    /** {@code q} with {@link #inBranchOrder}'s ordering taken off (the union of its branches, each without its
+     *  position), for a later pass that rebuilds such a union in its own form (H2's ConstantLateralsAsRows, whose rows
+     *  are joined where its database answers a union in branch order); {@code q} itself where it is no such ordering. */
+    static com.legend.sql.SqlQuery unordered(com.legend.sql.SqlQuery q) {
+        if (!(q instanceof SqlSelect os) || !(os.from() instanceof com.legend.sql.SqlSource.Subselect in)
+                || !(in.inner() instanceof com.legend.sql.SqlUnion u) || os.orderBy().size() != 1
+                || !(os.orderBy().get(0).expr() instanceof SqlExpr.Column k) || !POSITION.equals(k.name())) {
+            return q;
+        }
+        List<com.legend.sql.SqlQuery> branches = new ArrayList<>(u.branches().size());
+        for (com.legend.sql.SqlQuery b : u.branches()) {
+            SqlSelect bs = (SqlSelect) b;
+            branches.add(bs.withProjections(bs.projections().subList(0, bs.projections().size() - 1), os.outputs()));
+        }
+        return new com.legend.sql.SqlUnion(branches, true, os.outputs());
+    }
+
+    /** Whether {@code e} reads a column anywhere in its tree (a lambda's own parameter is read as a column too, so a
+     *  filtered branch whose predicate names its element counts: the element itself is the branch's literal). */
+    private static boolean readsAColumn(SqlExpr e) {
+        if (e instanceof SqlExpr.Column c) {
+            return c.table() != null;
+        }
+        for (SqlExpr child : e.children()) {
+            if (readsAColumn(child)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** The position column {@link #inBranchOrder} orders by. */
+    private static final String POSITION = "__pos";
+
+    /**
+     * {@code ex}, an explode written as a UNION ALL of one-row selects (a literal list's elements, a filtered one's),
+     * in its BRANCHES' ORDER: SQL promises no order for a UNION ALL, and a Pure list keeps its order -- BigQuery
+     * answered a filtered literal list of two instances reversed (lane round 52, 2026-11-15: channel B's
+     * testFilterInstance, [i2, i1]), where the databases that answer in branch order had hidden it. Each branch carries
+     * its position, and the explode reads the union ordered by it: {@code SELECT v FROM (b1, 0 AS __pos UNION ALL ...)
+     * ORDER BY __pos}. A union of other branches (a collect's rows) is left as it is: its rows' own order is the
+     * branch's, not a position's (named in the lean program's open items).
+     */
+    private static com.legend.sql.SqlQuery inBranchOrder(com.legend.sql.SqlQuery ex, SqlSelect s) {
+        // the value column is the exploded select's own (an explode's union may declare none)
+        if (!(ex instanceof com.legend.sql.SqlUnion u) || u.branches().size() < 2 || s.outputs().size() != 1) {
+            return ex;
+        }
+        for (com.legend.sql.SqlQuery b : u.branches()) {
+            // a branch that reads the enclosing row would make the ordering select a correlated derived table, which
+            // H2 has no form for (LATERAL, measured on its lane): such a union is left as it is (an open item)
+            if (!(b instanceof SqlSelect bs) || !(bs.from() instanceof com.legend.sql.SqlSource.Dual)
+                    || !bs.orderBy().isEmpty() || bs.limit() != null || bs.offset() != null
+                    || bs.projections().size() != 1 || bs.where() != null && readsAColumn(bs.where())
+                    || readsAColumn(bs.projections().get(0).expr())) {
+                return ex;
+            }
+        }
+        com.legend.sql.OutputCol pos = new com.legend.sql.OutputCol(POSITION,
+                com.legend.sql.SqlType.Scalar.BIGINT, false, com.legend.sql.OutputCol.Origin.DERIVED);
+        List<com.legend.sql.OutputCol> outs = new ArrayList<>(s.outputs());
+        outs.add(pos);
+        List<com.legend.sql.SqlQuery> placed = new ArrayList<>(u.branches().size());
+        for (int i = 0; i < u.branches().size(); i++) {
+            SqlSelect bs = (SqlSelect) u.branches().get(i);
+            List<SqlSelect.Projection> ps = new ArrayList<>(bs.projections());
+            ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), POSITION, pos));
+            placed.add(bs.withProjections(ps, outs));
+        }
+        String alias = "__u";
+        com.legend.sql.OutputCol value = s.outputs().get(0);
+        return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of(alias, outs, value.name()),
+                        s.projections().get(0).alias(), s.outputs().get(0))), false,
+                new com.legend.sql.SqlSource.Subselect(new com.legend.sql.SqlUnion(placed, true, outs), alias, null),
+                null, List.of(), null, null,
+                List.of(new SqlSelect.SortKey(SqlExpr.Column.of(alias, outs, POSITION), true, null, null)), null, null,
+                s.outputs());
     }
 
     /** The ordered-dedup idiom: its list, and the filter that keeps x at index i iff x's key first

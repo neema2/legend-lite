@@ -138,6 +138,8 @@ final class ConstantLateralsAsRows extends SqlRewriter {
 
     /** The FROM-less selects of one constant column each that {@code q} is (a union of them, or one), or null. */
     private static @com.legend.base.Nullable List<SqlSelect> constantRows(SqlQuery q) {
+        // a constant list's union as the carrier pass ordered it: its branches, joined here as rows
+        q = CarrierStrategies.unordered(q);
         List<SqlQuery> branches = q instanceof SqlUnion un && un.all() ? un.branches() : List.of(q);
         List<SqlSelect> out = new ArrayList<>();
         for (SqlQuery b : branches) {

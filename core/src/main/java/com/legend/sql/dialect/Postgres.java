@@ -709,9 +709,17 @@ public class Postgres extends AnsiSqlRenderer {
             case LIST_CONCAT -> writer.append("(").join(args, " || ", (w, e) -> w.piece(listOf(e, fnName))).append(")");
             // 1-based, negative from the end, out of range NULL (DuckDB's list_extract)
             case LIST_GET -> {
-                SqlWriter.Piece at = w -> w.append("(CASE WHEN ").expr(args.get(1), 0).append(" < 0 THEN (").piece(xs)
-                        .append(")[cardinality(").piece(xs).append(") + 1 + ").expr(args.get(1), 6).append("] ELSE (")
-                        .piece(xs).append(")[").expr(args.get(1), 0).append("] END)");
+                // a literal index needs no bounds test (P4, the lean program, 2026-11-15): Postgres's subscript answers
+                // NULL out of range as DuckDB's does, so a position from the start is a subscript alone and one from
+                // the end reads the length once; only a computed index decides its sign in the statement
+                SqlWriter.Piece at = args.get(1) instanceof SqlExpr.IntLit k && k.value() >= 0
+                        ? w -> w.append("(").piece(xs).append(")[").expr(args.get(1), 0).append("]")
+                        : args.get(1) instanceof SqlExpr.IntLit k
+                        ? w -> w.append("(").piece(xs).append(")[cardinality(").piece(xs).append(") + 1 + ")
+                                .expr(args.get(1), 6).append("]")
+                        : w -> w.append("(CASE WHEN ").expr(args.get(1), 0).append(" < 0 THEN (").piece(xs)
+                                .append(")[cardinality(").piece(xs).append(") + 1 + ").expr(args.get(1), 6)
+                                .append("] ELSE (").piece(xs).append(")[").expr(args.get(1), 0).append("] END)");
                 // an inner list is held as jsonb: read back as a list
                 yield writer.piece(rebuilt(first) ? decode(at, first, 0) : at);
             }
