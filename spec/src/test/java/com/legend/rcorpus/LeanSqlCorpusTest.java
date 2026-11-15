@@ -109,7 +109,15 @@ class LeanSqlCorpusTest {
                 // raising verdict's wrapper, the sides, a branch's condition and both its sides' steps) and each step's
                 // plan JSON (2026-11-15, PR1's review: the fused statement and base sides alone, and no plan JSON)
                 case TestPlan.Verdicts v -> judged(v, judgeSql, judgePlan);
-                case TestPlan.Branch b -> judged(b, judgeSql, judgePlan);
+                case TestPlan.Branch b -> {
+                    judged(b, judgeSql, judgePlan);
+                    // a side's product steps are the product's (TestPlan.sent leaves them out); its judge steps were
+                    // counted above, so they go to a list not kept here (round 55f, 2026-11-15)
+                    List<String> counted = new ArrayList<>();
+                    long[] countedPlan = {0};
+                    steps(b.then(), productSql, productNodes, counted, countedPlan);
+                    steps(b.otherwise(), productSql, productNodes, counted, countedPlan);
+                }
             }
         }
     }
