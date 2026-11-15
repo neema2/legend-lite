@@ -321,7 +321,10 @@ public final class ChannelB {
         try {
             plan = TestExecution.planBody(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME, OPTIONS);
-        } catch (RuntimeException e) {
+        } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException
+                | com.legend.sql.DialectCapability | UnsupportedOperationException refused) {
+            // a planning refusal: the body adds no judge SQL (its run fails as it does without the measure); any other
+            // exception is a defect, and fails the body with its stack (G7, round 55f, 2026-11-15)
             return;
         }
         judgeSql(plan.steps());

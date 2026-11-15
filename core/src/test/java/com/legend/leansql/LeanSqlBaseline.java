@@ -212,7 +212,10 @@ public final class LeanSqlBaseline {
                             add(sh, shape(st));
                         }
                         p = PlanJson.write(plan).length();
-                    } catch (RuntimeException | StackOverflowError e) {
+                    } catch (RuntimeException e) {
+                        if (!isRefusal(e)) {
+                            throw e;
+                        }
                         // refused at planning: counted under its family where it has one (a query refused by the
                         // compiler itself has none: "refused")
                         refused = true;
@@ -277,7 +280,10 @@ public final class LeanSqlBaseline {
                 p = PlanJson.write(plan).length();
                 database = plan.answers() && plan.sendsTheAnswer()
                         ? plan.answerSql().target().database().type().name() : "constant";
-            } catch (RuntimeException | StackOverflowError e) {
+            } catch (RuntimeException e) {
+                        if (!isRefusal(e)) {
+                            throw e;
+                        }
                 // the database a plan targets is the plan's: a refused query has none, so it counts under "refused"
                 family = "refused";
                 database = "refused";
@@ -302,6 +308,21 @@ public final class LeanSqlBaseline {
      *  pipeline, measured separately (the orchestrator, 2026-11-12). */
     static boolean relational(DatabaseType type) {
         return !com.legend.exec.Connectors.of(com.legend.planner.ConnectionPlans.type(type)).ownSessions();
+    }
+
+    /**
+     * Whether {@code e} is a PLANNING REFUSAL, the named kinds the planner refuses a query by: a compile error
+     * ({@link com.legend.error.LegendCompileException}), a construct not planned
+     * ({@link com.legend.error.NotImplementedException}), a dialect's capability gap
+     * ({@link com.legend.sql.DialectCapability}) or a render arm's unsupported variant
+     * ({@link UnsupportedOperationException}). A measure counts only these as refused; any other throwable is a
+     * defect and fails the measure with its stack (G7, round 55f, 2026-11-15: a measurement bug's
+     * IllegalArgumentException was counted as two corpus bodies' refusals).
+     */
+    public static boolean isRefusal(Throwable e) {
+        return e instanceof com.legend.error.LegendCompileException
+                || e instanceof com.legend.error.NotImplementedException
+                || e instanceof com.legend.sql.DialectCapability || e instanceof UnsupportedOperationException;
     }
 
     /** {@code model} with the storeless runtime on {@code type}: its in-process declaration where the connector has

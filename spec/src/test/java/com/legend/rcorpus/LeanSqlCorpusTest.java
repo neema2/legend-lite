@@ -63,7 +63,10 @@ class LeanSqlCorpusTest {
                 TestPlan plan = com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
                         MinimalCorpus.RUNTIME, options);
                 steps(plan.steps(), productSql, productNodes, judgeSql, judgePlan);
-            } catch (RuntimeException | StackOverflowError e) {
+            } catch (RuntimeException e) {
+                if (!com.legend.leansql.LeanSqlBaseline.isRefusal(e)) {
+                    throw e;
+                }
                 // refused at planning: counted as such under its own family, never as a body of no SQL (2026-11-15,
                 // PR1's review: a refused body pinned 0 0 0 and could not be told from a smaller one)
                 LeanSqlBaseline.Key pk = new LeanSqlBaseline.Key("corpus", database, family);
@@ -291,7 +294,10 @@ class LeanSqlCorpusTest {
             var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
             return com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
                     MinimalCorpus.RUNTIME, com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
-        } catch (RuntimeException | StackOverflowError e) {
+        } catch (RuntimeException e) {
+            if (!com.legend.leansql.LeanSqlBaseline.isRefusal(e)) {
+                throw e;
+            }
             return null;
         }
     }
