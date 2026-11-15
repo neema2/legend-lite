@@ -121,7 +121,9 @@ exec_program	base error exec execution_plan result
 # 2026-11-12 (phase D's D1.0b): legend-engine's pure/v1 routes and the test-data routes are the edge's -- over the
 # product's API kit (pure_v1), its compiler, protocol, planner and generator -- and the shipped server's root is
 # `edge_server`, lite's server with those routes mounted, its run the product's door in the edge's dialects.
-edge	arrow_ipc base compiler compiler_element_type database error execution_plan json model parser plan planner protocol pure_v1 result sql sql_dialect test_plan testdatagen
+# 2026-11-15 (#104 merged with main's C5-J, #106): door -- the parse doors (door.Parse) the edge's pure/v1 routes ask
+# before they parse, as C5-J made every parse entry ask the run's wall
+edge	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol pure_v1 result sql sql_dialect test_plan testdatagen
 edge_server	base edge execution pure_v1 saved_queries server_lib
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
