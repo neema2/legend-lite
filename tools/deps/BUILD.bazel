@@ -170,11 +170,13 @@ _LAYERS_ALONE = {
     "engine_client_run": (
         "//engine-client:run",
         "run",
-        "//engine-client:planner + //engine-client:server + //engine-client:doors",
+        "//engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host",
         ["engine-client/src/plan-runner.ts", "engine-client/src/duckdb.ts", "engine-client/src/requests.ts", "pure-protocol/src/index.ts"],
         35,
         "engine-client/src/planted.ts",
-        ["./legend/wasm-grammar.ts", "./legend/engine.ts", "./doors/tab-duckdb.ts"],
+        # 2026-11-15 (the C5-T audit's items 3 and 8): the planner's protocol and Grammar, and Node's require, planted too
+        ["./legend/wasm-grammar.ts", "./legend/engine.ts", "./doors/tab-duckdb.ts", "./legend/planner-protocol.ts",
+         "./legend/grammar.ts", "./node-require.ts"],
     ),
     "engine_client_planner": (
         "//engine-client:planner",
@@ -188,11 +190,11 @@ _LAYERS_ALONE = {
     "datacube_run": (
         "//datacube:run",
         "run",
-        "//engine-client:planner + //engine-client:server + //engine-client:doors + //datacube:planner",
+        "//engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host + //datacube:planner",
         ["datacube/src/headless/connection.ts", "datacube/src/headless/calls.ts", "engine-client/src/plan-runner.ts"],
         35,
         "datacube/src/headless/planted.ts",
-        ["../lite-planner.ts", "./host.ts", "../runner.ts"],
+        ["../lite-planner.ts", "./host.ts", "../runner.ts", "../../../engine-client/src/legend/planner-protocol.ts"],
     ),
     "datacube_planner": (
         "//datacube:planner",

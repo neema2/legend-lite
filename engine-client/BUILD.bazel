@@ -33,7 +33,6 @@ _RECORDS = [
     "src/generated/lite-facts.ts",
     "src/json-unknown.ts",
     "src/legend/engine-api.ts",
-    "src/legend/planner-protocol.ts",
     "src/legend/pmcd.ts",
     "src/legend/wire.ts",
     "src/locale.ts",
@@ -59,14 +58,17 @@ _RUN = [
     "src/engine.ts",
     "src/host-operations.ts",
     "src/model-data.ts",
-    "src/node-require.ts",
     "src/plan-runner.ts",
     "src/project-data.ts",
     "src/warehouse.ts",
 ]
 
+# 2026-11-15 (the C5-T audit's item 3): the planner's protocol (PlannerWorker, its requests) and Grammar out of the
+# records, which handed the run side a typed way into the planner
 _PLANNER = [
+    "src/legend/grammar.ts",
     "src/legend/planner-answer.ts",
+    "src/legend/planner-protocol.ts",
     "src/legend/planner-worker.ts",
     "src/legend/planning-client.ts",
     "src/legend/wasm-grammar.ts",
@@ -87,7 +89,12 @@ _DOORS = glob(["src/doors/**/*.ts"]) + [
     "src/tab-data.ts",
 ]
 
-_ASSIGNED = _RECORDS + _RUN + _PLANNER + _SERVER + _DOORS
+# NODE'S HOST, for code run in Node alone -- tests, benchmarks and harnesses: a require rooted in this package, and
+# DuckDB-WASM's blocking build started with the pinned extensions (node-require.ts). No layer: no product module imports
+# it, and the run layer, which the browser bundles carry, holds no require door (the C5-T audit's item 8, 2026-11-15)
+_NODE_HOST = ["src/node-require.ts"]
+
+_ASSIGNED = _RECORDS + _RUN + _PLANNER + _SERVER + _DOORS + _NODE_HOST
 
 [fail("engine-client/%s is in no target of engine-client/BUILD.bazel: add it to the one whose layer it is" % f) for f in glob(["src/**/*.ts"]) if f not in _ASSIGNED]
 
@@ -162,13 +169,23 @@ js_library(
     ],
 )
 
-# every layer at once, what the apps depend on (their own layers name the one they reach: tools/deps/ts-layers.txt)
+js_library(
+    name = "node_host",
+    srcs = _NODE_HOST,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    # what it starts in Node: DuckDB-WASM's blocking build (required at run time, rooted here)
+    deps = [":node_modules/@duckdb/duckdb-wasm"],
+)
+
+# every layer at once, what the apps depend on (their own layers name the one they reach: tools/deps/ts-layers.txt),
+# and Node's host for their Node tests and harnesses
 js_library(
     name = "engine_client",
     srcs = ["package.json"],
     visibility = _APPS,
     deps = [
         ":doors",
+        ":node_host",
         ":planner",
         ":records",
         ":run",
@@ -192,11 +209,11 @@ js_library(
     expression = "labels(deps, //engine-client:%s)" % layer,
     scope = [":" + layer],
     visibility = ["//tools/deps:__pkg__"],
-) for layer in ["records", "run", "planner", "server", "doors"]]
+) for layer in ["records", "run", "planner", "server", "doors", "node_host"]]
 
 filegroup(
     name = "layer_queries",
-    srcs = [":layer_" + layer for layer in ["records", "run", "planner", "server", "doors"]],
+    srcs = [":layer_" + layer for layer in ["records", "run", "planner", "server", "doors", "node_host"]],
     visibility = ["//tools/deps:__pkg__"],
 )
 

@@ -15,13 +15,14 @@ export interface HostDatabase {
 }
 
 /**
- * The host's database as DataCube's engine takes one: for what DataCube writes into it (a page's file read in, a remote
+ * The host's database as DataCube's engine takes one, over the host's two calls that send a statement alone (`query`,
+ * `statement`: the C5-T audit's item 3, 2026-11-15 -- never the planner's call, which the run side is not handed): for what DataCube writes into it (a page's file read in, a remote
  * file's view, a snap's copy modelled) and its catalog -- never a grid's rows, which the host's plan-and-run reads
  * (hostEngine: D16). Each query is one whole call (no `send`: the host's DuckDB
  * answers a statement at once, so a superseded query is not cancelled between batches); its Arrow IPC read by
  * apache-arrow, as DuckDB-WASM's answers are.
  */
-export function hostDatabase(calls: HostCalls): HostDatabase {
+export function hostDatabase(calls: Pick<HostCalls, 'query' | 'statement'>): HostDatabase {
   const connection: ArrowishConnection = {
     async query(sql: PlannedSql): Promise<ArrowishTable> {
       return arrowIpcTable(fromBase64(await calls.query(sql)));

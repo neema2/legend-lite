@@ -7,7 +7,8 @@ import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { planning } from '../run-frame.ts';
-import { EngineError, type Grammar } from './engine-api.ts';
+import { EngineError } from './engine-api.ts';
+import type { Grammar } from './grammar.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';
 
 /** legend-engine refuses an ExecuteInput without its execution context (measured, 4.145.0: a 500). */

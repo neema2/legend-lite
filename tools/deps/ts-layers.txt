@@ -16,6 +16,8 @@
 //engine-client:planner	//engine-client:records //pure-protocol:pure_protocol
 //engine-client:server	//engine-client:node_modules/fzstd //engine-client:planner //engine-client:records //pure-protocol:pure_protocol
 //engine-client:doors	//engine-client:node_modules/apache-arrow //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol
+# 2026-11-15 (the C5-T audit's item 8): Node's host for tests and harnesses, out of the run layer (no layer of its own)
+//engine-client:node_host	//engine-client:node_modules/@duckdb/duckdb-wasm
 # 2026-11-15 (C5-T step 4): DataCube's layers -- its records (the bridge's calls, the headless web), its run side (the
 # bridge's connection) and its planner (lite-planner.ts, planner.ts, the Planner interface and what they read) -- and
 # the two wire modules a planner reads, as records of their packages (sdlc-client's and model-changes').

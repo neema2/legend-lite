@@ -7,7 +7,8 @@
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
-import { EngineError, type Grammar } from './engine-api.ts';
+import { EngineError } from './engine-api.ts';
+import type { Grammar } from './grammar.ts';
 import { HttpPlanning } from './planning-client.ts';
 import type { RequestBody, Response as PlannerResponse } from './planner-protocol.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';

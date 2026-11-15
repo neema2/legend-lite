@@ -7,15 +7,31 @@
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { planning } from '../run-frame.ts';
-import type { Engine, Grammar } from './engine-api.ts';
+import type { Grammar } from './grammar.ts';
 import { HttpPlanning, withContext } from './planning-client.ts';
 import type {
   CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer,
 } from './wire.ts';
 
-// the engine's API as types, and its refusal, in engine-api.ts (records: C5-T, 2026-11-15); their importers read them here
+// the engine's refusal (engine-api.ts, records) and the planner's Grammar (grammar.ts), read here by their importers
 export { EngineError } from './engine-api.ts';
-export type { Engine, Grammar } from './engine-api.ts';
+export type { Grammar } from './grammar.ts';
+
+// THE ENGINE, the server's interface (C5-T audit, item 3, 2026-11-15: out of the records, engine-api.ts, beside the
+// engines that are one): a Grammar, and what needs a server -- its execute among it, which plans and runs on the server.
+/** Everything else, which needs a server. */
+export interface Engine extends Grammar {
+  /** `compilation/compile`. */
+  compile(model: PureModelContext): Promise<CompileResult>;
+  /** `compilation/lambdaReturnType`: the result type's path. */
+  returnType(model: PureModelContext, lambda: Lambda): Promise<string>;
+  /** `execution/execute`. */
+  execute(input: ExecuteInput, signal?: AbortSignal): Promise<ExecutionResult>;
+  /** `execution/generatePlan`. */
+  generatePlan(input: ExecuteInput): Promise<unknown>;
+  /** `server/v1/currentUser`. */
+  currentUser(): Promise<string>;
+}
 
 /**
  * An engine at a base URL (`http://host:port/api`): legend-lite's server or legend-engine -- the server's planning
