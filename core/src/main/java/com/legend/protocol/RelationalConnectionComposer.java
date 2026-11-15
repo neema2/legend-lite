@@ -171,6 +171,8 @@ final class RelationalConnectionComposer {
                     + " specification (lite's own)");
             case Protocol.PFilesSpec s -> throw Composing.refused("no composer rule for the Files datasource"
                     + " specification (lite's own)");
+            case Protocol.PSimulatedSpec s -> throw Composing.refused("no composer rule for the Simulated datasource"
+                    + " specification (lite's own)");
         };
     }
 

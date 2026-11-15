@@ -67,6 +67,8 @@ public final class ConnectionPlans {
                     + " connection (" + x.bootstrapServers() + ") is a topic store's brokers: no plan runs on it");
             case com.legend.model.ConnectionSpecification.Files x -> throw new IllegalArgumentException("a Files"
                     + " connection (" + x.location() + ") is a drop location: no plan runs on it");
+            case com.legend.model.ConnectionSpecification.Simulated x -> throw new IllegalArgumentException("a Simulated"
+                    + " connection (the world " + x.world() + ") is a source: no plan runs on it");
         };
     }
 

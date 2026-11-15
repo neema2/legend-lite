@@ -57,6 +57,11 @@ public final class DeploymentPlanner {
         }
         Protocol.PDeployment d = dp.deployment();
         Protocol.PDeploymentTarget live = java.util.Objects.requireNonNull(d.live());
+        if (targetOf(ctx.findConnection(live.connection()).orElseThrow()) != Target.DEEPHAVEN) {
+            throw new IllegalArgumentException("the deployment " + deployment + "'s live target " + live.connection()
+                    + " is a database lite runs a host's loads on (a tab's own DuckDB): it lands by its ingests' plans,"
+                    + " each asked with this deployment (its keep), not by a Deephaven server's plan");
+        }
         Map<String, Protocol.PKeepRule> keep = keepByScope(live);
         List<DeephavenLoad.Table> tables = new ArrayList<>();
         for (Deployed deployed : deployed(ctx, d, new ArrayList<>())) {
@@ -81,6 +86,32 @@ public final class DeploymentPlanner {
             }
         }
         return DeephavenLoad.plan(deployment, tables);
+    }
+
+    /**
+     * How many rows {@code deployment}'s live target keeps of {@code ingest}'s dataset (docs/DEPLOYMENT_DESIGN_2026_11_14.md
+     * §8, step 5: a tab's landing): its {@code LastRows(n)}, or null when it keeps every row ({@code all}) or a milestoned
+     * dataset's current version a key. Refused, with every reason, when the deployment does not validate, and by name
+     * when it does not land the dataset.
+     */
+    public static @com.legend.base.Nullable Long keptRows(ModelContext ctx, String deployment, IngestDefinition ingest,
+            String dataset) {
+        DeploymentDefinition dp = find(ctx, deployment);
+        List<String> problems = new Check(ctx, dp).run();
+        if (!problems.isEmpty()) {
+            throw new IllegalArgumentException("the deployment " + deployment + " cannot be landed: "
+                    + String.join("; ", problems));
+        }
+        // the ingest as the deployment holds it (the same record), and the dataset's landing there
+        Landing landing = deployed(ctx, dp.deployment(), new ArrayList<>()).stream()
+                .filter(d -> d.ingest().equals(ingest) && d.datasetNames().contains(dataset))
+                .flatMap(d -> d.landings(ctx).stream()).filter(l -> l.table().equals(dataset)).findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("the deployment " + deployment + " lands no dataset "
+                        + dataset + " of " + ingest.qualifiedName()));
+        boolean milestoned = !landing.key().isEmpty();
+        Protocol.PKeepRule rule = java.util.Objects.requireNonNull(ruleOf(keepByScope(
+                java.util.Objects.requireNonNull(dp.deployment().live())), dataset, milestoned));
+        return rule instanceof Protocol.PKeepRows r ? r.rows() : null;
     }
 
     private static DeploymentDefinition find(ModelContext ctx, String deployment) {
@@ -185,6 +216,33 @@ public final class DeploymentPlanner {
         return found.size() == 1 ? Optional.of(found.get(0)) : Optional.empty();
     }
 
+    /** What a live target is: a Deephaven server, or a database lite runs a host's loads on (a tab's own DuckDB). */
+    private enum Target { DEEPHAVEN, TAB }
+
+    /** {@code c}'s kind of live target, by its dialect: a server whose tables a plan makes at its start (Deephaven's), or
+     *  one the platform runs plans on; null for any other. */
+    private static @com.legend.base.Nullable Target targetOf(ConnectionDefinition c) {
+        ConnectionDefinition.DatabaseType type = c.databaseType();
+        boolean platform = com.legend.database.Databases.implemented().contains(type);
+        if ((platform || com.legend.database.Databases.hostExecuted().contains(type))
+                && com.legend.database.Databases.dialect(type).tablesMadeAtStartup()) {
+            return Target.DEEPHAVEN;
+        }
+        return platform ? Target.TAB : null;
+    }
+
+    /** How many Simulated connections {@code d}'s sources bind {@code store} to. */
+    private static int simulated(ModelContext ctx, Protocol.PDeployment d, String store) {
+        int found = 0;
+        for (Protocol.PDeploymentSource s : d.sources()) {
+            if (s.stores().contains(store) && ctx.findConnection(s.connection())
+                    .filter(c -> c.specification() instanceof ConnectionSpecification.Simulated).isPresent()) {
+                found++;
+            }
+        }
+        return found;
+    }
+
     /** The Files connections {@code d}'s sources bind {@code store} to: its drop locations. */
     private static List<ConnectionSpecification.Files> files(ModelContext ctx, Protocol.PDeployment d, String store) {
         List<ConnectionSpecification.Files> found = new ArrayList<>();
@@ -241,9 +299,10 @@ public final class DeploymentPlanner {
                 }
                 return problems;
             }
-            if (liveIsDeephaven(live)) {
+            Target target = liveTarget(live);
+            if (target != null) {
                 for (Deployed ingest : ingests) {
-                    landed(ingest, live);
+                    landed(ingest, live, target);
                 }
                 scopes(live, ingests);
             }
@@ -265,29 +324,27 @@ public final class DeploymentPlanner {
             }
         }
 
-        /** Whether the live target is a Deephaven server; a problem named when it is anything else. */
-        private boolean liveIsDeephaven(Protocol.PDeploymentTarget live) {
+        /** What the live target is -- a Deephaven server, or a tab's own DuckDB -- a problem named when it is anything
+         *  else (null). */
+        private @com.legend.base.Nullable Target liveTarget(Protocol.PDeploymentTarget live) {
             Optional<ConnectionDefinition> c = ctx.findConnection(live.connection());
             if (c.isEmpty()) {
                 problems.add(where + "'s live target " + live.connection() + " is no connection the model declares");
-                return false;
+                return null;
             }
-            ConnectionDefinition.DatabaseType type = c.get().databaseType();
-            boolean planned = com.legend.database.Databases.implemented().contains(type)
-                    || com.legend.database.Databases.hostExecuted().contains(type);
-            if (!planned || !com.legend.database.Databases.dialect(type).tablesMadeAtStartup()) {
-                problems.add(where + "'s live target " + live.connection() + " is a " + type + " connection: only a"
-                        + " Deephaven server is rendered a deployment's plan yet (the tab's own DuckDB lands by its"
-                        + " ingests' plans: the design's step 5)");
-                return false;
+            Target target = targetOf(c.get());
+            if (target == null) {
+                problems.add(where + "'s live target " + live.connection() + " is a " + c.get().databaseType()
+                        + " connection: a live target is a Deephaven server (its plan for lite's loader) or a database"
+                        + " lite runs a host's loads on, as a tab's own DuckDB (its ingests' plans)");
             }
-            return true;
+            return target;
         }
 
         /** An ingest's datasets on the live Deephaven target: arriving on topics, each topic's store bound to one Kafka
          *  connection, or delivered as files, the ingest bound to one drop location (a Files connection); each dataset
          *  kept by a rule that fits its write mode. */
-        private void landed(Deployed deployed, Protocol.PDeploymentTarget live) {
+        private void landed(Deployed deployed, Protocol.PDeploymentTarget live, Target target) {
             IngestDefinition ingest = deployed.ingest();
             String of = where + "'s ingest " + ingest.qualifiedName();
             if (!IngestTopics.readsTopics(ingest) && !IngestTopics.receivesFiles(ingest)) {
@@ -308,9 +365,16 @@ public final class DeploymentPlanner {
             }
             Map<String, Protocol.PKeepRule> keep = keepByScope(live);
             for (Landing t : landings) {
-                int bound = t.topic() != null ? kafkas(ctx, d, t.store()).size() : files(ctx, d, t.store()).size();
-                String kind = t.topic() != null ? "Kafka" : "Files";
-                if (bound != 1) {
+                // a tab's world publishes its topics and drops its files in the tab (a browser opens no Kafka
+                // connection): every source a Simulated one
+                int bound = target == Target.TAB ? simulated(ctx, d, t.store())
+                        : t.topic() != null ? kafkas(ctx, d, t.store()).size() : files(ctx, d, t.store()).size();
+                String kind = target == Target.TAB ? "Simulated" : t.topic() != null ? "Kafka" : "Files";
+                if (target == Target.TAB && bound != 1) {
+                    problems.add(of + "'s dataset " + t.table() + " " + t.from() + ", which the deployment's sources"
+                            + " bind to " + (bound == 0 ? "no Simulated connection" : bound + " Simulated connections")
+                            + ": a tab lands from the world simulated in it");
+                } else if (bound != 1) {
                     problems.add(of + "'s dataset " + t.table() + " " + t.from() + ", which the deployment's sources"
                             + " bind to " + (bound == 0 ? "no " + kind + " connection" : bound + " " + kind
                                     + " connections") + ": " + (t.topic() != null ? "a topic's brokers are one Kafka"
@@ -329,7 +393,7 @@ public final class DeploymentPlanner {
                     case Protocol.PKeepRows r -> appendedOnly(dataset, milestoned, "LastRows(" + r.rows() + ")");
                     case Protocol.PKeepAll a -> appendedOnly(dataset, milestoned, "all");
                     case Protocol.PKeepFor f -> problems.add(dataset + " keeps Last('" + f.duration() + "'): a span of"
-                            + " time is not kept on Deephaven yet (keep its latest rows, LastRows(n))");
+                            + " time is not kept on a live target yet (keep its latest rows, LastRows(n))");
                     case Protocol.PKeepCurrent c -> {
                         if (!milestoned) {
                             problems.add(dataset + " is appended and keeps current: one row a key is a milestoned"

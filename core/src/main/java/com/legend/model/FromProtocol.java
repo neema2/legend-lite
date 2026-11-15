@@ -800,6 +800,7 @@ public final class FromProtocol {
             case Protocol.PDeephavenSpec s -> new ConnectionSpecification
                     .Deephaven(s.host(), deephavenPort(s.port()), s.useTls());
             case Protocol.PFilesSpec s -> new ConnectionSpecification.Files(s.location());
+            case Protocol.PSimulatedSpec s -> new ConnectionSpecification.Simulated(s.world());
             case Protocol.PKafkaSpec s -> new ConnectionSpecification.Kafka(s.bootstrapServers(), s.schemaRegistry());
         };
         AuthenticationSpec auth = switch (r.authenticationStrategy()) {

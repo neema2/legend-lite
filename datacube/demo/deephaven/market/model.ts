@@ -33,3 +33,7 @@ export const ON_DEEPHAVEN: DeskContext = { name: 'Deephaven', runtime: 'market::
 /** What lands on the Deephaven server, from where, keeping how much (environments.pure; docs/DEPLOYMENT_DESIGN_2026_11_14.md
  *  §8): its plan is data for lite's fixed loader. */
 export const DESK_ON_DEEPHAVEN = 'market::DeskOnDeephaven';
+
+/** What lands in the tab's own DuckDB, from the world simulated in it, keeping how much (environments.pure): the tab's
+ *  landing asks each table's plans with it. */
+export const DESK_IN_TAB = 'market::DeskInTab';

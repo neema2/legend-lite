@@ -48,7 +48,7 @@ class ConnectorsTest {
     /** A specification no session opens: a Kafka cluster's brokers, read by an ingest, never queried; a drop location
      *  (Files, 2026-11-15: docs/DEPLOYMENT_DESIGN_2026_11_14.md step 4), whose files a deployment lands. */
     private static final java.util.Set<Class<?>> NO_SESSION = java.util.Set.of(ConnectionSpecification.Kafka.class,
-            ConnectionSpecification.Files.class);
+            ConnectionSpecification.Files.class, ConnectionSpecification.Simulated.class);
 
     private static Map<Class<?>, ConnectionSpecification> specifications() {
         Map<Class<?>, ConnectionSpecification> m = new LinkedHashMap<>();

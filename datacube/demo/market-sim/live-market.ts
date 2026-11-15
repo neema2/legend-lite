@@ -9,6 +9,7 @@ import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { HostOperationsSource, IngestPlansSource } from '../../../engine-client/src/host-operations.ts';
 import { MarketWorld, type MarketSettings } from './market.ts';
 import { MARKET_TABLES, WORLD, type MarketTable } from './tables.ts';
+import { DESK_IN_TAB } from '../deephaven/market/model.ts';
 
 /** The store the market's tables are the model's of, and the world's own status store's. */
 const STORE = 'store::DB';
@@ -57,6 +58,8 @@ export async function openLiveMarket(o: LiveMarketOptions): Promise<LiveMarket> 
     held: HELD,
     plans: await o.planner.ingestPlans({
       databaseType: live.databaseType, model: o.model, database: databaseOf(t), schema: 'default', table: t.name, held: HELD,
+      // what each table keeps: the tab's deployment's keep (environments.pure), as a Deephaven server's is its own's
+      deployment: DESK_IN_TAB,
     }),
   })));
   const tDdl = performance.now();

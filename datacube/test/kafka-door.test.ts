@@ -330,14 +330,15 @@ describe('the desk model\'s topics, as the planner answers them', () => {
       readFileSync(runfileFromEnv('MARKET_PURE'), 'utf8'), readFileSync(runfileFromEnv('ENVIRONMENTS_PURE'), 'utf8'));
     const planner = plannerFor(model, ON_DEEPHAVEN.runtime);
     const store = topicsOf(await planner.deephaven('topics', { model, database: 'store::DB' }));
-    assert.deepEqual(store.map((t) => [t.table, t.topic, t.key.length > 0 ? 'keyed' : `last ${t.keepRows}`]), [
-      ['MARKET_TRADE', 'tp.us-equities.trades.v3', 'last 25000'],
+    // an appended topic keeps no retention of a landing's: what each target keeps is its deployment's (environments.pure)
+    assert.deepEqual(store.map((t) => [t.table, t.topic, t.key.length > 0 ? 'keyed' : `appended, kept ${t.keepRows ?? 'whole'}`]), [
+      ['MARKET_TRADE', 'tp.us-equities.trades.v3', 'appended, kept whole'],
       ['MARKET_QUOTE', 'tp.us-equities.nbbo.v2', 'keyed'],
       ['FX_RATE', 'tp.fx.spot.v1', 'keyed'],
-      ['NEWS_STORY', 'vendor.newswire.stories.v1', 'last 5000'],
+      ['NEWS_STORY', 'vendor.newswire.stories.v1', 'appended, kept whole'],
       ['TRADE_ORDER', 'oms.equities.orders.v4', 'keyed'],
-      ['EXECUTION', 'oms.equities.fills.v4', 'last 50000'],
-      ['ORDER_ROUTE', 'oms.equities.routes.v4', 'last 50000'],
+      ['EXECUTION', 'oms.equities.fills.v4', 'appended, kept whole'],
+      ['ORDER_ROUTE', 'oms.equities.routes.v4', 'appended, kept whole'],
       ['RFQ', 'oms.fx.rfqs.v2', 'keyed'],
       // the masters' reference data, each change a record of its keyed topic (docs/DEPLOYMENT_DESIGN_2026_11_14.md §11)
       ['INSTRUMENT', 'secmaster.instruments.v1', 'keyed'],

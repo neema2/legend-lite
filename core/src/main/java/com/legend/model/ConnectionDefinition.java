@@ -100,6 +100,9 @@ public record ConnectionDefinition(
         Kafka,
         // lite's own (2026-11-15, docs/DEPLOYMENT_DESIGN_2026_11_14.md §11, step 4): a drop location, where a delivered
         // ingest's files arrive; no query runs on it -- a deployment lands its files
-        Files
+        Files,
+        // lite's own (2026-11-15, docs/DEPLOYMENT_DESIGN_2026_11_14.md §9, step 5): a world simulated where its rows land
+        // (a browser tab opens no Kafka connection); no query runs on it -- a deployment lands from it
+        Simulated
     }
 }

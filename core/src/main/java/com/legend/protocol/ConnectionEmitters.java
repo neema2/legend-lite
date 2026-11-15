@@ -214,14 +214,8 @@ final class ConnectionEmitters {
             }
             // lite's own (docs/DEEPHAVEN_PLAN_2026_10_22.md §4; DEEPHAVEN_TABLES_AND_SOURCES §4.6; ONE_CONNECTION_DESK D1)
             case Protocol.PKafkaSpec k -> kafkaSpec(b, k);
-            case Protocol.PFilesSpec f -> {
-                // a Files datasource spec's JSON: lite's own, as Kafka's
-                b.append("{\"_type\":\"files\",\"location\":");
-                str(b, f.location());
-                b.append(",\"sourceInformation\":");
-                srcInfo(b, f.sourceInformation());
-                b.append('}');
-            }
+            case Protocol.PSimulatedSpec m -> simulatedSpec(b, m);
+            case Protocol.PFilesSpec f -> filesSpec(b, f);
             case Protocol.PDeephavenSpec dh -> deephavenSpec(b, dh);
             case Protocol.PH2EmbeddedSpec eh -> {
                 b.append("{\"_type\":\"h2Embedded\",\"autoServerMode\":")
@@ -515,6 +509,24 @@ final class ConnectionEmitters {
             }
             default -> throw new IllegalStateException("not a vendor datasource spec: " + d.getClass().getSimpleName());
         }
+    }
+
+    /** A Simulated datasource spec's JSON: lite's own, as Files'. */
+    private static void simulatedSpec(StringBuilder b, Protocol.PSimulatedSpec m) {
+        b.append("{\"_type\":\"simulated\",\"sourceInformation\":");
+        srcInfo(b, m.sourceInformation());
+        b.append(",\"world\":");
+        str(b, m.world());
+        b.append('}');
+    }
+
+    /** A Files datasource spec's JSON: lite's own, as Kafka's. */
+    private static void filesSpec(StringBuilder b, Protocol.PFilesSpec f) {
+        b.append("{\"_type\":\"files\",\"location\":");
+        str(b, f.location());
+        b.append(",\"sourceInformation\":");
+        srcInfo(b, f.sourceInformation());
+        b.append('}');
     }
 
     /** A Kafka datasource spec's JSON: lite's own, as Deephaven's. */

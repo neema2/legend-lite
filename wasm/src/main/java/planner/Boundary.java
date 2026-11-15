@@ -609,7 +609,7 @@ public final class Boundary {
      */
     public static String ingestPlans(String request) {
         com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
-        only(in, "an ingest's plans", "databaseType", "model", "database", "schema", "table", "held");
+        only(in, "an ingest's plans", "databaseType", "model", "database", "schema", "table", "held", "deployment");
         String databaseType = in.getString("databaseType");
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
         com.legend.executionplan.DatabaseType type =
@@ -617,7 +617,10 @@ public final class Boundary {
         return MODELS.withText(in.getString("model"), ctx -> {
             com.legend.planner.IngestPlanner.Plans plans = com.legend.planner.IngestPlanner.plans(dialect, type,
                     new com.legend.planner.LoadPlanner.DeclaredTable(ctx, in.getString("database"),
-                            in.getString("schema"), in.getString("table")), in.getString("held"));
+                            in.getString("schema"), in.getString("table")), in.getString("held"),
+                    // what the table keeps: the deployment's keep for its dataset (docs/DEPLOYMENT_DESIGN_2026_11_14.md
+                    // step 5), else the ingest's own retention
+                    in.has("deployment") ? in.getString("deployment") : null);
             java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
             out.put("make", com.legend.executionplan.PlanJson.write(plans.make()));
             out.put("land", com.legend.executionplan.PlanJson.write(plans.land()));

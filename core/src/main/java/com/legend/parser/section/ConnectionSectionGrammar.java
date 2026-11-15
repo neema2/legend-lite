@@ -50,7 +50,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     /** The database types legend-lite adds to the referee's (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12-13): declared
      *  lite extensions, refused on the drop-in surface. */
     private static final java.util.Set<String> LITE_DATABASE_TYPES = java.util.Set.of("SQLite", "MariaDB", "MySQL",
-            "Deephaven", "Kafka", "Files");
+            "Deephaven", "Kafka", "Files", "Simulated");
 
     private ConnectionSectionGrammar() {
     }
@@ -904,6 +904,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             case "Deephaven" -> parseDeephavenSpec(c, keywordTok);
             case "Kafka" -> parseKafkaSpec(c, keywordTok);
             case "Files" -> parseFilesSpec(c, keywordTok);
+            case "Simulated" -> parseSimulatedSpec(c, keywordTok);
             case "Snowflake" -> parseSnowflakeSpec(c, keywordTok);
             case "Redshift" -> parseRedshiftSpec(c, keywordTok);
             case "Trino" -> parseTrinoSpec(c, keywordTok);
@@ -1226,6 +1227,34 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             throw TokenStreamCursor.throwAt(c.tokens(), keywordTok, "Files needs a location");
         }
         return new Protocol.PFilesSpec(location, c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** The Simulated datasource spec -- a DECLARED lite extension (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9, step 5): a
+     *  world simulated where its rows land, publishing its topics and dropping its files there (a browser tab opens no
+     *  Kafka connection): {@code Simulated { world: 'market'; }}, the world named, required. No query runs on it. */
+    private static Protocol.PDatasourceSpec parseSimulatedSpec(TokenStreamCursor c, int keywordTok) {
+        if (c.dialect().refusesLiteExtensions()) {
+            throw c.error("unsupported datasource specification: Simulated");
+        }
+        c.expect(TokenType.BRACE_OPEN);
+        String world = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c);
+            c.expect(TokenType.COLON);
+            if (!key.equals("world")) {
+                throw c.error("unknown Simulated key: " + key);
+            }
+            world = SectionParse.stringValue(c);
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (world == null) {
+            throw TokenStreamCursor.throwAt(c.tokens(), keywordTok, "Simulated needs a world");
+        }
+        return new Protocol.PSimulatedSpec(world, c.spanOf(keywordTok, c.pos() - 1));
     }
 
     /** {@code PreSharedKey { keyVaultReference: '...'; }} -- a DECLARED lite

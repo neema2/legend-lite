@@ -194,6 +194,9 @@ export interface IngestPlansRequest {
   readonly schema: string;
   readonly table: string;
   readonly held: string;
+  /** The deployment whose live target's `keep` decides what the table keeps (docs/DEPLOYMENT_DESIGN_2026_11_14.md step
+   *  5); absent, the ingest's own retention. */
+  readonly deployment?: string;
 }
 
 /** A dataset's three plans, each one HOST_SESSION load the hosts' runner runs (runLoad): its table made as declared,

@@ -64,6 +64,16 @@ public final class IngestPlanner {
      */
     public static Plans plans(SqlDialect dialect, com.legend.executionplan.DatabaseType type,
             LoadPlanner.DeclaredTable table, String held) {
+        return plans(dialect, type, table, held, null);
+    }
+
+    /**
+     * {@link #plans}, what the table keeps decided by {@code deployment} (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8, step
+     * 5): its live target's {@code keep} for the dataset, never the ingest's {@code retention}; a dataset the deployment
+     * does not land refused by name. Null: the ingest's own retention.
+     */
+    public static Plans plans(SqlDialect dialect, com.legend.executionplan.DatabaseType type,
+            LoadPlanner.DeclaredTable table, String held, @com.legend.base.Nullable String deployment) {
         String name = "default".equals(table.schema()) ? table.table() : table.schema() + "." + table.table();
         DatabaseDefinition.TableDefinition def = table.ctx().findTableDefinition(table.database(), name)
                 .orElseThrow(() -> new IllegalArgumentException("an ingest's plans: the Database " + table.database()
@@ -119,11 +129,12 @@ public final class IngestPlanner {
         host.statements(put).forEach(landed::statement);
         drop.forEach(landed::statement);
 
-        // keep: the retention, by arrival
+        // keep: the retention, by arrival -- the deployment's keep, or the ingest's own retention
         ExecutionPlan keep = null;
         Long every = null;
-        if (dataset.retention() != null) {
-            long rows = switch (dataset.retention()) {
+        Long kept = deployment == null ? null : DeploymentPlanner.keptRows(table.ctx(), deployment, ingest, dataset.name());
+        if (kept != null || deployment == null && dataset.retention() != null) {
+            long rows = kept != null ? kept : switch (java.util.Objects.requireNonNull(dataset.retention())) {
                 case Protocol.PIngestLastRows r -> r.rows();
                 case Protocol.PIngestLast l -> throw new IllegalArgumentException("the ingest "
                         + ingest.qualifiedName() + "'s dataset " + dataset.name() + " keeps Last('" + l.duration()

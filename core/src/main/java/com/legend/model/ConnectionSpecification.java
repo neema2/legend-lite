@@ -20,7 +20,8 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.BigQuery,
                 ConnectionSpecification.Deephaven,
                 ConnectionSpecification.Kafka,
-                ConnectionSpecification.Files {
+                ConnectionSpecification.Files,
+                ConnectionSpecification.Simulated {
 
     /** The Pure class of the datasource specification that carries a connection's test data ({@link #testData}) where a
      *  Pure body builds the connection ({@code ^RelationalDatabaseConnection(datasourceSpecification = ^...)}):
@@ -150,4 +151,8 @@ public sealed interface ConnectionSpecification
     /** A drop location (lite's own, docs/DEPLOYMENT_DESIGN_2026_11_14.md §11): where a delivered ingest's files
      *  arrive, a URL. No query runs on it; a deployment lands its files. */
     record Files(String location) implements ConnectionSpecification {}
+
+    /** A world simulated where its rows land (lite's own, docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): a browser tab's,
+     *  publishing its topics and dropping its files there. No query runs on it; a deployment lands from it. */
+    record Simulated(String world) implements ConnectionSpecification {}
 }

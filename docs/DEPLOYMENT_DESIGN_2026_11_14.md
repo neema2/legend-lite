@@ -448,7 +448,8 @@ Each becomes a docs/SEMANTICS_REGISTER.md row, ruled by the user, when it is bui
    resolved.
 3. **`install`**, with the check after it and on connect.
 4. **Reference data as published topics; positions as files.**
-5. **The tab on the same path:** the world publishes to the tab's log, the tab lands with the same plans.
+5. **The tab on the same path:** the world publishes to the tab's log, the tab lands with the same plans. (Built as
+   §15.5a: the tab's own deployment and keep, its source a `Simulated` world; no log in the tab.)
 6. **`market.groovy` deleted:** every Deephaven lane green with only the feed and the plan.
 Before the history tier: **lite's lowering joins from a filtered class mapping** (found in step 0b), then the
 keyed tables' latest-version filters.
@@ -605,6 +606,28 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
     update cycle).
 - **Not yet:** the door holds a session's records in the feed's memory (a long show grows it, as the server's own
   tables grow); a restart of the server re-reads every topic from the door.
+
+### 15.5a Step 5, built (2026-11-15): the tab lands by a deployment
+
+- **The tab's own deployment.** `market::DeskInTab` (`datacube/demo/deephaven/market/environments.pure`) deploys the
+  same ingests as `market::DeskOnDeephaven`, its live target the tab's DuckDB (`market::InTab`) with its own `keep`:
+  `[ appended: LastRows(50000), milestoned: current, MARKET_TRADE: LastRows(25000), NEWS_STORY: LastRows(5000) ]` --
+  exactly what the four ingests' `retention=LastRows(...)` said, which are deleted from the desk's sources
+  (`29-desk-sources.pure`). An ingest says what a dataset is; what a target keeps of it is its deployment's.
+- **Its source: `Simulated`.** The tab's world runs in the tab, so nothing is published to a log it reads: the
+  deployment's `sources` bind every ingest to `market::SimulatedWorld`, a connection of lite's own type `Simulated
+  { world: 'market'; }` (JSON `_type:"simulated"`; no store, no query, as `Kafka` and `Files`; register S410). A tab
+  target must bind each landing to exactly one `Simulated` source; a Deephaven target refuses one.
+- **The same plans.** The tab asks the planner for each dataset's plans with the deployment's name
+  (`ingestPlans`'s `deployment`, `Boundary.ingestPlans`; `IngestPlanner.plans(..., deployment)`), and the keep plan is
+  the deployment's rule for that dataset (`DeploymentPlanner.keptRows`); without a deployment the ingest's own
+  `retention`, for a model that declares no deployment.
+- **What a live target is** is read from its dialect, not its type's name: a server whose tables a plan makes at its
+  start is Deephaven's (`tablesMadeAtStartup`), one the platform runs plans on is a tab's own; any other is refused by
+  name. `deephaven`'s `plan` refuses a tab's target, naming the ingests' plans as its road.
+- **Not yet:** a span of time (`Last('PT8H')`) is refused on any live target; the tab does not read a log (the door's
+  topics) -- its world is simulated beside it, and a tab reading a real broker is the real-Kafka lane's question (§15,
+  item 7).
 
 ### 15.6 The filtered-mapping join, diagnosed (2026-11-15; not yet fixed)
 

@@ -272,18 +272,56 @@ class DeploymentPlannerTest {
         refused("deploys: [ t::Feed ]; " + sources + " live: t::Server keep [ appended: all, milestoned: versions ];",
                 "every version is the history tier's");
         refused("deploys: [ t::Feed ]; " + sources + " live: t::Server keep [ appended: Last('PT8H'),"
-                + " milestoned: current ];", "a span of time is not kept on Deephaven yet");
+                + " milestoned: current ];", "a span of time is not kept on a live target yet");
         refused("deploys: [ t::Feed ]; " + sources + " live: t::Server keep [ appended: current, milestoned: current ];",
                 "keeps appended datasets by a rule of the other write mode");
         refused("deploys: [ t::Feed ]; " + sources + " live: t::Server keep [ appended: all, milestoned: current,"
                 + " ELSEWHERE: all ];", "keeps ELSEWHERE, which is no dataset of an ingest it deploys");
         refused("deploys: [ t::Feed ]; " + sources + " " + keep + " history: t::Server keep [ appended: all ];",
                 "lands a history tier");
+        // a tab's own DuckDB lands from the world simulated in it: its sources Simulated, never a cluster's brokers
         refused("deploys: [ t::Feed ]; " + sources + " live: t::InTab keep [ appended: all, milestoned: current ];",
-                "is a DuckDB connection: only a Deephaven server is rendered");
+                "bind to no Simulated connection: a tab lands from the world simulated in it");
         refused("deploys: [ t::RefLoad ]; sources: [ t::Brokers: [ t::Ref ] ]; " + keep,
                 "lands by Snapshot on a schedule, which a Deephaven server does not land yet");
         assertThrows(IllegalArgumentException.class, () -> DeploymentPlanner.validate(Compiler.compileModel(STORES),
                 "t::Missing"));
+    }
+
+    private static final String IN_TAB = """
+            ###Connection
+            RelationalDatabaseConnection t::World
+            {
+              store: t::Topics;
+              type: Simulated;
+              specification: Simulated { world: 'market'; };
+              auth: Test;
+            }
+
+            ###Lakehouse
+            Deployment t::InTabDeployment
+            {
+              deploys: [ t::Feed, t::News ];
+              sources: [ t::World: [ t::Topics ] ];
+              live: t::InTab keep [ appended: LastRows(500), milestoned: current, NEWS: LastRows(40) ];
+            }
+            """;
+
+    @Test
+    void aTabKeepsWhatItsDeploymentSays() {
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(STORES + IN_TAB);
+        assertEquals(List.of(), DeploymentPlanner.validate(ctx, "t::InTabDeployment"));
+        com.legend.model.IngestDefinition feed = ctx.findIngest("t::Feed").orElseThrow();
+        // an appended dataset its scope's rule, a named one its own, a milestoned one its current version (no rows)
+        assertEquals(500L, DeploymentPlanner.keptRows(ctx, "t::InTabDeployment", feed, "TRADES"));
+        assertEquals(40L, DeploymentPlanner.keptRows(ctx, "t::InTabDeployment",
+                ctx.findIngest("t::News").orElseThrow(), "NEWS"));
+        assertEquals(null, DeploymentPlanner.keptRows(ctx, "t::InTabDeployment", feed, "QUOTES"));
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> DeploymentPlanner.keptRows(ctx,
+                "t::InTabDeployment", ctx.findIngest("t::Books").orElseThrow(), "BOOKS")).getMessage()
+                .contains("lands no dataset BOOKS of t::Books"));
+        // a Deephaven server's plan is not the tab's road
+        assertTrue(assertThrows(IllegalArgumentException.class, () -> DeploymentPlanner.deephaven(ctx,
+                "t::InTabDeployment")).getMessage().contains("lands by its ingests' plans"));
     }
 }

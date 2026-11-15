@@ -86,7 +86,7 @@ public final class Databases {
             case DB2, MemSQL, Sybase, SybaseIQ, Composite, SqlServer, Hive, Presto, Redshift, Spanner, Athena, Oracle,
                  Aurora -> Runs.NONE;
             // a topic store's brokers: no query ever runs there (a stream's ingest reads its topics; the desk roadmap's B2)
-            case Kafka, Files -> Runs.NEVER;
+            case Kafka, Files, Simulated -> Runs.NEVER;
         };
     }
 
@@ -128,6 +128,8 @@ public final class Databases {
                     + " brokers: no query runs on it (a stream's ingest reads its topics)");
             case Files -> throw new com.legend.error.NotImplementedException("a Files connection is a drop location:"
                     + " no query runs on it (a deployment lands its files)");
+            case Simulated -> throw new com.legend.error.NotImplementedException("a Simulated connection is a world"
+                    + " simulated where its rows land: no query runs on it (a deployment lands from it)");
         };
     }
 

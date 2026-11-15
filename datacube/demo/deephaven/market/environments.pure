@@ -59,6 +59,15 @@ RelationalDatabaseConnection market::PositionsDrop
   auth: Test;
 }
 
+// THE WORLD IN THE TAB: the market simulated where its rows land -- a browser opens no Kafka connection, so the world
+// publishes its topics and drops its files inside the tab (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9); no query runs on it
+RelationalDatabaseConnection market::SimulatedWorld
+{
+  type: Simulated;
+  specification: Simulated { world: 'market'; };
+  auth: Test;
+}
+
 ###Runtime
 Runtime market::InTabRuntime
 {
@@ -87,6 +96,19 @@ Deployment market::DeskOnDeephaven
     hr::Topics, clientmaster::Topics, riskdb::Topics, market::WorldStatus ],
     market::PositionsDrop: [ positions::StartOfDay ] ];
   live: market::Deephaven keep [ appended: all, milestoned: current ];
+}
+
+// WHAT LANDS IN THE TAB'S OWN DUCKDB, from the world simulated in it, keeping how much: the same datasets as the server's,
+// a tab's memory its own (the latest trades, fills, routes and stories; each key's current version)
+Deployment market::DeskInTab
+{
+  deploys: [ marketdata::MarketDataFeed, marketdata::NewsFeed, trading::OrderFlowFeed, products::SecurityMasterLoad,
+    refdata::MarketsLoad, org::OrganisationLoad, counterparty::ClientMasterLoad, risk::LimitsLoad, positions::StartOfDay,
+    market::WorldStatus ];
+  sources: [ market::SimulatedWorld: [ tickerplant::Topics, newswire::Topics, oms::Topics, secmaster::Topics,
+    refmaster::Topics, hr::Topics, clientmaster::Topics, riskdb::Topics, market::WorldStatus, positions::StartOfDay ] ];
+  live: market::InTab keep [ appended: LastRows(50000), milestoned: current, MARKET_TRADE: LastRows(25000),
+    NEWS_STORY: LastRows(5000) ];
 }
 
 ###DataSpace
