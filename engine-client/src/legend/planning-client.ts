@@ -6,7 +6,7 @@
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
 import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
-import { planning } from '../run-frame.ts';
+import { planning } from '../plan-guard.ts';
 import { EngineError } from './engine-api.ts';
 import type { Grammar } from './grammar.ts';
 import type { CompileResult, ExecuteInput, PureModelContext, RelationTypeAnswer } from './wire.ts';

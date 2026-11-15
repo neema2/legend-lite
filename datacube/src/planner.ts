@@ -15,7 +15,7 @@ import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import { fromPlan } from '../../engine-client/src/planned-sql.ts';
-import { planning } from '../../engine-client/src/run-frame.ts';
+import { planning } from '../../engine-client/src/plan-guard.ts';
 
 export interface UpstreamPlannerOptions extends PureV1Options {
   /**

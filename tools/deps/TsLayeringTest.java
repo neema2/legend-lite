@@ -107,6 +107,13 @@ class TsLayeringTest {
     static final Set<String> RUN_LAYERS = Set.of("//engine-client:run", "//datacube:run");
     /** The planner layers: what plans, and executes nothing. */
     static final Set<String> PLANNER_LAYERS = Set.of("//engine-client:planner", "//datacube:planner");
+    /** The server layers (2026-11-15, the C5-T final audit's MUST 1): legend-engine's clients, which reach no engine. */
+    static final Set<String> SERVER_LAYERS = Set.of("//engine-client:server");
+    /** The engine's API (the same day): the engines' interfaces and the run frame -- what can run. The run layers, the
+     *  doors and the apps reach it; no planner and no server does. */
+    static final String ENGINE_API = "//engine-client:engine_api";
+    /** The npm packages a server layer reaches: the zstd decoder its Arrow answers are read with. */
+    static final Set<String> SERVER_NPM = Set.of("//engine-client:node_modules/fzstd");
     /** The records: shapes both sides read, no send, no plan -- and the protocol library, the Pure protocol's. */
     static final Set<String> RECORDS = Set.of("//engine-client:records", "//datacube:records", "//sdlc-client:records",
             "//model-changes:records", PROTOCOL);
@@ -126,6 +133,10 @@ class TsLayeringTest {
         long planners = lines.stream().filter((l) -> PLANNER_LAYERS.stream().anyMatch((p) -> l.startsWith(p + "\t"))).count();
         assertEquals(RUN_LAYERS.size() + PLANNER_LAYERS.size(), runs + planners, "ts-layers.txt names " + runs + " run and "
                 + planners + " planner layers of the " + (RUN_LAYERS.size() + PLANNER_LAYERS.size()) + " pinned: the guard is not looking");
+        long servers = lines.stream().filter((l) -> SERVER_LAYERS.stream().anyMatch((v) -> l.startsWith(v + "\t"))).count();
+        long api = lines.stream().filter((l) -> l.startsWith(ENGINE_API + "\t")).count();
+        assertEquals(SERVER_LAYERS.size() + 1, servers + api, "ts-layers.txt names " + servers + " server layers and " + api
+                + " engine's API of the " + (SERVER_LAYERS.size() + 1) + " pinned: the guard is not looking");
         assertEquals(List.of(), ruleBreaches(lines), "a TypeScript layer reaches past its rule");
         long apps = lines.stream().filter((l) -> APP_LAYERS.stream().anyMatch((a) -> l.startsWith(a + "\t"))).count();
         assertEquals(APP_LAYERS.size(), apps, "ts-layers.txt names " + apps + " of the " + APP_LAYERS.size()
@@ -149,19 +160,36 @@ class TsLayeringTest {
                 "//planted:planner\t//pure-protocol:pure_protocol",
                 "//datacube:src\t//datacube:doors //datacube:run",
                 "//studio:src\t//engine-client:engine_client //engine-client:node_host",
-                "//query:src\t//engine-client:doors //engine-client:run");
+                "//query:src\t//engine-client:doors //engine-client:run",
+                // 2026-11-15 (the C5-T final audit's MUST 1): the engine's API, reached by a run layer, never by a planner
+                // or a server, and itself reaching records alone
+                "//datacube:run\t//engine-client:records //engine-client:engine_api",
+                "//datacube:planner\t//engine-client:records //engine-client:engine_api",
+                "//engine-client:server\t//engine-client:planner //engine-client:engine_api //engine-client:run",
+                "//engine-client:engine_api\t//engine-client:records //engine-client:run",
+                "//planted:server\t//engine-client:records",
+                "//planted:engine_api\t//engine-client:records");
         assertEquals(List.of(
+                "//datacube:planner reaches //engine-client:engine_api: a planner reaches nothing that can execute"
+                        + " (records and the protocol alone)",
                 "//datacube:src reaches //datacube:run: an app reaches the run side through the doors alone",
+                "//engine-client:engine_api reaches //engine-client:run: the engine's API reaches records alone",
                 "//engine-client:planner reaches //datacube:node_modules/fflate: a planner reaches nothing that can execute"
                         + " (records and the protocol alone)",
                 "//engine-client:planner reaches //engine-client:run: a planner reaches nothing that can execute"
                         + " (records and the protocol alone)",
-                "//engine-client:run reaches //engine-client:node_modules/left-pad: a run layer reaches records and the"
-                        + " npm packages pinned alone (no planner, server, door or app)",
-                "//engine-client:run reaches //planted:records: a run layer reaches records and the npm packages pinned"
-                        + " alone (no planner, server, door or app)",
+                "//engine-client:run reaches //engine-client:node_modules/left-pad: a run layer reaches records, the"
+                        + " engine's API and the npm packages pinned alone (no planner, server, door or app)",
+                "//engine-client:run reaches //planted:records: a run layer reaches records, the engine's API and the npm"
+                        + " packages pinned alone (no planner, server, door or app)",
+                "//engine-client:server reaches //engine-client:engine_api: a server layer reaches no engine's API, run"
+                        + " layer or door (records, the planner and its npm package alone)",
+                "//engine-client:server reaches //engine-client:run: a server layer reaches no engine's API, run layer or"
+                        + " door (records, the planner and its npm package alone)",
+                "//planted:engine_api is named the engine's API, and is not the one pinned (TsLayeringTest.ENGINE_API)",
                 "//planted:planner is named a planner layer, and no planner layer pinned (TsLayeringTest.PLANNER_LAYERS)",
                 "//planted:run is named a run layer, and no run layer pinned (TsLayeringTest.RUN_LAYERS)",
+                "//planted:server is named a server layer, and no server layer pinned (TsLayeringTest.SERVER_LAYERS)",
                 "//query:src reaches //engine-client:run: an app reaches the run side through the doors alone",
                 "//studio:src reaches //engine-client:engine_client: an app reaches the run side through the doors alone",
                 "//studio:src reaches //engine-client:node_host: an app reaches the run side through the doors alone"),
@@ -183,11 +211,28 @@ class TsLayeringTest {
                 breaches.add(layer + " is named a run layer, and no run layer pinned (TsLayeringTest.RUN_LAYERS)");
             } else if (name(layer).equals("planner") && !PLANNER_LAYERS.contains(layer)) {
                 breaches.add(layer + " is named a planner layer, and no planner layer pinned (TsLayeringTest.PLANNER_LAYERS)");
+            } else if (name(layer).equals("server") && !SERVER_LAYERS.contains(layer)) {
+                breaches.add(layer + " is named a server layer, and no server layer pinned (TsLayeringTest.SERVER_LAYERS)");
+            } else if (name(layer).equals("engine_api") && !ENGINE_API.equals(layer)) {
+                breaches.add(layer + " is named the engine's API, and is not the one pinned (TsLayeringTest.ENGINE_API)");
+            } else if (ENGINE_API.equals(layer)) {
+                for (String dep : deps) {
+                    if (!RECORDS.contains(dep)) {
+                        breaches.add(layer + " reaches " + dep + ": the engine's API reaches records alone");
+                    }
+                }
             } else if (RUN_LAYERS.contains(layer)) {
                 for (String dep : deps) {
-                    if (!(RECORDS.contains(dep) || RUN_NPM.contains(dep) || RUN_LAYERS.contains(dep))) {
-                        breaches.add(layer + " reaches " + dep + ": a run layer reaches records and the npm packages pinned"
-                                + " alone (no planner, server, door or app)");
+                    if (!(RECORDS.contains(dep) || ENGINE_API.equals(dep) || RUN_NPM.contains(dep) || RUN_LAYERS.contains(dep))) {
+                        breaches.add(layer + " reaches " + dep + ": a run layer reaches records, the engine's API and the npm"
+                                + " packages pinned alone (no planner, server, door or app)");
+                    }
+                }
+            } else if (SERVER_LAYERS.contains(layer)) {
+                for (String dep : deps) {
+                    if (!(RECORDS.contains(dep) || PLANNER_LAYERS.contains(dep) || SERVER_NPM.contains(dep))) {
+                        breaches.add(layer + " reaches " + dep + ": a server layer reaches no engine's API, run layer or door"
+                                + " (records, the planner and its npm package alone)");
                     }
                 }
             } else if (APP_LAYERS.contains(layer)) {

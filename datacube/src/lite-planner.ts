@@ -41,7 +41,7 @@ import { answer as answerOf, type PlannerModule } from '../../engine-client/src/
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../../engine-client/src/planned-sql.ts';
-import { planning } from '../../engine-client/src/run-frame.ts';
+import { planning } from '../../engine-client/src/plan-guard.ts';
 
 interface TeavmRuntime {
   load(

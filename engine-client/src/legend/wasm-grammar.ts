@@ -17,7 +17,7 @@ import type {
   SynthesizeRequest,
 } from '../requests.ts';
 import { allFromPlan, fromPlan, planFromAnswer, plannedProjectData, type PlannedSql, type PlanText } from '../planned-sql.ts';
-import { planning } from '../run-frame.ts';
+import { planning } from '../plan-guard.ts';
 
 /** Where a request goes: a worker, or (in tests) the module called directly. */
 export interface PlannerPort {

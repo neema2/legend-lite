@@ -28,7 +28,9 @@
 //   carry an untyped string past the PlannedSql brand to a send (the C5-T last round's T2, 2026-11-15; none today, so no
 //   list: a new one fails).
 // The door layers (2026-11-15, the C5-T last round's T2) are checked alone too: they reach every layer below them and no
-// app (an app module named by a planted import fails by name).
+// app (an app module named by a planted import fails by name). So are the server layer -- legend-engine's clients, which
+// reach no engine's API, run layer or door -- and the engine's API itself, a run-side layer (2026-11-15, the C5-T final
+// audit's MUST 1).
 //
 // It reads the runfiles tree because that tree IS the layer's closure: what this test's BUILD target declares.
 
@@ -173,7 +175,9 @@ describe(`${LAYER} alone: the layer with its deps and nothing else`, () => {
       return;
     }
     const found = CLOSURE.flatMap((f) => computedDoors(readFileSync(join(MAIN, f), 'utf8')).map((d) => `${f} ${d}`)).sort();
-    assert.deepEqual(found, [...COMPUTED_DOORS.keys()].sort());
+    // the named doors of the files in this closure (2026-11-15, the C5-T final audit's MUST 1: the engine's API, a run-side
+    // layer, holds neither vendor load's module), each exactly
+    assert.deepEqual(found, [...COMPUTED_DOORS.keys()].filter((d) => CLOSURE.includes(d.slice(0, d.indexOf(' ')))).sort());
   });
 
   it("names no module it may not reach by a literal worker's, URL's, require's or importScripts' specifier (a run layer)", (t) => {

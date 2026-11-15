@@ -14,6 +14,9 @@ js_library(
         # read Studio's and Query's imports, these icons included; the layers' rule replaced it, //tools/deps)
         "//query:__pkg__",
         "//studio:__pkg__",
+        # the apps' census follows a re-export through every package an app imports (2026-11-15, the C5-T final audit's
+        # item 6: //tools/deps:app_runs_test)
+        "//tools/deps:__pkg__",
     ],
 )
 

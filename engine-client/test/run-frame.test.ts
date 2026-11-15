@@ -5,7 +5,8 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { NOT_PLANNING, currentRun, frameKept, inRun, planning, sending } from '../src/run-frame.ts';
+import { currentRun, frameKept, inRun, sending } from '../src/run-frame.ts';
+import { NOT_PLANNING, planning, readRunsWith } from '../src/plan-guard.ts';
 import { DuckDbEngine, type ArrowishTable } from '../src/duckdb.ts';
 import { WarehouseBinding, WarehouseEngine } from '../src/warehouse.ts';
 import { openedInTab } from '../src/doors/tab-duckdb.ts';
@@ -25,6 +26,12 @@ const module = { exports: { planHeldOrError: () => 'OK\nSELECT 1',
 describe('the run frame', () => {
   it('is kept under Node: the witness is not blind here', () => {
     assert.equal(frameKept, true);
+  });
+
+  it("reads the run through run-frame.ts's reader, installed once: a second install is refused by name (MUST 1)", () => {
+    // run-frame.ts, which opens a run, installed its reader as it loaded; the planner's side (plan-guard.ts, a record
+    // the planner reaches) holds no way to open one, and no other module may put a blind reader in its place
+    assert.throws(() => readRunsWith(() => undefined), /the run frame's reader is installed already/);
   });
 
   it('refuses a planner entry inside a run, across its awaits, and not outside it or after it', async () => {

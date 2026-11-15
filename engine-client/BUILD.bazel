@@ -25,6 +25,8 @@ exports_files(["pnpm-lock.yaml", "package.json"])
 # genquery per target, as core-layers.txt pins Java's), and the run and planner targets are each typechecked alone
 # (//tools/deps:layers_alone):
 # - records: the shapes both sides read -- no send, no plan (Java's execution_plan, sql and result records);
+# - engine_api: what can run -- the engines' interfaces and the run frame that opens a run; run, doors and apps reach
+#   it, no planner and no server (2026-11-15, the C5-T final audit's MUST 1);
 # - run: what sends a plan's statements and reads their rows: records and npm only, NO planner, no server, no door;
 # - planner: legend-lite's planner in the tab and its planning client (no execute): records and the protocol only;
 # - server: legend-engine's API clients, whose execute is the SERVER's door;
@@ -36,19 +38,26 @@ _RECORDS = [
     "src/legend/pmcd.ts",
     "src/legend/wire.ts",
     "src/locale.ts",
+    "src/plan-guard.ts",
     "src/plan-params.ts",
     "src/planned-sql.ts",
-    # 2026-11-15 (the C5-T last round's T1): the engine's shapes, out of engine.ts and duckdb.ts, so an app takes them as
-    # records and reaches the run side through the doors alone
-    "src/query-engine.ts",
     "src/receipt.ts",
     "src/relation-type.ts",
     "src/requests.ts",
     "src/result.ts",
-    "src/run-frame.ts",
     "src/sha256.ts",
     "src/types.ts",
     "src/values.ts",
+]
+
+# THE ENGINE'S API (2026-11-15, the C5-T final audit's MUST 1): what can RUN -- the engines' interfaces, whose methods
+# send (QueryEngine, HeldConnection, PointedEngine, LiveWarehouse), and the run frame, which opens a run. Out of the
+# records (the last round's T1 had put them there, so a planner or a server layer could take an engine and run on it):
+# run, doors and apps reach it; no planner or server layer does (tools/deps/ts-layers.txt). The planner's check of the
+# frame is a record (plan-guard.ts), which reads the run this module installs and cannot open one.
+_ENGINE_API = [
+    "src/query-engine.ts",
+    "src/run-frame.ts",
     "src/warehouse-session.ts",
 ]
 
@@ -97,7 +106,7 @@ _DOORS = glob(["src/doors/**/*.ts"]) + [
 # it, and the run layer, which the browser bundles carry, holds no require door (the C5-T audit's item 8, 2026-11-15)
 _NODE_HOST = ["src/node-require.ts"]
 
-_ASSIGNED = _RECORDS + _RUN + _PLANNER + _SERVER + _DOORS + _NODE_HOST
+_ASSIGNED = _RECORDS + _ENGINE_API + _RUN + _PLANNER + _SERVER + _DOORS + _NODE_HOST
 
 [fail("engine-client/%s is in no target of engine-client/BUILD.bazel: add it to the one whose layer it is" % f) for f in glob(["src/**/*.ts"]) if f not in _ASSIGNED]
 
@@ -118,10 +127,18 @@ js_library(
 )
 
 js_library(
+    name = "engine_api",
+    srcs = _ENGINE_API,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    deps = [":records"],
+)
+
+js_library(
     name = "run",
     srcs = _RUN,
     visibility = _APPS + ["//tools/deps:__pkg__"],
     deps = [
+        ":engine_api",
         ":records",
         # DuckDB in the tab (duckdb-wasm.ts re-exports it for the apps), and the Arrow it brings -- the one copy every
         # bundle carries, which the warehouse's Arrow IPC chunks are read with too
@@ -163,6 +180,7 @@ js_library(
     srcs = _DOORS,
     visibility = _APPS + ["//tools/deps:__pkg__"],
     deps = [
+        ":engine_api",
         ":planner",
         ":records",
         ":run",
@@ -188,6 +206,7 @@ js_library(
     visibility = _APPS,
     deps = [
         ":doors",
+        ":engine_api",
         ":node_host",
         ":planner",
         ":records",
@@ -216,11 +235,11 @@ js_library(
     expression = "labels(deps, //engine-client:%s)" % layer,
     scope = [":" + layer],
     visibility = ["//tools/deps:__pkg__"],
-) for layer in ["records", "run", "planner", "server", "doors", "node_host"]]
+) for layer in ["records", "engine_api", "run", "planner", "server", "doors", "node_host"]]
 
 filegroup(
     name = "layer_queries",
-    srcs = [":layer_" + layer for layer in ["records", "run", "planner", "server", "doors", "node_host"]],
+    srcs = [":layer_" + layer for layer in ["records", "engine_api", "run", "planner", "server", "doors", "node_host"]],
     visibility = ["//tools/deps:__pkg__"],
 )
 

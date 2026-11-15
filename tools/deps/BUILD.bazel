@@ -205,11 +205,36 @@ _LAYERS_ALONE = {
     "engine_client_planner": (
         "//engine-client:planner",
         "planner",
-        "//engine-client:run + //engine-client:server + //engine-client:doors",
-        ["engine-client/src/legend/wasm-grammar.ts", "engine-client/src/legend/planning-client.ts", "engine-client/src/requests.ts"],
+        # 2026-11-15 (the C5-T final audit's MUST 1): the engine's API too -- an engine's interface, the run frame
+        "//engine-client:run + //engine-client:server + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host",
+        ["engine-client/src/legend/wasm-grammar.ts", "engine-client/src/legend/planning-client.ts", "engine-client/src/requests.ts",
+         "engine-client/src/plan-guard.ts"],
         25,
         "engine-client/src/legend/planted.ts",
-        ["../plan-runner.ts", "./engine.ts", "../doors/project-data.ts"],
+        ["../plan-runner.ts", "./engine.ts", "../doors/project-data.ts", "../run-frame.ts", "../query-engine.ts"],
+    ),
+    # 2026-11-15 (the C5-T final audit's MUST 1): legend-engine's clients, checked alone -- no engine's API, run layer,
+    # door or Node's host (until then nothing typechecked the server layer alone, so a relative import of a run module
+    # from pure-v1.ts or legend/engine.ts passed)
+    "engine_client_server": (
+        "//engine-client:server",
+        "server",
+        "//engine-client:run + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host",
+        ["engine-client/src/legend/engine.ts", "engine-client/src/pure-v1.ts", "engine-client/src/plan-guard.ts"],
+        30,
+        "engine-client/src/planted.ts",
+        ["./duckdb.ts", "./run-frame.ts", "./query-engine.ts", "./warehouse-session.ts", "./doors/tab-duckdb.ts",
+         "./node-require.ts"],
+    ),
+    # 2026-11-15 (the same audit): the engine's API alone -- records and itself, no run module, planner, server or door
+    "engine_client_engine_api": (
+        "//engine-client:engine_api",
+        "run",
+        "//engine-client:run + //engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host",
+        ["engine-client/src/query-engine.ts", "engine-client/src/run-frame.ts", "engine-client/src/plan-guard.ts"],
+        10,
+        "engine-client/src/planted.ts",
+        ["./duckdb.ts", "./legend/wasm-grammar.ts", "./pure-v1.ts", "./doors/tab-duckdb.ts"],
     ),
     "datacube_run": (
         "//datacube:run",
@@ -243,11 +268,12 @@ _LAYERS_ALONE = {
     "datacube_planner": (
         "//datacube:planner",
         "planner",
-        "//engine-client:run + //engine-client:server + //engine-client:doors + //datacube:run + //datacube:doors",
+        "//engine-client:run + //engine-client:server + //engine-client:doors + //engine-client:engine_api + //datacube:run + //datacube:doors",
         ["datacube/src/lite-planner.ts", "datacube/src/planner.ts", "engine-client/src/legend/planner-answer.ts"],
         30,
         "datacube/src/planted.ts",
-        ["../../engine-client/src/plan-runner.ts", "./cube.ts", "./headless/connection.ts"],
+        ["../../engine-client/src/plan-runner.ts", "./cube.ts", "./headless/connection.ts",
+         "../../engine-client/src/run-frame.ts"],
     ),
 }
 
@@ -291,10 +317,16 @@ test_suite(
 # that plans and runs fails here; each that remains is a call of a door.
 genquery(
     name = "app_runs_layered",
-    expression = "labels(srcs, //datacube:run + //datacube:doors)",
+    # 2026-11-15 (the C5-T final audit's MUST 1): engine-client's run side and doors too -- the census reads its records,
+    # planner and server
+    expression = "labels(srcs, //datacube:run + //datacube:doors + //engine-client:run + //engine-client:doors + //engine-client:engine_api + //engine-client:node_host)",
     scope = [
         "//datacube:doors",
         "//datacube:run",
+        "//engine-client:doors",
+        "//engine-client:engine_api",
+        "//engine-client:node_host",
+        "//engine-client:run",
     ],
 )
 
@@ -316,9 +348,18 @@ node_test(
         ":run_layer_srcs",
         "//datacube:pages",
         "//datacube:sources",
+        # the packages an app imports, so the re-export walk reads each module it follows (the C5-T final audit's item 6)
+        "//depot-client:depot_client",
         "//engine-client:sources",
+        "//legend-art:legend_art",
+        "//model-changes:model_changes",
+        "//model-changes:records",
+        "//pure-protocol:pure_protocol",
         "//query:pages",
         "//query:src",
+        "//query-store:query_store",
+        "//sdlc-client:records",
+        "//sdlc-client:sdlc_client",
         "//studio:pages",
         "//studio:src",
     ],
@@ -326,7 +367,7 @@ node_test(
     env = {
         "LAYERED_SRCS": "$(rlocationpath :app_runs_layered)",
         "RUN_SRCS": "$(rlocationpath :run_layer_srcs)",
-        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src) $(rlocationpaths //datacube:pages) $(rlocationpaths //query:pages) $(rlocationpaths //studio:pages)",
+        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src) $(rlocationpaths //datacube:pages) $(rlocationpaths //query:pages) $(rlocationpaths //studio:pages) $(rlocationpaths //depot-client:depot_client) $(rlocationpaths //legend-art:legend_art) $(rlocationpaths //model-changes:model_changes) $(rlocationpaths //model-changes:records) $(rlocationpaths //pure-protocol:pure_protocol) $(rlocationpaths //query-store:query_store) $(rlocationpaths //sdlc-client:records) $(rlocationpaths //sdlc-client:sdlc_client)",
     },
 )
 

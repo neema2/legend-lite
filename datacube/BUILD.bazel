@@ -168,6 +168,8 @@ js_library(
         ":records",
         ":run",
         "//engine-client:doors",
+        # the run frame (inRun) and the engines' interfaces (2026-11-15, the C5-T final audit's MUST 1)
+        "//engine-client:engine_api",
         "//engine-client:planner",
         "//engine-client:records",
         "//engine-client:run",
@@ -260,6 +262,9 @@ js_library(
         # last round's T1, 2026-11-15: an app reaches no run layer, tools/deps/ts-layers.txt): the records it reads, the
         # planner, legend-engine's API clients and the doors, which reach the run side (DuckDB, the warehouse) themselves
         "//engine-client:doors",
+        # the engines' interfaces an app is handed by the doors (2026-11-15, the C5-T final audit's MUST 1: out of the
+        # records, which the planner and the server reach)
+        "//engine-client:engine_api",
         "//engine-client:planner",
         "//engine-client:records",
         "//engine-client:server",
