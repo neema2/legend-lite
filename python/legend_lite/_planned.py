@@ -361,12 +361,20 @@ class Database:
     Nothing else of DuckDB's is reachable through it, so a module holds no way to send what no plan carries. Made by
     :func:`connect`, or over a connection a person handed the host (Frames(connection=...): theirs to keep)."""
 
-    __slots__ = ('_con',)
+    __slots__ = ('_con', '_began')
 
     def __init__(self, connection: Any) -> None:
         if isinstance(connection, (Database, Result)):
             raise TypeError('a Database holds a duckdb-python connection, not another wrapper')
         self._con = connection
+        # whether a transaction this Database began is still open (its own begin, not yet committed or rolled back):
+        # what a read's end rolls back, and nothing else (the C5 follow-up, 2026-11-15)
+        self._began = False
+
+    @property
+    def began(self) -> bool:
+        """Whether a transaction begun by ``begin`` is open, not yet ended by ``commit`` or ``rollback``."""
+        return self._began
 
     def cursor(self) -> Database:
         """A session of its own over the same database (a cursor's settings are its own)."""
@@ -377,14 +385,21 @@ class Database:
     def begin(self) -> None:
         _framed('a transaction begun')
         self._con.begin()
+        self._began = True
 
     def commit(self) -> None:
         _framed('a transaction committed')
-        self._con.commit()
+        try:
+            self._con.commit()
+        finally:
+            self._began = False
 
     def rollback(self) -> None:
         _framed('a transaction rolled back')
-        self._con.rollback()
+        try:
+            self._con.rollback()
+        finally:
+            self._began = False
 
     def close(self) -> None:
         self._con.close()

@@ -15,7 +15,7 @@ from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, Un
 from legend_lite._planner import answer
 from legend_lite._runframe import current_run, in_run, planning, runs
 from legend_lite.compiler import LegendError
-from legend_lite.frames import execute_redacted
+from legend_lite._reads import fetched_redacted
 
 
 class _Recording:
@@ -97,10 +97,17 @@ class OneSendTest(unittest.TestCase):
         with self.assertRaises(NotPlanned):
             db.import_stream(None, None, 't; DROP TABLE x')
 
+    def test_the_send_only_redaction_is_gone(self):
+        # the C5 follow-up's check (2026-11-15): execute_redacted redacted the send alone, the gap fetched_redacted closed;
+        # it is gone, its re-export with it, so nothing redacts half
+        from legend_lite import _reads, frames
+        self.assertFalse(hasattr(_reads, 'execute_redacted'))
+        self.assertFalse(hasattr(frames, 'execute_redacted'))
+
     def test_a_reads_send_refuses_text_no_plan_carries(self):
         con = _Recording()
         with self.assertRaises(NotPlanned):
-            execute_redacted(Database(con), 'SELECT 1', ())
+            fetched_redacted(Database(con), 'SELECT 1', (), (), lambda result: result)
         self.assertEqual(con.sent, [])
 
     def test_a_loads_steps_are_the_plans(self):
@@ -873,6 +880,76 @@ class C5SplitTest(unittest.TestCase):
                 pass
         self.assertTrue(before, 'a read sends its setup and its pin')
         self.assertEqual(sent, before)
+
+
+class FollowupTest(unittest.TestCase):
+    """The C5 follow-up (2026-11-15): a read's rollback said, never swallowed; a stream's transaction rolled back whatever
+    fails after its begin."""
+
+    def test_a_reads_rollback_that_fails_is_said(self):
+        # a rollback fails only when no transaction is open on the read's cursor any longer (measured, duckdb 1.5.5): one
+        # ended by a statement of the read's own here. The read ended well: the rollback's failure is raised
+        import pyarrow as pa
+        from legend_lite.frames import Frames
+        frames = Frames()
+        frames.register('t', pa.table({'x': [1]}))
+        with self.assertRaisesRegex(duckdb.TransactionException, 'cannot rollback - no transaction is active'):
+            with frames.reading() as read:
+                read.execute(PlannedSql('COMMIT'))  # the test's own statement: the read's transaction ended inside it
+        # the read failed: its failure stays the one raised, the rollback's noted on it
+        with self.assertRaises(KeyError) as failed:
+            with frames.reading() as read:
+                read.execute(PlannedSql('COMMIT'))
+                raise KeyError('the read failed')
+        self.assertEqual(failed.exception.args, ('the read failed',))
+        self.assertTrue(any("rolling the read's transaction back failed: TransactionException" in n
+                            for n in getattr(failed.exception, '__notes__', [])), failed.exception)
+        # a read that ended well, its transaction open: rolled back, nothing said
+        with frames.reading() as read:
+            self.assertEqual(read.run(frames['t'].plan('->select(~[x])')).num_rows, 1)
+
+    def test_a_failure_at_the_fetch_says_no_held_value(self):
+        # the C5 follow-up's audit item 1 (2026-11-15): DuckDB fails at the fetch as well as at the statement (a remote file
+        # read as its rows stream), and a presigned link's expiry there repeats its URL; run_plan, run_arrow, run_rows_json
+        # and count_of take every held value out of either failure's words
+        from legend_lite import _reads
+        token = 'https://bucket.example/f.parquet?X-Amz-Signature=sig-0123456789abcdef'
+
+        class Failing:
+            description = [('n',)]
+
+            def __getattr__(self, name):
+                def fetch(*_a):
+                    raise duckdb.IOException(f'HTTP Error: 403 (Forbidden) reading {token}')
+                return fetch
+
+        class Connection:
+            def execute(self, sql, params=None):
+                return Failing()
+
+        db = Database(Connection())
+        plan = compiler.Plan(from_plan('SELECT 1 AS n'), (compiler.Column('n', 'Integer', {}),))
+        for run in (lambda: _reads.run_plan(db, plan, (token,)), lambda: _reads.run_arrow(db, plan.sql, (token,)),
+                    lambda: _reads.run_rows_json(db, plan.sql, (token,)), lambda: _reads.count_of(db, plan, (token,))):
+            with self.assertRaises(duckdb.IOException) as failed:
+                run()
+            self.assertIn('HTTP Error: 403', str(failed.exception))
+            self.assertNotIn('sig-0123456789abcdef', str(failed.exception))
+            self.assertNotIn('bucket.example', str(failed.exception))
+
+    def test_a_stream_whose_plane_fails_at_once_is_rolled_back(self):
+        # a plane failing as its statement is asked for (no generator: at once) failed before the stream's try, and left
+        # the transaction its begin opened; it is rolled back now, and the plane's failure raised
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None):
+                raise ConnectionResetError('the plane refused at once')
+
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'never'})
+        step = json.loads(plan)['root']['steps'][0]
+        witness = _Witness(duckdb.connect())
+        with self.assertRaisesRegex(ConnectionResetError, 'the plane refused at once'):
+            projects.run_host_load(plan, Database(witness), planes={'warehouse': Plane()})
+        self.assertEqual(witness.received, [*step['transaction']['begin'], *step['transaction']['rollback']])
 
 
 class TheBridgeTest(unittest.TestCase):

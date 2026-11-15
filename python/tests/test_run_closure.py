@@ -75,13 +75,11 @@ SEND_METHODS = frozenset({'execute', 'arrow_chunks', 'import_stream', 'open', 'u
 SEND_NAMES = frozenset({'send', '_urlopen', 'urlopen'})
 
 # THE SENDING HELPERS: run-module functions that send outside a frame of their own, each called only where a frame
-# holds -- in a run, or in another helper. 2026-11-15 (C5-P, the audit's item 4): a statement run with a failure's held
-# values taken out (_reads.execute_redacted, public as frames.execute_redacted: called by the runs alone), and a load's
-# stream step (_runs._stream, run_host_load's); (C5-P's A2) the warehouse's HTTP (_reach: its _exchange's, a run, and
-# its statement's chunks') and a statement's chunks (Warehouse.arrow_chunks, a generator, which refuses outside a run
-# itself: Unframed).
-# 2026-11-15 (C5-P's audit M2): execute_redacted a run of its own (`with in_run(...)`), no helper -- frames.py
-# re-exports it, and a door takes no sending helper.
+# holds -- in a run, or in another helper. 2026-11-15 (C5-P, the audit's item 4): a load's stream step (_runs._stream,
+# run_host_load's); (C5-P's A2) the warehouse's HTTP (_reach: its _exchange's, a run, and its statement's chunks') and a
+# statement's chunks (Warehouse.arrow_chunks, a generator, which refuses outside a run itself: Unframed).
+# 2026-11-15: execute_redacted was one (the audit's item 4), then a run of its own (the audit's M2), and is gone (the C5
+# follow-up's check): _reads.fetched_redacted redacts the statement and its fetch, a run of its own, no helper.
 # 2026-11-15 (C5-P's final round, item 4): _urlopen, the warehouse's one place a request goes out, refusing outside a
 # run itself.
 SENDING_HELPERS = frozenset({'_stream', '_reach', 'arrow_chunks', '_urlopen'})
@@ -727,7 +725,7 @@ class RunClosureTest(unittest.TestCase):
         # each run function sends inside its own frame, the caller in none: the one send above would refuse it else
         _runs.run_statements(db, [from_plan('CREATE TABLE t AS SELECT 1 AS n')], 'a test')
         self.assertEqual([(1,)], _runs.ask(db, from_plan('SELECT count(*) FROM t'), 'a test'))
-        self.assertEqual(1, _reads.count_of(db, Plan(from_plan('SELECT count(*) FROM t'), ())))
+        self.assertEqual(1, _reads.count_of(db, Plan(from_plan('SELECT count(*) FROM t'), ()), ()))
         self.assertEqual(1, _reads.run_arrow(db, one, ()).num_rows)
         self.assertEqual('[{"n":1}]', _reads.run_rows_json(db, one, ()))
         typed = _reads.run_plan(db, Plan(one, (Column('n', 'Integer', {}),)), ())

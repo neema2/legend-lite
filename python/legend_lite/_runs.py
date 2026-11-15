@@ -229,8 +229,11 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
     receipt: dict[str, Any] = {}
     for sql in all_from_plan(step['transaction']['begin']):
         send(connection, sql)
-    chunks = iter(plane.arrow_chunks(from_plan(step['sql']), receipt.update))
+    # everything after the begin is under the rollback below (the C5 follow-up, 2026-11-15: until then the plane's
+    # statement was read and its chunks asked for before the try, so a plane failing at once left the transaction open)
+    chunks: Iterator[bytes] | None = None
     try:
+        chunks = iter(plane.arrow_chunks(from_plan(step['sql']), receipt.update))
         for sql in all_from_plan(step['prepare']):
             send(connection, sql)
         first = next(chunks, None)
