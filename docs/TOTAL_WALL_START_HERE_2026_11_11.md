@@ -1031,6 +1031,8 @@ In order. Nothing here is in the A/B/C PR.
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
        20 TS sites);
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
+     - (C5-P, 2026-11-15) the native library's loader split into service and planner halves, so the warehouse client
+       can live in `:run` (a packaging change);
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses

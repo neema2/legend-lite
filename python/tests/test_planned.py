@@ -709,6 +709,27 @@ class C5SplitTest(unittest.TestCase):
         self.assertEqual(seen[:2], ["a remote plane's read"] * 2)
         self.assertIsNone(current_run())
 
+    def test_a_planner_entry_reached_through_a_plane_inside_its_run_is_refused_by_name(self):
+        # the build rule proves :run imports no planner; a plane is handed in, so what it does is the witness's to see:
+        # a planner entry it asks inside the run -- on the caller's thread or through the compiler's pool, as the
+        # warehouse's binding runs -- is refused by name (the orchestrator's ruling, 2026-11-15)
+        from legend_lite import _reads
+        from legend_lite._pool import _on_compiler_threads
+
+        class Planning:
+            def __init__(self, ask):
+                self.ask = ask
+
+            def arrow_chunks(self, sql, on_receipt=None):
+                self.ask()
+                yield b''
+
+        for ask in (lambda: library().call('lite_session_setup', 'DuckDB'),
+                    lambda: _on_compiler_threads(lambda: compiler.session_setup('DuckDB'))):
+            with self.assertRaisesRegex(RuntimeError, r"asked 'lite_session_setup' inside a run \(a remote plane's read\)"):
+                _reads.read_plane(Planning(ask), from_plan('SELECT 1'))
+        self.assertIsNone(current_run())
+
     def test_a_reads_setup_and_pin_are_the_same_after_a_register_and_a_settings_change(self):
         # the session's setup and the pin are planned once, when the Frames is made: they depend on the database's type
         # and a constant name alone -- a read after a frame registered and the connection's own settings changed sends
