@@ -44,6 +44,8 @@ import java.util.Set;
  * <p>Every {@link SqlFn} and {@link SqlAgg.Fn} is decided HERE by an exhaustive switch: its spelling, a shared
  * helper of the base named in its arm, or a {@link DialectCapability} wall.
  */
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Trino extends AnsiSqlRenderer {
 
     /** Trino (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): double quotes; Trino's documented reserved

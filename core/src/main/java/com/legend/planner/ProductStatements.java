@@ -123,7 +123,7 @@ public final class ProductStatements {
                 : env(ctx, runtime, features, rows, style).withTableReplace(runtimeRenames).withOptions(query.options());
         List<TypedSpec> lets = statements.subList(0, statements.size() - 1);
         Inlined inlined = inline(specs, statements, mark, frames.recorder(lets, specs, env, rows), frameAnswered);
-        // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source style):
+        // the consumed lets the body still READS free (a graph-tree qualifier's argument keeps its source spelling):
         // the resolver's bindings and the lowering's seeds. A let dissolved everywhere is neither -- bound in the
         // resolver it would rename a lambda parameter of its name, seeded it would spend alias numbers
         // a graph tree's qualifier arguments read too ({@code TypedGraphTree.args}, no child of the fetch or the

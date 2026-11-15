@@ -28,6 +28,8 @@ import java.util.List;
  * NULL}. A non-literal list (a real per-row array) is left alone and
  * walls at the renderer as before.
  */
+// public: the compatibility edge's engine-text printers (com.legend.edge.EngineStyle*, O3, 2026-11-12) use it; noted
+// 2026-11-15 (the D part 1 audit)
 public final class LateralExplodeToUnion extends SqlRewriter {
     @Override
     protected SqlQuery select(SqlSelect s) {

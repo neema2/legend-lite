@@ -463,7 +463,7 @@ public final class ChannelB {
             return rewrite(lb.get(lb.size() - 1), fParam, lets);
         }
         // any surviving reference to the adapter param is a shape we
-        // do not run — decline WITH the offending call's style, so
+        // do not run — decline WITH the offending call's spelling, so
         // the decline census distinguishes shapes (audit 2026-08-19:
         // 51 relation declines shared one blind string)
         if (n instanceof AppliedFunction afx

@@ -44,6 +44,8 @@ import java.util.Set;
  *       raises it, the platform's U+001F markers around it, verbatim in the server's message.</li>
  * </ul>
  */
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class ClickHouse extends AnsiSqlRenderer {
 
     /** {@inheritDoc} -- ClickHouse: one assert's statement (up to ~45K characters, measured) parses well

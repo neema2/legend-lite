@@ -26,6 +26,8 @@ import java.util.List;
  *   <li>the session: no {@code max_recursive_iterations} ({@code cte_max_recursion_depth}).</li>
  * </ul>
  */
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class MySql extends MariaDb {
 
     public MySql() {

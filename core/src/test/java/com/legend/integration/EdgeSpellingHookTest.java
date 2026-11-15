@@ -146,9 +146,9 @@ class EdgeSpellingHookTest {
             Map.entry("MongoDb", D1_1), Map.entry("MySql", D1_1), Map.entry("Postgres", D1_1),
             Map.entry("SQLite", D1_1), Map.entry("Snowflake", D1_1), Map.entry("Trino", D1_1)));
 
-    /** The methods {@code c} declares that override a product dialect's method which is neither a
-     *  {@link com.legend.sql.dialect.SpellingArm} nor an {@link com.legend.sql.dialect.EdgeMayOverride}: a decision the
-     *  edge must not take. */
+    /** The methods {@code c} declares that override a product dialect's method which is not a
+     *  {@link com.legend.sql.dialect.SpellingArm}: a decision the edge must not take ({@code EdgeMayOverride}, used
+     *  nowhere, went 2026-11-15: the D part 1 audit's nit). */
     static List<String> decisionsOverridden(Class<?> c) {
         List<String> out = new java.util.ArrayList<>();
         for (java.lang.reflect.Method m : c.getDeclaredMethods()) {
@@ -163,8 +163,7 @@ class EdgeSpellingHookTest {
                     // keep climbing
                 }
             }
-            if (overridden == null || !(overridden.isAnnotationPresent(com.legend.sql.dialect.SpellingArm.class)
-                    || overridden.isAnnotationPresent(com.legend.sql.dialect.EdgeMayOverride.class))) {
+            if (overridden == null || !overridden.isAnnotationPresent(com.legend.sql.dialect.SpellingArm.class)) {
                 out.add(c.getSimpleName() + "." + m.getName());
             }
         }
@@ -172,7 +171,7 @@ class EdgeSpellingHookTest {
     }
 
     /** The edge overrides SPELLING, never a DECISION (the orchestrator's guard, 2026-11-12): each method an edge dialect
-     *  declares overrides a product method marked {@code @SpellingArm} or {@code @EdgeMayOverride}. */
+     *  declares overrides a product method marked {@code @SpellingArm}. */
     @Test
     void theEdgesDialectsOverrideSpellingOnly() {
         List<String> decisions = new java.util.ArrayList<>();

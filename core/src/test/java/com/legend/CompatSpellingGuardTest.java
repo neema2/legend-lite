@@ -90,6 +90,8 @@ class CompatSpellingGuardTest {
             "D1.6",   // the compile messages in the product's own wording, keyed by kind
             "D1.7",   // engine text (EngineText, EnginePlans' text half, EngineStyle*), RawSqlBoundary, appeals, referee
             "D1.8",   // pure/v1's upstream routes (and the query store they answer) to the edge
+            "HOOK",   // the edge's hook: a type the product's plan style names so the edge hands its printers in, the
+                      // product's style refusing it by name (O3; the D part 1 audit's nit, 2026-11-15)
             "JUDGE",  // the judges' own canon on the test road (D0 §10): not compatibility, never moved
             "STAYS"); // a product semantic sharing the spelling: lowering/DateFormats.java's pattern letter Z is +0000
 
@@ -111,7 +113,8 @@ class CompatSpellingGuardTest {
             // implement it; the product's style refuses it by name -- so it stays while the engine-text natives plan
             // 4 -> 5 (2026-11-14, S310 RULED by the user, DE2 (a): an execute's activity SQL is the style's pick, the
             // edge's printer handed to the planner's Activity.engines)
-            "database/PlanStyle.java | EngineTextDialect | 5 | STAYS",
+            // reclassified STAYS -> HOOK 2026-11-15 (the D part 1 audit's nit): the edge's hook, not a product semantic
+            "database/PlanStyle.java | EngineTextDialect | 5 | HOOK",
             "exec/PlanParameters.java | Missing external parameter(s) | 1 | D1.6",
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same

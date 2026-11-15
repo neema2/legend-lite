@@ -48,6 +48,8 @@ import java.util.Set;
  * </ul>
  * No server-side JavaScript is written (D11), and nothing from MongoDB's own documentation or code is copied.
  */
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class MongoDb extends AnsiSqlRenderer {
 
     /** No quoting: a field or collection name is spelled as a JSON string, never delimited. */

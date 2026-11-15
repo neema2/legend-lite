@@ -16,6 +16,8 @@ import java.util.List;
  * dialect program's decision D1, measured 2026-10-13: 13 through {@code error()}, one through {@code to_base64}).
  * legend-engine's own H2 text spells none of them; that is the engine-text work's question, not D1's.
  */
+// public: the compatibility edge's engine-text printers (com.legend.edge.EngineStyle*, O3, 2026-11-12) use it; noted
+// 2026-11-15 (the D part 1 audit)
 public final class DuckDbSpellings {
 
     private DuckDbSpellings() {

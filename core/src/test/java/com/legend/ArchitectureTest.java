@@ -1922,6 +1922,21 @@ final class ArchitectureTest {
         PRODUCT_REACHES_NO_EDGE.check(CORE_PROD_CLASSES);
     }
 
+    /** The hosts' doors (the boundary, the tab's adapter, the native entry) reach no edge class either, but for the
+     *  boundary's pure/v1 halves, which hand the planner the edge's style until D-1 moves the clients to lite's own
+     *  routes ({@code planner.Boundary}: the D-1 exception, named and dated 2026-11-15, the D part 1 audit's nit). */
+    @Test
+    void theHostsDoorsReachNoEdgeButTheBoundarysD1Exception() {
+        noClasses()
+            .that().resideOutsideOfPackage("com.legend.edge..")
+            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are not the boundary (D-1's exception)",
+                    (com.tngtech.archunit.core.domain.JavaClass c) -> !c.getName().equals("planner.Boundary")
+                            && !c.getName().startsWith("planner.Boundary$")))
+            .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
+            .as("G5 at the hosts' doors: the edge's to call, the boundary's pure/v1 halves alone until D-1")
+            .check(coreAndTheHostsDoors());
+    }
+
     /** G5 (rule E2 of docs/GOALS_OF_RECORD_2026_11_07.md §2): the edge depends on the product, never the reverse. */
     private static final com.tngtech.archunit.lang.ArchRule PRODUCT_REACHES_NO_EDGE = noClasses()
             .that().resideOutsideOfPackage("com.legend.edge..")
@@ -3221,7 +3236,7 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalForm")
             .and().doNotHaveFullyQualifiedName("com.legend.testexec.CanonicalDivergence")
             // testdatagen composes seed SOURCE TEXT via the ONE repr
-            // owner — style, never an equality decision
+            // owner — spelling, never an equality decision
             .and().doNotHaveFullyQualifiedName("com.legend.testdatagen.TestDataGenerator")
             // (exec.JsonCompare, the one wire-tree walker of P2-4/P2-6, was exempted here until 2026-10-30: the class
             // was deleted long before -- the ledger's Equality row records it gone -- and the D71 audit found the

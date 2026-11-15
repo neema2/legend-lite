@@ -63,6 +63,8 @@ import java.util.Set;
  * helper of the base named in its arm, or a {@link DialectCapability} wall. A wall is honest; a guessed spelling is a
  * silent wrong answer.
  */
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Snowflake extends AnsiSqlRenderer {
 
     /** The engine's H2 text is refused here: Snowflake has no translation of it (decision D2: raw text runs on the

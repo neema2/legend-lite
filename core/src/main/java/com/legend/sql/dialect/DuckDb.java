@@ -18,6 +18,8 @@ import java.util.Set;
  * operators (text extraction under scalar casts). Everything here is
  * SPELLING or SHAPE for this backend; meaning lives in the IR.
  */
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class DuckDb extends AnsiSqlRenderer {
 
     /**

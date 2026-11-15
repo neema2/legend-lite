@@ -22,6 +22,9 @@ import java.util.List;
  * {@code com.legend.edge}, subclasses of the product's dialects that write into the writer their dialect made); only a
  * dialect makes one (the constructor stays the package's).
  */
+// public, with its write API alone (append, expr, function, join, list, piece, text): the compatibility edge's engine-text
+// printers (com.legend.edge.EngineStyle*, O3, 2026-11-12) write into it; its binding and region API stays the
+// package's (narrowed 2026-11-15, the D part 1 audit's nit)
 public final class SqlWriter {
 
     /** How the writer's dialect writes an expression into a writer ({@code AnsiSqlRenderer.expr}): the writer is made
@@ -120,7 +123,7 @@ public final class SqlWriter {
 
     /** Writes {@code piece} here as an argument the database evaluates when it plans: a raise within it is written
      *  so no planner can evaluate it before a row asks for it ({@link #inPlanned}). */
-    public SqlWriter planned(Piece piece) {
+    SqlWriter planned(Piece piece) {
         planned++;
         try {
             piece.writeTo(this);
@@ -131,12 +134,12 @@ public final class SqlWriter {
     }
 
     /** Whether the writer is inside an argument the database evaluates when it plans ({@link #planned}). */
-    public boolean inPlanned() {
+    boolean inPlanned() {
         return planned > 0;
     }
 
     /** Writes a placeholder and records the parameter it binds, at this place in the statement. */
-    public SqlWriter bind(RenderedStatement.Bind bind) {
+    SqlWriter bind(RenderedStatement.Bind bind) {
         sql.append('?');
         binds.add(bind);
         return this;
@@ -146,25 +149,25 @@ public final class SqlWriter {
      *  a target whose statement is not SQL spells a placeholder in its own language (MongoDb's pipeline variable
      *  {@code "$$lpN"}, bound by the aggregate command's {@code let}: the C checkpoint's NOTE, 2026-11-12; until then
      *  a marker document the session replaced, docs/MONGODB_PLAN_2026_10_16.md D5), in placeholder order. */
-    public SqlWriter bind(String placeholder, RenderedStatement.Bind bind) {
+    SqlWriter bind(String placeholder, RenderedStatement.Bind bind) {
         sql.append(placeholder);
         binds.add(bind);
         return this;
     }
 
     /** How many parameters are bound so far: the index the next placeholder takes. */
-    public int bound() {
+    int bound() {
         return binds.size();
     }
 
     /** How many of the parameters bound so far are the plan's own, a key's cell not counted: the place, among them, the
      *  next one takes (MongoDb names its pipeline variable by it). */
-    public int boundParameters() {
+    int boundParameters() {
         return (int) binds.stream().filter(b -> !(b.binding() instanceof RenderedStatement.Binding.Key)).count();
     }
 
     /** Whether a per-key region is being written: its text is copied once per key at run. */
-    public boolean inRegion() {
+    boolean inRegion() {
         return !open.isEmpty();
     }
 
@@ -174,7 +177,7 @@ public final class SqlWriter {
      * key ({@code empty} in its place, or the statement refused when that is null). Inside it, {@link #counter} marks
      * where a copy's key position goes and {@link #bindKey} binds the copy's key; a region holds no other region.
      */
-    public SqlWriter region(String lead, String separator, @com.legend.base.Nullable String empty, Piece body) {
+    SqlWriter region(String lead, String separator, @com.legend.base.Nullable String empty, Piece body) {
         if (!open.isEmpty()) {
             throw new IllegalStateException("a per-key region inside another per-key region");
         }
@@ -189,7 +192,7 @@ public final class SqlWriter {
 
     /** The key's position in the probe, written here in each copy of the per-key region being written (a per-key
      *  name's: {@code "_pk3__u0"}); refused outside a region, where there is no key. */
-    public SqlWriter counter() {
+    SqlWriter counter() {
         OpenRegion r = open.peek();
         if (r == null) {
             throw new IllegalStateException("a per-key name outside a per-key region: no key to name it by");
@@ -199,13 +202,13 @@ public final class SqlWriter {
     }
 
     /** A placeholder binding the probe row's {@code cell} of each copy's key; refused outside a per-key region. */
-    public SqlWriter bindKey(int cell) {
+    SqlWriter bindKey(int cell) {
         return bindKey("?", cell);
     }
 
     /** {@link #bindKey(int)} with the placeholder spelled in the target's own language, as {@link #bind(String,
      *  RenderedStatement.Bind)} (MongoDb's key marker document, which its session replaces by the copy's key). */
-    public SqlWriter bindKey(String placeholder, int cell) {
+    SqlWriter bindKey(String placeholder, int cell) {
         if (open.isEmpty()) {
             throw new IllegalStateException("a key's cell outside a per-key region: no key to bind");
         }
@@ -215,7 +218,7 @@ public final class SqlWriter {
     }
 
     /** The statement written, with its parameters in placeholder order. */
-    public RenderedStatement statement() {
+    RenderedStatement statement() {
         return new RenderedStatement(sql.toString(), binds, regions);
     }
 

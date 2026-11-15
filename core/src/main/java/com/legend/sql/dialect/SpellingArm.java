@@ -13,8 +13,7 @@ import java.lang.annotation.Target;
  * ({@code edge.PureText}) may override to write upstream's spelling (phase D, 2026-11-12, the orchestrator's guard: the
  * edge overrides spelling, never a decision). A method the planner asks a decision of (a parameter's type, how data is
  * delivered, the raise read-back, a refusal, a capability) is never one: an edge override of it would make planning
- * itself a mode. {@code EdgeSpellingHookTest} holds every edge override to a method marked so, or
- * {@link EdgeMayOverride}.
+ * itself a mode. {@code EdgeSpellingHookTest} holds every edge override to a method marked so.
  */
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.METHOD)

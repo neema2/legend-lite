@@ -38,7 +38,7 @@ public final class TestDoor {
         return planned(body, runtime, features);
     }
 
-    /** A statement the raw-SQL ledger records once it ran: the text the walk records (the referee's style) and
+    /** A statement the raw-SQL ledger records once it ran: the text the walk records (the referee's spelling) and
      *  whether it answered rows (M5: the referee mirrors the ledger to replay the golden SQL of later bodies). */
     public record Recorded(String text, boolean query) {
     }

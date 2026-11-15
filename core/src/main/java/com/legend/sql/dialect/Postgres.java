@@ -32,6 +32,8 @@ import java.util.Set;
  * folds and variant navigation are walls until the jsonb carrier lands (leg P4;
  * POSTGRES_BACKEND.md §5: never Postgres' native ARRAY).
  */
+// not final: the compatibility edge's dialect of the same database (com.legend.edge.PureText) subclasses it, overriding
+// @SpellingArm methods alone (EdgeSpellingHookTest; phase D's D1.0, 2026-11-12; noted 2026-11-15, the D part 1 audit)
 public class Postgres extends AnsiSqlRenderer {
 
     /** PostgreSQL 16+ (2026-10-01 W5.5/P1 Postgres dialect). The {@code Postgres} dialect
