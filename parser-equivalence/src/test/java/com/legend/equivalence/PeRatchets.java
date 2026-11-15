@@ -85,7 +85,8 @@ public final class PeRatchets {
             "own_corpus.matched 3261 -> 3370 (2026-11-14, java_bugFixes: the Rust port's Java fixes cherry-picked onto"
                     + " main, merged with main at cf865632c; measured on the merged tree, 3246 -> 3355 before the merge):"
                     + " their tests' models (KnowledgeLayerTest's, NameResolverTest's, ModelBuilderTest's,"
-                    + " MappingNormalizerTest's and RefusalsNotCrashesTest's)");
+                    + " MappingNormalizerTest's and RefusalsNotCrashesTest's)",
+            "own_corpus.matched 3370 -> 3371 (2026-11-15, java_bugFixes, PR #102's review fixes): their tests' models");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
