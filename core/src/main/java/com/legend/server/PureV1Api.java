@@ -320,6 +320,9 @@ public final class PureV1Api {
     public static Answer jsonToTsLambda(String body, Models models) {
         return answer(400, "COMPILATION", () -> {
             Json.Obj request = request(body);
+            // lite's own route (upstream has no #TS): closed, a key it does not read refused by name (the final audit of
+            // 9af16fbe58's J4, 2026-11-14); its model is upstream's PureModelContext, read as upstream reads it
+            ModelChanges.only(request, "a jsonToTs/lambda request", "model", "lambda");
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
             com.legend.protocol.ts.TsShow.Shown shown = model.with(models, ctx -> com.legend.protocol.ts.TsShow.of(
@@ -338,7 +341,10 @@ public final class PureV1Api {
      */
     public static Answer tsItem(String body) {
         return answer(400, "COMPILATION", () -> {
-            String text = request(body).getString("text");
+            Json.Obj request = request(body);
+            // lite's own route (upstream has no #TS): closed (the final audit of 9af16fbe58's J4, 2026-11-14)
+            ModelChanges.only(request, "a tsItem request", "text");
+            String text = request.getString("text");
             Map<String, Object> out = new LinkedHashMap<>();
             try {
                 com.legend.protocol.ts.TsAst.Line line = com.legend.protocol.ts.TsParser.item(text);

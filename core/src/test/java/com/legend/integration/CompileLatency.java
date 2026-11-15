@@ -25,7 +25,8 @@ import java.util.TreeMap;
  * COMPILE-ONLY LATENCY (the compiler plan's W1.0b, under D25: the stress corpus and the eager probe are the measure;
  * nothing new is built to measure). One query's compile with no database, in four stages: names (the resolver, once:
  * {@link Compiler#resolveQuery} then {@link Compiler#queryResolved}; for a query set, the parse too), type (the body
- * typed, {@link TypedQuery#body}), lower (inline, store resolution, lowering: {@link TypedQuery#lower}) and render
+ * typed, {@link TypedQuery#body}), lower (inline, store resolution, lowering: {@link com.legend.planner.Lowered#lower},
+ * the tests' helper since TypedQuery's lower went, 2026-11-13) and render
  * (the runtime's dialect over the plan). Nothing is typed or resolved twice inside the clock.
  * <pre>
  *   bazel run //core:compile_latency -- --corpus stress [--passes 2] [--out DIR]

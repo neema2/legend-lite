@@ -4,6 +4,7 @@
 package com.legend.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.legend.json.Json;
 import java.util.ArrayList;
@@ -25,7 +26,8 @@ import org.junit.jupiter.api.Test;
 class ModelChangesRequestsAreClosedTest {
 
     private static final String UNKNOWN = "extra";
-    private static final String REFUSED = " has no key " + UNKNOWN + " (names and fields only, never a value)";
+    private static final String REFUSED = " has no key " + UNKNOWN + " (a model change's request holds the keys its"
+            + " wire writes, model-changes/src/wire.ts, and no other)";
 
     private static final String TRADES = """
             ###Relational
@@ -180,6 +182,32 @@ class ModelChangesRequestsAreClosedTest {
      *  and the data space). Each text model's serializer besides (2026-11-13, M4: the project's and each class's
      *  source's): createClass 2, createAssociation 3, createDataSpace 3. */
     private static final int EXPECTED_OBJECTS = 8 + 16 + 17 + 2 + 3 + 3;
+
+    /** A text model's serializer given as JSON's null is none -- upstream's protocol field is optional -- and one that
+     *  is not an object is refused by name, a malformed request as the routes answer one ({@link PureV1Api#answer}:
+     *  500, the exception named, as an unknown key is): until the C4 final fix round's B2 (2026-11-14) both were a
+     *  ClassCastException, the null through {@code has} and the cast. */
+    @Test
+    void aNullSerializerIsNoneAndOneThatIsNotAnObjectIsRefusedByName() {
+        for (Object given : java.util.Arrays.asList(null, "pure", 1, List.of())) {
+            for (String where : List.of("project", "source")) {
+                Map<String, Object> cls = trade();
+                Map<String, Object> req = request("class", cls);
+                @SuppressWarnings("unchecked")
+                Map<String, Object> model = (Map<String, Object>) (where.equals("project") ? req.get("project")
+                        : cls.get("source"));
+                model.put("serializer", given);
+                PureV1Api.Answer a = route("createClass", req);
+                if (given == null) {
+                    assertEquals(200, a.status(), where + ": " + a.json());
+                } else {
+                    assertEquals(500, a.status(), where + " " + given + ": " + a.json());
+                    assertTrue(Json.parseObject(a.json()).getStringOr("message", "").startsWith("IllegalArgumentException:"
+                            + " a model's serializer is an object of its name and version, not "), a.json());
+                }
+            }
+        }
+    }
 
     /** A sample of a table the relation does not read is refused by name: its rows would be read by nothing. */
     @Test

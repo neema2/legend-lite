@@ -84,6 +84,11 @@ class InjectionFuzzTest {
         out.put("a column's name (aggregate)", "|#>{s::DB.T}#->groupBy(~[ID], ~['P':r|$r.NAME:y|$y->count()])");
         out.put("a format's template", "|#>{s::DB.T}#->extend(~f:r|format('P %s', [$r.NAME]))");
         out.put("a date format's text", "|#>{s::DB.T}#->extend(~f:r|format('%t{yyyy\"P\"}', [$r.TS]))");
+        // a pattern that starts with '[' is zone-shifted (Scalars.dateWithPattern): its zone a literal, its text read
+        // after it (the C4 final fix round's B4, 2026-11-14: a Z not at its end was a bare IllegalStateException)
+        out.put("a date format's zone", "|#>{s::DB.T}#->extend(~f:r|format('%t{[P]yyyy-MM-dd Z}', [$r.TS]))");
+        out.put("a zone-shifted date format's text", "|#>{s::DB.T}#->extend(~f:r|format('%t{[UTC]yyyy\"P\"}',"
+                + " [$r.TS]))");
         out.put("a LIKE pattern (contains)", "|#>{s::DB.T}#->filter(r|$r.NAME->contains('P'))");
         out.put("a LIKE pattern (startsWith)", "|#>{s::DB.T}#->filter(r|$r.NAME->startsWith('P'))");
         out.put("a LIKE pattern (endsWith)", "|#>{s::DB.T}#->filter(r|$r.NAME->endsWith('P'))");
@@ -419,17 +424,20 @@ class InjectionFuzzTest {
     /** The payloads each database plans, of every place's (measured 2026-11-13, the C4 audit's M3; a move is dated and
      *  names its task). */
     static final Map<String, Integer> PLANNED_BY_DATABASE = java.util.Map.ofEntries(
-            Map.entry("BigQuery", 259),
-            Map.entry("ClickHouse", 259),
-            Map.entry("Databricks", 259),
-            Map.entry("DuckDB", 259),
-            Map.entry("H2", 259),
+            // 259 -> 283 on eight databases (2026-11-14, the C4 final fix round's B4): the place "a date format's zone"
+            // plans its 24 payloads where the database shifts a zone; MariaDB, MySQL and SQLite refuse a zone-shifted
+            // pattern by name, so they plan none of them and stay 259
+            Map.entry("BigQuery", 283),
+            Map.entry("ClickHouse", 283),
+            Map.entry("Databricks", 283),
+            Map.entry("DuckDB", 283),
+            Map.entry("H2", 283),
             Map.entry("MariaDB", 259),
             Map.entry("MySQL", 259),
-            Map.entry("Postgres", 259),
+            Map.entry("Postgres", 283),
             Map.entry("SQLite", 259),
-            Map.entry("Snowflake", 259),
-            Map.entry("Trino", 259));
+            Map.entry("Snowflake", 283),
+            Map.entry("Trino", 283));
 
     /** The payloads each place plans, on every database (measured 2026-11-13, the C4 audit's M3). */
     static final Map<String, Integer> PLANNED_BY_PLACE = java.util.Map.ofEntries(
@@ -440,6 +448,10 @@ class InjectionFuzzTest {
             Map.entry("a column's name (extend)", 264),
             Map.entry("a column's name (rename)", 264),
             Map.entry("a date format's text", 209),
+            // the C4 final fix round's B4 (2026-11-14): a pattern that starts with '[', its zone the payload, planned on
+            // the eight databases that shift a zone; "a zone-shifted date format's text" plans none -- every payload
+            // holds the marker's Z, which a zone-shifted pattern takes only as its suffix, refused by name
+            Map.entry("a date format's zone", 192),
             Map.entry("a filter's value", 264),
             Map.entry("a format's template", 264),
             Map.entry("a separator", 264),

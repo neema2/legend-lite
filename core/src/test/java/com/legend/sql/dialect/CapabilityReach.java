@@ -100,7 +100,8 @@ public final class CapabilityReach {
 
     /**
      * The case planned as its lane plans it, up to the dialect: on the storeless runtime ({@code StorelessRuntime},
-     * the PCT adapter's), through the plan-only seam ({@code TypedQuery.lower}: G½, H, the runtime's checks, I), as
+     * the PCT adapter's), through the plan-only seam ({@link com.legend.planner.Lowered#lower}, the tests' helper since
+     * TypedQuery's lower went, 2026-11-13: G½, H, the runtime's checks, I), as
      * the lane plans its typed rows (no wrapper since the result boundary program's phase 4: the PCT writes Pure's TDS
      * text from them). Not applied: the lane's feature flags.
      */

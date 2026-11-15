@@ -521,16 +521,110 @@ class RunFrameTest(unittest.TestCase):
         self.assertTrue(_on_compiler_threads(lambda: library().call('lite_session_setup', 'DuckDB')).startswith('OK'))
 
     def test_no_crossing_is_known_and_none_is_exempt(self):
-        # shrink-only, and empty since 2026-11-13: the read's re-pin, its one entry, went with the user's ruling (1b)
+        # shrink-only: the read's re-pin went with the user's ruling (1b), 2026-11-13; a gone session's finalizer (named
+        # 2026-11-14, the final audit of 9af16fbe58's P6) went with the user's ruling (b) that day, the C4 final fix
+        # round's D2: it queues its session, drained outside any run. The mechanism stays, refusing every name
         from legend_lite._runframe import EXEMPTIONS, exempt
         self.assertEqual(EXEMPTIONS, frozenset())
         with in_run("a test's run"):
-            for crossing in ("a read's re-pin after its statement failed", 'a crossing of my own'):
+            for crossing in ("a read's re-pin after its statement failed",
+                             "a gone session's frames let go (its finalizer may land inside a run)",
+                             'a crossing of my own'):
                 with self.assertRaisesRegex(ValueError, 'no known crossing is named'):
                     with exempt(crossing):
                         pass
             with self.assertRaisesRegex(RuntimeError, 'inside a run'):
                 planning('plan')
+
+    def _gone_session(self, connection):
+        """A marimo session over ``connection``, a frame registered, held as marimo's sessions are (its key)."""
+        import pyarrow as pa
+        from legend_lite import datacube
+        from legend_lite.frames import Frames
+        session = datacube._Session()
+        session.frames = Frames(connection)
+        session.frames.register('gone_t', pa.table({'a': [1, 2]}))
+        key = id(session)
+        with datacube._marimo_lock:
+            datacube._marimo_sessions[key] = session
+        self.addCleanup(lambda: datacube._marimo_sessions.pop(key, None))
+        return session, key
+
+    def test_a_gone_sessions_finalizer_sends_nothing_inside_a_run_and_its_frames_go_after_it(self):
+        # the user's ruling (b) of 2026-11-14, the C4 final fix round's D2: garbage collection runs datacube._release (a
+        # weakref.finalize) wherever it fires, a run's flow included -- it queues the session and sends nothing there;
+        # the next call that finds its session (_current), outside any run, lets the session's frames go
+        from legend_lite import datacube
+        witness = _RunWitness(duckdb.connect())
+        session, key = self._gone_session(witness)
+        sent = len(witness.runs)
+        with in_run("a test's run"):
+            datacube._release(key, session)
+            self.assertEqual(current_run(), "a test's run")
+            # a call that finds its session inside a run leaves the queue for the next
+            datacube._current()
+        self.assertEqual(len(witness.runs), sent, 'the finalizer sent nothing inside the run')
+        self.assertIn('gone_t', session.frames._tables)
+        self.assertIn(key, datacube._marimo_sessions)
+        datacube._current()
+        self.assertEqual(session.frames._tables, {})
+        self.assertNotIn(key, datacube._marimo_sessions)
+        self.assertNotIn((key, session), datacube._gone)
+        self.assertGreater(len(witness.runs), sent)
+        self.assertNotIn("a test's run", witness.runs[sent:])
+
+    def test_no_drop_of_a_gone_session_interleaves_with_a_runs_statements(self):
+        # D2: a run's statements on one database, the finalizer of another session firing between them: every statement
+        # the gone session's frames send comes after the run's last, each inside its own host operations' run
+        from legend_lite import datacube
+        log = []
+
+        class Logged(_RunWitness):
+            def __init__(self, con, who):
+                super().__init__(con)
+                self.who = who
+
+            def execute(self, sql, params=None):
+                log.append((self.who, current_run(), str(sql)))
+                return super().execute(sql, params)
+
+        session, key = self._gone_session(Logged(duckdb.connect(), 'gone'))
+        running = Database(Logged(duckdb.connect(), 'run'))
+        del log[:]
+        with in_run("a test's run"):
+            send(running, PlannedSql('SELECT 1'))
+            datacube._release(key, session)
+            send(running, PlannedSql('SELECT 2'))
+        datacube._current()
+        whose = [who for who, _, _ in log]
+        self.assertEqual(whose[:2], ['run', 'run'], log)
+        gone = log[2:]
+        self.assertTrue(gone and all(who == 'gone' for who, _, _ in gone), log)
+        self.assertTrue(any('DROP' in sql.upper() for _, _, sql in gone), log)
+        self.assertEqual({run for _, run, _ in gone}, {"a host's operations"}, log)
+
+    def test_a_gone_sessions_cleanup_error_is_reported_never_raised_and_the_queue_goes_on(self):
+        # the C4 second small round's item 2b, 2026-11-14: a gone session's cleanup error is no caller's failure -- it
+        # is reported through sys.unraisablehook (as a finalizer's error was, before the finalizer only queued), the
+        # call that drained the queue raises nothing, and the next queued session is let go all the same
+        import sys
+        from unittest import mock
+        from legend_lite import datacube
+        first, first_key = self._gone_session(duckdb.connect())
+        second, second_key = self._gone_session(duckdb.connect())
+        reported = []
+        with mock.patch.object(first.frames, 'close', side_effect=duckdb.IOException('the drop failed')), \
+                mock.patch.object(sys, 'unraisablehook', reported.append):
+            datacube._release(first_key, first)
+            datacube._release(second_key, second)
+            datacube._current()
+        self.assertEqual(len(reported), 1, reported)
+        self.assertIn("a gone marimo session's frames was not let go: the drop failed", str(reported[0].exc_value))
+        self.assertIsInstance(reported[0].exc_value.__cause__, duckdb.IOException)
+        self.assertNotIn(first_key, datacube._marimo_sessions)
+        self.assertNotIn(second_key, datacube._marimo_sessions)
+        self.assertEqual(second.frames._tables, {})
+        self.assertEqual(len(datacube._gone), 0)
 
     def test_each_runner_sends_inside_its_run(self):
         import os

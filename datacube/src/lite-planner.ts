@@ -209,8 +209,9 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
    * One request of the planner protocol, answered by the worker or, in-thread, by the module through the same answer
    * the worker gives (engine-client's planner-answer.ts): one mapping of kinds to exports, wherever the module runs.
    */
-  #call(request: RequestBody): Promise<string> {
-    // the planner's one dispatch, worker or in-thread: refused inside a run of its flow (run-frame.ts, the witness)
+  async #call(request: RequestBody): Promise<string> {
+    // the planner's one dispatch, worker or in-thread: refused inside a run of its flow (run-frame.ts, the witness), by
+    // a rejected promise (async; the C4 final fix round's nit, 2026-11-14)
     planning(request.kind);
     return this.#useWorker() ? this.#ask(request) : this.#load().then((m) => answerOf(m, request));
   }

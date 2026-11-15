@@ -272,8 +272,9 @@ class Headless:
             raise RuntimeError('a write runs in no read of the frames (Frames.reading): its changes are the database\'s own')
         result = send(self._db, across_the_bridge(sql, "the hosted DataCube's statement", self._answered),
                       json.loads(params))
-        table = pa.table({}) if result.description is None else (
-            result.to_arrow_table() if self._over is None else self._over.fetched(result))
+        # never in a read (refused above), so its rows are fetched as they are (the final audit of 9af16fbe58's P8: a
+        # read's own fetch here was dead code)
+        table = pa.table({}) if result.description is None else result.to_arrow_table()
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
             writer.write_table(table)

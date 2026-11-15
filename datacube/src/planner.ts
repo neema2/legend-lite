@@ -15,6 +15,7 @@ import { toJson, type Lambda } from '../../pure-protocol/src/index.ts';
 import type { GridSource } from './model-writer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import { fromPlan } from '../../engine-client/src/planned-sql.ts';
+import { planning } from '../../engine-client/src/run-frame.ts';
 
 export interface UpstreamPlannerOptions extends PureV1Options {
   /**
@@ -141,6 +142,9 @@ export class UpstreamPlanner implements Planner {
   }
 
   async plan(query: Lambda, signal?: AbortSignal): Promise<Plan> {
+    // an upstream server's planner: refused inside a run of the caller's flow (run-frame.ts; the final audit of
+    // 9af16fbe58's T2: it asked nothing)
+    planning('plan');
     const over = await this.#over(query);
     if (over !== this) return over.plan(query, signal);
     const key = toJson(query);
@@ -153,6 +157,7 @@ export class UpstreamPlanner implements Planner {
 
   /** E5 `lambdaRelationType`, cached by the query's JSON. */
   async relationType(query: Lambda, signal?: AbortSignal): Promise<PlanColumn[]> {
+    planning('relationType');
     const over = await this.#over(query);
     if (over !== this) return over.relationType(query, signal);
     const key = toJson(query);

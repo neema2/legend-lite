@@ -5,14 +5,17 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { currentRun, frameKept, inRun, planning } from '../src/run-frame.ts';
+import { NOT_PLANNING, currentRun, frameKept, inRun, planning } from '../src/run-frame.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { WorkerPort } from '../src/legend/wasm-grammar.ts';
+import { HttpEngine, RoutedEngine } from '../src/legend/engine.ts';
 
 const REFUSED = /the planner was asked 'plan' inside a run \(a test's run\): a run sends its plan's statements and plans nothing \(G4\)/;
 
-/** A module whose one export answers a plan. */
-const module = { exports: { planHeldOrError: () => 'OK\nSELECT 1' } } as unknown as PlannerModule;
+/** A module whose exports answer a plan and let a model go. */
+const released: number[] = [];
+const module = { exports: { planHeldOrError: () => 'OK\nSELECT 1',
+  releaseModelOrError: (handle: number) => { released.push(handle); return 'OK\n'; } } } as unknown as PlannerModule;
 
 describe('the run frame', () => {
   it('is kept under Node: the witness is not blind here', () => {
@@ -41,6 +44,99 @@ describe('the run frame', () => {
     planning('plan');
     open();
     await assert.rejects(first, REFUSED);
+  });
+
+  it('lets a held model go inside a run: a release plans nothing (T6), and nothing else is let through', async () => {
+    // the final audit of 9af16fbe58's T6: a release inside a run was refused, LitePlanner's let-go swallowed it, and
+    // the model stayed held
+    assert.deepEqual([...NOT_PLANNING], ['release']);
+    await inRun("a test's run", async () => {
+      planning('release');
+      assert.equal(answer(module, { kind: 'release', handle: 7 }), 'OK\n');
+    });
+    assert.deepEqual(released, [7], 'the model was let go');
+    await assert.rejects(inRun("a test's run", async () => answer(module, { kind: 'hold', model: 'm' })),
+      /the planner was asked 'hold' inside a run/);
+  });
+
+  it('refuses a server engine\'s generatePlan inside a run, before anything is sent (T2)', async () => {
+    const sent: string[] = [];
+    const fetcher = (async (url: string) => {
+      sent.push(String(url));
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as unknown as typeof fetch;
+    const http = new HttpEngine('http://engine.invalid', fetcher);
+    const routed = new RoutedEngine({} as never, http);
+    const input = { function: {}, model: {}, runtime: {} } as never;
+    for (const engine of [http, routed]) {
+      await assert.rejects(inRun("a test's run", async () => engine.generatePlan(input)),
+        /the planner was asked 'generatePlan' inside a run \(a test's run\)/);
+    }
+    assert.deepEqual(sent, [], 'nothing sent to the server inside the run');
+  });
+
+  it('refuses a server engine\'s typing inside a run, before anything is sent (the last list, T2\'s neighbours)', async () => {
+    const sent: string[] = [];
+    const fetcher = (async (url: string) => {
+      sent.push(String(url));
+      return new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as unknown as typeof fetch;
+    const http = new HttpEngine('http://engine.invalid', fetcher);
+    const routed = new RoutedEngine({} as never, http);
+    const model = { _type: 'text', code: '' } as never;
+    const lambda = {} as never;
+    for (const engine of [http, routed]) {
+      const asks: [string, () => Promise<unknown>][] = [
+        ['relationType', () => engine.relationType(model, lambda)],
+        ['compile', () => engine.compile(model)],
+        ['returnType', () => engine.returnType(model, lambda)],
+      ];
+      if (engine === http) asks.push(['compileErrors', () => http.compileErrors('')]);
+      for (const [kind, ask] of asks) {
+        await assert.rejects(inRun("a test's run", async () => ask()),
+          new RegExp(`the planner was asked '${kind}' inside a run \\(a test's run\\)`), kind);
+      }
+    }
+    assert.deepEqual(sent, [], 'nothing sent to the server inside the run');
+  });
+
+  it('a refused entry that promises a promise rejects it, never throws (the C4 final fix round\'s nit)', async () => {
+    // each called bare, not inside an async callback: a throw would escape the call itself (until 2026-11-14 the
+    // non-async methods threw where they promised a promise)
+    const fetcher = (async () => new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })) as
+      unknown as typeof fetch;
+    const http = new HttpEngine('http://engine.invalid', fetcher);
+    const routed = new RoutedEngine({} as never, http);
+    const model = { _type: 'text', code: '' } as never;
+    const lambda = {} as never;
+    const input = { function: {}, model: {}, runtime: {} } as never;
+    const g = globalThis as unknown as { Worker?: unknown };
+    g.Worker = class {
+      onmessage: unknown = null;
+      postMessage(): void {}
+    };
+    try {
+      const port = new WorkerPort('worker.js', 'http://planner.invalid/');
+      const calls: [string, () => Promise<unknown>][] = [
+        ['HttpEngine.relationType', () => http.relationType(model, lambda)],
+        ['HttpEngine.compile', () => http.compile(model)],
+        ['HttpEngine.generatePlan', () => http.generatePlan(input)],
+        ['RoutedEngine.relationType', () => routed.relationType(model, lambda)],
+        ['RoutedEngine.compile', () => routed.compile(model)],
+        ['RoutedEngine.returnType', () => routed.returnType(model, lambda)],
+        ['RoutedEngine.generatePlan', () => routed.generatePlan(input)],
+        ['WorkerPort.ask', () => port.ask({ kind: 'plan', handle: 1, query: 'a', runtime: 'r' })],
+      ];
+      await inRun("a test's run", async () => {
+        for (const [name, call] of calls) {
+          let promised: Promise<unknown> | undefined;
+          assert.doesNotThrow(() => { promised = call(); }, `${name} threw where it promised a promise`);
+          await assert.rejects(promised!, /inside a run \(a test's run\)/, name);
+        }
+      });
+    } finally {
+      delete g.Worker;
+    }
   });
 
   it('refuses the planner\'s in-thread answer inside a run, and answers it outside one', async () => {

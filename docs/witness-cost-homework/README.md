@@ -95,6 +95,16 @@ that nothing larger hides there.
 - **A/B, before the change** (`pywhole.py`): +16 µs [−18, +45] at 1,000 rows and +18 µs [−16, +55] at 100k rows.
   Consistent with the old frame, but it cannot resolve it.
 
+- **Re-measured, 2026-11-14** (the final audit of 9af16fbe58's P8, after G3's `Reading.fetched` and M4's
+  `copy_context` in `_pool._on_compiler_threads`; `scripts/p8bench.py.txt`, the product's Python 3.12 and its duckdb
+  wheel, 9 repeats, a loaded 4-core container, so the medians are noisy and the minimums are read):
+  - `SELECT 1` with no frame: median 153.3 µs, min 144.2 µs; inside `@runs`: median 148.7 µs, min 145.1 µs -- the frame
+    still within the +1-2 µs above (min +0.9 µs).
+  - `to_arrow_table` direct: min 238.9 µs; as `fetched()` takes it (its `try`/`except`): min 235.8 µs -- nothing
+    measurable (a `try` costs nothing until it catches).
+  - `contextvars.copy_context()`: 20 ns, once per call handed to the compiler's threads (a planner's call, never a run's).
+  - Per query, then, unchanged: ≈ 1.4-2.2 µs.
+
 ### TS on Node
 
 - **Per query:** 1 `planning` check (in `answer()`), 1 `inRun` (`runPlan`), and 21 promises (async-hook count, 10 passes

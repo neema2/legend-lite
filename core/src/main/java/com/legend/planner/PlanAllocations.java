@@ -93,7 +93,7 @@ public final class PlanAllocations {
      * Relational nodes (bare-typed, alias-less select), and CLASS query
      * values as full Class-envelope Relational nodes — the engine's
      * three Allocation value forms. */
-    public static @Nullable String node(
+    static @Nullable String node(
             TypedLet let, String mappingFqn,
             SpecCompiler specs, PlanEnv env,
             Map<String, SqlExpr.PlanParam> params,
@@ -251,6 +251,9 @@ public final class PlanAllocations {
         } catch (NotImplementedException
                 | TypeInferenceException
                 | IllegalStateException e) {
+            if (!noLineageRows(e)) {
+                throw e;
+            }
             // no rows: the symbolic handle's walls stand
         }
     }
@@ -419,6 +422,13 @@ public final class PlanAllocations {
         }
     }
 
+    /** Whether a lineage or plan scan's failure leaves the handle with no rows (its walls stand): every one the
+     *  lowering raises but the raw-SQL refusal, which propagates by name (the final audit of 9af16fbe58's J7,
+     *  2026-11-14: the catches swallowed Compiler.lowerResolved's refusal, answering "no rows"). */
+    static boolean noLineageRows(RuntimeException e) {
+        return !QueryDoor.isRawSqlRefusal(e);
+    }
+
     /** The column-lineage chain's rows: the query lambda is chased from
      * the scanColumns let through {@code buildPropertyTree($p.result)},
      * {@code scanProperties(<lambda>.expressionSequence->at(0)->
@@ -481,6 +491,9 @@ public final class PlanAllocations {
             env.planRows().put(scope, rows);
         } catch (NotImplementedException
                 | IllegalStateException e) {
+            if (!noLineageRows(e)) {
+                throw e;
+            }
             // no rows: the symbolic handle's walls stand
         }
     }
@@ -547,6 +560,9 @@ public final class PlanAllocations {
             env.planRows().put(scope, rows);
         } catch (NotImplementedException
                 | IllegalStateException e) {
+            if (!noLineageRows(e)) {
+                throw e;
+            }
             // no rows: the symbolic handle's walls stand
         }
     }

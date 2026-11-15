@@ -51,9 +51,13 @@ def runs(what: str) -> Callable[[F], F]:
 
 # THE KNOWN CROSSINGS, each a planner call a run is known to make, named until it is fixed (shrink-only; each entry
 # dated and reported): the witness steps out of the run for it alone (``exempt``), and refuses any exemption not listed.
-# Empty since 2026-11-13: its one entry, "a read's re-pin after its statement failed" (found by the witness that day:
-# frames.Reading.execute re-pinned a read whose statement failed, the pin's statement asked of the planner inside the
-# read's run), went with the user's ruling (1b): a read ends at the failure that aborts its transaction, re-pinned never.
+# Its first entry, "a read's re-pin after its statement failed" (found by the witness 2026-11-13: frames.Reading.execute
+# re-pinned a read whose statement failed, the pin's statement asked of the planner inside the read's run), went with the
+# user's ruling (1b): a read ends at the failure that aborts its transaction, re-pinned never.
+# Its second, "a gone session's frames let go (its finalizer may land inside a run)" (2026-11-14, the final audit of
+# 9af16fbe58's P6: datacube._release, a weakref.finalize, let a gone marimo session's frames go wherever garbage
+# collection fired, a run's flow included), went with the user's ruling (b) of 2026-11-14 (the C4 final fix round's D2):
+# the finalizer only queues the session, and the queue is drained outside any run (datacube._let_go_gone).
 EXEMPTIONS: frozenset[str] = frozenset()
 
 

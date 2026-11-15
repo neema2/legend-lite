@@ -376,11 +376,22 @@ class _File:
         return {'model': self.model, 'runtime': self.runtime, 'source': self.source, 'table': self.name, 'leaf': self.leaf}
 
 
-# the failures DuckDB raises BEFORE a statement runs -- a table not there, a name not bound, text that does not parse:
-# they leave the transaction standing, so they never end a read, and DuckDB still raises them after a read has ended
-# (measured on the pinned DuckDB, 2026-11-14: after an abort a ParserException, a CatalogException and a
-# BinderException are each raised as themselves; only a statement that runs says the transaction is aborted)
-_REFUSED_BEFORE_RUNNING = (duckdb.ParserException, duckdb.CatalogException, duckdb.BinderException)
+# the failures DuckDB raises BEFORE a statement runs -- a table not there, a name not bound, text that does not parse, a
+# file the database may not touch: they leave the transaction standing, so they never end a read, and DuckDB still
+# raises them after a read has ended (measured on the pinned DuckDB, 2026-11-14: after an abort a ParserException, a
+# CatalogException, a BinderException and a PermissionException are each raised as themselves -- a PermissionException
+# first leaves the transaction standing, its next statement runs -- as are an invalid input and a file that cannot be
+# read, which Reading._failed reads apart; a statement that runs says the transaction is aborted)
+_REFUSED_BEFORE_RUNNING = (duckdb.ParserException, duckdb.CatalogException, duckdb.BinderException,
+                           duckdb.PermissionException)
+
+# the failures that abort a standing transaction, yet that DuckDB still raises as themselves after an abort (measured on
+# the pinned DuckDB, 2026-11-14): an invalid input (a statement given fewer values than its `?`s) and a file that cannot
+# be read (an IOException at bind -- a local or remote file not there, read_parquet's or read_csv's or a view's over
+# one; an HTTPException is one): each is kept only where nothing is kept yet -- the read's end when it came first, and
+# never a replacement for the failure that ended the read (the final audit of 9af16fbe58's P7; the C4 final fix round's
+# B1, 2026-11-14)
+_ABORTS_UNLESS_ABORTED = (duckdb.InvalidInputException, duckdb.IOException)
 
 
 def _words(said: str, kind: str) -> str:
@@ -456,7 +467,10 @@ class Reading:
         standing, and never replaces the one that aborted it); the failure to raise, its held values taken out (None:
         ``e`` names none)."""
         failure = redacted(e, self.held_values)
-        if not isinstance(e, _REFUSED_BEFORE_RUNNING):
+        # an invalid input or a file that cannot be read aborts a standing transaction, yet DuckDB raises it as itself
+        # after an abort too: it is kept only where nothing is kept yet (_ABORTS_UNLESS_ABORTED)
+        if not isinstance(e, _REFUSED_BEFORE_RUNNING) and not (
+                isinstance(e, _ABORTS_UNLESS_ABORTED) and self._last_failure is not None):
             self._last_failure = _words(str(failure) if failure is not None else str(e), type(e).__name__)
         return failure
 
@@ -464,7 +478,10 @@ class Reading:
         """``result``'s rows as this read fetches them: a failure AT THE FETCH (DuckDB converts as it streams, so a
         value that does not convert past the first rows it hands over fails here, not at the statement: measured at
         3M rows, 2026-11-14) is the read's failure as one at the statement is -- it aborts the transaction, and the
-        read ends there, named by it (the follow-up audit's G3: until then a fetch's failure went unrecorded)."""
+        read ends there, named by it (the follow-up audit's G3: until then a fetch's failure went unrecorded). Named by
+        what DuckDB raises: DuckDB 1.5.5 now and then answers a worker's conversion failure as its interrupt, a race of
+        its own threads (measured 2026-11-14 with no legend-lite code: about 1 in 20 on a cursor or in a transaction),
+        and the read is named by that."""
         try:
             return result.to_arrow_table()
         except duckdb.TransactionException:

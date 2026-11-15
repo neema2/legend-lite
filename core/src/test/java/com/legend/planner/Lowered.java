@@ -5,7 +5,6 @@ package com.legend.planner;
 
 import com.legend.Compiler;
 import com.legend.TypedQuery;
-import com.legend.lowering.Lowerer;
 import com.legend.lowering.ObjectSites;
 import com.legend.platform.Feature;
 import com.legend.sql.SqlExpr;
@@ -46,10 +45,14 @@ public final class Lowered {
                 new ObjectSites()), p.body().get(p.body().size() - 1), query.context());
     }
 
-    /** The Lowerer a planned statement lowers with, the planner's own configuration
-     *  ({@link ProductStatements#configured}). */
-    public static Lowerer lowerer(TypedQuery query, boolean temporal, boolean streaming, List<SqlExpr.PlanParam> slots,
-            Set<Feature> features) {
-        return ProductStatements.configured(query, temporal, streaming, slots, features, new ObjectSites());
+    /** {@code query}'s own body lowered with the planner's own configuration ({@link ProductStatements#configured}) as
+     *  a connection whose time zone is {@code zone} lowers it ({@code Lowerer.withDbTimeZone}), its parameters
+     *  {@code slots} -- the raw-SQL refusal first, as {@link #lower} refuses it (the final audit of 9af16fbe58's J6,
+     *  2026-11-14: until then this helper handed the tests a bare Lowerer, which lowered any body). */
+    public static com.legend.sql.SqlQuery lowerInZone(TypedQuery query, @com.legend.base.Nullable String zone,
+            List<SqlExpr.PlanParam> slots) {
+        QueryDoor.refuseRawSql(query);
+        return ProductStatements.configured(query, false, false, slots, Set.of(), new ObjectSites())
+                .withDbTimeZone(zone).lower(query.body());
     }
 }

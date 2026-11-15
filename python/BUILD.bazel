@@ -362,7 +362,9 @@ py_test(
 # //tools/guards:planned_sql_test.
 py_test(
     name = "planned_guard_test",
-    size = "small",
+    # `medium` since 2026-11-14 (the C4 last two rulings' round): CI's Windows 28 s on main and 34 s at 5fdeb94d54 (6 s
+    # at 4a8e448917; Linux 5-8 s) -- `_SLOW_ON_CI_TESTS` in datacube/BUILD.bazel
+    size = "medium",
     srcs = ["tests/test_planned_guard.py"],
     data = glob(["legend_lite/*.py"]),
     env = {"PLANNED_PACKAGE": "$(rlocationpath legend_lite/__init__.py)"},
@@ -371,10 +373,15 @@ py_test(
 )
 
 # THE RUN WALL, Python's half (the user's ruling M2, 2026-11-13; its TypeScript half //datacube:run_wall_test): the send
-# seam imports no planner, no run calls or takes one, the runs pinned -- read by Python's own parser, no import.
+# seam imports no planner, no run calls or takes one, the runs pinned, and every send in a run or a named unframed sender
+# (the follow-up audit's G2, 2026-11-14) -- read by Python's own parser, no import.
 py_test(
     name = "run_wall_test",
-    size = "small",
+    # medium (2026-11-14, the C4 second small round's item 1): it reads every module's AST, ~14s on Linux (13.96-14.28s
+    # at 6e68a11e5c, 14.22-14.40s at 5fdeb94d54, three runs each: the round did not slow it); on CI's Windows it was
+    # still running at 46s at 6e68a11e5c (run 43571127093, passed under small's 60s) and timed out at 61.6s at
+    # 5fdeb94d54 (run 43629433980), beside //core:guardrails on the same runner
+    size = "medium",
     srcs = ["tests/test_run_wall.py"],
     data = glob(["legend_lite/*.py"]),
     env = {"PLANNED_PACKAGE": "$(rlocationpath legend_lite/__init__.py)"},
