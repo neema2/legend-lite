@@ -25,18 +25,18 @@
 // it while the user is still looking at an empty grid.
 
 import { element, fn, fromJson, lambda, readLambda, readValueSpecification, toJson, type Lambda } from '../../pure-protocol/src/index.ts';
-import type { Planner, TsShown } from './cube.ts';
+import type { Planner, TsShown } from './planner-types.ts';
 import type { CatalogColumn, InferOptions, InferredModel, ModelTable, OutputRequest, TableModels, TablesModel } from './infer.ts';
 import { PlanError, type ModelOptions } from './planner.ts';
 import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
-import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
+import type { PrintStyle } from '../../engine-client/src/pure-v1-planning.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
-import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
-import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
-import type { HostOperation } from '../../engine-client/src/host-operations.ts';
+import type {
+  FileLoadRequest, HostOperation, ProjectDataStatements, RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest,
+  SynthesizeRequest,
+} from '../../engine-client/src/requests.ts';
 import { answer as answerOf, type PlannerModule } from '../../engine-client/src/legend/planner-answer.ts';
 import { callsLibrary, loadLibrary, withLibrary } from './pure-library.ts';
 import type { PlannerWorker, RequestBody, Response } from '../../engine-client/src/legend/planner-protocol.ts';

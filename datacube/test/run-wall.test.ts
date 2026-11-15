@@ -120,13 +120,18 @@ const PLANNER = new Set([
 const COMPOSER_MODULES = new Map([
   ['src/runner.ts', "DataCube's runner: runs a page's statements in a run frame and imports its cube (C5)"],
   ['src/app/services.ts', "the app's services: an engine that runs a PlannedSql beside the runner that plans (C5)"],
-  ['src/app/sources.ts', "the app's sources: an engine's run beside the page model that plans (C5)"],
   ['src/services/browser.ts', "the browser's services: DuckDB's engine run beside the app's services (C5)"],
-  ['src/headless/host.ts', "the headless host: its query takes a PlannedSql beside the Python host's services (C5)"],
+  // 2026-11-15 (C5-T step 4): DataCube's small doors, by design a composer (asked, then run in a run frame) -- where
+  // the join flow's summary counts planned and ran inline until then; the wall goes for the layers' rule at C5's end
+  ['src/doors.ts', "DataCube's small doors: a query planned, then its statement run once in a run frame (C5-T)"],
+  // 2026-11-15 (C5-T step 4): src/app/sources.ts and src/app/join-flow.ts left the list -- where each planned, then
+  // ran, inline, it calls a door (planned outside the run, run in a run frame): the grid's, runner.ts localHost, for a
+  // class's first row; doors.ts planAndRunOnce for a join's summary counts.
+  // 2026-11-15 (C5-T step 4): src/headless/host.ts left the list -- its PlannedSql connection is the run side's own
+  // module now (src/headless/connection.ts, //datacube:run, typechecked alone), and host.ts runs nothing
   ['../engine-client/src/legend/browser-engine.ts', 'the engine with no server: plans, then runs on its engine (C5)'],
   // 2026-11-14 (the final audit of 9af16fbe58's T1: `!.run(`, `.execute(` and `.stream(` now seen): each calls a run
   // and reaches the planner
-  ['src/app/join-flow.ts', "the join flow: a summary's query planned by the grid's planner, then run on its engine (C5)"],
   ['src/cube.ts', "DataCube's cube, a planner module: runs and streams a page's queries through its runner (C5)"],
   ['src/plan.ts', "a page's plan: its query run by DataCube's runner, which plans it (C5)"],
   ['src/treeview.ts', "the tree view: its rows run by DataCube's runner, which plans them (C5)"],

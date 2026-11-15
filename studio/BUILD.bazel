@@ -29,7 +29,7 @@ js_library(
         "//sdlc-client:sdlc_client",
     ],
     # DataCube's census of the brand's casts reads Studio's program (datacube/test/brand-casts.test.ts, the re-audit's S5)
-    visibility = ["//datacube:__pkg__"],
+    visibility = ["//datacube:__pkg__", "//tools/deps:__pkg__"],
 )
 
 # the page and its two workers: Studio (with Monaco and its stylesheet), legend-lite's compiler, Monaco's

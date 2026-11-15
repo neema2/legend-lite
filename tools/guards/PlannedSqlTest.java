@@ -196,7 +196,8 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/verify-real-data.mjs", List.of("conn.query(", "conn.query(", "conn.query(")),
             Map.entry("datacube/demo/verify-remote.mjs", List.of("conn.query(", "conn.query(", "conn.query(", "db.copyFileToBuffer")),
             Map.entry("datacube/demo/widget-loader.ts", List.of("model.send(")),
-            Map.entry("datacube/src/headless/host.ts", List.of("calls.query(")),
+            // 2026-11-15 (C5-T step 4): the bridge's connection moved out of host.ts into its own run module, the same send
+            Map.entry("datacube/src/headless/connection.ts", List.of("calls.query(")),
             Map.entry("engine-client/src/duckdb.ts", List.of("conn.insertArrowFromIPCStream", "conn.query(", "prepared.query(", "prepared.query(", "prepared.send(", "this.#conn.prepare(", "this.#conn.query(")),
             Map.entry("query/src/app/app.ts", List.of("recent.query(")),
             Map.entry("query/src/ui/queries.ts", List.of("recent.query(")));
@@ -243,7 +244,9 @@ class PlannedSqlTest {
             // 2026-11-15 (C5-T, the TypeScript split of plan and run: the server's planning client split out of engine.ts,
             // HttpEngine now that client and its execute): the same one fetch, moved with the client
             Map.entry("engine-client/src/legend/planning-client.ts", List.of("fetch(`${this.#base}${path}`")),
-            Map.entry("engine-client/src/pure-v1.ts", List.of("fetch(url")),
+            // 2026-11-15 (C5-T step 4): the same one fetch, moved with pure/v1's planning half (pure-v1-planning.ts, whose
+            // client the execute client extends)
+            Map.entry("engine-client/src/pure-v1-planning.ts", List.of("fetch(url")),
             Map.entry("engine-client/src/warehouse.ts", List.of("fetch(baseUrl.replace(/\\/+$/, '') + call.path")),
             Map.entry("query-store/src/client.ts", List.of("fetch(`${this.#api}/pure/v1/query${path}`")),
             Map.entry("query/demo/main.ts", List.of("fetch(url")),

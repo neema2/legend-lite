@@ -52,7 +52,7 @@ import type { GridMaker } from '../page/page-app.ts';
 import type { PageModelRef } from '../page-model.ts';
 import type { ModelOptions } from '../planner.ts';
 import { inferFormat, type S3Credentials } from '../remote.ts';
-import type { PlanAndRun, QueryRunner } from '../runner.ts';
+import { localHost, type PlanAndRun, type QueryRunner } from '../runner.ts';
 import { SAMPLES, sampleById, sampleFileName, type Sample } from '../samples.ts';
 import type { CubeSnapshot } from '../snapshot.ts';
 import { sourceColumns } from '../source-columns.ts';
@@ -1225,7 +1225,7 @@ export function pageSources(d: SourcesOf): PageSources {
       const first = lambda([], from(source).limit(1).node);
       try {
         if (rows.runner) await rows.runner.host.planAndRun(first, 0);
-        else { const p = await rows.planner.plan(first); await rows.engine.run(p.sql, 0, undefined, p.params); }
+        else await localHost(rows.planner, rows.engine).planAndRun(first, 0);
       } catch (e) {
         throw new Error(`“${name}” cannot read its rows here (${e instanceof Error ? e.message : String(e)}): a class reads `
           + 'the tables the page that made it opened -- open that page, or its file, first');

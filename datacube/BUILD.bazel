@@ -75,15 +75,103 @@ exports_files(
 
 # the app's sources as the tests read them; package.json carries
 # "type": "module" (the sources are ES modules)
+# DATACUBE'S LAYERS (C5-T, 2026-11-15: the TypeScript split of plan and run, engine-client's shape): its files stay where
+# they are; the planner, the run side and the records both read are carved out of the app by name, each pinned in
+# tools/deps/ts-layers.txt, and the run and the planner each typechecked alone (:layer_typecheck_tests). The app (:src)
+# is the rest, its doors among it: they and the app import each other (runner.ts and cube.ts), so DataCube's doors stay
+# in the app, their calls of a runner pinned by call site (//tools/guards:planned_sql_test, the orchestrator's note 4).
+_RECORDS = [
+    # the calls the bridge's host answers, and the web platform a headless bundle is given: shapes and helpers alone
+    "src/headless/calls.ts",
+    "src/headless/web.ts",
+]
+
+_RUN = [
+    # the host's database: the bridge's one connection that sends a plan's statement (headless/host.ts's until C5-T)
+    "src/headless/connection.ts",
+]
+
+_PLANNER = [
+    "src/infer.ts",
+    "src/lazily.ts",
+    "src/lite-planner.ts",
+    "src/model-writer.ts",
+    "src/planner-types.ts",
+    "src/planner.ts",
+    "src/pure-library.ts",
+    # the library's text, which pure-library.ts loads on first use
+    "src/pure-library-text.ts",
+]
+
+[fail("datacube/%s is listed twice in datacube/BUILD.bazel's layers" % f) for i, f in enumerate(_RECORDS + _RUN + _PLANNER) if f in (_RECORDS + _RUN + _PLANNER)[:i]]
+
+js_library(
+    name = "records",
+    srcs = _RECORDS,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = ["//engine-client:records"],
+)
+
+js_library(
+    name = "run",
+    srcs = _RUN,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        ":records",
+        "//engine-client:records",
+        "//engine-client:run",
+    ],
+)
+
+js_library(
+    name = "planner",
+    srcs = _PLANNER,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        "//engine-client:planner",
+        "//engine-client:records",
+        "//model-changes:records",
+        "//pure-protocol:pure_protocol",
+    ],
+)
+
+# every source of the app, its layers' too, as files, for a scanner that reads them by $(rlocationpaths) (_SCANNED): the
+# layers' files are each layer's, so :src's own are not all of them (C5-T, 2026-11-15). A js_library, as a scanner's
+# data must be; no product target depends on it (tools/deps/ts-layers.txt pins the layers)
+js_library(
+    name = "sources",
+    srcs = glob(["src/**/*.ts"]),
+    data = glob(["src/**/*.d.ts"]),
+)
+
 js_library(
     name = "src",
-    srcs = glob(["src/**/*.ts"]),
+    srcs = glob(["src/**/*.ts"], exclude = _RECORDS + _RUN + _PLANNER),
     # its declarations as files too (a `.d.ts` in srcs is passed on as types alone): a program that compiles a source
     # referring to one (chart-render.ts: ECharts' painters, src/echarts-renderers.d.ts) finds it -- Query's, Studio's
     data = glob(["src/**/*.d.ts"]),
-    # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse)
-    visibility = ["//query:__pkg__"],
-    deps = [":src_base"],
+    # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse); the layers' test reads its
+    # files, as a layer must never hold one (tools/deps:*_alone_test)
+    visibility = ["//query:__pkg__", "//tools/deps:__pkg__"],
+    deps = [
+        ":planner",
+        ":records",
+        ":run",
+        ":src_base",
+    ],
+)
+
+# each layer's direct deps, as Bazel resolves them: //tools/deps:ts_layering_test holds them to tools/deps/ts-layers.txt
+[genquery(
+    name = "layer_" + layer,
+    expression = "labels(deps, //datacube:%s)" % layer,
+    scope = [":" + layer],
+) for layer in ["records", "run", "planner"]]
+
+filegroup(
+    name = "layer_queries",
+    srcs = [":layer_" + layer for layer in ["records", "run", "planner"]],
+    visibility = ["//tools/deps:__pkg__"],
 )
 
 # what every source file needs beside itself: the package's module settings and the libraries the sources import. A
@@ -150,11 +238,11 @@ _TESTS = glob(["test/*.test.ts"])
 # the files named here, passed in SOURCES by $(rlocationpaths) and read through //tools/js:runfiles' Sources: no
 # scanner walks a directory or reads from the working directory, and a file it should see is one it declares.
 _SCANNED = {
-    "config-readers": [":src"],
+    "config-readers": [":sources"],
     # the shipped trees: the app, the engine client (DataCube's until 2026-10-04) and the demo, and the
     # differentials behind the second planner transport
     "guardrails": [
-        ":src",
+        ":sources",
         # its files (the aggregate's are its layers', C5-T, 2026-11-15)
         "//engine-client:sources",
         ":scanned_demo",
@@ -165,13 +253,13 @@ _SCANNED = {
         "src/grid/grid.css",
         "src/theme.css",
     ],
-    "menu-ids": [":src"],
+    "menu-ids": [":sources"],
     # THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13): the run side's imports and signatures, read
     # over DataCube's planner and the engine client, and the protocol library the snapshot's runner imports (the
     # follow-up audit's G2, 2026-11-14), and Studio's and Query's apps with the libraries they import (the final audit
     # of 9af16fbe58's T5, 2026-11-14)
     "run-wall": [
-        ":src",
+        ":sources",
         "//depot-client:depot_client",
         "//engine-client:sources",
         "//legend-art:legend_art",
@@ -182,13 +270,13 @@ _SCANNED = {
         "//studio:src",
     ],
     # everything a build or a person runs from this package
-    "portability": [":src", ":scanned_scripts"],
-    "state-guardrail": [":src"],
+    "portability": [":sources", ":scanned_scripts"],
+    "state-guardrail": [":sources"],
     # THE ONE API LEDGERS (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md §3): the grid's, the page's and the host's sources,
     # Python's (a command each kind is made by), the plan's register, and the ledger files it is held to -- and every
     # test file, DataCube's and Python's, where L12 finds the tests each ability on both hosts is proved by
     "one-api-ledger": [
-        ":src",
+        ":sources",
         ":scanned_test_code",
         "//docs:one_api_plan",
         "//python:legend_lite_sources",

@@ -8,11 +8,19 @@
 #     note 4, 2026-11-15: no :doors or app module is a dependency of :run);
 #   - a PLANNER layer reaches nothing that can execute: the records (and the protocol records) only -- never a run, a
 #     server or a door (the orchestrator's note 1, 2026-11-15; its planning client is its own file).
-# The run target is typechecked alone, its closure copied out with nothing else (//engine-client:run_typecheck_test):
-# a run module that imports a planner, server or door module fails there by name.
+# Each run and planner layer is typechecked alone, its closure copied out with nothing else (//tools/deps:layers_alone,
+# layer-alone.test.ts): a module that imports one of a layer it may not reach fails there by name.
 # 2026-11-15 (C5-T step 3): the engine client's five layers.
 //engine-client:records	//pure-protocol:pure_protocol
 //engine-client:run	//engine-client:node_modules/@duckdb/duckdb-wasm //engine-client:node_modules/apache-arrow //engine-client:records
 //engine-client:planner	//engine-client:records //pure-protocol:pure_protocol
 //engine-client:server	//engine-client:node_modules/fzstd //engine-client:planner //engine-client:records //pure-protocol:pure_protocol
 //engine-client:doors	//engine-client:node_modules/apache-arrow //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol
+# 2026-11-15 (C5-T step 4): DataCube's layers -- its records (the bridge's calls, the headless web), its run side (the
+# bridge's connection) and its planner (lite-planner.ts, planner.ts, the Planner interface and what they read) -- and
+# the two wire modules a planner reads, as records of their packages (sdlc-client's and model-changes').
+//datacube:records	//engine-client:records
+//datacube:run	//datacube:records //engine-client:records //engine-client:run
+//datacube:planner	//engine-client:planner //engine-client:records //model-changes:records //pure-protocol:pure_protocol
+//model-changes:records	//pure-protocol:pure_protocol //sdlc-client:records
+//sdlc-client:records	

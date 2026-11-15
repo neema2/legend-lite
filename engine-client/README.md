@@ -31,7 +31,7 @@ source in no target fails the load):
 | `:server` | legend-engine's API clients; their execute is the server's door | planner, records, the protocol, fzstd |
 | `:doors` | Each asks the planner, then runs the answer in a run frame (`doors/`, `snap.ts`, `tab-data.ts`, ...) | all of them |
 
-`:run` is typechecked alone (`:run_typecheck_test`): a run module that imports a planner, server or door module fails
-by name. `:engine_client` is all five, what the apps depend on.
+`:run` and `:planner` are each typechecked alone (`//tools/deps:layers_alone`): a run module that imports a planner,
+server or door module fails by name, and a planner module that imports a run, server or door module. `:engine_client` is all five, what the apps depend on.
 
 An app embedding DataCube's grid imports `datacube/src/embed.ts`, DataCube's one public entry.

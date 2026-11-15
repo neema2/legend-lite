@@ -24,7 +24,7 @@
 import { ExactNumber, type Lambda, type ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
-import type { Planner, TsShown } from './cube.ts';
+import type { Planner, TsShown } from './planner-types.ts';
 import type { RemoteExecutor } from '../../engine-client/src/engine-remote.ts';
 import type { CubeSnapshot } from './snapshot.ts';
 import type { LevelScope } from './query.ts';

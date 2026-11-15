@@ -22,7 +22,8 @@ exports_files(["pnpm-lock.yaml", "package.json"])
 # THE TARGETS, Java's shape (C5-T, 2026-11-15: the TypeScript split of plan and run; docs/TOTAL_WALL_START_HERE_2026_11_11.md
 # section 6.1). The files stay where they are; each target lists its own, and every source is in exactly one (the load
 # fails otherwise). Their direct deps are pinned by tools/deps/ts-layers.txt (//tools/deps:ts_layering_test, a
-# genquery per target, as core-layers.txt pins Java's), and the run target is typechecked alone (:run_typecheck_test):
+# genquery per target, as core-layers.txt pins Java's), and the run and planner targets are each typechecked alone
+# (//tools/deps:layers_alone):
 # - records: the shapes both sides read -- no send, no plan (Java's execution_plan, sql and result records);
 # - run: what sends a plan's statements and reads their rows: records and npm only, NO planner, no server, no door;
 # - planner: legend-lite's planner in the tab and its planning client (no execute): records and the protocol only;
@@ -70,6 +71,7 @@ _PLANNER = [
     "src/legend/planning-client.ts",
     "src/legend/wasm-grammar.ts",
     "src/planner-sources.ts",
+    "src/pure-v1-planning.ts",
 ]
 
 _SERVER = [
@@ -196,18 +198,6 @@ filegroup(
     name = "layer_queries",
     srcs = [":layer_" + layer for layer in ["records", "run", "planner", "server", "doors"]],
     visibility = ["//tools/deps:__pkg__"],
-)
-
-# the files of the layers the run target must never hold (the orchestrator's note 4, 2026-11-15: no door or app module
-# is a dependency of :run), by label: :run_typecheck_test checks none is in the run's closure
-genquery(
-    name = "not_run_srcs",
-    expression = "labels(srcs, //engine-client:planner + //engine-client:server + //engine-client:doors)",
-    scope = [
-        ":doors",
-        ":planner",
-        ":server",
-    ],
 )
 
 # legend-lite's planner in a worker (src/legend/planner-worker.ts), one bundle for every app that runs it in the
@@ -415,27 +405,6 @@ node_test(
     entry_point = "test/run-frame.test.ts",
 )
 
-# THE RUN TARGET ALONE (C5-T, 2026-11-15: the rule that replaces the interim run wall): //engine-client:run's closure,
-# and nothing else, copied out and typechecked strict by the pinned compiler -- a run module that imports a planner, a
-# server or a door fails by name (TS2307), a planted one proves it; no planner, server or door file is in the closure
-# (:not_run_srcs); and no import door whose module is chosen at run time but the two vendor loads named
-node_test(
-    name = "run_typecheck_test",
-    size = "small",
-    data = [
-        ":not_run_srcs",
-        ":run",
-        "//datacube:node_modules/@types/node",
-        "//datacube:node_modules/typescript",
-    ],
-    entry_point = "test/run-target.test.ts",
-    env = {
-        "NOT_RUN_SRCS": "$(rlocationpath :not_run_srcs)",
-        # the package's link and the store's files it reaches: the test runs the link's bin/tsc
-        "TYPESCRIPT": "$(rlocationpaths //datacube:node_modules/typescript)",
-    },
-)
-
 # A write's execution plan (the planner's executionPlan) run by the host's plan runner on DuckDB-WASM, in one
 # transaction (plan-runner.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6)
 node_test(
@@ -536,7 +505,6 @@ test_suite(
         ":plan_runner_test",
         ":planned_sql_test",
         ":run_frame_test",
-        ":run_typecheck_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",

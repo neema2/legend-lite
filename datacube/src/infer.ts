@@ -29,9 +29,7 @@
 // because duckdb-wasm has it compiled in and registerFileBuffer
 // makes it no harder.
 
-import type { HostOperation } from '../../engine-client/src/host-operations.ts';
-import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
-import type { RemoteMountRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
+import type { FileLoadRequest, HostOperation, RemoteMountRequest, SynthesizeRequest } from '../../engine-client/src/requests.ts';
 import type { ValueSpecification } from '../../pure-protocol/src/index.ts';
 import type { PlannedSql, PlanText } from '../../engine-client/src/planned-sql.ts';
 
