@@ -223,6 +223,7 @@ final class TaggedLists {
      * spelling carrier's own shape (its ids ordered by its comparables), the identity now a position.
      */
     static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias) {
+        refuseInexactRanks(tl);
         if (tl.rows() != null) {
             return sortRows(tl, alias);
         }
@@ -247,6 +248,67 @@ final class TaggedLists {
      * comparable's channels are the cells' scalar columns ({@code __cmp}, or {@code __cmp_g/n/d/s} for a rank across
      * kinds), compared field by field as the rank's struct compares them, a missing field after a present one.
      */
+    /** 2^53: the largest magnitude below which every integer is a double. */
+    private static final long EXACT_IN_A_DOUBLE = 1L << 53;
+
+    /**
+     * A mixed list's numbers are ordered by their value as a DOUBLE (MixedEncoding's rank): a Decimal, or an integer
+     * beyond 2^53, is not held exactly there, and two such values could be ordered wrongly
+     * ({@code [9007199254740993, 9007199254740992, 'a']->min()} answered ...993). Such an order is refused by name at
+     * planning until the kinds-kept carrier ranks numbers exactly (2026-11-15, PR1's review, D2).
+     */
+    static void refuseInexactRanks(SqlExpr.TaggedList tl) {
+        List<SqlExpr> scanned = new ArrayList<>();
+        scanned.add(tl.comparable());
+        if (tl.rows() != null) {
+            scanned.add(tl.rows());
+        }
+        for (SqlExpr e : scanned) {
+            String why = inexact(e);
+            if (why != null) {
+                throw new com.legend.error.NotImplementedException("a mixed list's order over " + why
+                        + ": its numbers are ranked as DOUBLE, which does not hold it exactly (refused until the"
+                        + " kinds-kept carrier ranks numbers exactly)");
+            }
+        }
+    }
+
+    private static @com.legend.base.Nullable String inexact(SqlExpr e) {
+        if (e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.DOUBLE) {
+            SqlExpr v = c.value();
+            if (v instanceof SqlExpr.DecimalLit || v.type() instanceof com.legend.sql.TypeFact.Typed t
+                    && t.type() instanceof SqlType.Decimal) {
+                return "a Decimal";
+            }
+            if (v instanceof SqlExpr.IntLit i && (i.value() >= EXACT_IN_A_DOUBLE || i.value() <= -EXACT_IN_A_DOUBLE)) {
+                return "the integer " + i.value() + " (beyond 2^53)";
+            }
+        }
+        if (e instanceof SqlExpr.ScalarSubquery q && q.subquery() instanceof SqlSelect s) {
+            for (SqlSelect.Projection pr : s.projections()) {
+                String why = inexact(pr.expr());
+                if (why != null) {
+                    return why;
+                }
+            }
+            if (s.from() instanceof SqlSource.Subselect sub && sub.inner() instanceof SqlSelect in) {
+                for (SqlSelect.Projection pr : in.projections()) {
+                    String why = inexact(pr.expr());
+                    if (why != null) {
+                        return why;
+                    }
+                }
+            }
+        }
+        for (SqlExpr c : e.children()) {
+            String why = inexact(c);
+            if (why != null) {
+                return why;
+            }
+        }
+        return null;
+    }
+
     private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias) {
         SqlSelect cells = cellsOf(tl);
         var c = SqlExpr.Column.lookup(alias, cells.outputs());
