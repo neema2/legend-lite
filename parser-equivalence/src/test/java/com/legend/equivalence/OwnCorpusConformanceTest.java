@@ -85,11 +85,13 @@ class OwnCorpusConformanceTest {
             // no such mapping-element parser, by design on our side
             return "LITE-DESIGN-inline-association";
         }
-        if (text.contains("###Lakehouse")) {
+        if (text.contains("###Lakehouse") || text.contains("###DataProduct")) {
             // the desk's data products, 2026-10-29 (REVIEWED): Legend's
             // ###Lakehouse Ingest, whose grammar is closed, read by lite's
             // own (OWN_CORPUS_DECISIONS §16) -- a section the engine's
-            // public grammar has no parser for
+            // public grammar has no parser for; since 2026-11-15 (REVIEWED)
+            // also Legend's ###DataProduct, lite's grammar for Studio's
+            // dataProduct (S408), which the pinned engine has none for
             return "LITE-DESIGN-lakehouse";
         }
         if (msg.contains("Unknown database type 'Deephaven'")) {
@@ -298,7 +300,14 @@ class OwnCorpusConformanceTest {
                 // 0 -> 2 (the desk's data products, 2026-10-29, REVIEWED):
                 // LakehouseIngestTest's two models, Legend's ###Lakehouse
                 // form and the desk's shapes (OWN_CORPUS_DECISIONS §16)
-                Map.entry("LITE-DESIGN-lakehouse", 2),
+                // 2 -> 8 (2026-11-15, REVIEWED, the deployment program, found
+                // by the gate's parser_parity run): DeploymentPlannerTest's
+                // four models (its stores, the delivered files', the data
+                // product's, the in-tab deployment's), IngestTopicsTest's and
+                // DuckDbIngestPlansTest's stores (since B1 and C0: this lane
+                // had not run since); the data product's model is a
+                // ###DataProduct, classed here since the same day
+                Map.entry("LITE-DESIGN-lakehouse", 8),
                 // 0 -> 1 (2026-10-29, REVIEWED, found by the branch's first
                 // census run): PureV1ApiTest's Deephaven connection, lite's
                 // own JSON read where the engine's routes refuse it

@@ -35,6 +35,9 @@ final class Sectionize {
             case com.legend.model.ExecutionEnvironmentDefinition s -> "Service";
             case com.legend.model.DataSpaceDefinition d -> "DataSpace";
             case com.legend.model.IngestDefinition i -> "Lakehouse";
+            // the deployment program's elements (docs/DEPLOYMENT_DESIGN_2026_11_14.md, steps 1 and 2)
+            case com.legend.model.DeploymentDefinition d -> "Lakehouse";
+            case com.legend.model.DataProductDefinition d -> "DataProduct";
             case com.legend.model.DataDefinition d -> "Data";
             // section carriers already know their section — never a move
             case com.legend.model.GenericSectionElementDefinition g ->

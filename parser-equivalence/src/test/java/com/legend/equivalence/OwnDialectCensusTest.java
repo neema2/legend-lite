@@ -89,6 +89,12 @@ class OwnDialectCensusTest {
                     // the desk's data products, 2026-10-29 (REVIEWED): Legend's ###Lakehouse Ingest read by lite's own
                     // grammar, the declared extension LITE-DESIGN-lakehouse (OWN_CORPUS_DECISIONS §16)
                     "LakehouseIngestTest.java",
+                    // the deployment program, 2026-11-15 (REVIEWED, found by the gate's parser_parity run): the planner
+                    // tests' models over the declared extension LITE-DESIGN-lakehouse (OWN_CORPUS_DECISIONS §16) --
+                    // ingests landing from topics and files, a Deployment and lite's own Kafka, Files and Simulated
+                    // connections (S407, S409, S410); IngestTopicsTest and DuckDbIngestPlansTest since B1 and C0, which
+                    // this lane had not run since
+                    "DeploymentPlannerTest.java", "DuckDbIngestPlansTest.java", "IngestTopicsTest.java",
                     // overloads by a relation's column type, 2026-11-03 (REVIEWED, register S146, the user's 2a): a
                     // user function's id spelling its relation's columns, its fixture two such overloads
                     "SignatureMangleTest.java");
@@ -180,6 +186,12 @@ class OwnDialectCensusTest {
                     // the desk's data products, 2026-10-29 (REVIEWED): its two models, Legend's ###Lakehouse form and
                     // the desk's shapes
                     java.util.Map.entry("LakehouseIngestTest.java", 2),
+                    // the deployment program, 2026-11-15 (REVIEWED): DeploymentPlannerTest's stores, the in-tab
+                    // deployment, the delivered files' and the data product's models; IngestTopicsTest's and
+                    // DuckDbIngestPlansTest's stores
+                    java.util.Map.entry("DeploymentPlannerTest.java", 4),
+                    java.util.Map.entry("DuckDbIngestPlansTest.java", 1),
+                    java.util.Map.entry("IngestTopicsTest.java", 1),
                     // 0 -> 1 (2026-11-03, REVIEWED, S146): the id-spelling fixture, two overloads by a column's type
                     java.util.Map.entry("SignatureMangleTest.java", 1));
 

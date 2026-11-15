@@ -386,6 +386,7 @@ includes the database the ingest makes, a table for each dataset.
 | # | row | construct |
 |---|---|---|
 | (per the census) | parser/LakehouseIngestTest | `###Lakehouse` `Ingest` elements, and `include Ingest` in `###Relational` |
+| (per the census, 2026-11-15) | planner/DeploymentPlannerTest (4), planner/IngestTopicsTest, planner/DuckDbIngestPlansTest | ingests landing from topics and files, a `Deployment` (docs/DEPLOYMENT_DESIGN_2026_11_14.md), lite's own `Kafka`, `Files` and `Simulated` connections (S407, S409, S410), and `###DataProduct` (S408) |
 
 - **Surfaces:** LEGEND_LITE and LEGEND_PLATFORM read the section (the registry's `LakehouseSectionGrammar`);
   LEGEND_ENGINE refuses it as an unknown section, in the engine's own words ("'Lakehouse' is not a known section
