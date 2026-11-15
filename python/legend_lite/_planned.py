@@ -317,26 +317,39 @@ class Result:
     def description(self) -> Any:
         return self._answer.description
 
+    def _read(self, read: Any, *args: Any) -> Any:
+        """``read`` of the answer, a product raise it fires worded (``_raised.worded``; #104's M2(b)): DuckDB raises a
+        statement's error at its fetch where its answer is large (a raise on the last of a million rows fires at
+        ``fetchall``, measured on duckdb 1.5.5), so the words are the same whether it fires at the send or here."""
+        failure: BaseException | None = None
+        try:
+            return read(*args)
+        except Exception as e:
+            failure = worded(e)
+            if failure is None:
+                raise
+        raise failure
+
     def fetchall(self) -> list[tuple[Any, ...]]:
-        return self._answer.fetchall()
+        return self._read(self._answer.fetchall)
 
     def fetchone(self) -> tuple[Any, ...] | None:
-        return self._answer.fetchone()
+        return self._read(self._answer.fetchone)
 
     def fetchmany(self, size: int = 1) -> list[tuple[Any, ...]]:
-        return self._answer.fetchmany(size)
+        return self._read(self._answer.fetchmany, size)
 
     def to_arrow_table(self) -> Any:
-        return self._answer.to_arrow_table()
+        return self._read(self._answer.to_arrow_table)
 
     def fetch_arrow_table(self) -> Any:
-        return self._answer.fetch_arrow_table()
+        return self._read(self._answer.fetch_arrow_table)
 
     def fetch_record_batch(self, rows_per_batch: int = 1_000_000) -> Any:
-        return self._answer.fetch_record_batch(rows_per_batch)
+        return self._read(self._answer.fetch_record_batch, rows_per_batch)
 
     def df(self) -> Any:
-        return self._answer.df()
+        return self._read(self._answer.df)
 
 
 class Database:

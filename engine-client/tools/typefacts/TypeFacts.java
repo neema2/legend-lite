@@ -102,7 +102,7 @@ public final class TypeFacts {
                 .append("/** Each raise kind's sentence (error.ErrorKind): lite's own words, no value in them. */\n")
                 .append("export const RAISED_KINDS: Readonly<Record<string, string>> = {\n");
         for (com.legend.error.ErrorKind k : com.legend.error.ErrorKind.values()) {
-            out.append("  ").append(k.name()).append(": '").append(k.sentence().replace("'", "\\'")).append("',\n");
+            out.append("  ").append(k.name()).append(": '").append(quoted(k.sentence())).append("',\n");
         }
         out.append("};\n");
         return out.toString();
@@ -135,10 +135,28 @@ public final class TypeFacts {
                 .append("# a product raise from.\n")
                 .append("RAISED_KINDS: dict[str, str] = {\n");
         for (com.legend.error.ErrorKind k : com.legend.error.ErrorKind.values()) {
-            out.append("    '").append(k.name()).append("': '").append(k.sentence().replace("'", "\\'")).append("',\n");
+            out.append("    '").append(k.name()).append("': '").append(quoted(k.sentence())).append("',\n");
         }
         out.append("}\n");
         return out.toString();
+    }
+
+    /** {@code s} as the body of a single-quoted string literal TypeScript and Python both read as {@code s}: a
+     *  backslash and a quote escaped, every character below a space or past ASCII as its {@code \\uXXXX} escape (the
+     *  narrow check's item 6, 2026-11-15: until then a quote alone was escaped). */
+    private static String quoted(String s) {
+        StringBuilder b = new StringBuilder(s.length());
+        for (int i = 0; i < s.length(); i++) {
+            char c = s.charAt(i);
+            if (c == '\\' || c == '\'') {
+                b.append('\\').append(c);
+            } else if (c < 0x20 || c > 0x7e) {
+                b.append(unicode(c));
+            } else {
+                b.append(c);
+            }
+        }
+        return b.toString();
     }
 
     /** {@code c} as a {@code \\uXXXX} escape, which TypeScript and Python both read. */

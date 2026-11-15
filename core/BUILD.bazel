@@ -584,6 +584,8 @@ legend_java_library(
             # the keyed expansion's one fixture is :keyed_expansion_conformance_test's alone: it reads the fixture
             # (the C final audit's H8, 2026-11-12)
             "src/test/java/com/legend/exec/KeyedExpansionConformanceTest.java",
+            # a product raise's envelope fixture is :raise_envelope_conformance_test's alone (#104's M2(b), 2026-11-15)
+            "src/test/java/com/legend/exec/RaiseEnvelopeConformanceTest.java",
             "src/test/java/com/legend/exec/DataLoadsPostgresTest.java",
             # the data delivery matrix on Postgres is :data_delivery_matrix_postgres_test's alone (A1, 2026-11-10)
             "src/test/java/com/legend/integration/DataDeliveryMatrixPostgresTest.java",
@@ -1199,6 +1201,25 @@ junit_test(
     data = ["//engine-client:test/fixtures/keyed-expansion.json"],
     jvm_flags = ["-Dkeyed.fixture=$(rlocationpath //engine-client:test/fixtures/keyed-expansion.json)"],
     select = ["--select-class=com.legend.exec.KeyedExpansionConformanceTest"],
+    visibility = ["//gates:__pkg__"],
+    deps = [
+        ":core",
+        "//json",
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
+# A PRODUCT RAISE'S ENVELOPE, ONE FIXTURE (#104's M2(b), the narrow check's item 7, 2026-11-15): Java's runner reads each case
+# of engine-client/test/fixtures/raise-envelopes.json as the tab's raised.ts and Python's _raised.py do
+junit_test(
+    name = "raise_envelope_conformance_test",
+    memory_mb = 256,
+    size = "small",
+    srcs = ["src/test/java/com/legend/exec/RaiseEnvelopeConformanceTest.java"],
+    data = ["//engine-client:test/fixtures/raise-envelopes.json"],
+    jvm_flags = ["-Draise.fixture=$(rlocationpath //engine-client:test/fixtures/raise-envelopes.json)"],
+    select = ["--select-class=com.legend.exec.RaiseEnvelopeConformanceTest"],
     visibility = ["//gates:__pkg__"],
     deps = [
         ":core",

@@ -521,18 +521,6 @@ class ARaiseIsWorded(unittest.TestCase):
             table.execute('->extend(~[r: x|$x.id->toOne() / ($x.id->toOne() - 1)])->select(~r)')
         self.assertEqual(str(raised.exception), 'division by zero')
 
-    def test_the_envelope_is_read_as_javas_runner_reads_it(self):
-        from legend_lite._raised import raised_words
-        self.assertIsNone(raised_words('Binder Error: no such column'))
-        self.assertEqual(raised_words('Invalid Input Error: \x1f\x1cDIVIDE_BY_ZERO\x1f'), 'division by zero')
-        self.assertEqual(raised_words('x \x1f\x1cSIZE_NOT_MULTIPLICITY\x1c[1]\x1f y'),
-                         'collection size does not match the multiplicity: [1]')
-        self.assertEqual(raised_words('\x1f3:7\x1e\x1cDIVIDE_BY_ZERO\x1f'), 'division by zero')
-        # a user's fail message is its own text, a held quote restored
-        self.assertEqual(raised_words('\x1fit\x1ds mine\x1f'), "it's mine")
-        with self.assertRaisesRegex(ValueError, "'NO_SUCH_KIND', which legend-lite does not name"):
-            raised_words('\x1f\x1cNO_SUCH_KIND\x1f')
-
 
 if __name__ == '__main__':
     unittest.main()

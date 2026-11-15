@@ -17,7 +17,8 @@
 import type { ConnectionSettings } from './connection-settings.ts';
 import type { Receipt } from './receipt.ts';
 import type { QueryEngine, RawColumn, RawTable } from './engine.ts';
-import { QueryError, typedByPlan } from './engine.ts';
+import { type QueryError, typedByPlan } from './engine.ts';
+import { failure } from './raised.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
 import { dayText, decimalText, exactInteger, timeText, timestampText } from './values.ts';
@@ -563,7 +564,8 @@ export class DuckDbEngine implements QueryEngine {
   #failed(cause: unknown, sql: string): QueryError {
     const said = cause instanceof Error ? cause.message : String(cause);
     const message = this.settings === undefined ? said : this.settings.redact(said);
-    return new QueryError(message, sql, message === said ? { cause } : {});
+    // a product raise in lite's words, as Java's runner and Python's one send word it (raised.ts; #104's M2(b))
+    return failure(message, sql, message === said ? { cause } : {});
   }
 
   async #whole(

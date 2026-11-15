@@ -1041,6 +1041,38 @@ class TheBridgeTest(unittest.TestCase):
             with self.assertRaises(NotPlanned):
                 across_the_bridge(wrong, "the hosted DataCube's query", answered)
 
+class ARaiseIsWorded(unittest.TestCase):
+    """A product raise in lite's words wherever it fires (#104's M2(b), 2026-11-15): the envelope read as Java's runner
+    and the tab's read it, one shared fixture; a raise DuckDB fires at a FETCH worded as one at the send."""
+
+    def test_each_envelope_reads_as_javas_runner_and_the_tabs_read_it(self):
+        import os
+
+        from legend_lite._raised import raised_words
+        cases = json.loads(open(os.environ['LEGEND_LITE_RAISE_FIXTURE'], encoding='utf-8').read())['cases']
+        self.assertGreater(len(cases), 5)
+        for case in cases:
+            with self.subTest(case['name']):
+                said = raised_words(case['message'])
+                self.assertEqual(case['message'] if said is None else said, case['words'])
+
+    def test_a_kind_legend_lite_does_not_name_is_refused_by_name(self):
+        from legend_lite._raised import raised_words
+        with self.assertRaisesRegex(ValueError, "'NO_SUCH_KIND', which legend-lite does not name"):
+            raised_words('\x1f\x1cNO_SUCH_KIND\x1f')
+
+    def test_a_raise_fired_at_a_fetch_is_worded(self):
+        from legend_lite._planned import Result
+
+        class Failing:
+            def fetchall(self):
+                raise RuntimeError('Invalid Input Error: Attempting to execute an unsuccessful or closed pending query'
+                                   ' result\nError: Invalid Input Error: \x1f\x1cDIVIDE_BY_ZERO\x1f')
+
+        with self.assertRaises(RuntimeError) as raised:
+            Result(Failing()).fetchall()
+        self.assertEqual(str(raised.exception), 'division by zero')
+
 
 if __name__ == '__main__':
     unittest.main()

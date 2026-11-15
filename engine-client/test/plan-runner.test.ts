@@ -12,7 +12,7 @@ import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
 import { currentRun, frameKept } from '../src/run-frame.ts';
-import { PlanRaise, raised } from '../src/raised.ts';
+import { failure, PlanRaise } from '../src/raised.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
 import { relationColumns } from '../src/relation-type.ts';
@@ -947,21 +947,37 @@ describe("a statement's slots and a payload's digest, required", () => {
 });
 
 // a product raise in lite's words (#104's M2(b), 2026-11-15): its kind's sentence, generated from error.ErrorKind
-// (lite-facts.ts), then its where, as Java's runner words it (exec.RaisedErrors, error.DataError)
+// (lite-facts.ts), then its where, as Java's runner words it -- at the tab's ONE send (DuckDbEngine's failure), so every
+// route says the same words; the envelope's cases one fixture Java's and Python's readers read too
 describe('a raise, worded', () => {
-  it('reads the envelope as the Java runner reads it', () => {
-    assert.equal(raised('Binder Error: no such column'), undefined);
-    const divide = raised('Invalid Input Error: \u001f\u001cDIVIDE_BY_ZERO\u001f');
-    assert.ok(divide instanceof PlanRaise);
-    assert.equal(divide.message, 'division by zero');
-    assert.equal(divide.kind, 'DIVIDE_BY_ZERO');
-    assert.equal(raised('x \u001f\u001cSIZE_NOT_MULTIPLICITY\u001c[1]\u001f y')?.message,
-      'collection size does not match the multiplicity: [1]');
-    assert.equal(raised('\u001f3:7\u001e\u001cDIVIDE_BY_ZERO\u001f')?.message, 'division by zero');
-    // a user's fail message is its own text, a held quote restored
-    const fail = raised('\u001fit\u001ds mine\u001f');
-    assert.ok(fail !== undefined && !(fail instanceof PlanRaise));
-    assert.equal(fail.message, "it's mine");
-    assert.throws(() => raised('\u001f\u001cNO_SUCH_KIND\u001f'), /'NO_SUCH_KIND', which legend-lite does not name/);
+  it('reads each envelope of the shared fixture as Java and Python read it', () => {
+    const cases = (looseJson(readFileSync(runfileFromEnv('RAISE_FIXTURE'), 'utf8')) as {
+      cases: { name: string; message: string; words: string; kind?: string; where?: string }[] }).cases;
+    assert.ok(cases.length > 5);
+    for (const c of cases) {
+      const e = failure(c.message, 'SELECT 1', {});
+      assert.equal(e.message, c.words, c.name);
+      assert.ok(e instanceof QueryError, c.name);
+      assert.equal(e instanceof PlanRaise ? e.kind : undefined, c.kind, c.name);
+      assert.equal(e instanceof PlanRaise ? e.where : undefined, c.where, c.name);
+    }
+  });
+
+  it('refuses a kind legend-lite does not name by name, the database error kept as its cause', () => {
+    const db = new Error('Invalid Input Error: \u001f\u001cNO_SUCH_KIND\u001f');
+    const e = failure(db.message, 'SELECT 1', { cause: db });
+    assert.ok(e instanceof QueryError && !(e instanceof PlanRaise));
+    assert.match(e.message, /'NO_SUCH_KIND', which legend-lite does not name/);
+    assert.equal(e.cause, db);
+  });
+
+  it('words a raise at the send, on every route: a statement run, and a plan run', async () => {
+    // the envelope a product statement raises, sent as the database's own error() writes it
+    await assert.rejects(() => engine.run(unplanned("SELECT error(chr(31) || chr(28) || 'DIVIDE_BY_ZERO' || chr(31))"), 0),
+      (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero' && e.kind === 'DIVIDE_BY_ZERO');
+    // a planned query dividing by zero, run by runPlan over the engine's held session
+    const plan = planned(fn('divide', lit.integer(1), lit.integer(0)));
+    await assert.rejects(() => engine.exclusive((held) => runPlan(plan, sessionOn('DuckDB', held))),
+      (e: unknown) => e instanceof PlanRaise && e.message === 'division by zero');
   });
 });

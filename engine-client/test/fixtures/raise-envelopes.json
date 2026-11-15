@@ -1,0 +1,53 @@
+{
+  "_comment": "A product raise's envelope, one set of cases Java's runner (exec.RaisedErrors), the tab's (engine-client/src/raised.ts) and Python's (legend_lite/_raised.py) each read and agree on: the words each says for 'message' (#104's M2(b), the narrow check's item 7, 2026-11-15). Not here, on purpose, until the three agree (recorded, a later round): a kind legend-lite does not name (Java passes it, the hosts refuse it) and a fail message that opens with the kind mark.",
+  "cases": [
+    {
+      "name": "a database's own error is passed on as it is",
+      "message": "Binder Error: no such column",
+      "words": "Binder Error: no such column"
+    },
+    {
+      "name": "a kind's raise is its sentence",
+      "message": "Invalid Input Error: \u001f\u001cDIVIDE_BY_ZERO\u001f",
+      "words": "division by zero",
+      "kind": "DIVIDE_BY_ZERO"
+    },
+    {
+      "name": "a kind's raise with its where",
+      "message": "x \u001f\u001cSIZE_NOT_MULTIPLICITY\u001c[1]\u001f y",
+      "words": "collection size does not match the multiplicity: [1]",
+      "kind": "SIZE_NOT_MULTIPLICITY",
+      "where": "[1]"
+    },
+    {
+      "name": "a where that holds a colon and a space",
+      "message": "\u001f\u001cFRACTION_NOT_KEPT\u001cts keeps 6: of 9\u001f",
+      "words": "more fraction digits than this database keeps: ts keeps 6: of 9",
+      "kind": "FRACTION_NOT_KEPT",
+      "where": "ts keeps 6: of 9"
+    },
+    {
+      "name": "a source position before its separator is dropped",
+      "message": "\u001f3:7\u001e\u001cDIVIDE_BY_ZERO\u001f",
+      "words": "division by zero",
+      "kind": "DIVIDE_BY_ZERO"
+    },
+    {
+      "name": "a user's fail message is its own text, a held quote restored",
+      "message": "Invalid Input Error: \u001fit\u001ds mine\u001f",
+      "words": "it's mine"
+    },
+    {
+      "name": "a raise fired at fetch (duckdb's second line)",
+      "message": "Invalid Input Error: Attempting to execute an unsuccessful or closed pending query result\nError: Invalid Input Error: \u001f\u001cDIVIDE_BY_ZERO\u001f",
+      "words": "division by zero",
+      "kind": "DIVIDE_BY_ZERO"
+    },
+    {
+      "name": "the first envelope where the statement's text repeats it (H2)",
+      "message": "\u001f\u001cINDEX_OUT_OF_BOUNDS\u001f; SQL statement: SELECT error(chr(31) || '\u001cINDEX_OUT_OF_BOUNDS' || chr(31)) \u001f\u001cDIVIDE_BY_ZERO\u001f",
+      "words": "index out of bounds",
+      "kind": "INDEX_OUT_OF_BOUNDS"
+    }
+  ]
+}
