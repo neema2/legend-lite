@@ -20,7 +20,7 @@
 // writes a page of two frames on two sheets with DataCube's own writers, for the harness to have Python serve it and a
 // tab open it (demo/engine.html?page=); `__readPythonPage` reads a page Python wrote with DataCube's own reader.
 
-import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
+import { openDuckDbInTab } from '../../../engine-client/src/doors/tab-duckdb.ts';
 import { arrowResultTable, LegendEngineExecutor } from '../../../engine-client/src/engine-remote.ts';
 import { arrowIpcStream } from '../../../engine-client/src/pure-v1.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
@@ -168,10 +168,10 @@ async function run(): Promise<void> {
   // the tab: the same compiler in its worker, DuckDB-WASM over the same rows, in a table the frame's model reads
   window.__pythonEngineStage = 'starting the tab\'s DuckDB and the compiler';
   const planner = new LitePlanner({ ...engine, workerUrl: new URL('planner-worker.js', location.href).href });
-  // the one start of a tab's DuckDB (engine-client's startDuckDbInTab), set up by the planner's rules before anything is
+  // the one start of a tab's DuckDB (engine-client's openDuckDbInTab), set up by the planner's rules before anything is
   // written to it (this browser is in New York: python-engine.mjs); the database kept too, which a person's file is
   // read into (upload.ts)
-  const { db, engine: local } = await startDuckDbInTab('./vendor/', planner);
+  const { db, engine: local } = await openDuckDbInTab('./vendor/', planner);
   await local.run(unplanned(`CREATE TABLE trades (region VARCHAR, desk VARCHAR, book VARCHAR, year INTEGER, qtr VARCHAR,
     notional DOUBLE, pnl DOUBLE, qty INTEGER)`), 0);
   await local.run(unplanned(`INSERT INTO trades VALUES ${served.rows.map((r) => `(${r.map(sqlValue).join(', ')})`).join(', ')}`), 0);

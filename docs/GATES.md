@@ -22202,3 +22202,285 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     quoted-brace gap closed (B3's option A, held out of C4 by its freeze; with it, DateFormats' unread backslash escape
     inside quotes and the zone-shifted pattern's quoted `Z`; the terms: start-here §6.1, C5's list);
   - the TypeScript wall on the type checker once its program API is available.
+
+## 2026-11-15 — C5-J: the Java lock-down (a wider witness, facts as plan data, the resolver below the lowering, named catches, pure's date-format end)
+
+Brief: the orchestrator's C5-J (start-here §6.1, C5's list). Branch `claude/c5-java` off main cf865632ca; one PR. Each
+item is red on revert.
+
+- **Item 1, a wider Java witness (9dcb29f13b).**
+  - The lexer, the parser and the model's records door (`ModelFromProtocol`) are refused inside a run, as phases D–J
+    are.
+  - Their callers reach them through parse doors that ask first: `door.Parse`, `door.ModelFromText` and the IDE's
+    `ide.DocumentParse`.
+  - The lexer stays JDK-only, the parser's layer reaches nothing above it, and the model package stays pure data.
+  - Why a door rather than an ask at each caller: ArchUnit folds a lambda's calls into its enclosing method, and
+    PureV1Api's grammar routes parse in lambdas.
+  - Guards: `ArchitectureTest.everyParseIsReachedThroughADoorThatAsks` (`PARSE_BY_THE_DOORS`, default-deny over core and
+    the hosts' doors; `parseDoorViolations`: asks before its first parse, holds no lambda, makes no reference, has no
+    nested class), with planted violators.
+  - 6i's sanctioned users are now the doors and the IDE.
+  - `PhaseEntriesRefusedInsideARunTest` pins each door's refusal by phase. `Compiler.query` is refused at phase C (its
+    parse) now, not D.
+- **Item 2, a test body's facts as plan data (8135f28e04, 5eaafc41c0).**
+  - `testexecutionplan.BodyFacts` is carried in the test plan (TestPlanJson v21); the PCT runner reads it from there.
+  - The runner still needs the facts before planning, to choose its session, so it reads them from a new root door,
+    `TestExecution.facts(TypedQuery)`: one planning call and no run.
+  - The door is on the closed surface: ROOT_DOORS and QUERY_ROADS (PLANS_NOTHING), DOOR_PLANNING_CALLS and
+    PLANNING_ENTRIES.
+- **Item 3, the resolver below the lowering (8d25714047).**
+  - The reducer table moved to `compiler.element.Reducers` and the object reference's protocol to `model.AsorRef`.
+  - `//core:resolver` no longer depends on `lowering` (core-layers, dated).
+- **Item 4, the test road's catch-and-continue sites catch named conditions alone (d3913a4f6e).**
+  - The census at main over core, PCT A/B DuckDB+H2 and both corpora found 140 swallows in `registerPlanRows`:
+    44 NotImplementedException, 12 DialectCapability and 84 Lowerer isolation walls. It also found 8 in `activitySql`
+    (all DialectCapability) and 4 in column lineage (all NotImplementedException); `registerLineageRows` and
+    FramePlanner swallowed none.
+  - The walls are now `Lowerer.IsolationWall`, a named IllegalStateException with each message unchanged, per the
+    orchestrator's ruling (A). Each site catches its named conditions alone, and the two that never fired now fail by
+    name.
+  - Option (B), failing the walls by name, was measured first. It moved 13 corpus bodies PASS → FAIL and the DuckDB
+    strength pin 990 → 986, and was refused.
+  - Guard: `theTestRoadsPlanRowsCatchNamedConditionsAlone`, with a planted catch.
+- **Item 5, the date-format end found as pure finds it (3c2a8b5ebf; S342).**
+  - Pure's scan (`FormatTools.findEndOfDateFormatString`), pure's quoted-text rule, and pure's words: "Could not find
+    end of date format starting at index <i> of: <format string>", lite's named refusal at planning.
+  - The bare ISE on an unclosed `%t{` is gone. `%t{yyyy"}"}` is now planned, and a quoted `Z` in a zone-shifted
+    pattern is text.
+  - Ruled by the orchestrator as pure's behaviour. In the injection fuzz, 55 queries plan as pure reads them and 43 are
+    refused as pure refuses them; the coverage pins moved with a dated note.
+  - Every real date pattern of PCT, the corpora and core's tests (34 × 11 databases = 374 queries) plans byte-identical
+    SQL before and after, and `//docs:update_dialect_capability_test` passes.
+- **Item 6 (ded0291e7e).** `PLANNER_ENTRIES` is 70 → 61, equal to what is measured, with a dated note.
+- **Outcomes, before and after (main vs. the branch):**
+  - core's suites: 20,842 testcases pass → 20,848 pass, none moved; the 6 new are this branch's tests under each
+    judge;
+  - PCT A/B DuckDB+H2: 1,573 pass, unchanged against their ledgers (outcome and text);
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's.
+- **The gate** at 65c0eb09bf (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11). The first run, at ded0291e7e, found three
+  pins that the branch's own changes had moved, each fixed with a dated note in 65c0eb09bf:
+  - the generated native-claims file (the reducer table's move);
+  - the Dialect allowlist (the parse doors);
+  - FramePlanner's evaluation pin and parser-equivalence's corpus count.
+
+### 2026-11-15 — C5-J's audit fix round (PR #106)
+
+The orchestrator's read-only audit found no must-fix. Its should-fixes and nits are fixed, each red on revert where
+it is code:
+
+- **SHOULD 1, the facts stated over the body as given (7b920b86f4).** The plan's facts had been stated after the test
+  planner's rewrites: the generator spliced, the census carrier inlined, an unread let made a statement. They are now
+  stated in `TestPlanner.plan` first, and the facts planner asks the run's wall itself. Tests: an unread let (LA), the
+  census carrier, a generator body (LLLLLA), and the facts phase entry.
+- **SHOULD 2, the token stream's readers only (416f88ef26).** `TokenStream.lexRange` lexes, so it is a parse entry; a
+  planted `lexRange` caller shows the rule bites.
+- **SHOULD 3, S342 (59b9b3a9cc).** S342 now cites the user's rulings: the tenet of 2026-10-29, AGENTS.md's eight
+  phases, and Q6 of 2026-11-10. One difference has no user ruling and is posted for the user: lite takes a literal
+  format string only.
+- **The nits (7b3ee3f036, 3bba5f6b50, 388e89b804):**
+  - CoreGrammar parses through the door, and the rule reads `//sdlc-server/grammar`;
+  - only the reducers' membership sits below both layers; the `SqlAgg.Fn` binding is back in `lowering.Aggregates`,
+    with a class-init check that the two key sets are one;
+  - one activity rule (`PlanAllocations.activityOrNone`). The executeLegendQuery activity is not lazy and cannot be,
+    since it is part of the envelope's value;
+  - the sort walls are `IsolationWall`;
+  - the comment that was false, the stale javadocs, the dead overload, the wrong name and AGENTS.md's facts door are
+    fixed;
+  - the backlog lines are corrected and added.
+- **Outcomes, the fix round against main, on the same lanes:**
+  - core: 20,842 → 20,849 pass, none moved; the 7 new are this round's and C5-J's tests;
+  - PCT A/B on DuckDB and H2: 1,573 pass, unchanged;
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's.
+- **The gate** at f8c49446b3 (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11).
+
+### 2026-11-15 — C5-J's last round (PR #106; the user's "Yes do it")
+
+The last Java plan/exec cleanup before the merge, four items, each red on revert. Behaviour does not move: the same
+answers, the same errors outside a run.
+
+- **A1, the embedded languages' readers through the parse doors (53fba7ef80).** The island readers -- #SQL's and
+  #IQ's dialects over `SqlParser` and `IqParser`, `TsParser`, `CypherParser` -- sit in the protocol layer, which cannot
+  ask the run's wall (7b). `door.Parse` gains `sqlIsland`, `tsIsland`, `tsItem` and `cypherIsland`, each asking first;
+  the translators take the tree (`SqlToPure`'s text overloads and `CypherToPure.translate(String)` are gone,
+  `TsToPure.translate` takes the query's tree, `TsShow.of` takes a reader asked where the text was read before), and
+  every caller reads through the door (the compiler's island seams, which now reach `door`; the server's `jsonToTs` and
+  `tsItem`). `PARSE_BY_THE_DOORS` covers the readers default-deny (`ISLAND_READERS`, `ISLAND_READER_HELPERS`,
+  `ISLAND_DIALECTS`); eight planted violators (`compiler.spec.PlantedIslandParse`) and a phase row per entry. None was
+  reached inside a run: no outcome moved.
+- **A2, the build-time code under the rule (a5ee9bdb82).** `//core:build_time_jars` brings the generators, the render
+  census and the engine runner's parse probe into the guard's import; the census and the probe parse through the doors;
+  the prelude generator (a cursor-level read of upstream's sources, a build action) is the one named reader
+  (`BUILD_TIME_READERS`), shown to read past the doors still.
+- **A3, `Compiler.programFacts` off the closed surface (e31b8a2bbe).** No caller was left; `hasStatementEffects` states
+  the facts itself. The root-door pins drop its rows with a dated note.
+- **A4, an object reference's round trip (d7299fe47f).** `AsorRefRoundTripTest`: a reference the database builds in SQL
+  is `AsorRef.ref`'s byte for byte and decodes to every segment, on each in-process database that can build one (DuckDB
+  and SQLite; H2 refuses the encoding by name). Red on revert: the SQL side's segment width changed alone.
+- **S342, date-format item (a), RULED by the user (2026-11-15, "(a) record it"; docs only).** The difference the audit
+  fix round posted for the user (above: "One difference has no user ruling") is recorded (in S342's row; its own scope
+  row, S343, since the re-check below): lite takes a
+  format string written into the query only, and refuses one known only at run time by name, where pure accepts it and
+  refuses it at run time only if malformed -- lite translates the pattern into each database's syntax while planning,
+  and a plan is reused across parameter values. Items (b) and (c) moved to stream D; not touched here.
+- **Red on revert, measured:** a caller back past the door (CypherIslands) fails `everyParseIsReachedThroughADoorThatAsks`;
+  a door's ask removed (`sqlIsland`) fails `PhaseEntriesRefusedInsideARunTest`; the census tool back on `SpecParser`
+  fails `theBuildTimeCodeParsesThroughTheDoorsOrIsNamed`; `programFacts` put back fails `theRootDoorsAreClosed` and
+  `everyRootDoorThatTakesAQueryNamesItsRoad`; `lpad` to 9 fails the round trip at row 0.
+- **Outcomes, against main, on the same lanes:**
+  - core: 20,842 → 20,852 pass, none moved; the 10 new are C5-J's tests (7 from its earlier rounds, and this round's
+    round trip under its 3 judge targets);
+  - PCT A/B on DuckDB and H2: 1,573 pass, unchanged;
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's;
+  - `//parser-equivalence/...`: 6 of 6.
+- **The gate** at 11e4592ed6 (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11).
+
+### 2026-11-15 — C5-J's last round, the re-check's items (PR #106)
+
+The orchestrator's independent re-check of 595adaefe..b70e87085 found no must-fix: no product code reaches an island
+reader past the doors, no user-visible text moved, A3 is word for word and S342 says what the user ruled. Its five items,
+each red on revert where it is code:
+
+- **1, the model package's exemption narrowed.** `PARSE_BY_THE_DOORS` exempted the whole model package, harmless until
+  the island readers it may reach (`:protocol`) became parse entries; it exempts the records door
+  (`ModelFromProtocol`) alone now. Planted: `model.PlantedModelIslandRead` (a model class reading a #Cypher statement).
+  Red on revert: the package exempted again, the planted class is not checked ("failed to check any classes").
+- **2, a dialect's parse on any owner.** A dialect's `parse` counted only on an owner in the protocol layer, and
+  `new PostgresDialect(){}.parse(sql)` compiles to an owner in the caller's package (the dialect is not final, its
+  constructor protected); any `com.legend.` owner that is an `InputDialect` counts now. Planted:
+  `sql.dialect.PlantedDialectSubclassParse` (in the dialect package's tests, which name databases by design). Red on
+  revert: the protocol-only check lets the planted class through.
+- **3, S342's item (a) is its own row, S343 (scope)**, citing the user's ruling of 2026-11-15 in its words; S342 points
+  to it (one row per difference; S342 is a representation, S343 a scope difference).
+- **4, the round trip's outcome pinned per database** (`asor-round-trip/outcomes.tsv`: DuckDB and SQLite build the
+  reference, H2 refuses by name), a resource, so no database is named in code. Red on revert: SQLite pinned as
+  refusing fails it.
+- **5, `ISLAND_READER_HELPERS`' javadoc** dated with its task.
+- **Backlog** (start-here's C5 list; not fixed): H2 builds no object reference (no base64 in SQL; upstream's goldens pin
+  H2's); the frames' lengths outside the BMP (code points in SQL, UTF-16 units in `AsorRef`); `ISLAND_DIALECTS`
+  exempts whole classes (IQ's `reading()` and `defaultName`, `IqNames.name`).
+- **Retested:** `//core:guardrails`, `//core:census`, `//core:core_tests_lowering` pass; the rest of the round's
+  measurements stand (no product code moved: the changes are a guard's, its planted classes, a test's pin and docs).
+
+## 2026-11-15 — C5-P: Python's plan/exec split; the run wall deleted for a plain dependency rule
+
+The total wall's C5, its Python third (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §6.1, C5's list, first item; the
+user: "let's finish all the other workarounds that make sense to fix in java and python/TS, let's lock this down").
+Python's half of C4 was fenced and frozen, not split: an interim wall read the code, and 12 `UNFRAMED_SENDERS` sent
+outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf865632c, PR #103.
+
+- **What it proves:**
+  - **The run side imports no planner, by the build:** `//python:run` (`_runs.py`, `_reads.py`, the type facts) has no
+    planner and no package `__init__` in its deps. `//python:run_closure_test` depends on it alone and imports every run
+    module, so one that imports the planner fails to load. It reads the package's sources from a copy outside its
+    import path (`:run_closure_sources`), and each library's modules by the BUILD's own lists (`_SEAM_SRCS`,
+    `_RUN_SRCS`, `_COMPILER_SRCS`, handed in by name).
+  - **And by the sources, both ways, every import read (a function's own too):** run modules import run and seam
+    modules alone, never the package itself (its `__init__` imports the compiler); seam modules seam modules alone;
+    every module of `:compiler` imports no run module and no door -- neither the package itself (`import legend_lite`,
+    its `__init__` alone excepted, the facade) -- the facade and the timeseries builder taking only the door names
+    `PLANNER_DOORS` pins for each, and takes no sending name from `_planned`; a module outside the run side takes the
+    one send, a run's opener or a sending helper from no module, by name, alias, attribute (`x.name`, or
+    `legend_lite.x.name` through the package) or star; a star import is one `STAR_IMPORTS` lists; a remote plane's send
+    (`arrow_chunks`) and a sending helper are called by run modules alone. **These static rules catch drift, not a
+    determined adversary** (C5-P's final round, 2026-11-15: no further form-hunting): the run-time checks -- the one
+    send's frame, the loader's planning check, the warehouse's request check, the transaction acts -- are the
+    backstop. What the rule cannot read is refused: importlib under any
+    name but the `importlib.util.find_spec` chain, any reference to `__import__` or `import_module`.
+  - **A run is opened on the run side alone, spelled one way:** `runs`, `in_run` and `exempt` are imported from
+    `_runframe` by run modules alone, by their own names, and used only as `@runs(...)` on a function or `with
+    in_run(...)` -- so no door opens a run in which it could plan (`runs(...)(f)`, `ExitStack().enter_context(...)`
+    refused).
+  - **Every send of the run side is framed, read:** each call of the one send, a sending method (a read's `execute`, a
+    plane's `arrow_chunks`, a stream's `import_stream`, a transaction's bounds, the warehouse's HTTP) or a sending helper
+    (`_stream`, `_reach`, `arrow_chunks`, named) is in an `@runs` function or a `with in_run(...)` block, or in a helper.
+  - **A frame wraps every send, at run time:** `_planned.send` refuses a plan's statement outside a run (`Unframed`), and
+    so does the warehouse's send (`Warehouse.arrow_chunks`, before anything is submitted, however it is reached).
+    Each of the 12 senders plans first in its door, then sends in a framed run function. The warehouse's two sends in
+    the engine are framed too (`_reads.read_plane`, `run_on_plane`).
+  - **The witness covers what the build cannot:** a planner entry reached through a plane handed into a run is refused
+    by name, on the caller's thread and through the compiler's pool. The warehouse binding's library calls are services
+    and see the frame across the pool. `EXEMPTIONS` stays empty.
+  - **No change to a name, an answer or an error text:** every moved name is re-exported where it was (`except
+    projects.LoadRefused` still catches). A moved class keeps its true module, so the module path a traceback prints for
+    it changes (`legend_lite._reads.UntypedColumn`, `legend_lite._runs.LoadRefused`); no answer, error text or wire
+    payload prints one (read 2026-11-15). The read's PIN is now planned once per Frames (the session setup already
+    was), so a planner failure planning it surfaces at `Frames()`, not at a read; a test pins that a read's setup and
+    pin are the same statements after a register and a change of the connection's settings.
+- **The libraries:** `:seam` (`_planned`, `_runframe`, `_plans`, `_json`: the records both sides depend on); `:loader`
+  (`_loader.py`: the native library's one isolate, deps `:seam`); `:run` (`_runs`, `_reads`, `_services` -- the service
+  key -- `warehouse`, the type facts; deps `:seam`, `:loader`); `:compiler` (the planner, with `_library` -- the planning
+  key; deps `:seam`, `:loader`); `:host` (`_host.py`, `projects.py`: doors); `:headless`, `:legend_lite`, `:notebook`
+  (doors).
+- **Red on revert, each measured under Bazel:**
+
+  | Reverted | Red |
+  |---|---|
+  | the send's frame check | `//python:planned_test`, `//python:run_closure_test` |
+  | a function-level `from . import compiler` in `_runs.py` | `run_closure_test` (the static rule) |
+  | a top-level import of compiler in `_runs.py` | `run_closure_test` (fails to load, and the static rule) |
+  | the warehouse count sent from `engine.py` again | `run_closure_test` (`PLANE_SENDS`) |
+  | `@runs` off `_reads.read_plane` | `planned_test` (both plane tests) |
+  | `@runs` off `_reads.count_of` | `run_closure_test` (every send framed, read) |
+  | the warehouse send's own frame check | `planned_test` (`test_the_warehouse_is_sent_a_plans_statement_only_inside_a_run`) |
+  | each rule of the closure test (the package import, the BUILD's planner set, the framed sends, importlib's name, `__import__`, the openers' import, their spelling) | `run_closure_test`'s planted cases, each |
+
+- **What ran, green under Bazel in the worker's session at dd04bf7f1 (the final audit round's code; the docs after it), and again at the final round's commit, the same counts:**
+  run_closure 4, planned 56, planned_guard 7, frames 41, headless 73, notebook 31, engine 345 (test_warehouse in it),
+  model 19 (1 skipped), bindings 29, ts_builder 7, markets 3, host_sql 3.
+  `//gates:local` was not run there: it did not fit the session's disk allowance (453 targets failed to build, "No space
+  left on device"), and deleting the repository cache's archives to make room was refused by a safety check; PR #103's
+  CI runs the gate. jupyterlab_test and marimo_test not attempted there.
+- **The last round (the user's go of 2026-11-15, A1-A6), closing what the audit had held out:**
+  - **A1, the native library by two keys:** `_loader.py` (`//python:loader`) loads the one library and its one isolate,
+    and calls by name for its two keys alone (one package, so the closure test holds that, not Bazel's visibility). The
+    PLANNING key (`_library.py`, `:compiler`) carries every entry but the warehouse's wire, as before; the SERVICE key
+    (`_services.py`, `:run`) carries `lite_warehouse_call` and `lite_warehouse_read` alone. `warehouse.py` is a run
+    module over the service key; the `:compiler` carve-out is gone. The run side's closure reaches the planning key
+    never, and the loader through the service key alone.
+  - **A2:** every call of the warehouse's SQL API (`warehouse._exchange`: a sign-in, a listing, a poll, a close) is a
+    run; its HTTP is a send the closure test holds framed.
+  - **A3:** a transaction's bounds (`Database.begin/commit/rollback`) refuse outside a run; a read's end is a run
+    (`_reads.end_read`).
+  - **A4, DuckDB's own threads -- a hole, closed:** DuckDB pulls a stream's batches on a thread of its own (measured
+    2026-11-15: duckdb 1.5.5 and pyarrow 23.0.1, every pull of a `RecordBatchReader` made from a Python generator on one
+    foreign thread, `Dummy-1`, at 10 rows to 12M and 1 to 16 threads), where the run's frame was not set: a plane's
+    later chunks were fetched in no run. `_runs._stream` runs each pull in the run's context.
+  - **A5:** a run function takes and answers no planner (the wall's L2, restored), quoted annotations included.
+  - **A6, the hole check -- a fixed list of routes, each answered:**
+
+    | Route | Answer |
+    |---|---|
+    | a planner entry called from run code | closed: the build (`run_closure_test`'s load with `:run` alone), the import rule, the witness (`_runframe.planning`, in the loader itself since the final audit's M1) |
+    | the planner reached through the warehouse object | closed by A1: the service key refuses every name but the wire (`test_the_two_keys_carry_their_own_names_alone`) |
+    | a planner handed in as a value at run time | closed by the witness alone, shown firing: `test_a_planner_entry_reached_through_a_plane_inside_its_run_is_refused_by_name` |
+    | the compiler's worker pool | closed: the pool's `submit` copies the caller's context for every caller (C4's M4, widened by the final audit's S4), `test_the_pool_carries_the_callers_run_for_every_caller` |
+    | DuckDB's own threads | a hole, fixed (A4), `test_a_streams_every_pull_is_in_its_run_on_duckdbs_own_thread` |
+    | renamed or late imports | closed against drift, not a determined adversary: the closure test reads every import, a function's own and renamed ones, re-exports and stars; refuses importlib but `find_spec` (its answer used only as `is None`), `__import__`, `import_module`, the package itself; and in a run or seam module `sys.modules` under any name, `pkgutil.resolve_name`, `exec`, `eval` |
+    | an exemption | closed: `EXEMPTIONS` empty, `test_no_crossing_is_known_and_none_is_exempt` |
+    | a finalizer firing in a run | closed: a held model let go is a service (`lite_release_model` in `_NOT_PLANNING`, pinned by `PlannerSurfaceTest`); a gone session's frames queued and dropped outside any run (C4's D2 tests) |
+    | the hosted DataCube calling the planner during a bridged send | closed: the bridged runs' bodies call no V8 (`_reads.run_bridged_query`/`statement`); the planner answers on DataCube's calls outside them |
+
+- **The final audit of #103 (two read-only reviewers, 2026-11-15; no runtime bug in the moved or new code, two guard
+  holes), each fixed, red on revert:**
+  - **M1:** the loader checks `planning()` itself, for every name but `NOT_PLANNING` (`_library`'s `_NOT_PLANNING` held
+    equal to it at load), so a module reaching the loader past the keys is refused all the same; the closure test
+    refuses the loader's names (`loaded`, `Loaded`, `_loader`) taken or read off a module outside the loader and its keys.
+  - **M2:** the run side's names (the send, the openers, the sending helpers) taken by no module outside it, by any
+    form; star imports default-deny (`STAR_IMPORTS`); a planner module imports no door. `execute_redacted` (re-exported
+    as `frames.execute_redacted`) is a run of its own.
+  - **S1:** the signature rule reads type aliases, a Protocol's `__call__`, renamed imports; an annotation it cannot
+    parse is refused. **S2:** the late-import forms above. **S3:** `Database.import_stream` refuses outside a run, and so
+    does a request to the warehouse outside one -- a statement's chunk fetched in no run is refused (`_urlopen`, where
+    every request goes out, since the final round's item 4); the SQL API's calls are runs of their own (`_exchange`).
+    **S4:** the pool's `submit` carries the caller's context.
+  - **The final round (four forms, 2026-11-15; the last static-form round):** a planner module importing the package
+    itself; a door reading a run module's names through `legend_lite.x.name`; the facade's and the timeseries builder's
+    door imports pinned to their names; the warehouse's HTTP checked where every request goes out (`_urlopen`), and
+    `.open(` / `urlopen` read as sends in run modules. Each red on revert.
+- **Held out (start-here §6.1's C5 list, the final audit's):** `_stream`'s one copied context re-entered at each pull
+  (two DuckDB threads pulling at once would raise "cannot enter context"; measured on one); `_reads.end_read`'s
+  `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
+  static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.

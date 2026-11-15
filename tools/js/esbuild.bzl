@@ -17,6 +17,12 @@ finally started the binary. This rule runs the binary itself: one action per bun
     js_run_binary's defaults. rules_js stays only to fetch and lay out the npm packages, which runs no Node.
     The package's own files are named by relative path and copied; another package's come through its js_library
     (a bare file from another package would not be in the output tree, and the rule says so).
+  * What esbuild read (2026-11-15, the C5-T final audit: //engine-client:planner_worker's import of a file it did not
+    declare built only when another action had copied that file). esbuild resolves a sandboxed input's symlink to
+    the real output tree and looks for its relative imports there, so an undeclared file is found whenever any other
+    action has put it there, and the build depends on order. Each bundle writes esbuild's metafile (every module it
+    read) and the files it declares, in its `bundle_inputs` output group; guards_package collects them per package,
+    and //tools/deps:bundle_inputs_test fails on a module read and not declared, an npm package's included.
 """
 
 load("@aspect_rules_js//js:libs.bzl", "js_lib_helpers")
@@ -55,9 +61,30 @@ def _esbuild_bundle_impl(ctx):
             include_npm_sources = True,
         )],
     )
+    # what esbuild read, and what the bundle declares: //tools/deps:bundle_inputs_test compares them. A bundle that
+    # writes esbuild's metafile as one of its outputs (a minified one, for its budget test) gives that one.
+    named = [a[len("--metafile="):] for a in ctx.attr.args if a.startswith("--metafile=")]
+    if named:
+        metafiles = [o for o in outs if o.path == workdir + "/" + named[-1]]
+        if len(metafiles) != 1:
+            fail("esbuild_bundle: --metafile=%s is not one of the bundle's outs" % named[-1])
+        metafile = metafiles[0]
+    else:
+        metafile = ctx.actions.declare_file(ctx.label.name + ".esbuild-meta.json")
+    declared = ctx.actions.declare_file(ctx.label.name + ".esbuild-inputs.txt")
+    listed = ctx.actions.args()
+    listed.set_param_file_format("multiline")
+    listed.add(str(ctx.label))
+    listed.add(ctx.label.package)
+    listed.add(metafile.short_path)
+    listed.add_all(inputs, map_each = _declared_path, expand_directories = False)
+    ctx.actions.write(declared, listed)
+
     args = ctx.actions.args()
     args.add_all(["env", "-C", workdir, up + "/" + esbuild.path])
     args.add_all(ctx.attr.args)
+    if not named:
+        args.add("--metafile=" + metafile.path[len(workdir) + 1:])
 
     # every bundle names its licences: esbuild keeps only the third parties' `/*!` and `@license` comments, so this
     # points at the files the site ships at its root (LICENSE, NOTICE, THIRD_PARTY_NOTICES.md: //site:dist)
@@ -66,7 +93,7 @@ def _esbuild_bundle_impl(ctx):
         executable = coreutils,
         arguments = [args],
         inputs = inputs,
-        outputs = outs + out_dirs,
+        outputs = outs + out_dirs + ([] if named else [metafile]),
         tools = [esbuild],
         mnemonic = "Esbuild",
         progress_message = "Bundling %{label}",
@@ -80,7 +107,15 @@ def _esbuild_bundle_impl(ctx):
     return [
         DefaultInfo(files = files, runfiles = ctx.runfiles(transitive_files = files)),
         js_info(target = ctx.label, sources = files, transitive_sources = files),
+        OutputGroupInfo(bundle_inputs = depset([declared, metafile])),
     ]
+
+def _declared_path(f):
+    # every input by its path in the workspace (an external repository's under external/), and a directory -- an npm
+    # package, a tree artifact -- with a trailing "/", every file under it declared (2026-11-15, the C5-T re-check's
+    # item 4: esbuild finds an undeclared npm package as it finds an undeclared module, through the real output tree)
+    path = "external/" + f.short_path[len("../"):] if f.short_path.startswith("../") else f.short_path
+    return path + "/" if f.is_directory else path
 
 _esbuild_bundle = rule(
     implementation = _esbuild_bundle_impl,
@@ -98,6 +133,23 @@ _esbuild_bundle = rule(
     toolchains = [_COREUTILS],
 )
 
+def late_bundle_error(name, existing_rule):
+    """The refusal of a bundle declared after its package's guards_package(), or None.
+
+    guards_package() collects the package's bundles when it runs (guard_bundles, tools/guards/defs.bzl), so a bundle
+    declared after it would escape //tools/deps:bundle_inputs_test (2026-11-15, the C5-T re-check's item 3).
+
+    Args:
+        name: the bundle.
+        existing_rule: native.existing_rule, or a test's stand-in.
+    Returns:
+        the refusal's words, or None.
+    """
+    if existing_rule("guard_bundles") == None:
+        return None
+    return ("esbuild_bundle %s is declared after guards_package(), which collects the package's bundles when it " +
+            "runs (//tools/deps:bundle_inputs_test): declare it before, and keep guards_package() last") % name
+
 def esbuild_bundle(name, srcs, outs = [], out_dirs = [], args = [], **kwargs):
     """A browser bundle by esbuild's native binary.
 
@@ -109,6 +161,9 @@ def esbuild_bundle(name, srcs, outs = [], out_dirs = [], args = [], **kwargs):
         args: esbuild's arguments, relative to the package.
         **kwargs: common attributes (visibility, tags, testonly, ...).
     """
+    late = late_bundle_error(name, native.existing_rule)
+    if late:
+        fail(late)
     files = [s for s in srcs if not s.startswith(":") and not s.startswith("//") and not s.startswith("@")]
     targets = [s for s in srcs if s not in files]
     copied = []

@@ -977,14 +977,19 @@ class BodyRouterParityTest {
         }
     }
 
-    /** A malformed date pattern in a scanned query is refused BY NAME, the body failing with it: DateFormats refuses an
-     *  unterminated quote with a ModelException (b915e2940, F-M3-1), which the column-lineage scan's catch of the
-     *  lowering's NotImplementedException and IllegalStateException does not hold -- until then a bare
-     *  IllegalStateException, which the catch read as "no rows", the scan's handle left symbolic. The same holds at
-     *  the plan scan's, the relation-lineage scan's, an execute's activity SQL's and HostAsserts' catches. Kept as the
-     *  new behaviour by the C4 final fix round's ruling of B3 (2026-11-14), which corrected b915e2940's claim that no
-     *  caller relied on the class. Upstream's answer for the pattern: legend-pure 5.99.0's DateFormatPattern raises
-     *  IllegalArgumentException "Missing closing quote in format string: ..." when the format runs. */
+    /** A malformed date pattern in a scanned query is refused BY NAME, the body failing with it: an unterminated quote
+     *  is refused with a ModelException (b915e2940, F-M3-1), which the column-lineage scan's catch -- of the lowering's
+     *  NotImplementedException alone since C5-J item 4 (2026-11-15; until then its IllegalStateException too) -- does not
+     *  hold: until then a bare IllegalStateException, which the catch read as "no rows", the scan's handle left
+     *  symbolic. The same holds at the plan scan's (NotImplementedException, DialectCapability and the lowering's
+     *  isolation walls), an execute's activity SQL's (DialectCapability) and HostAsserts' catches; the relation-lineage
+     *  scan catches nothing since C5-J item 4. Kept as the new behaviour by the
+     *  C4 final fix round's ruling of B3 (2026-11-14), which corrected b915e2940's claim that no caller relied on the
+     *  class. Its words are legend-pure's since C5-J item 5 (2026-11-15, register S342): pure finds the pattern's end as
+     *  {@code FormatTools.findEndOfDateFormatString} does, so a quote left open swallows the brace, and it refuses a
+     *  literal format string's unended pattern when it compiles it (FormatValidator), "Could not find end of date format
+     *  starting at index 2 of: %t{yyyy"P}". (The first reading of upstream's answer, DateFormatPattern's "Missing closing
+     *  quote ... when the format runs", was wrong: that is pure's pattern parser's, never reached through %t.) */
     @ParameterizedTest
     @MethodSource("backends")
     void aMalformedDatePatternInAScannedQueryIsRefusedByName(TestBackend backend) throws Exception {
@@ -1000,7 +1005,7 @@ class BodyRouterParityTest {
             Run r = run(backend, ctx, "x::RT", "{| " + columns + " assertEquals(1, $f->size());}",
                     "select count(*) from FIRM", FIRM_ROWS, mode);
             assertTrue(r.outcome.startsWith("ModelException: ") && r.outcome.contains(
-                    "unterminated quote in date pattern: yyyy\"P"), mode + ": " + r.outcome);
+                    "Could not find end of date format starting at index 2 of: %t{yyyy\"P}"), mode + ": " + r.outcome);
         }
     }
 

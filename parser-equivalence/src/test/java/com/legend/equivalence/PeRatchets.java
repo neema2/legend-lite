@@ -82,11 +82,15 @@ public final class PeRatchets {
                     + " them)",
             "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
                     + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
+            "own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models,"
+                    + " measured by //parser-equivalence:update_ratchets",
             "own_corpus.matched 3261 -> 3370 (2026-11-14, java_bugFixes: the Rust port's Java fixes cherry-picked onto"
                     + " main, merged with main at cf865632c; measured on the merged tree, 3246 -> 3355 before the merge):"
                     + " their tests' models (KnowledgeLayerTest's, NameResolverTest's, ModelBuilderTest's,"
                     + " MappingNormalizerTest's and RefusalsNotCrashesTest's)",
-            "own_corpus.matched 3370 -> 3371 (2026-11-15, java_bugFixes, PR #102's review fixes): their tests' models");
+            "own_corpus.matched 3370 -> 3371 (2026-11-15, java_bugFixes, PR #102's review fixes): their tests' models",
+            "own_corpus.matched 3262, 3371 -> 3372 (2026-11-15, java_bugFixes, merged main 4dfbb5b76 (#111, #105) for PR"
+                    + " #102: measured on the merged tree): both sides' models together");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

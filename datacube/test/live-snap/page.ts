@@ -21,19 +21,19 @@
 // a model, and a query over it agrees on both engines; a table the reader was not granted is refused; receipts, an
 // expired session, and the token's refresh.
 
-import { startDuckDbInTab } from '../../../engine-client/src/duckdb-tab.ts';
+import { openDuckDbInTab } from '../../../engine-client/src/doors/tab-duckdb.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import type { ResultTable } from '../../../engine-client/src/result.ts';
 import { countQuery, SnapManager } from '../../../engine-client/src/snap.ts';
 import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import {
   listObjects,
-  loadWarehouseBinding,
   SessionExpired,
   sessionExpired,
   signIn,
   WarehouseEngine,
 } from '../../../engine-client/src/warehouse.ts';
+import { loadWarehouseBinding } from '../../../engine-client/src/doors/warehouse.ts';
 import { accessor, from } from '../../../pure-protocol/src/index.ts';
 import { levelLambda } from '../../src/query.ts';
 import { PlanThenRun } from '../../src/runner.ts';
@@ -162,7 +162,7 @@ async function run(): Promise<void> {
   window.__liveSnapStage = 'starting the tab\'s DuckDB';
   const worker = new URL('planner-worker.js', location.href).href;
   const planner = new LitePlanner({ model: MODEL, runtime: RUNTIME, workerUrl: worker });
-  const local: DuckDbEngine = (await startDuckDbInTab('vendor/', planner)).engine;
+  const local: DuckDbEngine = (await openDuckDbInTab('vendor/', planner)).engine;
 
   await check('every cube case answers the same live on the warehouse and snapped in the tab', async () => {
     const liveRunner = new PlanThenRun(planner, live);

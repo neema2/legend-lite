@@ -1,5 +1,6 @@
 load("@aspect_rules_js//js:defs.bzl", "js_library")
 load(":defs.bzl", "node_test")
+load(":esbuild_test.bzl", "late_bundle_test")
 load("//tools/guards:defs.bzl", "guards_package")
 load("//tools/platforms:defs.bzl", "platform_select")
 
@@ -72,5 +73,9 @@ node_test(
         "PNPM_LOCKS": "$(rlocationpath //datacube:pnpm-lock.yaml) $(rlocationpath //query:pnpm-lock.yaml) $(rlocationpath //studio:pnpm-lock.yaml) $(rlocationpath //engine-client:pnpm-lock.yaml)",
     },
 )
+
+# a bundle declared after its package's guards_package() is refused (esbuild.bzl late_bundle_error; 2026-11-15, the
+# C5-T re-check's item 3): the decision, planted
+late_bundle_test(name = "late_bundle_test")
 
 guards_package()

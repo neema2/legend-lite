@@ -26,15 +26,32 @@ final class DateFormats {
         int i = 0;
         while (i < pattern.length()) {
             if (pattern.charAt(i) == '"') {
-                int close = pattern.indexOf('"', i + 1);
-                if (close < 0) {
-                    // a malformed pattern, refused by name as the lowering refuses a malformed input (the C4 audit's
-                    // M3, 2026-11-13: until then a bare IllegalStateException, which the server answered 500 as a bug)
-                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
-                            "unterminated quote in date pattern: " + pattern);
+                // quoted text, read as legend-pure reads it (DateFormatPattern.parseQuotedText, legend-pure 5.99.0;
+                // C5-J item 5, 2026-11-15: until then the next quote closed it and a backslash was text): inside the
+                // quotes a backslash makes text of the character after it, the quote and the backslash included
+                int j = i + 1;
+                boolean closed = false;
+                while (j < pattern.length()) {
+                    char c = pattern.charAt(j++);
+                    if (c == '\\' && j < pattern.length()) {
+                        text.append(pattern.charAt(j++));
+                    } else if (c == '"') {
+                        closed = true;
+                        break;
+                    } else {
+                        text.append(c);
+                    }
                 }
-                text.append(pattern, i + 1, close);
-                i = close + 1;
+                if (!closed) {
+                    // pure's pattern parser's words for it. Through %t a quote left open usually swallows the brace
+                    // that would end the pattern, which endOfPattern refuses first, as pure's scan does; but a
+                    // zone-shifted pattern reaches this (the C5-J audit's nit, 2026-11-15): Scalars.dateWithPattern reads
+                    // the zone up to its first ']', blind to quotes, so in %t{["EST]yyyy"} the text after the zone
+                    // opens a quote it never closes (pure reads the zone by its own rule; start-here's C5-J backlog)
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
+                            "Missing closing quote in format string: " + pattern);
+                }
+                i = j;
                 continue;
             }
             String rest = pattern.substring(i);
@@ -88,6 +105,63 @@ final class DateFormats {
             out.add(new DateFmt.Text(text.toString()));
         }
         return out;
+    }
+
+    /**
+     * The closing brace of the date pattern a {@code %t} opens, its brace at {@code open} in {@code format}, found as
+     * legend-pure finds it ({@code FormatTools.findEndOfDateFormatString}, legend-pure 5.99.0; C5-J item 5, 2026-11-15:
+     * until then the first brace, quotes unread): a double quote opens a run of text and the next one closes it, inside
+     * such a run a backslash makes text of the character after it, and the first closing brace outside quoted text ends
+     * the pattern. A pattern that never ends -- no closing brace, or one inside an unclosed quote -- is refused at
+     * planning with pure's words, which pure says when it compiles a literal format string ({@code FormatValidator}):
+     * register S342.
+     */
+    static int endOfPattern(String format, int open) {
+        boolean inQuotes = false;
+        boolean escaped = false;
+        for (int i = open + 1; i < format.length(); i++) {
+            char c = format.charAt(i);
+            if (escaped) {
+                escaped = false;
+            } else if (inQuotes) {
+                if (c == '"') {
+                    inQuotes = false;
+                } else if (c == '\\') {
+                    escaped = true;
+                }
+            } else if (c == '"') {
+                inQuotes = true;
+            } else if (c == '}') {
+                return i;
+            }
+        }
+        throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
+                "Could not find end of date format starting at index " + open + " of: " + format);
+    }
+
+    /** The places {@code letter} stands in {@code pattern} outside its quoted text, quotes read as
+     *  {@link #javaDateToParts} reads them (C5-J item 5, 2026-11-15: a quoted {@code Z} is text, as in pure). */
+    static List<Integer> unquoted(String pattern, char letter) {
+        List<Integer> at = new ArrayList<>();
+        boolean inQuotes = false;
+        boolean escaped = false;
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (escaped) {
+                escaped = false;
+            } else if (inQuotes) {
+                if (c == '\\') {
+                    escaped = true;
+                } else if (c == '"') {
+                    inQuotes = false;
+                }
+            } else if (c == '"') {
+                inQuotes = true;
+            } else if (c == letter) {
+                at.add(i);
+            }
+        }
+        return at;
     }
 
     /**
