@@ -1,4 +1,6 @@
-"""THE WAREHOUSE, AS PYTHON SPEAKS IT (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3): a driver of the one binding --
+"""THE WAREHOUSE, AS PYTHON SPEAKS IT (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md C3), a module of the run side since C5-P
+(2026-11-15: //python:run; it reaches the native library by the service key, _services.py, which carries its wire alone,
+and every call it makes is in a run): a driver of the one binding --
 warehouse/.../sqlapi/SqlApiCalls.java, in the native library (``lite_warehouse_call``, ``lite_warehouse_read``) -- the
 twin of the tab's (engine-client/src/warehouse.ts): the same functions, which make the very calls the binding names and
 read every answer through it. This module only performs them: the HTTP (``urllib``: no new dependency), the clock, and
@@ -23,8 +25,9 @@ from datetime import datetime
 from typing import Any
 from urllib.parse import urlsplit
 
-from ._library import library
-from ._planned import PlannedSql, require
+from . import _services
+from ._planned import PlannedSql, Unframed, require
+from ._runframe import current_run, runs
 
 # how long one call may take on the wire: a poll waits up to 10 s on the server (the binding's), a chunk is read whole
 _WIRE_TIMEOUT_S = 120
@@ -70,7 +73,8 @@ def set_library_thread(run: Callable[[Callable[[], str]], str]) -> None:
 
 
 def _binding(entry: str, *args: str) -> dict[str, Any] | list[Any]:
-    tag, _, rest = _on_library(lambda: library().call(entry, *args)).partition('\n')
+    # the service key (C5-P, A1): the warehouse's wire alone, no planner entry reachable through it
+    tag, _, rest = _on_library(lambda: _services.call(entry, *args)).partition('\n')
     if tag != 'OK':
         raise RuntimeError(f'the native library could not answer {entry}: {rest}')
     return json.loads(rest)
@@ -110,12 +114,18 @@ _OPENER = urllib.request.build_opener(_NoRedirect)
 
 
 def _urlopen(request: urllib.request.Request) -> Any:
-    """The one place a request goes out (a test answers in its stead)."""
+    """The one place a request goes out (a test answers in its stead). Every request is a run's: refused by name outside
+    one (C5-P's audit S3, here since its final round, item 4, 2026-11-15: until then _reach checked, and a request
+    opened past it went unchecked)."""
+    if current_run() is None:
+        raise Unframed("a call of the warehouse's SQL API is made only inside a run (_runframe.runs, in_run): the run"
+                       ' side makes it (G4)')
     return _OPENER.open(request, timeout=_WIRE_TIMEOUT_S)
 
 
 def _reach(base_url: str, call: dict[str, Any]) -> tuple[int, bytes]:
-    """The call made, and its answer's status and bytes; a refused connection said as what it is."""
+    """The call made, and its answer's status and bytes; a refused connection said as what it is. Every call is a run's,
+    refused outside one where the request goes out (``_urlopen``)."""
     body = call['body']
     request = urllib.request.Request(base_url.rstrip('/') + call['path'], method=call['method'],
                                      data=body.encode('utf-8') if body is not None else None, headers=call['headers'])
@@ -130,7 +140,10 @@ def _reach(base_url: str, call: dict[str, Any]) -> tuple[int, bytes]:
         raise WarehouseError(f'cannot reach the warehouse at {base_url} — {reason}') from unreachable
 
 
+@runs("the warehouse's SQL API")
 def _exchange(base_url: str, op: str, args: dict[str, Any]) -> Any:
+    """One call of the SQL API made and its answer read: a send, so a run (C5-P, 2026-11-15, the orchestrator's A2: a
+    sign-in, a listing, a poll, a statement's history or close, each framed as every send is)."""
     status, body = _reach(base_url, _call(op, args))
     return _read(op, status, body.decode('utf-8', errors='replace'))
 
@@ -248,8 +261,15 @@ class Warehouse:
     def arrow_chunks(self, sql: PlannedSql, on_receipt: Callable[[dict[str, Any]], None] | None = None) -> Iterator[bytes]:
         """The result of ``sql`` as the server wrote it: one Arrow IPC stream per chunk, in order. The statement is
         closed once every chunk is read, so the server frees it; ``on_receipt`` hears what the server issued for it
-        (its id and its count) before the first chunk. Only a plan's statement is sent (_planned.py)."""
-        step = self._call('submit', {'sql': require(sql, 'the warehouse'), 'catalog': self._catalog})
+        (its id and its count) before the first chunk. Only a plan's statement is sent (_planned.py), and only inside a run
+        (C5-P)."""
+        planned = require(sql, 'the warehouse')
+        # a plane's send is a run's, as the one send is (C5-P, 2026-11-15: the audit's item 2 -- framed by construction,
+        # whatever name the method is reached by): sent in no run, refused by name before anything is submitted
+        if current_run() is None:
+            raise Unframed("a plan's statement is sent to the warehouse only inside a run (_runframe.runs, in_run): the"
+                           ' run side sends it, handed what the planner answered (G4)')
+        step = self._call('submit', {'sql': planned, 'catalog': self._catalog})
         statement = step.get('statementId')
         # where a read that ends early leaves its statement (the caller stops, or a call fails): still running,
         # cancelled; done, its result closed; read to the end (or failed there), nothing -- the tab's rule

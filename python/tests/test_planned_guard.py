@@ -35,18 +35,30 @@ FILES = runfiles.Create()
 # send, the bridge's check or the type's check (require).
 IMPORTS = {
     # 2026-11-12 (the second audit): the host's Database (connect, Database, Result) where a database is made or held
-    '_headless.py': {'Answered', 'Database', 'across_the_bridge', 'connect', 'send'},
-    '_host.py': {'PlannedSql', 'send'},
+    # 2026-11-15 (C5-P): send gone -- the hosted DataCube's query and statement are run by the run side (_reads.py)
+    '_headless.py': {'Answered', 'Database', 'across_the_bridge', 'connect'},
+    # 2026-11-15 (C5-P): send gone -- a host's operations planned here, run by the run side (_runs.py)
+    '_host.py': {'PlannedSql'},
+    # 2026-11-15 (C5-P): the plan's records, moved out of compiler.py (Plan's statement typed)
+    '_plans.py': {'PlannedSql'},
+    # 2026-11-15 (C5-P): the run side -- a read of the database (frames.py's until then) and the hosts' runners
+    # (projects.py's until then), each sending through the one send
+    '_reads.py': {'Database', 'PlannedSql', 'Result', 'send'},
+    '_runs.py': {'Database', 'PlanText', 'PlannedSql', 'all_from_plan', 'from_plan', 'read_plan', 'send'},
     # 2026-11-12 (the C final audit's H2): require, a host operation's planner text and a snapshot's stream checked
     # 2026-11-12 (the final audit's item 1): require gone -- a host operation takes no SQL, so none is checked here
     'compiler.py': {'PlannedSql', 'all_from_plan', 'from_plan',
                     # 2026-11-12 (the re-audit's M1): the plan the planner answered, typed as read
                     'PlanText', 'plan_from_answer'},
-    'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan', 'send'},
-    'frames.py': {'Database', 'PlannedSql', 'Result', 'connect', 'send'},
+    # 2026-11-15 (C5-P): send gone -- execute's plan read here, then run by the run side (_reads.py)
+    'engine.py': {'PlannedSql', 'across_the_bridge', 'connect', 'from_plan'},
+    # 2026-11-15 (C5-P): PlannedSql, Result and send gone with the reads, the run side's now (_reads.py)
+    'frames.py': {'Database', 'connect'},
     # 2026-11-12 (M1): the runners read only a plan the planner answered (read_plan)
-    'projects.py': {'PlannedSql', 'PlanText', 'all_from_plan', 'from_plan', 'read_plan', 'send'},
-    'warehouse.py': {'PlannedSql', 'require'},
+    # 2026-11-15 (C5-P): projects.py's runners moved to _runs.py, which it names; the plan's type alone kept, named
+    'projects.py': {'PlanText'},
+    # 2026-11-15 (C5-P, the audit's item 2): Unframed -- the warehouse's send refuses outside a run, as the one send does
+    'warehouse.py': {'PlannedSql', 'Unframed', 'require'},
 }
 
 # Each send by module, method and receiver. 2026-11-12: the one send (_planned.Database's run), and a frame's read
@@ -57,10 +69,12 @@ SENDS = {
     ('_planned.py', 'from_arrow', 'self._con'),
     # 2026-11-12 (H13): the same import's table made, the relation API's send counted with it
     ('_planned.py', 'create', 'self._con.from_arrow(reader)'),
-    ('frames.py', 'execute', 'self'),
+    # 2026-11-15 (C5-P): a read's run of a plan's statement by its own send, frames.py's until then (Reading.run)
+    ('_reads.py', 'execute', 'self'),
     # 2026-11-12 (the second audit): the hosted DataCube's query in a read of the frames, by the read's own send
-    # (frames.Reading.execute: the one send on its cursor), the read being no Database of its own
-    ('_headless.py', 'execute', 'self._over'),
+    # (Reading.execute: the one send on its cursor), the read being no Database of its own; 2026-11-15 (C5-P): run by
+    # the run side (_reads.run_bridged_query), _headless.py's until then
+    ('_reads.py', 'execute', 'over'),
 }
 
 # The bridge's crossings by module. 2026-11-12 (C3): the hosted DataCube's query and statement (_headless.py), and a
@@ -91,7 +105,8 @@ MINT_REFERENCES = {
     # (the final audit's item 1, 2026-11-12) compiler.py 9: the copy select list's typing gone, snap_copy's plan typed;
     # projects.py 9 -> 14: run_write, a snapshot's copy's plan of writes alone -- its effects' statements and its
     # target's session and transaction statements, typed as read
-    'compiler.py': 9, 'engine.py': 2, 'projects.py': 14}
+    # 2026-11-15 (C5-P): projects.py's 14, the runners', the run side's now (_runs.py)
+    'compiler.py': 9, 'engine.py': 2, '_runs.py': 14}
 
 # A send method's name reached and not called, by module, name and receiver (H4, measured 2026-11-12): each a field of a
 # plan (its sql), a URL (its query) or a view (page.py's), none a method handed on. A method handed on -- `run =
@@ -100,7 +115,8 @@ REFERENCES = {
     ('_headless.py', 'query', 'parts'),
     ('engine.py', 'query', 'url'),
     ('engine.py', 'sql', 'plan'),
-    ('frames.py', 'sql', 'plan'),
+    # 2026-11-15 (C5-P): a plan's statement read for its run, frames.py's until then (Frames.run, Reading.run)
+    ('_reads.py', 'sql', 'plan'),
     ('page.py', 'query', 'self'),
     ('page.py', 'sql', 'self'),
     ('page.py', 'sql', "compiler.read_planned(said['plan'])"),
@@ -114,10 +130,14 @@ ATTACH_METHODS = {'register', 'unregister', 'import_stream'}
 ATTACHES = {
     ('_planned.py', 'register', 'self._con'),
     ('_planned.py', 'unregister', 'self._con'),
-    ('projects.py', 'register', 'connection'),
-    ('projects.py', 'unregister', 'connection'),
-    ('projects.py', 'import_stream', 'connection'),
+    # 2026-11-15 (C5-P): the load runner's, projects.py's until then (_runs.py)
+    ('_runs.py', 'register', 'connection'),
+    ('_runs.py', 'unregister', 'connection'),
+    ('_runs.py', 'import_stream', 'connection'),
     ('frames.py', 'register', 'target'),
+    # 2026-11-15 (C5-P): a frame's attach on a read's own cursor, by the read's run (_reads.begin_read; frames.py's
+    # `target` until then)
+    ('_reads.py', 'register', 'cursor'),
     ('frames.py', 'unregister', 'con'),
     ('datacube.py', 'register', 'self.frames'),
     ('datacube.py', 'unregister', 'self.frames'),
@@ -135,12 +155,12 @@ ATTACHES = {
 # duckdb.append, duckdb.read_csv, ...). HTTP: a SQL API's statement ('submit') is sent by warehouse.py alone
 # (Warehouse.arrow_chunks: required a PlannedSql), and each module that opens a network client is pinned.
 # 2026-11-14 (the follow-up audit's G3, commit 876194a592): ParserException, CatalogException and BinderException, the
-# three errors a read tells apart as refused before anything ran (frames._REFUSED_BEFORE_RUNNING) -- errors, as the rule
-# admits, never a send.
+# three errors a read tells apart as refused before anything ran (_reads._REFUSED_BEFORE_RUNNING, frames.py's until
+# C5-P) -- errors, as the rule admits, never a send.
 # 2026-11-14 (the final audit of 9af16fbe58's P7): InvalidInputException, a statement's parameters not as many as its
 # `?`s -- an error, as the rule admits.
 # 2026-11-14 (the C4 final fix round's B1): PermissionException, refused before its statement runs, and IOException, a
-# file not there, which a read tells apart (frames._REFUSED_BEFORE_RUNNING, frames._ABORTS_UNLESS_ABORTED) -- errors, as
+# file not there, which a read tells apart (_reads._REFUSED_BEFORE_RUNNING, _reads._ABORTS_UNLESS_ABORTED) -- errors, as
 # the rule admits.
 DUCKDB_NAMES = {'Error', 'TransactionException', 'ParserException', 'CatalogException', 'BinderException',
                 'InvalidInputException', 'PermissionException', 'IOException', 'DuckDBPyConnection', '__version__'}
@@ -165,7 +185,8 @@ _NETWORK_ROOTS = {'urllib', 'http', 'requests', 'urllib3', 'socket', 'httpx', 'a
 # load (projects.py), a snapshot's stream (engine.py), a frame's attach (frames.py)
 # 2026-11-12 (the final audit's item 1(b)): engine.py 1 -> 2, a served snap's copy run by run_write (the plan of writes
 # alone the planner makes of its pull: Boundary.snapCopy)
-RUNNERS = {'projects.py': 1, 'engine.py': 2, 'frames.py': 1}
+# 2026-11-15 (C5-P): projects.py's call, a project database's load, the run side's (_runs.open_project)
+RUNNERS = {'_runs.py': 1, 'engine.py': 2, 'frames.py': 1}
 RUNNER_NAMES = {'run_load', 'run_host_load', 'run_write'}
 
 AUTHORED_NAMES = {'authored', 'lite_authored'}
@@ -446,7 +467,8 @@ def pinned_comparison(case: unittest.TestCase, modules: dict[str, str]) -> None:
     case.assertEqual(IMPORTS, imports, 'each module\'s names from _planned are pinned (IMPORTS): a mint where a plan'
                                       ' or the planner\'s answer is read, the one send, the bridge\'s check')
     case.assertEqual({m for m, names in IMPORTS.items() if names & MINT_NAMES},
-                     {'compiler.py', 'projects.py', 'engine.py'}, 'the mints, by module')
+                     # 2026-11-15 (C5-P): projects.py's runners, the run side's now (_runs.py)
+                     {'compiler.py', '_runs.py', 'engine.py'}, 'the mints, by module')
     case.assertEqual(SENDS, sends, 'every statement Python\'s host sends goes through _planned.send, which refuses'
                                    ' any text no plan carries (SENDS)')
     case.assertEqual(BRIDGE, bridge, 'the statements the hosted DataCube hands across are checked at the named'

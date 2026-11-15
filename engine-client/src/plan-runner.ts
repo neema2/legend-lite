@@ -33,6 +33,7 @@ import { payloadValue } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
 import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
 import { inRun } from './run-frame.ts';
+import { raised } from './raised.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -525,6 +526,14 @@ export class PlanRefusal extends Error {
  */
 export async function runPlan(plan: PlanText, session: PlanSession,
   o: { readonly joined?: boolean; readonly established?: boolean } = {}): Promise<string> {
+  // a product raise in the database's words, worded as Java's runner words it (raised.ts; #104's M2(b), 2026-11-15)
+  return runPlanned(plan, session, o).catch((e: unknown) => {
+    throw (e instanceof Error ? raised(e.message, e) : undefined) ?? e;
+  });
+}
+
+async function runPlanned(plan: PlanText, session: PlanSession,
+  o: { readonly joined?: boolean; readonly established?: boolean }): Promise<string> {
   return inRun('a plan', async () => {
     const read = JSON.parse(plan) as ReadPlan;
     if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {

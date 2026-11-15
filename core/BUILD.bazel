@@ -87,12 +87,14 @@ legend_java_library(name = "test_plan", srcs = glob(["src/main/java/com/legend/t
 # result reaches //arrow_ipc (track A, 2026-10-29: ArrowWriter frames a result's batches as Arrow IPC); so does
 # pure_v1 below (the ARROW_IPC execute); the layer map tools/deps/core-layers.txt carries the same two rows
 legend_java_library(name = "result", srcs = glob(["src/main/java/com/legend/result/**/*.java"]), deps = ["//arrow_ipc", "//base", "//json", ":error", ":execution_plan", ":values"])
-legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), deps = ["//base"])
+# //engine-client: the hosts' words of a product raise, generated from ErrorKind (#104's M2(b), 2026-11-15)
+legend_java_library(name = "error", srcs = glob(["src/main/java/com/legend/error/*.java"]), visibility = ["//engine-client:__pkg__"], deps = ["//base"])
 # the diagnostics switchboard (-Dlegend.diagnostics, Bazel workplan P3-13): what lowering, exec and driver may turn on
 # parser-equivalence's corpus machinery reads one switch of it (Corpus.load)
 legend_java_library(name = "diagnostics", srcs = glob(["src/main/java/com/legend/diagnostics/*.java"]), deps = ["//base"], visibility = ["//parser-equivalence:__pkg__"])
 legend_java_library(name = "lexer", srcs = glob(["src/main/java/com/legend/lexer/*.java"]), deps = ["//base"])
-legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), deps = ["//base"])
+# //engine-client: the raise kind's mark, for the hosts' words of a product raise (#104's M2(b), 2026-11-15)
+legend_java_library(name = "sql", srcs = glob(["src/main/java/com/legend/sql/*.java"]), visibility = ["//engine-client:__pkg__"], deps = ["//base"])
 # legend-engine's query store's rules (/api/pure/v1/query) over a records interface
 # (docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B5): the one implementation legend-lite's server, Python's native library
 # and the page's module answer with, the storage each host's own (a directory, or the page's records handed in).
@@ -208,6 +210,8 @@ legend_java_library(
     name = "exec",
     # the program runner is its own target, the package's (below)
     srcs = glob(["src/main/java/com/legend/exec/*.java"], exclude = ["src/main/java/com/legend/exec/ProgramRunner.java"]),
+    # //engine-client: a product raise's envelope marks, for the hosts' words of one (#104's M2(b), 2026-11-15)
+    visibility = ["//engine-client:__pkg__"],
     # THE WALL (D72, 2026-10-30, the seam-and-wall program's B2; D71 the day before took the judges and the probes out):
     # the runtime depends on no planning library -- not the compiler, not lowering, not a dialect, not the plan side's
     # setup or database facts. A plan and a session in, typed rows out: the plan records (:execution_plan) carry every

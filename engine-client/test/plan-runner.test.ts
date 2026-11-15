@@ -12,6 +12,7 @@ import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
 import { currentRun, frameKept } from '../src/run-frame.ts';
+import { PlanRaise, raised } from '../src/raised.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
 import { relationColumns } from '../src/relation-type.ts';
@@ -942,5 +943,25 @@ describe("a statement's slots and a payload's digest, required", () => {
     refused({ slots: [{ parameter: 'p', binding: { _type: 'payload' } }], content: {} }, /'p' binds a payload its statement does not carry/);
     refused({ slots: [{ parameter: 'p', binding: { _type: 'payload', digest: 'ab' } }] }, /'p' binds a payload its statement does not carry/);
     assert.deepEqual(statementParams({ slots: [] }), []);
+  });
+});
+
+// a product raise in lite's words (#104's M2(b), 2026-11-15): its kind's sentence, generated from error.ErrorKind
+// (lite-facts.ts), then its where, as Java's runner words it (exec.RaisedErrors, error.DataError)
+describe('a raise, worded', () => {
+  it('reads the envelope as the Java runner reads it', () => {
+    assert.equal(raised('Binder Error: no such column'), undefined);
+    const divide = raised('Invalid Input Error: \u001f\u001cDIVIDE_BY_ZERO\u001f');
+    assert.ok(divide instanceof PlanRaise);
+    assert.equal(divide.message, 'division by zero');
+    assert.equal(divide.kind, 'DIVIDE_BY_ZERO');
+    assert.equal(raised('x \u001f\u001cSIZE_NOT_MULTIPLICITY\u001c[1]\u001f y')?.message,
+      'collection size does not match the multiplicity: [1]');
+    assert.equal(raised('\u001f3:7\u001e\u001cDIVIDE_BY_ZERO\u001f')?.message, 'division by zero');
+    // a user's fail message is its own text, a held quote restored
+    const fail = raised('\u001fit\u001ds mine\u001f');
+    assert.ok(fail !== undefined && !(fail instanceof PlanRaise));
+    assert.equal(fail.message, "it's mine");
+    assert.throws(() => raised('\u001f\u001cNO_SUCH_KIND\u001f'), /'NO_SUCH_KIND', which legend-lite does not name/);
   });
 });
