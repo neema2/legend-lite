@@ -113,6 +113,11 @@ class PhaseEntriesRefusedInsideARunTest {
                 com.legend.parser.Dialect.LEGEND_LITE));
         out.put("parse a lambda (phase C)", () -> com.legend.door.Parse.lambdaJson(QUERY, false));
         out.put("read a model's records (phase B) <- Parse.model", () -> com.legend.door.Parse.model(records));
+        // a test body's facts (the C5-J audit's nit, 2026-11-15): planning that asks on its own, never by the typing it
+        // starts -- the body typed outside the run, so only the facts planner's own question can refuse it
+        TypedQuery body = Compiler.query(ctx, QUERY);
+        body.body();
+        out.put("state a test body's facts <- TestExecution.facts", () -> TestExecution.facts(body));
         out.put("TypedQuery.executionPlan", () -> query.executionPlan("m::RT"));
         return out;
     }

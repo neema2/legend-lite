@@ -106,7 +106,7 @@ public final class TestDoor {
     public static TestPlan planned(TypedQuery body, String runtime, Set<Feature> features, Asserts asserts,
             boolean systemRouted) {
         return planned(body, runtime, features, asserts, systemRouted, com.legend.executionplan.DataStores.none(), null,
-                body);
+                TestPlanner.facts(body));
     }
 
     /** {@link #planned(TypedQuery, String, Set, Asserts, boolean)} with the stores a CSV load's file is read from at
@@ -115,7 +115,7 @@ public final class TestDoor {
             boolean systemRouted,
             com.legend.executionplan.DataStores stores,
             com.legend.testexecutionplan.@Nullable Edge edge,
-            TypedQuery given) {
+            com.legend.testexecutionplan.BodyFacts facts) {
         TestKinds kinds = new TestKinds(body, runtime, asserts, stores);
         PlanMaker.TestProgram program = PlanMaker.testProgram(body, runtime, features, kinds, systemRouted);
         List<PlannedStep> planned = program.steps();
@@ -149,9 +149,10 @@ public final class TestDoor {
         boolean answersLastVerdict = asserts.at(body.body().size() - 1) != null;
         // the session the body runs on: its runtime's database, the test door's own target (slice 5, 2026-11-09: the
         // door planned it beside the plan until then)
-        // the body's facts, stated over the body as given once it is planned (C5-J item 2, 2026-11-15)
+        // the body's facts, stated over the body as its caller gave it, before any rewrite (C5-J item 2, 2026-11-15;
+        // the C5-J audit's SHOULD 1: the record the test door's facts state, TestPlanner.plan)
         return new TestPlan(program.parameters(), steps, asserts.judge(), byStep, Map.of(), answersLastVerdict,
-                PlanMaker.testSessionTarget(body.context(), runtime), TestPlanner.facts(given));
+                PlanMaker.testSessionTarget(body.context(), runtime), facts);
     }
 
     /**

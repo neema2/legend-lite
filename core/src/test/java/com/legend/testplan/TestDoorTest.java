@@ -113,6 +113,20 @@ class TestDoorTest {
                 com.legend.testexecutionplan.TestPlanJson.write(plan)), "the facts read back as written");
         assertEquals(new com.legend.testexecutionplan.BodyFacts(false, false, false, "O"),
                 com.legend.TestExecution.facts(Compiler.query(ctx, "|x::Firm.all()->project([f|$f.name], ['name'])")));
+        // the C5-J audit's SHOULD 1 (2026-11-15): the plan's facts are stated over the body as GIVEN, before the test
+        // planner's rewrites -- an unread let made the statement it binds (its letter L, never the rewrite's O), and
+        // the census carrier replaced by the instance it is -- so the door and the plan agree
+        String unread = "{|let u = x::Firm.all()->project([f|$f.name], ['name'])->size();\nassertEquals(1, 1);}";
+        com.legend.testexecutionplan.BodyFacts unreadFacts = com.legend.TestExecution.facts(Compiler.query(ctx, unread));
+        assertEquals(new com.legend.testexecutionplan.BodyFacts(false, false, true, "LA"), unreadFacts);
+        assertEquals(unreadFacts, com.legend.TestExecution.planBody(Compiler.query(ctx, unread), "x::RT",
+                com.legend.ExecuteOptions.NONE).facts(), "an unread let: the plan's facts are the door's");
+        String census = "{| let query = {|x::Firm.all()->project([f|$f.name], ['n'])}; let mapping = x::M;"
+                + " let d = meta::relational::testDataGeneration::getRelationalCSVDataFromQuery($query, $mapping);"
+                + " assertEquals(1, $d.tables->size());}";
+        assertEquals(com.legend.TestExecution.facts(Compiler.query(ctx, census)), com.legend.TestExecution.planBody(
+                Compiler.query(ctx, census), "x::RT", com.legend.ExecuteOptions.NONE).facts(),
+                "the census carrier: the plan's facts are the door's");
     }
 
     @Test
