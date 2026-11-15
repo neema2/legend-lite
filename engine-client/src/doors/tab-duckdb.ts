@@ -22,7 +22,7 @@ import { inRun } from '../run-frame.ts';
 export function openDuckDbInTab(vendor: string, planner: TabDuckDbPlanner): Promise<DuckDbInTab> {
   return openedInTab(async () => {
     await duckDbRunsHere();
-    return instantiateDuckDbInTab(vendor, new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js')));
+    return instantiateDuckDbInTab(new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js')), vendorAsset(vendor, 'duckdb-eh.wasm'));
   }, extensionRepository(vendor), planner, connectDuckDbInTab);
 }
 

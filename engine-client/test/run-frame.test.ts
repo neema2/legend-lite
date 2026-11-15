@@ -9,9 +9,11 @@ import { currentRun, frameKept, inRun, sending } from '../src/run-frame.ts';
 import { NOT_PLANNING, planning, readRunsWith } from '../src/plan-guard.ts';
 import { DuckDbEngine, type ArrowishTable } from '../src/duckdb.ts';
 import { WarehouseBinding, WarehouseEngine } from '../src/warehouse.ts';
-import { openedInTab } from '../src/doors/tab-duckdb.ts';
+import { openedInTab, synthesizedInTab } from '../src/doors/tab-duckdb.ts';
+import { dataLoaded } from '../src/doors/project-data.ts';
+import { PLAN_VERSION } from '../src/plan-runner.ts';
 import type { PlannedSql } from '../src/planned-sql.ts';
-import { unplanned } from './unplanned.ts';
+import { unplanned, unplannedPlan } from './unplanned.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { WorkerPort } from '../src/legend/wasm-grammar.ts';
 import { HttpEngine, RoutedEngine } from '../src/legend/engine.ts';
@@ -318,5 +320,58 @@ describe("the tab's DuckDB starts alongside the planner's asks", () => {
     assert.equal(await opened, 'the tab');
     assert.deepEqual(order, ['asked hostOperations(DuckDB)', 'instantiate begun', 'asked sessionSetup(DuckDB)',
       "connected the database in the tab's DuckDB started with 1+1"]);
+  });
+});
+
+// THE PAGES' TWO DOORS, WITNESSED (2026-11-15, the C5-T review's S2, as openedInTab is above): a project's Data rows
+// loaded where an engine runs (Query's warehouse seed) and a table synthesized in the tab's DuckDB (DataCube's demo
+// sample) -- each asks its planner outside any run, then sends the answer's statements inside one, on Node's frame.
+describe("the pages' doors ask outside a run and send inside one", () => {
+  /** A one-statement load, as a planner answers one (a ONCE load at the plan's root). */
+  const loadPlan = unplannedPlan(JSON.stringify({ format: 'legend-lite-plan', version: PLAN_VERSION, root: {
+    _type: 'load', identity: "the test's rows", cadence: 'ONCE', steps: [{ _type: 'statement', sql: 'CREATE TABLE t (n INT)' }],
+  } }));
+  /** A DuckDB engine over a connection that records each statement it is sent, and the run it was sent in. */
+  const recording = (order: string[]): DuckDbEngine => {
+    const empty: ArrowishTable = { numRows: 0, schema: { fields: [] }, getChildAt: () => null };
+    const sent = (how: string, sql: string): void => { order.push(`${how} ${sql} in ${currentRun() ?? 'no run'}`); };
+    return new DuckDbEngine({
+      query: (sql) => { sent('ran', sql); return empty; },
+      prepare: async (sql) => ({ query: async () => { sent('held rows', sql); return empty; } }),
+      insertArrowFromIPCStream: async () => { sent('imported', 'Arrow'); },
+    });
+  };
+  const asked = (order: string[], what: string): void => {
+    order.push(`asked ${what}${currentRun() === undefined ? '' : ` INSIDE A RUN (${currentRun()})`}`);
+  };
+
+  it("dataLoaded (Query's warehouse seed): projectData asked outside a run, the load's statement run inside one", async () => {
+    const order: string[] = [];
+    const engine = recording(order);
+    await dataLoaded(engine, {
+      projectData: async (model, databaseType) => {
+        asked(order, `projectData(${model}, ${databaseType})`);
+        return { name: 'p', open: [], use: [], close: [], load: loadPlan };
+      },
+    }, 'the model', "the test's seed");
+    assert.deepEqual(order, ['asked projectData(the model, DuckDB)', 'ran CREATE TABLE t (n INT) in a load']);
+    // a model with no Data rows is refused by name, nothing sent
+    const none: string[] = [];
+    await assert.rejects(dataLoaded(recording(none), { projectData: async () => ({ name: 'p', open: [], use: [], close: [] }) },
+      'the model', "the test's seed"), /the test's seed holds no Data rows to load/);
+    assert.deepEqual(none, []);
+  });
+
+  it("synthesizedInTab (DataCube's demo sample): synthesize asked outside a run, the plan's statement sent on the held connection inside one", async () => {
+    const order: string[] = [];
+    const engine = recording(order);
+    await synthesizedInTab(engine, {
+      synthesize: async (request) => {
+        asked(order, `synthesize(${request.table})`);
+        return loadPlan;
+      },
+    }, { databaseType: 'DuckDB', model: 'the model', database: 'trades::DB', schema: 'default', table: 'TRADES', count: 10 });
+    // held.rows with no value bound sends by the connection's query, as engine.run does
+    assert.deepEqual(order, ['asked synthesize(TRADES)', 'ran CREATE TABLE t (n INT) in a load']);
   });
 });

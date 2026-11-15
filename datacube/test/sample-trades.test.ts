@@ -9,7 +9,7 @@ import { after, before, describe, it } from 'node:test';
 import { openDatabase } from '#test-host';
 
 import { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { runLoad } from '../../engine-client/src/plan-runner.ts';
+import { synthesizedInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesCsv, sampleTradesRequest } from '../src/sample-trades.ts';
 import { sampleById, sampleFileName } from '../src/samples.ts';
@@ -27,9 +27,10 @@ before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
   files = db.files;
-  // the start's table, as the page makes it (demo/boot.ts synthesizeTrades): the planner's plan, run by the hosts' runner
-  const plan = await plannerFor(MODEL, 'trades::RT').synthesize(sampleTradesRequest(MODEL, engine.databaseType));
-  await asTest(engine).exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
+  // the start's table, as the page makes it: through the tab DuckDB's door (doors/tab-duckdb.ts synthesizedInTab, which
+  // demo/boot.ts synthesizeTrades calls; 2026-11-15, the C5-T review's S2) -- the planner's plan, asked outside a run,
+  // then run by the hosts' runner on the held connection inside one
+  await synthesizedInTab(engine, plannerFor(MODEL, 'trades::RT'), sampleTradesRequest(MODEL, engine.databaseType));
 });
 
 after(async () => {

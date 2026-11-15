@@ -98,16 +98,16 @@ export async function duckDbRunsHere(): Promise<void> {
 }
 
 /**
- * DuckDB in this tab instantiated in `worker` -- its own, which the door started from the vendor folder (a door's
- * wiring: the run side takes the started worker and loads no module, 2026-11-15, the C5-T fold-in) -- from `vendor`,
- * the URL of the folder holding duckdb-eh.wasm: its download and its instantiate, which send no statement -- so the
- * start's door begins it at once, alongside the planner's asks, and the slower of the two sets the page's floor (the
- * C5-T audit's MUST 1, 2026-11-15; DataCube's boot.ts, "Overlapped, the slower of the two sets the floor instead of
+ * DuckDB in this tab instantiated in `worker` from `module` (duckdb-eh.wasm's URL) -- both the door's, from the vendor
+ * folder (a door's wiring: the run side takes the started worker and the module's address and loads no module of its
+ * own, 2026-11-15, the C5-T fold-in and its review's B3): its download and its instantiate, which send no statement --
+ * so the start's door begins it at once, alongside the planner's asks, and the slower of the two sets the page's floor
+ * (the C5-T audit's MUST 1, 2026-11-15; DataCube's boot.ts, "Overlapped, the slower of the two sets the floor instead of
  * their sum").
  */
-export async function instantiateDuckDbInTab(vendor: string, worker: Worker): Promise<TabDatabase> {
+export async function instantiateDuckDbInTab(worker: Worker, module: string): Promise<TabDatabase> {
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
-  await db.instantiate(vendorAsset(vendor, 'duckdb-eh.wasm'), null);
+  await db.instantiate(module, null);
   return { db };
 }
 
