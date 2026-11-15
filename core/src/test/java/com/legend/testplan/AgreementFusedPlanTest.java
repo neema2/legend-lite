@@ -175,20 +175,26 @@ class AgreementFusedPlanTest {
     }
 
     @Test
-    @DisplayName("a root whose rows ride no fused statement (decided at planning, DE4) declines the fused program, and"
-            + " the body keeps today's agreement path")
-    void anUncarriedRootKeepsTodaysPath() {
+    @DisplayName("a segment decided at planning plans on ONE road (DE4 (a)): the decided step carries each root's host"
+            + " verdict and its agreement, and both judges take the planned outcome")
+    void aDecidedSegmentPlansOnOneRoad() {
         String body = "{| assertIs(Integer, Integer);}";
         TypedQuery typed = typed(body);
         ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.BOTH);
         BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, StorelessRuntime.RUNTIME,
                 Databases.dialect(Databases.PLATFORM), options.planning());
-        // the orchestrator, 2026-11-15: DE4's three groups keep today's behaviour until the user's ruling
-        assertNull(AgreementAsserts.planFused(typed, StorelessRuntime.RUNTIME, env, null, false),
-                body + ": a root no fused row carries declines the fused program");
-        TestPlan plan = today(body);
+        // the orchestrator's ruling under the user's delegation, 2026-11-15 (docs/records/pr1-rulings-2026-11-15.md, R1)
+        assertNotNull(AgreementAsserts.planFused(typed, StorelessRuntime.RUNTIME, env, null, false),
+                body + ": a decided segment plans the fused program");
+        TestPlan plan = fused(body);
         assertEquals(TestPlan.Judge.AGREEMENT, plan.judge());
-        assertEquals(1, groups(plan).stream().mapToInt(g -> g.agreements().size()).sum(), body);
+        List<TestPlan.Verdicts> groups = groups(plan);
+        assertEquals(1, groups.size(), body + ": the one decided step");
+        assertNull(groups.get(0).fused(), body + ": a decided step sends no fused statement");
+        assertEquals(1, groups.get(0).agreements().size(), body);
+        Told told = new Told();
+        run(plan, told);
+        assertEquals(List.of("assertIs pass"), told.verdicts);
     }
 
     @Test

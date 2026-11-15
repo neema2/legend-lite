@@ -290,10 +290,8 @@ final class AgreementAsserts implements TestDoor.Asserts {
             BodyDriver.ExecEnv env) {
         TestPlan.Verdict hv = r.host().verdict();
         String name = r.host().assertion().listenerName();
-        if (hv.base().isEmpty()) {
-            throw new com.legend.error.NotImplementedException(name + ": an agreement root whose host half reads no"
-                    + " side, carried by a fused statement (E-5c)");
-        }
+        // a host half that reads no side (DE4 (a): its outcome decided at planning, a planned raise) rides the carrier
+        // with no base: the host judges it from the plan, the database half from the fused row
         if (r.storeBound() && !g.on().equals(env.target())) {
             throw new com.legend.error.NotImplementedException(name + ": an agreement root whose host columns read the"
                     + " body's store, its fused row on another session (E-5c)");
