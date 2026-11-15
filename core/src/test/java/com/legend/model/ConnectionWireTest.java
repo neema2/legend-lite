@@ -52,7 +52,9 @@ class ConnectionWireTest {
 
     @Test
     void everyConnectionSpecificationAndAuthenticationReadsBack() {
-        for (DatabaseType type : DatabaseType.values()) {
+        // every database a plan runs on: a topic store's brokers (Kafka) are none (Databases.answersQueries)
+        for (DatabaseType type : java.util.Arrays.stream(DatabaseType.values())
+                .filter(com.legend.database.Databases::answersQueries).toList()) {
             for (ConnectionSpecification spec : SPECIFICATIONS) {
                 for (AuthenticationSpec auth : AUTHENTICATIONS) {
                     Target t = new Target(new Database.Declared(com.legend.planner.ConnectionPlans.of(new ConnectionDefinition("store::Conn", "store::DB",

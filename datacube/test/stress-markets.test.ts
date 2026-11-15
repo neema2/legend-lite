@@ -223,12 +223,22 @@ describe('the trading model\'s tables, as its store declares them', () => {
       const m = new RegExp(`\\b${t}\\(\\s*\\|#>\\{[\\w:]+\\.(?:"([^"]+)"|(\\w+))\\}#\\s*\\)`).exec(MODEL);
       return m === null ? undefined : m[1] !== undefined ? `"${m[1]}"` : m[2];
     };
+    // a batch milestoned dataset lands with upstream's three columns after its source's (docs/DEPLOYMENT_DESIGN_2026_11_14.md
+    // §5): its own writeMode, else its ingest's
+    const milestoned = (t: string): boolean => {
+      const at = MODEL.search(new RegExp(`\\b${t}\\(\\s*\\|#>`));
+      if (at < 0) return false;
+      const line = MODEL.slice(at, MODEL.indexOf(';', at));
+      if (/writeMode=\w+/.test(line)) return /writeMode=BatchMilestoned/.test(line);
+      return /writeMode=BatchMilestoned/.test(MODEL.slice(MODEL.lastIndexOf('Ingest ', at), at).split('\n')[0]!);
+    };
     for (const t of STRESS_MARKET_TABLES) {
       const source = OWN_MARKET_TABLES.includes(t) ? undefined : sourceOf(t);
       const declared = source !== undefined ? declaredIn(MODEL, source) : declaredIn(OWN_MARKET_TABLES.includes(t) ? own : store, t);
       assert.ok(declared !== undefined, `the store declares ${t}`);
       const names = declared.split(/,(?![^(]*\))/).map((c) => c.trim().split(/\s+/)[0]);
-      assert.deepEqual([...STRESS_MARKET_COLUMNS[t]], names, `${t}'s columns`);
+      const landed = source !== undefined && milestoned(t) ? [...names, 'LAKE_DIGEST', 'LAKE_IN_ID', 'LAKE_OUT_ID'] : names;
+      assert.deepEqual([...STRESS_MARKET_COLUMNS[t]], landed, `${t}'s columns`);
     }
   });
 });

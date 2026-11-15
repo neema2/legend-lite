@@ -531,6 +531,10 @@ class Corpus:
     # binds and no seed fills, so it is kept here and never among `tables`. (database, table) -> Table.
     ingests: dict = field(default_factory=dict)
     source_tables: dict = field(default_factory=dict)
+    # the batch milestoned datasets' tables (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): each lands with upstream's
+    # three columns after its own -- not among its columns here, which are the seeded ones: the data writes them for
+    # each seeded row (one open version: emit.data_element)
+    milestoned: set = field(default_factory=set)
 
     # Mapping fqn -> the Mappings it `include`s DIRECTLY. Needed because "these two sets are
     # in different Mappings" says nothing on its own -- the corpus's ~150 domain mappings are
@@ -1010,6 +1014,7 @@ _INGEST = re.compile(r"^\s*Ingest\s+([\w:]+)\b")
 _DATASET = re.compile(r"^\s*(\w+)\(")
 _DATASET_READ = re.compile(r'^\|#>\{([\w:]+)\.(\w+|"[^"]+")\}#$')
 _DATASET_PK = re.compile(r"\bpk=\[\s*([\w\s,]*)\]")
+_WRITE_MODE = re.compile(r"\bwriteMode=(\w+)")
 _DATASET_COLUMN = re.compile(r"^(\w+)\s*:\s*(\w+)(?:\(([^)]*)\))?(\[[^\]]*\])?$")
 # A written column's precise type as the DDL type the rest of this reader knows (the compiler's
 # IngestDefinition.columnType, the other way round).
@@ -1037,6 +1042,7 @@ def _read_lakehouse(text: str, c: Corpus) -> None:
     """Each Ingest's datasets, as written: (name, the table read as (database, table) or None, the written columns or
     None, the key). Read before the stores (load), so a store knows which of its tables a source declares."""
     ingest = None
+    ingest_mode = None
     for raw in text.splitlines():
         line = _strip(raw).strip()
         if not line or line in ("[", "]"):
@@ -1045,6 +1051,8 @@ def _read_lakehouse(text: str, c: Corpus) -> None:
         if m:
             ingest = m.group(1)
             c.ingests[ingest] = []
+            wm = _WRITE_MODE.search(line)
+            ingest_mode = wm.group(1) if wm else None
             continue
         m = _DATASET.match(line)
         if m is None or ingest is None or not line.endswith(";"):
@@ -1058,8 +1066,10 @@ def _read_lakehouse(text: str, c: Corpus) -> None:
         pk_m = _DATASET_PK.search(options)
         pk = [k.strip() for k in pk_m.group(1).split(",") if k.strip()] if pk_m else []
         read = _DATASET_READ.match(source)
+        wm = _WRITE_MODE.search(options)
+        mode = wm.group(1) if wm else ingest_mode
         c.ingests[ingest].append((name, (read.group(1), read.group(2).strip('"')) if read else None,
-                                  None if read else source, pk))
+                                  None if read else source, pk, mode == "BatchMilestoned"))
 
 
 def _materialise_ingests(c: Corpus) -> None:
@@ -1078,7 +1088,7 @@ def _materialise_ingests(c: Corpus) -> None:
         if len(includers.get(ingest, [])) != 1:
             raise ValueError(f"ingest {ingest} is included by {includers.get(ingest, [])}: one store, which "
                              f"addresses its tables, is modelled")
-        for name, read, written, pk in datasets:
+        for name, read, written, pk, milestoned in datasets:
             if name in c.tables:
                 raise ValueError(f"ingest {ingest}'s dataset {name} is a table {c.tables[name].database} declares too")
             t = Table(name, database=includers[ingest][0])
@@ -1086,8 +1096,10 @@ def _materialise_ingests(c: Corpus) -> None:
                 src = c.source_tables.get(read)
                 if src is None:
                     raise ValueError(f"ingest {ingest}'s dataset {name} reads {read[0]}.{read[1]}, which is not declared")
+                # the key the dataset writes, else the read table's (IngestDefinition.database)
+                key = pk or [col.name for col in src.columns.values() if col.pk]
                 for col in src.columns.values():
-                    t.columns[col.name] = Column(col.name, col.type, col.name in pk, col.not_null)
+                    t.columns[col.name] = Column(col.name, col.type, col.name in key, col.not_null)
             else:
                 for spec in _split_top(written):
                     cm = _DATASET_COLUMN.match(spec)
@@ -1104,6 +1116,10 @@ def _materialise_ingests(c: Corpus) -> None:
             for key in pk:
                 if key not in t.columns:
                     raise ValueError(f"ingest {ingest}'s dataset {name}: key {key} is not a column")
+            if milestoned:
+                # its landing adds upstream's three columns after these (legend-studio's lakehouse Cube round trip):
+                # the data writes them (emit.data_element), no generator seeds them
+                c.milestoned.add(name)
             c.tables[name] = t
 
 
@@ -1311,7 +1327,7 @@ def _parse_store(text: str, c: Corpus) -> None:
             u = spec.upper()
             t.columns[name] = Column(name, ctype, u.endswith("PRIMARY KEY"),
                                      "NOT NULL" in u)
-        if any(read == (t.database, t.name) for ds in c.ingests.values() for _, read, _, _ in ds):
+        if any(read == (t.database, t.name) for ds in c.ingests.values() for _, read, _, _, _ in ds):
             c.source_tables[(t.database, t.name)] = t     # a source's table: an ingest's dataset lands it
             continue
         c.tables[t.name] = t

@@ -15,16 +15,32 @@ import { DESK_MODEL, ON_DEEPHAVEN } from '../../deephaven/market/model.ts';
 import { LitePlanner } from '../../../src/lite-planner.ts';
 import { startFeed } from './feed.ts';
 
-const model = DESK_MODEL(readFileSync(runfileFromEnv('TRADING_MODEL'), 'utf8'),
-  readFileSync(runfileFromEnv('MARKET_PURE'), 'utf8'), readFileSync(runfileFromEnv('ENVIRONMENTS_PURE'), 'utf8'));
-const planner = new LitePlanner({ model, runtime: ON_DEEPHAVEN.runtime, assetBaseUrl: runfileDirUrl('WASM_PLANNER') });
-const env = process.env;
+/** The desk's model and its one planner, the in-thread WebAssembly module (the planner is chosen here, from no setting:
+ *  datacube's guardrail, one place a planner is chosen). */
+function deskPlanner(): { readonly model: string; readonly planner: LitePlanner } {
+  const model = DESK_MODEL(readFileSync(runfileFromEnv('TRADING_MODEL'), 'utf8'),
+    readFileSync(runfileFromEnv('MARKET_PURE'), 'utf8'), readFileSync(runfileFromEnv('ENVIRONMENTS_PURE'), 'utf8'));
+  return { model, planner: new LitePlanner({ model, runtime: ON_DEEPHAVEN.runtime, assetBaseUrl: runfileDirUrl('WASM_PLANNER') }) };
+}
+
+/** The feed's settings, each from the environment: the door's port, the world's equities, the crypto feed. */
+function settings(): { readonly port: number; readonly names?: number; readonly crypto: boolean } {
+  const env = process.env;
+  return {
+    port: Number(env['DOOR_PORT'] ?? 19092),
+    ...(env['FEED_NAMES'] !== undefined ? { names: Number(env['FEED_NAMES']) } : {}),
+    crypto: env['FEED_CRYPTO'] !== 'off',
+  };
+}
+
+const { model, planner } = deskPlanner();
+const chosen = settings();
 const feed = await startFeed({
   model, planner,
-  port: Number(env['DOOR_PORT'] ?? 19092),
+  port: chosen.port,
   settings: {
-    ...(env['FEED_NAMES'] !== undefined ? { names: Number(env['FEED_NAMES']) } : {}),
-    ...(env['FEED_CRYPTO'] === 'off' ? { feed: 'off' as const } : {}),
+    ...(chosen.names !== undefined ? { names: chosen.names } : {}),
+    ...(chosen.crypto ? {} : { feed: 'off' as const }),
   },
 });
 console.log(`the door listens on 127.0.0.1:${feed.port}: ${feed.topics.map((t) => t.topic).join(', ')}`);

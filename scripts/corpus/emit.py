@@ -31,6 +31,7 @@ resolved that reference, so it survived. It becomes `stress::AllMapping`.
 from __future__ import annotations
 
 import decimal
+import hashlib
 import re
 
 import json
@@ -41,6 +42,10 @@ from query import Spec
 DATA_ELEMENT = "stress::TestData"
 EXTERNAL_DATA = "external::EntityData"
 EXTERNAL_TABLES = {"EXT_LEGAL_ENTITY"}
+# A batch milestoned table's three columns, and the open version's batch id: upstream's (legend-studio's lakehouse Cube
+# round trip; legend-engine's persistence component's infinite batch id), as model.py adds them.
+_LAKE = ("LAKE_DIGEST", "LAKE_IN_ID", "LAKE_OUT_ID")
+OPEN_BATCH_ID = 999999999
 # The hier:: feature domain has its own stores and therefore its own connection, so its
 # tables cannot travel in the main ###Data element -- test data is keyed by CONNECTION.
 # Derived from the model rather than listed, so a new hier table is routed correctly the
@@ -138,8 +143,17 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
                and n not in side_tables(c)]
     for i, (name, rows) in enumerate(emitted):
         cols = list(c.tables[name].columns)
-        lines = [",".join(cols)]
-        lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in rows]
+        lines = [",".join(cols + (list(_LAKE) if name in c.milestoned else []))]
+        if name in c.milestoned:
+            # each row one open version (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): its own values, then the
+            # digest of their text, the first batch, the open batch id
+            own = cols
+            for r in rows:
+                text = ",".join(_csv_cell(r.get(col)) for col in own)
+                lines.append(text + "," + hashlib.sha256(_pure_str(text).encode("utf-8")).hexdigest()
+                             + ",1," + str(OPEN_BATCH_ID))
+        else:
+            lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in rows]
         out.append(f"    {_ident(c.tables[name].schema)}.{_ident(name)}:")
         body = [f"      '{_pure_str(l)}\\n'" for l in lines]
         out.append(" +\n".join(body) + ";")

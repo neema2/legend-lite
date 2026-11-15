@@ -53,7 +53,9 @@ class ReservedNamesGenerationTest {
     static List<DatabaseType> inMemory() {
         List<DatabaseType> out = new ArrayList<>();
         for (DatabaseType t : DatabaseType.values()) {
-            if (com.legend.exec.Sessions.inProcess(com.legend.planner.ConnectionPlans.type(t))) {
+            // a topic store's brokers (Kafka) are no database a plan runs on (Databases.answersQueries)
+            if (com.legend.database.Databases.answersQueries(t)
+                    && com.legend.exec.Sessions.inProcess(com.legend.planner.ConnectionPlans.type(t))) {
                 out.add(t);
             }
         }

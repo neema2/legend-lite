@@ -40,6 +40,14 @@ class ConnectorsTest {
     /** One of each specification. */
     private static final Map<Class<?>, ConnectionSpecification> SPECIFICATIONS = specifications();
 
+    /** Every database a plan runs on: a topic store's brokers (Kafka) are none ({@code Databases.answersQueries}; the
+     *  desk roadmap's B2), so no connector opens them and {@code ConnectionPlans} refuses them by name. */
+    private static final java.util.List<DatabaseType> QUERIED = java.util.Arrays.stream(DatabaseType.values())
+            .filter(com.legend.database.Databases::answersQueries).toList();
+
+    /** A specification no session opens: a Kafka cluster's brokers, read by an ingest, never queried. */
+    private static final java.util.Set<Class<?>> NO_SESSION = java.util.Set.of(ConnectionSpecification.Kafka.class);
+
     private static Map<Class<?>, ConnectionSpecification> specifications() {
         Map<Class<?>, ConnectionSpecification> m = new LinkedHashMap<>();
         for (ConnectionSpecification s : List.of(new ConnectionSpecification.InMemory(),
@@ -84,7 +92,8 @@ class ConnectorsTest {
 
     @Test
     void everySpecificationAndAuthenticationIsInTheTable() {
-        assertEquals(names(ConnectionSpecification.class.getPermittedSubclasses()),
+        assertEquals(names(java.util.Arrays.stream(ConnectionSpecification.class.getPermittedSubclasses())
+                        .filter(c -> !NO_SESSION.contains(c)).toArray(Class<?>[]::new)),
                 names(SPECIFICATIONS.keySet().toArray(Class<?>[]::new)),
                 "a specification no row decides: say what each database's connector does with it");
         assertEquals(names(AuthenticationSpec.class.getPermittedSubclasses()),
@@ -153,7 +162,7 @@ class ConnectorsTest {
 
     @Test
     void eachTypeOpensEachSpecificationAsBefore() {
-        for (DatabaseType type : DatabaseType.values()) {
+        for (DatabaseType type : QUERIED) {
             for (ConnectionSpecification spec : SPECIFICATIONS.values()) {
                 ConnectionDefinition def = new ConnectionDefinition(Q, null, type, spec,
                         new AuthenticationSpec.NoAuth());
@@ -194,7 +203,7 @@ class ConnectorsTest {
     void aCredentialIsRefusedFirst() {
         AUTHENTICATIONS.forEach((auth, free) -> {
             assertEquals(free, auth.credentialFree(), auth.toString());
-            for (DatabaseType type : DatabaseType.values()) {
+            for (DatabaseType type : QUERIED) {
                 ConnectionDefinition def = new ConnectionDefinition(Q, null, type,
                         new ConnectionSpecification.InMemory(), auth);
                 if (free) {
@@ -222,7 +231,7 @@ class ConnectorsTest {
         products.put(DatabaseType.Trino, "Trino");
         products.put(DatabaseType.ClickHouse, "ClickHouse");
         Set<DatabaseType> inProcess = Set.of(DatabaseType.H2, DatabaseType.DuckDB, DatabaseType.SQLite);
-        for (DatabaseType type : DatabaseType.values()) {
+        for (DatabaseType type : QUERIED) {
             String product = products.get(type);
             if (Connectors.of(com.legend.planner.ConnectionPlans.type(type)).ownSessions()) {
                 // MongoDB (since 59b547a, D12 and D14): no JDBC product; a JDBC session handed for it is refused
@@ -262,7 +271,7 @@ class ConnectorsTest {
                 DatabaseType.H2, "specification: LocalH2 { };\n  auth: DefaultH2",
                 DatabaseType.SQLite, "specification: SQLite { };\n  auth: Test");
         Set<DatabaseType> servers = Set.of(DatabaseType.Postgres, DatabaseType.MariaDB, DatabaseType.MySQL);
-        for (DatabaseType type : DatabaseType.values()) {
+        for (DatabaseType type : QUERIED) {
             if (declared.containsKey(type)) {
                 assertEquals(declared.get(type), Connectors.of(com.legend.planner.ConnectionPlans.type(type)).storelessDeclaration());
                 continue;
@@ -312,7 +321,8 @@ class ConnectorsTest {
      *  connector opens. */
     @Test
     void thePlatformMakesExactlyTheDatabasesItsConnectorsOpenAsItsOwn() {
-        for (DatabaseType type : DatabaseType.values()) {
+        // every database a plan runs on: a topic store's brokers (Kafka) are none (Databases.answersQueries)
+        for (DatabaseType type : QUERIED) {
             for (ConnectionSpecification spec : SPECIFICATIONS.values()) {
                 com.legend.executionplan.Connection plan = com.legend.planner.ConnectionPlans.of(
                         new ConnectionDefinition(Q, "q::S", type, spec, new AuthenticationSpec.TestAuth()));

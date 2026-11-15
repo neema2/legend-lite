@@ -25,8 +25,13 @@ public final class ConnectionPlans {
                 authentication(d.authentication()));
     }
 
-    /** The plan's name of the model's database type (the same constant). */
+    /** The plan's name of the model's database type (the same constant). A topic store's brokers (Kafka) are no
+     *  database a plan runs on ({@code Databases.answersQueries}): refused by name. */
     public static DatabaseType type(ConnectionDefinition.DatabaseType t) {
+        if (!com.legend.database.Databases.answersQueries(t)) {
+            throw new IllegalArgumentException("a " + t + " connection is no database a plan runs on: a stream's"
+                    + " brokers, where an ingest's rows come from (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8)");
+        }
         return DatabaseType.valueOf(t.name());
     }
 

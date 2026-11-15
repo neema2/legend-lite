@@ -8,23 +8,30 @@
 // order, a value of its type wherever the store's class has one (DuckDB's own reader types them), none where the class
 // has none. Deterministic: the same call, the same text.
 
+import { sha256Hex } from '../../engine-client/src/sha256.ts';
 import { cashCsv, macroCsv, marketBars, ratesCsv, type MarketBar } from './samples.ts';
+
+/** A batch milestoned table's three columns after its own (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5: upstream's, in its
+ *  order), and the open version's batch id: each written row one open version, of the first batch. */
+const LAKE = ['LAKE_DIGEST', 'LAKE_IN_ID', 'LAKE_OUT_ID'] as const;
+const OPEN_BATCH_ID = '999999999';
 
 /** Each table's columns, in the order the store declares them (core/src/test/resources/stress/30-store.pure). */
 export const STRESS_MARKET_COLUMNS = {
+  // (the batch milestoned tables -- EXCHANGE, SECTOR, INSTRUMENT, MARKET_QUOTE -- end with LAKE's three, 2026-11-15)
   EXCHANGE: ['MIC', 'NAME', 'CITY', 'TIMEZONE', 'OPEN_TIME', 'CLOSE_TIME', 'IS_ELECTRONIC', 'OPERATING_MIC', 'WEBSITE',
-    'REGULATORY_BODY', 'COUNTRY_ID'],
+    'REGULATORY_BODY', 'COUNTRY_ID', ...LAKE],
   SECTOR: ['SECTOR_ID', 'NAME', 'GICS_CODE', 'LEVEL', 'DESCRIPTION', 'IS_ACTIVE', 'PARENT_SECTOR_ID', 'MARKET_CAP_WEIGHT',
-    'NUMBER_OF_COMPANIES', 'LAST_UPDATED'],
+    'NUMBER_OF_COMPANIES', 'LAST_UPDATED', ...LAKE],
   CURRENCY: ['CODE', 'NAME', 'NUMERIC_CODE', 'MINOR_UNIT', 'SYMBOL', 'IS_ACTIVE', 'REGION', 'IS_MAJOR', 'CENTRAL_BANK',
     'FIXING_SOURCE', 'COUNTRY_ID'],
   INSTRUMENT: ['INSTRUMENT_ID', 'TICKER', 'NAME', 'ISIN', 'CUSIP', 'SEDOL', 'ASSET_CLASS', 'PRODUCT_TYPE', 'IS_ACTIVE',
     'LISTING_DATE', 'MATURITY_DATE', 'NOTIONAL_AMOUNT', 'CURRENCY', 'DESCRIPTION', 'ISSUE_DATE', 'EQUITY_ID', 'BOND_ID',
     'FUTURE_ID', 'FX_FORWARD_ID', 'SWAP_ID', 'CDS_ID', 'STRUCTURED_PRODUCT_ID', 'ETF_ID', 'CURRENCY_CODE', 'EXCHANGE_MIC',
-    'SECTOR_ID'],
+    'SECTOR_ID', ...LAKE],
   // (BID_SIZE and ASK_SIZE: the desk's quotes' sizes, 2026-11-14 -- an end of day's quote has none, so they are empty)
   MARKET_QUOTE: ['QUOTE_ID', 'QUOTE_TIME', 'BID', 'ASK', 'MID', 'LAST', 'VOLUME', 'OPEN_PRICE', 'HIGH_PRICE', 'LOW_PRICE',
-    'CLOSE_PRICE', 'SOURCE', 'IS_DELAYED', 'SNAPSHOT_ID', 'INSTRUMENT_ID', 'BID_SIZE', 'ASK_SIZE'],
+    'CLOSE_PRICE', 'SOURCE', 'IS_DELAYED', 'SNAPSHOT_ID', 'INSTRUMENT_ID', 'BID_SIZE', 'ASK_SIZE', ...LAKE],
   TRADE: ['TRADE_ID', 'TRADE_DATE', 'SETTLEMENT_DATE', 'QUANTITY', 'PRICE', 'NOTIONAL', 'SIDE', 'STATUS', 'TRADE_TYPE',
     'CURRENCY', 'COMMISSION', 'FEES', 'EXECUTION_VENUE', 'IS_BLOCK', 'CREATED_TIME', 'LAST_MODIFIED_TIME', 'ORDER_ID',
     'BLOCK_ID', 'AVG_PRICE_TRADE_ID', 'BOOK_ID', 'COUNTERPARTY_ID', 'INSTRUMENT_ID', 'TRADER_ID'],
@@ -112,8 +119,14 @@ const cell = (v: string | number | boolean | undefined): string => {
 };
 
 function csv(table: StressMarketTable, rows: readonly Row[]): string {
-  const columns = STRESS_MARKET_COLUMNS[table];
-  return `${[columns.join(','), ...rows.map((r) => columns.map((c) => cell(r[c])).join(','))].join('\n')}\n`;
+  const columns: readonly string[] = STRESS_MARKET_COLUMNS[table];
+  const own = columns.filter((c) => !(LAKE as readonly string[]).includes(c));
+  const line = (r: Row): string => {
+    const text = own.map((c) => cell(r[c])).join(',');
+    // a milestoned table's row: its own values, then the digest of their text, the first batch, the open batch id
+    return own.length === columns.length ? text : `${text},${sha256Hex(text)},1,${OPEN_BATCH_ID}`;
+  };
+  return `${[columns.join(','), ...rows.map(line)].join('\n')}\n`;
 }
 
 /** A quote a day of an instrument: its close its last and its mid, a bid and an ask either side of it (two basis
