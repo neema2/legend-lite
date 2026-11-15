@@ -231,8 +231,8 @@ final class SideOrdinal {
      * where it is sorted, its rows' ordinal by its own keys ({@code ROW_NUMBER() OVER (ORDER BY ...) AS __ord}, its
      * ORDER BY then dropped unless a LIMIT or an OFFSET needs it); ONE outer ORDER BY reads them. A branch with no order
      * carries no ordinal (its rows' order is the source's, which SQL does not define either), and where no branch is
-     * sorted the outer order is by branch alone. {@code u} itself where a branch cannot carry its index (not a select,
-     * or a sorted DISTINCT one).
+     * sorted the outer order is by branch alone. A branch that cannot carry its index (not a select, a star select, a
+     * sorted DISTINCT one) is refused by name, never sent unordered (G7).
      */
     static SqlQuery listInOrder(com.legend.sql.SqlUnion u) {
         boolean anySorted = u.branches().stream().anyMatch(b -> b instanceof SqlSelect s && !s.orderBy().isEmpty());
@@ -241,7 +241,11 @@ final class SideOrdinal {
         for (int i = 0; i < u.branches().size(); i++) {
             if (!(u.branches().get(i) instanceof SqlSelect b) || b.projections().isEmpty()
                     || b.distinct() && !b.orderBy().isEmpty()) {
-                return u;
+                // never sent unordered (G7): a concatenation whose order a branch cannot carry is refused by name
+                throw new com.legend.error.NotImplementedException("a list's concatenation whose branch " + (i + 1)
+                        + " cannot carry its order (" + (!(u.branches().get(i) instanceof SqlSelect) ? "not a select"
+                        : ((SqlSelect) u.branches().get(i)).projections().isEmpty() ? "a star select"
+                        : "a sorted DISTINCT") + "): SQL keeps no order through a UNION ALL");
             }
             List<SqlSelect.Projection> ps = new ArrayList<>(b.projections());
             ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), BRANCH, branchOut));

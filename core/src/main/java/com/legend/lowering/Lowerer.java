@@ -772,7 +772,9 @@ public final class Lowerer {
             // promises no order for a UNION ALL (2026-11-15, the lean program's order probe: BigQuery answered a
             // sorted list ++ another 3;1;2;3;1;2) -- each branch's index and its rows' ordinal, ONE order outside
             // (SideOrdinal.listInOrder). A relation's concatenation is upstream's UNION ALL, its order the database's.
-            return outputsOf(c.info()).isEmpty() ? SideOrdinal.listInOrder(u) : u;
+            // (a list's type has a column view too -- its one 'value' -- so "no outputs" never told a list from a
+            // relation, and every database sent the union unordered: round 55c, MariaDB and MySQL, 2026-11-15)
+            return Type.isRelation(c.info().type()) ? u : SideOrdinal.listInOrder(u);
         }
         // ANY relation-ish root — a table, the .rows collection, or ONE
         // ROW (an at()-pick: a one-row TABULAR, matching ResultShape) —
