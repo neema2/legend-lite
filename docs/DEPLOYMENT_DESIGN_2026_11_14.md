@@ -350,20 +350,25 @@ publish themselves"):
 - Standing from before: "if DeepHaven cannot do something refuse and keep going" (2026-11-14); "door for sure, no need
   for tansu just use door" (2026-10-29); no push to main and no PR without the user's word.
 
-**Open: how a keyed dataset lands** (found 2026-11-15, preparing step 0). Upstream's `batch_milestoned` gives every
-reader of the dataset three more columns -- `LAKE_DIGEST` (a string), `LAKE_IN_ID` and `LAKE_OUT_ID` (batch ids),
-plus `LAKE_FROM` and `LAKE_THRU` for business temporal (legend-studio `V1_CubeIngestDefinition.ts`,
-`milestoningColumns`) -- and its current rows are the versions not yet closed. How upstream's ingest-generated
-databases expose those columns to class mappings is not visible (closed services). The table in §5 mapped lite's
-`LatestByKey` onto `batch_milestoned` without saying so.
-- **(B), recommended:** step 0 adopts what fits now -- `Delta`/`Snapshot`, `deleteIndicator`, `append_only`, the
-  format in the read mode -- and keyed current-only data keeps lite's `LatestByKey` (the lakehouse has no
-  current-only write mode; `###Persistence`'s words for it are a nontemporal delta, v2 `updatesHandling:
-  Overwrite`). `batch_milestoned`, its columns and the reading of current versions arrive with the history tier,
-  its own decision, since only history needs versions. Step 0 stays small; one lite word stays (S402).
-- **(A):** upstream exactly now: keyed datasets `batch_milestoned`, their tables carrying the milestoning columns on
-  every target, every mapping and screen over keyed data reading the open versions, S404 lifted. Large: it touches
-  the desk's mappings and screens before anything else is built.
+**Open: how a keyed dataset lands** (found 2026-11-15, preparing step 0). Upstream's `batch_milestoned` keeps every
+version and gives every reader three more columns -- `LAKE_DIGEST` (a string), `LAKE_IN_ID` and `LAKE_OUT_ID`
+(batch ids), plus `LAKE_FROM` and `LAKE_THRU` for business temporal (legend-studio `V1_CubeIngestDefinition.ts`,
+`milestoningColumns`). The user, 2026-11-15: "Batch milestone is all versions but there is a deterministic way to
+get latest which is lake out = 99999999". Upstream's persistence component writes the open version's batch id as
+`999999999` (`InfiniteBatchIdValueVisitor.INFINITE_BATCH_ID`, legend-engine `05a3d33c`, overridable); the
+lakehouse's own value is not visible.
+- **(A), recommended since the user's point:** keyed datasets are `batch_milestoned` now. Their tables carry the
+  three columns on every target; the latest rows are `LAKE_OUT_ID = 999999999`, read through upstream's ordinary
+  relational filter (`Filter Instrument_Latest(INSTRUMENT.LAKE_OUT_ID = 999999999)` in `store::DB`, `~filter
+  [store::DB] Instrument_Latest` in the class mapping). A live target keeping `current` holds only open versions (the
+  filter always true there); the history tier keeps every version under the same model and filter, and an "as of"
+  query reads `LAKE_IN_ID` and `LAKE_OUT_ID`. One model on every tier: nothing migrates at the history step.
+  Screens do not change (they read classes). `LatestByKey` retires; S404 is lifted for `batch_milestoned`
+  (business temporal stays refused). To settle in step 0, each a register row: what a batch is for a stream (each
+  landed delivery; on Deephaven, a record's Kafka offset in a one-partition topic) and how `LAKE_DIGEST` is computed
+  (a hash of the row's own columns by the database; upstream's algorithm is not visible).
+- **(B):** keep lite's `LatestByKey` for current-only data until the history tier. Smaller now, but every keyed
+  mapping migrates then.
 
 ## 14. Differences from upstream, to register
 
