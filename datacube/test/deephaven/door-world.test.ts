@@ -78,10 +78,13 @@ describe('the desk\'s stream tables on the pinned Deephaven, made by the generat
       'name=the desk\'s startup program, generated (B2), and a test\'s check', 'file_0=program.groovy', 'file_1=check.groovy',
       ''].join('\n'));
     // the tables the check reads: each one's id (its key, else its first column, every desk dataset's own key) and its
-    // columns with the types the store declares
+    // columns with the types the store declares -- a keyed (batch milestoned) table's record columns, then the three
+    // its landing adds (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5: LAKE_DIGEST a string, the two batch ids longs)
+    const MILESTONES = ['LAKE_DIGEST:java.lang.String', 'LAKE_IN_ID:long', 'LAKE_OUT_ID:long'];
     const tablesFile = shared('door-tables.tsv');
     writeFileSync(tablesFile, topics.map((t) => [t.table, (t.key.length > 0 ? t.key : [t.columns[0]!.name]).join(','),
-      t.columns.map((c) => `${c.name}:${c.type}`).join(',')].join('\t')).join('\n') + '\n');
+      [...t.columns.map((c) => `${c.name}:${c.type}`), ...(t.key.length > 0 ? MILESTONES : [])].join(',')].join('\t'))
+      .join('\n') + '\n');
     const doneFile = shared('door-done.tsv');
     const outFile = shared('door-out.tsv');
     const deephaven = await startServer(join(dir, 'desk.app'), { DOOR_TABLES: tablesFile, DOOR_DONE: doneFile, DOOR_OUT: outFile });

@@ -32,11 +32,14 @@ public final class DeephavenProgram {
     public record Column(String name, String type) {
     }
 
-    /** One landing table: its name, its topic, the topic's brokers and format, its columns, the key it keeps each
-     *  latest row of (empty: appended), and an appended table's retention -- its latest {@code keepRows} rows, or those
-     *  of the last {@code keepFor} -- null for none. */
+    /** One landing table: its name, its topic, the topic's brokers and format (its ingest's read mode's), its columns,
+     *  the key it keeps each current version of (empty: appended) with the milestoning columns it lands with and the
+     *  delete indicator that removes a key, and an appended table's retention -- its latest {@code keepRows} rows, or
+     *  those of the last {@code keepFor} -- null for none (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5). */
     public record Subscription(String table, String topic, String bootstrapServers, String format, List<Column> columns,
-            List<String> key, @com.legend.base.Nullable Long keepRows, @com.legend.base.Nullable String keepFor) {
+            List<String> key, @com.legend.base.Nullable Long keepRows, @com.legend.base.Nullable String keepFor,
+            @com.legend.base.Nullable HostOperation.Milestones milestones,
+            @com.legend.base.Nullable HostOperation.DeleteWhen delete) {
         public Subscription {
             columns = List.copyOf(columns);
             key = List.copyOf(key);
@@ -74,7 +77,7 @@ public final class DeephavenProgram {
         if (!SERVERS.matcher(s.bootstrapServers()).matches()) {
             throw new DialectCapability(where + ": '" + s.bootstrapServers() + "' is no list of brokers (host:port, ...)");
         }
-        if (!"Json".equals(s.format())) {
+        if (!"JSON".equals(s.format())) {
             throw new DialectCapability(where + " is read from the " + s.format() + " topic: only a Json topic's"
                     + " subscription is generated yet");
         }
@@ -86,6 +89,11 @@ public final class DeephavenProgram {
         if (keyed && s.keepRows() != null) {
             throw new DialectCapability(where + " keeps each key's latest row, so it has no retention");
         }
+        HostOperation.Milestones milestones = s.milestones();
+        if (keyed && milestones == null) {
+            throw new DialectCapability(where + " is keyed and names no milestoning columns");
+        }
+        HostOperation.Milestones lake = keyed ? java.util.Objects.requireNonNull(milestones) : null;
         b.append(s.table()).append(" = KafkaTools.consumeToTable(legendKafka('").append(s.bootstrapServers())
                 .append("'), '").append(s.topic()).append("', KafkaTools.ALL_PARTITIONS,")
                 .append(" KafkaTools.ALL_PARTITIONS_SEEK_TO_BEGINNING, KafkaTools.Consume.IGNORE,")
@@ -117,11 +125,35 @@ public final class DeephavenProgram {
                 b.append(i > 0 ? ", " : "").append("'").append(s.key().get(i)).append("'");
             }
             b.append(")");
+            HostOperation.DeleteWhen delete = s.delete();
+            if (delete != null) {
+                // a key whose last record the delete indicator marks is gone (measured 2026-10-30: a flagged record)
+                name(delete.field(), where + "'s delete indicator");
+                b.append(".where('!(");
+                for (int i = 0; i < delete.values().size(); i++) {
+                    b.append(i > 0 ? " || " : "").append("String.valueOf(").append(delete.field()).append(").equals(`")
+                            .append(literal(delete.values().get(i), where)).append("`)");
+                }
+                b.append(")')");
+            }
+            // the version's milestoning columns: its record's offset its batch, the open batch id, a hash of its values
+            HostOperation.Milestones m = java.util.Objects.requireNonNull(lake);
+            b.append(".update('").append(m.batchIn()).append(" = KafkaOffset', '").append(m.batchOut())
+                    .append(" = ").append(m.openBatch()).append("L', '").append(m.digest())
+                    .append(" = Integer.toHexString(java.util.Objects.hash(");
+            for (int i = 0; i < s.columns().size(); i++) {
+                b.append(i > 0 ? ", " : "").append(s.columns().get(i).name());
+            }
+            b.append("))')");
         }
-        // the declared columns alone, in their order: Kafka's own columns left out
+        // the declared columns alone, in their order, the milestoning columns after: Kafka's own left out
         b.append(".view(");
         for (int i = 0; i < s.columns().size(); i++) {
             b.append(i > 0 ? ", " : "").append("'").append(s.columns().get(i).name()).append("'");
+        }
+        if (lake != null) {
+            b.append(", '").append(lake.digest()).append("', '").append(lake.batchIn()).append("', '")
+                    .append(lake.batchOut()).append("'");
         }
         b.append(")\n");
     }
@@ -139,6 +171,14 @@ public final class DeephavenProgram {
                     + ", which no topic's subscription reads yet");
         }
         return "ColumnDefinition." + of + "('" + c.name() + "')";
+    }
+
+    /** A delete indicator's value written in a formula's backticks: one that holds none. */
+    private static String literal(String value, String where) {
+        if (value.indexOf('`') >= 0 || value.indexOf('\'') >= 0 || value.indexOf('\\') >= 0) {
+            throw new DialectCapability(where + ": the delete value '" + value + "' holds a quote");
+        }
+        return value;
     }
 
     private static void name(String name, String where) {

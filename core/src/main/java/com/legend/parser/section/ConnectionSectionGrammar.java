@@ -1166,15 +1166,16 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     }
 
     /** The Kafka datasource spec -- a DECLARED lite extension (docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6):
-     *  {@code Kafka { bootstrapServers: '...'; format: Json; schemaRegistry: '...'; }}, the brokers and the format
-     *  required (no default broker, no default format: AGENTS invariant 4), the schema registry an Avro topic's. */
+     *  {@code Kafka { bootstrapServers: '...'; schemaRegistry: '...'; }}, the brokers required (no default broker: AGENTS
+     *  invariant 4), the schema registry an Avro topic's. A topic's format is its ingest's read mode's ({@code
+     *  Delta<JSON>}: one connection a cluster carries topics of many formats; docs/DEPLOYMENT_DESIGN_2026_11_14.md §5),
+     *  so {@code format:} is refused by name. */
     private static Protocol.PDatasourceSpec parseKafkaSpec(TokenStreamCursor c, int keywordTok) {
         if (c.dialect().refusesLiteExtensions()) {
             throw c.error("unsupported datasource specification: Kafka");
         }
         c.expect(TokenType.BRACE_OPEN);
         String servers = null;
-        String format = null;
         String registry = null;
         java.util.Set<String> seen = new java.util.HashSet<>();
         while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
@@ -1184,23 +1185,18 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             switch (key) {
                 case "bootstrapServers" -> servers = SectionParse.stringValue(c);
                 case "schemaRegistry" -> registry = SectionParse.stringValue(c);
-                case "format" -> {
-                    format = c.parseIdentifier();
-                    if (!"Json".equals(format) && !"Avro".equals(format)) {
-                        throw c.error("a Kafka topic's format is Json or Avro, not " + format);
-                    }
-                }
+                case "format" -> throw c.error("a topic's format is its ingest's read mode's (Delta<JSON>, Delta<Avro>):"
+                        + " a Kafka connection carries topics of many formats (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5)");
                 default -> throw c.error("unknown Kafka key: " + key);
             }
             c.expect(TokenType.SEMI_COLON);
         }
         c.expect(TokenType.BRACE_CLOSE);
         c.expect(TokenType.SEMI_COLON);
-        if (servers == null || format == null) {
-            throw TokenStreamCursor.throwAt(c.tokens(), keywordTok,
-                    "Kafka needs " + (servers == null ? "bootstrapServers" : "format"));
+        if (servers == null) {
+            throw TokenStreamCursor.throwAt(c.tokens(), keywordTok, "Kafka needs bootstrapServers");
         }
-        return new Protocol.PKafkaSpec(servers, format, registry, c.spanOf(keywordTok, c.pos() - 1));
+        return new Protocol.PKafkaSpec(servers, registry, c.spanOf(keywordTok, c.pos() - 1));
     }
 
     /** {@code PreSharedKey { keyVaultReference: '...'; }} -- a DECLARED lite

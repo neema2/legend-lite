@@ -51,7 +51,7 @@ public final class IngestTopics {
      */
     public record Topic(String table, String store, String topic, List<Column> columns, List<String> key,
             @com.legend.base.Nullable Long keepRows, @com.legend.base.Nullable String keepFor,
-            @com.legend.base.Nullable Protocol.PIngestDeleteIndicator delete) {
+            @com.legend.base.Nullable Protocol.PIngestDeleteIndicator delete, String format) {
         public Topic {
             columns = List.copyOf(columns);
             key = List.copyOf(key);
@@ -122,6 +122,7 @@ public final class IngestTopics {
         List<String> key = table.columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
                 .map(DatabaseDefinition.ColumnDefinition::name).toList();
         return new Topic(d.name(), store, name, columns, keyed ? key : List.of(), rows, duration,
-                readMode == null ? null : readMode.deleteIndicator());
+                readMode == null ? null : readMode.deleteIndicator(),
+                readMode == null || readMode.format() == null ? "" : readMode.format());
     }
 }

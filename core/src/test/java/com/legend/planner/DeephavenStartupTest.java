@@ -51,7 +51,7 @@ class DeephavenStartupTest {
             {
               store: t::Topics;
               type: Kafka;
-              specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+              specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
               auth: Test;
             }
 
@@ -80,7 +80,11 @@ class DeephavenStartupTest {
         assertTrue(p.contains("QUOTES = KafkaTools.consumeToTable(legendKafka('127.0.0.1:19092'), 'tp.quotes.v1',"
                 + " KafkaTools.ALL_PARTITIONS, KafkaTools.ALL_PARTITIONS_SEEK_TO_BEGINNING, KafkaTools.Consume.IGNORE,"
                 + " KafkaTools.Consume.jsonSpec([ColumnDefinition.ofString('SYM'), ColumnDefinition.ofDouble('BID')]"
-                + " as ColumnDefinition[]), KafkaTools.TableType.blink()).lastBy('SYM').view('SYM', 'BID')\n"), p);
+                + " as ColumnDefinition[]), KafkaTools.TableType.blink()).lastBy('SYM')"
+                // its version's milestoning columns (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5)
+                + ".update('LAKE_IN_ID = KafkaOffset', 'LAKE_OUT_ID = 999999999L',"
+                + " 'LAKE_DIGEST = Integer.toHexString(java.util.Objects.hash(SYM, BID))')"
+                + ".view('SYM', 'BID', 'LAKE_DIGEST', 'LAKE_IN_ID', 'LAKE_OUT_ID')\n"), p);
         assertEquals(p, program(MODEL), "the same model, the same program");
     }
 
@@ -94,8 +98,8 @@ class DeephavenStartupTest {
                 "retention=LastRows(500)", "retention=Last('PT8H')")));
         assertTrue(time.getMessage().contains("keeps Last('PT8H'): a retention over a time is not generated yet"),
                 time.getMessage());
-        var avro = assertThrows(com.legend.sql.DialectCapability.class, () -> program(MODEL.replace("format: Json;",
-                "format: Avro;")));
+        var avro = assertThrows(com.legend.sql.DialectCapability.class, () -> program(MODEL.replace("Ingest t::Feed Delta<JSON>",
+                "Ingest t::Feed Delta<Avro>")));
         assertTrue(avro.getMessage().contains("is read from the Avro topic"), avro.getMessage());
     }
 }

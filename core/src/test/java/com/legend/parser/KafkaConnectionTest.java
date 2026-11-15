@@ -34,7 +34,7 @@ class KafkaConnectionTest {
                 + "}\n";
     }
 
-    private static final String SPEC = "Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; }";
+    private static final String SPEC = "Kafka { bootstrapServers: '127.0.0.1:19092'; }";
     private static final String TEXT = connection("Kafka", SPEC);
 
     private static void refusedNaming(String text, Dialect dialect, String message) {
@@ -48,12 +48,12 @@ class KafkaConnectionTest {
                 .get(0);
         assertEquals(new ConnectionDefinition("demo::TickerPlant", "tickerplant::Topics",
                 ConnectionDefinition.DatabaseType.Kafka,
-                new ConnectionSpecification.Kafka("127.0.0.1:19092", "Json", null),
+                new ConnectionSpecification.Kafka("127.0.0.1:19092", null),
                 new AuthenticationSpec.TestAuth()), c);
         ConnectionDefinition avro = (ConnectionDefinition) ModelFromText.parse(connection("Kafka",
-                "Kafka { bootstrapServers: 'k1:9093,k2:9093'; schemaRegistry: 'https://schemas'; format: Avro; }"),
+                "Kafka { bootstrapServers: 'k1:9093,k2:9093'; schemaRegistry: 'https://schemas'; }"),
                 Dialect.LEGEND_LITE).elements().get(0);
-        assertEquals(new ConnectionSpecification.Kafka("k1:9093,k2:9093", "Avro", "https://schemas"),
+        assertEquals(new ConnectionSpecification.Kafka("k1:9093,k2:9093", "https://schemas"),
                 avro.specification());
     }
 
@@ -64,20 +64,18 @@ class KafkaConnectionTest {
     }
 
     @Test
-    void theBrokersAndTheFormatAreRequired_andAnyOtherKeyOrFormatRefusedByName() {
-        refusedNaming(connection("Kafka", "Kafka { format: Json; }"), Dialect.LEGEND_LITE, "Kafka needs bootstrapServers");
-        refusedNaming(connection("Kafka", "Kafka { bootstrapServers: 'k:9092'; }"), Dialect.LEGEND_LITE,
-                "Kafka needs format");
-        refusedNaming(connection("Kafka", "Kafka { bootstrapServers: 'k:9092'; format: Csv; }"), Dialect.LEGEND_LITE,
-                "a Kafka topic's format is Json or Avro, not Csv");
-        refusedNaming(connection("Kafka", "Kafka { bootstrapServers: 'k:9092'; format: Json; topic: 'x'; }"),
+    void theBrokersAreRequired_aFormatIsTheReadModesAndAnyOtherKeyRefusedByName() {
+        refusedNaming(connection("Kafka", "Kafka { }"), Dialect.LEGEND_LITE, "Kafka needs bootstrapServers");
+        refusedNaming(connection("Kafka", "Kafka { bootstrapServers: 'k:9092'; format: Json; }"), Dialect.LEGEND_LITE,
+                "a topic's format is its ingest's read mode's");
+        refusedNaming(connection("Kafka", "Kafka { bootstrapServers: 'k:9092'; topic: 'x'; }"),
                 Dialect.LEGEND_LITE, "unknown Kafka key: topic");
     }
 
     @Test
     void itsJsonIsLitesOwn_readBackTheSame() {
         String bare = PmcdParser.parseLiteDocument(TEXT, false);
-        assertTrue(bare.contains("{\"_type\":\"kafka\",\"bootstrapServers\":\"127.0.0.1:19092\",\"format\":\"Json\"}"),
+        assertTrue(bare.contains("{\"_type\":\"kafka\",\"bootstrapServers\":\"127.0.0.1:19092\"}"),
                 bare);
         String json = PmcdParser.parseLiteDocument(TEXT, true);
         assertEquals(json, ProtocolEmitter.emit(ModelReader.read(json)));

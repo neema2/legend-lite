@@ -513,8 +513,6 @@ final class ConnectionEmitters {
     private static void kafkaSpec(StringBuilder b, Protocol.PKafkaSpec k) {
         b.append("{\"_type\":\"kafka\",\"bootstrapServers\":");
         str(b, k.bootstrapServers());
-        b.append(",\"format\":");
-        str(b, k.format());
         if (k.schemaRegistry() != null) {
             b.append(",\"schemaRegistry\":");
             str(b, k.schemaRegistry());

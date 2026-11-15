@@ -44,9 +44,16 @@ public final class DeephavenStartup {
                 for (IngestTopics.Topic t : IngestTopics.of(ctx, binding.getKey())) {
                     ConnectionSpecification.Kafka kafka = kafka(ctx, r, t);
                     subscriptions.add(new DeephavenProgram.Subscription(t.table(), t.topic(), kafka.bootstrapServers(),
-                            kafka.format(), t.columns().stream()
+                            t.format(), t.columns().stream()
                                     .map(c -> new DeephavenProgram.Column(c.name(), c.type())).toList(),
-                            t.key(), t.keepRows(), t.keepFor()));
+                            t.key(), t.keepRows(), t.keepFor(), t.key().isEmpty() ? null
+                                    : new com.legend.sql.dialect.HostOperation.Milestones(
+                                            com.legend.protocol.IngestWords.LAKE_DIGEST,
+                                            com.legend.protocol.IngestWords.LAKE_IN_ID,
+                                            com.legend.protocol.IngestWords.LAKE_OUT_ID,
+                                            com.legend.protocol.IngestWords.OPEN_BATCH_ID),
+                            t.delete() == null ? null : new com.legend.sql.dialect.HostOperation.DeleteWhen(
+                                    t.delete().deleteField(), t.delete().deleteValues())));
                 }
             }
         }

@@ -46,28 +46,28 @@ RelationalDatabaseConnection market::TickerPlant
 {
   store: tickerplant::Topics;
   type: Kafka;
-  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
   auth: Test;
 }
 RelationalDatabaseConnection market::Newswire
 {
   store: newswire::Topics;
   type: Kafka;
-  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
   auth: Test;
 }
 RelationalDatabaseConnection market::OrderSystem
 {
   store: oms::Topics;
   type: Kafka;
-  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
   auth: Test;
 }
 RelationalDatabaseConnection market::WorldTopic
 {
   store: market::WorldStatus;
   type: Kafka;
-  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; format: Json; };
+  specification: Kafka { bootstrapServers: '127.0.0.1:19092'; };
   auth: Test;
 }
 

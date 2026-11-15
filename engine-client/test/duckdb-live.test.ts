@@ -50,13 +50,14 @@ function counted(): ArrowishConnection {
   });
 }
 
-/** The tables' ingest: four datasets of one Stream, appended (the prints keeping their latest 10) or latest by key. */
+/** The tables' ingest: four datasets of one delta (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5), appended (the prints
+ *  keeping their latest 10) or batch milestoned, kept current. */
 const MODEL = `###Lakehouse
-Ingest live::Feed Stream
+Ingest live::Feed Delta<JSON>
 [
   PRINTS( SYMBOL: Varchar(8), SEQ: BigInt[1], PRICE: Double ) pk=[ SEQ ] writeMode=AppendOnly retention=LastRows(10);
   NEWS( HEADLINE: Varchar(200)[1] ) pk=[ HEADLINE ] writeMode=AppendOnly;
-  QUOTES( SYMBOL: Varchar(8)[1], BID: Double, ASK: Double ) pk=[ SYMBOL ] writeMode=LatestByKey;
+  QUOTES( SYMBOL: Varchar(8)[1], BID: Double, ASK: Double ) pk=[ SYMBOL ] writeMode=BatchMilestoned;
   TAPE( SEQ: BigInt[1], PRINT_TIME: Timestamp, LIVE: Boolean ) pk=[ SEQ ] writeMode=AppendOnly;
 ]
 
@@ -204,6 +205,11 @@ describe('the live DuckDB', () => {
     await live.write('QUOTES', ...quotes([[1, 12, 13], [2, 20, 21]]));
     const book = await look('SELECT SYMBOL, BID, ASK FROM QUOTES ORDER BY SYMBOL');
     assert.deepEqual(book.columns.map((c) => c.values), [['AAPL', 'MSFT', 'NVDA'], [3, 12, 20], [4, 13, 21]]);
+    // each key's current version, its milestoning columns DuckDB-WASM's own: the batch that wrote it, the open batch
+    // id, a 64-character digest (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5)
+    const lake = await look('SELECT SYMBOL, LAKE_IN_ID, LAKE_OUT_ID, length(LAKE_DIGEST) AS DIGEST FROM QUOTES ORDER BY SYMBOL');
+    assert.deepEqual(lake.columns.map((c) => c.values.map(Number)).slice(1), [[1, 2, 2], [999999999, 999999999, 999999999],
+      [64, 64, 64]]);
     await assert.rejects(live.write('NOPE', ...prints(0, 1)), /NOPE is not a live table: declare it first/);
     await live.close();
   });

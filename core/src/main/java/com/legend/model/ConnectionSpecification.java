@@ -140,9 +140,9 @@ public sealed interface ConnectionSpecification
      *  channel is TLS. Every field is written; none defaults (AGENTS invariant 4). */
     record Deephaven(String host, int port, boolean useTls) implements ConnectionSpecification {}
 
-    /** A topic store's brokers (lite's own, docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6): where its topics are,
-     *  the format their records are written in ({@code Json}, {@code Avro}), an Avro topic's schema registry (null:
-     *  none). No query runs on it; a stream's ingest reads its topics (the desk roadmap's B2). */
-    record Kafka(String bootstrapServers, String format, @com.legend.base.Nullable String schemaRegistry)
+    /** A cluster's brokers (lite's own, docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6): where its topics are,
+     *  an Avro topic's schema registry (null: none); a topic's format is its ingest's read mode's
+     *  (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5). No query runs on it; an ingest reads its topics. */
+    record Kafka(String bootstrapServers, @com.legend.base.Nullable String schemaRegistry)
             implements ConnectionSpecification {}
 }

@@ -9,6 +9,9 @@ EXCHANGE	OPERATING_MIC	Varchar[size=200]	-	-
 EXCHANGE	WEBSITE	Varchar[size=200]	-	-
 EXCHANGE	REGULATORY_BODY	Varchar[size=200]	-	-
 EXCHANGE	COUNTRY_ID	Varchar[size=200]	-	-
+EXCHANGE	LAKE_DIGEST	Varchar[size=64]	-	not-null
+EXCHANGE	LAKE_IN_ID	BigInt[]	-	not-null
+EXCHANGE	LAKE_OUT_ID	BigInt[]	-	not-null
 SECTOR	SECTOR_ID	Varchar[size=200]	key	not-null
 SECTOR	NAME	Varchar[size=200]	-	-
 SECTOR	GICS_CODE	Varchar[size=200]	-	-
@@ -19,6 +22,9 @@ SECTOR	PARENT_SECTOR_ID	Varchar[size=200]	-	-
 SECTOR	MARKET_CAP_WEIGHT	Double_[]	-	-
 SECTOR	NUMBER_OF_COMPANIES	Integer_[]	-	-
 SECTOR	LAST_UPDATED	Date_[]	-	-
+SECTOR	LAKE_DIGEST	Varchar[size=64]	-	not-null
+SECTOR	LAKE_IN_ID	BigInt[]	-	not-null
+SECTOR	LAKE_OUT_ID	BigInt[]	-	not-null
 INSTRUMENT	INSTRUMENT_ID	Varchar[size=200]	key	not-null
 INSTRUMENT	TICKER	Varchar[size=200]	-	-
 INSTRUMENT	NAME	Varchar[size=200]	-	-
@@ -45,6 +51,9 @@ INSTRUMENT	ETF_ID	Varchar[size=200]	-	-
 INSTRUMENT	CURRENCY_CODE	Varchar[size=200]	-	-
 INSTRUMENT	EXCHANGE_MIC	Varchar[size=200]	-	-
 INSTRUMENT	SECTOR_ID	Varchar[size=200]	-	-
+INSTRUMENT	LAKE_DIGEST	Varchar[size=64]	-	not-null
+INSTRUMENT	LAKE_IN_ID	BigInt[]	-	not-null
+INSTRUMENT	LAKE_OUT_ID	BigInt[]	-	not-null
 EQUITY	EQUITY_ID	Varchar[size=200]	key	not-null
 EQUITY	TICKER	Varchar[size=200]	-	-
 EQUITY	COMPANY_NAME	Varchar[size=200]	-	-
@@ -60,6 +69,9 @@ EQUITY	LOT_SIZE	Integer_[]	-	-
 EQUITY	LAST_PRICE	Double_[]	-	-
 EQUITY	PRICE_DATE	Date_[]	-	-
 EQUITY	INSTRUMENT_ID	Varchar[size=200]	-	-
+EQUITY	LAKE_DIGEST	Varchar[size=64]	-	not-null
+EQUITY	LAKE_IN_ID	BigInt[]	-	not-null
+EQUITY	LAKE_OUT_ID	BigInt[]	-	not-null
 MARKET_QUOTE	QUOTE_ID	Varchar[size=200]	key	not-null
 MARKET_QUOTE	QUOTE_TIME	Timestamp[]	-	-
 MARKET_QUOTE	BID	Double_[]	-	-
@@ -77,6 +89,9 @@ MARKET_QUOTE	SNAPSHOT_ID	Varchar[size=200]	-	-
 MARKET_QUOTE	INSTRUMENT_ID	Varchar[size=200]	-	-
 MARKET_QUOTE	BID_SIZE	Double_[]	-	-
 MARKET_QUOTE	ASK_SIZE	Double_[]	-	-
+MARKET_QUOTE	LAKE_DIGEST	Varchar[size=64]	-	not-null
+MARKET_QUOTE	LAKE_IN_ID	BigInt[]	-	not-null
+MARKET_QUOTE	LAKE_OUT_ID	BigInt[]	-	not-null
 MARKET_TRADE	PRINT_ID	Varchar[size=200]	key	not-null
 MARKET_TRADE	SEQUENCE_NUMBER	Integer_[]	-	-
 MARKET_TRADE	PRINT_TIME	Timestamp[]	-	-
@@ -111,6 +126,9 @@ BUSINESS_UNIT	REGION	Varchar[size=200]	-	-
 BUSINESS_UNIT	ESTABLISHED_DATE	Date_[]	-	-
 BUSINESS_UNIT	DESCRIPTION	Varchar[size=200]	-	-
 BUSINESS_UNIT	LEGAL_ENTITY_ID	Varchar[size=200]	-	-
+BUSINESS_UNIT	LAKE_DIGEST	Varchar[size=64]	-	not-null
+BUSINESS_UNIT	LAKE_IN_ID	BigInt[]	-	not-null
+BUSINESS_UNIT	LAKE_OUT_ID	BigInt[]	-	not-null
 TRADER	TRADER_ID	Varchar[size=200]	key	not-null
 TRADER	FIRST_NAME	Varchar[size=200]	-	-
 TRADER	LAST_NAME	Varchar[size=200]	-	-
@@ -126,6 +144,9 @@ TRADER	PNL_YTD	Double_[]	-	-
 TRADER	PHONE	Varchar[size=200]	-	-
 TRADER	DESK_ID	Varchar[size=200]	-	-
 TRADER	MANAGER_ID	Varchar[size=200]	-	-
+TRADER	LAKE_DIGEST	Varchar[size=64]	-	not-null
+TRADER	LAKE_IN_ID	BigInt[]	-	not-null
+TRADER	LAKE_OUT_ID	BigInt[]	-	not-null
 BOOK	BOOK_ID	Varchar[size=200]	key	not-null
 BOOK	NAME	Varchar[size=200]	-	not-null
 BOOK	BOOK_TYPE	Varchar[size=200]	-	-
@@ -140,6 +161,9 @@ BOOK	POSITION_COUNT	Integer_[]	-	-
 BOOK	RISK_LIMIT	Double_[]	-	-
 BOOK	DESCRIPTION	Varchar[size=200]	-	-
 BOOK	DESK_ID	Varchar[size=200]	-	-
+BOOK	LAKE_DIGEST	Varchar[size=64]	-	not-null
+BOOK	LAKE_IN_ID	BigInt[]	-	not-null
+BOOK	LAKE_OUT_ID	BigInt[]	-	not-null
 DESK	DESK_ID	Varchar[size=200]	key	not-null
 DESK	NAME	Varchar[size=200]	-	-
 DESK	DESK_TYPE	Varchar[size=200]	-	-
@@ -154,6 +178,9 @@ DESK	PHONE	Varchar[size=200]	-	-
 DESK	RISK_LIMIT	Double_[]	-	-
 DESK	PNL_TARGET	Double_[]	-	-
 DESK	BUSINESS_UNIT_ID	Varchar[size=200]	-	-
+DESK	LAKE_DIGEST	Varchar[size=64]	-	not-null
+DESK	LAKE_IN_ID	BigInt[]	-	not-null
+DESK	LAKE_OUT_ID	BigInt[]	-	not-null
 OPTION	OPTION_ID	Varchar[size=200]	key	not-null
 OPTION	OPTION_TYPE	Varchar[size=200]	-	-
 OPTION	STRIKE_PRICE	Double_[]	-	-
@@ -171,6 +198,9 @@ OPTION	CONTRACT_SIZE	Integer_[]	-	-
 OPTION	OPEN_INTEREST	Integer_[]	-	-
 OPTION	UNDERLYING_ID	Varchar[size=200]	-	-
 OPTION	INSTRUMENT_ID	Varchar[size=200]	-	-
+OPTION	LAKE_DIGEST	Varchar[size=64]	-	not-null
+OPTION	LAKE_IN_ID	BigInt[]	-	not-null
+OPTION	LAKE_OUT_ID	BigInt[]	-	not-null
 POSITION	POSITION_ID	Varchar[size=200]	key	not-null
 POSITION	QUANTITY	Double_[]	-	-
 POSITION	AVERAGE_COST	Double_[]	-	-
@@ -188,6 +218,9 @@ POSITION	SETTLEMENT_DATE	Date_[]	-	-
 POSITION	BOOK_ID	Varchar[size=200]	-	-
 POSITION	PORTFOLIO_ID	Varchar[size=200]	-	-
 POSITION	INSTRUMENT_ID	Varchar[size=200]	-	-
+POSITION	LAKE_DIGEST	Varchar[size=64]	-	not-null
+POSITION	LAKE_IN_ID	BigInt[]	-	not-null
+POSITION	LAKE_OUT_ID	BigInt[]	-	not-null
 RISK_LIMIT	LIMIT_ID	Varchar[size=200]	key	not-null
 RISK_LIMIT	LIMIT_TYPE	Varchar[size=200]	-	-
 RISK_LIMIT	LIMIT_AMOUNT	Double_[]	-	-
@@ -203,6 +236,9 @@ RISK_LIMIT	WARNING_THRESHOLD	Double_[]	-	-
 RISK_LIMIT	HARD_LIMIT	Double_[]	-	-
 RISK_LIMIT	IS_ACTIVE	Bit[]	-	-
 RISK_LIMIT	DESK_ID	Varchar[size=200]	-	-
+RISK_LIMIT	LAKE_DIGEST	Varchar[size=64]	-	not-null
+RISK_LIMIT	LAKE_IN_ID	BigInt[]	-	not-null
+RISK_LIMIT	LAKE_OUT_ID	BigInt[]	-	not-null
 COUNTERPARTY	COUNTERPARTY_ID	Varchar[size=200]	key	not-null
 COUNTERPARTY	LEGAL_NAME	Varchar[size=200]	-	-
 COUNTERPARTY	SHORT_NAME	Varchar[size=200]	-	-
@@ -220,6 +256,9 @@ COUNTERPARTY	INDUSTRY	Varchar[size=200]	-	-
 COUNTERPARTY	WEBSITE	Varchar[size=200]	-	-
 COUNTERPARTY	CLASSIFICATION_ID	Varchar[size=200]	-	-
 COUNTERPARTY	COUNTRY_CODE	Varchar[size=200]	-	-
+COUNTERPARTY	LAKE_DIGEST	Varchar[size=64]	-	not-null
+COUNTERPARTY	LAKE_IN_ID	BigInt[]	-	not-null
+COUNTERPARTY	LAKE_OUT_ID	BigInt[]	-	not-null
 TRADE_ORDER	ORDER_ID	Varchar[size=200]	key	not-null
 TRADE_ORDER	ORDER_DATE	Date_[]	-	-
 TRADE_ORDER	SIDE	Varchar[size=200]	-	-
@@ -239,6 +278,9 @@ TRADE_ORDER	ALGO_STRATEGY	Varchar[size=200]	-	-
 TRADE_ORDER	INSTRUMENT_ID	Varchar[size=200]	-	-
 TRADE_ORDER	TRADER_ID	Varchar[size=200]	-	-
 TRADE_ORDER	BOOK_ID	Varchar[size=200]	-	-
+TRADE_ORDER	LAKE_DIGEST	Varchar[size=64]	-	not-null
+TRADE_ORDER	LAKE_IN_ID	BigInt[]	-	not-null
+TRADE_ORDER	LAKE_OUT_ID	BigInt[]	-	not-null
 EXECUTION	EXECUTION_ID	Varchar[size=200]	key	not-null
 EXECUTION	EXECUTION_TIME	Timestamp[]	-	-
 EXECUTION	FILLED_QUANTITY	Double_[]	-	-
@@ -282,6 +324,9 @@ FX_RATE	IS_OFFICIAL	Bit[]	-	-
 FX_RATE	FIXING_TIME	Varchar[size=200]	-	-
 FX_RATE	SNAPSHOT_ID	Varchar[size=200]	-	-
 FX_RATE	BASE_CURRENCY_CODE	Varchar[size=200]	-	-
+FX_RATE	LAKE_DIGEST	Varchar[size=64]	-	not-null
+FX_RATE	LAKE_IN_ID	BigInt[]	-	not-null
+FX_RATE	LAKE_OUT_ID	BigInt[]	-	not-null
 RFQ	RFQ_ID	Varchar[size=200]	key	not-null
 RFQ	REQUEST_TIME	Timestamp[]	-	-
 RFQ	CURRENCY_PAIR	Varchar[size=200]	-	-
@@ -295,3 +340,6 @@ RFQ	RESPONSE_TIME_MS	Integer_[]	-	-
 RFQ	IS_HIT	Bit[]	-	-
 RFQ	COUNTERPARTY_ID	Varchar[size=200]	-	-
 RFQ	TRADER_ID	Varchar[size=200]	-	-
+RFQ	LAKE_DIGEST	Varchar[size=64]	-	not-null
+RFQ	LAKE_IN_ID	BigInt[]	-	not-null
+RFQ	LAKE_OUT_ID	BigInt[]	-	not-null
