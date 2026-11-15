@@ -255,11 +255,25 @@ final class AgreementAsserts implements TestDoor.Asserts {
         }
         Map<Integer, Integer> rootOf = new java.util.HashMap<>();
         List<com.legend.testexecutionplan.Agreement> agreements = new ArrayList<>(roots.size());
+        // DE4 (b, c): a root whose rows ride no fused statement -- a keyed member (a raw grid's report, its rows only
+        // after exec expands its keyed region) or the split rung (a member the dialect cannot spell, its own statement)
+        // -- keeps the database judge's program as it is; its host verdict reads its own sides, as the host judge reads
+        // them (a keyed side's rows expanded by the runner), in a group of its own that closes the segment
+        List<TestPlan.Verdict> ownSides = new ArrayList<>();
         for (int k = 0; k < roots.size(); k++) {
             Integer carrier = planned.hostCarriers().get(k);
             if (carrier == null) {
-                throw new IllegalStateException(roots.get(k).host().assertion().listenerName() + ": an agreement root"
-                        + " with no carrier verdict and not uncarried");
+                if (!planned.hostUncarried().contains(k)) {
+                    throw new IllegalStateException(roots.get(k).host().assertion().listenerName() + ": an agreement"
+                            + " root with no carrier verdict and not uncarried");
+                }
+                TestPlan.Verdict hv = roots.get(k).host().verdict();
+                int id = env.verdictIds().next();
+                ownSides.add(new TestPlan.Verdict(id, hv.name(), hv.arm(), hv.base(), null, hv.message())
+                        .withHost(hv.host()));
+                agreements.add(new com.legend.testexecutionplan.Agreement(k, id,
+                        com.legend.testexecutionplan.RootLoop.NO_VERDICT));
+                continue;
             }
             rootOf.put(carrier, k);
             agreements.add(new com.legend.testexecutionplan.Agreement(k, carrier,
@@ -274,6 +288,9 @@ final class AgreementAsserts implements TestDoor.Asserts {
                 verdicts.add(k == null ? v : carried(v, roots.get(k), g, env));
             }
             steps.add(new TestPlan.Verdicts(verdicts, step.fused(), step.savepoint(), step.rules()));
+        }
+        if (!ownSides.isEmpty()) {
+            steps.add(new TestPlan.Verdicts(ownSides, null, null, env.options().judgingRules()));
         }
         int last = steps.size() - 1;
         steps.set(last, steps.get(last).withRoots(planned.loop()).withAgreements(agreements));

@@ -904,10 +904,6 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  at planning), or a root whose host columns read the body's store on a fused row on another session. */
     private static @Nullable String uncarried(VerdictBatch.Planned planned, List<HostRoot> roots,
             BodyDriver.ExecEnv env) {
-        if (!planned.hostUncarried().isEmpty()) {
-            return roots.get(planned.hostUncarried().iterator().next()).host().assertion().listenerName()
-                    + ": its rows ride no fused statement, keyed or the split rung (DE4)";
-        }
         for (int k = 0; k < roots.size(); k++) {
             HostRoot r = roots.get(k);
             Integer carrier = planned.hostCarriers().get(k);
