@@ -5,7 +5,7 @@
 // handed over as text (testDataSql) and the file named by a host's operation, run outside any plan (census M14).
 
 import { inLoadsTransaction, runLoad, sha256Hex, type PlanValue } from './plan-runner.ts';
-import type { PlannedSql, PlanText } from './planned-sql.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
 /** The model JSON parts read here (grammarToJson/model). */
 interface ModelElement {
@@ -37,22 +37,8 @@ export interface DataTable {
   readonly element: string;
 }
 
-/**
- * A host's own file read into its database, as the planner is asked for its plan (Boundary.fileLoad): the file by the
- * name the host keeps it under, its bytes' SHA-256 and size and its format; a table of its own, or a table the model's
- * Database declares.
- */
-export interface FileLoadRequest {
-  readonly databaseType: string;
-  readonly file: { readonly name: string; readonly digest: string; readonly size: number; readonly format: 'csv' | 'parquet' | 'json' };
-  readonly into: { readonly table: string } | { readonly model: string; readonly database: string; readonly schema: string; readonly table: string };
-}
-
-/** Where a host's file's plan comes from: legend-lite's planner (WasmGrammar.fileLoad, DataCube's LitePlanner). */
-export interface FileLoadSource {
-  /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad). */
-  fileLoad(request: FileLoadRequest): Promise<PlanText>;
-}
+export type { FileLoadRequest, FileLoadSource } from './requests.ts';
+import type { FileLoadSource } from './requests.ts';
 
 /** Every table the model's Databases declare (its JSON's elements), in the order declared. */
 export function databaseTables(elements: readonly ModelElement[]): DeclaredTable[] {

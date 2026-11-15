@@ -9,27 +9,10 @@
 import type { HeldConnection } from './duckdb.ts';
 import type { QueryEngine } from './engine.ts';
 import { runLoad } from './plan-runner.ts';
-import type { PlannedSql, PlanText } from './planned-sql.ts';
+import type { PlannedSql } from './planned-sql.ts';
 
-/** The planner's answer for one project's database: its name, and the statements of each step, in order. */
-export interface ProjectDataStatements {
-  /** Its name, from what it holds: the model's Databases and Data rows. */
-  readonly name: string;
-  /** Make it, empty (on any connection). */
-  readonly open: readonly PlannedSql[];
-  /** Point a connection of its own at it. */
-  readonly use: readonly PlannedSql[];
-  /** The plan whose root is the ONCE load that makes and fills every table a relational Data element fills (on that
-   *  connection), PlanJson's text as the planner answered it; absent for a model with no Data rows. */
-  readonly load?: PlanText;
-  /** Drop it, with everything in it (on any connection). */
-  readonly close: readonly PlannedSql[];
-}
-
-export interface ProjectDataSource {
-  /** Named by what it holds (the model's Databases and Data rows): an edited row is a fresh database. */
-  projectData(model: string, databaseType: string): Promise<ProjectDataStatements>;
-}
+export type { ProjectDataSource, ProjectDataStatements } from './requests.ts';
+import type { ProjectDataSource, ProjectDataStatements } from './requests.ts';
 
 /** A connection of a project's database: its queries, and itself held for a run of statements with bound values (a
  *  person's file put in: a planned load's, model-data.ts loadFileTable; DuckDbEngine.exclusive). */

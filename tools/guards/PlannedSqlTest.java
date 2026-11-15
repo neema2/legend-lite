@@ -240,7 +240,9 @@ class PlannedSqlTest {
             Map.entry("datacube/src/services/python-host.ts", List.of("fetch(`${link.baseUrl}${path}`", "fetch(`${link.baseUrl}/${at}&version=${version}${as}`", "fetch(`${link.baseUrl}/${path}`", "fetch(`${link.baseUrl}/${path}`", "fetch(`${link.baseUrl}/plan-and-run.json`", "fetch(`${link.baseUrl}/version.json?${query}`", "fetch(input")),
             Map.entry("datacube/src/ui/timeseries-view.ts", List.of("fetch(", "fetch(", "fetch(", "fetch(")),
             Map.entry("depot-client/src/client.ts", List.of("fetch(`${this.#api}${path}`")),
-            Map.entry("engine-client/src/legend/engine.ts", List.of("fetch(`${this.#base}${path}`")),
+            // 2026-11-15 (C5-T, the TypeScript split of plan and run: the server's planning client split out of engine.ts,
+            // HttpEngine now that client and its execute): the same one fetch, moved with the client
+            Map.entry("engine-client/src/legend/planning-client.ts", List.of("fetch(`${this.#base}${path}`")),
             Map.entry("engine-client/src/pure-v1.ts", List.of("fetch(url")),
             Map.entry("engine-client/src/warehouse.ts", List.of("fetch(baseUrl.replace(/\\/+$/, '') + call.path")),
             Map.entry("query-store/src/client.ts", List.of("fetch(`${this.#api}/pure/v1/query${path}`")),
