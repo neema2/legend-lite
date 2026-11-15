@@ -76,7 +76,10 @@ public final class PeRatchets {
             "own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR"
                     + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
                     + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
-                    + " tests')");
+                    + " tests')",
+            "own_corpus.matched 3246 -> 3355 (2026-11-14, java_bugFixes: the Rust port's Java fixes cherry-picked onto"
+                    + " main at 3a217086a): their tests' models (KnowledgeLayerTest's, NameResolverTest's,"
+                    + " ModelBuilderTest's, MappingNormalizerTest's and RefusalsNotCrashesTest's)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {
