@@ -268,6 +268,42 @@ describe("a table's rows from a person's file (plan A2)", () => {
       [['demo::party::PartyDB', 'PARTY.PARTY', { kind: 'test', element: 'demo::party::PartyData' }, 2]]);
   });
 
+  it('a table nothing fills is not made, so none of its rows are counted (C5-T last round T3)', async () => {
+    const m = await modelOf(partyText(V1).replace(`Table PARTY (${PARTY_COLUMNS})`, `Table PARTY (${PARTY_COLUMNS})\n    Table DESK (${PARTY_COLUMNS})`));
+    const tabs = tables();
+    await tabs.load(m);
+    assert.deepEqual((await tabs.tables(m)).map((t) => [t.table, t.source.kind, t.rows]), [['PARTY', 'test', 2], ['DESK', 'none', undefined]]);
+  });
+
+  it("a made table's count that fails is said, never read as a table not made (G7; C5-T last round T3)", async () => {
+    const v1 = await version(V1);
+    const tabs = tables();
+    await tabs.load(v1);
+    // the table taken away behind the workspace: its count fails, and the failure is the answer
+    await inRun('a test', () => runner.run(unplanned('DROP TABLE "PARTY"."PARTY"'), 0));
+    await assert.rejects(tabs.tables(v1), /PARTY does not exist/);
+  });
+
+  it("a made table's count that answers no count is said by name, never read as rows (G7; C5-T last round T3)", async () => {
+    const v1 = await version(V1);
+    // the planner's count answered by a statement that gives no count
+    const uncounting = new Proxy(planner, {
+      get(target, key) {
+        if (key === 'hostOperations') {
+          return async (databaseType: string, ops: readonly HostOperation[]) => (ops.every((o) => o.op === 'count')
+            ? ops.map(() => [unplanned('SELECT NULL::BIGINT AS n')])
+            : target.hostOperations(databaseType, ops));
+        }
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const own = new ProjectRunner(engine);
+    const made = new TabTables(projectsOf(), own, engine, asTheBrowserTakesThem, uncounting);
+    await made.load(v1);
+    await assert.rejects(made.tables(v1), /the rows of PARTY\.PARTY were counted as null, which is no count/);
+  });
+
   it('fills a table from a CSV, kept over the test data until reset', async () => {
     const v1 = await version(V1);
     const tabs = tables();

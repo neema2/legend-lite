@@ -130,23 +130,31 @@ export class TabTables {
   /** Every table the model declares: where its rows are from, and how many there are (counted by the planner's name). */
   async tables(model: Model): Promise<TableState[]> {
     const { engine } = await this.#open(model);
-    const declared = databaseTables(model.elements);
     const tests = new Map(dataTables(model.elements).map((t) => [key(t.schema, t.table), t.element]));
-    // each table's rows counted by the planner's statement for it (D5), the table named as the model declares it
-    const counts = await this.#source.hostOperations(this.#host.databaseType, declared.map((t) => ({
-      op: 'count' as const, from: { relation: { schema: t.schema, name: t.table, declared: true } },
-    })));
-    const out: TableState[] = [];
-    for (const [i, t] of declared.entries()) {
+    const declared = databaseTables(model.elements).map((t) => {
       const refused = this.#refused.get(key(t.schema, t.table));
       const file = refused === undefined ? this.#files.get(key(t.schema, t.table)) : undefined;
       const element = tests.get(key(t.schema, t.table));
       const source: TableSource = file !== undefined ? { kind: 'file', name: file.name } : element !== undefined ? { kind: 'test', element } : { kind: 'none' };
+      return { t, refused, source };
+    });
+    // a table nothing fills (no Data element's rows, no file of the person's) is not made, so it has no rows to count and
+    // none is asked; every other table's rows are counted by the planner's statement for it (D5), the table named as the
+    // model declares it, and a count that fails, or answers no count, is said -- never read as a table not made (G7; the
+    // C5-T last round's T3, 2026-11-15: a catch-all here read every failure so)
+    const made = declared.filter((d) => d.source.kind !== 'none');
+    const counts = made.length === 0 ? [] : await this.#source.hostOperations(this.#host.databaseType, made.map(({ t }) => ({
+      op: 'count' as const, from: { relation: { schema: t.schema, name: t.table, declared: true } },
+    })));
+    const out: TableState[] = [];
+    for (const d of declared) {
+      const { t, refused, source } = d;
       let rows: number | undefined;
-      try {
-        rows = Number((await inRun("a table's rows counted", () => engine.run(counts[i]![0]!, 0))).columns[0]!.values[0]);
-      } catch {
-        rows = undefined;     // not made yet: nothing fills it
+      if (source.kind !== 'none') {
+        const counted = await inRun("a table's rows counted", () => engine.run(counts[made.indexOf(d)]![0]!, 0));
+        const raw = counted.rowCount === 1 ? counted.columns[0]?.values[0] : undefined;
+        rows = raw === null || raw === undefined ? Number.NaN : Number(raw);
+        if (!Number.isSafeInteger(rows) || rows < 0) throw new Error(`the rows of ${t.schema}.${t.table} were counted as ${String(raw)}, which is no count`);
       }
       out.push({ ...t, source, rows,
         ...(refused !== undefined ? { refusedFile: { name: this.#files.get(key(t.schema, t.table))!.name, why: refused } } : {}) });

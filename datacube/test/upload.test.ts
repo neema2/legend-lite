@@ -181,6 +181,29 @@ describe('ingestFile with JSON', () => {
   });
 });
 
+describe('a read whose rows the database does not count is refused by name, never read as 0 rows (G7; C5-T T3)', () => {
+  for (const [label, table, count] of [
+    ['no row', 'uncounted_none', 'SELECT 1::BIGINT AS n WHERE false'],
+    ['a NULL', 'uncounted_null', 'SELECT NULL::BIGINT AS n'],
+  ] as const) {
+    it(`a count of ${label}`, async () => {
+      // the one model writer, its count of the read table answered by a statement that gives no count
+      const counting = new Proxy(writer, {
+        get(target, key) {
+          if (key === 'hostOperations') {
+            return async (databaseType: string, ops: Parameters<typeof writer.hostOperations>[1]) =>
+              (ops.some((o) => o.op === 'count') ? [[unplanned(count)]] : target.hostOperations(databaseType, ops));
+          }
+          const value: unknown = Reflect.get(target, key, target);
+          return typeof value === 'function' ? value.bind(target) : value;
+        },
+      });
+      await assert.rejects(ingestFile(engine, files, picked(`${table}.csv`, 'a,b\n1,2\n'), counting),
+        new RegExp(`the rows read into '${table}' were counted as (undefined|null), which is no count: the read is refused`));
+    });
+  }
+});
+
 describe('a text file read by its encoding: the bytes every host\'s DuckDB is given (fileParts, fileBytes; G4)', () => {
   /** A picked file of these bytes. */
   function pickedBytes(name: string, bytes: Uint8Array): File {

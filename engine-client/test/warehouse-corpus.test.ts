@@ -10,13 +10,16 @@ import { fileURLToPath } from 'node:url';
 
 import { runfileDirUrl, runfileFromEnv } from '../../tools/js/runfiles.mts';
 import {
+  BINDING_OPTIONS,
   SessionExpired,
+  WarehouseBinding,
   WarehouseEngine,
   listObjects,
   loadWarehouseBinding,
   signIn,
   signInWithKey,
   type Clock,
+  type SqlApiModule,
   type WarehouseSession,
 } from '../src/warehouse.ts';
 import { unplanned } from './unplanned.ts';
@@ -37,10 +40,21 @@ interface Scenario {
 const BASE = 'https://wh.example';
 const corpus = JSON.parse(readFileSync(runfileFromEnv('SQLAPI_CORPUS'), 'utf8')) as { scenarios: readonly Scenario[] };
 // Node loads the runtime by file URL and the module by path
-const binding = await loadWarehouseBinding(runfileDirUrl('SQLAPI_PAGE'), async (runtimeUrl) => {
-  const runtime = await import(runtimeUrl) as { load(src: string, options?: unknown): Promise<unknown> };
-  return { load: (src: string, options?: unknown) => runtime.load(fileURLToPath(src), options) };
+const binding = await (async (): Promise<WarehouseBinding> => {
+  const dir = runfileDirUrl('SQLAPI_PAGE');
+  const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
+    load(src: string, options?: unknown): Promise<SqlApiModule>;
+  };
+  return new WarehouseBinding(await runtime.load(fileURLToPath(new URL('classes.wasm', dir)), BINDING_OPTIONS));
+})();
+// the run layer's own load takes its directory alone: no caller hands it the module it runs (the C5-T last round's T3,
+// 2026-11-15; Node's tests, here, load the module themselves and make the binding of it)
+describe('the binding, loaded by the run layer', () => {
+  it('from its directory alone: it takes no loader', () => {
+    assert.equal(loadWarehouseBinding.length, 1);
+  });
 });
+
 // a clock whose refresh never comes: these scenarios name their calls
 const still: Clock = { now: () => 0, setTimeout: () => undefined, clearTimeout: () => undefined };
 const session = (token: string): WarehouseSession => ({ baseUrl: BASE, token, principal: 'rita', expiresAt: '2099-01-01T00:00:00Z' });

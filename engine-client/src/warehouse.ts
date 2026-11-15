@@ -97,19 +97,26 @@ export class WarehouseBinding {
   }
 }
 
-/** The binding's module, from the directory holding its `classes.wasm` and TeaVM's runtime (`<vendor>warehouse/`). */
-export async function loadWarehouseBinding(base: string, load?: (runtimeUrl: string) => Promise<unknown>): Promise<WarehouseBinding> {
+/** What TeaVM's runtime loads the binding's module with: no stack deobfuscator, its console silenced. */
+export const BINDING_OPTIONS = {
+  stackDeobfuscator: { enabled: false },
+  installImports(imports: Record<string, unknown>): void {
+    imports.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
+  },
+};
+
+/**
+ * The binding's module, from the directory holding its `classes.wasm` and TeaVM's runtime (`<vendor>warehouse/`): the
+ * runtime imported from there, and nothing a caller hands in (the C5-T last round's T3, 2026-11-15: a loader callback
+ * let a caller choose the module a run layer runs; Node's tests load the module themselves and make the binding of it).
+ */
+export async function loadWarehouseBinding(base: string): Promise<WarehouseBinding> {
   const dir = base.endsWith('/') ? base : `${base}/`;
   const runtimeUrl = `${dir}wasm-gc-module-runtime.js`;
-  const runtime = (load ? await load(runtimeUrl) : await import(/* @vite-ignore */ runtimeUrl)) as {
+  const runtime = (await import(/* @vite-ignore */ runtimeUrl)) as {
     load(src: string, options?: unknown): Promise<SqlApiModule>;
   };
-  return new WarehouseBinding(await runtime.load(`${dir}classes.wasm`, {
-    stackDeobfuscator: { enabled: false },
-    installImports(imports: Record<string, unknown>) {
-      imports.teavmConsole = { putcharStdout() {}, putcharStderr() {} };
-    },
-  }));
+  return new WarehouseBinding(await runtime.load(`${dir}classes.wasm`, BINDING_OPTIONS));
 }
 
 /** A refusal: an error and no step (a statement's failed step carries its error too, and is an answer). */

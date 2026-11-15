@@ -404,7 +404,11 @@ class PlannedSqlTest {
             "\\bimport\\s*(type\\s+)?\\{([^}]*)\\}\\s*from\\s*['\"`][^'\"`]*backend/run(?:\\.ts)?['\"`]");
     private static final Pattern PLAYGROUND_READ = Pattern.compile("\\.\\s*playground\\b|\\[\\s*['\"`]playground['\"`]\\s*\\]"
             + "|\\{[^{}]*\\bplayground\\b[^{}]*\\}\\s*=(?!=)");
-    private static final Pattern UNPLANNED_IMPORT = Pattern.compile("from\\s*'[^']*test/unplanned\\.ts'");
+    /** Any literal naming the tests' module, in any quote, by any door (2026-11-15, the C5-T last round's T3: a single
+     *  quote after `from` alone was read; a double quote, a template, an `import()`, a `require()`, an `export ... from`,
+     *  a side-effect import or no extension is now read too), over the code with its comments blanked. */
+    private static final Pattern UNPLANNED_IMPORT = Pattern.compile(
+            "(['\"`])[^'\"`\\n]*\\btest/unplanned(?:\\.[cm]?[jt]s)?\\1");
 
     /** host_sql.txt's [typescript] and [python] folders: the product's, one list with the host-SQL guard. */
     private static Map<String, List<String>> folders() throws IOException {
@@ -573,8 +577,19 @@ class PlannedSqlTest {
         bites("the plan format census", PlannedSqlTest::thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered,
                 "export const plan = JSON.stringify({ format: 'legend-lite-plan', root: {} });");
         bites("the any census", PlannedSqlTest::noAnyInTheProduct, "export let value: any = text;");
-        bites("the tests' statement census", PlannedSqlTest::noProductSourceReachesTheTestsOwnStatement,
-                "import { unplanned } from '../test/unplanned.ts';\nexport const sql = unplanned(text);");
+        // every quote and every door (2026-11-15, the C5-T last round's T3)
+        for (String door : List.of("import { unplanned } from '../test/unplanned.ts';",
+                "import { unplanned } from \"../../engine-client/test/unplanned.ts\";",
+                "const { unplanned } = await import(`../../engine-client/test/unplanned.ts`);",
+                "export { unplanned } from '../../engine-client/test/unplanned';",
+                "import '../../engine-client/test/unplanned.js';",
+                "const { unplanned } = require(\"../../engine-client/test/unplanned.ts\");")) {
+            bites("the tests' statement census", PlannedSqlTest::noProductSourceReachesTheTestsOwnStatement,
+                    door + "\nexport const sql = unplanned(text);");
+        }
+        // and none in a comment
+        noProductSourceReachesTheTestsOwnStatement(Sources.planting(PLANTED_VIOLATOR,
+                "// typed by the tests' own (engine-client/test/unplanned.ts, '../test/unplanned.ts'), never here\n"));
     }
 
     private static boolean under(String file, List<String> folders) {
@@ -1595,7 +1610,7 @@ class PlannedSqlTest {
         List<String> product = folders().get("typescript");
         List<String> found = new ArrayList<>();
         for (String file : s.inventory()) {
-            if (file.endsWith(".ts") && under(file, product) && UNPLANNED_IMPORT.matcher(s.read(file)).find()) {
+            if (file.endsWith(".ts") && under(file, product) && UNPLANNED_IMPORT.matcher(code(s.read(file), true)).find()) {
                 found.add(file);
             }
         }

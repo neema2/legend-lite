@@ -357,7 +357,13 @@ export async function readFileInto(
 
   const [count] = await models.hostOperations(engine.databaseType, [{ op: 'count', from: { relation: target } }]);
   const counted = await inRun("a read table's rows counted", () => engine.run(count![0]!, 0));
-  const rowCount = Number(counted.columns[0]?.values[0] ?? 0);
+  // the count is the database's one value: none, or one that is no count, is refused by name -- never read as 0 (G7; the
+  // C5-T last round's T3, 2026-11-15, as snap.ts's count is)
+  const raw = counted.rowCount === 1 ? counted.columns[0]?.values[0] : undefined;
+  const rowCount = raw === null || raw === undefined ? Number.NaN : Number(raw);
+  if (!Number.isSafeInteger(rowCount) || rowCount < 0) {
+    throw new Error(`the rows read into '${table}' were counted as ${String(raw)}, which is no count: the read is refused`);
+  }
 
   return {
     ...inferred,

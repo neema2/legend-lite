@@ -149,7 +149,8 @@ export interface TableModels {
   /**
    * What a session of the database runs before it is queried, so that it answers as the planner's SQL expects: the
    * dialect's own setup (`Boundary.sessionSetup`: a DuckDB session in UTC). A host runs it on the database it opens
-   * (services/browser.ts `setUpSession`; Python's Frames, from the same function).
+   * (the tab's: the door engine-client/src/doors/tab-duckdb.ts asks it, duckdb-tab.ts `connectDuckDbInTab` runs it by
+   * engine.ts `setUpSession`; Python's: frames.py `Frames` and projects.py, from the same function).
    */
   sessionSetup(databaseType: string): Promise<readonly PlannedSql[]>;
   /** A host's named operations on its own database (D5, engine-client's host-operations.ts): each one's statements. */
