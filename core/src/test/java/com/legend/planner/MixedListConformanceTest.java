@@ -134,4 +134,17 @@ class MixedListConformanceTest {
             assertTrue(e.getMessage().contains(c[1]), e.getMessage());
         }
     }
+
+    /**
+     * A KNOWN LIMIT, pinned as it is today (docs/records/pr1-rulings-2026-11-15.md, R4; ruled by the orchestrator under
+     * the user's delegation, 2026-11-15): a COMPUTED Integer beyond 2^53 in a mixed list's order is not known at
+     * planning, so it is ranked as a DOUBLE, inexactly, and not refused. Exact with O2 step 3's carrier; this pin
+     * changes then.
+     */
+    @Test
+    void aComputedIntegerBeyond2To53InAMixedRankPlans_aKnownLimit() {
+        String model = StorelessRuntime.with("", com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
+        Compiler.query(Compiler.compileModel(model), "|['b', 9007199254740992 + 1, 9007199254740992]->sort()")
+                .executionPlan(StorelessRuntime.RUNTIME);
+    }
 }
