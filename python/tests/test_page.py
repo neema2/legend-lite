@@ -1090,8 +1090,10 @@ class Document(Paged):
         with mock.patch.object(type(tile), '_planned', refusing):
             asked = tile.queries()
         refused = [q for q in asked if 'refused' in q]
+        # its kind with its words (the user's ruling of 2026-11-10: a product error carries its kind and where; the C5
+        # follow-up's kind fix, 2026-11-15: until then the words alone)
         self.assertEqual([(q['kind'], q['refused']) for q in refused],
-                         [('statistics', 'the planner refused this question')])
+                         [('statistics', 'COMPILATION: the planner refused this question')])
         self.assertTrue(len(asked) > 1 and all('sql' in q for q in asked if 'refused' not in q), asked)
 
     def test_a_timeseries_lists_every_query_it_asks_each_its_pure_and_its_sql(self):

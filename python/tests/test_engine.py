@@ -1545,6 +1545,20 @@ class WarehouseOnPython(unittest.TestCase):
         self.assertIn('RuntimeError: the live frame could not be read', said)
         self.assertNotIn('held-0123456789', said)
 
+    def test_a_served_snap_over_a_model_that_does_not_compile_says_the_compilers_kind(self):
+        # the C5 follow-up's kind fix (2026-11-15; the user's ruling of 2026-11-10: a product error carries its kind and
+        # where): a page model of the served tables that does not compile is the snap's 422 in the compiler's words AND
+        # its kind -- until then the words alone
+        table = self.frames.register('served', pd.DataFrame({'desk': ['FX', 'EQ'], 'qty': [1, 2]}))
+        broken = table.model + '\n###Pure\nClass served::A\n{\n  x: served::Nope[1];\n}\n'
+        pull = json.dumps(ll.parse('|' + table.accessor + '->select(~[desk, qty])'))
+        answer = self.engine.answer('POST', '/snap.json', '', json.dumps(
+            {'op': 'snap', 'model': broken, 'runtime': table.runtime, 'pull': pull}))
+        said = answer.body.decode('utf-8')
+        self.assertEqual(answer.status, 422, said)
+        self.assertTrue(said.startswith('the snap could not be planned: COMPILATION: '), said)
+        self.assertIn('served::Nope', said)
+
     def test_a_served_snaps_count_and_copy_say_no_held_value(self):
         # the C5 follow-up's audit item 1 (2026-11-15): a served snap's count and its copy failed with DuckDB's own words,
         # which repeat a presigned link's URL (its signature) -- answered as they were. Each failure's words now have

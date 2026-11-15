@@ -2256,8 +2256,8 @@ class Timeseries(Tile):
                 row.update(self._planned(told))
             except (ValueError, LegendError) as e:
                 # DataCube's refusal or the planner's (a LegendError: the C5 follow-up's audit item 2, 2026-11-15 --
-                # until then a planner's refusal of one question raised out of every row)
-                row['refused'] = str(e)
+                # until then a planner's refusal of one question raised out of every row), the planner's with its kind
+                row['refused'] = e.worded() if isinstance(e, LegendError) else str(e)
             out.append(row)
         return out
 

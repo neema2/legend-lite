@@ -31,6 +31,11 @@ class LegendError(Exception):
         self.message = message
         self.kind = kind
 
+    def worded(self) -> str:
+        """Its kind and its words, as a product error says them in plain text (``COMPILATION: ...``; the user's ruling of
+        2026-11-10: a product error carries its kind and where)."""
+        return f'{self.kind}: {self.message}'
+
 
 @dataclass(frozen=True)
 class Answer:

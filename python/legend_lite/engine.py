@@ -1545,8 +1545,9 @@ class Engine:
             try:
                 held = self.frames.model_for(asked['model'])
             except ModelRefused as refused:
-                # a model of served tables that does not compile: the compiler's words (the C5 follow-up's held item)
-                return _said(422, f'the snap could not be planned: {refused}')
+                # a model of served tables that does not compile: the compiler's kind and words (the C5 follow-up's held
+                # item; its kind since the kind fix, 2026-11-15)
+                return _said(422, f'the snap could not be planned: {refused.worded()}')
             if held is None:
                 return _said(404, 'this engine serves no model of that text: it snaps a page\'s frames and files, and '
                                   'warehouse tables it opened')
