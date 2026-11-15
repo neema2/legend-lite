@@ -514,6 +514,24 @@ class ProjectQueries(Served):
             self.assertTrue(plan.startswith('ERR\nPARSER\n'), plan)
             self.assertNotIn('reads only the tables it serves', plan)
 
+    def test_a_compilers_own_failure_reading_a_model_is_no_refusal_of_it(self):
+        # the C5 follow-up's staging check (2026-11-15): a failure of the compiler's own (no PARSER or COMPILATION: a
+        # '500', its parser failing) is no refusal of the model -- the engine's unexpected 500, never `ERR 500 ...` as
+        # if the model were refused
+        from legend_lite.compiler import LegendError
+
+        def failing(text):
+            raise LegendError('IllegalArgumentException: the parser failed', '500')
+
+        model = self.table.model.replace('trades::DB', 'proj0::store::DB')
+        asked = {'lambda': json.dumps(ll.parse('|#>{proj0::store::DB.trades}#->select(~[desk])')), 'model': model,
+                 'runtime': self.table.runtime}
+        with mock.patch.object(ll.compiler, 'model_elements', failing):
+            for path in ('/plan-and-run.json', '/plan.json'):
+                status, _, body = self.post(path, json.dumps(asked))
+                self.assertEqual(status, 500, body)
+                self.assertIn('IllegalArgumentException: the parser failed', body.decode())
+
     def test_a_planning_failure_over_a_served_model_is_no_refusal_of_the_model(self):
         # the C5 follow-up's check (2026-11-15): the catch around plan_over is the model's refusal alone (ModelRefused),
         # never a failure of what is planned over it (a model compiling alone but not over DataCube's library): that one
@@ -1314,6 +1332,25 @@ class Page(Cube):
         self.serve_page('q3', self.DOC)
         self.assertEqual(self.get('/page.json?page=q3')[0], 401)
         self.assertEqual(self.get('/version.json?page=q3')[0], 401)
+
+    def test_a_pages_write_that_fails_unexpectedly_says_no_held_value(self):
+        # the C5 follow-up's staging check (2026-11-15): a page's write the keeper fails on (DataCube's code, over a page
+        # that may name a remote file by its URL) answered its raw words; it is the engine's one unexpected answer now
+        engine = self.server.engine
+        self.serve_page('q3', self.DOC)
+        token = 'X-Amz-Signature=held-0123456789'
+        self.frames.held_values = lambda: (token,)
+
+        def failing(*_args, **_kw):
+            raise RuntimeError(f'DataCube could not rebase the page over https://bucket/f.parquet?{token}')
+
+        written = json.dumps({'edits': [{'page': {'kind': 'renamePage', 'name': 'Q5'}}], 'writer': 'w1', 'seq': 1})
+        with mock.patch.object(engine, '_headless', lambda: None), mock.patch.object(engine.keeper, 'settle', failing):
+            said = engine.answer('POST', '/page.json', 'page=q3&version=1', written)
+        text = said.body.decode('utf-8')
+        self.assertEqual(said.status, 500, text)
+        self.assertIn('RuntimeError: DataCube could not rebase the page', text)
+        self.assertNotIn('held-0123456789', text)
 
     def test_an_open_pages_write_is_read_by_datacubes_own_reader(self):
         # (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md) an engine with no DataCube code to read a page with keeps no page an

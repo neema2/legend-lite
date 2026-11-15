@@ -1959,8 +1959,9 @@ class Engine:
         except Refused as refused:
             return _said(409, str(refused))
         except Exception as failure:
-            # a failure of the library's, said as one (as the API's are) -- never taken for a refusal or a page not served
-            return _said(500, f'{type(failure).__name__}: {failure}')
+            # a failure of the library's or of DataCube's code, said as one (the engine's one unexpected answer, redacted:
+            # a page may name a remote file by its URL) -- never taken for a refusal or a page not served
+            return unexpected(failure, self.frames.held_values())
         self.sweep()
         answer: dict[str, Any] = {'version': settled.version, 'hash': settled.hash}
         if settled.combined:

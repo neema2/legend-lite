@@ -74,6 +74,16 @@ class ModelRefused(compiler.LegendError):
     never a refusal of what it plans over the model."""
 
 
+# the kinds the compiler refuses a model by (projects._NOT_A_MODEL's): it does not parse, or does not compile -- any
+# other kind is a failure of the compiler's own, never the model's refusal (the C5 follow-up's staging check, 2026-11-15)
+_MODEL_REFUSALS = frozenset({'PARSER', 'COMPILATION'})
+
+
+def _refusal(refused: compiler.LegendError) -> compiler.LegendError:
+    """``refused`` as the model's refusal (``ModelRefused``) when the compiler refused the model, else as it is."""
+    return ModelRefused(refused.message, refused.kind) if refused.kind in _MODEL_REFUSALS else refused
+
+
 def _arrow(frame: Any) -> pa.Table:
     """A frame as an Arrow table. pandas through its own converter, without its index (``reset_index()``
     keeps one as a column); pandas is not imported here -- a pandas frame means it already is."""
@@ -466,8 +476,9 @@ class Frames:
             try:
                 tables = self._declared(model, surface=True)
             except compiler.LegendError as refused:
-                # it does not read as a model: the compiler's words (the C5 follow-up's check, 2026-11-15)
-                raise ModelRefused(refused.message, refused.kind) from refused
+                # it does not read as a model: the compiler's words (the C5 follow-up's check, 2026-11-15); a failure of
+                # the compiler's own (no refusal) raised as it is
+                raise _refusal(refused) from refused
             if tables is None:
                 return None
             if not tables <= served:
@@ -476,7 +487,7 @@ class Frames:
             try:
                 held = compiler.HeldModel(model)
             except compiler.LegendError as refused:
-                raise ModelRefused(refused.message, refused.kind) from refused
+                raise _refusal(refused) from refused
             self._admitted[model] = (held, frozenset(tables))
             while len(self._admitted) > _ADMITTED:
                 self._admitted.pop(next(iter(self._admitted)))[0].close()
