@@ -89,10 +89,12 @@ public final class ColumnFacts {
         return cols;
     }
 
-    /** Whether {@code pure} is a value root's one column {@code value} over the map binder's one output (its name the
-     *  {@link SqlSelect#SYNTH_MAP_COL} marker's). */
+    /** Whether {@code pure} is a value's one column {@code value} over the map binder's one output (its name the
+     *  {@link SqlSelect#SYNTH_MAP_COL} marker's), {@code shape} aside. */
     private static boolean mapBinderValue(List<Pure> pure, List<OutputCol> outs, ExecutionPlan.TdsResult.Shape shape) {
-        return shape == ExecutionPlan.TdsResult.Shape.VALUE && pure.size() == 1 && pure.get(0).name().equals("value")
+        // in any shape: the judge reads a value's side as rows (JudgePlans.rowsPlan, RELATION), the product's root as
+        // a VALUE -- the one column 'value' over the one marker-named output decides it either way (round 55k)
+        return pure.size() == 1 && pure.get(0).name().equals("value")
                 && outs.size() == 1 && outs.get(0).name().startsWith(SqlSelect.SYNTH_MAP_COL);
     }
 
