@@ -15,6 +15,7 @@
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';
 import { PIVOT_SEPARATOR } from '../../engine-client/src/generated/lite-facts.ts';
 import { defaultKind } from '../../engine-client/src/types.ts';
+import type { RowPath } from './tree.ts';
 
 /**
  * What a column may be used for.
@@ -1083,4 +1084,33 @@ export function withoutConditions(
   }
   if (children.length === 0) return undefined;
   return children.length === 1 ? children[0]! : { kind: 'and', children };
+}
+
+/**
+ * One level of the row-group tree (query.ts's until 2026-11-15, the C5-T audit's MUST 2: here, so DataCube's runner -- a
+ * door, //datacube:doors -- reads the scope it is handed without reaching the query model).
+ *
+ * `level` is how many row dimensions to group by: 0 is the grand
+ * total, 1 the top level, and so on. `parent` pins the ancestors, so
+ * expanding EMEA fetches only EMEA's children.
+ *
+ * A subtotal is therefore literally the same measure expression with
+ * grouping columns dropped -- not a second aggregation pass that could
+ * disagree with the detail underneath it.
+ */
+export interface LevelScope {
+  readonly level: number;
+  readonly parent: RowPath;
+  /**
+   * Cap on rows for this level. Callers pass maxRows + 1 so that the
+   * presence of the extra row reports "there is more" without a
+   * second counting query.
+   */
+  readonly limit?: number;
+  /**
+   * A DETAIL query's (detailSnapshot's, its group's keys folded into its filter): the grid's own filter, null for none --
+   * what a measure at the grand total's grain is computed under (snapshot.ts Grain). Absent on a level's query, whose
+   * filter is the grid's.
+   */
+  readonly grandFilter?: FilterNode | null;
 }

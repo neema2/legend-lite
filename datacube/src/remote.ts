@@ -24,8 +24,9 @@
 
 import type { HeldConnection } from '../../engine-client/src/duckdb.ts';
 import {
-  SecretStore, type RemoteMountRequest, type RemoteMountSource, type SecretField, type SecretValue,
+  SecretStore, type RemoteMountRequest, type SecretField, type SecretValue,
 } from '../../engine-client/src/host-operations.ts';
+import type { RemoteMountSource } from '../../engine-client/src/planner-sources.ts';
 import { heldTexts, type ConnectionSettings, type KeptSetting } from '../../engine-client/src/connection-settings.ts';
 import type { PlanValue } from '../../engine-client/src/plan-runner.ts';
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';

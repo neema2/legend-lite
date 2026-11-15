@@ -13,7 +13,7 @@ import type { CatalogColumn, TableModels } from './infer.ts';
 import { MOST_REPEATS, REPEATED_KEYS, joinRelation, type JoinHow, type JoinSide, type JoinSummaryCounts, type JoinSummaryQueries } from './join.ts';
 import { TOTAL_ROWS_COLUMN, handedOnLambda, isMachinery } from './query.ts';
 import { handedOnRows } from './box-columns.ts';
-import type { RawTable } from '../../engine-client/src/engine.ts';
+import type { RawTable } from '../../engine-client/src/query-engine.ts';
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { sourceColumns, type RelationTyper } from './source-columns.ts';
 import { boxRows } from './pure-box.ts';

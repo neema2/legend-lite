@@ -37,22 +37,8 @@ export interface DataTable {
   readonly element: string;
 }
 
-/**
- * A host's own file read into its database, as the planner is asked for its plan (Boundary.fileLoad): the file by the
- * name the host keeps it under, its bytes' SHA-256 and size and its format; a table of its own, or a table the model's
- * Database declares.
- */
-export interface FileLoadRequest {
-  readonly databaseType: string;
-  readonly file: { readonly name: string; readonly digest: string; readonly size: number; readonly format: 'csv' | 'parquet' | 'json' };
-  readonly into: { readonly table: string } | { readonly model: string; readonly database: string; readonly schema: string; readonly table: string };
-}
-
-/** Where a host's file's plan comes from: legend-lite's planner (WasmGrammar.fileLoad, DataCube's LitePlanner). */
-export interface FileLoadSource {
-  /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad). */
-  fileLoad(request: FileLoadRequest): Promise<PlanText>;
-}
+export type { FileLoadRequest } from './requests.ts';
+import type { FileLoadRequest } from './requests.ts';
 
 /** Every table the model's Databases declare (its JSON's elements), in the order declared. */
 export function databaseTables(elements: readonly ModelElement[]): DeclaredTable[] {
@@ -106,35 +92,53 @@ export interface FileSink {
   hold<T>(work: (run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>) => Promise<T>): Promise<T>;
 }
 
+/** A person's file ready for its planned load: its bytes, the name they are registered under, their format and SHA-256. */
+export interface FilePut {
+  readonly bytes: Uint8Array;
+  readonly registered: string;
+  readonly format: 'csv' | 'parquet';
+  readonly digest: string;
+}
+
 /**
- * A table made from a person's own file (plan A2's second source), as a PLANNED LOAD (B3, 2026-11-11): the planner's
- * plan (fileLoad) makes the table as the model declares it, empty, then puts the file's rows in -- each declared column
- * from the file's column of that name, a CSV's read as text and a Parquet's as typed, DuckDB converting each value to its
- * column's type -- and the hosts' runner runs it in one transaction, so a refused file (a column missing, a value its type
- * cannot take) leaves the table as it was. The file's name says which kind it is. Its bytes are registered as `<as>.csv`
- * or `<as>.parquet`, never by the person's own name (read_csv and read_parquet read a name as a glob: `sales[2024].csv`
- * matches nothing), and the plan names them by that name, their SHA-256 and size: the statement's ? is bound to them.
- * The transaction's statements are the plan's (its target's: the re-audit's S8, 2026-11-12 -- until then they were
- * asked of the planner here, at run).
+ * `file` ready to be put, as `as`: a .csv or a .parquet (any other is refused by name). Its bytes are registered as
+ * `<as>.csv` or `<as>.parquet`, never by the person's own name (read_csv and read_parquet read a name as a glob:
+ * `sales[2024].csv` matches nothing), and its plan names them by that name, their SHA-256 and size.
  */
-export async function loadFileTable(sink: FileSink, source: FileLoadSource, databaseType: string, model: string,
-  target: { readonly database: string; readonly schema: string; readonly table: string },
-  file: { readonly name: string; readonly bytes: Uint8Array }, as: string): Promise<void> {
+export async function filePut(file: { readonly name: string; readonly bytes: Uint8Array }, as: string): Promise<FilePut> {
   const format = /\.csv$/i.test(file.name) ? 'csv' : /\.parquet$/i.test(file.name) ? 'parquet' : undefined;
   if (!format) throw new Error(`${file.name}: a table is filled from a .csv or a .parquet file`);
-  const registered = `${as}.${format}`;
-  const digest = await sha256Hex(file.bytes);
-  const plan = await source.fileLoad({
-    databaseType, file: { name: registered, digest, size: file.bytes.length, format },
+  return { bytes: file.bytes, registered: `${as}.${format}`, format, digest: await sha256Hex(file.bytes) };
+}
+
+/** The planner's request for `put`'s plan (Boundary.fileLoad): into `target`, a table `model`'s Database declares. */
+export function fileLoadRequest(databaseType: string, model: string,
+  target: { readonly database: string; readonly schema: string; readonly table: string }, put: FilePut): FileLoadRequest {
+  return {
+    databaseType, file: { name: put.registered, digest: put.digest, size: put.bytes.length, format: put.format },
     into: { model, database: target.database, schema: target.schema, table: target.table },
-  });
+  };
+}
+
+/**
+ * A table made from a person's own file (plan A2's second source), as a PLANNED LOAD (B3, 2026-11-11): the planner's
+ * plan (fileLoad, asked by the door: doors/file-load.ts, C5-T, 2026-11-15) makes the table as the model declares it,
+ * empty, then puts the file's rows in -- each declared column from the file's column of that name, a CSV's read as
+ * text and a Parquet's as typed, DuckDB converting each value to its column's type -- and the hosts' runner runs it in
+ * one transaction, so a refused file (a column missing, a value its type cannot take) leaves the table as it was. The
+ * plan names the file's bytes by the name they are registered under (filePut), their SHA-256 and size: the
+ * statement's ? is bound to them. The transaction's statements are the plan's (its target's: the re-audit's S8,
+ * 2026-11-12 -- until then they were asked of the planner here, at run).
+ */
+export async function putFile(sink: FileSink, plan: PlanText, put: FilePut): Promise<void> {
+  const { registered, digest, bytes } = put;
   // a copy: the database takes the buffer it is given, and the caller keeps its bytes (Studio puts them in again)
-  await sink.registerFileBuffer(registered, file.bytes.slice());
+  await sink.registerFileBuffer(registered, bytes.slice());
   // the tab's store of its own files: the one registered for this put, by its name, its bytes the plan's
   const files = {
     located: async (ref: { readonly name: string; readonly digest: string; readonly size: number }): Promise<string> => {
-      if (ref.name !== registered || ref.digest !== digest || ref.size !== file.bytes.length) {
-        throw new Error(`the file '${ref.name}' is not the one this put registered (${registered}, ${file.bytes.length} bytes of digest ${digest})`);
+      if (ref.name !== registered || ref.digest !== digest || ref.size !== bytes.length) {
+        throw new Error(`the file '${ref.name}' is not the one this put registered (${registered}, ${bytes.length} bytes of digest ${digest})`);
       }
       return registered;
     },

@@ -10,16 +10,21 @@ import { fileURLToPath } from 'node:url';
 
 import { runfileDirUrl, runfileFromEnv } from '../../tools/js/runfiles.mts';
 import {
+  BINDING_OPTIONS,
   SessionExpired,
+  WarehouseBinding,
   WarehouseEngine,
   listObjects,
-  loadWarehouseBinding,
   signIn,
   signInWithKey,
   type Clock,
+  type SqlApiModule,
   type WarehouseSession,
 } from '../src/warehouse.ts';
+import * as driver from '../src/warehouse.ts';
+import { loadWarehouseBinding } from '../src/doors/warehouse.ts';
 import { unplanned } from './unplanned.ts';
+import { inRun } from '../src/run-frame.ts';
 
 interface Exchange {
   readonly op: string;
@@ -36,10 +41,26 @@ interface Scenario {
 const BASE = 'https://wh.example';
 const corpus = JSON.parse(readFileSync(runfileFromEnv('SQLAPI_CORPUS'), 'utf8')) as { scenarios: readonly Scenario[] };
 // Node loads the runtime by file URL and the module by path
-const binding = await loadWarehouseBinding(runfileDirUrl('SQLAPI_PAGE'), async (runtimeUrl) => {
-  const runtime = await import(runtimeUrl) as { load(src: string, options?: unknown): Promise<unknown> };
-  return { load: (src: string, options?: unknown) => runtime.load(fileURLToPath(src), options) };
+const binding = await (async (): Promise<WarehouseBinding> => {
+  const dir = runfileDirUrl('SQLAPI_PAGE');
+  const runtime = await import(new URL('wasm-gc-module-runtime.js', dir).href) as {
+    load(src: string, options?: unknown): Promise<SqlApiModule>;
+  };
+  return new WarehouseBinding(await runtime.load(fileURLToPath(new URL('classes.wasm', dir)), BINDING_OPTIONS));
+})();
+// the binding is loaded by its door, from its directory alone: no caller hands it the module it runs (the C5-T last
+// round's T3, 2026-11-15), and the run side loads no module at all -- it takes the loaded binding (2026-11-15, the C5-T
+// fold-in: the run layers hold no computed specifier). Node's tests, here, load the module themselves and make the
+// binding of it
+describe('the binding, loaded by its door', () => {
+  it('from its directory alone: it takes no loader', () => {
+    assert.equal(loadWarehouseBinding.length, 1);
+  });
+  it('the run side has no load of its own', () => {
+    assert.equal('loadWarehouseBinding' in driver, false);
+  });
 });
+
 // a clock whose refresh never comes: these scenarios name their calls
 const still: Clock = { now: () => 0, setTimeout: () => undefined, clearTimeout: () => undefined };
 const session = (token: string): WarehouseSession => ({ baseUrl: BASE, token, principal: 'rita', expiresAt: '2099-01-01T00:00:00Z' });
@@ -79,15 +100,16 @@ async function act(s: Scenario): Promise<Record<string, unknown>> {
       }
       case 'objects':
         return { objects: await listObjects(binding, session(String(a.token))) };
-      case 'run': {
+      // the test's own statements, each sent in its own run (run-frame.ts: on Node a statement is sent inside one)
+      case 'run': return await inRun("a test's own statement", async () => {
         const chunks: string[] = [];
         let receipt: { statementId?: string; serverRows?: number } = {};
         for await (const bytes of engine().arrowChunks(unplanned(String(a.sql)), undefined, (r) => { receipt = r; })) {
           chunks.push(Buffer.from(bytes).toString('base64'));
         }
         return { chunks, statementId: receipt.statementId, rowCount: receipt.serverRows };
-      }
-      case 'firstChunk': {
+      });
+      case 'firstChunk': return await inRun("a test's own statement", async () => {
         const chunks: string[] = [];
         // the read stops after its first chunk: the driver closes what it leaves
         for await (const bytes of engine().arrowChunks(unplanned(String(a.sql)))) {
@@ -95,7 +117,7 @@ async function act(s: Scenario): Promise<Record<string, unknown>> {
           break;
         }
         return { chunks };
-      }
+      });
       case 'refreshThenCheck': {
         // the new token is what the next call carries: the replay holds that call to the recorded one
         const e = engine();
