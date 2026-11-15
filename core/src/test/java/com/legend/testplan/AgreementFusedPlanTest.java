@@ -138,8 +138,8 @@ class AgreementFusedPlanTest {
     }
 
     @Test
-    @DisplayName("an assertError keeps its own steps, as the agreement judge plans them today; the segment before it"
-            + " closes, and the run tells what today's plan tells")
+    @DisplayName("an assertError keeps its own steps; the segment before it closes, and the inner assert's pass is told"
+            + " before the raising verdict fails")
     void anAssertErrorKeepsItsOwnSteps() {
         TestPlan plan = fused(AN_ASSERT_ERROR);
         List<TestPlan.Verdicts> groups = groups(plan);
@@ -148,10 +148,8 @@ class AgreementFusedPlanTest {
         // the message 'x' is not the inner assert's: it fails, under both plans alike
         Told fusedTold = new Told();
         AssertFailed fusedFailed = assertThrows(AssertFailed.class, () -> run(plan, fusedTold));
-        Told todayTold = new Told();
-        AssertFailed todayFailed = assertThrows(AssertFailed.class, () -> run(today(AN_ASSERT_ERROR), todayTold));
-        assertEquals(todayFailed.getMessage(), fusedFailed.getMessage());
-        assertEquals(todayTold.verdicts, fusedTold.verdicts);
+        // (until DE4, 2026-11-15, compared with the second road's plan, deleted: one road)
+        assertNotNull(fusedFailed.getMessage());
         assertEquals("assertEquals pass", fusedTold.verdicts.get(0));
     }
 
@@ -238,17 +236,6 @@ class AgreementFusedPlanTest {
         assertEquals(TestPlan.Judge.AGREEMENT, plan.judge());
         assertNull(TestPlanJson.roundTripDifference(plan), "the plan reads back as written");
         return plan;
-    }
-
-    /** {@code body} planned for both judges as the test planner plans it today ({@link AgreementAsserts#plan}). */
-    private static TestPlan today(String body) {
-        TypedQuery typed = typed(body);
-        ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.BOTH);
-        BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, StorelessRuntime.RUNTIME,
-                Databases.dialect(Databases.PLATFORM), options.planning());
-        AgreementAsserts asserts = AgreementAsserts.plan(typed, StorelessRuntime.RUNTIME, env, null, false);
-        assertNotNull(asserts, body + ": planned for both judges today");
-        return TestDoor.planned(typed, StorelessRuntime.RUNTIME, options.planning().features(), asserts);
     }
 
     private static TestPlan planned(String body, PlanningOptions.JudgeMode mode) {

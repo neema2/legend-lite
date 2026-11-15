@@ -122,22 +122,14 @@ public final class TestPlanner {
                 switch (judgesNothing ? PlanningOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
-                    // both judges over the DATABASE judge's real program (E-5c, the user's ruling O5 of 2026-11-13):
-                    // its fused statements, the host reading each single-value side as a typed column of them. Where
-                    // the database judge plans no program for the body -- DE4's three groups (an outcome decided at
-                    // planning, a keyed member, the split rung) and DE5's 13 corpus bodies, each declined by name at
-                    // planning (judge-declines) -- the body keeps today's path, pending those rulings (the
-                    // orchestrator, 2026-11-15): each assert's step carrying the host's sides and its own database
-                    // statement (AgreementAsserts.plan, planEach). A planning decline, never a retry: nothing is sent
-                    // before the plan is whole.
-                    case BOTH -> {
-                        agreement = AgreementAsserts.planFused(typed, runtime, on, systemRouted ? bodyEnv : null,
-                                systemRouted);
-                        if (agreement == null) {
-                            agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
-                                    systemRouted);
-                        }
-                    }
+                    // both judges over the DATABASE judge's real program, ONE road (E-5c, the user's ruling O5 of
+                    // 2026-11-13; DE4, the orchestrator's ruling under the user's delegation of 2026-11-15): its fused
+                    // statements, the host reading each single-value side as a typed column of them, and a root no
+                    // fused row carries (decided at planning, keyed, the split rung) judged by the host on its own
+                    // sides. A body the database judge plans no program for is refused by name below, as under the
+                    // database judge: there is no second road.
+                    case BOTH -> agreement = AgreementAsserts.planFused(typed, runtime, on,
+                            systemRouted ? bodyEnv : null, systemRouted);
                 }
             }
         }
