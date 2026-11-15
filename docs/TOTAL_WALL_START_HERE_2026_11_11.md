@@ -1042,7 +1042,9 @@ In order. Nothing here is in the A/B/C PR.
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses
-       lite's witness pays about 45 ns;
+       lite's witness pays about 45 ns (DONE, C5-T, 2026-11-15: the flag, measured against Node 24 and preferred --
+       both remove the promise tax and a run costs less with the flag -- set for every `node_test` in
+       `tools/js/defs.bzl` and pinned by `//engine-client:run_frame_test`; docs/witness-cost-homework/README.md);
      - the date-format end found as pure finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
        quoted-brace gap closed (B3's option A; held out of C4 by its freeze of 2026-11-14, where the refusal stays as at
        4a8e448917, named, at planning; S342 was reserved for its register row):

@@ -225,3 +225,16 @@ describe('a statement is sent inside a run, on Node (the choke points, C5-T)', (
     assert.deepEqual(asked, ['submit']);
   });
 });
+
+// THE FRAME'S COST ON NODE (C5-T, 2026-11-15; docs/witness-cost-homework/README.md): Node 22's AsyncLocalStorage turns
+// promise hooks on at its first run and keeps them, so once a test had entered a run every promise in its process paid
+// for the frame; on Node's AsyncContextFrame (22's --experimental-async-context-frame, Node 24's default) none does.
+// tools/js/defs.bzl sets the flag for every node_test, which this pins.
+describe("the frame's cost on Node", () => {
+  it('AsyncLocalStorage runs on AsyncContextFrame: no promise hooks, so a promise pays nothing for the frame', () => {
+    const major = Number(process.versions.node.split('.')[0]);
+    assert.ok(major >= 24 || process.execArgv.includes('--experimental-async-context-frame'),
+      `Node ${process.versions.node} runs this test without --experimental-async-context-frame (execArgv: `
+      + `${JSON.stringify(process.execArgv)}): every promise pays the run frame's hooks; node_test sets it (tools/js/defs.bzl)`);
+  });
+});
