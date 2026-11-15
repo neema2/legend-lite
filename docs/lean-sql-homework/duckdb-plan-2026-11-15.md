@@ -38,7 +38,7 @@ The `t<N>` derived tables, by shape (inner clauses / outer clauses):
 | 8 | WHERE / none | a projection over a filter: to check |
 | 8 | DISTINCT / WHERE | needed (the filter is over the distinct rows) |
 | 4 | GROUP BY / WHERE | the filter over the groups: HAVING |
-| 4 + | LIMIT, OFFSET stacked | needed unless the bounds fold (see the open question) |
+| 4 + | LIMIT, OFFSET stacked | needed: stacked offsets (ruled 2026-11-15: folding adds the literals, which is computing; revisit with the database's own expression form if product queries show the shape) |
 
 ### Repeats by origin (`//core:repeat_census`, DuckDB)
 
