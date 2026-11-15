@@ -727,7 +727,7 @@ class RunClosureTest(unittest.TestCase):
         # each run function sends inside its own frame, the caller in none: the one send above would refuse it else
         _runs.run_statements(db, [from_plan('CREATE TABLE t AS SELECT 1 AS n')], 'a test')
         self.assertEqual([(1,)], _runs.ask(db, from_plan('SELECT count(*) FROM t'), 'a test'))
-        self.assertEqual(1, _reads.count_of(db, Plan(from_plan('SELECT count(*) FROM t'), ())))
+        self.assertEqual(1, _reads.count_of(db, Plan(from_plan('SELECT count(*) FROM t'), ()), ()))
         self.assertEqual(1, _reads.run_arrow(db, one, ()).num_rows)
         self.assertEqual('[{"n":1}]', _reads.run_rows_json(db, one, ()))
         typed = _reads.run_plan(db, Plan(one, (Column('n', 'Integer', {}),)), ())

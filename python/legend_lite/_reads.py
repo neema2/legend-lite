@@ -143,6 +143,24 @@ def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], para
     raise failure
 
 
+def fetched_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: Sequence[Any],
+                     fetch: Callable[[Result], Any]) -> Any:
+    """``sql`` run on ``connection`` AND its answer fetched (``fetch``), one failure's words for both with every held
+    value taken out (``redacted``): DuckDB fails at the fetch as well as at the statement (a remote file read as its
+    rows stream, a value that does not convert past the first rows), and a presigned link's expiry there repeats its
+    URL (the C5 follow-up's audit item 1, 2026-11-15: until then the fetch was outside the redaction). A run of its own,
+    as ``execute_redacted``."""
+    failure: BaseException | None = None
+    try:
+        with in_run(current_run() or 'a statement redacted'):
+            return fetch(send(connection, sql, params))
+    except duckdb.Error as e:
+        failure = redacted(e, held)
+        if failure is None:
+            raise
+    raise failure
+
+
 # the failures DuckDB raises BEFORE a statement runs -- a table not there, a name not bound, text that does not parse, a
 # file the database may not touch: they leave the transaction standing, so they never end a read, and DuckDB still
 # raises them after a read has ended (measured on the pinned DuckDB, 2026-11-14: after an abort a ParserException, a
@@ -270,29 +288,29 @@ class Reading:
 def run_plan(target: Database, plan: Plan, held: Iterable[str]) -> pa.Table:
     """PYTHON'S EXECUTOR: a plan's SQL run on ``target``, its rows typed by the plan (``typed_by_plan``), a failure's words
     with every value in ``held`` taken out (``execute_redacted``). Only SQL a planner wrote for this database comes here."""
-    return typed_by_plan(execute_redacted(target, plan.sql, held, plan.params).to_arrow_table(), plan)
+    return typed_by_plan(fetched_redacted(target, plan.sql, held, plan.params, Result.to_arrow_table), plan)
 
 
 @runs('an execute')
 def run_arrow(target: Database, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> pa.Table:
     """An execute's statement run on ``target`` (its ``?``s bound to ``params``), its rows as Arrow, a failure's words
     with every value in ``held`` taken out."""
-    return execute_redacted(target, sql, held, params).to_arrow_table()
+    return fetched_redacted(target, sql, held, params, Result.to_arrow_table)
 
 
 @runs('an execute')
 def run_rows_json(target: Database, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> str:
     """An execute's typed statement run on ``target``, its rows handed back as the driver read them (``host_rows``: what
     the compiler decodes by the plan's columns), a failure's words with every value in ``held`` taken out."""
-    cursor = execute_redacted(target, sql, held, params)
-    names = [d[0] for d in cursor.description]
-    return host_rows(names, cursor.fetchall())
+    return fetched_redacted(target, sql, held, params,
+                            lambda cursor: host_rows([d[0] for d in cursor.description], cursor.fetchall()))
 
 
 @runs("a snap's count")
-def count_of(target: Database, plan: Plan) -> int:
-    """A counting plan's number (its one row's one column), run on ``target`` with its own values bound."""
-    return int(send(target, plan.sql, list(plan.params)).fetchone()[0])
+def count_of(target: Database, plan: Plan, held: Iterable[str]) -> int:
+    """A counting plan's number (its one row's one column), run on ``target`` with its own values bound, a failure's
+    words with every value in ``held`` taken out (the C5 follow-up's audit item 1)."""
+    return fetched_redacted(target, plan.sql, held, list(plan.params), lambda result: int(result.fetchone()[0]))
 
 
 @runs('a read begun')

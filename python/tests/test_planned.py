@@ -901,6 +901,35 @@ class FollowupTest(unittest.TestCase):
         with frames.reading() as read:
             self.assertEqual(read.run(frames['t'].plan('->select(~[x])')).num_rows, 1)
 
+    def test_a_failure_at_the_fetch_says_no_held_value(self):
+        # the C5 follow-up's audit item 1 (2026-11-15): DuckDB fails at the fetch as well as at the statement (a remote file
+        # read as its rows stream), and a presigned link's expiry there repeats its URL; run_plan, run_arrow, run_rows_json
+        # and count_of take every held value out of either failure's words
+        from legend_lite import _reads
+        token = 'https://bucket.example/f.parquet?X-Amz-Signature=sig-0123456789abcdef'
+
+        class Failing:
+            description = [('n',)]
+
+            def __getattr__(self, name):
+                def fetch(*_a):
+                    raise duckdb.IOException(f'HTTP Error: 403 (Forbidden) reading {token}')
+                return fetch
+
+        class Connection:
+            def execute(self, sql, params=None):
+                return Failing()
+
+        db = Database(Connection())
+        plan = compiler.Plan(from_plan('SELECT 1 AS n'), (compiler.Column('n', 'Integer', {}),))
+        for run in (lambda: _reads.run_plan(db, plan, (token,)), lambda: _reads.run_arrow(db, plan.sql, (token,)),
+                    lambda: _reads.run_rows_json(db, plan.sql, (token,)), lambda: _reads.count_of(db, plan, (token,))):
+            with self.assertRaises(duckdb.IOException) as failed:
+                run()
+            self.assertIn('HTTP Error: 403', str(failed.exception))
+            self.assertNotIn('sig-0123456789abcdef', str(failed.exception))
+            self.assertNotIn('bucket.example', str(failed.exception))
+
     def test_a_stream_whose_plane_fails_at_once_is_rolled_back(self):
         # a plane failing as its statement is asked for (no generator: at once) failed before the stream's try, and left
         # the transaction its begin opened; it is rolled back now, and the plane's failure raised

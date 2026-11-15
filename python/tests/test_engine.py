@@ -107,6 +107,32 @@ def read_arrow(body):
         return pyarrow.ipc.open_stream(stream).read_all()
 
 
+class UnexpectedFailures(Served):
+    """The C5 follow-up's audit item 3 (2026-11-15): a failure no route answers is still an answer -- a 500 naming it,
+    its words with every value the engine holds taken out -- never a socket closed with the error on stderr alone."""
+
+    def test_an_executes_unexpected_failure_says_no_held_value(self):
+        calls = []
+
+        def frame():
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError('the live frame could not be read: X-Amz-Signature=held-0123456789')
+            return trades()
+
+        self.frames.register('broken', frame)
+        # a value the engine holds (a bearer URL's): never in an answer's words
+        held = 'X-Amz-Signature=held-0123456789'
+        original = self.frames.held_values
+        self.frames.held_values = lambda: (*original(), held)
+        status, _, body = self.post('/api/pure/v1/execution/execute?serializationFormat=ARROW_IPC',
+                                    self.execute_input(self.query('->select(~[desk])')))
+        # answered by the API's own catch (the server's refusal), its words with the held value taken out
+        said = body.decode('utf-8')
+        self.assertIn('RuntimeError: the live frame could not be read', said)
+        self.assertNotIn('held-0123456789', said)
+
+
 class Calls(Served):
     def test_parse_print_and_types_are_the_compilers(self):
         text = '|' + self.table.accessor + GROUP
@@ -1364,6 +1390,60 @@ class WarehouseOnPython(unittest.TestCase):
         status, body = self.call({'op': 'table', 'url': self.URL, 'catalog': 'main', 'schema': 'trading', 'name': 'POSITIONS'})
         self.assertEqual(status, 409, body)
         self.assertIn('open already as rita', body.decode())
+
+    def test_a_failure_no_route_answers_is_a_500_naming_it(self):
+        # the C5 follow-up's audit item 3 (2026-11-15): a snap over a served frame reads the frames as they are now
+        # (Frames.serving), outside any route's catch; a live frame failing there closed the socket ("Failed to fetch"),
+        # the error on stderr alone. It is a 500 naming it, its words with every held value taken out
+        calls = []
+
+        def frame():
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError('the live frame could not be read: X-Amz-Signature=held-0123456789')
+            return pd.DataFrame({'desk': ['FX'], 'qty': [1]})
+
+        table = self.frames.register('broken', frame)
+        self.frames.held_values = lambda: ('X-Amz-Signature=held-0123456789',)
+        pull = json.dumps(ll.parse('|' + table.accessor + '->select(~[desk, qty])'))
+        server = WebServer(self.engine)
+        self.addCleanup(server.close)
+        request = urllib.request.Request(server.url + '/snap.json', json.dumps(
+            {'op': 'snap', 'model': table.model, 'runtime': table.runtime, 'pull': pull}).encode('utf-8'),
+            {'Content-Type': 'application/json', 'Authorization': server.authorization}, method='POST')
+        try:
+            with urllib.request.urlopen(request, timeout=60) as r:
+                status, body = r.status, r.read()
+        except urllib.error.HTTPError as e:
+            status, body = e.code, e.read()
+        said = body.decode('utf-8')
+        self.assertEqual(status, 500, said)
+        self.assertIn('RuntimeError: the live frame could not be read', said)
+        self.assertNotIn('held-0123456789', said)
+
+    def test_a_served_snaps_count_and_copy_say_no_held_value(self):
+        # the C5 follow-up's audit item 1 (2026-11-15): a served snap's count and its copy failed with DuckDB's own words,
+        # which repeat a presigned link's URL (its signature) -- answered as they were. Each failure's words now have
+        # every value the engine holds taken out
+        import duckdb
+        from legend_lite import engine as engine_module
+        token = 'https://bucket.example/f.parquet?X-Amz-Signature=sig-0123456789abcdef'
+        self.frames.held_values = lambda: (token,)
+        table = self.frames.register('served', pd.DataFrame({'desk': ['FX', 'EQ'], 'qty': [1, 2]}))
+        pull = json.dumps(ll.parse('|' + table.accessor + '->select(~[desk, qty])'))
+        asked = json.dumps({'op': 'snap', 'model': table.model, 'runtime': table.runtime, 'pull': pull})
+
+        def failing(*_args, **_kw):
+            raise duckdb.IOException(f'HTTP Error: 403 (Forbidden) reading {token}')
+
+        for name in ('count_of', 'run_write'):
+            with self.subTest(failing=name), mock.patch.object(engine_module, name, failing):
+                answer = self.engine.answer('POST', '/snap.json', '', asked)
+                said = answer.body.decode()
+                self.assertEqual(answer.status, 422, said)
+                self.assertIn('HTTP Error: 403', said)
+                self.assertNotIn('sig-0123456789abcdef', said)
+                self.assertNotIn('bucket.example', said)
 
     def snapped(self, m):
         status, body = self.call({'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}, '/snap.json')

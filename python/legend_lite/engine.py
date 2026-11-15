@@ -1033,7 +1033,8 @@ class Engine:
             # answered the same way (as legend-lite's server answers both)
             if not isinstance(failure, duckdb.Error):
                 traceback.print_exc()
-            message = f'{type(failure).__name__}: {failure}'
+            # no value this engine holds in its words (a presigned link's URL; found with the C5 follow-up's item 1)
+            message = redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values())
             try:
                 answer = self.planner.refusal(message)
             except Exception:
@@ -1429,8 +1430,9 @@ class Engine:
                 with self._warehouse_lock:
                     self._copies[name] = made
         except Exception as failure:
-            return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
-                              f'{failure}')
+            # no value this engine holds in its words (a presigned link's URL: the C5 follow-up's audit item 1)
+            return _said(422, redact_held(f'the snap could not be copied into this Python\'s DuckDB: '
+                                          f'{type(failure).__name__}: {failure}', self.frames.held_values()))
         return _copy_said(made, name, rows, None)
 
     def _streamed(self, headless: Any, land: Callable[[Any, dict[str, Any]], int], receipt: dict[str, Any]) -> Answer:
@@ -1540,9 +1542,10 @@ class Engine:
             except (LegendError, ValueError) as refused:
                 return _said(422, f'the snap could not be planned: {refused}')
             try:
-                rows = count_of(self.frames.connection, plan)
+                rows = count_of(self.frames.connection, plan, self.frames.held_values())
             except duckdb.Error as refused:
-                return _said(422, f'the snap could not be counted: {refused}')
+                # no value this engine holds in its words (a presigned link's URL: the C5 follow-up's audit item 1)
+                return _said(422, redact_held(f'the snap could not be counted: {refused}', self.frames.held_values()))
             if rows > _MAX_SNAP_ROWS:
                 return _snap_refused(headless, rows)
 
@@ -2207,7 +2210,18 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         except UnicodeDecodeError:
             self._send(_said(400, 'a request body is UTF-8'))
             return
-        self._send(self.server.web.engine.answer('POST', url.path, url.query, body))
+        self._send(self._answered('POST', url.path, url.query, body))
+
+    def _answered(self, method: str, path: str, query: str, body: str | None) -> Answer:
+        """The engine's answer to a call -- or, a failure no route answered, a 500 naming it, its words with every value
+        the engine holds taken out (a presigned link's URL): still an answer, as the notebook's channel answers one, never
+        a socket closed with the error on stderr alone (the C5 follow-up's audit item 3, 2026-11-15)."""
+        engine = self.server.web.engine
+        try:
+            return engine.answer(method, path, query, body)
+        except Exception as failure:
+            traceback.print_exc()
+            return _said(500, redact_held(f'{type(failure).__name__}: {failure}', engine.frames.held_values()))
 
     def do_GET(self) -> None:  # noqa: N802
         """A frame's cube or version (with the token), or a file of the engine's site (DataCube's built pages), to a
@@ -2234,11 +2248,11 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             if url.path == f'/{app}/demo/config.json':
                 self._send(self.server.web.engine.app_config(app, f'http://{self.headers.get("Host")}'))
                 return
-            self._send(self.server.web.engine.answer('GET', url.path, url.query, None))
+            self._send(self._answered('GET', url.path, url.query, None))
             return
         if self._admitted(url.path):
             self.server.answering(self.connection)
-            self._send(self.server.web.engine.answer('GET', url.path, url.query, None))
+            self._send(self._answered('GET', url.path, url.query, None))
 
     def do_PUT(self) -> None:  # noqa: N802
         """The query store's PUTs (a saved query updated or patched), with the token."""
@@ -2275,7 +2289,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         except UnicodeDecodeError:
             self._send(_said(400, 'a request body is UTF-8'))
             return
-        self._send(self.server.web.engine.answer(method, url.path, url.query, body))
+        self._send(self._answered(method, url.path, url.query, body))
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         # no cross-origin request is answered: only the engine's own page calls it
