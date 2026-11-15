@@ -1750,6 +1750,22 @@ class JavaEvalLedgerTest {
     private static final java.util.Map<String, java.util.Set<String>>
             FUNNEL_PACKAGE_REGISTERS = java.util.Map.of(
                     "core/src/main/java/com/legend", ROOT_CLASSES,
+                    // THE COMPATIBILITY EDGE (phase D; registered 2026-11-15, the D part 1 audit's S6: it had escaped
+                    // the registers since D1.0b): upstream's spellings, routes and texts over the product -- parse,
+                    // plan and print; no connection, no JDBC, no value computed (the JDBC funnel rules hold its jar)
+                    "core/src/main/java/com/legend/edge", java.util.Set.of(
+                            // the test road's compatibility rules handed to exec (the edge's typed extension point)
+                            "CompatEdge.java", "EdgeCodec.java",
+                            // the server's composition root with legend-engine's API mounted: routes, no planning of its own
+                            "EdgeServer.java",
+                            // the texts of upstream's effects and refusals, and legend-pure's raise sentences, as SQL
+                            "EffectTexts.java", "PureMessages.java",
+                            // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
+                            "EngineStyleH2.java", "EngineStyleDB2.java", "EngineStyleComposite.java", "PureText.java",
+                            // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
+                            "PureV1Routes.java", "TestDataRoutes.java",
+                            // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
+                            "RefereeLoad.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

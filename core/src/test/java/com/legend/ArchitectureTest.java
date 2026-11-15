@@ -45,12 +45,19 @@ final class ArchitectureTest {
      */
     private static final JavaClasses CORE_PROD_CLASSES = importJars("legend.product.jars");
 
-    /** The classes of the jars a declared list names (java_jars): a jar is imported as a jar, not as a file path. */
-    private static JavaClasses importJars(String property) {
+    /** The product's classes and the compatibility edge's ({@code com.legend.edge}, its own jar since phase D's D1.0b):
+     *  the JDBC funnel rules hold the edge as they hold the product (the D part 1 audit's S6, 2026-11-15: until then
+     *  PureV1Routes, TestDataRoutes and EdgeServer escaped them). */
+    private static final JavaClasses CORE_AND_EDGE_CLASSES = importJars("legend.product.jars", "legend.edge.jars");
+
+    /** The classes of the jars the declared lists name (java_jars): a jar is imported as a jar, not as a file path. */
+    private static JavaClasses importJars(String... properties) {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
-            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
-                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            for (String property : properties) {
+                for (java.nio.file.Path jar : com.legend.testing.Runfile.listed(property)) {
+                    jars.add(new java.util.jar.JarFile(jar.toFile()));
+                }
             }
         } catch (java.io.IOException e) {
             throw new java.io.UncheckedIOException(e);
@@ -1228,7 +1235,7 @@ final class ArchitectureTest {
             .resideInAnyPackage(JDBC_AND_DRIVERS)
             .as("F1.3: java.sql AND the driver-native APIs are funnelled to the chartered JDBC classes, the census"
                     + " register's rows (JdbcSurfaceCensusTest.REGISTER) — Charter clauses C1/C2")
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -1284,7 +1291,7 @@ final class ArchitectureTest {
                     }
                 }
             })
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -1303,7 +1310,7 @@ final class ArchitectureTest {
             .should().beAssignableTo(com.legend.exec.Sessions.Session.class)
             .as("D70: a session is made by com.legend.exec (Sessions.owned, borrowed, view, the openers) and nowhere"
                     + " else")
-            .check(CORE_PROD_CLASSES);
+            .check(CORE_AND_EDGE_CLASSES);
     }
 
     /**
@@ -2532,7 +2539,7 @@ final class ArchitectureTest {
      */
     @Test
     void theRunnerIsTheOneCallerOfTheSessionsStatements() {
-        RUNNER_IS_THE_ONE_CALLER.check(CORE_PROD_CLASSES);
+        RUNNER_IS_THE_ONE_CALLER.check(CORE_AND_EDGE_CLASSES);
     }
 
     /** The seam: the runners, the session owners and the implementations (ProgramRunner since 2026-11-08, the
