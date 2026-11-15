@@ -1,0 +1,7 @@
+# An object reference's round trip on each in-process database (lowering.AsorRefRoundTripTest, C5-J's last round A4,
+# 2026-11-15; pinned by its re-check the same day): "built" -- the reference the database builds in SQL is AsorRef's
+# byte for byte and decodes to every segment -- or "refused" -- its dialect refuses the base64 encoding by name
+# ("encodeBase64 reached H2, which has no to_base64()"). A change in either direction moves this file with its test.
+duckdb	built
+h2	refused
+sqlite	built

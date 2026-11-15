@@ -1,8 +1,6 @@
 package com.legend.ide;
 
-import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
-import com.legend.parser.ElementParser;
 import com.legend.model.ImportScope;
 import com.legend.model.ParsedModel;
 import com.legend.model.PackageableElement;
@@ -20,7 +18,7 @@ import java.util.Objects;
  *
  * <ol>
  *   <li>tokenises the source once
- *       (via {@link Lexer#tokenize(String)});</li>
+ *       (via {@link DocumentParse#tokens(String)}, which asks the run's wall);</li>
  *   <li>builds a shallow {@link ModelIndex} mapping every declared FQN
  *       to its token range
  *       (via {@link ModelIndexer#scan(TokenStream)});</li>
@@ -65,7 +63,7 @@ public final class ModelOrchestrator {
 
     /** Build an orchestrator from raw Pure source. Lexes and shallow-scans eagerly. */
     public ModelOrchestrator(String source) {
-        this(Lexer.tokenize(Objects.requireNonNull(source, "source")));
+        this(DocumentParse.tokens(Objects.requireNonNull(source, "source")));
     }
 
     /** Build an orchestrator from a pre-lexed token stream. Shallow-scans eagerly. */
@@ -101,11 +99,11 @@ public final class ModelOrchestrator {
             throw new UnknownFqnException(fqn);
         }
         TokenStream slice = tokens.slice(entry.startTokenInclusive(), entry.endTokenExclusive());
-        // the element's record, made the compiler's model by the text's door
-        PackageableElement parsed = com.legend.door.ModelFromText.element(ElementParser.parseSingle(slice,
+        // the element's record, made the compiler's model by the text's door, through the IDE's parse door
+        PackageableElement parsed = DocumentParse.element(slice,
                 // the IDE is a product surface (see Compiler.parseModel);
                 // it parses token SLICES, so it names the level itself
-                com.legend.parser.Dialect.LEGEND_LITE));
+                com.legend.parser.Dialect.LEGEND_LITE);
         cache.put(fqn, parsed);
         return parsed;
     }
@@ -138,7 +136,7 @@ public final class ModelOrchestrator {
             ImportScope.Builder builder = new ImportScope.Builder();
             for (ModelIndex.ImportEntry imp : index.imports()) {
                 TokenStream slice = tokens.slice(imp.startTokenInclusive(), imp.endTokenExclusive());
-                builder.add(ElementParser.parseSingleImport(slice,
+                builder.add(DocumentParse.importOf(slice,
                         com.legend.parser.Dialect.LEGEND_LITE));
             }
             cachedImports = builder.build();

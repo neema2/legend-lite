@@ -22203,6 +22203,167 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     inside quotes and the zone-shifted pattern's quoted `Z`; the terms: start-here §6.1, C5's list);
   - the TypeScript wall on the type checker once its program API is available.
 
+## 2026-11-15 — C5-J: the Java lock-down (a wider witness, facts as plan data, the resolver below the lowering, named catches, pure's date-format end)
+
+Brief: the orchestrator's C5-J (start-here §6.1, C5's list). Branch `claude/c5-java` off main cf865632ca; one PR. Each
+item is red on revert.
+
+- **Item 1, a wider Java witness (9dcb29f13b).**
+  - The lexer, the parser and the model's records door (`ModelFromProtocol`) are refused inside a run, as phases D–J
+    are.
+  - Their callers reach them through parse doors that ask first: `door.Parse`, `door.ModelFromText` and the IDE's
+    `ide.DocumentParse`.
+  - The lexer stays JDK-only, the parser's layer reaches nothing above it, and the model package stays pure data.
+  - Why a door rather than an ask at each caller: ArchUnit folds a lambda's calls into its enclosing method, and
+    PureV1Api's grammar routes parse in lambdas.
+  - Guards: `ArchitectureTest.everyParseIsReachedThroughADoorThatAsks` (`PARSE_BY_THE_DOORS`, default-deny over core and
+    the hosts' doors; `parseDoorViolations`: asks before its first parse, holds no lambda, makes no reference, has no
+    nested class), with planted violators.
+  - 6i's sanctioned users are now the doors and the IDE.
+  - `PhaseEntriesRefusedInsideARunTest` pins each door's refusal by phase. `Compiler.query` is refused at phase C (its
+    parse) now, not D.
+- **Item 2, a test body's facts as plan data (8135f28e04, 5eaafc41c0).**
+  - `testexecutionplan.BodyFacts` is carried in the test plan (TestPlanJson v21); the PCT runner reads it from there.
+  - The runner still needs the facts before planning, to choose its session, so it reads them from a new root door,
+    `TestExecution.facts(TypedQuery)`: one planning call and no run.
+  - The door is on the closed surface: ROOT_DOORS and QUERY_ROADS (PLANS_NOTHING), DOOR_PLANNING_CALLS and
+    PLANNING_ENTRIES.
+- **Item 3, the resolver below the lowering (8d25714047).**
+  - The reducer table moved to `compiler.element.Reducers` and the object reference's protocol to `model.AsorRef`.
+  - `//core:resolver` no longer depends on `lowering` (core-layers, dated).
+- **Item 4, the test road's catch-and-continue sites catch named conditions alone (d3913a4f6e).**
+  - The census at main over core, PCT A/B DuckDB+H2 and both corpora found 140 swallows in `registerPlanRows`:
+    44 NotImplementedException, 12 DialectCapability and 84 Lowerer isolation walls. It also found 8 in `activitySql`
+    (all DialectCapability) and 4 in column lineage (all NotImplementedException); `registerLineageRows` and
+    FramePlanner swallowed none.
+  - The walls are now `Lowerer.IsolationWall`, a named IllegalStateException with each message unchanged, per the
+    orchestrator's ruling (A). Each site catches its named conditions alone, and the two that never fired now fail by
+    name.
+  - Option (B), failing the walls by name, was measured first. It moved 13 corpus bodies PASS → FAIL and the DuckDB
+    strength pin 990 → 986, and was refused.
+  - Guard: `theTestRoadsPlanRowsCatchNamedConditionsAlone`, with a planted catch.
+- **Item 5, the date-format end found as pure finds it (3c2a8b5ebf; S342).**
+  - Pure's scan (`FormatTools.findEndOfDateFormatString`), pure's quoted-text rule, and pure's words: "Could not find
+    end of date format starting at index <i> of: <format string>", lite's named refusal at planning.
+  - The bare ISE on an unclosed `%t{` is gone. `%t{yyyy"}"}` is now planned, and a quoted `Z` in a zone-shifted
+    pattern is text.
+  - Ruled by the orchestrator as pure's behaviour. In the injection fuzz, 55 queries plan as pure reads them and 43 are
+    refused as pure refuses them; the coverage pins moved with a dated note.
+  - Every real date pattern of PCT, the corpora and core's tests (34 × 11 databases = 374 queries) plans byte-identical
+    SQL before and after, and `//docs:update_dialect_capability_test` passes.
+- **Item 6 (ded0291e7e).** `PLANNER_ENTRIES` is 70 → 61, equal to what is measured, with a dated note.
+- **Outcomes, before and after (main vs. the branch):**
+  - core's suites: 20,842 testcases pass → 20,848 pass, none moved; the 6 new are this branch's tests under each
+    judge;
+  - PCT A/B DuckDB+H2: 1,573 pass, unchanged against their ledgers (outcome and text);
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's.
+- **The gate** at 65c0eb09bf (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11). The first run, at ded0291e7e, found three
+  pins that the branch's own changes had moved, each fixed with a dated note in 65c0eb09bf:
+  - the generated native-claims file (the reducer table's move);
+  - the Dialect allowlist (the parse doors);
+  - FramePlanner's evaluation pin and parser-equivalence's corpus count.
+
+### 2026-11-15 — C5-J's audit fix round (PR #106)
+
+The orchestrator's read-only audit found no must-fix. Its should-fixes and nits are fixed, each red on revert where
+it is code:
+
+- **SHOULD 1, the facts stated over the body as given (7b920b86f4).** The plan's facts had been stated after the test
+  planner's rewrites: the generator spliced, the census carrier inlined, an unread let made a statement. They are now
+  stated in `TestPlanner.plan` first, and the facts planner asks the run's wall itself. Tests: an unread let (LA), the
+  census carrier, a generator body (LLLLLA), and the facts phase entry.
+- **SHOULD 2, the token stream's readers only (416f88ef26).** `TokenStream.lexRange` lexes, so it is a parse entry; a
+  planted `lexRange` caller shows the rule bites.
+- **SHOULD 3, S342 (59b9b3a9cc).** S342 now cites the user's rulings: the tenet of 2026-10-29, AGENTS.md's eight
+  phases, and Q6 of 2026-11-10. One difference has no user ruling and is posted for the user: lite takes a literal
+  format string only.
+- **The nits (7b3ee3f036, 3bba5f6b50, 388e89b804):**
+  - CoreGrammar parses through the door, and the rule reads `//sdlc-server/grammar`;
+  - only the reducers' membership sits below both layers; the `SqlAgg.Fn` binding is back in `lowering.Aggregates`,
+    with a class-init check that the two key sets are one;
+  - one activity rule (`PlanAllocations.activityOrNone`). The executeLegendQuery activity is not lazy and cannot be,
+    since it is part of the envelope's value;
+  - the sort walls are `IsolationWall`;
+  - the comment that was false, the stale javadocs, the dead overload, the wrong name and AGENTS.md's facts door are
+    fixed;
+  - the backlog lines are corrected and added.
+- **Outcomes, the fix round against main, on the same lanes:**
+  - core: 20,842 → 20,849 pass, none moved; the 7 new are this round's and C5-J's tests;
+  - PCT A/B on DuckDB and H2: 1,573 pass, unchanged;
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's.
+- **The gate** at f8c49446b3 (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11).
+
+### 2026-11-15 — C5-J's last round (PR #106; the user's "Yes do it")
+
+The last Java plan/exec cleanup before the merge, four items, each red on revert. Behaviour does not move: the same
+answers, the same errors outside a run.
+
+- **A1, the embedded languages' readers through the parse doors (53fba7ef80).** The island readers -- #SQL's and
+  #IQ's dialects over `SqlParser` and `IqParser`, `TsParser`, `CypherParser` -- sit in the protocol layer, which cannot
+  ask the run's wall (7b). `door.Parse` gains `sqlIsland`, `tsIsland`, `tsItem` and `cypherIsland`, each asking first;
+  the translators take the tree (`SqlToPure`'s text overloads and `CypherToPure.translate(String)` are gone,
+  `TsToPure.translate` takes the query's tree, `TsShow.of` takes a reader asked where the text was read before), and
+  every caller reads through the door (the compiler's island seams, which now reach `door`; the server's `jsonToTs` and
+  `tsItem`). `PARSE_BY_THE_DOORS` covers the readers default-deny (`ISLAND_READERS`, `ISLAND_READER_HELPERS`,
+  `ISLAND_DIALECTS`); eight planted violators (`compiler.spec.PlantedIslandParse`) and a phase row per entry. None was
+  reached inside a run: no outcome moved.
+- **A2, the build-time code under the rule (a5ee9bdb82).** `//core:build_time_jars` brings the generators, the render
+  census and the engine runner's parse probe into the guard's import; the census and the probe parse through the doors;
+  the prelude generator (a cursor-level read of upstream's sources, a build action) is the one named reader
+  (`BUILD_TIME_READERS`), shown to read past the doors still.
+- **A3, `Compiler.programFacts` off the closed surface (e31b8a2bbe).** No caller was left; `hasStatementEffects` states
+  the facts itself. The root-door pins drop its rows with a dated note.
+- **A4, an object reference's round trip (d7299fe47f).** `AsorRefRoundTripTest`: a reference the database builds in SQL
+  is `AsorRef.ref`'s byte for byte and decodes to every segment, on each in-process database that can build one (DuckDB
+  and SQLite; H2 refuses the encoding by name). Red on revert: the SQL side's segment width changed alone.
+- **S342, date-format item (a), RULED by the user (2026-11-15, "(a) record it"; docs only).** The difference the audit
+  fix round posted for the user (above: "One difference has no user ruling") is recorded (in S342's row; its own scope
+  row, S343, since the re-check below): lite takes a
+  format string written into the query only, and refuses one known only at run time by name, where pure accepts it and
+  refuses it at run time only if malformed -- lite translates the pattern into each database's syntax while planning,
+  and a plan is reused across parameter values. Items (b) and (c) moved to stream D; not touched here.
+- **Red on revert, measured:** a caller back past the door (CypherIslands) fails `everyParseIsReachedThroughADoorThatAsks`;
+  a door's ask removed (`sqlIsland`) fails `PhaseEntriesRefusedInsideARunTest`; the census tool back on `SpecParser`
+  fails `theBuildTimeCodeParsesThroughTheDoorsOrIsNamed`; `programFacts` put back fails `theRootDoorsAreClosed` and
+  `everyRootDoorThatTakesAQueryNamesItsRoad`; `lpad` to 9 fails the round trip at row 0.
+- **Outcomes, against main, on the same lanes:**
+  - core: 20,842 → 20,852 pass, none moved; the 10 new are C5-J's tests (7 from its earlier rounds, and this round's
+    round trip under its 3 judge targets);
+  - PCT A/B on DuckDB and H2: 1,573 pass, unchanged;
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's;
+  - `//parser-equivalence/...`: 6 of 6.
+- **The gate** at 11e4592ed6 (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11).
+
+### 2026-11-15 — C5-J's last round, the re-check's items (PR #106)
+
+The orchestrator's independent re-check of 595adaefe..b70e87085 found no must-fix: no product code reaches an island
+reader past the doors, no user-visible text moved, A3 is word for word and S342 says what the user ruled. Its five items,
+each red on revert where it is code:
+
+- **1, the model package's exemption narrowed.** `PARSE_BY_THE_DOORS` exempted the whole model package, harmless until
+  the island readers it may reach (`:protocol`) became parse entries; it exempts the records door
+  (`ModelFromProtocol`) alone now. Planted: `model.PlantedModelIslandRead` (a model class reading a #Cypher statement).
+  Red on revert: the package exempted again, the planted class is not checked ("failed to check any classes").
+- **2, a dialect's parse on any owner.** A dialect's `parse` counted only on an owner in the protocol layer, and
+  `new PostgresDialect(){}.parse(sql)` compiles to an owner in the caller's package (the dialect is not final, its
+  constructor protected); any `com.legend.` owner that is an `InputDialect` counts now. Planted:
+  `sql.dialect.PlantedDialectSubclassParse` (in the dialect package's tests, which name databases by design). Red on
+  revert: the protocol-only check lets the planted class through.
+- **3, S342's item (a) is its own row, S343 (scope)**, citing the user's ruling of 2026-11-15 in its words; S342 points
+  to it (one row per difference; S342 is a representation, S343 a scope difference).
+- **4, the round trip's outcome pinned per database** (`asor-round-trip/outcomes.tsv`: DuckDB and SQLite build the
+  reference, H2 refuses by name), a resource, so no database is named in code. Red on revert: SQLite pinned as
+  refusing fails it.
+- **5, `ISLAND_READER_HELPERS`' javadoc** dated with its task.
+- **Backlog** (start-here's C5 list; not fixed): H2 builds no object reference (no base64 in SQL; upstream's goldens pin
+  H2's); the frames' lengths outside the BMP (code points in SQL, UTF-16 units in `AsorRef`); `ISLAND_DIALECTS`
+  exempts whole classes (IQ's `reading()` and `defaultName`, `IqNames.name`).
+- **Retested:** `//core:guardrails`, `//core:census`, `//core:core_tests_lowering` pass; the rest of the round's
+  measurements stand (no product code moved: the changes are a guard's, its planted classes, a test's pin and docs).
+
 ## 2026-11-15 — C5-P: Python's plan/exec split; the run wall deleted for a plain dependency rule
 
 The total wall's C5, its Python third (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §6.1, C5's list, first item; the

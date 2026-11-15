@@ -8,7 +8,6 @@ import com.legend.protocol.spec.CString;
 import com.legend.protocol.spec.ValueSpecification;
 import com.legend.protocol.sql.SqlAst;
 import com.legend.protocol.sql.SqlSyntaxException;
-import com.legend.protocol.sql.SqlToPure;
 import com.legend.protocol.sql.SqlTranslationException;
 import org.junit.jupiter.api.Test;
 
@@ -52,7 +51,7 @@ class IqFunctionsTest {
     }
 
     private static String pure(String sql, IqSettings profile) {
-        ValueSpecification vs = SqlToPure.translate(sql, (source, column) -> COLUMNS.forEach(
+        ValueSpecification vs = com.legend.testcases.SqlText.translate(sql, (source, column) -> COLUMNS.forEach(
                 c -> column.column(c.name(), c.type(), c.nullable(), c.store())), IqDialect.of(profile));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }

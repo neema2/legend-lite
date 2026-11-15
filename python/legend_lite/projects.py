@@ -31,6 +31,11 @@ from ._runs import (HostLoad, Landed, LoadRefused, PLAN_VERSION, open_project, r
 _NOT_A_MODEL = frozenset({'PARSER', 'COMPILATION'})
 
 
+class NotAModel(compiler.LegendError):
+    """The compiler's refusal of a project's model -- it does not parse, or does not compile -- as ``using`` raises it
+    when asked to surface it (its message and kind the compiler's)."""
+
+
 @dataclass(frozen=True)
 class Project:
     """A project's database in use: a cursor pointed at it, and its model held."""
@@ -68,15 +73,19 @@ class ProjectDatabases:
             return list(self._open)
 
     @contextmanager
-    def using(self, model: str) -> Iterator[Project | None]:
+    def using(self, model: str, *, surface: bool = False) -> Iterator[Project | None]:
         """``model``'s project database (named by what it holds) -- a cursor on it and the model held -- made and filled
         the first time, this thread's alone until the block ends; None when the model has no Data rows, or does not
-        read as a model (refused where a model is)."""
+        read as a model (refused where a model is) -- or, ``surface``, the compiler's own refusal of it raised
+        (``NotAModel``: a saved query's plan says why its model is no model, never that it has no rows; the C5
+        follow-up's held item, 2026-11-15)."""
         try:
             statements = compiler.project_data(model, self._type)
         except compiler.LegendError as refused:
             if refused.kind not in _NOT_A_MODEL:
                 raise
+            if surface:
+                raise NotAModel(refused.message, refused.kind) from refused
             statements = None
         if statements is None or statements.get('load') is None:
             yield None
