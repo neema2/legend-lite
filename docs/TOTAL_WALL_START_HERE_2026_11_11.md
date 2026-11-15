@@ -1035,6 +1035,14 @@ In order. Nothing here is in the A/B/C PR.
      - (C5-P's audit, 2026-11-15) the native library's loader split into keys, a run taking a planner by annotation,
        transactions and the warehouse's HTTP outside a frame, a stream's pulls on DuckDB's own threads: DONE in C5-P's
        last round (A1-A5, the user's go of 2026-11-15; docs/GATES.md's C5-P entry);
+     - (C5-P's final audit, 2026-11-15, held out) `_runs._stream` re-enters one copied context at every pull: if DuckDB
+       ever pulls on two threads at once, the second raises "cannot enter context" (measured on one thread only);
+     - (C5-P's final audit, 2026-11-15, held out) `_reads.end_read`'s `suppress(duckdb.Error)` around the read's rollback,
+       moved unchanged;
+     - (C5-P's final audit, 2026-11-15, held out; pre-existing) `_runs._stream` sends its transaction's begin before its
+       `try`;
+     - (C5-P's final audit, 2026-11-15, held out) `//python:run_closure_test`'s static half could run on every platform
+       (today gated by `target_compatible_with`);
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses

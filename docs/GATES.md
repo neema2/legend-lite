@@ -22218,17 +22218,19 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
     `_RUN_SRCS`, `_COMPILER_SRCS`, handed in by name).
   - **And by the sources, both ways, every import read (a function's own too):** run modules import run and seam
     modules alone, never the package itself (its `__init__` imports the compiler); seam modules seam modules alone;
-    every module of `:compiler` imports no run module and takes no sending name from `_planned` (the warehouse's client
-    excepted by name, below); the one send is imported by run modules alone; a remote plane's send (`arrow_chunks`)
-    and a sending helper are called by run modules alone. What the rule cannot read is refused: importlib under any
+    every module of `:compiler` imports no run module and no door (the package's facade and the timeseries builder
+    excepted by name: `PLANNER_DOORS`), and takes no sending name from `_planned`; a module outside the run side takes
+    the one send, a run's opener or a sending helper from no module, by name, alias, attribute or star; a star import
+    is one `STAR_IMPORTS` lists; a remote plane's send (`arrow_chunks`) and a sending helper are called by run modules
+    alone. What the rule cannot read is refused: importlib under any
     name but the `importlib.util.find_spec` chain, any reference to `__import__` or `import_module`.
   - **A run is opened on the run side alone, spelled one way:** `runs`, `in_run` and `exempt` are imported from
     `_runframe` by run modules alone, by their own names, and used only as `@runs(...)` on a function or `with
     in_run(...)` -- so no door opens a run in which it could plan (`runs(...)(f)`, `ExitStack().enter_context(...)`
     refused).
   - **Every send of the run side is framed, read:** each call of the one send, a sending method (a read's `execute`, a
-    plane's `arrow_chunks`, a stream's `import_stream`) or a sending helper (`execute_redacted`, `_stream`, named) is in
-    an `@runs` function or a `with in_run(...)` block, or in a helper.
+    plane's `arrow_chunks`, a stream's `import_stream`, a transaction's bounds, the warehouse's HTTP) or a sending helper
+    (`_stream`, `_reach`, `arrow_chunks`, named) is in an `@runs` function or a `with in_run(...)` block, or in a helper.
   - **A frame wraps every send, at run time:** `_planned.send` refuses a plan's statement outside a run (`Unframed`), and
     so does the warehouse's send (`Warehouse.arrow_chunks`, before anything is submitted, however it is reached).
     Each of the 12 senders plans first in its door, then sends in a framed run function. The warehouse's two sends in
@@ -22242,9 +22244,11 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
     payload prints one (read 2026-11-15). The read's PIN is now planned once per Frames (the session setup already
     was), so a planner failure planning it surfaces at `Frames()`, not at a read; a test pins that a read's setup and
     pin are the same statements after a register and a change of the connection's settings.
-- **The libraries:** `:seam` (`_planned`, `_runframe`, `_plans`, `_json`: the records both sides depend on);
-  `:run`; `:compiler` (the planner, deps `:seam`); `:host` (`_host.py`, `projects.py`: doors); `:headless`,
-  `:legend_lite`, `:notebook` (doors).
+- **The libraries:** `:seam` (`_planned`, `_runframe`, `_plans`, `_json`: the records both sides depend on); `:loader`
+  (`_loader.py`: the native library's one isolate, deps `:seam`); `:run` (`_runs`, `_reads`, `_services` -- the service
+  key -- `warehouse`, the type facts; deps `:seam`, `:loader`); `:compiler` (the planner, with `_library` -- the planning
+  key; deps `:seam`, `:loader`); `:host` (`_host.py`, `projects.py`: doors); `:headless`, `:legend_lite`, `:notebook`
+  (doors).
 - **Red on revert, each measured under Bazel:**
 
   | Reverted | Red |
@@ -22258,10 +22262,12 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   | the warehouse send's own frame check | `planned_test` (`test_the_warehouse_is_sent_a_plans_statement_only_inside_a_run`) |
   | each rule of the closure test (the package import, the BUILD's planner set, the framed sends, importlib's name, `__import__`, the openers' import, their spelling) | `run_closure_test`'s planted cases, each |
 
-- **What ran, green under Bazel in the worker's session:** run_closure 4, planned 48, planned_guard 7, frames 41,
-  headless 73, notebook 31, engine 345, model 19 (1 skipped), bindings 29, ts_builder 7, markets 3, host_sql 3.
-  `//gates:local` did not fit that session's disk allowance (453 targets failed to build, "No space left on device");
-  PR #103's CI runs the gate. jupyterlab_test and marimo_test not attempted there.
+- **What ran, green under Bazel in the worker's session at dd04bf7f1 (the final audit round's code; the docs after it):**
+  run_closure 4, planned 56, planned_guard 7, frames 41, headless 73, notebook 31, engine 345 (test_warehouse in it),
+  model 19 (1 skipped), bindings 29, ts_builder 7, markets 3, host_sql 3.
+  `//gates:local` was not run there: it did not fit the session's disk allowance (453 targets failed to build, "No space
+  left on device"), and deleting the repository cache's archives to make room was refused by a safety check; PR #103's
+  CI runs the gate. jupyterlab_test and marimo_test not attempted there.
 - **The last round (the user's go of 2026-11-15, A1-A6), closing what the audit had held out:**
   - **A1, the native library by two keys:** `_loader.py` (`//python:loader`) loads the one library and its one isolate,
     and calls by name for its two keys alone (one package, so the closure test holds that, not Bazel's visibility). The
@@ -22282,14 +22288,28 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
 
     | Route | Answer |
     |---|---|
-    | a planner entry called from run code | closed: the build (`run_closure_test`'s load with `:run` alone), the import rule, the witness (`_runframe.planning` at the planning key) |
+    | a planner entry called from run code | closed: the build (`run_closure_test`'s load with `:run` alone), the import rule, the witness (`_runframe.planning`, in the loader itself since the final audit's M1) |
     | the planner reached through the warehouse object | closed by A1: the service key refuses every name but the wire (`test_the_two_keys_carry_their_own_names_alone`) |
     | a planner handed in as a value at run time | closed by the witness alone, shown firing: `test_a_planner_entry_reached_through_a_plane_inside_its_run_is_refused_by_name` |
-    | the compiler's worker pool | closed: `_pool._on_compiler_threads` copies the caller's context (C4's M4), `test_a_planner_entry_asked_through_the_pool_inside_a_run_is_refused` |
+    | the compiler's worker pool | closed: the pool's `submit` copies the caller's context for every caller (C4's M4, widened by the final audit's S4), `test_the_pool_carries_the_callers_run_for_every_caller` |
     | DuckDB's own threads | a hole, fixed (A4), `test_a_streams_every_pull_is_in_its_run_on_duckdbs_own_thread` |
-    | renamed or late imports | closed: the closure test reads every import, a function's own and renamed ones, refuses importlib but `find_spec`, `__import__`, `import_module`, the package itself; `sys.modules` in a run or seam module refused (added) |
+    | renamed or late imports | closed against drift, not a determined adversary: the closure test reads every import, a function's own and renamed ones, re-exports and stars; refuses importlib but `find_spec` (its answer used only as `is None`), `__import__`, `import_module`, the package itself; and in a run or seam module `sys.modules` under any name, `pkgutil.resolve_name`, `exec`, `eval` |
     | an exemption | closed: `EXEMPTIONS` empty, `test_no_crossing_is_known_and_none_is_exempt` |
     | a finalizer firing in a run | closed: a held model let go is a service (`lite_release_model` in `_NOT_PLANNING`, pinned by `PlannerSurfaceTest`); a gone session's frames queued and dropped outside any run (C4's D2 tests) |
     | the hosted DataCube calling the planner during a bridged send | closed: the bridged runs' bodies call no V8 (`_reads.run_bridged_query`/`statement`); the planner answers on DataCube's calls outside them |
 
-- **Held out:** nothing. The audit's four and the loader split are done here (A1-A5); A6 found one hole (A4), fixed.
+- **The final audit of #103 (two read-only reviewers, 2026-11-15; no runtime bug in the moved or new code, two guard
+  holes), each fixed, red on revert:**
+  - **M1:** the loader checks `planning()` itself, for every name but `NOT_PLANNING` (`_library`'s `_NOT_PLANNING` held
+    equal to it at load), so a module reaching the loader past the keys is refused all the same; the closure test
+    refuses the loader's names (`loaded`, `Loaded`, `_loader`) taken or read off a module outside the loader and its keys.
+  - **M2:** the run side's names (the send, the openers, the sending helpers) taken by no module outside it, by any
+    form; star imports default-deny (`STAR_IMPORTS`); a planner module imports no door. `execute_redacted` (re-exported
+    as `frames.execute_redacted`) is a run of its own.
+  - **S1:** the signature rule reads type aliases, a Protocol's `__call__`, renamed imports; an annotation it cannot
+    parse is refused. **S2:** the late-import forms above. **S3:** `Database.import_stream` and every warehouse call
+    (`_reach`) refuse outside a run. **S4:** the pool's `submit` carries the caller's context.
+- **Held out (start-here §6.1's C5 list, the final audit's):** `_stream`'s one copied context re-entered at each pull
+  (two DuckDB threads pulling at once would raise "cannot enter context"; measured on one); `_reads.end_read`'s
+  `suppress(duckdb.Error)`, moved unchanged; `_stream`'s begin before its `try` (pre-existing); the closure test's
+  static half gated by `target_compatible_with`. A6 found one hole (A4), fixed.
