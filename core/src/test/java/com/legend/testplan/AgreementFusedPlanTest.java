@@ -27,6 +27,7 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -193,6 +194,36 @@ class AgreementFusedPlanTest {
         Told told = new Told();
         run(plan, told);
         assertEquals(List.of("assertIs pass"), told.verdicts);
+    }
+
+    @Test
+    @DisplayName("DE4 (d), refused by name: a root whose host columns read the body's store, its fused row on another"
+            + " session; the same root on the body's own session is carried")
+    void aStoreBoundRootOnAnotherSessionIsRefusedByName() {
+        String body = "{| assertEquals(1, 1);}";
+        TypedQuery typed = typed(body);
+        ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.BOTH);
+        BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, StorelessRuntime.RUNTIME,
+                Databases.dialect(Databases.PLATFORM), options.planning());
+        HostAsserts host = java.util.Objects.requireNonNull(HostAsserts.plan(typed, StorelessRuntime.RUNTIME, env));
+        HostAsserts.Planned hp = java.util.Objects.requireNonNull(host.planned(0));
+        int carrier = hp.verdict().id();
+        com.legend.executionplan.ExecutionPlan.Target body0 = env.target();
+        com.legend.executionplan.ExecutionPlan.Target other = new com.legend.executionplan.ExecutionPlan.Target(
+                body0.database(), List.of("-- another session"), body0.loads(), body0.raiseReadBack(),
+                body0.settings(), body0.transaction());
+        TestPlan.Verdicts step = new TestPlan.Verdicts(List.of(hp.verdict()), null, null,
+                options.planning().judgingRules());
+        List<DatabaseAsserts.HostRoot> roots = List.of(new DatabaseAsserts.HostRoot(0, hp, Map.of(), true));
+        com.legend.testexecutionplan.RootLoop loop = new com.legend.testexecutionplan.RootLoop(List.of(), Map.of());
+        VerdictBatch.Planned elsewhere = new VerdictBatch.Planned(List.of(new VerdictBatch.Group(step, other, false)),
+                loop, Map.of(0, carrier), java.util.Set.of());
+        String why = DatabaseAsserts.uncarried(elsewhere, roots, env);
+        assertNotNull(why, "a store-bound root on another session");
+        assertTrue(why.contains("(DE4 d)") && why.contains("another session"), why);
+        VerdictBatch.Planned here = new VerdictBatch.Planned(List.of(new VerdictBatch.Group(step, body0, false)),
+                loop, Map.of(0, carrier), java.util.Set.of());
+        assertNull(DatabaseAsserts.uncarried(here, roots, env), "on the body's own session it is carried");
     }
 
     @Test

@@ -772,7 +772,7 @@ final class DatabaseAsserts implements TestDoor.Asserts {
      *  first such root; null where each can: a segment decided at planning (no verdict group), a root whose rows join
      *  no fused statement (a keyed member, the split rung), a root whose host half reads no side (its verdict decided
      *  at planning), or a root whose host columns read the body's store on a fused row on another session. */
-    private static @Nullable String uncarried(VerdictBatch.Planned planned, List<HostRoot> roots,
+    static @Nullable String uncarried(VerdictBatch.Planned planned, List<HostRoot> roots,
             BodyDriver.ExecEnv env) {
         for (int k = 0; k < roots.size(); k++) {
             HostRoot r = roots.get(k);
