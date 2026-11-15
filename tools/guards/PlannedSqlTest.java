@@ -58,6 +58,8 @@ class PlannedSqlTest {
      * the type's one importer), whose SQL playground is its one reader.
      */
     static final String PLAYGROUND = "studio/src/backend/run.ts";
+    /** The playground's door (2026-11-15, the C5-T audit's MUST 2: its plan-and-run, out of Studio's run.ts). */
+    static final String AUTHORED_DOOR = "engine-client/src/doors/authored.ts";
     static final Map<String, Set<String>> PLAYGROUND_IMPORTS = Map.of(
             "studio/src/app/app.ts", Set.of("playground"),
             "studio/src/ui/editor.ts", Set.of("Playground"));
@@ -265,13 +267,18 @@ class PlannedSqlTest {
      * statement, carried by the planner as written (Boundary.authored) and run by the hosts' runner (runAuthored), is the
      * SQL playground's alone. Every reference to it in the TypeScript -- the runner {@code runAuthored}, a member or key
      * {@code authored} or {@code authoredOrError}, and the request kind {@code 'authored'} as a string -- by file,
-     * exactly: the playground (studio run.ts, which runs it; app.ts, which plans it), and the planner's plumbing
+     * exactly: the playground (studio run.ts, which hands its door the planner; app.ts, which plans it; its door,
+     * engine-client's doors/authored.ts, which runs it), and the planner's plumbing
      * (wasm-grammar.ts's client, the protocol's kind, the tab's answer of it, Python's page refusing it unasked).
      */
     static final Map<String, Integer> AUTHORED = Map.ofEntries(
             // 2026-11-12 (H1, measured): the playground's run (its runner's import and call, the session's member, read
             // twice) and the app's planning of its statement (the member, the client's call)
+            // 2026-11-15 (the C5-T audit's MUST 2): run.ts's 5 now the session's member, its check, its bind and the
+            // door's argument (`{ authored }`) -- its runner's import and call moved to the playground's door,
+            // engine-client's doors/authored.ts: the planner's member, its call, the runner's import and its call
             Map.entry("studio/src/backend/run.ts", 5),
+            Map.entry("engine-client/src/doors/authored.ts", 4),
             Map.entry("studio/src/app/app.ts", 2),
             // the runner's definition; the planner's client (its method and its request's kind); the protocol's kind (in
             // the kinds' list and the request's type); the tab's answer of it (the export's type, its call, the kind)
@@ -980,11 +987,19 @@ class PlannedSqlTest {
         int factory = backend.indexOf("export function playground(session: RunSession): Playground {");
         int runner = backend.indexOf("export function runner(session: RunSession): Runner {");
         assertTrue(factory >= 0 && runner > factory, "run.ts's playground() and runner() moved: " + PLAYGROUND);
-        int send = backend.indexOf("return runAuthored(plan, { databaseType, run: (sql) => engine.run(sql, 0) });");
+        // 2026-11-15 (the C5-T audit's MUST 2): the playground's plan-and-run moved into its door, engine-client's
+        // doors/authored.ts (runAuthoredStatement: the planner asked, then runAuthored), so Studio's app code sends
+        // nothing itself -- the Playground object calls the door, handing it the session's planner of the statement
+        int send = backend.indexOf("return runAuthoredStatement(statement, { authored }, database);");
         assertTrue(send > factory && send < runner, "the playground's send is the Playground object's, and no other's");
-        int planned = backend.indexOf("const plan = await session.authored(statement);");
-        assertTrue(planned > factory && planned < send, "the playground sends the plan's one statement: the person's"
-                + " text as the planner carried it (Boundary.authored), never the text itself");
+        int planned = backend.indexOf("const authored = session.authored.bind(session);");
+        assertTrue(planned > factory && planned < send, "the playground hands its door the session's planner of the"
+                + " person's statement (Boundary.authored), never the text to send");
+        String door = s.read(AUTHORED_DOOR);
+        int asked = door.indexOf("const plan = await planner.authored(statement);");
+        int ran = door.indexOf("return runAuthored(plan, { databaseType: database.databaseType, run: (sql) => database.engine.run(sql, 0) });");
+        assertTrue(asked >= 0 && ran > asked, "the playground's door sends the plan's one statement: the person's text as"
+                + " the planner carried it (Boundary.authored), never the text itself: " + AUTHORED_DOOR);
         // a type of planned-sql.ts names the plan it is handed (PlanText, the re-audit's M1); no value of it is imported
         assertTrue(imports(backend).values().isEmpty() && imports(backend).refused().isEmpty(), "the playground mints"
                 + " nothing: the plan runner types the plan's"
@@ -1398,6 +1413,9 @@ class PlannedSqlTest {
             // frame -- or by a RUN function its door hands the plan (model-data.ts putFile, project-data.ts
             // ProjectDatabases: //engine-client:run, which reaches no planner, //tools/deps:layers_alone), and nowhere
             // else. Each site below is named by its role; a new one is a door (or a run function) named here.
+            // 2026-11-15 (the C5-T audit's MUST 2): DataCube's doors are a target of their own, //datacube:doors
+            // (remote.ts, table-output.ts, upload.ts among them), and the apps' own plan-and-run sites outside every
+            // door and run target are a shrink-only census beside this one (//tools/deps:app_runs_test).
             // a demo's door: its seed's plan asked, then loaded
             Map.entry("datacube/demo/boot.ts", List.of("runLoad(")),
             // a door: runMount (remoteMount asked first)
@@ -1416,8 +1434,9 @@ class PlannedSqlTest {
             Map.entry("engine-client/src/snap.ts", List.of("runLoad(", "runPlan(")),
             // a demo's door: its seed's plan asked, then loaded
             Map.entry("query/demo/main.ts", List.of("runLoad(")),
-            // a door: the playground (authored asked first)
-            Map.entry("studio/src/backend/run.ts", List.of("runAuthored(")));
+            // 2026-11-15 (the C5-T audit's MUST 2): the playground's door, moved out of Studio's run.ts into
+            // engine-client's doors (runAuthoredStatement: authored asked first)
+            Map.entry("engine-client/src/doors/authored.ts", List.of("runAuthored(")));
     // 2026-11-12 (M1, measured): the runner's own read of a plan's format (planned-sql.ts names it in prose alone)
     static final Set<String> PLAN_FORMAT_READERS = Set.of("engine-client/src/plan-runner.ts");
 

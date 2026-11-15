@@ -135,7 +135,7 @@ async function boot(): Promise<void> {
       runner = projectRunner;
       tabProjects = {
         databases: new ProjectDoor({
-          databaseType: tab.engine.databaseType, run: (sql) => tab.engine.run(sql, 0), connect: () => tab.connect(),
+          databaseType: tab.engine.databaseType, engine: tab.engine, connect: () => tab.connect(),
         }, planner!),
         runner: projectRunner,
         host: tab.engine,

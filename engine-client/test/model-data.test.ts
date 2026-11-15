@@ -150,7 +150,7 @@ const keepers: ProjectDoor[] = [];
 const projectsOf = (): ProjectDoor => {
   const made = new ProjectDoor({
     databaseType: 'DuckDB',
-    run: (sql) => engine.run(sql, 0),
+    engine,
     connect: async () => new DuckDbEngine(db.connect() as ArrowishConnection),
   }, planner);
   keepers.push(made);

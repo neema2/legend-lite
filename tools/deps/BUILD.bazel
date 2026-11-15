@@ -190,7 +190,7 @@ _LAYERS_ALONE = {
     "datacube_run": (
         "//datacube:run",
         "run",
-        "//engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host + //datacube:planner",
+        "//engine-client:planner + //engine-client:server + //engine-client:doors + //engine-client:node_host + //datacube:planner + //datacube:doors + //datacube:model",
         ["datacube/src/headless/connection.ts", "datacube/src/headless/calls.ts", "engine-client/src/plan-runner.ts"],
         35,
         "datacube/src/headless/planted.ts",
@@ -199,7 +199,7 @@ _LAYERS_ALONE = {
     "datacube_planner": (
         "//datacube:planner",
         "planner",
-        "//engine-client:run + //engine-client:server + //engine-client:doors + //datacube:run",
+        "//engine-client:run + //engine-client:server + //engine-client:doors + //datacube:run + //datacube:doors",
         ["datacube/src/lite-planner.ts", "datacube/src/planner.ts", "engine-client/src/legend/planner-answer.ts"],
         30,
         "datacube/src/planted.ts",
@@ -239,6 +239,35 @@ _LAYERS_ALONE = {
 test_suite(
     name = "layers_alone",
     tests = [":%s_alone_test" % name for name in _LAYERS_ALONE],
+)
+
+# THE APPS' PLAN-AND-RUN SITES, A SHRINK-ONLY CENSUS (the C5-T audit's MUST 2, 2026-11-15: the interim run wall's ratchet
+# restored over what no layer holds): every site of DataCube's, Query's and Studio's own code that runs -- outside the
+# doors' and the run targets' own files -- named by file and count, with its reason (app-runs.test.ts). A new app module
+# that plans and runs fails here; each that remains is a call of a door.
+genquery(
+    name = "app_runs_layered",
+    expression = "labels(srcs, //datacube:run + //datacube:doors)",
+    scope = [
+        "//datacube:doors",
+        "//datacube:run",
+    ],
+)
+
+node_test(
+    name = "app_runs_test",
+    size = "small",
+    data = [
+        ":app_runs_layered",
+        "//datacube:sources",
+        "//query:src",
+        "//studio:src",
+    ],
+    entry_point = "app-runs.test.ts",
+    env = {
+        "LAYERED_SRCS": "$(rlocationpath :app_runs_layered)",
+        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src)",
+    },
 )
 
 # tools/deps/pools.bzl's pools are exactly MODULE.bazel's, and its testonly pools are testonly as a whole (Bazel workplan P1-25)

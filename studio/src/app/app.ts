@@ -121,7 +121,7 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
       // pointed there as the model loads
       const runner = new ProjectRunner(tab.engine);
       const projects = new ProjectDoor({
-        databaseType: tab.engine.databaseType, run: (sql) => tab.engine.run(sql, 0), connect: () => tab.connect(),
+        databaseType: tab.engine.databaseType, engine: tab.engine, connect: () => tab.connect(),
       }, grammar);
       return {
         engine: new BrowserEngine(grammar, runner, user),

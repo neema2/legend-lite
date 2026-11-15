@@ -25,8 +25,9 @@ export interface HeldEngine extends QueryEngine {
 export interface ProjectHost {
   /** The tab's database type, as the planner names it ('DuckDB'). */
   readonly databaseType: string;
-  /** Run a statement on the host's own connection (a project's database is made there). */
-  run(sql: PlannedSql): Promise<unknown>;
+  /** The host's own connection's engine: a project's database is made there, its statements sent by the door's run
+   *  (the C5-T audit's MUST 2, 2026-11-15: until then each app handed a `run` of its own, a send in the app's code). */
+  readonly engine: Pick<QueryEngine, 'run'>;
   /** A connection of its own, set up as the host's (duckdb-tab.ts `connect`). */
   connect(): Promise<HeldEngine>;
 }
@@ -127,7 +128,7 @@ export class ProjectDatabases {
       const held = await opening.catch(() => undefined);
       if (!held) return;
       await held.connection.close();
-      for (const sql of held.close) await this.#host.run(sql);
+      for (const sql of held.close) await this.#host.engine.run(sql, 0);
     })();
     this.#closing.set(name, closing);
     try {
@@ -145,7 +146,7 @@ export class ProjectDatabases {
   async #make(statements: ProjectDataStatements, made?: (engine: HeldEngine, name: string) => Promise<void>): Promise<Held> {
     // the same name dropped a moment ago: its database gone before this one is made
     await this.#closing.get(statements.name)?.catch(() => undefined);
-    for (const sql of statements.open) await this.#host.run(sql);
+    for (const sql of statements.open) await this.#host.engine.run(sql, 0);
     let engine: HeldEngine | undefined;
     let users: HeldEngine | undefined;
     try {
@@ -159,7 +160,7 @@ export class ProjectDatabases {
     } catch (e) {
       // a half-made database left behind would be found again by its name: drop it
       if (engine) await engine.close().catch(() => undefined);
-      for (const sql of statements.close) await this.#host.run(sql).catch(() => undefined);
+      for (const sql of statements.close) await this.#host.engine.run(sql, 0).catch(() => undefined);
       throw e;
     }
     return { connection: engine, users: users!, close: statements.close };

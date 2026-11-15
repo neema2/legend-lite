@@ -120,6 +120,8 @@ test_suite(
         "//tools/deps:ts_layering_test",
         # each TypeScript run and planner layer typechecked alone (C5-T, 2026-11-15: the rule that replaces the run wall)
         "//tools/deps:layers_alone",
+        # the apps' own plan-and-run sites, a shrink-only census (the C5-T audit's MUST 2, 2026-11-15)
+        "//tools/deps:app_runs_test",
         "//tools/deps:pools_list_test",
         "//tools/deps:warehouse_closure_test",
         "//tools/guards:classpath_test",

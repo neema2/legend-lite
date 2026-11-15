@@ -24,5 +24,9 @@
 //datacube:records	//engine-client:records
 //datacube:run	//datacube:records //engine-client:records //engine-client:run
 //datacube:planner	//engine-client:planner //engine-client:records //model-changes:records //pure-protocol:pure_protocol
+# 2026-11-15 (the C5-T audit's MUST 2): DataCube's doors, a target of their own -- the runner and the doors that ask,
+# then run (doors.ts, remote.ts, upload.ts, table-output.ts) -- over the cube's snapshot and the tree's keys (:model)
+//datacube:model	//engine-client:records //pure-protocol:pure_protocol
+//datacube:doors	//datacube:model //datacube:planner //engine-client:doors //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol
 //model-changes:records	//pure-protocol:pure_protocol //sdlc-client:records
 //sdlc-client:records	

@@ -78,8 +78,11 @@ exports_files(
 # DATACUBE'S LAYERS (C5-T, 2026-11-15: the TypeScript split of plan and run, engine-client's shape): its files stay where
 # they are; the planner, the run side and the records both read are carved out of the app by name, each pinned in
 # tools/deps/ts-layers.txt, and the run and the planner each typechecked alone (:layer_typecheck_tests). The app (:src)
-# is the rest, its doors among it: they and the app import each other (runner.ts and cube.ts), so DataCube's doors stay
-# in the app, their calls of a runner pinned by call site (//tools/guards:planned_sql_test, the orchestrator's note 4).
+# is the rest. 2026-11-15 (the C5-T audit's MUST 2): DataCube's doors are a target of their own (:doors) -- runner.ts,
+# whose one import of the query model (LevelScope) moved to snapshot.ts, and the doors that ask the planner, then run
+# its answer: doors.ts, remote.ts, upload.ts, table-output.ts -- over the app's model records they read (:model); the
+# app's own plan-and-run sites, outside every door and run target, are a shrink-only census
+# (//tools/deps:app_runs_test).
 _RECORDS = [
     # the calls the bridge's host answers, and the web platform a headless bundle is given: shapes and helpers alone
     "src/headless/calls.ts",
@@ -89,6 +92,24 @@ _RECORDS = [
 _RUN = [
     # the host's database: the bridge's one connection that sends a plan's statement (headless/host.ts's until C5-T)
     "src/headless/connection.ts",
+]
+
+# the cube's snapshot and the tree's keys, which the doors read beside the app: shapes and pure helpers, no send, no plan
+_MODEL = [
+    "src/layout/flow.ts",
+    "src/snapshot.ts",
+    "src/tree.ts",
+]
+
+# DataCube's doors: each asks the planner, then runs its answer in a run frame (run-frame.ts) -- the runner (a page's
+# queries; localHost, a class's first row), a query planned and run once (doors.ts planAndRunOnce), a remote file's
+# mount, a person's file read in, and a table written (the multi-step doors of the orchestrator's note 3)
+_DOORS = [
+    "src/doors.ts",
+    "src/remote.ts",
+    "src/runner.ts",
+    "src/table-output.ts",
+    "src/upload.ts",
 ]
 
 _PLANNER = [
@@ -103,7 +124,9 @@ _PLANNER = [
     "src/pure-library-text.ts",
 ]
 
-[fail("datacube/%s is listed twice in datacube/BUILD.bazel's layers" % f) for i, f in enumerate(_RECORDS + _RUN + _PLANNER) if f in (_RECORDS + _RUN + _PLANNER)[:i]]
+_LAYERED = _RECORDS + _RUN + _MODEL + _DOORS + _PLANNER
+
+[fail("datacube/%s is listed twice in datacube/BUILD.bazel's layers" % f) for i, f in enumerate(_LAYERED) if f in _LAYERED[:i]]
 
 js_library(
     name = "records",
@@ -120,6 +143,32 @@ js_library(
         ":records",
         "//engine-client:records",
         "//engine-client:run",
+    ],
+)
+
+js_library(
+    name = "model",
+    srcs = _MODEL,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        "//engine-client:records",
+        "//pure-protocol:pure_protocol",
+    ],
+)
+
+js_library(
+    name = "doors",
+    srcs = _DOORS,
+    visibility = ["//tools/deps:__pkg__"],
+    deps = [
+        ":model",
+        ":planner",
+        "//engine-client:doors",
+        "//engine-client:planner",
+        "//engine-client:records",
+        "//engine-client:run",
+        "//engine-client:server",
+        "//pure-protocol:pure_protocol",
     ],
 )
 
@@ -142,11 +191,13 @@ js_library(
     name = "sources",
     srcs = glob(["src/**/*.ts"]),
     data = glob(["src/**/*.d.ts"]),
+    # the apps' plan-and-run census reads them (//tools/deps:app_runs_test, the C5-T audit's MUST 2)
+    visibility = ["//tools/deps:__pkg__"],
 )
 
 js_library(
     name = "src",
-    srcs = glob(["src/**/*.ts"], exclude = _RECORDS + _RUN + _PLANNER),
+    srcs = glob(["src/**/*.ts"], exclude = _LAYERED),
     # its declarations as files too (a `.d.ts` in srcs is passed on as types alone): a program that compiles a source
     # referring to one (chart-render.ts: ECharts' painters, src/echarts-renderers.d.ts) finds it -- Query's, Studio's
     data = glob(["src/**/*.d.ts"]),
@@ -154,6 +205,8 @@ js_library(
     # files, as a layer must never hold one (tools/deps:*_alone_test)
     visibility = ["//query:__pkg__", "//tools/deps:__pkg__"],
     deps = [
+        ":doors",
+        ":model",
         ":planner",
         ":records",
         ":run",
@@ -166,11 +219,11 @@ js_library(
     name = "layer_" + layer,
     expression = "labels(deps, //datacube:%s)" % layer,
     scope = [":" + layer],
-) for layer in ["records", "run", "planner"]]
+) for layer in ["records", "run", "model", "doors", "planner"]]
 
 filegroup(
     name = "layer_queries",
-    srcs = [":layer_" + layer for layer in ["records", "run", "planner"]],
+    srcs = [":layer_" + layer for layer in ["records", "run", "model", "doors", "planner"]],
     visibility = ["//tools/deps:__pkg__"],
 )
 

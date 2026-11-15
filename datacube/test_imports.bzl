@@ -3544,6 +3544,7 @@ TEST_IMPORTS = {
     "dimensions": [
         "src/dimensions.ts",
         "src/snapshot.ts",
+        "src/tree.ts",
     ],
     "drill": [
         "src/box-columns.ts",
@@ -3816,9 +3817,11 @@ TEST_IMPORTS = {
     ],
     "engine-remote-http": [
         "src/snapshot.ts",
+        "src/tree.ts",
     ],
     "engine-remote": [
         "src/snapshot.ts",
+        "src/tree.ts",
     ],
     "epoch": [
         "src/epoch.ts",
@@ -4120,6 +4123,7 @@ TEST_IMPORTS = {
         "src/generated/offer-facts.ts",
         "src/offers.ts",
         "src/snapshot.ts",
+        "src/tree.ts",
         "src/ui/filter-editor.ts",
         "src/ui/tile-icons.ts",
     ],
@@ -4496,18 +4500,21 @@ TEST_IMPORTS = {
         "src/format.ts",
         "src/json-shape.ts",
         "src/snapshot.ts",
+        "src/tree.ts",
     ],
     "format-scale": [
         "src/format-code.ts",
         "src/format.ts",
         "src/json-shape.ts",
         "src/snapshot.ts",
+        "src/tree.ts",
     ],
     "format": [
         "src/format-code.ts",
         "src/format.ts",
         "src/json-shape.ts",
         "src/snapshot.ts",
+        "src/tree.ts",
     ],
     "fuzz": [
         "src/box-columns.ts",
@@ -6408,22 +6415,14 @@ TEST_IMPORTS = {
         "src/ui/long-press.ts",
     ],
     "macros": [
-        "src/calc.ts",
-        "src/epoch.ts",
-        "src/generated/offer-facts.ts",
-        "src/grid/columns.ts",
-        "src/json-shape.ts",
         "src/macros.ts",
         "src/model-writer.ts",
         "src/page-parameters.ts",
         "src/planner-types.ts",
         "src/pure-box.ts",
-        "src/query.ts",
         "src/runner.ts",
         "src/snapshot.ts",
         "src/tree.ts",
-        "src/treeview.ts",
-        "src/value-filter.ts",
     ],
     "menu-ids": [],
     "menu-more": [
@@ -8404,20 +8403,12 @@ TEST_IMPORTS = {
         "src/value-filter.ts",
     ],
     "page-parameters": [
-        "src/calc.ts",
-        "src/epoch.ts",
-        "src/generated/offer-facts.ts",
-        "src/grid/columns.ts",
-        "src/json-shape.ts",
         "src/model-writer.ts",
         "src/page-parameters.ts",
         "src/planner-types.ts",
-        "src/query.ts",
         "src/runner.ts",
         "src/snapshot.ts",
         "src/tree.ts",
-        "src/treeview.ts",
-        "src/value-filter.ts",
     ],
     "page-rebase": [
         "src/adhoc/member-selection.ts",
@@ -10355,6 +10346,7 @@ TEST_IMPORTS = {
         "src/json-shape.ts",
         "src/snapshot.ts",
         "src/style.ts",
+        "src/tree.ts",
     ],
     "table-output": [
         "src/box-columns.ts",

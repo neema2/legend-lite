@@ -116,7 +116,7 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
         projects: () => (projectKeeper ??= lazily(() => import('../../../engine-client/src/doors/project-data.ts')).then(({ ProjectDoor: Keeper }) =>
           new Keeper({
             databaseType: o.duckdb.engine.databaseType,
-            run: (sql) => o.duckdb.engine.run(sql, 0),
+            engine: o.duckdb.engine,
             connect: () => o.duckdb.connect(),
           }, o.planner.projects))),
         engine: o.duckdb.engine,
