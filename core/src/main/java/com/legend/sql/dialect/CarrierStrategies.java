@@ -209,44 +209,85 @@ public final class CarrierStrategies extends SqlRewriter {
      * answered a filtered literal list of two instances reversed (lane round 52, 2026-11-15: channel B's
      * testFilterInstance, [i2, i1]), where the databases that answer in branch order had hidden it. Each branch carries
      * its position, and the explode reads the union ordered by it: {@code SELECT v FROM (b1, 0 AS __pos UNION ALL ...)
-     * ORDER BY __pos}. A union of other branches (a collect's rows) is left as it is: its rows' own order is the
-     * branch's, not a position's (named in the lean program's open items).
+     * ORDER BY __pos}. A collect's branch (many rows, in its collect's order) also numbers its rows by its own keys
+     * ({@code __ord}), its ORDER BY dropped, and the explode reads the union by (position, ordinal) (2026-11-15). A branch
+     * that cannot carry its order is refused by name, never sent unordered (G7).
      */
     private static com.legend.sql.SqlQuery inBranchOrder(com.legend.sql.SqlQuery ex, SqlSelect s) {
         // the value column is the exploded select's own (an explode's union may declare none)
         if (!(ex instanceof com.legend.sql.SqlUnion u) || u.branches().size() < 2 || s.outputs().size() != 1) {
             return ex;
         }
+        // a collect's branch is MULTI-ROW and carries its collect's order as its own ORDER BY (EXPLODE-OF-COLLECT;
+        // the collect's order inside its aggregate since 2026-11-15): SQL keeps no branch's ORDER BY through a UNION
+        // ALL (MariaDB and MySQL ignore it without a LIMIT, H2 refuses it unparenthesized -- rounds 55a to 55d, the
+        // order fix's route found here), so such a branch numbers its rows by its own keys and drops its ORDER BY
+        boolean anySorted = false;
         for (com.legend.sql.SqlQuery b : u.branches()) {
-            // a branch that reads the enclosing row would make the ordering select a correlated derived table, which
-            // H2 has no form for (LATERAL, measured on its lane): such a union is left as it is (an open item)
-            if (!(b instanceof SqlSelect bs) || !(bs.from() instanceof com.legend.sql.SqlSource.Dual)
-                    || !bs.orderBy().isEmpty() || bs.limit() != null || bs.offset() != null
-                    || bs.projections().size() != 1 || bs.where() != null && readsAColumn(bs.where())
-                    || readsAColumn(bs.projections().get(0).expr())) {
-                return ex;
+            if (!(b instanceof SqlSelect bs) || bs.projections().size() != 1 || bs.distinct()
+                    && !bs.orderBy().isEmpty()) {
+                // never sent unordered (G7)
+                throw new DialectCapability("an exploded list's concatenation whose branch cannot carry its order"
+                        + " (" + (b instanceof SqlSelect ? "a sorted DISTINCT or a branch of many columns"
+                        : "not a select") + "): SQL keeps no order through a UNION ALL");
             }
+            if (bs.from() instanceof com.legend.sql.SqlSource.Dual) {
+                // a branch that reads the enclosing row would make the ordering select a correlated derived table,
+                // which H2 has no form for (LATERAL, measured on its lane)
+                if (bs.where() != null && readsAColumn(bs.where()) || readsAColumn(bs.projections().get(0).expr())) {
+                    throw new DialectCapability("an exploded list's concatenation whose element reads the enclosing"
+                            + " row: its order needs a correlated derived table this database has no form for");
+                }
+            }
+            anySorted |= !bs.orderBy().isEmpty();
         }
         com.legend.sql.OutputCol pos = new com.legend.sql.OutputCol(POSITION,
                 com.legend.sql.SqlType.Scalar.BIGINT, false, com.legend.sql.OutputCol.Origin.DERIVED);
+        com.legend.sql.OutputCol ord = new com.legend.sql.OutputCol(ORDINAL,
+                com.legend.sql.SqlType.Scalar.BIGINT, false, com.legend.sql.OutputCol.Origin.DERIVED);
         List<com.legend.sql.OutputCol> outs = new ArrayList<>(s.outputs());
         outs.add(pos);
+        if (anySorted) {
+            outs.add(ord);
+        }
         List<com.legend.sql.SqlQuery> placed = new ArrayList<>(u.branches().size());
         for (int i = 0; i < u.branches().size(); i++) {
             SqlSelect bs = (SqlSelect) u.branches().get(i);
             List<SqlSelect.Projection> ps = new ArrayList<>(bs.projections());
             ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), POSITION, pos));
-            placed.add(bs.withProjections(ps, outs));
+            SqlSelect b = bs;
+            if (anySorted) {
+                if (bs.orderBy().isEmpty()) {
+                    ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(0), ORDINAL, ord));
+                } else {
+                    List<SqlSelect.SortKey> keys = new ArrayList<>(bs.orderBy().size());
+                    for (SqlSelect.SortKey k : bs.orderBy()) {
+                        keys.add(new SqlSelect.SortKey(k.expr(), k.ascending(), k.nullOrder(), null));
+                    }
+                    ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER,
+                            List.of()), List.of(), keys, null), ORDINAL, ord));
+                    if (bs.limit() == null && bs.offset() == null) {
+                        b = bs.withOrderBy(List.of());
+                    }
+                }
+            }
+            placed.add(b.withProjections(ps, outs));
         }
         String alias = "__u";
         com.legend.sql.OutputCol value = s.outputs().get(0);
+        List<SqlSelect.SortKey> order = new ArrayList<>();
+        order.add(new SqlSelect.SortKey(SqlExpr.Column.of(alias, outs, POSITION), true, null, null));
+        if (anySorted) {
+            order.add(new SqlSelect.SortKey(SqlExpr.Column.of(alias, outs, ORDINAL), true, null, null));
+        }
         return new SqlSelect(List.of(new SqlSelect.Projection(SqlExpr.Column.of(alias, outs, value.name()),
                         s.projections().get(0).alias(), s.outputs().get(0))), false,
                 new com.legend.sql.SqlSource.Subselect(new com.legend.sql.SqlUnion(placed, true, outs), alias, null),
-                null, List.of(), null, null,
-                List.of(new SqlSelect.SortKey(SqlExpr.Column.of(alias, outs, POSITION), true, null, null)), null, null,
-                s.outputs());
+                null, List.of(), null, null, order, null, null, s.outputs());
     }
+
+    /** A branch's rows' ordinal by its own keys, beside its {@link #POSITION}. */
+    private static final String ORDINAL = "__ord";
 
     /** The ordered-dedup idiom: its list, and the filter that keeps x at index i iff x's key first
      * occurs there ({@code (x, i) -> LIST_POSITION(keys, key(x)) = i}; the key is x itself for a plain
