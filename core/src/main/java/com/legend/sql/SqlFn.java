@@ -152,6 +152,22 @@ public enum SqlFn {
      *  never the product's (phase D's D1.2, 2026-11-15: until then the lowering composed it in place,
      *  LiteralSpelling.dateTimeText). Expanded before every other pass ({@code dialect.DateTimePrintText}). */
     DATETIME_PRINT,
+    /** An element's text in a {@code makeString} ({@code x}, one operand, {@code NULL} where the element is empty): the
+     *  product's join skips an empty element (the user's ruling of 2026-11-10, D_BRIEF §1: "makeString skips empty
+     *  elements"; phase D's D1.3, 2026-11-15) -- the base renderer writes the text alone ({@code dialect.JoinedText}),
+     *  the join's {@code STRING_AGG} drops a {@code NULL}. legend-engine prints an empty TDS cell as {@code TDSNull}: the
+     *  compatibility edge writes that (edge/PurePrintForms). */
+    JOINED_TEXT,
+    /** {@code format}'s {@code %0<w>d} ({@code x}, then the width): legend-pure pads the digits and then signs
+     *  ({@code -3} at width 5 is {@code -00003}). Only legend-pure's {@code format} writes it: the product's renderer
+     *  refuses it by name ({@code dialect.PureOnlyText}), the compatibility edge composes it (edge/PurePrintForms;
+     *  phase D's D1.3, 2026-11-15: until then the lowering composed it, Scalars.signedZeroPad). */
+    FORMAT_PADDED,
+    /** An instance's {@code toString} ({@code id}, the instance's identity): legend-pure prints an instance without a
+     *  {@code toString} of its own by its repository id, {@code @_} and the id. The product writes an object by graph
+     *  fetch: its renderer refuses this by name ({@code dialect.PureOnlyText}); the compatibility edge composes it
+     *  (edge/PurePrintForms; phase D's D1.3, 2026-11-15). */
+    INSTANCE_TEXT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */

@@ -134,7 +134,8 @@ class CompatSpellingGuardTest {
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge
             // prints a value as the host judge does, judge parity G2) -- the edge writes it for FLOAT_TO_TEXT
             // (edge/PurePrintForms). LiteralSpelling's row went (it writes FLOAT_TO_TEXT); Repr's added (the judges' arm)
-            "lowering/Lowerer.java | TDS_NULL_CELL | 1 | D1.3",
+            // lowering/Lowerer.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a row's cells joined skip an empty one, the
+            // JOINED_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
             "lowering/Lowerer.java | withEngineText | 1 | D1.7",
             "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
             "lowering/Repr.java | Repr | 2 | D1.3",
@@ -142,12 +143,19 @@ class CompatSpellingGuardTest {
             // What stays reads a TDS cell's zone suffix as INPUT (a PCT fixture's +0000 or Z dropped), no spelling
             // written: D2 reviews it
             "lowering/Scalars.java | +0000 | 1 | STAYS",
-            "lowering/Scalars.java | @_ | 1 | D1.3",
+            // lowering/Scalars.java | @_: gone 2026-11-15 (D1.3: an instance's toString is the INSTANCE_TEXT node, refused
+            // by the product's renderer -- an object is written by graph fetch -- and composed by the edge)
+            // toRepresentation's (its ruling asked 2026-11-15) and format's %r, which the assert bodies' messages write
+            // (the judges' Repr, measured 2026-11-15: AssertBarTest's assertNotEq message): it moves with them
             "lowering/Scalars.java | Repr | 2 | D1.3",
-            "lowering/Scalars.java | TDS_NULL_CELL | 2 | D1.3",
+            // 2 -> 1 (2026-11-15, D1.3: makeString's empty element skipped, the JOINED_TEXT node, legend-engine's
+            // TDSNull the edge's), reclassified STAYS: what stays reads a #TDS literal's TDSNull cell as NULL -- INPUT,
+            // the text legend-pure's TDS literal writes for an empty cell, read, never written: D2 reviews it
+            "lowering/Scalars.java | TDS_NULL_CELL | 1 | STAYS",
             // lowering/Scalars.java | dateLiteralPrint: gone 2026-11-15 (D1.2: dateLiteralText, a literal that is no
             // DateTime; a DateTime literal's text the DATETIME_TO_TEXT node, its written text the edge's)
-            "lowering/Scalars.java | signedZeroPad | 2 | D1.3",
+            // lowering/Scalars.java | signedZeroPad: gone 2026-11-15 (D1.3: format's %0<w>d is the FORMAT_PADDED node,
+            // refused by the product's renderer, legend-pure's padding composed by the edge, edge/PurePrintForms)
             "lowering/VerdictSql.java | Repr | 3 | JUDGE",
             "lowering/VerdictSql.java | TDS_NULL_CELL | 1 | JUDGE",
             "normalizer/ImplicitInheritance.java | Can't find  | 1 | D1.6",
@@ -181,7 +189,8 @@ class CompatSpellingGuardTest {
             // literal, dropping the zone the compiler's text writes ("+0000"): input read, not a spelling written
             "protocol/ts/TsShow.java | +0000 | 1 | STAYS",
             "resolver/ChainDispatch.java | Cast exception:  | 1 | D1.1",
-            "resolver/ClassSources.java | TDS_NULL_CELL | 1 | D1.3",
+            // resolver/ClassSources.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: an absent system fact is an empty
+            // cell, which a literal cell reads as NULL as it read TDSNull -- an internal marker, never a spelling)
             // resolver/GraphEmission.java | +0000: gone 2026-11-15 (D1.2, the orchestrator's ruling under the user's of
             // 2026-11-10, S312: a graph fetch's key arguments in the plan style's text, PlanStyle.graphKeyDate/String;
             // legend-engine's +0000 and quoting the edge's)

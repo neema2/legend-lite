@@ -1409,7 +1409,8 @@ public class Snowflake extends AnsiSqlRenderer {
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT -> throw expandedFirst(c);
+            case DATETIME_TO_TEXT, DATETIME_PRINT, JOINED_TEXT, FORMAT_PADDED, INSTANCE_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());

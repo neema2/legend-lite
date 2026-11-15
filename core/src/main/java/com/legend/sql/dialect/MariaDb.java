@@ -1985,7 +1985,8 @@ public class MariaDb extends AnsiSqlRenderer {
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT -> throw expandedFirst(c);
+            case DATETIME_TO_TEXT, DATETIME_PRINT, JOINED_TEXT, FORMAT_PADDED, INSTANCE_TEXT ->
+                    throw expandedFirst(c);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
             case LEAST -> writer.piece(nullSkipping("LEAST", a));

@@ -1245,7 +1245,8 @@ public class MongoDb extends AnsiSqlRenderer {
             case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT -> throw expandedFirst(c);
+            case DATETIME_TO_TEXT, DATETIME_PRINT, JOINED_TEXT, FORMAT_PADDED, INSTANCE_TEXT ->
+                    throw expandedFirst(c);
             // ---- raising
             case ERROR -> raise(writer, a);
         };

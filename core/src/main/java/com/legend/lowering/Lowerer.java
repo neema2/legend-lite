@@ -4160,7 +4160,8 @@ public final class Lowerer {
         return switch (spec) {
             // makeString/joinStrings over the $r.values TDSRow-cells
             // synthesis (construction-declared — tc.rowCells()): stringify each
-            // cell (TDSNull print convention, audit 9); hand-written
+            // cell, an empty one skipped (JOINED_TEXT, D1.3 2026-11-15:
+            // legend-engine's TDSNull is the edge's); hand-written
             // cell lists never match the roster test.
             case TypedNativeCall n
                     when (isFamily(n, Pure.AT_STRING_MAKE_STRING) || isFamily(n, Pure.AT_STRING_JOIN_STRINGS, Pure.AT_RELATION_JOIN_STRINGS))
@@ -4174,10 +4175,8 @@ public final class Lowerer {
                 // TWO owners for one encoding).
                 List<SqlExpr> cells = new ArrayList<>(tc.elements().size());
                 for (TypedSpec e : tc.elements()) {
-                    cells.add(SqlExpr.Call.of(SqlFn.COALESCE,
-                            Fold.cellText(e.info().type(), scalar(e, columns)),
-                            new SqlExpr.StringLit(com.legend.compiler.element.type
-                                        .PlatformTypes.TDS_NULL_CELL)));
+                    cells.add(SqlExpr.Call.of(SqlFn.JOINED_TEXT,
+                            Fold.cellText(e.info().type(), scalar(e, columns))));
                 }
                 List<SqlExpr> rest = new ArrayList<>();
                 for (int i = 1; i < n.args().size(); i++) {

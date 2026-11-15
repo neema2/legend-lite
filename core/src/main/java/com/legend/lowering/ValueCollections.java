@@ -387,31 +387,25 @@ final class ValueCollections {
     // distinction the declaration carries, minus the accidental-match
     // hole.
 
-    /** The rowCells makeString/joinStrings join as a STATIC CONCAT
-     * interleave: (start?) c1 (sep c2 …) (end?) — args beyond the
-     * collection arrive lowered in order ([sep] or [start, sep, end]). */
+    /** The rowCells makeString/joinStrings join: the cells' texts joined
+     * by the database ({@code STRING_AGG} over the cells as a list, which
+     * skips an empty cell: phase D's D1.3, 2026-11-15), then (start?) and
+     * (end?) -- args beyond the collection arrive lowered in order ([sep]
+     * or [start, sep, end]). */
     static com.legend.sql.SqlExpr rowCellsJoin(
             java.util.List<com.legend.sql.SqlExpr> cells,
             java.util.List<com.legend.sql.SqlExpr> rest) {
         com.legend.sql.SqlExpr sep = rest.size() == 1 ? rest.get(0)
-                : rest.size() == 3 ? rest.get(1) : null;
-        java.util.List<com.legend.sql.SqlExpr> parts = new ArrayList<>();
+                : rest.size() == 3 ? rest.get(1) : new com.legend.sql.SqlExpr.StringLit("");
+        com.legend.sql.SqlExpr joined = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,
+                new com.legend.sql.SqlExpr.ReduceCollection(com.legend.sql.SqlAgg.Fn.STRING_AGG,
+                        new com.legend.sql.SqlExpr.ArrayLit(cells), java.util.List.of(sep)),
+                new com.legend.sql.SqlExpr.StringLit(""));
         if (rest.size() == 3) {
-            parts.add(rest.get(0));
+            return com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, rest.get(0),
+                    com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, joined, rest.get(2)));
         }
-        for (int i = 0; i < cells.size(); i++) {
-            if (i > 0 && sep != null) {
-                parts.add(sep);
-            }
-            parts.add(cells.get(i));
-        }
-        if (rest.size() == 3) {
-            parts.add(rest.get(2));
-        }
-        return parts.size() == 1 ? parts.get(0)
-                : parts.isEmpty() ? new com.legend.sql.SqlExpr.StringLit("")
-                : new com.legend.sql.SqlExpr.Call(
-                        com.legend.sql.SqlFn.CONCAT, parts);
+        return joined;
     }
 
     static boolean isCollectionMapper(TypedLambda ml) {

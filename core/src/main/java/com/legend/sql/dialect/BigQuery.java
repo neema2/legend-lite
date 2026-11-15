@@ -1545,7 +1545,8 @@ public class BigQuery extends AnsiSqlRenderer {
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
-            case DATETIME_TO_TEXT, DATETIME_PRINT -> throw expandedFirst(c);
+            case DATETIME_TO_TEXT, DATETIME_PRINT, JOINED_TEXT, FORMAT_PADDED, INSTANCE_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
