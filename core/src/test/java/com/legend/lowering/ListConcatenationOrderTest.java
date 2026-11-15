@@ -37,7 +37,10 @@ class ListConcatenationOrderTest {
     void aListsConcatenationHasOneOuterOrderAndNoneInABranch() {
         List<String> wrong = new ArrayList<>();
         for (String database : List.of("MariaDB", "H2")) {
-            String model = StorelessRuntime.with("", Databases.named(database));
+            // a server's storeless runtime declares its session's coordinates (planning connects to nothing)
+            com.legend.model.ConnectionDefinition.DatabaseType type = Databases.named(database);
+            String model = database.equals("H2") ? StorelessRuntime.with("", type)
+                    : StorelessRuntime.onServer("", type, "localhost", 1, "legend");
             for (String expression : CASES) {
                 TypedQuery q = Compiler.query(Compiler.compileModel(model), expression);
                 String sql;
