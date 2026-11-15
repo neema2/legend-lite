@@ -392,8 +392,7 @@ public class Postgres extends AnsiSqlRenderer {
                 SqlWriter.Piece entries = w -> w.append("ARRAY(SELECT jsonb_build_object('key', __me -> " + k
                         + ", 'value', __me -> " + v + ") FROM ").piece(unnest(p -> p.expr(xs, 0)))
                         .append(" WITH ORDINALITY AS __mu(__me, __mo) ORDER BY __mo)");
-                yield writer.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ")
-                        .piece(keysChecked(entries)).append(" END)");
+                yield writer.piece(nullIfNull(xs, keysChecked(entries)));
             }
             // DuckDB's map(ks, vs): the keys zipped with the values by position
             case MAP_FROM_LISTS -> {
@@ -428,14 +427,16 @@ public class Postgres extends AnsiSqlRenderer {
                     throw wall(c.fn(), "a map of unknown key and value types");
                 }
                 boolean keys = c.fn() == SqlFn.MAP_KEYS;
-                writer.append("(CASE WHEN ").expr(m, 4).append(" IS NULL THEN NULL ELSE ARRAY(SELECT ")
-                        .piece(held(w -> w.append(keys ? "__me -> 'key'" : "__me -> 'value'"), keys ? mt.key()
-                                : mt.value(), 0)).append(" FROM ").piece(unnest(p -> p.expr(m, 0)))
-                        .append(" WITH ORDINALITY AS __mu(__me, __mo)");
-                if (c.fn() == SqlFn.MAP_EXTRACT) {
-                    writer.append(" WHERE __me -> 'key' = ").piece(asJsonb(w -> w.expr(a.get(1), 0), mt.key()));
-                }
-                yield writer.append(" ORDER BY __mo) END)");
+                SqlWriter.Piece read = w -> {
+                    w.append("ARRAY(SELECT ").piece(held(u -> u.append(keys ? "__me -> 'key'" : "__me -> 'value'"),
+                            keys ? mt.key() : mt.value(), 0)).append(" FROM ").piece(unnest(p -> p.expr(m, 0)))
+                            .append(" WITH ORDINALITY AS __mu(__me, __mo)");
+                    if (c.fn() == SqlFn.MAP_EXTRACT) {
+                        w.append(" WHERE __me -> 'key' = ").piece(asJsonb(u -> u.expr(a.get(1), 0), mt.key()));
+                    }
+                    w.append(" ORDER BY __mo)");
+                };
+                yield writer.piece(nullIfNull(m, read));
             }
             default -> throw new IllegalStateException("not a map call: " + c.fn());
         };
@@ -654,16 +655,16 @@ public class Postgres extends AnsiSqlRenderer {
 
     /** {@code ARRAY(SELECT select FROM unnest(xs) WITH ORDINALITY AS __u(elem, idx) [WHERE where] ORDER BY
      *  order)}, NULL for a NULL list (DuckDB's list functions answer NULL there). */
-    private SqlWriter.Piece overElements(SqlWriter.Piece xs, SqlType element, String elem, String idx,
+    private SqlWriter.Piece overElements(SqlExpr list, SqlType element, String elem, String idx,
             SqlWriter.Piece select, SqlWriter.@com.legend.base.Nullable Piece where, SqlWriter.Piece order) {
-        return w -> {
-            w.append("(CASE WHEN ").piece(xs).append(" IS NULL THEN NULL ELSE ARRAY(SELECT ").piece(select)
-                    .append(" FROM ").piece(elementsFrom(xs, element, elem, idx));
+        SqlWriter.Piece xs = w -> w.expr(list, 0);
+        return nullIfNull(list, w -> {
+            w.append("ARRAY(SELECT ").piece(select).append(" FROM ").piece(elementsFrom(xs, element, elem, idx));
             if (where != null) {
                 w.append(" WHERE ").piece(where);
             }
-            w.append(" ORDER BY ").piece(order).append(") END)");
-        };
+            w.append(" ORDER BY ").piece(order).append(")");
+        });
     }
 
     /** The ORDER BY of a list's elements, each {@code x} of type {@code t}: a struct orders by its fields
@@ -699,7 +700,7 @@ public class Postgres extends AnsiSqlRenderer {
                 String[] p = lambdaParams(l);
                 if (fnName == SqlFn.LIST_FILTER) {
                     // a kept element is held again as the list holds it
-                    yield writer.piece(overElements(xs, first, p[0], p[1], encode(w -> w.append(p[0]), first),
+                    yield writer.piece(overElements(args.get(0), first, p[0], p[1], encode(w -> w.append(p[0]), first),
                             w -> w.expr(l.body(), 0), w -> w.append(p[1])));
                 }
                 throw new IllegalStateException("LIST_TRANSFORM is rendered with its result type (call)");
@@ -722,18 +723,18 @@ public class Postgres extends AnsiSqlRenderer {
             case LIST_POSITION -> writer.append("array_position(").piece(xs).append(", ").expr(args.get(1), 0)
                     .append(")");
             // DuckDB's list_distinct drops NULLs; first occurrence order
-            case LIST_DISTINCT -> writer.append("(CASE WHEN ").piece(xs).append(" IS NULL THEN NULL ELSE ARRAY(SELECT ")
+            case LIST_DISTINCT -> writer.piece(nullIfNull(args.get(0), w -> w.append("ARRAY(SELECT ")
                     .append(x).append(" FROM ").piece(unnest(xs))
                     .append(" WITH ORDINALITY AS __u(" + x + ", __o) WHERE ")
-                    .append(x + " IS NOT NULL GROUP BY " + x + " ORDER BY min(__o)) END)");
+                    .append(x + " IS NOT NULL GROUP BY " + x + " ORDER BY min(__o))")));
             case LIST_APPEND -> writer.append("array_append(").piece(xs).append(", ")
                     .piece(encode(w -> w.expr(args.get(1), 0), first)).append(")");
             // reorderings move elements as the list holds them (an inner list stays jsonb)
-            case LIST_SORT -> writer.piece(overElements(xs, held(args.get(0)), x, "__o", xp, null,
+            case LIST_SORT -> writer.piece(overElements(args.get(0), held(args.get(0)), x, "__o", xp, null,
                     sortKey(xp, first, "")));
-            case LIST_SORT_DESC -> writer.piece(overElements(xs, held(args.get(0)), x, "__o", xp, null,
+            case LIST_SORT_DESC -> writer.piece(overElements(args.get(0), held(args.get(0)), x, "__o", xp, null,
                     sortKey(xp, first, " DESC")));
-            case LIST_REVERSE -> writer.piece(overElements(xs, held(args.get(0)), x, "__o", xp, null,
+            case LIST_REVERSE -> writer.piece(overElements(args.get(0), held(args.get(0)), x, "__o", xp, null,
                     w -> w.append("__o DESC")));
             case LIST_TAIL -> writer.append("(").piece(xs).append(")[2:]");
             case LIST_INIT -> writer.append("(").piece(xs).append(")[:cardinality(").piece(xs).append(") - 1]");
@@ -1081,7 +1082,7 @@ public class Postgres extends AnsiSqlRenderer {
         }
         SqlExpr.Lambda l = bodyOver((SqlExpr.Lambda) a.get(1), element);
         String[] p = lambdaParams(l);
-        return writer.piece(overElements(xs, element, p[0], p[1], encode(w -> w.expr(l.body(), 0), result), null,
+        return writer.piece(overElements(a.get(0), element, p[0], p[1], encode(w -> w.expr(l.body(), 0), result), null,
                 w -> w.append(p[1])));
     }
 
@@ -1174,9 +1175,8 @@ public class Postgres extends AnsiSqlRenderer {
     protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
         SqlType element = elementOf(m.collection(), "membership");
         SqlWriter.Piece xs = w -> w.expr(m.collection(), 0);
-        return writer.append("(CASE WHEN ").piece(xs).append(" IS NULL THEN NULL ELSE array_position(").piece(xs)
-                .append(", ").piece(encode(w -> w.expr(m.needle(), 0), element))
-                .append(") IS NOT NULL END)");
+        return writer.piece(nullIfNull(m.collection(), w -> w.append("(array_position(").piece(xs)
+                .append(", ").piece(encode(u -> u.expr(m.needle(), 0), element)).append(") IS NOT NULL)")));
     }
 
     /** A named aggregate over a list's elements, in list order. */
@@ -1626,9 +1626,9 @@ public class Postgres extends AnsiSqlRenderer {
                 && arr.element() == SqlType.Scalar.DOUBLE) {
             // a list of doubles, each element so (in order; a null list null, an empty one [])
             SqlWriter.Piece xs = w -> w.expr(a.get(0), 0);
-            return writer.append("(CASE WHEN ").piece(xs).append(" IS NULL THEN NULL ELSE COALESCE((SELECT"
-                    + " jsonb_agg(").piece(doubleJsonb(w -> w.append("__ve"))).append(" ORDER BY __vo) FROM unnest(")
-                    .piece(xs).append(") WITH ORDINALITY AS __v(__ve, __vo)), CAST('[]' AS JSONB)) END)");
+            return writer.piece(nullIfNull(a.get(0), w -> w.append("COALESCE((SELECT jsonb_agg(")
+                    .piece(doubleJsonb(u -> u.append("__ve"))).append(" ORDER BY __vo) FROM unnest(")
+                    .piece(xs).append(") WITH ORDINALITY AS __v(__ve, __vo)), CAST('[]' AS JSONB))")));
         }
         return writer.append("to_jsonb(").expr(a.get(0), 0).append(")");
     }

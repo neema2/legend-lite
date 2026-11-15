@@ -1200,6 +1200,21 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.expr(a.get(0), 4).append(" IN (").list(a.subList(1, a.size())).append(")");
     }
 
+    /**
+     * {@code body}, NULL where {@code operand} is: {@code (CASE WHEN operand IS NULL THEN NULL ELSE body END)} -- but
+     * {@code body} alone where the operand cannot be NULL ({@link com.legend.sql.SqlTyping#mayBeNull}: a literal list,
+     * a value the lowering typed non-null), so a nested list operation no longer writes its operand twice at every level
+     * (the lean program, 2026-11-15: a six-level list chain grew from 375 characters on DuckDB to 8,307 on Postgres). An
+     * operand whose nullability is unknown keeps its guard.
+     */
+    protected SqlWriter.Piece nullIfNull(SqlExpr operand, SqlWriter.Piece body) {
+        if (!com.legend.sql.SqlTyping.mayBeNull(operand)) {
+            return body;
+        }
+        return w -> w.append("(CASE WHEN ").expr(operand, 4).append(" IS NULL THEN NULL ELSE ").piece(body)
+                .append(" END)");
+    }
+
     /** {@code (x IS DISTINCT FROM y)}: the null-safe inequality (the engine's nullSafeNotEqual DynaFunction). */
     protected final SqlWriter distinctFrom(SqlWriter writer, List<SqlExpr> a) {
         return writer.append("(").expr(a.get(0), 4).append(" IS DISTINCT FROM ").expr(a.get(1), 4).append(")");
