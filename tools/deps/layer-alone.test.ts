@@ -23,7 +23,12 @@
 //   import's rename followed (carried from the run wall's signature rule: the C5-T audit's item 4, 2026-11-15, the
 //   proof of step 2's split, that a run function takes the planner's answer and never its source);
 // - on every layer, no `@ts-nocheck`, `@ts-ignore` or `@ts-expect-error`: each would hush the compiler's TS2307 on an
-//   import of a layer the layer may not reach, while a bundler still followed it (the C5-T audit's item 5).
+//   import of a layer the layer may not reach, while a bundler still followed it (the C5-T audit's item 5);
+// - on a RUN or a DOOR layer, no explicit `any` (`: any`, `as any`, `<any>`, `any[]`, any type written `any`): one would
+//   carry an untyped string past the PlannedSql brand to a send (the C5-T last round's T2, 2026-11-15; none today, so no
+//   list: a new one fails).
+// The door layers (2026-11-15, the C5-T last round's T2) are checked alone too: they reach every layer below them and no
+// app (an app module named by a planted import fails by name).
 //
 // It reads the runfiles tree because that tree IS the layer's closure: what this test's BUILD target declares.
 
@@ -47,6 +52,7 @@ const env = (name: string): string => {
 };
 const LAYER = env('LAYER');
 const RUN_LAYER = env('KIND') === 'run';
+const DOOR_LAYER = env('KIND') === 'doors';
 
 /** A run layer's computed specifiers, by module and door, with the reason each is allowed (the orchestrator's note 2,
  *  2026-11-15: carried from the run wall's COMPUTED_DOORS of the final audit of 9af16fbe58's T4). Shrink-only. */
@@ -253,6 +259,36 @@ ${exp} interface PlantedSession { readonly source: PlantedSource; run(sql: Sql):
       `${at} plantedRenamed: takes something that answers a planner's statement or plan`,
       `${at} plantedSource: takes PlantedSource, which answers a planner's statement or plan`,
     ]);
+  });
+
+  it('writes no explicit any: none reaches a send past the brand (a run or a door layer)', (t) => {
+    if (!RUN_LAYER && !DOOR_LAYER) {
+      t.skip('a planner layer: the run and door layers hold this rule');
+      return;
+    }
+    const files = closureTexts();
+    assert.deepEqual(CLOSURE.flatMap((f) => explicitAnys(f, files.get(f)!)), []);
+  });
+
+  it('names a planted explicit any, however it is written, and reads none in a name, a comment or a string', () => {
+    const planted = [
+      'export const a = (x: any): void => { void x; };',
+      'export const b = (x: unknown) => x as any;',
+      'export const c = (x: unknown) => <any>x;',
+      'export const d: any[] = [];',
+      'export const e: Record<string, any> = {};',
+      'export const f = (x: Promise<Array<any>>) => x;',
+      // in a template's substitution, nested, after a template's lines (line 9), and after a regex holding a quote
+      'export const g = (x: unknown) => `a ${`b ${(x as any).s}`} c`;',
+      'export const h = `one',
+      'two ${1} three`;',
+      "export const i = (x: unknown): any => String(x).replace(/'/g, \"''\");",
+      // read, and let be: a member named any, a call of one, a word in a comment, a string, a template or a regex
+      'export const j = (s: { any(): boolean }) => s.any();',
+      'export const k = AbortSignal.any([]);',
+      "// any here is a word\nexport const l = 'any' + `any ${'any'}` + /any/.source;",
+    ].join('\n');
+    assert.deepEqual(explicitAnys('planted.ts', planted).map((l) => l.split(':')[1]), ['1', '2', '3', '4', '5', '6', '7', '10']);
   });
 
   it('no module of the layer hushes the compiler: no @ts-nocheck, @ts-ignore or @ts-expect-error', () => {
@@ -678,4 +714,89 @@ function signatureBreaches(files: ReadonlyMap<string, string>, run: readonly str
     }
   }
   return out.sort();
+}
+
+// ---- an explicit any (the C5-T last round's T2) ----
+
+/** Each line of `text` that writes the type `any` (strings and comments aside, a template's substitutions read as code;
+ *  a member or a call named `any` is a name). */
+function explicitAnys(file: string, text: string): string[] {
+  const code = codeAlone(text);
+  const lines = text.split('\n');
+  return [...code.matchAll(/(?<![\w$.])any(?![\w$]|\s*\()/g)].map((m) => {
+    const line = code.slice(0, m.index).split('\n').length;
+    return `${file}:${line}: ${lines[line - 1]!.trim()}`;
+  });
+}
+
+/** `text` with every comment's, string's, template text's and regular expression's characters blanked -- each line kept,
+ *  a template's `${...}` substitutions kept as code (nested ones too). A quote or a regular expression left open ends
+ *  with its line, so a misread spends one line at most. */
+function codeAlone(text: string): string {
+  const out = text.split('');
+  const blank = (from: number, to: number): void => {
+    for (let k = from; k < to; k++) if (out[k] !== '\n') out[k] = ' ';
+  };
+  const templates: number[] = []; // for each open template's substitution, its brace depth
+  let depth = 0;
+  let i = 0;
+  const lastCode = (at: number): string => {
+    for (let k = at - 1; k >= 0; k--) if (!/\s/.test(out[k]!)) return out[k]!;
+    return '';
+  };
+  /** From inside a template's text at `from`, to its close or its next substitution; the offset past what it read. */
+  const templateText = (from: number): number => {
+    let k = from;
+    while (k < text.length && text[k] !== '`' && !(text[k] === '$' && text[k + 1] === '{')) k += text[k] === '\\' ? 2 : 1;
+    blank(from, Math.min(k, text.length));
+    if (text[k] === '$') {
+      templates.push(depth);
+      return k + 2;
+    }
+    return k + 1;
+  };
+  while (i < text.length) {
+    const c = text[i]!;
+    if (c === '/' && text[i + 1] === '/') {
+      const end = text.indexOf('\n', i);
+      blank(i, end < 0 ? text.length : end);
+      i = end < 0 ? text.length : end;
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      blank(i, end < 0 ? text.length : end + 2);
+      i = end < 0 ? text.length : end + 2;
+    } else if (c === "'" || c === '"') {
+      let k = i + 1;
+      while (k < text.length && text[k] !== c && text[k] !== '\n') k += text[k] === '\\' ? 2 : 1;
+      blank(i + 1, Math.min(k, text.length));
+      i = k + 1;
+    } else if (c === '`') {
+      i = templateText(i + 1);
+    } else if (c === '/' && (/[(,=:[!&|?{};+\-*%<>~^]/.test(lastCode(i)) || lastCode(i) === '' || /\breturn$/.test(out.slice(0, i).join('').trimEnd()))) {
+      let k = i + 1;
+      let inClass = false;
+      while (k < text.length && text[k] !== '\n' && (inClass || text[k] !== '/')) {
+        if (text[k] === '\\') k++;
+        else if (text[k] === '[') inClass = true;
+        else if (text[k] === ']') inClass = false;
+        k++;
+      }
+      blank(i + 1, Math.min(k, text.length));
+      i = k + 1;
+    } else if (c === '{') {
+      depth++;
+      i++;
+    } else if (c === '}') {
+      if (templates.length > 0 && templates[templates.length - 1] === depth) {
+        templates.pop();
+        i = templateText(i + 1);
+      } else {
+        depth--;
+        i++;
+      }
+    } else {
+      i++;
+    }
+  }
+  return out.join('');
 }

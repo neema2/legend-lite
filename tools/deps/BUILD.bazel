@@ -220,6 +220,26 @@ _LAYERS_ALONE = {
         "datacube/src/headless/planted.ts",
         ["../lite-planner.ts", "./host.ts", "../runner.ts", "../../../engine-client/src/legend/planner-protocol.ts"],
     ),
+    # 2026-11-15 (the C5-T last round's T2): the door layers, checked alone too -- every layer below them, no app, and
+    # no explicit any reaching a send
+    "engine_client_doors": (
+        "//engine-client:doors",
+        "doors",
+        "//engine-client:node_host + //datacube:src_base",
+        ["engine-client/src/doors/tab-duckdb.ts", "engine-client/src/snap.ts", "engine-client/src/plan-runner.ts"],
+        60,
+        "engine-client/src/doors/planted.ts",
+        ["../../../datacube/src/cube.ts", "../../../query/src/app/run.ts", "../node-require.ts"],
+    ),
+    "datacube_doors": (
+        "//datacube:doors",
+        "doors",
+        "//engine-client:node_host + //datacube:src_base",
+        ["datacube/src/runner.ts", "datacube/src/upload.ts", "engine-client/src/doors/host-operations.ts"],
+        70,
+        "datacube/src/planted.ts",
+        ["./cube.ts", "./app.ts", "../../engine-client/src/node-require.ts"],
+    ),
     "datacube_planner": (
         "//datacube:planner",
         "planner",
