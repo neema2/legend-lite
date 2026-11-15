@@ -35,8 +35,8 @@ corpus-judge	DuckDB	meta::relational::graphFetch::tests::union::propertyLevel	7	
 corpus-judge	DuckDB	meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning	3	36653	0
 corpus-judge	DuckDB	meta::relational::graphFetch::tests::union::rootLevel	5	21701	0
 corpus-judge	DuckDB	meta::relational::metamodel::execute::tests	1	3335	0
-corpus-judge	DuckDB	meta::relational::testDataGeneration::tests	56	673238	0
-corpus-judge	DuckDB	meta::relational::testDataGeneration::tests::alloy	32	61448	0
+corpus-judge	DuckDB	meta::relational::testDataGeneration::tests	64	709549	0
+corpus-judge	DuckDB	meta::relational::testDataGeneration::tests::alloy	40	71484	0
 corpus-judge	DuckDB	meta::relational::tests::advanced::contractmoneyscenario	2	2872	0
 corpus-judge	DuckDB	meta::relational::tests::advanced::failures	0	0	0
 corpus-judge	DuckDB	meta::relational::tests::advanced::failures::moveFilterInOnClause	2	11242	0
@@ -339,8 +339,8 @@ corpus-judge	H2	meta::relational::graphFetch::tests::union::propertyLevel	7	4551
 corpus-judge	H2	meta::relational::graphFetch::tests::union::relationalGraphFetchUnionWithMilestoning	3	36107	0
 corpus-judge	H2	meta::relational::graphFetch::tests::union::rootLevel	5	17513	0
 corpus-judge	H2	meta::relational::metamodel::execute::tests	1	19675	0
-corpus-judge	H2	meta::relational::testDataGeneration::tests	53	740613	0
-corpus-judge	H2	meta::relational::testDataGeneration::tests::alloy	32	66911	0
+corpus-judge	H2	meta::relational::testDataGeneration::tests	61	781048	0
+corpus-judge	H2	meta::relational::testDataGeneration::tests::alloy	40	77795	0
 corpus-judge	H2	meta::relational::tests::advanced::contractmoneyscenario	2	3012	0
 corpus-judge	H2	meta::relational::tests::advanced::failures	0	0	0
 corpus-judge	H2	meta::relational::tests::advanced::failures::moveFilterInOnClause	2	12226	0
