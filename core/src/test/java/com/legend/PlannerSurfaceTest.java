@@ -598,6 +598,8 @@ class PlannerSurfaceTest {
                     List.of(LAMBDA, NAME, OPTION, OUTPUT)),
             // TestExecution: a test body planned, then run, its verdicts to the caller's listener and the referee
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", List.of(LAMBDA, NAME, OPTION)),
+            // a test body's facts, data, before it is planned (C5-J item 2, 2026-11-15): the record its plan carries
+            Map.entry("TestExecution#facts(TypedQuery)", List.of(LAMBDA)),
             Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
                     + " ExecuteOptions)", List.of(LAMBDA, NAME, SESSION, CALLBACK, CALLBACK, OPTION)),
             Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
@@ -694,6 +696,8 @@ class PlannerSurfaceTest {
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
                     QueryRoad.REFUSES_RAW_SQL),
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", QueryRoad.TEST_ROAD),
+            // it reads facts of the body and plans nothing (C5-J item 2, 2026-11-15)
+            Map.entry("TestExecution#facts(TypedQuery)", QueryRoad.PLANS_NOTHING),
             Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
                     + " ExecuteOptions)", QueryRoad.TEST_ROAD),
             Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"

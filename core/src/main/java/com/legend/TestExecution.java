@@ -56,6 +56,12 @@ public final class TestExecution {
         runProgram(typed, runtimeFqn, sessions, listener, referee, options, null);
     }
 
+    /** A test body's FACTS, data, as the test planner states them (C5-J item 2, 2026-11-15): the same record the body's
+     *  plan carries, for a caller that chooses the body's session before it is planned. */
+    public static com.legend.testexecutionplan.BodyFacts facts(TypedQuery typed) {
+        return TestPlanner.facts(typed);
+    }
+
     /** A test body PLANNED WHOLE, with no session and nothing told to anyone (hole 4, 2026-11-08): run by
      *  {@link #runBody}. A body the program road does not plan is refused by name. */
     public static TestPlan planBody(TypedQuery typed, @Nullable String runtimeFqn, ExecuteOptions options) {

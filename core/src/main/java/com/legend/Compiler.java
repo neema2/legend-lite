@@ -902,55 +902,9 @@ public final class Compiler {
             com.legend.protocol.spec.ValueSpecification resolved,
             ModelContext ctx) {
         SpecCompiler specs = new SpecCompiler(ctx);
-        java.util.List<TypedSpec> body = specs.typeQueryBody(resolved);
-        java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();
-        java.util.Map<com.legend.model.FunctionId, Boolean> verdictMemo = new java.util.HashMap<>();
-        java.util.Map<com.legend.model.FunctionId, java.util.Set<String>> storeMemo = new java.util.HashMap<>();
-        boolean effects = false;
-        boolean seeds = false;
-        boolean verdicts = false;
-        java.util.Set<String> stores = new java.util.LinkedHashSet<>();
-        StringBuilder shape = new StringBuilder(body.size());
-        for (int i = 0; i < body.size(); i++) {
-            TypedSpec s = body.get(i);
-            java.util.List<TypedSpec> preceding = body.subList(0, i);
-            boolean effect = com.legend.compiler.spec.StatementEffects.containsEffect(s, specs, memo)
-                    || com.legend.compiler.spec.StatementEffects.containsTdgGenerator(s);
-            boolean verdict = com.legend.compiler.spec.StatementEffects.callsVerdict(s, specs, verdictMemo);
-            shape.append(statementKind(s, effect, verdict));
-            effects |= effect;
-            stores.addAll(com.legend.compiler.spec.SeededStores.of(s, specs, storeMemo));
-            // the ONE reader of runtime shapes: inline CSV test data anywhere
-            // in the statement (a from(), an execute's runtime argument, a
-            // let-bound connection copy) is a bound-context fact; values the
-            // statement names chase its preceding lets
-            seeds |= !com.legend.compiler.spec.typed.ExecutionContext.reader()
-                    .bind(v -> com.legend.compiler.spec.typed.Lets.bound(v, preceding))
-                    .read(java.util.Optional.empty(), s).csvSetups().isEmpty();
-            verdicts |= verdict;
-        }
-        return new ProgramFacts(effects, seeds, verdicts, stores, shape.toString());
+        return ProgramFacts.of(specs.typeQueryBody(resolved), specs);
     }
 
-    /** One statement's letter in {@link ProgramFacts#shape()}. */
-    private static char statementKind(TypedSpec s, boolean effect, boolean verdict) {
-        if (s instanceof com.legend.compiler.spec.typed.TypedNativeCall c
-                && com.legend.builtin.NativeFn.ContextOwner.of(c.callee().id()).isPresent()) {
-            return 'X';
-        }
-        if (s instanceof com.legend.compiler.spec.typed.TypedLet l) {
-            TypedSpec v = l.value();
-            while (v instanceof com.legend.compiler.spec.typed.TypedFrom f) {
-                v = f.source();
-            }
-            if (v instanceof com.legend.compiler.spec.typed.TypedNativeCall ec
-                    && com.legend.builtin.NativeFn.Handle.isExecute(ec.callee().id())) {
-                return 'F';
-            }
-            return effect ? 'E' : 'L';
-        }
-        return verdict ? 'A' : effect ? 'E' : 'O';
-    }
 
 
 

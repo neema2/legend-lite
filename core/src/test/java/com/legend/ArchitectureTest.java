@@ -804,9 +804,11 @@ final class ArchitectureTest {
             "planner.PlanMaker#runtimeOf(com.legend.TypedQuery, java.lang.String)", "com.legend.TypedQuery",
             "planner.QueryParameters$Declared#<init>(java.lang.String, com.legend.compiler.element.type.Type, "
                     + "com.legend.compiler.element.type.Multiplicity)", "com.legend.TypedQuery",
-            // the test door, from the root's TestExecution: a test body's plan
+            // the test door, from the root's TestExecution: a test body's plan, and its facts (C5-J item 2, 2026-11-15:
+            // the facts a runner reads before a body is planned, the record the body's plan carries)
             "testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String, com.legend.testplan.PlanningOptions)",
             "com.legend.TestExecution",
+            "testplan.TestPlanner#facts(com.legend.TypedQuery)", "com.legend.TestExecution",
             // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
             "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
                     + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
@@ -829,7 +831,7 @@ final class ArchitectureTest {
             // the root's Compiler, the lowering of a resolved query (lowerResolved): QueryDoor's refusal of a typed
             // body's executeInDb read (its (List, SpecCompiler) overload, the G1 follow-up audit's, 2026-11-14), the
             // cross-store guard, the Lowerer and its object sites, the platform's registrations, and a program's facts
-            // (the PCT runner reads them too)
+            // (stated by ProgramFacts.of since C5-J item 2, 2026-11-15; the PCT runner reads the test plan's instead)
             "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
                     + "com.legend.platform.ImplementationTable)", "com.legend.Compiler",
             "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler",
@@ -841,15 +843,13 @@ final class ArchitectureTest {
             "lowering.PlatformRegistrations#current()", "com.legend.Compiler com.legend.probe.Shadow",
             "planner.CrossStoreGuard#check(java.util.List, com.legend.compiler.element.ModelContext, "
                     + "java.lang.String)", "com.legend.Compiler",
-            "planner.ProgramFacts#<init>(boolean, boolean, boolean, java.util.Set, java.lang.String)",
-            "com.legend.Compiler",
-            "planner.ProgramFacts#effects()", "com.legend.Compiler com.legend.test.PureTestRunner",
+            "planner.ProgramFacts#of(java.util.List, com.legend.compiler.spec.SpecCompiler)", "com.legend.Compiler",
+            "planner.ProgramFacts#effects()", "com.legend.Compiler",
             "planner.QueryDoor#refuseRawSql(java.util.List, com.legend.compiler.spec.SpecCompiler)",
             "com.legend.Compiler",
-            // the PCT runner's facts of a test body (test.PureTestRunner): read, never planned
-            "planner.ProgramFacts#seedsInlineCsv()", "com.legend.test.PureTestRunner",
-            "planner.ProgramFacts#shape()", "com.legend.test.PureTestRunner",
-            "planner.ProgramFacts#verdicts()", "com.legend.test.PureTestRunner",
+            // (the PCT runner's reads of ProgramFacts -- effects, seedsInlineCsv, shape, verdicts -- went 2026-11-15, C5-J
+            // item 2: it reads a test body's facts as data, testexecutionplan.BodyFacts, from the test door and from the
+            // body's test plan)
             // the boundary's doors (//wasm:boundary's planner.Boundary, its anonymous classes included): each request
             // door's planner
             "lowering.LiteralSpelling#inZone(java.lang.String, java.lang.String)", "planner.Boundary",
@@ -1816,6 +1816,9 @@ final class ArchitectureTest {
             "com.legend.Compiler#compileModel", "com.legend.Compiler#query", "com.legend.TypedQuery#executionPlan",
             "com.legend.TypedQuery#projectPlan",
             "com.legend.testplan.TestPlanner#plan",
+            // a test body's facts, data (C5-J item 2, 2026-11-15): the test door's facts method is one planning call
+            // and no run
+            "com.legend.testplan.TestPlanner#facts",
             "com.legend.ExecuteOptions#planning", "com.legend.ExecuteOptions#edge",
             // (com.legend.ExecuteOptions#systemConnections gone 2026-11-11, B4: every statement reading the system
             // metamodel store runs on the process's in-process catalog; the host's system connections deleted)
@@ -1984,8 +1987,9 @@ final class ArchitectureTest {
     /** Where planning begins: the router's planning halves and the doors'. */
     // TestPlanner#planned, #planAhead and TestExecution#planProgram left 2026-11-10 with the on-demand fixtures they
     // planned (census M9)
+    // TestExecution#facts joined 2026-11-15 (C5-J item 2): a test body's facts, stated by the test planner
     private static final java.util.Set<String> PLANNING_ENTRIES = java.util.Set.of("com.legend.testplan.TestPlanner#plan",
-            "com.legend.TestExecution#planBody");
+            "com.legend.TestExecution#planBody", "com.legend.TestExecution#facts");
 
     /** Every code unit of the product reached from {@code entries} ({@code Class#method}, every overload) by calls and
      *  by method references (a reference is a call made later: the slice 3 follow-up audit, 2026-11-08): a target's

@@ -93,6 +93,28 @@ class TestDoorTest {
         }
     }
 
+    /** A TEST BODY'S FACTS ARE DATA ITS PLAN CARRIES (C5-J item 2, 2026-11-15): the record the test door states before
+     *  the body is planned is the plan's own, and reads back from the plan's JSON as written -- the PCT runner reads
+     *  them from the door and the plan, never the planner's {@code ProgramFacts}. */
+    @Test
+    void aTestPlanCarriesTheBodysFactsAsTheDoorStatesThem() {
+        var ctx = Compiler.compileModel(SEEDED.replace("type: H2;", "type: DuckDB;"));
+        String body = "{|let n = x::Firm.all()->project([f|$f.name], ['name'])->size();\n"
+                + "meta::relational::metamodel::execute::executeInDb('Create Table c5_facts(i INT);',"
+                + " ^meta::external::store::relational::runtime::TestDatabaseConnection("
+                + "type=meta::relational::runtime::DatabaseType.DuckDB), 0, 1000);\n"
+                + "assertEquals(1, $n);}";
+        com.legend.testexecutionplan.BodyFacts stated = com.legend.TestExecution.facts(Compiler.query(ctx, body));
+        assertEquals(new com.legend.testexecutionplan.BodyFacts(true, false, true, "LEA"), stated);
+        com.legend.testexecutionplan.TestPlan plan = com.legend.TestExecution.planBody(Compiler.query(ctx, body), "x::RT",
+                com.legend.ExecuteOptions.NONE);
+        assertEquals(stated, plan.facts(), "the plan carries the facts the door states");
+        assertEquals(plan, com.legend.testexecutionplan.TestPlanJson.read(
+                com.legend.testexecutionplan.TestPlanJson.write(plan)), "the facts read back as written");
+        assertEquals(new com.legend.testexecutionplan.BodyFacts(false, false, false, "O"),
+                com.legend.TestExecution.facts(Compiler.query(ctx, "|x::Firm.all()->project([f|$f.name], ['name'])")));
+    }
+
     @Test
     void aTestsKindIsTheLibrarysRefusedByNameUntilItsStep() {
         TypedQuery body = Compiler.query(Compiler.compileModel(StorelessRuntime.with("", Databases.PLATFORM)),

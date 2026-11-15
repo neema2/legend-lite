@@ -146,7 +146,7 @@ public final class TestPlanner {
         try (var p = com.legend.base.RunScope.plans("a test body's program")) {
             plan = TestDoor.planned(typed, runtimeFqn, options.features(),
                     asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.stores(),
-                    options.edge());
+                    options.edge(), given);
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
@@ -171,6 +171,15 @@ public final class TestPlanner {
             System.out.println("[plan-json] " + com.legend.testexecutionplan.TestPlanJson.write(plan));
         }
         return plan;
+    }
+
+    /** The body's facts as data (C5-J item 2, 2026-11-15): the planner's {@link com.legend.planner.ProgramFacts}
+     *  over the body as given, before its asserts are lifted -- what a test runner reads of a body. The test plan
+     *  carries the same record ({@link com.legend.testexecutionplan.TestPlan#facts}); a runner choosing the body's
+     *  session before it is planned reads it here. */
+    public static com.legend.testexecutionplan.BodyFacts facts(TypedQuery given) {
+        com.legend.planner.ProgramFacts f = com.legend.planner.ProgramFacts.of(given.body(), given.specs());
+        return new com.legend.testexecutionplan.BodyFacts(f.effects(), f.seedsInlineCsv(), f.verdicts(), f.shape());
     }
 
     /** {@code given} as every road sees it: the lift (the asserts-as-plan-nodes program, step 4: an assert in a value's
