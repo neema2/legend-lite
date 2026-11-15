@@ -27,6 +27,7 @@ import { hostOf, type Receipt } from './receipt.ts';
 import type { ResultTable } from './result.ts';
 import { SessionExpired } from './warehouse-session.ts';
 import type { PlannedSql } from './planned-sql.ts';
+import { sending } from './run-frame.ts';
 
 /** A signed-in session: where the warehouse is, and the bearer token. */
 export interface WarehouseSession {
@@ -409,6 +410,8 @@ export class WarehouseEngine implements QueryEngine {
     signal?: AbortSignal,
     onReceipt?: (receipt: Receipt) => void,
   ): AsyncGenerator<Uint8Array> {
+    // a run's, on Node (run-frame.ts sending): the warehouse's one submit
+    sending("the warehouse's submit");
     let step = await this.#call<Step>('submit', { sql, catalog: this.#catalog }, signal);
     const id = step.statementId;
     // where a read that ends early leaves its statement: still running, cancelled; done, its result closed; read to the

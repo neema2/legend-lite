@@ -5,7 +5,10 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 
-import { NOT_PLANNING, currentRun, frameKept, inRun, planning } from '../src/run-frame.ts';
+import { NOT_PLANNING, currentRun, frameKept, inRun, planning, sending } from '../src/run-frame.ts';
+import { DuckDbEngine, type ArrowishTable } from '../src/duckdb.ts';
+import { WarehouseBinding, WarehouseEngine } from '../src/warehouse.ts';
+import { unplanned } from './unplanned.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { WorkerPort } from '../src/legend/wasm-grammar.ts';
 import { HttpEngine, RoutedEngine } from '../src/legend/engine.ts';
@@ -164,5 +167,61 @@ describe('the run frame', () => {
     } finally {
       delete g.Worker;
     }
+  });
+});
+
+// EVERY SEND ON NODE FRAMED (C5-T, 2026-11-15): the two choke points -- DuckDB's connection (duckdb.ts) and the
+// warehouse's submit (warehouse.ts) -- refuse a statement sent outside a run, before anything reaches the database,
+// and send it inside one. A browser and the headless V8 keep no frame (frameKept): the layers' rule holds the line
+// there (//tools/deps:layers_alone).
+describe('a statement is sent inside a run, on Node (the choke points, C5-T)', () => {
+  const OUTSIDE = (where: string): RegExp => new RegExp(`${where} was sent a statement outside a run: a statement is sent by a run`);
+
+  it('refuses a send outside a run by name, and lets one inside a run through', async () => {
+    assert.throws(() => sending("DuckDB's connection"), OUTSIDE("DuckDB's connection"));
+    await inRun("a test's run", async () => sending("DuckDB's connection"));
+  });
+
+  it("DuckDB's connection: a run, a stream, and the held connection's rows, table and Arrow import, refused outside a run before anything is sent", async () => {
+    const sent: string[] = [];
+    const empty: ArrowishTable = { numRows: 0, schema: { fields: [] }, getChildAt: () => null };
+    const engine = new DuckDbEngine({
+      query: (sql) => { sent.push(sql); return empty; },
+      prepare: async (sql) => ({ query: async () => { sent.push(sql); return empty; } }),
+      insertArrowFromIPCStream: async () => { sent.push('an Arrow import'); },
+    });
+    const refused = OUTSIDE("DuckDB's connection");
+    await assert.rejects(engine.run(unplanned('SELECT 1'), 0), refused);
+    await assert.rejects(engine.stream({ sql: unplanned('SELECT 2'), columns: [] }, 0, () => {}), refused);
+    await assert.rejects(engine.exclusive((held) => held.rows(unplanned('SELECT 3'), [])), refused);
+    await assert.rejects(engine.exclusive((held) => held.table(unplanned('SELECT 4'))), refused);
+    await assert.rejects(engine.exclusive((held) => held.insertArrow(new Uint8Array(), { table: 't' }, true)), refused);
+    assert.deepEqual(sent, [], 'a statement refused is never sent');
+    // inside a run, each is sent
+    await inRun("a test's run", async () => {
+      await engine.run(unplanned('SELECT 1'), 0);
+      await engine.exclusive(async (held) => {
+        await held.rows(unplanned('SELECT 3'), []);
+        await held.table(unplanned('SELECT 4'));
+        await held.insertArrow(new Uint8Array(), { table: 't' }, true);
+      });
+    });
+    assert.deepEqual(sent, ['SELECT 1', 'SELECT 3', 'SELECT 4', 'an Arrow import']);
+  });
+
+  it("the warehouse's submit: refused outside a run before the binding is asked for it, and asked inside one", async () => {
+    const asked: string[] = [];
+    const binding = new WarehouseBinding({ exports: {
+      call: (op: string): string => { asked.push(op); throw new Error('the test stops at the call'); },
+      read: (): string => '{}',
+    } });
+    // a session already expired: no refresh is scheduled (the token is a sentinel, never a credential)
+    const engine = new WarehouseEngine(binding,
+      { baseUrl: 'http://warehouse.invalid', token: 'sentinel-token', principal: 'tester', expiresAt: '2000-01-01T00:00:00Z' },
+      'main', 'DuckDB');
+    await assert.rejects(engine.run(unplanned('SELECT 1'), 0), OUTSIDE("the warehouse's submit"));
+    assert.deepEqual(asked, [], 'a statement refused is never submitted');
+    await assert.rejects(inRun("a test's run", () => engine.run(unplanned('SELECT 1'), 0)), /the test stops at the call/);
+    assert.deepEqual(asked, ['submit']);
   });
 });

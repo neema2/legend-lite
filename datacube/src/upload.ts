@@ -13,6 +13,7 @@ import type { ConnectionSettings, KeptSetting } from '../../engine-client/src/pl
 import { runHostOperations } from '../../engine-client/src/doors/host-operations.ts';
 import { isIdentifier } from '../../pure-protocol/src/index.ts';
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
+import { inRun } from '../../engine-client/src/run-frame.ts';
 
 /** The hosts' plan runner, fetched with the first file read (a chunk of its own: a grid-only page carries none of it). */
 const planRunner = (): Promise<typeof import('../../engine-client/src/plan-runner.ts')> =>
@@ -355,7 +356,7 @@ export async function readFileInto(
   const inferred = await modelLanded(engine, models, table);
 
   const [count] = await models.hostOperations(engine.databaseType, [{ op: 'count', from: { relation: target } }]);
-  const counted = await engine.run(count![0]!, 0);
+  const counted = await inRun("a read table's rows counted", () => engine.run(count![0]!, 0));
   const rowCount = Number(counted.columns[0]?.values[0] ?? 0);
 
   return {
@@ -433,7 +434,9 @@ export async function catalogColumns(engine: QueryEngine, models: TableModels, t
  *  question: an engine, or a connection held (table-output.ts: a table made in the transaction that reads it). */
 export async function catalogColumnsOf(engine: { run(sql: PlannedSql, epoch: number): Promise<RawTable> }, models: Pick<TableModels, 'catalogColumnsSql'>,
   schema: string, table: string): Promise<CatalogColumn[]> {
-  const answer = await engine.run(await models.catalogColumnsSql(schema, table), 0);
+  // the catalog's question asked first, then run as a run (run-frame.ts: a run plans nothing)
+  const question = await models.catalogColumnsSql(schema, table);
+  const answer = await inRun("a table's catalog read", () => engine.run(question, 0));
   const names = columnOf(answer, 'column_name');
   const types = columnOf(answer, 'data_type');
   const logical = columnOf(answer, 'logical_type');

@@ -50,3 +50,16 @@ export function planning(kind: string): void {
       + ' nothing (G4)');
   }
 }
+
+/**
+ * A statement about to be sent (`where`: the choke point sending it -- DuckDB's connection, the warehouse's submit):
+ * refused outside a run, where the host keeps a flow's frame (Node). Every send is a run's -- a door's or the plan
+ * runner's, inRun -- so a send outside one is a statement no run asked for (C5-T, 2026-11-15: every send on Node framed;
+ * a browser and the headless V8 keep no frame, and the layers' rule holds the line there, //tools/deps:layers_alone).
+ */
+export function sending(where: string): void {
+  if (frames !== null && frames.getStore() === undefined) {
+    throw new Error(`${where} was sent a statement outside a run: a statement is sent by a run (a door's, or the plan`
+      + " runner's: run-frame.ts inRun), which plans nothing first (G4)");
+  }
+}

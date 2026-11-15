@@ -394,14 +394,21 @@ js_library(
     testonly = True,
     srcs = ["test/unplanned.ts"],
     visibility = ["//datacube:__pkg__"],
+    # a test's own statements sent in the test's own run (`asTest`: run-frame.ts inRun, a record)
+    deps = [":records"],
 )
 
 # THE RUN FRAME (run-frame.ts, the witness, 2026-11-13): a planner entry inside a run of its own flow refused by name,
-# outside one or on another flow answered; the planner's in-thread answer and a worker's port among the entries
+# outside one or on another flow answered; the planner's in-thread answer and a worker's port among the entries; and
+# a statement sent outside a run refused at both choke points, DuckDB's connection and the warehouse's submit (C5-T)
 node_test(
     name = "run_frame_test",
     size = "small",
-    data = [":engine_client"],
+    data = [
+        ":engine_client",
+        # the choke points' test sends its own statements (C5-T, 2026-11-15)
+        "test/unplanned.ts",
+    ],
     entry_point = "test/run-frame.test.ts",
 )
 

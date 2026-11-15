@@ -15,7 +15,7 @@ import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesCsv, sampleTr
 import { sampleById, sampleFileName } from '../src/samples.ts';
 import { ingestFile, type DuckDbFiles } from '../src/upload.ts';
 import { plannerFor } from './catalog-builder.ts';
-import { unplanned } from '../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../engine-client/test/unplanned.ts';
 
 /** The demo's model (demo/trades.pure): the table the sample fills, as the page's planner reads it. */
 const MODEL = readFileSync(runfileFromEnv('TRADES_MODEL'), 'utf8');
@@ -29,18 +29,18 @@ before(async () => {
   files = db.files;
   // the start's table, as the page makes it (demo/boot.ts synthesizeTrades): the planner's plan, run by the hosts' runner
   const plan = await plannerFor(MODEL, 'trades::RT').synthesize(sampleTradesRequest(MODEL, engine.databaseType));
-  await engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
+  await asTest(engine).exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params)));
 });
 
 after(async () => {
   await engine?.close();
 });
 
-const one = (sql: string): Promise<unknown> => engine.run(unplanned(sql), 0).then((t) => t.columns[0]?.values[0]);
+const one = (sql: string): Promise<unknown> => asTest(engine).run(unplanned(sql), 0).then((t) => t.columns[0]?.values[0]);
 /** A table's columns and their types, each name as DuckDB matches it: without regard to case (the synthesized table's
  *  columns are spelled as the model's seed makes them, upper case; the file's as its header has them). */
 const columns = async (table: string): Promise<string[]> => {
-  const t = await engine.run(unplanned(`SELECT lower(column_name), data_type FROM duckdb_columns()
+  const t = await asTest(engine).run(unplanned(`SELECT lower(column_name), data_type FROM duckdb_columns()
     WHERE lower(table_name) = lower('${table}') ORDER BY column_index`), 0);
   return t.columns[0]!.values.map((name, i) => `${String(name)} ${String(t.columns[1]!.values[i])}`);
 };
@@ -54,7 +54,7 @@ describe("the demo's sample trades, made by the database as the plan says", () =
       'qtr VARCHAR', 'notional DOUBLE', 'pnl DOUBLE', 'qty INTEGER']);
     assert.equal(Number(await one('SELECT count(*) FROM TRADES')), SAMPLE_TRADES);
     // each knob's values -- every value of a list and of a whole-number range, a decimal range's within it -- and no NULL
-    assert.deepEqual((await engine.run(unplanned(`SELECT count(DISTINCT region), count(DISTINCT desk), count(DISTINCT qtr),
+    assert.deepEqual((await asTest(engine).run(unplanned(`SELECT count(DISTINCT region), count(DISTINCT desk), count(DISTINCT qtr),
       count(DISTINCT book), count(DISTINCT year), min(year), max(year), count(DISTINCT qty), min(qty), max(qty),
       CAST(min(notional) >= 0 AND max(notional) <= 9999.99 AND min(pnl) >= -1000 AND max(pnl) <= 999.99 AS INTEGER),
       count(*) FILTER (WHERE region IS NULL OR desk IS NULL OR year IS NULL OR qtr IS NULL OR book IS NULL

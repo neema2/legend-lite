@@ -22,6 +22,7 @@ import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
 import { dayText, decimalText, exactInteger, timeText, timestampText } from './values.ts';
 import type { PlannedSql } from './planned-sql.ts';
+import { sending } from './run-frame.ts';
 
 /**
  * The slice of duckdb-wasm's connection we actually use. Declaring it
@@ -426,7 +427,10 @@ export class DuckDbEngine implements QueryEngine {
     const rowsOf = (t: ArrowishTable): unknown[][] => Array.from({ length: t.numRows }, (_, r) =>
       t.schema.fields.map((_f, c) => t.getChildAt(c)?.get(r)));
     return this.#serialised(() => work({
+      // each send a run's, on Node (run-frame.ts sending): the held connection's statements are a plan's, run by the
+      // plan runner inside its run
       rows: async (sql, params) => {
+        sending("DuckDB's connection");
         if (params.length > 0 && conn.prepare === undefined) throw new Error("this tab's database binds no statement's values");
         try {
           if (params.length === 0) return rowsOf(await conn.query(sql));
@@ -441,8 +445,12 @@ export class DuckDbEngine implements QueryEngine {
           throw this.#failed(cause, sql);
         }
       },
-      table: (sql) => this.#whole(sql, 0, undefined, performance.now()),
+      table: (sql) => {
+        sending("DuckDB's connection");
+        return this.#whole(sql, 0, undefined, performance.now());
+      },
       insertArrow: async (bytes, target, create) => {
+        sending("DuckDB's connection");
         const insert = conn.insertArrowFromIPCStream;
         if (typeof insert !== 'function') throw new Error("this tab's database has no Arrow import: a remote plane's rows cannot stream into it");
         try {
@@ -465,6 +473,8 @@ export class DuckDbEngine implements QueryEngine {
     signal?: AbortSignal,
     params: readonly string[] = [],
   ): Promise<RawTable> {
+    // a run's, on Node (run-frame.ts sending): DuckDB's one choke point (PlannedSqlTest's DATABASE_SENDS)
+    sending("DuckDB's connection");
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return this.#serialised(async () => {
       // Checked AGAIN after waiting for the connection. This is where
@@ -512,6 +522,7 @@ export class DuckDbEngine implements QueryEngine {
     onChunk: (chunk: ResultTable) => void,
     signal?: AbortSignal,
   ): Promise<void> {
+    sending("DuckDB's connection");
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return this.#serialised(async () => {
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');

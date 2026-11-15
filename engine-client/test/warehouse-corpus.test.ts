@@ -20,6 +20,7 @@ import {
   type WarehouseSession,
 } from '../src/warehouse.ts';
 import { unplanned } from './unplanned.ts';
+import { inRun } from '../src/run-frame.ts';
 
 interface Exchange {
   readonly op: string;
@@ -79,15 +80,16 @@ async function act(s: Scenario): Promise<Record<string, unknown>> {
       }
       case 'objects':
         return { objects: await listObjects(binding, session(String(a.token))) };
-      case 'run': {
+      // the test's own statements, each sent in its own run (run-frame.ts: on Node a statement is sent inside one)
+      case 'run': return await inRun("a test's own statement", async () => {
         const chunks: string[] = [];
         let receipt: { statementId?: string; serverRows?: number } = {};
         for await (const bytes of engine().arrowChunks(unplanned(String(a.sql)), undefined, (r) => { receipt = r; })) {
           chunks.push(Buffer.from(bytes).toString('base64'));
         }
         return { chunks, statementId: receipt.statementId, rowCount: receipt.serverRows };
-      }
-      case 'firstChunk': {
+      });
+      case 'firstChunk': return await inRun("a test's own statement", async () => {
         const chunks: string[] = [];
         // the read stops after its first chunk: the driver closes what it leaves
         for await (const bytes of engine().arrowChunks(unplanned(String(a.sql)))) {
@@ -95,7 +97,7 @@ async function act(s: Scenario): Promise<Record<string, unknown>> {
           break;
         }
         return { chunks };
-      }
+      });
       case 'refreshThenCheck': {
         // the new token is what the next call carries: the replay holds that call to the recorded one
         const e = engine();
