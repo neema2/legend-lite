@@ -11,10 +11,12 @@
 // - no module of the layers it must never hold is in it (NOT_LAYER_SRCS, a genquery of their files; for a run layer the
 //   planner's, the server's and the doors' -- the orchestrator's note 4, 2026-11-15 -- and no app's);
 // - a planted module of the layer that imports one of them (PLANT_AT, PLANT_IMPORTS) fails by name: the bite;
-// - on a RUN layer, DEFAULT-DENY on computed specifiers (the orchestrator's note 2): an `import()`, a `require()`, an
-//   `import.meta.resolve()`, an `importScripts()`, a worker's module or a `new URL(..., import.meta.url)` whose
-//   specifier is not a literal chooses its module at run time, where no compiler follows it -- each refused but the two
-//   vendor loads named with their reason (COMPUTED_DOORS);
+// - on a RUN or SERVER layer, NO computed specifier (the orchestrator's note 2; 2026-11-15, the C5-T fold-in: no list):
+//   an `import()`, a `require()`, an `import.meta.resolve()`, an `importScripts()`, a worker's module or a `new URL(...,
+//   import.meta.url)` whose specifier is not a literal chooses its module at run time, where no compiler follows it.
+//   Loading the deployment's configured vendor binaries is a door's wiring: on a DOOR layer, the vendor loads named
+//   with their reason (COMPUTED_DOORS), each in a door module, and no other; the run side takes the loaded object,
+//   never a loader;
 // - on a RUN layer, each of those doors whose specifier IS a literal names no module of a layer it must never reach,
 //   nor any module outside its closure: the compiler resolves an `import()`, never a worker's module, a URL's, a
 //   `require()`'s or an `importScripts()`'s (the C5-T audit's item 6, 2026-11-15);
@@ -56,11 +58,14 @@ const LAYER = env('LAYER');
 const RUN_LAYER = env('KIND') === 'run';
 const DOOR_LAYER = env('KIND') === 'doors';
 
-/** A run layer's computed specifiers, by module and door, with the reason each is allowed (the orchestrator's note 2,
- *  2026-11-15: carried from the run wall's COMPUTED_DOORS of the final audit of 9af16fbe58's T4). Shrink-only. */
+/** The doors' computed specifiers, by module and door, with the reason each is allowed: the deployment's configured
+ *  vendor binaries, loaded by their doors (the orchestrator's note 2, 2026-11-15, carried from the run wall's
+ *  COMPUTED_DOORS of the final audit of 9af16fbe58's T4; 2026-11-15, the C5-T fold-in: moved out of the run layer into
+ *  the doors, which hand the run side the loaded object). Shrink-only; each a door module's. */
 const COMPUTED_DOORS = new Map([
-  ['engine-client/src/duckdb-tab.ts new Worker(bundle.mainWorker!)',
-    "DuckDB's own worker, its bundle's duckdb-browser-eh.worker.js from the page's vendor directory: DuckDB runs there"],
+  ["engine-client/src/doors/tab-duckdb.ts new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js'))",
+    "DuckDB's own worker, started by its door from the page's vendor directory, once the browser is known to run it:"
+      + ' the run side instantiates DuckDB in the worker it is handed'],
   ['engine-client/src/doors/warehouse.ts import(runtimeUrl)',
     "TeaVM's runtime for the warehouse's wire binding (vendor/warehouse/, //warehouse:sqlapi_page), loaded by its door:"
       + " the run side takes the loaded binding (2026-11-15, the C5-T fold-in)"],
@@ -169,15 +174,25 @@ describe(`${LAYER} alone: the layer with its deps and nothing else`, () => {
     }
   });
 
-  it('opens no import door whose module is chosen at run time, but the two vendor loads named (a run layer; note 2)', (t) => {
-    if (!RUN_LAYER) {
-      t.skip('a planner layer: the run layers hold this rule');
+  it('opens no import door whose module is chosen at run time: a run or server layer none, a door the vendor loads named (note 2)', (t) => {
+    if (env('KIND') === 'planner') {
+      t.skip("a planner layer: it starts the planner's own worker from the page's URL, planning-side");
       return;
     }
-    const found = CLOSURE.flatMap((f) => computedDoors(readFileSync(join(MAIN, f), 'utf8')).map((d) => `${f} ${d}`)).sort();
-    // the named doors of the files in this closure (2026-11-15, the C5-T final audit's MUST 1: the engine's API, a run-side
-    // layer, holds neither vendor load's module), each exactly
-    assert.deepEqual(found, [...COMPUTED_DOORS.keys()].filter((d) => CLOSURE.includes(d.slice(0, d.indexOf(' ')))).sort());
+    // each named load is a door module's (2026-11-15, the C5-T fold-in): a run layer can never be named, so never grow one
+    for (const d of COMPUTED_DOORS.keys()) assert.match(d, /^(?:engine-client|datacube)\/src\/doors\//, `${d} is not a door's`);
+    // the planner layers' own files aside (PLANNER_SRCS): a door's and the server's closures hold the planner, which
+    // starts its own worker from the page's URL, planning-side
+    const planners = new Set(readFileSync(runfileFromEnv('PLANNER_SRCS'), 'utf8').split('\n').map((l) => l.trim())
+      .filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
+    assert.ok(planners.size > 0, 'PLANNER_SRCS names no file');
+    const found = CLOSURE.filter((f) => !planners.has(f))
+      .flatMap((f) => computedDoors(readFileSync(join(MAIN, f), 'utf8')).map((d) => `${f} ${d}`)).sort();
+    // a run or server layer: none (its closure holds no door module, so no named load applies); a door layer: the named
+    // loads of the files in its closure, each exactly
+    assert.deepEqual(found, DOOR_LAYER
+      ? [...COMPUTED_DOORS.keys()].filter((d) => CLOSURE.includes(d.slice(0, d.indexOf(' ')))).sort()
+      : []);
   });
 
   it("names no module it may not reach by a literal worker's, URL's, require's or importScripts' specifier (a run layer)", (t) => {

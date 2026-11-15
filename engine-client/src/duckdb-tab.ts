@@ -71,8 +71,8 @@ export interface TabSetup {
 }
 
 /** A file of the vendor folder `vendor` names, as an absolute URL: the worker resolves its module against its own
- *  location, not the page's. */
-function vendorAsset(vendor: string, f: string): string {
+ *  location, not the page's (DuckDB's worker script, `duckdb-browser-eh.worker.js`, is started by the door from here). */
+export function vendorAsset(vendor: string, f: string): string {
   return new URL(f, new URL(vendor, globalThis.location.href)).href;
 }
 
@@ -87,22 +87,27 @@ export interface TabDatabase {
 }
 
 /**
- * DuckDB in this tab instantiated from `vendor`, the URL of the folder holding duckdb-eh.wasm and its worker: its
- * download, its worker and its instantiate, which send no statement -- so the start's door begins it at once,
- * alongside the planner's asks, and the slower of the two sets the page's floor (the C5-T audit's MUST 1, 2026-11-15;
- * DataCube's boot.ts, "Overlapped, the slower of the two sets the floor instead of their sum").
+ * Refused by name in a browser DuckDB's one build cannot run, before anything is fetched. ONE BUILD, DuckDB's with
+ * WebAssembly exception handling (eh): every browser the apps support has had it since 2021-22, and the build without
+ * it (mvp) doubled what a site ships. A browser without it is refused by name, never handed a build it cannot run.
  */
-export async function instantiateDuckDbInTab(vendor: string): Promise<TabDatabase> {
-  const asset = (f: string): string => vendorAsset(vendor, f);
-  // ONE BUILD, DuckDB's with WebAssembly exception handling (eh): every browser the apps support has had it since
-  // 2021-22, and the build without it (mvp) doubled what a site ships. A browser without it is refused by name, never
-  // handed a build it cannot run
+export async function duckDbRunsHere(): Promise<void> {
   if (!(await duckdb.getPlatformFeatures()).wasmExceptions) {
     throw new Error('This browser cannot run DuckDB in the page: it lacks WebAssembly exception handling. Use a current Chrome, Edge, Firefox or Safari.');
   }
-  const bundle = { mainModule: asset('duckdb-eh.wasm'), mainWorker: asset('duckdb-browser-eh.worker.js'), pthreadWorker: null };
-  const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), new Worker(bundle.mainWorker!));
-  await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+}
+
+/**
+ * DuckDB in this tab instantiated in `worker` -- its own, which the door started from the vendor folder (a door's
+ * wiring: the run side takes the started worker and loads no module, 2026-11-15, the C5-T fold-in) -- from `vendor`,
+ * the URL of the folder holding duckdb-eh.wasm: its download and its instantiate, which send no statement -- so the
+ * start's door begins it at once, alongside the planner's asks, and the slower of the two sets the page's floor (the
+ * C5-T audit's MUST 1, 2026-11-15; DataCube's boot.ts, "Overlapped, the slower of the two sets the floor instead of
+ * their sum").
+ */
+export async function instantiateDuckDbInTab(vendor: string, worker: Worker): Promise<TabDatabase> {
+  const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
+  await db.instantiate(vendorAsset(vendor, 'duckdb-eh.wasm'), null);
   return { db };
 }
 

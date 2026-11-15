@@ -185,7 +185,8 @@ junit_test(
 # EACH TYPESCRIPT LAYER ALONE (C5-T, 2026-11-15: the rule that replaces the interim run wall): a layer's closure, and
 # nothing else, copied out and typechecked strict by the pinned compiler (layer-alone.test.ts) -- a module of the layer
 # that imports one of a layer it may not reach fails by name (TS2307), a planted one proves it; none of those layers'
-# files is in the closure; and a run layer opens no import door chosen at run time but the two vendor loads named.
+# files is in the closure; and a run or server layer opens no import door chosen at run time, a door layer only the
+# vendor loads named (2026-11-15, the C5-T fold-in: the two vendor loads moved out of the run layer into their doors).
 # The apps' own files, which no layer holds
 _APPS = " + ".join(["//datacube:src", "//query:src", "//studio:src"])
 
@@ -284,12 +285,25 @@ _LAYERS_ALONE = {
     scope = [label.strip() for label in (never + " + " + _APPS).split("+")],
 ) for name, (_, _, never, _, _, _, _) in _LAYERS_ALONE.items()]
 
+# the planner layers' own files: they start the planner's own worker from the page's URL, planning-side, so the
+# computed-specifier rule (a run or server layer none, a door the vendor loads named) reads every closure without them
+# (2026-11-15, the C5-T fold-in)
+genquery(
+    name = "planner_layer_srcs",
+    expression = "labels(srcs, //engine-client:planner + //datacube:planner)",
+    scope = [
+        "//datacube:planner",
+        "//engine-client:planner",
+    ],
+)
+
 [node_test(
     name = name + "_alone_test",
     size = "small",
     data = [
         layer,
         ":%s_never" % name,
+        ":planner_layer_srcs",
         "//datacube:node_modules/@types/node",
         "//datacube:node_modules/typescript",
     ],
@@ -300,6 +314,7 @@ _LAYERS_ALONE = {
         "LAYER": layer,
         "MIN_FILES": str(floor),
         "NOT_LAYER_SRCS": "$(rlocationpath :%s_never)" % name,
+        "PLANNER_SRCS": "$(rlocationpath :planner_layer_srcs)",
         "PLANT_AT": plant,
         "PLANT_IMPORTS": " ".join(imports),
         # the package's link and the store's files it reaches: the test runs the link's bin/tsc

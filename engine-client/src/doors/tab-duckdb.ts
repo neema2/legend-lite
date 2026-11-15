@@ -5,14 +5,24 @@
 // overlap is the page's: its floor the slower of the planner's start and DuckDB's, never their sum (the C5-T audit's
 // MUST 1). Every app's tab DuckDB opens here (DataCube, Query, Studio and the test pages standing in for them).
 
-import { connectDuckDbInTab, extensionRepository, instantiateDuckDbInTab, type DuckDbInTab, type TabSetup } from '../duckdb-tab.ts';
+import {
+  connectDuckDbInTab, duckDbRunsHere, extensionRepository, instantiateDuckDbInTab, vendorAsset, type DuckDbInTab, type TabSetup,
+} from '../duckdb-tab.ts';
 import { DuckDbEngine } from '../duckdb.ts';
 import type { TabDuckDbPlanner } from '../planner-sources.ts';
 import { inRun } from '../run-frame.ts';
 
-/** DuckDB in this tab from `vendor` (the folder of duckdb-eh.wasm and its worker), set up as `planner` answers. */
+/**
+ * DuckDB in this tab from `vendor` (the folder of duckdb-eh.wasm and its worker), set up as `planner` answers. Its
+ * worker is started here, from the deployment's vendor folder, once the browser is known to run it: a door's wiring,
+ * the run side taking the started worker and loading no module (2026-11-15, the C5-T fold-in: until then
+ * duckdb-tab.ts started it, one of the run layer's two named vendor loads; //tools/deps:layers_alone).
+ */
 export function openDuckDbInTab(vendor: string, planner: TabDuckDbPlanner): Promise<DuckDbInTab> {
-  return openedInTab(() => instantiateDuckDbInTab(vendor), extensionRepository(vendor), planner, connectDuckDbInTab);
+  return openedInTab(async () => {
+    await duckDbRunsHere();
+    return instantiateDuckDbInTab(vendor, new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js')));
+  }, extensionRepository(vendor), planner, connectDuckDbInTab);
 }
 
 /**

@@ -212,9 +212,9 @@ class PlannedSqlTest {
             // the planner's worker (engine-client's bundle, //engine-client:planner_worker): it plans and holds no database
             Map.entry("datacube/src/lite-planner.ts", List.of("newWorker(")),
             Map.entry("engine-client/src/legend/wasm-grammar.ts", List.of("newWorker(")),
-            // DuckDB's own worker, its bundle's, under the one raw connection (duckdb-tab.ts: the run layer's computed
-            // door, tools/deps/layer-alone.test.ts COMPUTED_DOORS)
-            Map.entry("engine-client/src/duckdb-tab.ts", List.of("newWorker(")),
+            // DuckDB's own worker, its bundle's, under the one raw connection: started by its door (2026-11-15, the C5-T
+            // fold-in: a door's named vendor load, tools/deps/layer-alone.test.ts COMPUTED_DOORS; until then duckdb-tab.ts's)
+            Map.entry("engine-client/src/doors/tab-duckdb.ts", List.of("newWorker(")),
             // Monaco's editor worker (./editor.worker.js): the editor's language services, no database
             Map.entry("studio/src/app/app.ts", List.of("newWorker(")));
     static final Map<String, List<String>> CONNECTS = Map.ofEntries(
