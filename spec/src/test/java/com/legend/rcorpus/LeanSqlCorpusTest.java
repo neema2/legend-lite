@@ -27,8 +27,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * ({@code TestExecution.planBody}, planning only, no database) on the lane's backend, and its PRODUCT statements -- the
  * body's own statement nodes: its results, lets' frame runs, writes -- held to {@code rcorpus/lean-sql-baseline.tsv}
  * per database and test package by {@link LeanSqlBaseline}'s rule (growth fails, a shrink past 1% re-pins). Excluded,
- * as ruled: the verdict and canon steps (the judge's: recorded unguarded in {@code judge-sql.tsv} among the test's
- * outputs, for the test road's speed work) and a fixture's setup, seeds and loads (data delivery). Its own targets,
+ * as ruled: the verdict and canon steps (the judge's: held to their own pins, {@code
+ * rcorpus/lean-sql-judge-baseline.tsv}, by the same rule since E-5d) and a fixture's setup, seeds and loads (data delivery). Its own targets,
  * {@code //spec:lean_sql_corpus_duckdb} and {@code _h2}; re-pin with {@code bazel run
  * //spec:update_lean_sql_corpus_<lane>}.
  */
@@ -37,6 +37,11 @@ class LeanSqlCorpusTest {
 
     /** The pins' file in the source tree. */
     static final String PINS = "spec/src/test/resources/rcorpus/lean-sql-baseline.tsv";
+
+    /** The JUDGE's pins (E-5d, the design doc's §5.9; ruled with E-5, 2026-11-13): the verdict statements of every
+     *  corpus body planned under the DATABASE judge -- since E-5c BOTH plans the same program -- held by the same rule
+     *  per database and package. Until E-5d they were written unguarded ({@code judge-sql.tsv}). */
+    static final String JUDGE_PINS = "spec/src/test/resources/rcorpus/lean-sql-judge-baseline.tsv";
 
     /** The corpus's bodies planned on this JVM's backend: [0] the product's measures, [1] the judge's. */
     @SuppressWarnings("unchecked")
@@ -133,9 +138,22 @@ class LeanSqlCorpusTest {
     @Test
     void theCorpusProductSqlIsHeldToItsBaseline() throws Exception {
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure>[] measured = measure();
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pinned = pinned("/rcorpus/lean-sql-baseline.tsv");
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> judgePinned = pinned("/rcorpus/lean-sql-judge-baseline.tsv");
+        List<String> drift = LeanSqlBaseline.drift(pinned, measured[0]);
+        List<String> judgeDrift = LeanSqlBaseline.drift(judgePinned, measured[1]);
+        assertTrue(drift.isEmpty() && judgeDrift.isEmpty(), (drift.isEmpty() ? ""
+                : "the corpus's product SQL left its baseline (" + PINS + "):\n  " + String.join("\n  ", drift)
+                        + "\n") + (judgeDrift.isEmpty() ? ""
+                : "the corpus's judge SQL left its baseline (" + JUDGE_PINS + "):\n  "
+                        + String.join("\n  ", judgeDrift)));
+    }
+
+    /** {@code resource}'s pins for this JVM's database. */
+    private static Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pinned(String resource) throws IOException {
         String database = MinimalCorpus.BACKEND.type().name();
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pinned = new java.util.HashMap<>();
-        try (var in = LeanSqlCorpusTest.class.getResourceAsStream("/rcorpus/lean-sql-baseline.tsv")) {
+        try (var in = LeanSqlCorpusTest.class.getResourceAsStream(resource)) {
             if (in != null) {
                 LeanSqlBaseline.read(new String(in.readAllBytes(), StandardCharsets.UTF_8)).forEach((k, m) -> {
                     if (k.database().equals(database)) {
@@ -144,15 +162,7 @@ class LeanSqlCorpusTest {
                 });
             }
         }
-        // the judge's statements, unguarded: a measurement for the test road's speed work
-        String outputs = System.getenv("TEST_UNDECLARED_OUTPUTS_DIR");
-        if (outputs != null) {
-            Files.writeString(Path.of(outputs, "judge-sql.tsv"), LeanSqlBaseline.write(measured[1]),
-                    StandardCharsets.UTF_8);
-        }
-        List<String> drift = LeanSqlBaseline.drift(pinned, measured[0]);
-        assertTrue(drift.isEmpty(), "the corpus's product SQL left its baseline (" + PINS + "):\n  "
-                + String.join("\n  ", drift));
+        return pinned;
     }
 
     /** E-5c's step 1 (O5, ruled 2026-11-13; a measurement, nothing pinned): every corpus body planned under the
@@ -354,19 +364,10 @@ class LeanSqlCorpusTest {
         if (workspace == null) {
             throw new IllegalStateException("run it with bazel run //spec:update_lean_sql_corpus_<lane>");
         }
-        Path file = Path.of(workspace, PINS);
         String database = MinimalCorpus.BACKEND.type().name();
-        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pins = new java.util.HashMap<>();
-        if (Files.exists(file)) {
-            LeanSqlBaseline.read(Files.readString(file, StandardCharsets.UTF_8)).forEach((k, m) -> {
-                if (!k.database().equals(database)) {
-                    pins.put(k, m);
-                }
-            });
-        }
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure>[] measured = measure();
-        pins.putAll(measured[0]);
-        Files.writeString(file, LeanSqlBaseline.write(pins), StandardCharsets.UTF_8);
+        repin(Path.of(workspace, PINS), database, measured[0]);
+        repin(Path.of(workspace, JUDGE_PINS), database, measured[1]);
         long[] p = {0, 0};
         long[] j = {0, 0};
         measured[0].values().forEach(m -> {
@@ -378,6 +379,21 @@ class LeanSqlCorpusTest {
             j[1] += m.chars();
         });
         System.out.println("corpus " + database + ": product statements " + p[0] + ", chars " + p[1]
-                + "; judge statements " + j[0] + ", chars " + j[1] + " (unguarded)");
+                + "; judge statements " + j[0] + ", chars " + j[1]);
+    }
+
+    /** {@code file}'s pins with this database's replaced by {@code measured}, the other databases' kept. */
+    private static void repin(Path file, String database, Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> measured)
+            throws IOException {
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pins = new java.util.HashMap<>();
+        if (Files.exists(file)) {
+            LeanSqlBaseline.read(Files.readString(file, StandardCharsets.UTF_8)).forEach((k, m) -> {
+                if (!k.database().equals(database)) {
+                    pins.put(k, m);
+                }
+            });
+        }
+        pins.putAll(measured);
+        Files.writeString(file, LeanSqlBaseline.write(pins), StandardCharsets.UTF_8);
     }
 }
