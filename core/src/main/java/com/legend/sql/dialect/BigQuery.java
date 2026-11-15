@@ -769,7 +769,7 @@ public class BigQuery extends AnsiSqlRenderer {
 
     /**
      * BigQuery holds a DATE and a DATETIME from 0001-01-01 to 9999-12-31. A literal outside that range is refused at
-     * planning, by name (S340, pending the user's ruling; the BC probe on the BigQuery lane, 2026-11-13, measured the
+     * planning, by name (S340, ruled by the user 2026-11-15, DE6 (a); the BC probe on the BigQuery lane, 2026-11-13, measured the
      * database refusing {@code date(-43, 3, 15)} with the driver's bare "BigQueryException during runQuery"). Only a
      * LITERAL is known here: a date COMPUTED in SQL outside the range stays the database's own raise.
      */
