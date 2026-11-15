@@ -22292,3 +22292,5 @@ it is code:
   - core: 20,842 → 20,849 pass, none moved; the 7 new are this round's and C5-J's tests;
   - PCT A/B on DuckDB and H2: 1,573 pass, unchanged;
   - both corpora: the four judge TSVs and every failure text are byte-identical to main's.
+- **The gate** at f8c49446b3 (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11).
