@@ -47,8 +47,8 @@ from . import _host, compiler
 from ._planned import Database, connect
 # the run side (C5-P, 2026-11-15): what sends a plan's statements and reads their answer, frames.py's until then and
 # named here as they always were; frames.py plans, then hands the run its statements
-from ._reads import (TYPE_KEY, Reading, UntypedColumn, begin_read, execute_redacted, held_texts,  # noqa: F401
-                     redact_held, redacted, run_plan, to_pandas, typed_by_plan)
+from ._reads import (TYPE_KEY, Reading, UntypedColumn, begin_read, end_read, execute_redacted,  # noqa: F401
+                     held_texts, redact_held, redacted, run_plan, to_pandas, typed_by_plan)
 from ._runs import LoadRefused, ask, run_host_load, run_statements
 
 # a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
@@ -670,9 +670,8 @@ class Frames:
             yield read
         finally:
             self._local.reading = None
-            with contextlib.suppress(duckdb.Error):
-                cursor.rollback()
-            cursor.close()
+            # the read's transaction let go by its run (C5-P, A3: a transaction's bounds are run acts), its cursor closed
+            end_read(cursor)
 
     def reading_now(self) -> Reading | None:
         """The read this thread is in (``reading``), or None."""

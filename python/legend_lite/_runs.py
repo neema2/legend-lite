@@ -7,6 +7,7 @@ has no planner in its deps). The load runners were projects.py's until C5-P, whi
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import json
 import re
@@ -237,10 +238,25 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
             raise LoadRefused(f"no data came back from '{step['plane']}' to load into {into}, not even its columns")
         head = pyarrow.ipc.open_stream(first)
 
-        def batches() -> Iterator[Any]:
+        def pulled() -> Iterator[Any]:
             yield from head
             for chunk in chunks:
                 yield from pyarrow.ipc.open_stream(chunk)
+
+        # DuckDB pulls the stream on a thread of its own (measured 2026-11-15, C5-P's A4: duckdb 1.5.5 and pyarrow 23.0.1,
+        # every pull of a RecordBatchReader made from a Python generator on one foreign thread, 'Dummy-1', at 10 rows to
+        # 12M and 1 to 16 threads), where this run's frame is not set: each pull -- the plane's next chunk, its HTTP --
+        # runs in this run's context, so it is in this run there too
+        context = contextvars.copy_context()
+        pulling = pulled()
+
+        def batches() -> Iterator[Any]:
+            while True:
+                try:
+                    batch = context.run(next, pulling)
+                except StopIteration:
+                    return
+                yield batch
 
         # the database's own Arrow import: the chunks read as one stream as the table is made, no statement spelled
         connection.import_stream(pa.RecordBatchReader.from_batches(head.schema, batches()), schema, table)

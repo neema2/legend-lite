@@ -9,6 +9,7 @@ frames.py's, which names them still, and its runs were sent where they were plan
 
 from __future__ import annotations
 
+import contextlib
 import copy
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
@@ -309,6 +310,17 @@ def begin_read(cursor: Database, setup: Sequence[PlannedSql],
         cursor.register(as_, value)
     cursor.begin()
     send(cursor, pin).fetchall()
+
+
+@runs('a read ended')
+def end_read(cursor: Database) -> None:
+    """A read's transaction let go -- rolled back, as nothing it ran is kept; a cursor whose read failed may have none
+    to roll back, which is no failure of its end -- and its cursor closed (``Frames.reading``)."""
+    try:
+        with contextlib.suppress(duckdb.Error):
+            cursor.rollback()
+    finally:
+        cursor.close()
 
 
 @runs("the hosted DataCube's query")

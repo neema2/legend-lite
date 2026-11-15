@@ -678,13 +678,86 @@ class C5SplitTest(unittest.TestCase):
     """C5-P (2026-11-15): Python's plan/exec split -- the warehouse's sends framed, and what a read's run sends planned
     once per Frames, depending on nothing that changes after it is made."""
 
+    def test_the_two_keys_carry_their_own_names_alone(self):
+        # A1 (C5-P's last round, 2026-11-15): the service key, the run side's, carries the warehouse's wire alone -- a
+        # planner entry, or another service, asked of it is refused by name before the library is called; the planning
+        # key refuses the wire, the service key's
+        from legend_lite import _services
+        from legend_lite._loader import SERVICE_KEY_NAMES
+        self.assertEqual(SERVICE_KEY_NAMES, {'lite_warehouse_call', 'lite_warehouse_read'})
+        for name in ('lite_session_setup', 'lite_plan_json_held', 'lite_site_types', 'lite_release_model'):
+            with self.assertRaisesRegex(ValueError, f"{name} is not the service key's"):
+                _services.call(name, 'DuckDB')
+        self.assertIn(_services.call('lite_warehouse_call', 'submit', '{}').split('\n', 1)[0], ('OK', 'ERR'))
+        for name in sorted(SERVICE_KEY_NAMES):
+            with self.assertRaisesRegex(ValueError, f"{name} is the warehouse's wire, the run side's service key's"):
+                library().call(name, 'x', 'y')
+
+    def test_the_warehouses_every_call_is_a_run(self):
+        # A2 (2026-11-15): a sign-in, a listing, a statement's poll or close -- every call of the SQL API -- is a send,
+        # made in a run ("the warehouse's SQL API"), whoever asks it
+        from unittest import mock
+        seen = []
+
+        def reached(base_url, call):
+            seen.append(current_run())
+            raise warehouse.WarehouseError('a stand-in: nothing is reached')
+
+        with mock.patch.object(warehouse, '_reach', reached):
+            for asked in (lambda: warehouse.sign_in('http://wh.invalid', 'rita', 'pw'),
+                          lambda: warehouse.sign_in_with_key('http://wh.invalid', 'k'),
+                          lambda: warehouse.list_objects(warehouse.Session('http://wh.invalid', 't', 'rita', ''))):
+                with self.assertRaises(warehouse.WarehouseError):
+                    asked()
+        self.assertEqual(seen, ["the warehouse's SQL API"] * 3)
+        self.assertIsNone(current_run())
+
+    def test_a_transactions_bounds_are_run_acts(self):
+        # A3 (2026-11-15): begin, commit and rollback on the host's database, each refused by name outside a run, as the
+        # one send is; inside one each runs
+        db = Database(duckdb.connect())
+        for act, said in ((db.begin, 'a transaction begun'), (db.commit, 'a transaction committed'),
+                          (db.rollback, 'a transaction rolled back')):
+            with self.assertRaisesRegex(Unframed, f'{said} only inside a run'):
+                act()
+        with in_run("a test's run"):
+            db.begin()
+            db.rollback()
+
+    def test_a_streams_every_pull_is_in_its_run_on_duckdbs_own_thread(self):
+        # A4 (2026-11-15): DuckDB pulls a stream's batches on a thread of its own (measured: duckdb 1.5.5, every pull on
+        # a foreign thread), where a run's frame is not set; each pull -- the plane's next chunk -- runs in the run's
+        # context, so the plane's every chunk is fetched in the run
+        import threading
+        import pyarrow as pa
+        import pyarrow.ipc
+
+        rows = pa.table({'id': pa.array([1, 2, 3], pa.int32())})
+        sink = pa.BufferOutputStream()
+        with pyarrow.ipc.new_stream(sink, rows.schema) as w:
+            w.write_table(rows)
+        pulls = []
+
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None):
+                on_receipt({'statementId': 's1', 'serverRows': 9, 'as': 'rita', 'where': 'a stand-in'})
+                for _ in range(3):
+                    pulls.append((current_run(), threading.current_thread() is threading.main_thread()))
+                    yield sink.getvalue().to_pybytes()
+
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'pulled'})
+        projects.run_host_load(plan, Database(duckdb.connect()), planes={'warehouse': Plane()})
+        self.assertEqual(len(pulls), 3)
+        self.assertTrue(any(not on_main for _, on_main in pulls), f'DuckDB pulled every chunk on the caller: {pulls}')
+        self.assertEqual({run for run, _ in pulls}, {"a host's load"}, pulls)
+
     def test_a_remote_planes_read_is_a_run_and_its_bindings_calls_see_it_across_the_pool(self):
         # the warehouse's statement is sent, and its answer read, inside a run (engine.py sent it in none until C5-P);
         # the binding's library calls run on the compiler's pool (warehouse.set_library_thread, as the engine sets it),
         # which copies the caller's context: the frame reaches them, and they are services, which the witness passes
         import pyarrow as pa
         import pyarrow.ipc
-        from legend_lite import _reads
+        from legend_lite import _reads, _services
         from legend_lite._pool import _on_compiler_threads
 
         rows = pa.table({'n': pa.array([7], pa.int64())})
@@ -698,7 +771,7 @@ class C5SplitTest(unittest.TestCase):
                 self.sql = sql
                 seen.append(current_run())
                 seen.append(warehouse._on_library(current_run))
-                said = warehouse._on_library(lambda: library().call('lite_warehouse_call', 'submit', '{}'))
+                said = warehouse._on_library(lambda: _services.call('lite_warehouse_call', 'submit', '{}'))
                 seen.append(said.split('\n', 1)[0])
                 if on_receipt is not None:
                     on_receipt({'statementId': 's'})

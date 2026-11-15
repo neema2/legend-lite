@@ -42,11 +42,25 @@ py_library(
 # Its deps hold NO PLANNER (no :compiler, no native library), and no package __init__: what it imports is in its own
 # srcs or :seam's, or it does not load -- //python:run_closure_test imports it with these deps alone, and reads every
 # import of the package's modules for the rule both ways
+# THE NATIVE LIBRARY'S LOADER (C5-P, 2026-11-15, the orchestrator's A1): the one isolate and its threads, calling by
+# name for the two keys alone -- the planning key (_library.py, :compiler's) and the service key (_services.py, :run's).
+# One package, so Bazel's visibility cannot hold that; //python:run_closure_test does (only the keys import it)
+_LOADER_SRCS = ["legend_lite/_loader.py"]
+
+py_library(
+    name = "loader",
+    srcs = _LOADER_SRCS,
+    imports = ["."],
+)
+
 _RUN_SRCS = [
     "legend_lite/_reads.py",
     "legend_lite/_runs.py",
+    # the service key, the warehouse's wire alone, and the warehouse's client over it (C5-P, A1: :compiler's until then)
+    "legend_lite/_services.py",
     "legend_lite/_type_facts.py",
     "legend_lite/_types.py",
+    "legend_lite/warehouse.py",
 ]
 
 py_library(
@@ -54,6 +68,7 @@ py_library(
     srcs = _RUN_SRCS,
     imports = ["."],
     deps = [
+        ":loader",
         ":seam",
         "@pypi//duckdb",
         "@pypi//pyarrow",
@@ -62,11 +77,8 @@ py_library(
 
 # the compiler's bindings, and what reaches the native library beside them -- this user's legend-lite folder and its saved
 # pages and queries and its model home (_home.py), the compiler's threads (_pool.py): no package beyond Python's
-# own (the compiler-only install, //python:wheel_test). THE PLANNER (C5-P): it imports no run module, and sends nothing
-# to Python's database -- the one exception the warehouse's client (warehouse.py), which sends a plan's statement to the
-# warehouse's SQL API, framed (it refuses outside a run), reached by the run side only through the plane handed in; it
-# moves to :run once the native library's loader is split into service and planner halves (a packaging change, the
-# start-here's backlog, the orchestrator's ruling of 2026-11-15)
+# own (the compiler-only install, //python:wheel_test). THE PLANNER (C5-P): it imports no run module and sends nothing;
+# it reaches the native library by the planning key (_library.py) alone
 _COMPILER_SRCS = glob(
     ["legend_lite/**/*.py"],
     exclude = [
@@ -80,8 +92,8 @@ _COMPILER_SRCS = glob(
         # the host's doors over both sides (:host) -- C5-P, 2026-11-15
         "legend_lite/_host.py",
         "legend_lite/projects.py",
-        # :seam's and :run's (C5-P, 2026-11-15)
-    ] + _SEAM_SRCS + _RUN_SRCS,
+        # :seam's, :run's and the loader's (C5-P, 2026-11-15)
+    ] + _SEAM_SRCS + _RUN_SRCS + _LOADER_SRCS,
 )
 
 py_library(
@@ -90,7 +102,10 @@ py_library(
     # the package is typed (PEP 561): an editor or a type checker reads its annotations
     data = ["legend_lite/py.typed"],
     imports = ["."],
-    deps = [":seam"],
+    deps = [
+        ":loader",
+        ":seam",
+    ],
 )
 
 # THE HOST'S DOORS OVER BOTH SIDES (C5-P, 2026-11-15): a host's named operations (_host.py) and a project's own database
@@ -464,6 +479,7 @@ py_test(
     # would load, as the run_closure_sources copy explains)
     env = {
         "COMPILER_SRCS": " ".join(_COMPILER_SRCS),
+        "LOADER_SRCS": " ".join(_LOADER_SRCS),
         "PLANNED_PACKAGE": "$(rlocationpath :run_closure_sources)/__init__.py",
         "RUN_SRCS": " ".join(_RUN_SRCS),
         "SEAM_SRCS": " ".join(_SEAM_SRCS),

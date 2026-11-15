@@ -358,13 +358,18 @@ class Database:
         """A session of its own over the same database (a cursor's settings are its own)."""
         return Database(self._con.cursor())
 
+    # a transaction's bounds are RUN ACTS (C5-P, 2026-11-15, the orchestrator's A3, as Java's session holds them): each
+    # refused by name outside a run, as the one send is
     def begin(self) -> None:
+        _framed('a transaction begun')
         self._con.begin()
 
     def commit(self) -> None:
+        _framed('a transaction committed')
         self._con.commit()
 
     def rollback(self) -> None:
+        _framed('a transaction rolled back')
         self._con.rollback()
 
     def close(self) -> None:
@@ -401,6 +406,13 @@ def connect(path: str | None = None) -> Database:
 
 class Unframed(RuntimeError):
     """A plan's statement sent outside any run (``_runframe``): refused, never run."""
+
+
+def _framed(act: str) -> None:
+    """``act``, a run's act on the host's database (a transaction's bound), refused by name outside any run."""
+    if current_run() is None:
+        raise Unframed(f'{act} only inside a run (_runframe.runs, in_run): a transaction\'s bounds are the run'
+                       " side's (G4)")
 
 
 def send(target: Database, statement: Any, params: Sequence[Any] | None = None) -> Result:
