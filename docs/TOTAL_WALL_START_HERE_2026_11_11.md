@@ -1028,7 +1028,11 @@ In order. Nothing here is in the A/B/C PR.
        `COMPOSER_SIGNATURES` and 2 `COMPUTED_DOORS`, Python's 12 `UNFRAMED_SENDERS`, each named there;
      - each multi-step TS door made one keyed plan, as Java's Keyed pattern does (a step's rows fill the next statement),
        so a door is one planning call and one run call (the orchestrator's note 3 on C5-T, 2026-11-15: the snap door,
-       `writeTable`, the upload and catalog flows, `TabTables`, accepted as multi-step doors until then);
+       `writeTable`, the upload and catalog flows, `TabTables`, accepted as multi-step doors until then) -- MOVED
+       (2026-11-15, the user: "Yes add multi step to datacube") to the DataCube stream's one-intent API
+       (`claude/datacube-engine`, its contract's R2), with its finish line: each intent is one planning step and one run,
+       a keyed plan where one step's rows shape the next; the truly two-phase intents (upload, describe) are named
+       exceptions; a test counts the planning and run calls of each intent;
      - the C5-T audit's backlog (2026-11-15) -- `upload.ts`'s `?? 0` (:360), `tab-data.ts` `tables()`'s catch-all,
        `PlannedSqlTest.UNPLANNED_IMPORT`'s quote style, `infer.ts`'s stale reference (:152), `warehouse.ts`
        `loadWarehouseBinding`'s load callback -- FIXED in the C5-T last round's T3 (2026-11-15);
