@@ -83,6 +83,13 @@ exports_files(
     visibility = ["//core:__pkg__", "//python:__pkg__"],
 )
 
+# a product raise's envelope, one set of cases (#104's M2(b), 2026-11-15): Java's RaisedErrors, the tab's raised.ts and
+# Python's _raised.py each read it and must agree
+exports_files(
+    ["test/fixtures/raise-envelopes.json"],
+    visibility = ["//core:__pkg__", "//python:__pkg__"],
+)
+
 # The host's plan runner as a source the census reads (P7 of docs/DATA_IN_THE_PLAN_2026_11_09.md, 2026-11-09: its plan
 # version equals the Java planner's, PlanVersionsAgreeTest)
 filegroup(
@@ -264,6 +271,7 @@ node_test(
         ":node_modules/@duckdb/duckdb-wasm",
         "test/fixtures/run-load-conformance.json",
         "test/fixtures/keyed-expansion.json",
+        "test/fixtures/raise-envelopes.json",
         "test/planner.ts",
     ],
     entry_point = "test/plan-runner.test.ts",
@@ -271,6 +279,7 @@ node_test(
     env = {
         "RUN_LOAD_FIXTURE": "$(rlocationpath test/fixtures/run-load-conformance.json)",
         "KEYED_FIXTURE": "$(rlocationpath test/fixtures/keyed-expansion.json)",
+        "RAISE_FIXTURE": "$(rlocationpath test/fixtures/raise-envelopes.json)",
     },
     wasm = True,
 )

@@ -341,11 +341,14 @@ py_test(
     # and the load runners' fixture, which the unfiltered witness runs (H13, 2026-11-12)
     data = [
         "//engine-client:test/fixtures/keyed-expansion.json",
+        # a product raise's envelope, read by Java's and the tab's readers too (#104's M2(b), 2026-11-15)
+        "//engine-client:test/fixtures/raise-envelopes.json",
         "//engine-client:test/fixtures/run-load-conformance.json",
         "//native:compiler",
     ],
     env = _ENV | {
         "LEGEND_LITE_KEYED_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/keyed-expansion.json)",
+        "LEGEND_LITE_RAISE_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/raise-envelopes.json)",
         "LEGEND_LITE_RUN_LOAD_FIXTURE": "$(rlocationpath //engine-client:test/fixtures/run-load-conformance.json)",
     },
     main = "tests/main.py",

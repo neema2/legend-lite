@@ -38,6 +38,8 @@ test_suite(
         # the keyed expansion's one fixture, Java's reader (the C final audit's H8, 2026-11-12): the tab's and Python's
         # read it in //engine-client:plan_runner_test and //python:planned_test
         "//core:keyed_expansion_conformance_test",
+        # a product raise's envelope, one fixture Java's, the tab's and Python's readers agree on (#104's M2(b), 2026-11-15)
+        "//core:raise_envelope_conformance_test",
         # the cross-engine differential over the stress corpus (P3-18): seconds
         "//core:corpus_differential_test",
         # the planner on java.base alone (P3-19): seconds
