@@ -28,7 +28,11 @@ _SEAM_SRCS = [
     "legend_lite/_json.py",
     "legend_lite/_planned.py",
     "legend_lite/_plans.py",
+    # a product raise worded at the one send, from the generated facts -- pure data, no import (#104's M2(b), 2026-11-15:
+    # _type_facts.py moved here from the run side, which depends on the seam)
+    "legend_lite/_raised.py",
     "legend_lite/_runframe.py",
+    "legend_lite/_type_facts.py",
 ]
 
 py_library(
@@ -62,7 +66,6 @@ _RUN_SRCS = [
     "legend_lite/_runs.py",
     # the service key, the warehouse's wire alone, and the warehouse's client over it (C5-P, A1: :compiler's until then)
     "legend_lite/_services.py",
-    "legend_lite/_type_facts.py",
     "legend_lite/_types.py",
     "legend_lite/warehouse.py",
 ]

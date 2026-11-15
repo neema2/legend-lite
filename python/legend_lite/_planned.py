@@ -25,6 +25,7 @@ from collections import OrderedDict
 from collections.abc import Container, Iterable, Sequence
 from typing import Any
 
+from ._raised import worded
 from ._runframe import current_run
 
 
@@ -396,7 +397,15 @@ class Database:
         # the one send's own check, here too (the re-audit's M2, 2026-11-12: this, `_run` until then, sent whatever it
         # was handed, and the guard refused no call of it -- it refuses any reference to it outside this module now)
         sql = require(sql, 'the database')
-        return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql))
+        failure: BaseException | None = None
+        try:
+            return Result(self._con.execute(sql, list(params)) if params else self._con.execute(sql))
+        except Exception as e:
+            # a product raise in the database's words, worded as Java's runner words it (_raised.py; #104's M2(b))
+            failure = worded(e)
+            if failure is None:
+                raise
+        raise failure
 
 
 def connect(path: str | None = None) -> Database:

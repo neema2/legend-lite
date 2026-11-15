@@ -86,7 +86,25 @@ public final class TypeFacts {
                 .append("/** How a pivot's generated column name joins its parts (Type.RelationType.PIVOT_SEPARATOR). */\n")
                 .append("export const PIVOT_SEPARATOR = '")
                 .append(Type.RelationType.PIVOT_SEPARATOR.replace("\\", "\\\\").replace("'", "\\'"))
-                .append("';\n");
+                .append("';\n\n")
+                .append("/**\n")
+                .append(" * A PRODUCT RAISE'S ENVELOPE AND WORDS (#104's M2(b), 2026-11-15): what a statement lite planned raises, as\n")
+                .append(" * exec.RaisedErrors reads it -- between two SENTINELs, after an optional source position and POSITION_SEP, the\n")
+                .append(" * kind's name behind KIND_MARK, then its where behind a second; a quote the database could not hold as\n")
+                .append(" * QUOTE_MARK -- and each kind's sentence (error.ErrorKind), the one source a host words it from.\n")
+                .append(" */\n")
+                .append("export const RAISE = {\n")
+                .append("  SENTINEL: '").append(unicode(com.legend.exec.RaisedErrors.SENTINEL)).append("',\n")
+                .append("  POSITION_SEP: '").append(unicode(com.legend.exec.RaisedErrors.POSITION_SEP)).append("',\n")
+                .append("  QUOTE_MARK: '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("',\n")
+                .append("  KIND_MARK: '").append(unicode(com.legend.sql.RaiseKind.MARK)).append("',\n")
+                .append("} as const;\n\n")
+                .append("/** Each raise kind's sentence (error.ErrorKind): lite's own words, no value in them. */\n")
+                .append("export const RAISED_KINDS: Readonly<Record<string, string>> = {\n");
+        for (com.legend.error.ErrorKind k : com.legend.error.ErrorKind.values()) {
+            out.append("  ").append(k.name()).append(": '").append(k.sentence().replace("'", "\\'")).append("',\n");
+        }
+        out.append("};\n");
         return out.toString();
     }
 
@@ -105,8 +123,27 @@ public final class TypeFacts {
             out.append("    '").append(e.getKey()).append("': ('").append(e.getValue()[0])
                     .append("', '").append(e.getValue()[1]).append("'),\n");
         }
+        out.append("}\n\n")
+                .append("# A PRODUCT RAISE'S ENVELOPE AND WORDS (#104's M2(b), 2026-11-15), as exec.RaisedErrors reads it: between two\n")
+                .append("# SENTINELs, after an optional source position and POSITION_SEP, the kind's name behind KIND_MARK, then its where\n")
+                .append("# behind a second; a quote the database could not hold as QUOTE_MARK. The same as DataCube's (lite-facts.ts RAISE).\n")
+                .append("RAISE_SENTINEL = '").append(unicode(com.legend.exec.RaisedErrors.SENTINEL)).append("'\n")
+                .append("RAISE_POSITION_SEP = '").append(unicode(com.legend.exec.RaisedErrors.POSITION_SEP)).append("'\n")
+                .append("RAISE_QUOTE_MARK = '").append(unicode(com.legend.exec.RaisedErrors.QUOTE_MARK)).append("'\n")
+                .append("RAISE_KIND_MARK = '").append(unicode(com.legend.sql.RaiseKind.MARK)).append("'\n\n")
+                .append("# Each raise kind's sentence (error.ErrorKind): lite's own words, no value in them -- the one source a host words\n")
+                .append("# a product raise from.\n")
+                .append("RAISED_KINDS: dict[str, str] = {\n");
+        for (com.legend.error.ErrorKind k : com.legend.error.ErrorKind.values()) {
+            out.append("    '").append(k.name()).append("': '").append(k.sentence().replace("'", "\\'")).append("',\n");
+        }
         out.append("}\n");
         return out.toString();
+    }
+
+    /** {@code c} as a {@code \\uXXXX} escape, which TypeScript and Python both read. */
+    private static String unicode(char c) {
+        return String.format(Locale.ROOT, "\\u%04x", (int) c);
     }
 
     private static void put(Map<String, String[]> facts, String name, Type.Primitive p) {
