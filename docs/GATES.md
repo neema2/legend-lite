@@ -22257,3 +22257,9 @@ item is red on revert.
     judge;
   - PCT A/B DuckDB+H2: 1,573 pass, unchanged against their ledgers (outcome and text);
   - both corpora: the four judge TSVs and every failure text are byte-identical to main's.
+- **The gate** at 65c0eb09bf (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11). The first run, at ded0291e7e, found three
+  pins that the branch's own changes had moved, each fixed with a dated note in 65c0eb09bf:
+  - the generated native-claims file (the reducer table's move);
+  - the Dialect allowlist (the parse doors);
+  - FramePlanner's evaluation pin and parser-equivalence's corpus count.
