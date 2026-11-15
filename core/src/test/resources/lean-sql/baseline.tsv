@@ -26,7 +26,7 @@ channel_a	BigQuery	TypedSelect	8	3955	49629	11	535	0
 channel_a	BigQuery	TypedSlice	7	2521	18064	13	645	0
 channel_a	BigQuery	TypedSort	17	16157	123445	57	4278	0
 channel_a	BigQuery	TypedWrite	1	354	5568	3	0	0
-channel_a	BigQuery	let	244	286653	2561440	655	43885	0
+channel_a	BigQuery	let	244	286787	2561578	656	43889	0
 channel_a	BigQuery	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	BigQuery	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3161	47089	0	0	0
 channel_a	BigQuery	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1975	54692	0	0	0
@@ -1581,7 +1581,7 @@ channel_a	MariaDB	TypedSelect	8	3617	53498	11	419	0
 channel_a	MariaDB	TypedSlice	7	3717	22887	15	1207	0
 channel_a	MariaDB	TypedSort	17	108215	231570	52	59565	0
 channel_a	MariaDB	TypedWrite	1	334	6065	3	0	0
-channel_a	MariaDB	let	244	263421	2667359	613	52827	0
+channel_a	MariaDB	let	244	263557	2667519	614	52827	0
 channel_a	MariaDB	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	MariaDB	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	57940	0	1035	0
 channel_a	MariaDB	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1744	67123	0	0	0
@@ -1892,7 +1892,7 @@ channel_a	MySQL	TypedSelect	8	3617	53106	11	419	0
 channel_a	MySQL	TypedSlice	7	5075	23990	25	1715	0
 channel_a	MySQL	TypedSort	17	143650	268914	85	80632	0
 channel_a	MySQL	TypedWrite	1	334	6016	3	0	0
-channel_a	MySQL	let	244	328107	2720888	724	81357	0
+channel_a	MySQL	let	244	328229	2721034	725	81357	0
 channel_a	MySQL	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	MySQL	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3785	56911	0	1035	0
 channel_a	MySQL	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1744	65849	0	0	0
@@ -2203,7 +2203,7 @@ channel_a	Postgres	TypedSelect	8	2573	48675	1	257	0
 channel_a	Postgres	TypedSlice	7	1497	17264	8	0	0
 channel_a	Postgres	TypedSort	17	16245	124905	70	3665	0
 channel_a	Postgres	TypedWrite	1	274	5540	2	0	0
-channel_a	Postgres	let	241	221046	2471215	373	36273	3
+channel_a	Postgres	let	241	221168	2471357	374	36273	3
 channel_a	Postgres	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	3213	47603	0	0	0
 channel_a	Postgres	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1702	54991	0	0	0
@@ -2514,7 +2514,7 @@ channel_a	SQLite	TypedSelect	8	2969	48443	9	296	0
 channel_a	SQLite	TypedSlice	7	3158	18524	35	885	0
 channel_a	SQLite	TypedSort	17	37697	145051	69	10938	0
 channel_a	SQLite	TypedWrite	1	288	5477	3	0	0
-channel_a	SQLite	let	243	225509	2488570	835	33768	1
+channel_a	SQLite	let	243	225615	2488680	836	33768	1
 channel_a	SQLite	meta::pure::functions::boolean::and_Boolean_1__Boolean_1__Boolean_1_	0	0	5135	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::between_Date_$0_1$__Date_$0_1$__Date_$0_1$__Boolean_1_	21	2647	46050	0	0	0
 channel_a	SQLite	meta::pure::functions::boolean::between_Number_$0_1$__Number_$0_1$__Number_$0_1$__Boolean_1_	26	1650	53717	0	0	0
@@ -3524,7 +3524,7 @@ core	DuckDB	meta::pure::functions::collection::removeDuplicates_T_MANY__T_MANY_	
 core	DuckDB	meta::pure::functions::collection::size_Any_MANY__Integer_1_	27	23050	1446210	10	6314	0
 core	DuckDB	meta::pure::functions::collection::sort_T_m__Function_$0_1$__Function_$0_1$__T_m_	1	330	6743	0	36	0
 core	DuckDB	meta::pure::functions::collection::sort_T_m__Function_$0_1$__T_m_	1	103	2112	0	0	0
-core	DuckDB	meta::pure::functions::collection::sort_T_m__T_m_	2	3809	68318	6	1212	0
+core	DuckDB	meta::pure::functions::collection::sort_T_m__T_m_	2	3820	68328	6	1212	0
 core	DuckDB	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	189	4313	0	0	0
 core	DuckDB	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	15	970	26281	0	0	0
 core	DuckDB	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	5	1278	20848	0	136	0
@@ -3698,7 +3698,7 @@ core	H2	meta::legend::lite::mergeInstances_Relation_1__Class_1__ColSpec_1__Integ
 core	H2	meta::legend::lite::unlink_Relation_1__Class_1__ColSpec_1__ColSpec_1__Integer_1_	2	339	3189	1	0	0
 core	H2	meta::legend::lite::writeInstances_Relation_1__Class_1__ColSpec_1__Integer_1_	7	681	10138	0	0	0
 core	H2	meta::pure::functions::collection::isEmpty_Any_MANY__Boolean_1_	1	77	384597	1	0	0
-core	H2	meta::pure::functions::collection::sort_T_m__T_m_	1	130	6050	1	0	0
+core	H2	meta::pure::functions::collection::sort_T_m__T_m_	1	68	5976	0	0	0
 core	H2	meta::pure::functions::math::acos_Number_1__Float_1_	1	155	3722	0	0	0
 core	H2	meta::pure::functions::math::plus_Integer_MANY__Integer_1_	1	23	3693	0	0	0
 core	H2	meta::pure::functions::math::times_Decimal_MANY__Decimal_1_	1	29	3657	0	0	0
