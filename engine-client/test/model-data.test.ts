@@ -12,7 +12,8 @@ import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
 import type { HostOperation } from '../src/host-operations.ts';
 import { loadPlanner } from './planner.ts';
 import { dataTables } from '../src/model-data.ts';
-import { ProjectDatabases, ProjectRunner } from '../src/project-data.ts';
+import { ProjectDoor } from '../src/doors/project-data.ts';
+import { ProjectRunner } from '../src/project-data.ts';
 import { TabTables, type Model } from '../src/tab-data.ts';
 import { startNodeDuckDb, type NodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
@@ -143,10 +144,10 @@ Database demo::party::OtherDB
 });
 
 /** Every keeper a test made: each test drops its databases (the cases share one DuckDB). */
-const keepers: ProjectDatabases[] = [];
+const keepers: ProjectDoor[] = [];
 /** The tab's project databases over this file's DuckDB: each on a connection of its own, as the tab's start opens one. */
-const projectsOf = (): ProjectDatabases => {
-  const made = new ProjectDatabases({
+const projectsOf = (): ProjectDoor => {
+  const made = new ProjectDoor({
     databaseType: 'DuckDB',
     run: (sql) => engine.run(sql, 0),
     connect: async () => new DuckDbEngine(db.connect() as ArrowishConnection),
@@ -241,7 +242,7 @@ const asTheBrowserTakesThem = {
   },
 };
 
-function tabTables(): { tabs: TabTables; runner: ProjectRunner; projects: ProjectDatabases } {
+function tabTables(): { tabs: TabTables; runner: ProjectRunner; projects: ProjectDoor } {
   const runner = new ProjectRunner(engine);
   const projects = projectsOf();
   return { tabs: new TabTables(projects, runner, engine, asTheBrowserTakesThem, planner), runner, projects };

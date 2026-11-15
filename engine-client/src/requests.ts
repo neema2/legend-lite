@@ -4,7 +4,8 @@
 // runner and the doors, which run what it answers. A record holds no behaviour: it plans nothing and sends nothing.
 // Until C5 they lived in the run modules that use them (host-operations.ts, model-data.ts, project-data.ts), which
 // re-export them, so the planner imported its own requests from the run side; now both read them here
-// (//engine-client:records, tools/deps/ts-layers.txt).
+// (//engine-client:records, tools/deps/ts-layers.txt). The questions they are asked in -- fileLoad, projectData, the
+// host's operations -- are the planner's (planner-sources.ts), which the run side never names.
 
 import type { PlannedSql, PlanText } from './planned-sql.ts';
 
@@ -83,12 +84,6 @@ export interface RemoteMountRequest {
   readonly credentials?: { readonly name: string; readonly fields: readonly SecretField[] };
 }
 
-/** Where a remote file's mount's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
-export interface RemoteMountSource {
-  /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad), binding what it names. */
-  remoteMount(request: RemoteMountRequest): Promise<PlanText>;
-}
-
 /**
  * A SNAPSHOT'S STREAM, as the planner is asked for its plan (Boundary.snapStream, the user's ruling of 2026-11-11: a
  * snapshot from a remote plane is a planned load whose source is a stream): the host's database's type, the name this
@@ -123,15 +118,6 @@ export interface SnapCopyRequest extends SnapPull {
   readonly table: string;
 }
 
-/** Where a snapshot's stream's and copy's plans come from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
-export interface SnapStreamSource {
-  /** The plan, PlanJson's text: one HOST_SESSION load whose stream step the hosts' runner runs (runLoad). */
-  snapStream(request: SnapStreamRequest): Promise<PlanText>;
-  /** The plan, PlanJson's text: one write -- its schema, the table there before dropped, the table made from the pull
-   *  (its data: payloads bound by digest) -- in its target's transaction, which the hosts' runner runs (runPlan). */
-  snapCopy?(request: SnapCopyRequest): Promise<PlanText>;
-}
-
 /**
  * ROWS THE DATABASE GENERATES INTO A DECLARED TABLE, as the planner is asked for their plan (Boundary.synthesize: the
  * test-data generator's SYNTHESIZE, its simple slice, the user's ruling of 2026-11-12; DuckDB alone): the host's
@@ -153,18 +139,6 @@ export type SynthesizeKnob =
   | { readonly values: readonly (string | number)[] }
   | { readonly range: readonly [string | number, string | number]; readonly scale?: number };
 
-/** Where a synthesized table's plan comes from: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
-export interface SynthesizeSource {
-  /** The plan, PlanJson's text: one HOST_SESSION load (the table made as declared, then one statement filling it). */
-  synthesize(request: SynthesizeRequest): Promise<PlanText>;
-}
-
-/** What answers a host's operations: legend-lite's planner (WasmGrammar, DataCube's LitePlanner). */
-export interface HostOperationsSource {
-  /** Each operation's statements, in order, for a database of `databaseType`. */
-  hostOperations(databaseType: string, operations: readonly HostOperation[]): Promise<PlannedSql[][]>;
-}
-
 /**
  * A host's own file read into its database, as the planner is asked for its plan (Boundary.fileLoad): the file by the
  * name the host keeps it under, its bytes' SHA-256 and size and its format; a table of its own, or a table the model's
@@ -174,12 +148,6 @@ export interface FileLoadRequest {
   readonly databaseType: string;
   readonly file: { readonly name: string; readonly digest: string; readonly size: number; readonly format: 'csv' | 'parquet' | 'json' };
   readonly into: { readonly table: string } | { readonly model: string; readonly database: string; readonly schema: string; readonly table: string };
-}
-
-/** Where a host's file's plan comes from: legend-lite's planner (WasmGrammar.fileLoad, DataCube's LitePlanner). */
-export interface FileLoadSource {
-  /** The plan, PlanJson's text: one HOST_SESSION load the hosts' runner runs (runLoad). */
-  fileLoad(request: FileLoadRequest): Promise<PlanText>;
 }
 
 /** The planner's answer for one project's database: its name, and the statements of each step, in order. */
@@ -197,7 +165,3 @@ export interface ProjectDataStatements {
   readonly close: readonly PlannedSql[];
 }
 
-export interface ProjectDataSource {
-  /** Named by what it holds (the model's Databases and Data rows): an edited row is a fresh database. */
-  projectData(model: string, databaseType: string): Promise<ProjectDataStatements>;
-}

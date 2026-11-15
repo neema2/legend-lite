@@ -255,7 +255,7 @@ export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; 
 }
 
 /**
- * A LOAD'S PLAN RUN IN ONE TRANSACTION (a person's file put into a declared table: model-data.ts loadFileTable) --
+ * A LOAD'S PLAN RUN IN ONE TRANSACTION (a person's file put into a declared table: model-data.ts putFile) --
  * `work` (the host's run of it: runLoad) between the transaction statements the load's target carries, so a refused
  * file leaves the table as it was. The statements are the plan's (the re-audit's S8, 2026-11-12: until then the host
  * asked the planner for them at run).

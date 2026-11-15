@@ -151,15 +151,19 @@ const COMPOSER_MODULES = new Map([
 // statement or a plan): each takes a source of the planner's answers -- an object whose method answers a PlannedSql or
 // a PlanText -- and runs what it answers. C5 moves each ask to its caller, so the run takes the statements alone.
 const ASKS = (type: string): string => `takes the planner's ${type} and runs what it answers (C5 moves the ask out)`;
+// 2026-11-15 (C5-T step 2): the asks of setUpSession, ownExtensions, startDuckDbInTab, host-operations.ts's
+// runHostOperations, model-data.ts's loadFileTable and ProjectDatabases.constructor moved OUT of the run, into the doors
+// (engine-client/src/doors/): each run function now takes the planner's answer, and each door asks, then runs the
+// answer in a run frame -- a door takes the planner by design, so the five door entries below are no run function's.
+// The list shrinks by one (six out, five in); the wall goes for the dependency rule at C5's finish line, where a door
+// is a target of its own (tools/deps/ts-layers.txt).
+const DOOR = (type: string): string => `a door: takes the planner's ${type}, asks it, then runs its answer in a run frame (C5-T)`;
 const COMPOSER_SIGNATURES = new Map([
-  ['../engine-client/src/engine.ts setUpSession', "asks the planner's session setup whole, then runs it (C5 moves the ask out)"],
-  ['../engine-client/src/duckdb-tab.ts ownExtensions', ASKS('HostOperationsSource')],
-  ['../engine-client/src/duckdb-tab.ts startDuckDbInTab', ASKS('TabDuckDbPlanner')],
-  ['../engine-client/src/host-operations.ts runHostOperations', ASKS('HostOperationsSource')],
-  ['../engine-client/src/model-data.ts loadFileTable', ASKS('FileLoadSource')],
-  // 2026-11-14 (the final audit of 9af16fbe58's T3: a function answering a planned record now seen): projectData
-  // answers ProjectDataStatements, a record holding the database's statements
-  ['../engine-client/src/project-data.ts ProjectDatabases.constructor', ASKS('ProjectDataSource')],
+  ['../engine-client/src/doors/tab-duckdb.ts openDuckDbInTab', DOOR('TabDuckDbPlanner')],
+  ['../engine-client/src/doors/host-operations.ts runHostOperations', DOOR('HostOperationsSource')],
+  ['../engine-client/src/doors/file-load.ts loadFileTable', DOOR('FileLoadSource')],
+  ['../engine-client/src/doors/file-load.ts planFilePut', DOOR('FileLoadSource')],
+  ['../engine-client/src/doors/project-data.ts ProjectDoor.constructor', DOOR('ProjectDataSource')],
   ['../engine-client/src/snap.ts SnapManager.constructor', ASKS('HostOperationsSource')],
   ['../engine-client/src/tab-data.ts TabTables.constructor', ASKS('FileLoadSource')],
   ['src/remote.ts accessRemote', ASKS('RemoteMountSource')],

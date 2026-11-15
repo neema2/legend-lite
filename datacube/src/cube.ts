@@ -8,7 +8,8 @@
 // throws the refusal. What it keeps is the query side's own: the runners,
 // the guard, and the plane (engine-client's snap.ts).
 
-import type { HostOperationsSource, SnapPull } from '../../engine-client/src/host-operations.ts';
+import type { SnapPull } from '../../engine-client/src/host-operations.ts';
+import type { HostOperationsSource } from '../../engine-client/src/planner-sources.ts';
 import type { PlanText } from '../../engine-client/src/planned-sql.ts';
 import { UI_LOCALE } from '../../engine-client/src/locale.ts';
 import type { Lambda, ValueSpecification } from '../../pure-protocol/src/index.ts';

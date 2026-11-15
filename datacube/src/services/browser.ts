@@ -8,7 +8,8 @@
 
 import type { TsItemAnswer } from '../lite-planner.ts';
 import type { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
-import type { ProjectDatabases, ProjectDataSource } from '../../../engine-client/src/project-data.ts';
+import type { ProjectDoor } from '../../../engine-client/src/doors/project-data.ts';
+import type { ProjectDataSource } from '../../../engine-client/src/planner-sources.ts';
 import type { WarehouseBinding } from '../../../engine-client/src/warehouse.ts';
 import type { QueriesModule, QueryReader } from '../../../query-store/src/index.ts';
 import type { Planner } from '../cube.ts';
@@ -89,7 +90,7 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
       stores = undefined;
       throw e;
     }));
-  let projectKeeper: Promise<ProjectDatabases> | undefined;
+  let projectKeeper: Promise<ProjectDoor> | undefined;
   return {
     engine: {
       plane: o.plane,
@@ -112,7 +113,7 @@ export async function browserServices(o: BrowserServicesOptions): Promise<Servic
         tables: o.planner.tables,
         // a project's own rows, in a database of their own inside this tab's DuckDB (C5): the keeper fetched with the
         // first saved query a page opens by name, never with the grid's start
-        projects: () => (projectKeeper ??= lazily(() => import('../../../engine-client/src/project-data.ts')).then(({ ProjectDatabases: Keeper }) =>
+        projects: () => (projectKeeper ??= lazily(() => import('../../../engine-client/src/doors/project-data.ts')).then(({ ProjectDoor: Keeper }) =>
           new Keeper({
             databaseType: o.duckdb.engine.databaseType,
             run: (sql) => o.duckdb.engine.run(sql, 0),

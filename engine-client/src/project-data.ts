@@ -4,18 +4,19 @@
 // (Boundary.projectData, the platform's ProjectData in Java, by the tab's database type); this tab spells none. Its rows
 // are the plan's: the ONCE load a server's project plan carries, run here by the hosts' plan runner (runLoad), its
 // statements a blob checked against its digest (B3, 2026-11-11: until then the fill's statements as text, run outside
-// any plan, census M14).
+// any plan, census M14). This module runs the planner's answer and asks it nothing: its door asks
+// (doors/project-data.ts ProjectDoor, C5-T, 2026-11-15; until then ProjectDatabases held the planner and asked it).
 
 import type { HeldConnection } from './duckdb.ts';
 import type { QueryEngine } from './engine.ts';
 import { runLoad } from './plan-runner.ts';
 import type { PlannedSql } from './planned-sql.ts';
 
-export type { ProjectDataSource, ProjectDataStatements } from './requests.ts';
-import type { ProjectDataSource, ProjectDataStatements } from './requests.ts';
+export type { ProjectDataStatements } from './requests.ts';
+import type { ProjectDataStatements } from './requests.ts';
 
 /** A connection of a project's database: its queries, and itself held for a run of statements with bound values (a
- *  person's file put in: a planned load's, model-data.ts loadFileTable; DuckDbEngine.exclusive). */
+ *  person's file put in: a planned load's, model-data.ts putFile; DuckDbEngine.exclusive). */
 export interface HeldEngine extends QueryEngine {
   exclusive<T>(work: (held: Pick<HeldConnection, 'rows'>) => Promise<T>): Promise<T>;
 }
@@ -51,7 +52,6 @@ export interface ProjectEngine {
  */
 export class ProjectDatabases {
   readonly #host: ProjectHost;
-  readonly #source: ProjectDataSource;
   /** Each database held: its connection, its users' engine over it, and the planner's statements that drop it. */
   readonly #open = new Map<string, Promise<Held>>();
   /** A drop still running, by name: a database made again under that name waits for it. */
@@ -62,9 +62,13 @@ export class ProjectDatabases {
    *  project asked twice). */
   readonly #named = new Map<string, string | undefined>();
 
-  constructor(host: ProjectHost, source: ProjectDataSource) {
+  constructor(host: ProjectHost) {
     this.#host = host;
-    this.#source = source;
+  }
+
+  /** The host's database type, as the planner names it: what a door asks the planner's statements for. */
+  get databaseType(): string {
+    return this.#host.databaseType;
   }
 
   /** The project databases this tab holds, by name. */
@@ -73,23 +77,31 @@ export class ProjectDatabases {
   }
 
   /**
-   * `model`'s project database (named by what it holds): made and filled the first time, and `made` run on it then,
-   * before any query of anyone's reaches it (Studio puts a person's files in over its rows). The engine answered is
-   * the keeper's: its close does nothing (the database is kept). `own`: a database even for a model with no Data rows
-   * (Studio's workspace, whose files go nowhere else).
+   * `model`'s engine when this tab answered it before and its database is still open (none: a database of its own is
+   * not asked for here, `own`): no statements needed, so its door asks the planner nothing. Undefined: ask, then
+   * `engineFor`.
    */
-  async engineFor(model: string, hostEngine: QueryEngine,
+  known(model: string, hostEngine: QueryEngine): Promise<ProjectEngine> | undefined {
+    if (!this.#named.has(model)) return undefined;
+    const name = this.#named.get(model);
+    if (name === undefined) return Promise.resolve({ engine: hostEngine, name: undefined });
+    const open = this.#open.get(name);
+    return open === undefined ? undefined : open.then(({ users }) => ({ engine: users, held: users, name }));
+  }
+
+  /** Whether this tab holds (or is making) the database `name`. */
+  holds(name: string): boolean {
+    return this.#open.has(name);
+  }
+
+  /**
+   * `model`'s project database (named by what it holds), as the planner's `statements` for it say: made and filled the
+   * first time, and `made` run on it then, before any query of anyone's reaches it (Studio puts a person's files in over
+   * its rows). The engine answered is the keeper's: its close does nothing (the database is kept). `own`: a database
+   * even for a model with no Data rows (Studio's workspace, whose files go nowhere else).
+   */
+  async engineFor(model: string, statements: ProjectDataStatements, hostEngine: QueryEngine,
     made?: (engine: HeldEngine, name: string) => Promise<void>, options: { readonly own?: boolean } = {}): Promise<ProjectEngine> {
-    if (!options.own && this.#named.has(model)) {
-      const name = this.#named.get(model);
-      if (name === undefined) return { engine: hostEngine, name: undefined };
-      const open = this.#open.get(name);
-      if (open) {
-        const users = (await open).users;
-        return { engine: users, held: users, name };
-      }
-    }
-    const statements = await this.#source.projectData(model, this.#host.databaseType);
     this.#named.set(model, statements.load === undefined ? undefined : statements.name);
     if (statements.load === undefined && !options.own) return { engine: hostEngine, name: undefined };
     let opening = this.#open.get(statements.name);

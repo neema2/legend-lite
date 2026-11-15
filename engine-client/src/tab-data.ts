@@ -2,11 +2,20 @@
 // model's own test data (its Data elements, in the model's own database inside the tab's DuckDB: project-data.ts) or
 // from a file the person dropped in for it (CSV or Parquet) -- which stays, whatever the model's test data says, until
 // it is reset -- or from nowhere yet.
+//
+// A DOOR (C5-T, 2026-11-15: the TypeScript split of plan and run; a multi-step door, as the orchestrator's note 3
+// accepts): TabTables asks the planner -- the workspace's database's statements, each file's put, the tables' counts --
+// outside any run, then runs what it answered inside a run frame (run-frame.ts: a run plans nothing). Each run step is
+// the run side's: the databases (project-data.ts), a file's put (model-data.ts putFile).
 
 import type { QueryEngine } from './engine.ts';
-import { databaseOf, databaseTables, dataTables, loadFileTable, type FileLoadSource, type FileSink } from './model-data.ts';
-import type { HeldEngine, ProjectDatabases, ProjectEngine, ProjectRunner } from './project-data.ts';
-import type { HostOperationsSource } from './host-operations.ts';
+import { loadFileTable, planFilePut } from './doors/file-load.ts';
+import type { ProjectDoor } from './doors/project-data.ts';
+import { databaseOf, databaseTables, dataTables, putFile, type FilePut, type FileSink } from './model-data.ts';
+import type { PlanText } from './planned-sql.ts';
+import type { FileLoadSource, HostOperationsSource } from './planner-sources.ts';
+import type { HeldEngine, ProjectEngine, ProjectRunner } from './project-data.ts';
+import { inRun } from './run-frame.ts';
 
 type Elements = Parameters<typeof dataTables>[0];
 
@@ -56,7 +65,7 @@ interface PutFile {
  * holds. A file put goes straight into the database there. The screens run on `runner`, pointed at it.
  */
 export class TabTables {
-  readonly #projects: ProjectDatabases;
+  readonly #projects: ProjectDoor;
   readonly #runner: ProjectRunner;
   readonly #host: QueryEngine & { readonly databaseType: string };
   readonly #sink: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>;
@@ -75,11 +84,12 @@ export class TabTables {
   #uploads = 0;
 
   /**
-   * `host`: the tab's own connection (no model's database is ever it here); `files`: where a file's bytes are
-   * registered for a read, and let go of after (the tab's database); `source`: the planner's plan for a table a file
-   * fills (fileLoad: a planned load, B3).
+   * `projects`: the workspace's databases, each made from the planner's statements; `host`: the tab's own connection
+   * (no model's database is ever it here); `files`: where a file's bytes are registered for a read, and let go of after
+   * (the tab's database); `source`: the planner's plan for a table a file fills (fileLoad: a planned load, B3) and the
+   * tables' counts (its host operations).
    */
-  constructor(projects: ProjectDatabases, runner: ProjectRunner, host: QueryEngine & { readonly databaseType: string },
+  constructor(projects: ProjectDoor, runner: ProjectRunner, host: QueryEngine & { readonly databaseType: string },
     files: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>, source: FileLoadSource & HostOperationsSource) {
     this.#projects = projects;
     this.#runner = runner;
@@ -101,7 +111,8 @@ export class TabTables {
     const { held } = await this.#open(model);
     // the workspace's own database (own: true), always made: its connection takes the put's bound statements
     if (held === undefined) throw new Error("the workspace's database was not made");
-    await this.#putFile(model, held, schema, table, file);
+    await loadFileTable(this.#fileSink(held), this.#source, this.#host.databaseType, model.text,
+      this.#target(model, schema, table), file, `upload-${++this.#uploads}`);
     this.#files.set(key(schema, table), { schema, table, name: file.name, bytes: file.bytes });
     this.#refused.delete(key(schema, table));
     // the database there holds it already: it is as the files are now
@@ -132,7 +143,7 @@ export class TabTables {
       const source: TableSource = file !== undefined ? { kind: 'file', name: file.name } : element !== undefined ? { kind: 'test', element } : { kind: 'none' };
       let rows: number | undefined;
       try {
-        rows = Number((await engine.run(counts[i]![0]!, 0)).columns[0]!.values[0]);
+        rows = Number((await inRun("a table's rows counted", () => engine.run(counts[i]![0]!, 0))).columns[0]!.values[0]);
       } catch {
         rows = undefined;     // not made yet: nothing fills it
       }
@@ -150,42 +161,65 @@ export class TabTables {
    * the files did (a reset), the same name is dropped first and made again, so a run on it then fails once.
    */
   async #open(model: Model): Promise<ProjectEngine> {
+    // the planner asked first, outside the run: the database's statements (own: always asked), and -- only when the
+    // database is made now -- each of the person's files' puts (a file the planner refuses is said, kept out)
+    const statements = await this.#projects.statements(model.text);
+    const name = statements.name;
+    const remake = this.#current?.name === name && this.#current.files !== this.#filesChanged;
+    const puts = remake || !this.#projects.databases.holds(name) ? await this.#planPuts(model) : new Map<string, Put>();
     const made = async (engine: HeldEngine): Promise<void> => {
       this.#refused.clear();
-      for (const [k, file] of this.#files) {
+      for (const [k, put] of puts) {
         try {
-          await this.#putFile(model, engine, file.schema, file.table, file);
+          if ('refused' in put) throw put.refused;
+          await putFile(this.#fileSink(engine), put.plan, put.put);
         } catch (e) {
           // the person's own edit made it not fit (a table renamed, its columns changed): the rest of the workspace runs
           this.#refused.set(k, e instanceof Error ? e.message : String(e));
         }
       }
     };
-    const want = { own: true } as const;
-    let project = await this.#projects.engineFor(model.text, this.#host, made, want);
-    const name = project.name!;
-    if (this.#current?.name === name && this.#current.files !== this.#filesChanged) {
-      // the same model, the person's files changed (a reset): made again
-      await this.#projects.drop(name);
-      project = await this.#projects.engineFor(model.text, this.#host, made, want);
-    }
-    const before = this.#current?.name;
-    this.#current = { name, files: this.#filesChanged };
-    this.#runner.use(project.engine);
-    if (before !== undefined && before !== name) await this.#projects.drop(before);
-    return project;
+    return inRun("the workspace's database", async () => {
+      // the same model, the person's files changed (a reset): dropped, then made again
+      if (remake) await this.#projects.databases.drop(name);
+      const project = await this.#projects.databases.engineFor(model.text, statements, this.#host, made, { own: true });
+      const before = this.#current?.name;
+      this.#current = { name, files: this.#filesChanged };
+      this.#runner.use(project.engine);
+      if (before !== undefined && before !== name) await this.#projects.databases.drop(before);
+      return project;
+    });
   }
 
-  /** A file put into `schema.table` on `engine`. */
-  async #putFile(model: Model, engine: HeldEngine, schema: string, table: string,
-    file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
+  /** Each of the person's files planned for its table, by `schema.table`: its put and plan, or why it was refused. */
+  async #planPuts(model: Model): Promise<Map<string, Put>> {
+    const out = new Map<string, Put>();
+    for (const [k, file] of this.#files) {
+      try {
+        out.set(k, await planFilePut(this.#source, this.#host.databaseType, model.text,
+          this.#target(model, file.schema, file.table), file, `upload-${++this.#uploads}`));
+      } catch (e) {
+        out.set(k, { refused: e });
+      }
+    }
+    return out;
+  }
+
+  /** The table `schema.table` of the one Database of `model` that declares it (databaseOf: none, or two, is refused). */
+  #target(model: Model, schema: string, table: string): { readonly database: string; readonly schema: string; readonly table: string } {
     const database = databaseOf(model.elements, schema, table, 'a file fills');
-    const target = databaseTables(model.elements).find((t) => t.database === database && t.schema === schema && t.table === table)!;
-    const sink: FileSink = {
+    return databaseTables(model.elements).find((t) => t.database === database && t.schema === schema && t.table === table)!;
+  }
+
+  /** Where a file's bytes go on `engine`: registered on the tab's database, the put's statements on `engine`, held. */
+  #fileSink(engine: HeldEngine): FileSink {
+    return {
       registerFileBuffer: (name, bytes) => this.#sink.registerFileBuffer(name, bytes),
       ...(this.#sink.dropFile ? { dropFile: (name: string) => this.#sink.dropFile!(name) } : {}),
       hold: (work) => engine.exclusive((held) => work((sql, params) => held.rows(sql, params))),
     };
-    await loadFileTable(sink, this.#source, this.#host.databaseType, model.text, target, file, `upload-${++this.#uploads}`);
   }
 }
+
+/** A person's file planned for its table: its put and the planner's plan, or why the planner (or the model) refused it. */
+type Put = { readonly put: FilePut; readonly plan: PlanText } | { readonly refused: unknown };

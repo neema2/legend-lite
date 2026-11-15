@@ -79,9 +79,10 @@ export interface QueryEngine {
  * sessionSetup, DataCube's TableModels'). Every app's tab DuckDB is set up by it, in startDuckDbInTab (the one start
  * of a tab's DuckDB).
  */
-export async function setUpSession(engine: Pick<QueryEngine, 'run'> & { readonly databaseType: string },
-  setup: (databaseType: string) => Promise<readonly PlannedSql[]>): Promise<void> {
-  for (const statement of await setup(engine.databaseType)) await engine.run(statement, 0);
+export async function setUpSession(engine: Pick<QueryEngine, 'run'>, setup: readonly PlannedSql[]): Promise<void> {
+  // the planner's statements, asked by the door before the run (C5-T, 2026-11-15: until then this asked the planner
+  // itself, inside the run): a run takes its statements, never their source
+  for (const statement of setup) await engine.run(statement, 0);
 }
 
 /**

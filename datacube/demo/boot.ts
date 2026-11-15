@@ -13,10 +13,9 @@ import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import type { TsItemAnswer } from '../src/lite-planner.ts';
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
+import { openDuckDbInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
 import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesRequest } from '../src/sample-trades.ts';
-import type { SynthesizeSource } from '../../engine-client/src/host-operations.ts';
-import type { ProjectDataSource } from '../../engine-client/src/project-data.ts';
+import type { ProjectDataSource, SynthesizeSource } from '../../engine-client/src/planner-sources.ts';
 import { mountRemote, shownAddress } from '../src/remote.ts';
 import { isPageFragment } from '../src/share/link.ts';
 import type { TableModels } from '../src/infer.ts';
@@ -300,7 +299,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
   configured.catch(() => {});
   status.textContent = 'starting DuckDB and the planner…';
 
-  // the one start of a tab's DuckDB (engine-client's startDuckDbInTab): its files and extensions from ./vendor/, its
+  // the one start of a tab's DuckDB (engine-client's openDuckDbInTab): its files and extensions from ./vendor/, its
   // session set up by the planner's rules before anything uses it. So the database is ready once the planner is too:
   // DuckDB's start still overlaps the planner's (above), but the sample's rows and a remote mount below come after
   // both -- before a value is written, the session is the planner's (C1), not the browser's zone.
@@ -314,7 +313,7 @@ async function startPage(makePlanner: MakePlanner, settled: { show: (reason: str
     // the sample's rows, made by the database as a planned load (SYNTHESIZE, S303)
     synthesize: (request: Parameters<TableModels['synthesize']>[0]) => engineReady.then((p) => p.tables.synthesize(request)),
   };
-  const duck = await startDuckDbInTab((await configured).vendor, planned);
+  const duck = await openDuckDbInTab((await configured).vendor, planned);
   performance.mark('dc:database-ready');
 
   // A REMOTE SOURCE, when one is named.

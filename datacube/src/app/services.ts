@@ -11,7 +11,7 @@ import type { TsItemAnswer } from '../lite-planner.ts';
 import type { HeldConnection } from '../../../engine-client/src/duckdb.ts';
 import type { ModelHome } from '../../../depot-client/src/model-home.ts';
 import type { QueryEngine } from '../../../engine-client/src/engine.ts';
-import type { ProjectDatabases } from '../../../engine-client/src/project-data.ts';
+import type { ProjectDoor } from '../../../engine-client/src/doors/project-data.ts';
 import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
 import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { Receipt } from '../../../engine-client/src/receipt.ts';
@@ -147,7 +147,7 @@ export interface LocalEngine {
   /** legend-lite's model writer for a table of the host's database, whichever planner plans it (infer.ts). */
   readonly tables: TableModels;
   /** A project's own databases in the host's (C5, engine-client's project-data.ts): a saved query's rows by name. */
-  projects(): Promise<ProjectDatabases>;
+  projects(): Promise<ProjectDoor>;
   /** Where a grid over one of the database's tables runs, its database type the model's connection names. */
   readonly engine: QueryEngine & { readonly databaseType: string; run(sql: PlannedSql, epoch: number): Promise<unknown>;
     /** The database held for a write alone, one transaction (engine-client duckdb.ts exclusive: a table Output's). */

@@ -12,7 +12,7 @@
 
 
 import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
-import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
+import { openDuckDbInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
 import type { TableModels } from '../src/infer.ts';
 import { mountRemote, type RemoteSource } from '../src/remote.ts';
 import { loadModel } from './boot.ts';
@@ -28,9 +28,9 @@ declare global {
 async function boot(): Promise<{ readonly engine: DuckDbEngine; readonly tables: TableModels; readonly planner: Planner }> {
   // the tab's planner over the demo's model (trades.pure: the table TRADES the mount names): it writes the tab's
   // DuckDB's set-up, the mount's statements (D5) and the query below; the one start of a tab's DuckDB (engine-client's
-  // startDuckDbInTab)
+  // openDuckDbInTab)
   const { tables, planner } = await plannerFor('local', await loadModel());
-  return { engine: (await startDuckDbInTab('./vendor/', tables)).engine, tables, planner };
+  return { engine: (await openDuckDbInTab('./vendor/', tables)).engine, tables, planner };
 }
 
 const ready = boot();

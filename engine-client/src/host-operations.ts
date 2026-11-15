@@ -2,16 +2,14 @@
 // spell as SQL itself -- a file read into a table, a remote file mounted, a copy made, rows counted, an extension, a
 // secret -- named here, with its data, and answered by legend-lite's planner (Boundary.hostOperations: the platform's
 // HostOperations in Java, by the database's type) as the statements the database runs. The page spells no SQL; a
-// database without an operation refuses it by name. Python's host writes the same JSON (compiler.host_operations).
-
-import type { PlannedSql } from './planned-sql.ts';
+// database without an operation refuses it by name. Python's host writes the same JSON (compiler.host_operations). The
+// operations are asked of the planner and their statements run by their door (doors/host-operations.ts, C5-T, 2026-11-15).
 
 export type {
-  CatalogColumn, HostName, HostOperation, HostOperationsSource, HostSource, RemoteMountRequest, RemoteMountSource, SecretField,
-  SecretValue, SnapCopyRequest, SnapPull, SnapStreamRequest, SnapStreamSource, SynthesizeKnob, SynthesizeRequest,
-  SynthesizeSource,
+  CatalogColumn, HostName, HostOperation, HostSource, RemoteMountRequest, SecretField, SecretValue, SnapCopyRequest, SnapPull,
+  SnapStreamRequest, SynthesizeKnob, SynthesizeRequest,
 } from './requests.ts';
-import type { HostOperation, HostOperationsSource, SecretField, SecretValue } from './requests.ts';
+import type { SecretField, SecretValue } from './requests.ts';
 
 /**
  * THE HOST'S SECRETS, BY NAME (B3, 2026-11-11, docs/TOTAL_WALL_START_HERE_2026_11_11.md §5.2: "credentials by name ...
@@ -35,14 +33,5 @@ export class SecretStore {
     const value = values.get(field as SecretField);
     if (value === undefined) throw new Error(`the secret '${name}' holds no ${field}`);
     return value;
-  }
-}
-
-/** Each of `operations`' statements run on `engine`, in order: the operations' whole step. */
-export async function runHostOperations(source: HostOperationsSource,
-  engine: { readonly databaseType: string; run(sql: PlannedSql, epoch: number): Promise<unknown> },
-  operations: readonly HostOperation[], epoch = 0): Promise<void> {
-  for (const statements of await source.hostOperations(engine.databaseType, operations)) {
-    for (const sql of statements) await engine.run(sql, epoch);
   }
 }

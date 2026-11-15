@@ -10,7 +10,7 @@ import type { Scalar } from '../../engine-client/src/result.ts';
 import type { CatalogColumn, InferredModel, TableModels } from './infer.ts';
 import { bearerName, mountRemote, secretName, type S3Credentials } from './remote.ts';
 import type { ConnectionSettings, KeptSetting } from '../../engine-client/src/plan-runner.ts';
-import { runHostOperations } from '../../engine-client/src/host-operations.ts';
+import { runHostOperations } from '../../engine-client/src/doors/host-operations.ts';
 import { isIdentifier } from '../../pure-protocol/src/index.ts';
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 

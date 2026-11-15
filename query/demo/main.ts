@@ -8,8 +8,10 @@
 // In the browser planes the tab's planner writes the SQL and one of DataCube's engines runs it,
 // and saved queries stay in this browser (the same records and rules as a server's store).
 
-import { startDuckDbInTab } from '../../engine-client/src/duckdb-tab.ts';
-import { ProjectDatabases, ProjectRunner, type ProjectDataSource } from '../../engine-client/src/project-data.ts';
+import { openDuckDbInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
+import { ProjectDoor } from '../../engine-client/src/doors/project-data.ts';
+import type { ProjectDataSource } from '../../engine-client/src/planner-sources.ts';
+import { ProjectRunner } from '../../engine-client/src/project-data.ts';
 import type { QueryEngine } from '../../engine-client/src/engine.ts';
 import { runLoad } from '../../engine-client/src/plan-runner.ts';
 import {
@@ -126,13 +128,13 @@ async function boot(): Promise<void> {
     let runner: QueryEngine;
     if (exec.kind === 'duckdb-wasm') {
       starting('Starting DuckDB in this tab');
-      const tab = await startDuckDbInTab(vendor, planner!);
+      const tab = await openDuckDbInTab(vendor, planner!);
       // a project opened by name brings its own rows, in a database of its own here (C5): the screens run on `runner`,
       // pointed there as it opens (AppContext.activate)
       const projectRunner = new ProjectRunner(tab.engine);
       runner = projectRunner;
       tabProjects = {
-        databases: new ProjectDatabases({
+        databases: new ProjectDoor({
           databaseType: tab.engine.databaseType, run: (sql) => tab.engine.run(sql, 0), connect: () => tab.connect(),
         }, planner!),
         runner: projectRunner,
