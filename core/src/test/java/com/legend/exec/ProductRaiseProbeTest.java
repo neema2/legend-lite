@@ -62,7 +62,8 @@ class ProductRaiseProbeTest {
         ExecutionPlan plan = Compiler.query(Compiler.compileModel(backend.withStorelessRuntime("")), query)
                 .executionPlan(StorelessRuntime.RUNTIME);
         System.out.println("[product raise probe] " + backend.name() + " " + label + ": "
-                + plan.answerSql().statement().replace("\u001c", "<U+001C>").replace("\n", " "));
+                + plan.answerSql().statement().replace(String.valueOf(com.legend.sql.RaiseKind.MARK), "<U+001C>")
+                        .replace("\n", " "));
         StringWriter out = new StringWriter();
         try {
             if (backend.opensJdbc()) {

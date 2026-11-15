@@ -182,7 +182,7 @@ class PlanMakerTest {
                 Databricks	CAST(? AS DATE)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
                 Snowflake	CAST(? AS TIMESTAMP_NTZ(9))	CAST(? AS TIMESTAMP_NTZ(9))
                 BigQuery	PARSE_DATE('%Y-%m-%d', ?)	CAST(CASE WHEN LENGTH(CAST(? AS STRING)) > 19 AND SUBSTRING(CAST(? AS STRING), LENGTH(CAST(? AS STRING)) - 2) <> '000' THEN
-                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('\u001cVALUE_NOT_HELD\u001ca date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('\u001cVALUE_NOT_HELD\u001ca date outside the years 1900 to 2299
+                ClickHouse	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('\034VALUE_NOT_HELD\034a date outside the years 1900 to 2299	WHEN toInt32(substring(?, 1, 4)) NOT BETWEEN 1900 AND 2299 THEN CAST(toInt64(concat(char(31), replaceAll(toString('\034VALUE_NOT_HELD\034a date outside the years 1900 to 2299
                 """.strip().split("\n")) {
             String[] cells = line.split("\t");
             spelled.put(cells[0], new String[] {cells[1], cells[2]});
@@ -717,7 +717,7 @@ class PlanMakerTest {
         return "CAST(CASE WHEN LENGTH(CAST(? AS VARCHAR)) > 19 AND SUBSTRING(CAST(? AS VARCHAR), LENGTH(CAST(? AS"
                 // the product's raise names its kind (phase D's D1.1), behind its mark, then its where: the parameter's
                 // name and the digits the database keeps (the D part 1 audit's S4, 2026-11-15)
-                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('\u001cFRACTION_NOT_KEPT\u001cthe DateTime parameter"
+                + " VARCHAR)) - 2) <> '000' THEN error(chr(31) || ('\034FRACTION_NOT_KEPT\034the DateTime parameter"
                 + " ''t'' has more fraction digits than DuckDb keeps (6): refused, never cut (S181)') || chr(31)) WHEN LENGTH(CAST(? AS VARCHAR)) > 19 THEN SUBSTRING(CAST(? AS"
                 + " VARCHAR), 1, LENGTH(CAST(? AS VARCHAR)) - 3) ELSE CAST(? AS VARCHAR) END AS TIMESTAMP)";
     }
