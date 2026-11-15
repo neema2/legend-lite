@@ -1102,6 +1102,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      */
     @SpellingArm
     protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
+        if (r.asData() != null) {
+            // the kind's text as data in an answer (a checked graph's defect): the product's words, worded at planning
+            return new SqlExpr.StringLit(r.asData());
+        }
         return r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? r.operands().get(0)
                 : new SqlExpr.StringLit(r.kind().name());
     }
