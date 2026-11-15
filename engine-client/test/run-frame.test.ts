@@ -8,6 +8,8 @@ import { describe, it } from 'node:test';
 import { NOT_PLANNING, currentRun, frameKept, inRun, planning, sending } from '../src/run-frame.ts';
 import { DuckDbEngine, type ArrowishTable } from '../src/duckdb.ts';
 import { WarehouseBinding, WarehouseEngine } from '../src/warehouse.ts';
+import { openedInTab } from '../src/doors/tab-duckdb.ts';
+import type { PlannedSql } from '../src/planned-sql.ts';
 import { unplanned } from './unplanned.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
 import { WorkerPort } from '../src/legend/wasm-grammar.ts';
@@ -194,7 +196,19 @@ describe('a statement is sent inside a run, on Node (the choke points, C5-T)', (
     await assert.rejects(engine.run(unplanned('SELECT 1'), 0), refused);
     await assert.rejects(engine.stream({ sql: unplanned('SELECT 2'), columns: [] }, 0, () => {}), refused);
     await assert.rejects(engine.exclusive((held) => held.rows(unplanned('SELECT 3'), [])), refused);
-    await assert.rejects(engine.exclusive((held) => held.table(unplanned('SELECT 4'))), refused);
+    // a promise refused as one: the held table rejects, never throws where a promise is promised (the C5-T audit's nit)
+    let threw = false;
+    await assert.rejects(engine.exclusive(async (held) => {
+      let answered: Promise<unknown>;
+      try {
+        answered = held.table(unplanned('SELECT 4'));
+      } catch (error) {
+        threw = true;
+        throw error;
+      }
+      return answered;
+    }), refused);
+    assert.equal(threw, false, 'the held table threw where a promise is promised');
     await assert.rejects(engine.exclusive((held) => held.insertArrow(new Uint8Array(), { table: 't' }, true)), refused);
     assert.deepEqual(sent, [], 'a statement refused is never sent');
     // inside a run, each is sent
@@ -236,5 +250,45 @@ describe("the frame's cost on Node", () => {
     assert.ok(major >= 24 || process.execArgv.includes('--experimental-async-context-frame'),
       `Node ${process.versions.node} runs this test without --experimental-async-context-frame (execArgv: `
       + `${JSON.stringify(process.execArgv)}): every promise pays the run frame's hooks; node_test sets it (tools/js/defs.bzl)`);
+  });
+});
+
+// THE TAB'S START OVERLAPS THE PLANNER'S (the C5-T audit's MUST 1, 2026-11-15): DuckDB's download and instantiate send no
+// statement, so the door begins them at once, alongside the planner's asks -- which, on a page, wait for the planner's
+// own start -- and connects with the setup answered inside a run once both are in. A page then waits for the slower of
+// the planner's start and DuckDB's, never their sum (DataCube's boot.ts).
+describe("the tab's DuckDB starts alongside the planner's asks", () => {
+  it("instantiate begins before the planner answers; the asks are outside a run, the connection inside one", async () => {
+    const order: string[] = [];
+    let answer!: () => void;
+    const plannerStarted = new Promise<void>((resolve) => { answer = resolve; });
+    const statement = unplanned("SET TimeZone = 'UTC'");
+    const planner = {
+      hostOperations: async (databaseType: string): Promise<PlannedSql[][]> => {
+        order.push(`asked hostOperations(${databaseType})${currentRun() === undefined ? '' : ' INSIDE A RUN'}`);
+        await plannerStarted;
+        return [[statement]];
+      },
+      sessionSetup: async (databaseType: string): Promise<readonly PlannedSql[]> => {
+        order.push(`asked sessionSetup(${databaseType})${currentRun() === undefined ? '' : ' INSIDE A RUN'}`);
+        return [statement];
+      },
+    };
+    const opened = openedInTab(
+      async () => { order.push('instantiate begun'); return 'the database'; },
+      'https://site/vendor/duckdb-extensions',
+      planner,
+      async (database, setup) => {
+        order.push(`connected ${database} in ${currentRun() ?? 'no run'} with ${setup.extensions.length}+${setup.session.length}`);
+        return 'the tab';
+      },
+    );
+    // the planner has not answered: DuckDB's instantiate is already under way
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.deepEqual(order, ['asked hostOperations(DuckDB)', 'instantiate begun']);
+    answer();
+    assert.equal(await opened, 'the tab');
+    assert.deepEqual(order, ['asked hostOperations(DuckDB)', 'instantiate begun', 'asked sessionSetup(DuckDB)',
+      "connected the database in the tab's DuckDB started with 1+1"]);
   });
 });

@@ -76,7 +76,7 @@ export interface BrowserServicesOptions {
   readonly location: { readonly href: string };
 }
 
-/** The tab's services, built once as the page starts, over the tab's DuckDB as engine-client's `startDuckDbInTab`
+/** The tab's services, built once as the page starts, over the tab's DuckDB as engine-client's `openDuckDbInTab`
  *  started it (its session set up, its extensions the site's). */
 export async function browserServices(o: BrowserServicesOptions): Promise<Services> {
   const { config } = o;

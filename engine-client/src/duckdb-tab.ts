@@ -70,9 +70,6 @@ export interface TabSetup {
   readonly session: readonly PlannedSql[];
 }
 
-/** The tab's DuckDB's database type, as the planner names it (duckdb.ts DuckDbEngine's). */
-export const TAB_DATABASE_TYPE = 'DuckDB';
-
 /** A file of the vendor folder `vendor` names, as an absolute URL: the worker resolves its module against its own
  *  location, not the page's. */
 function vendorAsset(vendor: string, f: string): string {
@@ -84,11 +81,18 @@ export function extensionRepository(vendor: string): string {
   return vendorAsset(vendor, 'duckdb-extensions');
 }
 
+/** The tab's database instantiated, not yet connected: its download, its worker and its WebAssembly, no statement. */
+export interface TabDatabase {
+  readonly db: duckdb.AsyncDuckDB;
+}
+
 /**
- * `vendor`: the URL of the folder holding duckdb-eh.wasm and its worker. `setup`: what each connection runs before it
- * is handed out, as the planner answered it -- the extension folder, then the session.
+ * DuckDB in this tab instantiated from `vendor`, the URL of the folder holding duckdb-eh.wasm and its worker: its
+ * download, its worker and its instantiate, which send no statement -- so the start's door begins it at once,
+ * alongside the planner's asks, and the slower of the two sets the page's floor (the C5-T audit's MUST 1, 2026-11-15;
+ * DataCube's boot.ts, "Overlapped, the slower of the two sets the floor instead of their sum").
  */
-export async function startDuckDbInTab(vendor: string, setup: TabSetup): Promise<DuckDbInTab> {
+export async function instantiateDuckDbInTab(vendor: string): Promise<TabDatabase> {
   const asset = (f: string): string => vendorAsset(vendor, f);
   // ONE BUILD, DuckDB's with WebAssembly exception handling (eh): every browser the apps support has had it since
   // 2021-22, and the build without it (mvp) doubled what a site ships. A browser without it is refused by name, never
@@ -99,6 +103,15 @@ export async function startDuckDbInTab(vendor: string, setup: TabSetup): Promise
   const bundle = { mainModule: asset('duckdb-eh.wasm'), mainWorker: asset('duckdb-browser-eh.worker.js'), pthreadWorker: null };
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), new Worker(bundle.mainWorker!));
   await db.instantiate(bundle.mainModule, bundle.pthreadWorker);
+  return { db };
+}
+
+/**
+ * The instantiated database connected, each connection set up before it is handed out with `setup`, as the planner
+ * answered it -- the extension folder, then the session (run inside the start's run: doors/tab-duckdb.ts).
+ */
+export async function connectDuckDbInTab(database: TabDatabase, setup: TabSetup): Promise<DuckDbInTab> {
+  const { db } = database;
   // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's -- a remote
   // file's session variable included, replayed from the tab's settings (B3's Q3: a variable is one connection's)
   const settings = new ConnectionSettings();
