@@ -1,0 +1,5 @@
+"""run-frame-off.ts: engine-client's run-frame.ts with no frame kept (frames = null), the TS "OFF" variant."""
+import sys
+s = open(sys.argv[1]).read()
+i = s.index('const frames: Frames | null = (() => {'); j = s.index('})();', i) + len('})();')
+open(sys.argv[2], 'w').write(s[:i] + 'const frames: Frames | null = null;   // MEASUREMENT: no frame kept (the "before")' + s[j:])

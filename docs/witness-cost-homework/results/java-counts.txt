@@ -1,0 +1,8 @@
+# Java: checks per query, counted (the COUNT variant)
+
+## W1, the stress corpus, plan only (PerfProbe stress, 2 builds, 2 passes)
+after 2 model builds: planning=19905 (phases A-F)
+after pass 1: planning=294540 plans=6081; after pass 2: planning=569175 plans=12162 (6,085 cases a pass; 5,800 plan)
+
+## the product path (RunProbe through CountRun: trades corpus, 69 queries, 100k rows, 1 pass; 55 run, 14 refused by name)
+planning=2153 plans=56 enter=56 opening=56 statement=169 judging/callingBack=56 isPlanning/planningWhat=57 running=0

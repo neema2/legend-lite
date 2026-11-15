@@ -156,6 +156,7 @@ public final class NameResolver {
      * bootstrap data.
      */
     public static ParsedModel resolve(ParsedModel parsed) {
+        com.legend.base.RunScope.planning("resolve a model's names (phase D)");
         return resolve(parsed, (java.util.Map<String, String>) null);
     }
 
@@ -167,6 +168,7 @@ public final class NameResolver {
      */
     public static ParsedModel resolve(ParsedModel parsed,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
+        com.legend.base.RunScope.planning("resolve a model's names (phase D)");
         Objects.requireNonNull(parsed, "parsed");
         // USER scopes stay pure — the platform prelude is a FALLBACK
         // consulted inside resolveNameMulti, never merged into the
@@ -181,6 +183,7 @@ public final class NameResolver {
      * in the graph's parsed elements: they are prepared once per process). */
     public static ParsedModel resolveAlongside(ParsedModel parsed, Set<String> alsoKnown,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
+        com.legend.base.RunScope.planning("resolve a model's names (phase D)");
         Objects.requireNonNull(parsed, "parsed");
         Set<String> known = new java.util.HashSet<>(knownFqns(parsed.elements()));
         known.addAll(alsoKnown);
@@ -194,12 +197,14 @@ public final class NameResolver {
      * prelude-aware {@link #resolve(ParsedModel)} is the usual entry).
      */
     public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns) {
+        com.legend.base.RunScope.planning("resolve a model's names (phase D)");
         return resolve(model, knownFqns, null);
     }
 
     /** {@link #resolve(ParsedModel, Set)} with an optional tolerant wall sink. */
     public static ParsedModel resolve(ParsedModel model, Set<String> knownFqns,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
+        com.legend.base.RunScope.planning("resolve a model's names (phase D)");
         return resolve(model, knownFqns, wallSink, false);
     }
 
@@ -505,6 +510,7 @@ public final class NameResolver {
      */
     public static ValueSpecification resolve(
             ValueSpecification vs, Scope scope) {
+        com.legend.base.RunScope.planning("resolve a model's names (phase D)");
         return Objects.requireNonNull(resolveVs(vs, scope), "resolveVs(vs, scope)");
     }
 
@@ -518,6 +524,7 @@ public final class NameResolver {
      * bare name passes through and fails loudly in Phase G.
      */
     public static ValueSpecification resolveQuery(ValueSpecification query) {
+        com.legend.base.RunScope.planning("resolve a model's names (phase D)");
         return Objects.requireNonNull(resolveVs(query, QUERY_SCOPE));
     }
 
@@ -536,6 +543,7 @@ public final class NameResolver {
      */
     public static ValueSpecification resolveQueryIn(ValueSpecification query,
             ImportScope imports, Set<String> universe) {
+        com.legend.base.RunScope.planning("resolve a model's names (phase D)");
         return Objects.requireNonNull(resolveVs(query, Scope.preludeOf(imports, universe)));
     }
 

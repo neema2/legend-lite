@@ -91,7 +91,14 @@ public final class PeRatchets {
                     + " whose own tests had not been measured: phase D's, the edge's and the raise kinds'), as measured"
                     + " on the merged tree, not attributed",
             "own_corpus.matched 3257/3251 -> 3257 (2026-11-14, claude/total-wall-d 392ce271b merged into"
-                    + " claude/total-wall-e, as measured): D's added models were already E's, through E's earlier merge of D");
+                    + " claude/total-wall-e, as measured): D's added models were already E's, through E's earlier merge of D",
+            "own_corpus.matched 3211 -> 3226 (2026-11-14, C4's must-haves M1-M5, found red by the gate on b915e29405):"
+                    + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
+                    + " them)",
+            "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
+            "own_corpus.matched 3257/3261 -> 3272 (2026-11-15, merged main cf865632c (#101) into claude/total-wall-e,"
+                    + " measured on the merged tree): E's 3257 and C4's fifteen (3261 - 3246), joined");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

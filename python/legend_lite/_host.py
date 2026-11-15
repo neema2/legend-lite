@@ -11,6 +11,7 @@ from typing import Any
 
 from . import compiler
 from ._planned import PlannedSql, send
+from ._runframe import in_run
 
 DUCKDB = 'DuckDB'
 
@@ -27,15 +28,18 @@ def statements(*operations: dict[str, Any], database_type: str = DUCKDB) -> list
 
 
 def run(connection: Any, *operations: dict[str, Any]) -> None:
-    """The operations run on ``connection``, in order."""
-    for sql in statements(*operations):
-        send(connection, sql)
+    """The operations run on ``connection``, in order: planned first, then sent inside a run (the witness)."""
+    planned = statements(*operations)
+    with in_run("a host's operations"):
+        for sql in planned:
+            send(connection, sql)
 
 
 def ask(connection: Any, operation: dict[str, Any]) -> list[tuple[Any, ...]]:
     """A question's rows (a catalog question, a count): its one statement run on ``connection``."""
     (sql,) = statements(operation)
-    return send(connection, sql).fetchall()
+    with in_run("a host's question"):
+        return send(connection, sql).fetchall()
 
 
 def count(connection: Any, operation: dict[str, Any]) -> int:
