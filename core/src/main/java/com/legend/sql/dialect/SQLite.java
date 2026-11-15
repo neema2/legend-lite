@@ -1395,7 +1395,9 @@ public class SQLite extends AnsiSqlRenderer {
 
     /** A value as text, as DuckDB's CAST to VARCHAR prints it. */
     private SqlWriter.Piece asText(SqlExpr e) {
-        if (e instanceof SqlExpr.StringLit) {
+        // a cast to text is text already: its text is itself, written once (no self-cast, P2, 2026-11-15)
+        if (e instanceof SqlExpr.StringLit
+                || e instanceof SqlExpr.Cast tc && tc.target() == SqlType.Scalar.VARCHAR) {
             return w -> w.expr(e, 0);
         }
         // a decimal literal's text is its digits as written (DuckDB's DECIMAL keeps its scale: 2.50D is '2.50')
