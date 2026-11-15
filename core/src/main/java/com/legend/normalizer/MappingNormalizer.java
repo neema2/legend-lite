@@ -133,6 +133,8 @@ public final class MappingNormalizer {
      * mappings); the index is owned by {@link ModelNormalizer}/tests —
      * this phase is a pure function of {@code (parsed, model)}. */
     public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model) {
+        // the final audit of 9af16fbe58's J5 (2026-11-14): this entry, and the tolerant one, asked nothing
+        com.legend.base.RunScope.planning("normalize a model's mappings (phase E)");
         return normalize(parsed, model, null);
     }
 
@@ -141,6 +143,7 @@ public final class MappingNormalizer {
      * error line) and EXCLUDES those mappings instead of throwing. */
     public static NormalizedModel normalize(ParsedModel parsed, ModelBuilder model,
             java.util.@com.legend.base.Nullable Map<String, String> wallSink) {
+        com.legend.base.RunScope.planning("normalize a model's mappings (phase E)");
         LiftedViews views = new LiftedViews(parsed, model);
         views.liftAll(wallSink);
         return normalize(parsed, model, wallSink, views);

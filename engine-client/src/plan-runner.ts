@@ -32,6 +32,7 @@ import { familyOf, isBoolean } from './types.ts';
 import { payloadValue } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
 import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
+import { inRun } from './run-frame.ts';
 
 /** A value bound into a statement's `?`. */
 export type PlanValue = string | number | boolean | null;
@@ -235,20 +236,22 @@ async function inTransaction<T>(target: Target, run: (sql: PlannedSql, params: r
  */
 export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; readonly commit: readonly PlannedSql[]; readonly rollback: readonly PlannedSql[] },
   run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>, work: () => Promise<T>): Promise<T> {
-  for (const statement of t.begin) await run(statement, []);
-  let done: T;
-  try {
-    done = await work();
-  } catch (e) {
+  return inRun('a transaction', async () => {
+    for (const statement of t.begin) await run(statement, []);
+    let done: T;
     try {
-      for (const statement of t.rollback) await run(statement, []);
-    } catch (r) {
-      throw new Error(`${e instanceof Error ? e.message : String(e)} -- and rolling its transaction back failed: ${r instanceof Error ? r.message : String(r)}`, { cause: e });
+      done = await work();
+    } catch (e) {
+      try {
+        for (const statement of t.rollback) await run(statement, []);
+      } catch (r) {
+        throw new Error(`${e instanceof Error ? e.message : String(e)} -- and rolling its transaction back failed: ${r instanceof Error ? r.message : String(r)}`, { cause: e });
+      }
+      throw e;
     }
-    throw e;
-  }
-  for (const statement of t.commit) await run(statement, []);
-  return done;
+    for (const statement of t.commit) await run(statement, []);
+    return done;
+  });
 }
 
 /**
@@ -259,9 +262,11 @@ export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; 
  */
 export async function inLoadsTransaction<T>(plan: PlanText, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
   work: () => Promise<T>): Promise<T> {
-  const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
-  if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
-  return inTransaction(required(root.target, "its load's target"), run, work);
+  return inRun("a load's transaction", async () => {
+    const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
+    if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
+    return inTransaction(required(root.target, "its load's target"), run, work);
+  });
 }
 
 /** `target`'s loads from `plan`'s load section, in the target's order: one the section lacks refused by name. */
@@ -468,15 +473,17 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
 export async function runLoad(plan: PlanText, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
   host: { readonly files?: HostFiles; readonly secrets?: HostSecrets; readonly streams?: HostStreams } = {}):
   Promise<{ readonly settings: readonly KeptSetting[]; readonly landed: readonly Landed[] }> {
-  const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
-  if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
-  // a project's Data, made with its database (ONCE); a person's file or a remote file's mount, kept until reset
-  // (HOST_SESSION)
-  if (root.cadence !== 'ONCE' && root.cadence !== 'HOST_SESSION') throw new PlanRefusal(`a load's plan is ONCE or HOST_SESSION, not ${root.cadence}`);
-  const landed: Landed[] = [];
-  const settings = await deliver(root, { run: (sql, params) => run(sql, params).then(() => []) }, host.files, host.secrets,
-    host.streams, landed);
-  return { settings, landed };
+  return inRun('a load', async () => {
+    const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
+    if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
+    // a project's Data, made with its database (ONCE); a person's file or a remote file's mount, kept until reset
+    // (HOST_SESSION)
+    if (root.cadence !== 'ONCE' && root.cadence !== 'HOST_SESSION') throw new PlanRefusal(`a load's plan is ONCE or HOST_SESSION, not ${root.cadence}`);
+    const landed: Landed[] = [];
+    const settings = await deliver(root, { run: (sql, params) => run(sql, params).then(() => []) }, host.files, host.secrets,
+      host.streams, landed);
+    return { settings, landed };
+  });
 }
 
 /**
@@ -486,17 +493,19 @@ export async function runLoad(plan: PlanText, run: (sql: PlannedSql, params: rea
  * its data. Run once per database the host makes (`targetKey`); runPlan then runs the plan there (`established`).
  */
 export async function establish(plan: PlanText, session: PlanSession): Promise<void> {
-  const p = read(plan);
-  const target = targetOf(p);
-  if (target === undefined) return;
-  for (const statement of required(target.session, "its target's session")) await session.run(fromPlan(statement), []);
-  const loads = loadsOf(p, target);
-  for (const l of loads) {
-    if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE or PER_ACQUISITION, not ${l.cadence}`);
-  }
-  if (loads.length === 0) return;
-  await inTransaction(target, session.run, async () => {
-    for (const l of loads) await deliver(l, session);
+  return inRun("a target's establishing", async () => {
+    const p = read(plan);
+    const target = targetOf(p);
+    if (target === undefined) return;
+    for (const statement of required(target.session, "its target's session")) await session.run(fromPlan(statement), []);
+    const loads = loadsOf(p, target);
+    for (const l of loads) {
+      if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE or PER_ACQUISITION, not ${l.cadence}`);
+    }
+    if (loads.length === 0) return;
+    await inTransaction(target, session.run, async () => {
+      for (const l of loads) await deliver(l, session);
+    });
   });
 }
 
@@ -514,93 +523,95 @@ export class PlanRefusal extends Error {
  */
 export async function runPlan(plan: PlanText, session: PlanSession,
   o: { readonly joined?: boolean; readonly established?: boolean } = {}): Promise<string> {
-  const read = JSON.parse(plan) as ReadPlan;
-  if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
-    throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
-  }
-  if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
-  const root = read.root;
-  if (root === undefined) throw new PlanRefusal('a plan with no root');
-  if (root._type === 'keyed') {
-    // a pivot whose columns the data names: its keys read first, then its body per key (B3: the hosts run it)
-    const keyed = root as Keyed;
-    checkTarget(keyed.keys, session, o);
-    if (o.established !== true) for (const statement of required((keyed.keys.target as Target).session, "its target's session")) await session.run(fromPlan(statement), []);
-    return keyedRows(keyed, session);
-  }
-  const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
-    : root._type === 'tdsResult' || root._type === 'constant' ? [root] : undefined;
-  if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence, a typed result or a constant, not a ${root._type}`);
-  const results = steps.filter((s) => s._type === 'tdsResult' || s._type === 'constant');
-  // a plan answers with one typed result, or -- every step a write (a snapshot's copy: Boundary.snapCopy) -- none
-  const writes = steps.every((s) => s._type === 'update' || s._type === 'effect');
-  if (results.length !== 1 && !(results.length === 0 && writes)) throw new PlanRefusal(`a plan answers with one typed result, not ${results.length}`);
-  // a constant answer is the plan's own value: nothing to send for it (the test-is-the-product plan's M2)
-  const sent = steps.filter((s) => s._type !== 'constant');
-  if (sent.length === 0) return constantRows(results[0] as Extract<Step, { _type: 'constant' }>);
-  const sqls = sent.map((s) => stepSql(s));
-  // one database, as it is: every step's target the same, of this session's type, set up by nothing first
-  const [first] = sqls;
-  const target = JSON.stringify(first!.target);
-  if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
-  const t = checkTarget(first!, session, o);
-  for (const s of sent) {
-    // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
-    // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one
-    if (s._type === 'tdsResult' && (s as { readonly shape?: string }).shape === 'RELATION'
-        && (s as { readonly columns: readonly Column[] }).columns.length === 0) {
-      throw new PlanRefusal("a relation of the columns its result reports (a raw grid's) is not run here: the planner runs it");
+  return inRun('a plan', async () => {
+    const read = JSON.parse(plan) as ReadPlan;
+    if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
+      throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
     }
-  }
-  for (const s of sqls) {
-    if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
-    // a statement's own execution-trace stamp (an activity's comment, the test-is-the-product plan's M3f): a host's
-    // session sends no trace comment, so a plan that reads one is not run here
-    if (s.stamp !== undefined) throw new PlanRefusal(`a statement binding its own execution-trace stamp ('${s.stamp}') is not run here: a host's session sends no trace comment`);
-    for (const slot of s.slots) {
-      // a data: payload is the plan's own value, bound from the statement's content (plan-params.ts, M3)
-      if (slot.binding._type === 'payload') continue;
-      if (slot.binding._type !== 'one') {
-        throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : slot.binding._type === 'source' ? 'a file source' : slot.binding._type === 'payload' ? "a data: payload" : 'a list'}, which is not run here`);
+    if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
+    const root = read.root;
+    if (root === undefined) throw new PlanRefusal('a plan with no root');
+    if (root._type === 'keyed') {
+      // a pivot whose columns the data names: its keys read first, then its body per key (B3: the hosts run it)
+      const keyed = root as Keyed;
+      checkTarget(keyed.keys, session, o);
+      if (o.established !== true) for (const statement of required((keyed.keys.target as Target).session, "its target's session")) await session.run(fromPlan(statement), []);
+      return keyedRows(keyed, session);
+    }
+    const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
+      : root._type === 'tdsResult' || root._type === 'constant' ? [root] : undefined;
+    if (steps === undefined) throw new PlanRefusal(`a plan's root is a sequence, a typed result or a constant, not a ${root._type}`);
+    const results = steps.filter((s) => s._type === 'tdsResult' || s._type === 'constant');
+    // a plan answers with one typed result, or -- every step a write (a snapshot's copy: Boundary.snapCopy) -- none
+    const writes = steps.every((s) => s._type === 'update' || s._type === 'effect');
+    if (results.length !== 1 && !(results.length === 0 && writes)) throw new PlanRefusal(`a plan answers with one typed result, not ${results.length}`);
+    // a constant answer is the plan's own value: nothing to send for it (the test-is-the-product plan's M2)
+    const sent = steps.filter((s) => s._type !== 'constant');
+    if (sent.length === 0) return constantRows(results[0] as Extract<Step, { _type: 'constant' }>);
+    const sqls = sent.map((s) => stepSql(s));
+    // one database, as it is: every step's target the same, of this session's type, set up by nothing first
+    const [first] = sqls;
+    const target = JSON.stringify(first!.target);
+    if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
+    const t = checkTarget(first!, session, o);
+    for (const s of sent) {
+      // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
+      // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one
+      if (s._type === 'tdsResult' && (s as { readonly shape?: string }).shape === 'RELATION'
+          && (s as { readonly columns: readonly Column[] }).columns.length === 0) {
+        throw new PlanRefusal("a relation of the columns its result reports (a raw grid's) is not run here: the planner runs it");
       }
-      // a date or date-time bound as its text into its declared type's cast (P4): a host binds none
-      if (slot.binding.asText !== undefined && slot.binding.asText !== null) throw new PlanRefusal(`'${slot.parameter}' is a date bound as its text, which is not run here`);
     }
-  }
-  const changes = steps.some((s) => s._type === 'update' || s._type === 'effect') && o.joined !== true;
-  // the target's session statements: run by `establish` on a session established for it, else here
-  if (o.established !== true) for (const statement of required(t.session, "its target's session")) await session.run(fromPlan(statement), []);
-  const values = new Map<string, PlanValue>();
-  const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
-    // its payload's text from the statement's content, checked against its digest
-    if (slot.binding._type === 'payload') return payloadValue(required(s.content, "a payload slot's statement content"), required(slot.binding.digest, "a payload slot's digest"));
-    if (!values.has(slot.parameter)) throw new PlanRefusal(`'${slot.parameter}' is bound before any step gives it`);
-    return values.get(slot.parameter)!;
+    for (const s of sqls) {
+      if ((s.regions ?? []).length > 0) throw new PlanRefusal('a statement of per-key regions (a dynamic pivot\'s) is not run here: a write\'s has none');
+      // a statement's own execution-trace stamp (an activity's comment, the test-is-the-product plan's M3f): a host's
+      // session sends no trace comment, so a plan that reads one is not run here
+      if (s.stamp !== undefined) throw new PlanRefusal(`a statement binding its own execution-trace stamp ('${s.stamp}') is not run here: a host's session sends no trace comment`);
+      for (const slot of s.slots) {
+        // a data: payload is the plan's own value, bound from the statement's content (plan-params.ts, M3)
+        if (slot.binding._type === 'payload') continue;
+        if (slot.binding._type !== 'one') {
+          throw new PlanRefusal(`'${slot.parameter}' binds ${slot.binding._type === 'key' ? "a key's cell" : slot.binding._type === 'source' ? 'a file source' : slot.binding._type === 'payload' ? "a data: payload" : 'a list'}, which is not run here`);
+        }
+        // a date or date-time bound as its text into its declared type's cast (P4): a host binds none
+        if (slot.binding.asText !== undefined && slot.binding.asText !== null) throw new PlanRefusal(`'${slot.parameter}' is a date bound as its text, which is not run here`);
+      }
+    }
+    const changes = steps.some((s) => s._type === 'update' || s._type === 'effect') && o.joined !== true;
+    // the target's session statements: run by `establish` on a session established for it, else here
+    if (o.established !== true) for (const statement of required(t.session, "its target's session")) await session.run(fromPlan(statement), []);
+    const values = new Map<string, PlanValue>();
+    const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
+      // its payload's text from the statement's content, checked against its digest
+      if (slot.binding._type === 'payload') return payloadValue(required(s.content, "a payload slot's statement content"), required(slot.binding.digest, "a payload slot's digest"));
+      if (!values.has(slot.parameter)) throw new PlanRefusal(`'${slot.parameter}' is bound before any step gives it`);
+      return values.get(slot.parameter)!;
+    });
+    let text: string | undefined;
+    const all = async (): Promise<void> => {
+      for (const step of steps) {
+        if (step._type === 'constant') {
+          text = constantRows(step as Extract<Step, { _type: 'constant' }>);
+          continue;
+        }
+        const sql = stepSql(step);
+        const rows = await session.run(fromPlan(sql.statement), bound(sql));
+        if (step._type === 'update') {
+          // the database's count, a value it produced, bound where a later step reads it
+          const count = (step as { readonly count?: string | null }).count;
+          if (count !== undefined && count !== null) values.set(count, countOf(rows));
+        } else if (step._type === 'tdsResult') {
+          text = rowsOf((step as { readonly columns: readonly Column[] }).columns, rows);
+        }
+      }
+    };
+    // a plan's writes in one transaction, its statements the plan's target's (version 50); a joined run is inside its
+    // caller's
+    if (changes) await inTransaction(t, session.run, all);
+    else await all();
+    // a plan of writes alone answers no row
+    return text ?? '[]';
   });
-  let text: string | undefined;
-  const all = async (): Promise<void> => {
-    for (const step of steps) {
-      if (step._type === 'constant') {
-        text = constantRows(step as Extract<Step, { _type: 'constant' }>);
-        continue;
-      }
-      const sql = stepSql(step);
-      const rows = await session.run(fromPlan(sql.statement), bound(sql));
-      if (step._type === 'update') {
-        // the database's count, a value it produced, bound where a later step reads it
-        const count = (step as { readonly count?: string | null }).count;
-        if (count !== undefined && count !== null) values.set(count, countOf(rows));
-      } else if (step._type === 'tdsResult') {
-        text = rowsOf((step as { readonly columns: readonly Column[] }).columns, rows);
-      }
-    }
-  };
-  // a plan's writes in one transaction, its statements the plan's target's (version 50); a joined run is inside its
-  // caller's
-  if (changes) await inTransaction(t, session.run, all);
-  else await all();
-  // a plan of writes alone answers no row
-  return text ?? '[]';
 }
 
 /**
@@ -614,18 +625,20 @@ export async function runPlan(plan: PlanText, session: PlanSession,
  */
 export async function runAuthored<T>(plan: PlanText, on: { readonly databaseType: string; run(sql: PlannedSql): Promise<T> },
   o: { readonly established?: boolean } = {}): Promise<T> {
-  const root = read(plan).root;
-  const result = root as { readonly _type?: string; readonly shape?: string; readonly columns?: readonly Column[]; readonly sql?: Sql } | undefined;
-  if (result?._type !== 'tdsResult' || result.shape !== 'RELATION' || result.sql === undefined) {
-    throw new PlanRefusal(`an authored statement's plan answers the relation its database reports, not a ${String(result?._type)}`);
-  }
-  if (required(result.columns, "its result's columns").length > 0) {
-    throw new PlanRefusal("an authored statement's plan answers the relation its database reports, not declared columns");
-  }
-  if (result.sql.slots.length > 0) throw new PlanRefusal("an authored statement binds no value: it is the person's text, as written");
-  const t = checkTarget(result.sql, { databaseType: on.databaseType, run: async () => [] }, o);
-  if (o.established !== true) for (const statement of required(t.session, "its target's session")) await on.run(fromPlan(statement));
-  return on.run(fromPlan(result.sql.statement));
+  return inRun('an authored statement', async () => {
+    const root = read(plan).root;
+    const result = root as { readonly _type?: string; readonly shape?: string; readonly columns?: readonly Column[]; readonly sql?: Sql } | undefined;
+    if (result?._type !== 'tdsResult' || result.shape !== 'RELATION' || result.sql === undefined) {
+      throw new PlanRefusal(`an authored statement's plan answers the relation its database reports, not a ${String(result?._type)}`);
+    }
+    if (required(result.columns, "its result's columns").length > 0) {
+      throw new PlanRefusal("an authored statement's plan answers the relation its database reports, not declared columns");
+    }
+    if (result.sql.slots.length > 0) throw new PlanRefusal("an authored statement binds no value: it is the person's text, as written");
+    const t = checkTarget(result.sql, { databaseType: on.databaseType, run: async () => [] }, o);
+    if (o.established !== true) for (const statement of required(t.session, "its target's session")) await on.run(fromPlan(statement));
+    return on.run(fromPlan(result.sql.statement));
+  });
 }
 
 /** A per-key region of a keyed body (ExecutionPlan.Region): the text [start, end) written once per key. */

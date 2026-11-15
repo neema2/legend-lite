@@ -32,6 +32,7 @@ public final class ModelFromText {
      *  drop-in/parity surface, {@link Dialect#LEGEND_PLATFORM} the bootstrap/m2 superset (naming it in production
      *  trips the guardrail; the platform's own declarations are its consumers). */
     public static ParsedModel parse(String source, Dialect dialect) {
+        com.legend.base.RunScope.planning("parse a model (phases A and B)");
         PmcdParser.Parsed parsed = PmcdParser.parse(Objects.requireNonNull(source, "source"),
                 Objects.requireNonNull(dialect, "dialect"));
         List<ParsedModel.UnclaimedSection> unclaimed = new ArrayList<>();
@@ -48,6 +49,8 @@ public final class ModelFromText {
     /** One element the parser read from a text ({@code ElementParser.parseSingle}: the IDE's slice of one), as the
      *  compiler's model. */
     public static PackageableElement element(Protocol.Element parsed) {
+        // the final audit of 9af16fbe58's J5 (2026-11-14): this entry asked nothing
+        com.legend.base.RunScope.planning("read a parsed element into the model (phase B)");
         try {
             return ModelFromProtocol.element(Objects.requireNonNull(parsed, "parsed"));
         } catch (ModelFromProtocol.Unrepresentable u) {

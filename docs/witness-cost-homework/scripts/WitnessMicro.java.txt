@@ -1,0 +1,49 @@
+package com.legend.integration;
+
+import com.legend.base.RunScope;
+
+/** THROWAWAY (witness cost, 2026-11-13; never committed): ns per RunScope check, run once against the real class and
+ *  once against the no-op stub first on the classpath; the difference is the check's cost. Each iteration writes a
+ *  volatile, in both, so no ThreadLocal read is hoisted out of the loop. */
+public final class WitnessMicro {
+    static volatile int sink;
+    static final String[] WHAT = {"type a spec", "lower a spec", "render a query", "spell a literal",
+            "resolve a body", "inline a body", "resolve a model's names (phase D)", "build a typed model (phase F)"};
+    static final java.util.UUID ID = java.util.UUID.randomUUID();
+
+    interface Body { void run(int i); }
+
+    public static void main(String[] a) {
+        String which = a[0];
+        long n = Long.parseLong(a[1]);
+        Body body = switch (which) {
+            case "empty" -> i -> sink = i;
+            case "planning" -> i -> { RunScope.planning(WHAT[i & 7]); sink = i; };
+            case "plans" -> i -> { try (var p = RunScope.plans(WHAT[i & 7])) { sink = i; } };
+            case "run" -> i -> { try (var r = RunScope.enter(ID)) { RunScope.statement("a statement"); sink = i; } };
+            case "opening" -> i -> { RunScope.opening("a session opened"); sink = i; };
+            case "callingBack" -> i -> { try (var c = RunScope.callingBack()) { sink = i; } };
+            case "statement3" -> i -> { try (var r = RunScope.enter(ID)) { RunScope.statement("a statement"); RunScope.statement("a statement"); RunScope.statement("a statement"); sink = i; } };
+            case "planningWhat" -> i -> { if (RunScope.planningWhat() != null) { sink = -i; } sink = i; };
+            default -> throw new IllegalArgumentException(which);
+        };
+        for (int w = 0; w < 3; w++) {
+            loop(body, n);
+        }
+        double[] ns = new double[9];
+        for (int r = 0; r < ns.length; r++) {
+            long t0 = System.nanoTime();
+            loop(body, n);
+            ns[r] = (System.nanoTime() - t0) / (double) n;
+        }
+        java.util.Arrays.sort(ns);
+        System.out.printf(java.util.Locale.ROOT, "%s: median %.2f ns per iteration (min %.2f, max %.2f)%n", which,
+                ns[ns.length / 2], ns[0], ns[ns.length - 1]);
+    }
+
+    static void loop(Body body, long n) {
+        for (int i = 0; i < n; i++) {
+            body.run(i);
+        }
+    }
+}

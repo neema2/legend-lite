@@ -1,0 +1,37 @@
+"""P8 (the final audit of 9af16fbe58): the run's per-call costs after G3's fetched() and M4's copy_context."""
+import statistics, timeit, contextvars
+import duckdb
+from legend_lite._runframe import runs
+from legend_lite import _pool
+R = 9
+def per(stmt, g, number):
+    t = timeit.Timer(stmt, 'pass', globals=g).repeat(R, number)
+    ns = sorted(x / number * 1e9 for x in t)
+    return statistics.median(ns), ns[0]
+con = duckdb.connect()
+@runs('a read')
+def framed_select():
+    return con.execute('SELECT 1').fetchall()
+def plain_select():
+    return con.execute('SELECT 1').fetchall()
+res = con.execute('SELECT 1')
+def fetch_direct():
+    return con.execute('SELECT 1').to_arrow_table()
+def fetch_guarded():
+    r = con.execute('SELECT 1')
+    try:
+        return r.to_arrow_table()
+    except duckdb.TransactionException:
+        raise
+    except duckdb.Error:
+        raise
+g = dict(globals())
+for label, stmt, n in [
+    ("SELECT 1, no frame", "plain_select()", 20000),
+    ("SELECT 1 inside @runs (the frame)", "framed_select()", 20000),
+    ("to_arrow_table direct", "fetch_direct()", 20000),
+    ("to_arrow_table as fetched() does it (try/except)", "fetch_guarded()", 20000),
+    ("contextvars.copy_context() (per _on_compiler_threads call)", "contextvars.copy_context()", 1000000),
+]:
+    m, mn = per(stmt, g, n)
+    print(f'{label}: median {m/1000:.2f} us, min {mn/1000:.2f} us')

@@ -22065,8 +22065,140 @@ no run asks the planner; every guard bites a planted violator. Merged onto `clau
   protection keys fit the pattern. V8 now starts once per process with `--single-threaded
   --no-memory-protection-keys`, and V8 started first by other code is refused in words (2f2bacc34; the user's ruling,
   2026-11-13: protection off for now, the parent-thread start a follow-up, start-here §6.1).
+- **The V8 crash's cause, PROVEN after the merge (2026-11-13, C4's sandbox, measure only):** an Intel Xeon with
+  `pku` and `ospke`. At 068dbf199 (without 2f2bacc34) `//python:headless_test`, `engine_test` and `notebook_test`
+  segfault under py_mini_racer, every time over five runs (first crashes:
+  `WarehouseOnPython.test_a_frames_grid_snaps_too_a_copy_of_its_base_as_the_frame_was`,
+  `OneRead.test_a_call_made_from_datacubes_own_thread_is_refused_never_left_waiting`,
+  `InMarimo.test_a_session_let_go_lets_its_cubes_and_frames_go`). At 40d3bf0d5 (with it) all three pass, with no
+  segfault: 63, 344 and 29 tests. So memory protection keys are the cause, and 2f2bacc34 is the fix. The code comment
+  in `python/legend_lite/_headless.py` still says "unproven", and its next edit corrects it.
 - **Found by the next PR's fuzzing, not in this landing** (the user's ruling, 2026-11-13): ClickHouse's delimited
   identifiers double only `"`, while ClickHouse reads backslash escapes inside them, so a column name such as
   `a\" , version() AS v --` breaks out (confirmed on the pinned ClickHouse 25.8). It predates the total wall; the fix
   (every dialect's identifier escaped for its own lexer) is the first item of the foolproof stream's PR.
 - **CI on the landing head** (1c4c86c56 plus these records): recorded in PR #95's description (a commit here would restart the run).
+
+## 2026-11-14 — C4 closed: the plan/exec separation proven on Java; fenced and frozen on TypeScript and Python; the landing candidate
+
+The total wall's C4 (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §6.1 item 1), scoped by the user on 2026-11-13 and
+2026-11-14 to G4 alone. On Java the separation is PROVEN: default-deny dependency rules over every class and the
+run-time witness at every phase. On TypeScript and Python it is FENCED AND FROZEN: a compile-time wall that reads the
+source and a run-time frame where one is kept, with every place they cannot see named below and frozen shrink-only
+for C5 (the retitle is the C4 final fix round's T2; until then this said "made foolproof on every host"). Injection
+beyond query names is stream S (`claude/injection-safety`), which lands after it. Branch
+`claude/separation-foolproof-068`, main 3a217086a merged in (3189c116c).
+
+- **What it proves, each guard red on revert:**
+  - **A closed planner surface:** every root door by signature, a query-taking door named by its road, request
+    objects closed by name.
+  - **Default-deny reach into the planner:** `ArchitectureTest.PLANNER_ENTRIES_ONLY`. Outside planner, testplan and
+    lowering, a class -- the root's `Compiler` too, since the final fix round's T3 -- reaches them only through 70
+    measured entries, each by its full signature from its listed callers, checked over core and the hosts' doors; the
+    list equals what is reached (`thePlannerEntriesAreTheMeasuredOnesExactly`), so it shrinks as entries go. Until T3 it
+    held 59 entries keyed by owner and name, which admitted every overload to every class and exempted the Compiler.
+  - **No raw-SQL lowering past the refusal:** `TypedQuery.lower` deleted (the user's option B), one seed entry,
+    `Compiler.lowerResolved` refusing, the test planner's pieces package-private.
+  - **A run-time witness on every host that keeps a frame:** Java's phases A-J and the model-building entries; the
+    TypeScript and Python run frames; the server planner client refused inside a run, by a rejected promise.
+  - **A compile-time wall on both hosts:** run sets computed from the code, renamed imports resolved, import doors
+    default-deny, composers pinned shrink-only for C5.
+- **Injection, in its stated scope:** query names on the 11 relational dialects (ClickHouse's breakout and H2's
+  pre-quoted shortcut fixed as classes). MongoDB writes no SQL; the engine-text printers are byte-identical to main,
+  pinned by `IdentifierEscapingTest.theEngineTextPrintersAreMainsByteForByte` (the final fix round's T1: until then this
+  said "13 dialects"). The fuzzes count lite's named refusals only, with coverage pinned. The cloud probe ran 25/25 on
+  Snowflake and on Databricks.
+- **Audits:**
+  - 7f872ef24: three independent read-only reviewers (Java, hosts, tenets);
+  - fb8c2a41c: two delta reviewers;
+  - 9af16fbe58: two final reviewers on G4 alone. The separation held everywhere; the guards claimed more than they
+    pinned, and every finding was fixed, default-deny where it matters;
+  - e9e651b56 and edd5a0817: a checklist verification of exactly those fixes.
+- **Register:** S307 RULED (a) by the user on 2026-11-14. A test body's seed generation refuses an executeInDb read by
+  name; legend-engine's API refuses it; legend-pure runs it.
+- **Lanes, measure only:**
+  - **Round 48** at fb8c2a41c: 6 lanes, every error text byte-identical to round 41.
+  - **Round 49** at 9af16fbe58, the first with main's #81: every difference attributed to main by a rerun at
+    3a217086a (a new MongoDB test, ClickHouse 26.3's gained pass, 4 H2 lateral texts).
+  - **Round 50** at e9e651b56: zero differences from round 49, and no "inside a run" refusal anywhere. A same-machine
+    back-to-back measured the new checks at +0.7-1.4%, within the spread.
+- **The gate** at e9e651b56: 520 pass and 1 skipped; the 11 Postgres-backed targets refused as root pass
+  unprivileged. At edd5a0817 (the last list): census, guardrails, the host walls, //tools/guards and //:generated pass.
+- **Its limits, said plainly (the final fix round's T2):**
+  - the browser and the headless V8 keep no frame: there the run-time witness is blind and the wall alone holds;
+  - the lexer and the parser are unwitnessed at run time (phases A, the parser half of B, and C);
+  - Python's 12 `UNFRAMED_SENDERS` send outside a run, each named in `python/tests/test_run_wall.py` for C5:
+    `_headless.Headless._query` and `._statement`, `engine.Engine._execute`, `._execute_json`,
+    `._project_plan_and_run` and `._served_snap`, `frames.Table._load`, `frames.Frames.__init__`, `.streaming_file`
+    and `.reading`, `projects._stream`, `projects.ProjectDatabases._make`;
+  - TypeScript's 17 `COMPOSER_MODULES` both run and plan, each named in `datacube/test/run-wall.test.ts` for C5:
+    datacube's `runner`, `app/services`, `app/sources`, `services/browser`, `headless/host`, `app/join-flow`, `cube`,
+    `plan` and `treeview`; engine-client's `legend/browser-engine` and `legend/engine`; Query's `app/cube`,
+    `app/probe`, `app/run` and `ui/results`; Studio's `app/app` and `backend/run`;
+  - TypeScript's 22 `COMPOSER_SIGNATURES` take a planner's type in a run signature, each named there for C5:
+    engine-client's `setUpSession`, `ownExtensions`, `startDuckDbInTab`, `runHostOperations`, `loadFileTable`, and
+    the constructors of `ProjectDatabases`, `SnapManager` and `TabTables`; datacube's `accessRemote`, `mountRemote`,
+    `runMount`, `TableWriteHost.models`, `writeTable`, and upload's `catalogColumns`, `catalogColumnsOf`,
+    `dropFileTable`, `forgetUpload`, `ingestFile`, `modelLanded`, `mountRemoteView`, `mountedView`, `readFileInto`.
+- **The heavy suite and the cloud probe:** `//gates:heavy` holds `//core:identifier_escaping_cloud_probe` (fd7dc25565).
+  A heavy run needs `LEGENDLITE_PCT_CLOUD_PROPERTIES` and `LEGENDLITE_PROBE_CLOUD`, and covers ONE cloud a run, the one
+  `LEGENDLITE_PROBE_CLOUD` names (`snowflake` or `databricks`); without them the probe fails by name.
+- **The final fix round (the orchestrator's list of 2026-11-14 at 6e68a11e5c, CI 51/51):** each item a commit with a
+  test red on revert -- B1 a Python read's end never replaced by a file not there (IOException) nor named by a refused
+  file access (PermissionException); B2 a model's `"serializer": null` is none; B4 a zone-shifted `Z` refused by name,
+  the date-format fuzz over patterns starting with `[`; D2 a gone marimo session's finalizer only queues it, drained
+  outside any run (`_runframe.EXEMPTIONS` empty again); T3 above; the raw-SQL refusal its own class
+  (`com.legend.error.RawSqlRefusal`), its rethrow proven by a body; a refused planner entry rejects its promise, never
+  throws (the bundle budgets unmoved: the grid 436,999 of 437,300, the engine page 425,411 of 425,500).
+  - **B3, a correction (ruled: keep the new behaviour):** b915e2940 made DateFormats' unterminated quote a
+    ModelException and said "no caller relied on the class". Five catch sites did (four, said this entry until the C4
+    second small round's item 3: the plan scan was missed): PlanAllocations' plan scan (`registerPlanRows`), its
+    activity SQL, its column-lineage and relation-lineage scans, and HostAsserts' assertIs lowering catch the lowering's
+    NotImplementedException and IllegalStateException. The ModelException now escapes them by name, where the bare
+    IllegalStateException was read as "no rows" (pinned by
+    `BodyRouterParityTest.aMalformedDatePatternInAScannedQueryIsRefusedByName`). Upstream's answer, read again for the
+    C4 last two rulings (the first reading -- `DateFormatPattern.parseQuotedText`'s "Missing closing quote in format
+    string: ...", when the format runs -- was wrong: that is pure's pattern parser's, never reached through `%t`):
+    legend-pure 5.99.0 finds `%t{`'s end with `FormatTools.findEndOfDateFormatString` and refuses an unended pattern
+    as "Could not find end of date format starting at index <i> of: <format string>", at compile time for a literal
+    (`FormatValidator`). Lite refuses at planning in its own words. Ruled 2026-11-14: unchanged in C4 (frozen); pure's
+    way is C5's follow-up below, with no register row until it lands.
+  - **D3, recorded (ruled (a): keep):** be5faae7f's message called its change wording; one line of it changed the
+    census route (`TestDataRoutes.census`, `DONOTUSE_generateTestData`): it now TYPES the query
+    (`Compiler.query`) and refuses an executeInDb's read by name before its scan, which reads the raw lambda untyped
+    (`TestDataCensus.of`, over ScanRelations). So the query must now type: one that does not is refused (400
+    COMPILATION) before the scan reads it (`TestDataRoutesTest.theCensusRefusesARawReadByNameBeforeItsScan` pins the
+    raw read's refusal).
+  - **D1, investigated (no code); RULED by the user, 2026-11-14: (a), keep the refusal, record it, log a follow-up:**
+    the column-lineage scan (`scanColumns`, `PlanAllocations.registerColumnLineageRows`) refuses a query holding an
+    executeInDb read by name, now a row of S307: upstream's `scanColumns` (legend-engine 4.145.0) answers from the
+    mapping's property paths and never reads SQL, so a raw read adds no columns; main read the lowered SQL and answered
+    `[FIRM.NAME]` where upstream answers `[]` (the probe's three shapes are S307's evidence). The follow-up is stream
+    D's: lineage rebuilt upstream's way, for everything (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §6.1, under D's
+    batch), cross-listed in C5's list below.
+  - **Windows small-test timeouts, as a class (2026-11-14):** PR #101's run 43641250351 timed
+    `//datacube:brand_casts_test` out on Windows at 60.1 s (inputs byte-identical to 5fdeb94d54's, where it took 30
+    s), after `//python:run_wall_test` the round before. Every `short`-timeout test (368) was measured from the lanes'
+    test.xml in three CI runs (main 3a217086a, 5fdeb94d54, 4a8e448917): the ten with CI Linux at 12 s or more, or CI
+    Windows at 20 s or more, are `medium` now, with the times in `datacube/BUILD.bazel`'s `_SLOW_ON_CI_TESTS` note.
+    None grew by C4.
+- **C5 (start none without the user):**
+  - first, the structural split: TypeScript's and Python's run code in packages whose build deps exclude the planner,
+    a run frame around every send, and the run walls deleted for a plain dependency rule (the walls' headers name this
+    finish line; they are interim scaffolding, neither slimmed nor re-engineered meanwhile);
+  - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`) carried in the test plan instead;
+  - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
+    `registerColumnLineageRows` (:492) and `registerLineageRows` (:561), and FramePlanner's legendQuery activity SQL
+    (:149, which catches LegendCompileException and so still swallows a malformed date pattern; it predates C4);
+  - the resolver's reads of lowering helpers (`lowering.Aggregates`, `lowering.AsorRef`) moved below both;
+  - cross-listed so it is not lost (stream D's, not C5's): lineage rebuilt upstream's way, for everything --
+    `scanColumns`, `scanRelations` and every lineage function lite answers computed from the model through the
+    mapping's property paths, never from lowered SQL; the expression handed in scanned (`->at(0)` honoured);
+    `scanColumns`, `scanRelations` and `executionPlan` alike over a query holding `executeInDb`; upstream's answers the
+    tests' expectations, starting with the D1 probe's three shapes; S307's column-lineage sentences gone once it lands
+    (the terms: start-here §6.1, under D's batch);
+  - Node's promise cost (a flag, or Node 24);
+  - the date-format end found as pure finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
+    quoted-brace gap closed (B3's option A, held out of C4 by its freeze; with it, DateFormats' unread backslash escape
+    inside quotes and the zone-shifted pattern's quoted `Z`; the terms: start-here §6.1, C5's list);
+  - the TypeScript wall on the type checker once its program API is available.

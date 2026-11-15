@@ -28,7 +28,10 @@ final class DateFormats {
             if (pattern.charAt(i) == '"') {
                 int close = pattern.indexOf('"', i + 1);
                 if (close < 0) {
-                    throw new IllegalStateException("unterminated quote in date pattern: " + pattern);
+                    // a malformed pattern, refused by name as the lowering refuses a malformed input (the C4 audit's
+                    // M3, 2026-11-13: until then a bare IllegalStateException, which the server answered 500 as a bug)
+                    throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
+                            "unterminated quote in date pattern: " + pattern);
                 }
                 text.append(pattern, i + 1, close);
                 i = close + 1;
@@ -71,8 +74,10 @@ final class DateFormats {
                 // A pattern LETTER outside the token table would silently
                 // pass through as literal text ('MMM' -> '03M'; audit) —
                 // loud instead; punctuation/separators pass.
+                // (a token not implemented: refused by name, the C4 audit's M3, 2026-11-13; until then a bare
+                // IllegalStateException)
                 if (Character.isLetter(ch)) {
-                    throw new IllegalStateException("unsupported date-format"
+                    throw new com.legend.error.NotImplementedException("unsupported date-format"
                             + " token '" + ch + "' in pattern '" + pattern + "'");
                 }
                 text.append(ch);

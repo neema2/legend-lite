@@ -1,0 +1,57 @@
+// Witness cost, TS (2026-11-13; throwaway, never committed): the product path whole in Node, per query -- the planner
+// (WebAssembly, in-thread: answer(), whose planning(kind) check is the witness's) and the run (runPlan on DuckDB-WASM,
+// inside inRun('a plan')) -- for the trades corpus's queries. Run once with the real run-frame.ts and once with the
+// no-frame variant swapped in. Its arguments: <model.pure> <lambdas.json> <rows> <passes>.
+import { readFileSync } from 'node:fs';
+import { startNodeDuckDb } from '../src/node-require.ts';
+import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
+import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
+import { answer } from '../src/legend/planner-answer.ts';
+import { runPlan, type PlanSession } from '../src/plan-runner.ts';
+import { frameKept } from '../src/run-frame.ts';
+import { loadPlannerModule } from './planner.ts';
+import { unplanned, unplannedPlan } from './unplanned.ts';
+
+const [modelPath, lambdasPath, rowsArg, passesArg] = process.argv.slice(2);
+const ok = (tagged: string): string => {
+  const [tag, ...rest] = tagged.split('\n');
+  if (tag !== 'OK') throw new Error(rest.join('\n'));
+  return rest.join('\n');
+};
+const m = await loadPlannerModule();
+const handle = Number(ok(answer(m, { kind: 'hold', model: readFileSync(modelPath!, 'utf8') })));
+const cases = JSON.parse(readFileSync(lambdasPath!, 'utf8')) as { name: string; lambda: string }[];
+const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+const engine = new DuckDbEngine(db.connect() as ArrowishConnection);
+const rows = Number(rowsArg);
+await engine.run(unplanned('create table DESKS(name varchar(32) primary key, head varchar(64), budget double)'), 0);
+await engine.run(unplanned("insert into DESKS select 'desk' || i, 'head' || i, i * 1000.0 from range(20) t(i)"), 0);
+await engine.run(unplanned('create table TRADES(id integer primary key, region varchar(32), desk varchar(32), book varchar(32),'
+  + ' trader varchar(64), year integer, qtr varchar(8), notional double, pnl double, qty integer, booked date, active boolean)'), 0);
+await engine.run(unplanned("insert into TRADES select i, 'region' || (i % 5), 'desk' || (i % 20), 'book' || (i % 50),"
+  + " 'trader' || (i % 200), 2020 + (i % 6), 'Q' || (1 + i % 4), (i % 997) * 1.5, (i % 101) - 50.0, i % 1000,"
+  + ` date '2020-01-01' + (i % 2000)::integer, i % 2 = 0 from range(${rows}) t(i)`), 0);
+const sessionOn = (held: { rows: PlanSession['run'] }): PlanSession => ({ databaseType: engine.databaseType, run: held.rows });
+const now = (): bigint => process.hrtime.bigint();
+for (let p = 1; p <= Number(passesArg); p++) {
+  let plan = 0n, run = 0n, n = 0;
+  const whole: number[] = [];
+  const failed: string[] = [];
+  for (const c of cases) {
+    const t0 = now();
+    try {
+      const planned = ok(answer(m, { kind: 'executionPlan', handle, lambda: c.lambda, runtime: 'trades::RT' }));
+      const t1 = now();
+      await engine.exclusive(async (held) => runPlan(unplannedPlan(planned), sessionOn(held)));
+      const t2 = now();
+      plan += t1 - t0; run += t2 - t1; n++;
+      whole.push(Number(t2 - t0));
+    } catch (e) {
+      failed.push(`${c.name}: ${String((e as Error).message).split('\n')[0]}`);
+    }
+  }
+  whole.sort((a, b) => a - b);
+  console.log(`[ts] pass ${p}: ${n} of ${cases.length} ok (frameKept=${frameKept}); per query mean: plan ${(Number(plan) / n / 1e3).toFixed(1)} us,`
+    + ` run ${(Number(run) / n / 1e3).toFixed(1)} us, whole ${(Number(plan + run) / n / 1e3).toFixed(1)} us; whole p50 ${(whole[whole.length >> 1]! / 1e3).toFixed(1)} us`);
+  if (p === 1) for (const f of failed) console.log(`[ts] failed: ${f}`);
+}

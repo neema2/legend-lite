@@ -65,7 +65,7 @@ class EngineExecuteCardinalityTest {
         assertFalse(serialize(chain).engineExecuteCardinality(), "lite's own serialize is never marked");
 
         // lite's own root: the array aggregate, unmarked
-        Compiler.LoweredQuery own = q.lower("s::RT", false);
+        Compiler.LoweredQuery own = com.legend.planner.Lowered.lower(q, "s::RT", false);
         assertFalse(graph(own.root()).engineExecuteCardinality());
         assertInstanceOf(SqlExpr.JsonArrayAgg.class, top(own.plan()));
 
@@ -73,14 +73,14 @@ class EngineExecuteCardinalityTest {
         // to the graph, the root folds over the same aggregate
         TypedSpec spliced = valuesRead(chain);
         assertTrue(serialize(spliced).engineExecuteCardinality(), "the splice marks the execute()'s serialize");
-        Compiler.LoweredQuery compat = q.withBody(List.of(spliced)).lower("s::RT", false);
+        Compiler.LoweredQuery compat = com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", false);
         assertTrue(graph(compat.root()).engineExecuteCardinality(), "the resolver carries the mark to its graph");
         SqlExpr folded = top(compat.plan());
         assertInstanceOf(SqlExpr.Case.class, folded);
         assertNotNull(SnapshotEnvelope.foldedAggregate(folded), "the singleton fold over the array aggregate");
 
         // the streaming root (one object per row) never folds
-        SqlExpr streamed = top(q.withBody(List.of(spliced)).lower("s::RT", true).plan());
+        SqlExpr streamed = top(com.legend.planner.Lowered.lower(q.withBody(List.of(spliced)), "s::RT", true).plan());
         assertNull(SnapshotEnvelope.foldedAggregate(streamed));
         assertFalse(streamed instanceof SqlExpr.JsonArrayAgg);
     }

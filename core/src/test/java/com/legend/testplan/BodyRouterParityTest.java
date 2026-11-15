@@ -977,6 +977,62 @@ class BodyRouterParityTest {
         }
     }
 
+    /** A malformed date pattern in a scanned query is refused BY NAME, the body failing with it: DateFormats refuses an
+     *  unterminated quote with a ModelException (b915e2940, F-M3-1), which the column-lineage scan's catch of the
+     *  lowering's NotImplementedException and IllegalStateException does not hold -- until then a bare
+     *  IllegalStateException, which the catch read as "no rows", the scan's handle left symbolic. The same holds at
+     *  the plan scan's, the relation-lineage scan's, an execute's activity SQL's and HostAsserts' catches. Kept as the
+     *  new behaviour by the C4 final fix round's ruling of B3 (2026-11-14), which corrected b915e2940's claim that no
+     *  caller relied on the class. Upstream's answer for the pattern: legend-pure 5.99.0's DateFormatPattern raises
+     *  IllegalArgumentException "Missing closing quote in format string: ..." when the format runs. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void aMalformedDatePatternInAScannedQueryIsRefusedByName(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String columns = "let p = {|x::Firm.all()->project([f|$f.name, f|format('%t{yyyy\"P}', [%2014-03-05])],"
+                + " ['name', 'd'])}.expressionSequence->at(0)->evaluateAndDeactivate()"
+                + "->meta::pure::lineage::scanProperties::scanProperties("
+                + "^meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>(), [], []);"
+                + " let tree = $p.result->meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree();"
+                + " let f = $tree->meta::pure::lineage::scanColumns::scanColumns(x::M)->removeDuplicates();";
+        for (var mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
+                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+            Run r = run(backend, ctx, "x::RT", "{| " + columns + " assertEquals(1, $f->size());}",
+                    "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertTrue(r.outcome.startsWith("ModelException: ") && r.outcome.contains(
+                    "unterminated quote in date pattern: yyyy\"P"), mode + ": " + r.outcome);
+        }
+    }
+
+    /** The column-lineage scan -- the plan handles' one scan that lowers its query through the root's
+     *  Compiler.lowerResolved -- over a query holding an executeInDb read: the raw-SQL refusal
+     *  ({@code com.legend.error.RawSqlRefusal}) reaches the body's failure as itself, under both judges, never answered
+     *  "no rows" by the scan's catch ({@code PlanAllocations.noLineageRows}; the final audit of 9af16fbe58's J7; the C4
+     *  final fix round's nit, 2026-11-14: until then ArchitectureTest proved only that each catch asks, and the refusal
+     *  was told apart by its words). The relation-lineage scan (scanRelations) and the plan scan (executionPlan) over
+     *  the same query raise no refusal (measured that day: neither lowers through lowerResolved); their catches ask too
+     *  (ArchitectureTest.thePlanHandlesScansLetTheRawSqlRefusalThrough), so the refusal would pass them as well. */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void theColumnLineageScanLetsTheRawSqlRefusalThroughAsItself(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String read = "meta::relational::metamodel::execute::executeInDb('select ID as A from FIRM', ^meta::external::"
+                + "store::relational::runtime::TestDatabaseConnection(type=meta::relational::runtime::DatabaseType."
+                + backend.type().name() + "), 0, 1000)";
+        String query = "{|let n = " + read + ".columnNames; x::Firm.all()->project([f|$f.name], ['name']);}";
+        String body = "{| let p = " + query + ".expressionSequence->at(0)->evaluateAndDeactivate()"
+                + "->meta::pure::lineage::scanProperties::scanProperties("
+                + "^meta::pure::functions::collection::List<meta::pure::lineage::scanProperties::PropertyPathNode>(), [], []);"
+                + " let tree = $p.result->meta::pure::lineage::scanProperties::propertyTree::buildPropertyTree();"
+                + " let f = $tree->meta::pure::lineage::scanColumns::scanColumns(x::M)->removeDuplicates();"
+                + " assertEquals(1, $f->size());}";
+        for (var mode : List.of(com.legend.testplan.PlanningOptions.JudgeMode.HOST,
+                com.legend.testplan.PlanningOptions.JudgeMode.DATABASE)) {
+            Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertTrue(r.outcome.startsWith("RawSqlRefusal: an executeInDb's SQL in a query"), mode + ": " + r.outcome);
+        }
+    }
+
     /** M10c item 4: a USER-WRITTEN ASSERT HELPER at the root ({@code x::assertSame(expected, actual)}: lets, then an
      *  assert over class values, as toPostgresModel's {@code assertConversion}) is inlined and its reduced root planned
      *  as the assert it is on both roads, under that assert's name -- the walk's own rule (a class value asserted or a

@@ -343,8 +343,7 @@ public class MariaDb extends AnsiSqlRenderer {
     /** Every identifier quoted (ANSI_QUOTES): a column name folds no case, but a keyword would end it. */
     @Override
     protected String ident(String name) {
-        if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
-                && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"")) {
+        if (quotedIdentifier(name, '"')) {
             return name;
         }
         return delimited(name);

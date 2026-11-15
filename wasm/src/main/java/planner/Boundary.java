@@ -260,10 +260,17 @@ public final class Boundary {
      */
     public static String fileLoad(String request) {
         com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(request);
+        only(in, "a host's file load", "databaseType", "file", "into");
         String databaseType = in.getString("databaseType");
         com.legend.json.Json.Obj file = in.getObj("file");
+        only(file, "a host's file", "name", "digest", "size", "format");
         com.legend.json.Json.Obj into = in.getObj("into");
         boolean declared = into.has("model");
+        if (declared) {
+            only(into, "a declared table's place", "model", "database", "schema", "table");
+        } else {
+            only(into, "a table of its own", "table");
+        }
         String format = file.getString("format");
         com.legend.executionplan.DataRef.Format read = switch (format) {
             // a table of its own detects a CSV's columns; a declared table reads its cells as text
@@ -646,6 +653,7 @@ public final class Boundary {
      */
     public static String databaseFromCatalog(String catalogJson) {
         com.legend.json.Json.Obj in = com.legend.json.Json.parseObject(catalogJson);
+        only(in, "a catalog's table", "path", "schema", "table", "convertible", "databaseType", "columns");
         com.legend.sql.dialect.CatalogModel.Database db = com.legend.sql.dialect.CatalogModel.database(
                 in.getString("path"), in.getStringOr("schema", null), in.getString("table"), catalogColumns(in),
                 dialectOf(in.getString("databaseType")), in.getBool("convertible"));
@@ -683,7 +691,8 @@ public final class Boundary {
         if (in.has("tables")) {
             return tablesModel(in);
         }
-        String pkg = in.getStringOr("pkg", "local");
+        only(in, "a table's model", "table", "schema", "pkg", "convertible", "databaseType", "columns");
+        String pkg = packagePath(in.getStringOr("pkg", "local"), "a table's package");
         String databaseType = in.getString("databaseType");
         java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = catalogColumns(in);
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
@@ -710,15 +719,20 @@ public final class Boundary {
 
     /** {@link #tableModel} given several tables: their packages' Databases, one connection, one runtime over them. */
     private static String tablesModel(com.legend.json.Json.Obj in) {
+        only(in, "a model of several tables", "databaseType", "connection", "tables");
         String databaseType = in.getString("databaseType");
-        String connection = in.getStringOr("connection", "host");
+        String connection = packagePath(in.getStringOr("connection", "host"), "a model's connection");
         com.legend.sql.dialect.SqlDialect dialect = dialectOf(databaseType);
         // each package's tables, in the order the packages first came
         java.util.Map<String, java.util.List<Integer>> byPkg = new java.util.LinkedHashMap<>();
         java.util.List<com.legend.json.Json.Obj> tables = new java.util.ArrayList<>();
         for (com.legend.json.Json.Node n : in.getArr("tables").items()) {
-            com.legend.json.Json.Obj t = (com.legend.json.Json.Obj) n;
-            byPkg.computeIfAbsent(t.getStringOr("pkg", "local"), k -> new java.util.ArrayList<>()).add(tables.size());
+            if (!(n instanceof com.legend.json.Json.Obj t)) {
+                throw new IllegalArgumentException("a model's table is a JSON object");
+            }
+            only(t, "a model's table", "table", "schema", "pkg", "convertible", "columns");
+            byPkg.computeIfAbsent(packagePath(t.getStringOr("pkg", "local"), "a table's package"),
+                    k -> new java.util.ArrayList<>()).add(tables.size());
             tables.add(t);
         }
         if (tables.isEmpty()) {
@@ -838,7 +852,10 @@ public final class Boundary {
     private static java.util.List<com.legend.sql.dialect.CatalogModel.Column> catalogColumns(com.legend.json.Json.Obj in) {
         java.util.List<com.legend.sql.dialect.CatalogModel.Column> columns = new java.util.ArrayList<>();
         for (com.legend.json.Json.Node n : in.getArr("columns").items()) {
-            com.legend.json.Json.Obj c = (com.legend.json.Json.Obj) n;
+            if (!(n instanceof com.legend.json.Json.Obj c)) {
+                throw new IllegalArgumentException("a catalog column is a JSON object");
+            }
+            only(c, "a catalog column", "name", "dataType", "logicalType", "precision", "scale", "notNull");
             columns.add(new com.legend.sql.dialect.CatalogModel.Column(c.getString("name"), c.getString("dataType"),
                     c.getStringOr("logicalType", null), intOrNull(c, "precision"), intOrNull(c, "scale"),
                     c.getBoolOr("notNull", false)));
@@ -867,6 +884,21 @@ public final class Boundary {
             conversions.add(m);
         }
         return conversions;
+    }
+
+    /** {@code path} as the model text writes a package: Pure names joined by {@code ::} (letters, digits and
+     *  {@code _}, not led by a digit, no literal's word), any other refused by name, {@code what} naming it (the C4
+     *  audit, 2026-11-13: a table's {@code pkg} and a model's {@code connection} were spliced into the model's text as
+     *  given, so a line break or a brace wrote elements of its own; the rule is the model-change routes', ModelChanges
+     *  .packagePath). */
+    static String packagePath(String path, String what) {
+        for (String part : path.split("::", -1)) {
+            if (!part.matches("[A-Za-z_][A-Za-z0-9_]*") || part.equals("true") || part.equals("false")) {
+                throw new IllegalArgumentException(what + " is Pure names joined by :: (letters, digits and _), not '"
+                        + path + "'");
+            }
+        }
+        return path;
     }
 
     /** A connection of the given type and the runtime that binds the table's Database to it. Every connection is a

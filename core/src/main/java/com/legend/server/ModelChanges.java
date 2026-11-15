@@ -53,6 +53,7 @@ public final class ModelChanges {
 
     /** {@code createClass}: {@code {"project", "package", "class"}} -- one class ({@link CreateClass}'s request). */
     public static Map<String, Object> createClass(Json.Obj request) {
+        only(request, "a createClass request", "project", "package", "class");
         return made(request, List.of(request.getObj("class")), List.of(), null);
     }
 
@@ -62,22 +63,32 @@ public final class ModelChanges {
      * start).
      */
     public static Map<String, Object> createAssociation(Json.Obj request) {
+        only(request, "a createAssociation request", "project", "package", "classes", "association");
         Json.Obj association = request.getObjOr("association", null);
         return made(request, items(request, "classes"), association == null ? List.of() : List.of(association), null);
     }
 
     /** {@code createDataSpace}: {@code {"project", "package", "classes"?, "associations"?, "dataSpace"}}. */
     public static Map<String, Object> createDataSpace(Json.Obj request) {
+        only(request, "a createDataSpace request", "project", "package", "classes", "associations", "dataSpace");
         return made(request, items(request, "classes"), items(request, "associations"), request.getObj("dataSpace"));
     }
 
     private static Map<String, Object> made(Json.Obj request, List<Json.Obj> classes, List<Json.Obj> associations,
             @com.legend.base.Nullable Json.Obj dataSpace) {
         String pkg = packagePath(request.getString("package"));
-        ModelChanges m = new ModelChanges(PureV1Api.modelText(request.getObj("project")));
+        Json.Obj project = request.getObj("project");
+        // upstream's clients send a text model's serializer ({name, version}: PureModelContextText's protocol); read by
+        // no one here, admitted, closed over its own keys (the C4 audit's M4, 2026-11-13: it was refused by name)
+        only(project, "a project's model", "_type", "code", "serializer");
+        serializer(project);
+        ModelChanges m = new ModelChanges(PureV1Api.modelText(project));
         List<CreateClass.Made> madeClasses = new ArrayList<>();
         for (Json.Obj c : classes) {
-            madeClasses.add(CreateClass.apply(m, pkg, c, PureV1Api.modelText(c.getObj("source"))));
+            Json.Obj source = c.getObj("source");
+            only(source, "a class's source model", "_type", "code", "serializer");
+            serializer(source);
+            madeClasses.add(CreateClass.apply(m, pkg, c, PureV1Api.modelText(source)));
         }
         List<CreateAssociation.Made> madeAssociations = new ArrayList<>();
         for (Json.Obj a : associations) {
@@ -565,6 +576,22 @@ public final class ModelChanges {
         return Character.isDigit(held.charAt(0)) ? "_" + held : held;
     }
 
+    /** A text model's {@code serializer}, where it carries one: an object of upstream's protocol's {@code name} and
+     *  {@code version}, any other key refused by name; JSON's {@code null} is none (upstream's protocol field is
+     *  optional, as the readers' {@code getObjOr} read a null), and any other value is refused by name (the C4 final
+     *  fix round's B2, 2026-11-14: {@code has} is true of a null, and the cast to an object answered 500). */
+    static void serializer(Json.Obj model) {
+        Json.Node given = model.fields().get("serializer");
+        if (given == null || given instanceof Json.Null) {
+            return;
+        }
+        if (!(given instanceof Json.Obj serializer)) {
+            throw new IllegalArgumentException("a model's serializer is an object of its name and version, not "
+                    + given.getClass().getSimpleName().toLowerCase(Locale.ROOT));
+        }
+        only(serializer, "a model's serializer", "name", "version");
+    }
+
     /** A name Pure holds unquoted: letters, digits and {@code _}, not led by a digit, and no literal's word. */
     static boolean isIdentifier(String name) {
         return name.matches("[A-Za-z_][A-Za-z0-9_]*") && !LITERAL_WORDS.contains(name);
@@ -592,6 +619,25 @@ public final class ModelChanges {
     static String literal(String text) {
         return "'" + text.replace("\\", "\\\\").replace("'", "\\'").replace("\n", "\\n").replace("\r", "\\r")
                 .replace("\t", "\\t") + "'";
+    }
+
+    /**
+     * {@code o}'s keys among {@code keys}, any other refused by name ({@code what} names the object): each object of a
+     * request closes itself, as the boundary's request doors do (the orchestrator's ruling (a) of 2026-11-13: these
+     * routes' shapes are lite's own, their writer's wire, model-changes/src/wire.ts, so nothing upstream keeps them
+     * open; until then a key no reader took was passed over).
+     */
+    static void only(Json.Obj o, String what, String... keys) {
+        Set<String> allowed = Set.of(keys);
+        for (String key : o.fields().keySet()) {
+            if (!allowed.contains(key)) {
+                // its own words: a model change's request carries values (model text, documentation, a sample's rows),
+                // so the boundary doors' "names and fields only, never a value" is not its rule (the C4 final fix
+                // round's nit, 2026-11-14)
+                throw new IllegalArgumentException(what + " has no key " + key + " (a model change's request holds the"
+                        + " keys its wire writes, model-changes/src/wire.ts, and no other)");
+            }
+        }
     }
 
     static LegendCompileException refused(String message) {

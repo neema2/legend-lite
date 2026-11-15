@@ -1,0 +1,57 @@
+# Python (Bazel's Python 3.12.13, duckdb 1.5.5): pybench.py, the check and the frame (before the frame's change)
+
+empty statement: median 4.4 ns, min 4.2 ns (the loop itself)
+a plain function call (reference): median 16.8 ns, min 16.7 ns per call (loop included)
+planning('lite_plan_json_held') outside a run: median 31.4 ns, min 31.0 ns per call (loop included)
+Library.call's whole check: if name not in _NOT_PLANNING: planning(name): median 40.3 ns, min 39.7 ns per call (loop included)
+with in_run('a read'): pass: median 647.2 ns, min 638.3 ns per call (loop included)
+@runs('a read') on an empty function, per call: median 711.2 ns, min 708.1 ns per call (loop included)
+real Library.call('lite_plan_json_held') check ON: median 230.0 us, min 210.7 us, max 336.4 us per call (20 batches of 300)
+real Library.call('lite_plan_json_held') check OFF: median 229.8 us, min 212.0 us, max 547.8 us per call (20 batches of 300)
+difference of medians: 237 ns per call (0.103%)
+DuckDB SELECT 1: bare median 156.3 us, in a run frame median 163.1 us per run (difference 6733 ns, 4.31%)
+DuckDB an aggregate over 100k rows: bare median 1161.3 us, in a run frame median 1274.7 us per run (difference 113391 ns, 9.76%)
+
+# pyduck3.py: SELECT 1 bare vs the old frame, paired batches, GC on and off (three runs)
+'select 1' gc on: bare median 170.3 us, framed median 177.0 us; paired difference median +7153 ns, 95% interval [+4631, +8233] ns
+'select 1' gc off: bare median 161.0 us, framed median 166.1 us; paired difference median +5735 ns, 95% interval [+5075, +6560] ns
+'select 1' gc on: bare median 148.0 us, framed median 153.4 us; paired difference median +4961 ns, 95% interval [+4318, +5393] ns
+'select 1' gc off: bare median 153.7 us, framed median 159.3 us; paired difference median +5567 ns, 95% interval [+4520, +6507] ns
+'select 1' gc on: bare median 163.0 us, framed median 169.3 us; paired difference median +6220 ns, 95% interval [+5084, +8367] ns
+'select 1' gc off: bare median 149.2 us, framed median 152.4 us; paired difference median +4388 ns, 95% interval [+3524, +5165] ns
+
+# pyduck4.py: a context variable held around a whole batch (no per-call frame)
+SELECT 1, in_run held around the batch: per call -111 ns vs the empty context, 95% interval [-521, +669] ns
+SELECT 1, another context variable held around it: per call -36 ns vs the empty context, 95% interval [-449, +656] ns
+duckdb 1.5.5 3.12.13
+SELECT 1, in_run held around the batch: per call +676 ns vs the empty context, 95% interval [-311, +1079] ns
+SELECT 1, another context variable held around it: per call +60 ns vs the empty context, 95% interval [-744, +988] ns
+duckdb 1.5.5 3.12.13
+
+# pyduck5.py: a plain wrapper, a direct set/reset wrapper, the old frame
+SELECT 1, plain wrapper                 : per call  +1033 ns vs bare, 95% interval [+156, +1572] ns
+SELECT 1, direct set/reset wrapper      : per call  +2621 ns vs bare, 95% interval [+1796, +3457] ns
+SELECT 1, the frame as shipped (@runs)  : per call  +5551 ns vs bare, 95% interval [+4351, +6214] ns
+SELECT 1, plain wrapper                 : per call   +726 ns vs bare, 95% interval [-163, +1282] ns
+SELECT 1, direct set/reset wrapper      : per call  +1900 ns vs bare, 95% interval [+1245, +2608] ns
+SELECT 1, the frame as shipped (@runs)  : per call  +5658 ns vs bare, 95% interval [+5014, +6356] ns
+
+# pyduck6.py, AFTER the change (d74e94306): the old frame vs the frame as shipped now
+SELECT 1, plain wrapper                 : per call   -333 ns vs bare, 95% interval [-1063, +208] ns
+SELECT 1, the old frame (in_run's generator): per call  +5685 ns vs bare, 95% interval [+5037, +6547] ns
+SELECT 1, the frame as shipped now (@runs, direct): per call  +2128 ns vs bare, 95% interval [+1296, +2733] ns
+SELECT 1, plain wrapper                 : per call   +331 ns vs bare, 95% interval [-70, +974] ns
+SELECT 1, the old frame (in_run's generator): per call  +5797 ns vs bare, 95% interval [+5092, +6240] ns
+SELECT 1, the frame as shipped now (@runs, direct): per call  +1437 ns vs bare, 95% interval [+837, +1971] ns
+SELECT 1, plain wrapper                 : per call   +742 ns vs bare, 95% interval [+380, +1285] ns
+SELECT 1, the old frame (in_run's generator): per call  +5192 ns vs bare, 95% interval [+4863, +5902] ns
+SELECT 1, the frame as shipped now (@runs, direct): per call  +1279 ns vs bare, 95% interval [+511, +1829] ns
+
+# the frame now around an empty function (timeit): plain call 16.5 ns; @runs (direct) 137.2 ns (the old frame: 711.2 ns, pybench.py above)
+
+# frames_count.py: per Table.execute
+frames entered {'a plan': 1.0} ; planner checks {'lite_pure_v1': 1.0, 'lite_plan_json_held': 1.0}
+
+# pywhole.py: Frames Table.execute whole, ON vs OFF (old frame), 200 paired batches of 5 queries
+1000 rows: per query (median over 200 paired batches of 5 queries) ON 2366.5 us, OFF 2317.5 us; ON-OFF +15946 ns, 95% interval [-17547, +44928] ns (+0.69%)
+100000 rows: per query (median over 200 paired batches of 5 queries) ON 5701.2 us, OFF 5735.9 us; ON-OFF +18448 ns, 95% interval [-15976, +55412] ns (+0.32%)

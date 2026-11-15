@@ -77,9 +77,15 @@ public final class PeRatchets {
                     + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
                     + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
                     + " tests')",
-            "own_corpus.matched 3246 -> 3355 (2026-11-14, java_bugFixes: the Rust port's Java fixes cherry-picked onto"
-                    + " main at 3a217086a): their tests' models (KnowledgeLayerTest's, NameResolverTest's,"
-                    + " ModelBuilderTest's, MappingNormalizerTest's and RefusalsNotCrashesTest's)");
+            "own_corpus.matched 3211 -> 3226 (2026-11-14, C4's must-haves M1-M5, found red by the gate on b915e29405):"
+                    + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
+                    + " them)",
+            "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
+            "own_corpus.matched 3261 -> 3370 (2026-11-14, java_bugFixes: the Rust port's Java fixes cherry-picked onto"
+                    + " main, merged with main at cf865632c; measured on the merged tree, 3246 -> 3355 before the merge):"
+                    + " their tests' models (KnowledgeLayerTest's, NameResolverTest's, ModelBuilderTest's,"
+                    + " MappingNormalizerTest's and RefusalsNotCrashesTest's)");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

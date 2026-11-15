@@ -41,6 +41,9 @@ public record Failure(Kind kind, @Nullable String message, LegendCompileExceptio
      *  listed fails the planning that recorded it, by name -- never a stand-in class). */
     public enum Kind {
         NOT_IMPLEMENTED("com.legend.error.NotImplementedException"),
+        /** a statement's own SQL text refused (a NotImplementedException of its own class; the C4 final fix round's
+         *  nit, 2026-11-14) */
+        RAW_SQL_REFUSAL("com.legend.error.RawSqlRefusal"),
         WALLED_BODY("com.legend.error.WalledBodyException"),
         MODEL("com.legend.error.ModelException"),
         RESOLUTION("com.legend.error.ResolutionException"),
