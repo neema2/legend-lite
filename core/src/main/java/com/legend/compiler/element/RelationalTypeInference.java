@@ -137,20 +137,16 @@ public final class RelationalTypeInference {
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
                 // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
-                // :961-969); position, charindex and locate have no rule in the engine's map, so no type (asked of the
-                // engine: EMPTY); until 2026-11-14 INTEGER, rules only lite had
-                case "length", "indexOf" -> new RelationalDataType.Integer_();
-                // sub is its first argument's type when its first two have one raw kind, else no rule matches
-                // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type
-                // over all its arguments, with an INTEGER default
-                case "sub" -> {
-                    if (f.args().size() < 2) {
-                        yield null;
-                    }
-                    RelationalDataType first = infer(f.args().get(0), db, ctx, expanding);
-                    RelationalDataType second = infer(f.args().get(1), db, ctx, expanding);
-                    yield first != null && second != null && kind(first) == kind(second) ? first : null;
-                }
+                // :961-969). position, a registered dynafunction that returns an integer, is INTEGER as the database
+                // returns it, though the engine's map has no rule for it (register row S400, 2026-11-15); charindex and
+                // locate are not registered dynafunctions and have no rule (asked of the engine: EMPTY); until
+                // 2026-11-14 INTEGER, rules only lite had
+                case "length", "indexOf", "position" -> new RelationalDataType.Integer_();
+                // sub is the database's promotion over every argument, as plus is (register row S400, 2026-11-15):
+                // the engine types it its first argument's type when its first two have one raw kind, else no rule
+                // (relationalExtension.pure:1637-1645). Until 2026-11-13 the safe type over all its arguments, with an
+                // INTEGER default
+                case "sub" -> promoted(f.args(), db, ctx, expanding);
                 // joinStrings is a VARCHAR of the larger of 4000 and its first argument's CHAR or VARCHAR size; any other
                 // first argument, or none, matches no rule, no type (relationalExtension.pure:1031-1039, asked of the
                 // engine). A joinStrings(...) a Database text writes is a DynaFunction, typed by the map: the
@@ -204,15 +200,16 @@ public final class RelationalTypeInference {
                     }
                     yield safeTypeOf(types);
                 }
-                // the numeric operators, each by the engine's own rules (2026-11-13; until then the
-                // safe type over every argument, a rule only lite had). plus over ONE argument widens it
-                // (relationalExtension.pure:1408-1436: TINYINT and SMALLINT an INTEGER, INTEGER and BIGINT a BIGINT, a
-                // DECIMAL or NUMERIC its own kind capped at precision 31, FLOAT and DOUBLE a DOUBLE, another kind no
-                // rule); plus and minus over several are their FIRST argument's type when a safe type over all of
-                // them is possible, else no rule (:1408-1436, :1209-1218); times is the safe type of its first two
-                // arguments, the rest unread (:1773-1782). divide is DOUBLE, above.
+                // the numeric operators plus, minus and times are the database's promotion over every argument
+                // ({@link #promoted}): what the database returns, which legend-engine's rules misstate -- plus and minus
+                // over several arguments are their FIRST argument's type when a safe type is possible, else no rule
+                // (relationalExtension.pure:1408-1436, :1209-1218), so plus(INTEGER, FLOAT) is the engine's INTEGER
+                // where the database returns 1.5; times is the safe type of its first two arguments, the rest unread
+                // (:1773-1782). Lite diverges (register row S400, 2026-11-15). divide is DOUBLE, above.
                 case "plus" -> {
                     if (f.args().size() == 1) {
+                        // plus over one argument widens it, the engine's rule (relationalExtension.pure:1408-1436):
+                        // wider than the database's answer, never a misstated value
                         RelationalDataType at = infer(f.args().get(0), db, ctx, expanding);
                         yield at == null ? null : switch (kind(at)) {
                             case TINYINT, SMALLINT -> new RelationalDataType.Integer_();
@@ -223,17 +220,9 @@ public final class RelationalTypeInference {
                                     DISTINCT, OTHER, SEMISTRUCTURED, ARRAY, OBJECT -> null;
                         };
                     }
-                    yield firstWhenSafe(f.args(), db, ctx, expanding);
+                    yield promoted(f.args(), db, ctx, expanding);
                 }
-                case "minus" -> firstWhenSafe(f.args(), db, ctx, expanding);
-                case "times" -> {
-                    if (f.args().size() < 2) {
-                        yield null;
-                    }
-                    RelationalDataType t0 = infer(f.args().get(0), db, ctx, expanding);
-                    RelationalDataType t1 = infer(f.args().get(1), db, ctx, expanding);
-                    yield t0 == null || t1 == null ? null : safeTypeOf(List.of(t0, t1));
-                }
+                case "minus", "times" -> promoted(f.args(), db, ctx, expanding);
                 // ---- the 30 rules the seeded Database texts use (2026-11-14; until then no rule, no type).
                 // Each is legend-engine
                 // 4.145.0's getDynaFunctionTypeInferenceMap entry (relationalExtension.pure, the lines cited), and every
@@ -363,21 +352,60 @@ public final class RelationalTypeInference {
         };
     }
 
-    /** plus's and minus's rule over several arguments (relationalExtension.pure:1408-1436, :1209-1218): the FIRST
-     *  argument's type when there is more than one argument and a safe type over all of them is possible (an argument
-     *  with no type drops out, as {@link #safeTypeOf} drops it), else no rule matches (no type). */
-    private static @com.legend.base.Nullable RelationalDataType firstWhenSafe(List<RelationalOperation> args,
+    /** The database's numeric promotion over every argument (plus, minus, times and sub): any approximate operand
+     *  (FLOAT, DOUBLE, REAL) makes a DOUBLE; else a DECIMAL or NUMERIC operand is the answer, two of them a
+     *  DECIMAL of the larger integer digits plus the larger scale; else the widest integer kind. An argument with no
+     *  type drops out; an OTHER (a NULL) takes the other's type; any other kind, or no typed argument at all, has no
+     *  type. */
+    private static @com.legend.base.Nullable RelationalDataType promoted(List<RelationalOperation> args,
             @com.legend.base.Nullable DatabaseDefinition db, @com.legend.base.Nullable StoreLookups ctx,
             java.util.Set<DatabaseDefinition.ViewDefinition.ViewColumnMapping> expanding) {
-        if (args.size() <= 1) {
-            return null;
-        }
-        List<RelationalDataType> types = new ArrayList<>(args.size());
+        RelationalDataType acc = null;
         for (var arg : args) {
-            types.add(infer(arg, db, ctx, expanding));
+            RelationalDataType t = infer(arg, db, ctx, expanding);
+            if (t == null || t instanceof RelationalDataType.Other) {
+                continue;
+            }
+            if (!isNumeric(t)) {
+                return null;
+            }
+            acc = acc == null ? t : promote(acc, t);
         }
-        return safeTypeOf(types) != null ? types.get(0) : null;
+        return acc;
     }
+
+    private static boolean isNumeric(RelationalDataType t) {
+        return switch (kind(t)) {
+            case TINYINT, SMALLINT, INTEGER, BIGINT, FLOAT, DOUBLE, REAL, DECIMAL, NUMERIC -> true;
+            case BIT, VARCHAR, CHAR, BINARY, VARBINARY, TIMESTAMP, DATE, TIME, TIMESTAMP_NS, DISTINCT, OTHER,
+                    SEMISTRUCTURED, ARRAY, OBJECT -> false;
+        };
+    }
+
+    private static RelationalDataType promote(RelationalDataType a, RelationalDataType b) {
+        Kind ka = kind(a);
+        Kind kb = kind(b);
+        if (approximate(ka) || approximate(kb)) {
+            return new RelationalDataType.Double_();
+        }
+        boolean da = ka == Kind.DECIMAL || ka == Kind.NUMERIC;
+        boolean dbx = kb == Kind.DECIMAL || kb == Kind.NUMERIC;
+        if (da != dbx) {
+            return da ? a : b;  // an integer operand never widens a DECIMAL or NUMERIC
+        }
+        if (da) {
+            int scale = Math.max(scale(a), scale(b));
+            int precision = Math.max(integerDigits(a), integerDigits(b)) + scale;
+            return new RelationalDataType.Decimal(precision, scale);
+        }
+        return INTEGER_WIDTH.indexOf(ka) >= INTEGER_WIDTH.indexOf(kb) ? a : b;
+    }
+
+    private static boolean approximate(Kind k) {
+        return k == Kind.FLOAT || k == Kind.DOUBLE || k == Kind.REAL;
+    }
+
+    private static final List<Kind> INTEGER_WIDTH = List.of(Kind.TINYINT, Kind.SMALLINT, Kind.INTEGER, Kind.BIGINT);
 
     /** Every argument's type, in order, each typed (the engine's {@code map} over {@code inferRelationalType()}, which
      *  is failOnMatchFailure true); null when any has none, as the engine's inference fails there (coalesce's rule,

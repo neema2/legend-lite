@@ -413,21 +413,20 @@ class KnowledgeLayerTest {
         assertEquals(new com.legend.model.RelationalDataType.BigInt(), infer.apply(5), "count: BIGINT");
         assertEquals(new com.legend.model.RelationalDataType.Varchar(3), infer.apply(6), "substring of a CHAR(3)");
         assertEquals(null, infer.apply(7), "substring of an INTEGER: no type");
-        assertEquals(new com.legend.model.RelationalDataType.Varchar(4), infer.apply(8), "sub of two VARCHARs: the first's");
+        assertEquals(null, infer.apply(8), "sub of two VARCHARs: no type (the engine's the first's; S400)");
         assertEquals(null, infer.apply(9), "sub of a VARCHAR and an INTEGER: no rule");
         assertEquals(null, infer.apply(10), "group_concat: no rule");
     }
 
-    /** The safe type's remainder (2026-11-13): the
-     * operators, {@code sum}, {@code average}, a float literal and {@code upper}/{@code lower} typed by the engine's own
-     * rules (relationalExtension.pure): {@code plus} over one argument widens it (:1408-1436), {@code plus} and
-     * {@code minus} over several are their first argument's type when a safe type is possible (:1408-1436, :1209-1218),
-     * {@code times} the safe type of its first two (:1773-1782), {@code divide} and {@code average} DOUBLE (:693-702,
-     * :291-300), {@code sum} by its first argument's kind, a DECIMAL or NUMERIC capped at precision 31, a FLOAT a DOUBLE
-     * and no rule for a REAL (:1717-1741), a float literal FLOAT (:148), {@code upper} and {@code lower} no rule (a view column
-     * {@code Any[0..1]}). Each was the safe type over every argument, its first argument's type, or DOUBLE. */
+    /** The safe type's remainder (2026-11-13): {@code sum}, {@code average}, a float literal and
+     * {@code upper}/{@code lower} typed by the engine's own rules (relationalExtension.pure): {@code divide} and
+     * {@code average} DOUBLE (:693-702, :291-300), {@code sum} by its first argument's kind, a DECIMAL or NUMERIC capped
+     * at precision 31, a FLOAT a DOUBLE and no rule for a REAL (:1717-1741), a float literal FLOAT (:148), {@code upper}
+     * and {@code lower} no rule (a view column {@code Any[0..1]}); {@code plus} over one argument widens it
+     * (:1408-1436). The numeric operators over several arguments ({@code plus}, {@code minus}, {@code times}) are the
+     * database's promotion over every argument, where the engine's rules misstate it (2026-11-15, register row S400). */
     @Test
-    @DisplayName("kernel: the operators, sum, average, a float literal and upper/lower are typed by the engine's rules")
+    @DisplayName("kernel: the operators, sum, average, a float literal and upper/lower are typed as the database returns them")
     void theOperatorsAndAggregatesAreTypedByTheEnginesRules() {
         ModelBuilder ix = ModelBuilder.from(NameResolver.resolve(com.legend.testing.Own.model("""
                 ###Relational
@@ -451,15 +450,18 @@ class KnowledgeLayerTest {
                 "plus of a DECIMAL(40,2): capped at 31");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(3), "plus of a FLOAT: DOUBLE");
         assertEquals(null, infer.apply(4), "plus of a VARCHAR: no rule");
-        assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(5),
-                "plus of an INTEGER and a FLOAT: the first's");
-        assertEquals(null, infer.apply(6), "plus of a BIGINT and a FLOAT: no safe type, no rule");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(5),
+                "plus of an INTEGER and a FLOAT: DOUBLE, as the database returns it (the engine's: the first's; S400)");
+        assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(6),
+                "plus of a BIGINT and a FLOAT: DOUBLE (the engine's: no safe type, no rule; S400)");
         assertEquals(new com.legend.model.RelationalDataType.Numeric(6, 2), infer.apply(7),
-                "minus of a NUMERIC and an INTEGER: the first's");
-        assertEquals(null, infer.apply(8), "minus of one argument: no rule");
-        assertEquals(new com.legend.model.RelationalDataType.Float_(), infer.apply(9),
-                "times: the safe type of the first two, the third unread");
-        assertEquals(null, infer.apply(10), "times of one argument: no type");
+                "minus of a NUMERIC and an INTEGER: the NUMERIC");
+        assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(8),
+                "minus of one argument: its own (the engine's: no rule; S400)");
+        assertEquals(null, infer.apply(9),
+                "times reads every argument: a VARCHAR third, no type (the engine's: FLOAT, the third unread; S400)");
+        assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(10),
+                "times of one argument: its own (the engine's: no type; S400)");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(11), "divide: DOUBLE");
         assertEquals(new com.legend.model.RelationalDataType.Double_(), infer.apply(12), "average: DOUBLE");
         assertEquals(new com.legend.model.RelationalDataType.Integer_(), infer.apply(13), "sum of a SMALLINT: INTEGER");
@@ -475,6 +477,7 @@ class KnowledgeLayerTest {
                 .orElseThrow()).columns();
         assertEquals("U1:meta::pure::metamodel::type::Any[0..1]", signature.get(18).text(), "a column no rule types: Any[0..1]");
         assertEquals("L1:Float[0..1]", signature.get(17).text());
+        assertEquals("P6:Float[0..1]", signature.get(5).text(), "plus of an INTEGER and a FLOAT: a Float column");
     }
 
     /** The engine's type-inference cases (2026-11-14), one Database whose every view column is one
@@ -581,13 +584,15 @@ class KnowledgeLayerTest {
                 inferenceTable(ENGINE_CASES, "VABS", "VADD", "VBIT", "VCONST", "VCOAL", "VIF", "VLPAD", "VREPL"));
     }
 
-    /** The four rules only lite had (2026-11-14): like, position,
-     * charindex and locate are keys of no entry of the engine's map, so no type ({@link #ENGINE_CASES}: the engine
-     * answers EMPTY for each, and fails each with failOnMatchFailure true); like was BIT here and the three INTEGER. */
+    /** The rules only lite had (2026-11-14): like, charindex and locate are keys of no entry of the engine's map, so no
+     * type ({@link #ENGINE_CASES}: the engine answers EMPTY for each, and fails each with failOnMatchFailure true); like
+     * was BIT here and the two INTEGER. position, a registered dynafunction the engine's map also has no rule for, is
+     * INTEGER, as the database returns it (2026-11-15, register row S400). */
     @Test
-    @DisplayName("kernel: like, position, charindex and locate have no rule, as in the engine")
+    @DisplayName("kernel: like, charindex and locate have no rule, as in the engine; position is INTEGER")
     void theRulesOnlyLiteHadAreGone() {
-        assertEquals("VLITE.LK1=- VLITE.PO1=- VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-", inferenceTable(ENGINE_CASES, "VLITE"));
+        assertEquals("VLITE.LK1=- VLITE.PO1=Integer VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-",
+                inferenceTable(ENGINE_CASES, "VLITE"));
     }
 
     /** A function's name matched exactly (2026-11-14), as the
