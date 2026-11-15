@@ -106,6 +106,7 @@ class MultiplicityStrictnessTest {
             assertTrue(String.valueOf(e.getMessage())
                             .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     e.getMessage());
+            edgeSize(c, "{| [1,2]->toOne() }", 2);
             // the singleton extracts — the guard is size-exact
             var ok = Lean.run(StorelessRuntime.with("", Databases.PLATFORM), "{| [7]->toOne() }", StorelessRuntime.RUNTIME, c);
             assertEquals(7L, ((Number) ok.one()).longValue());
@@ -120,6 +121,7 @@ class MultiplicityStrictnessTest {
             assertTrue(String.valueOf(e.getMessage())
                             .contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
                     e.getMessage());
+            edgeSize(c, "{| [1,2,3]->filter(x|$x > 10)->toOne() }", 0);
         }
     }
 
@@ -201,5 +203,13 @@ class MultiplicityStrictnessTest {
         // the reference's own corpus compiles sortBy over optional
         // association paths; only the VALUE slots are strict
         Compiler.query(Compiler.compileModel(MODEL), "m::Person.all()->sortBy(p|$p.middleName)").expression();
+    }
+
+    /** {@code query}'s size error at the edge, whose sentence carries the size the database counted (the D part 1 audit's S5, 2026-11-15). */
+    private static void edgeSize(Connection c, String query, int size) {
+        Exception edge = assertThrows(Exception.class, () -> com.legend.testing.Program.last(StorelessRuntime.with("",
+                Databases.PLATFORM), query, StorelessRuntime.RUNTIME, c, com.legend.testing.Program.upstream()));
+        assertTrue(String.valueOf(edge.getMessage()).contains("Cannot cast a collection of size " + size + " to"),
+                query + " at the edge: " + edge.getMessage());
     }
 }

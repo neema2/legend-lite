@@ -49,6 +49,27 @@ public final class Lean {
         return run(model, query, runtime, c, com.legend.exec.SourceAdmission.any());
     }
 
+    /** {@link #run(String, String, String, Connection)} planned in {@code style}: the product's door with the
+     *  compatibility edge's spellings ({@code edge.PureText.UPSTREAM}), whose raise is legend-pure's sentence -- a size
+     *  or a value a test pins (the D part 1 audit's S5, 2026-11-15). */
+    public static Result runInStyle(String model, String query, @com.legend.base.Nullable String runtime, Connection c,
+            com.legend.database.PlanStyle style) {
+        StringWriter out = new StringWriter();
+        Capturing sink = new Capturing(out);
+        ExecutionPlan plan;
+        try {
+            plan = Execution.run(com.legend.Compiler.query(com.legend.Compiler.compileModel(LaneFloor.model(model, c)), query)
+                            .withOptions(TEST_OPTIONS), runtime,
+                    com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                    PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                    com.legend.exec.ProductRun.Establish.DECLARED_SETUP, java.util.Set.of(), style,
+                    new com.legend.result.Output.Rows(sink), com.legend.result.Batcher.DEFAULT_CAPACITY);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        return Result.of(plan.answerShape(), sink.columns, out.toString());
+    }
+
     /** {@link #run(String, String, String, Connection)} whose live sources may read under {@code admitted}'s
      *  directories (a {@code file:} source, L6: the user's ruling of 2026-11-10). */
     public static Result run(String model, String query, @com.legend.base.Nullable String runtime, Connection c,
