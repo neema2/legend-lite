@@ -22143,6 +22143,12 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
 - **The heavy suite and the cloud probe:** `//gates:heavy` holds `//core:identifier_escaping_cloud_probe` (fd7dc25565).
   A heavy run needs `LEGENDLITE_PCT_CLOUD_PROPERTIES` and `LEGENDLITE_PROBE_CLOUD`, and covers ONE cloud a run, the one
   `LEGENDLITE_PROBE_CLOUD` names (`snowflake` or `databricks`); without them the probe fails by name.
+- **The product's raise text on each external database (PR #104, 2026-11-15):** `//gates:heavy` also holds
+  `//core:product_raise_probe`, ONE database a run, the backend `LEGENDLITE_PROBE_DATABASE` names (`mariadb`, `mysql`,
+  `clickhouse`, `trino`, `mongodb` on the embedded servers; `snowflake`, `databricks`, `bigquery` with
+  `LEGENDLITE_PCT_CLOUD_PROPERTIES`): a guarded statement that does not raise, a division by zero, a `toOne()` over two
+  rows, each in the product's style, each statement printed. Measured in the worker's session: the five embedded
+  servers 3 of 3 each.
 - **The final fix round (the orchestrator's list of 2026-11-14 at 6e68a11e5c, CI 51/51):** each item a commit with a
   test red on revert -- B1 a Python read's end never replaced by a file not there (IOException) nor named by a refused
   file access (PermissionException); B2 a model's `"serializer": null` is none; B4 a zone-shifted `Z` refused by name,

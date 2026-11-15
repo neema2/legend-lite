@@ -37,6 +37,12 @@ public interface TestBackend {
      *  server's database; a cloud, the suite's one session (closing it is a no-op). */
     Connection open() throws SQLException;
 
+    /** Whether {@link #open()} gives a JDBC session: true but on a database that speaks no JDBC, whose plan runs on
+     *  the session its connector opens (MongoDB, D12; asked by //core:product_raise_probe, 2026-11-15). */
+    default boolean opensJdbc() {
+        return true;
+    }
+
     /** {@link #open()} as a session the runner owns: closing it closes the connection (D68, 2026-10-30: the test
      *  runners hold sessions, not connections); a connection the driver refuses is a {@code DataError} (a backend
      *  that opens no JDBC session refuses by its own name, as before). */

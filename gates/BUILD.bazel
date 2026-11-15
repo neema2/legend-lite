@@ -469,6 +469,9 @@ test_suite(
         # credentials (LEGENDLITE_PCT_CLOUD_PROPERTIES) and its cost; found in no lane by CI's lane guard on PR #101
         # (2026-11-14)
         "//core:identifier_escaping_cloud_probe",
+        # the product's raise text on each external database (PR #104's fix round, 2026-11-15): manual, external and
+        # local, one database a run (LEGENDLITE_PROBE_DATABASE)
+        "//core:product_raise_probe",
     ],
 )
 
