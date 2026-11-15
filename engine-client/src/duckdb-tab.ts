@@ -107,7 +107,13 @@ export async function duckDbRunsHere(): Promise<void> {
  */
 export async function instantiateDuckDbInTab(worker: Worker, module: string): Promise<TabDatabase> {
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
-  await db.instantiate(module, null);
+  // DuckDB-WASM's own handler of a worker's error logs it and drops the waiting requests without refusing them, so a
+  // start whose worker or duckdb-eh.wasm did not load (a 404, the wrong type) waited forever: the start listens for the
+  // error itself and is refused by name (2026-11-15, the TypeScript hunt's T-B)
+  await new Promise((done, failed) => {
+    worker.addEventListener('error', (e) => failed(new Error(`DuckDB's worker failed: ${e.message || 'it did not load'}`)));
+    db.instantiate(module, null).then(done, failed);
+  });
   return { db };
 }
 

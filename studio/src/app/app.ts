@@ -19,6 +19,7 @@ import { clear, h } from '../ui/dom.ts';
 import { renderEditor } from '../ui/editor.ts';
 import { registerPure } from '../ui/pure-language.ts';
 import { loadDemoProjects, type Manifest } from './demo-projects.ts';
+import { startOnce } from './start-once.ts';
 import { renderSetup } from '../ui/setup.ts';
 import { followTheme } from '../ui/theme.ts';
 
@@ -113,8 +114,8 @@ function serverSession(api: string, user: string): RunSession & BuilderSession {
 /** A run in this tab: the planner writes the SQL, DuckDB here runs it on the model's own test data (plan A2, A3). */
 function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string): RunSession & BuilderSession {
   type Started = { engine: BrowserEngine; sql: QueryEngine; databaseType: string; tables: TabTables };
-  let started: Promise<Started> | undefined;
-  const start = (): Promise<Started> => (started ??= openDuckDbInTab(duckdbVendor, grammar)
+  // a start that fails is begun again at the next ask (start-once.ts; the TypeScript hunt's T-B)
+  const start = startOnce((): Promise<Started> => openDuckDbInTab(duckdbVendor, grammar)
     .then((tab) => {
       // the workspace's model in a database of its own inside the tab's DuckDB (C5): every screen runs on `runner`,
       // pointed there as the model loads

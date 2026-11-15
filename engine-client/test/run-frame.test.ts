@@ -10,6 +10,7 @@ import { NOT_PLANNING, planning, readRunsWith } from '../src/plan-guard.ts';
 import { DuckDbEngine, type ArrowishTable } from '../src/duckdb.ts';
 import { WarehouseBinding, WarehouseEngine } from '../src/warehouse.ts';
 import { openedInTab, synthesizedInTab } from '../src/doors/tab-duckdb.ts';
+import { instantiateDuckDbInTab } from '../src/duckdb-tab.ts';
 import { dataLoaded } from '../src/doors/project-data.ts';
 import { PLAN_VERSION } from '../src/plan-runner.ts';
 import type { PlannedSql } from '../src/planned-sql.ts';
@@ -320,6 +321,43 @@ describe("the tab's DuckDB starts alongside the planner's asks", () => {
     assert.equal(await opened, 'the tab');
     assert.deepEqual(order, ['asked hostOperations(DuckDB)', 'instantiate begun', 'asked sessionSetup(DuckDB)',
       "connected the database in the tab's DuckDB started with 1+1"]);
+  });
+});
+
+// A TAB DUCKDB WHOSE WORKER FAILS (2026-11-15, the TypeScript hunt's T-B): DuckDB-WASM's own handler logs a worker's
+// error and drops every waiting request without refusing it, so a start whose worker or duckdb-eh.wasm did not load
+// waited forever. The start now listens for its worker's error and is refused by name.
+describe("a tab DuckDB whose worker fails", () => {
+  /** A stand-in for DuckDB's worker: what was posted to it; it fails as the test says. */
+  class FakeDuckDbWorker extends EventTarget {
+    readonly posted: { messageId: number; type: string }[] = [];
+    postMessage(m: { messageId: number; type: string }): void {
+      this.posted.push(m);
+    }
+    /** An error, as a browser dispatches it: a plain Event when the script or its WebAssembly did not load. */
+    fail(message?: string): void {
+      this.dispatchEvent(Object.assign(new Event('error'), message === undefined ? {} : { message }));
+    }
+  }
+  /** `p`, or a failure after `ms`: the test's bound alone, so a request left waiting fails the test, never hangs it. */
+  const within = <T>(p: Promise<T>, ms = 5000): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, no) => { timer = setTimeout(() => no(new Error(`still waiting after ${ms} ms`)), ms); });
+    return Promise.race([p, late]).finally(() => clearTimeout(timer));
+  };
+  const asWorker = (w: FakeDuckDbWorker): Worker => w as unknown as Worker;
+
+  it('refuses the start by name when the worker or its WebAssembly does not load', async () => {
+    const worker = new FakeDuckDbWorker();
+    const started = instantiateDuckDbInTab(asWorker(worker), 'http://vendor.invalid/duckdb-eh.wasm');
+    assert.deepEqual(worker.posted.map((m) => m.type), ['INSTANTIATE']);
+    worker.fail();
+    await within(assert.rejects(started, /^Error: DuckDB's worker failed: it did not load$/));
+    // an error the worker names is said in its words
+    const named = new FakeDuckDbWorker();
+    const second = instantiateDuckDbInTab(asWorker(named), 'http://vendor.invalid/duckdb-eh.wasm');
+    named.fail('CompileError: WebAssembly.instantiateStreaming(): expected magic word');
+    await within(assert.rejects(second, /^Error: DuckDB's worker failed: CompileError: WebAssembly\.instantiateStreaming\(\): expected magic word$/));
   });
 });
 
