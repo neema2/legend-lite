@@ -93,8 +93,9 @@ public final class CarrierStrategies extends SqlRewriter {
     }
 
     /** The aggregates whose answer is the same in any order of their rows. */
-    private static final java.util.Set<SqlAgg.Fn> ORDER_BLIND = java.util.EnumSet.of(SqlAgg.Fn.SUM, SqlAgg.Fn.COUNT,
-            SqlAgg.Fn.AVG, SqlAgg.Fn.MIN, SqlAgg.Fn.MAX, SqlAgg.Fn.BOOL_AND, SqlAgg.Fn.BOOL_OR);
+    private static final java.util.Set<SqlAgg.Fn> ORDER_BLIND = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(SqlAgg.Fn.SUM, SqlAgg.Fn.COUNT, SqlAgg.Fn.AVG, SqlAgg.Fn.MIN, SqlAgg.Fn.MAX,
+                    SqlAgg.Fn.BOOL_AND, SqlAgg.Fn.BOOL_OR));
 
     /** {@code q}'s rows read where their order cannot change the answer (an EXISTS's, an IN's, an order-blind
      *  aggregate's): an explode reached through selects that keep no order of their own (no LIMIT, no OFFSET, no window,
