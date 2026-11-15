@@ -22333,4 +22333,6 @@ answers, the same errors outside a run.
   - PCT A/B on DuckDB and H2: 1,573 pass, unchanged;
   - both corpora: the four judge TSVs and every failure text are byte-identical to main's;
   - `//parser-equivalence/...`: 6 of 6.
+- **The gate** at 11e4592ed6 (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
+  Postgres-backed targets, refused as root, pass unprivileged (11 of 11).
 
