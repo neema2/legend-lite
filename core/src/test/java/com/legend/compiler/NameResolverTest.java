@@ -1936,7 +1936,8 @@ class NameResolverTest {
 
     /** Since 2026-11-13: two binding keys that
      * name one store keep both connection lists under the first key's place (the second replaced the first's), and the
-     * connection ids' stores resolve whatever else changed (only on a rebuild before). A text spells an id's store as
+     * connection ids' stores resolve whatever else changed (only on a rebuild before). A connection both keys list is
+     * kept once (2026-11-15). A text spells an id's store as
      * its binding key, so they change together; a model given as protocol records need not. */
     @Test
     void aRuntimesBindingsAndIdsResolveAndMerge() {
@@ -1950,6 +1951,7 @@ class NameResolverTest {
                 import a::*;
                 Runtime a::R { mappings: []; connections: [ S: [ id1: a::C1 ], a::S: [ id2: a::C2 ] ]; }
                 Runtime a::Q { mappings: []; connections: [ a::S: [ id3: a::C1 ] ]; }
+                Runtime a::P { mappings: []; connections: [ S: [ id4: a::C1 ], a::S: [ id5: a::C1 ] ]; }
                 """);
         java.util.function.BiFunction<ParsedModel, String, RuntimeDefinition> runtime = (pm, fqn) ->
                 pm.elements().stream().filter(e -> e instanceof RuntimeDefinition rd && rd.qualifiedName().equals(fqn))
@@ -1959,6 +1961,8 @@ class NameResolverTest {
         assertEquals(java.util.Map.of("a::S", List.of("a::C1", "a::C2")), rd.connectionBindings());
         assertEquals(List.of("id1", "id2"), List.copyOf(rd.connectionIds().keySet()));
         assertEquals(List.of("a::S", "a::S"), List.copyOf(rd.connectionIds().values()));
+        // a connection both keys list is kept once (2026-11-15)
+        assertEquals(java.util.Map.of("a::S", List.of("a::C1")), runtime.apply(r, "a::P").connectionBindings());
         List<PackageableElement> elements = new java.util.ArrayList<>();
         for (PackageableElement e : m.elements()) {
             elements.add(e instanceof RuntimeDefinition q && q.qualifiedName().equals("a::Q")

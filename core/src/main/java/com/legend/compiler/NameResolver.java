@@ -1521,7 +1521,8 @@ public final class NameResolver {
             if (prior == null) {
                 bindings.put(store, conns);
             } else {
-                List<String> merged = new ArrayList<>(prior);
+                // a connection both keys list is kept once, at its first place (2026-11-15)
+                java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>(prior);
                 merged.addAll(conns);
                 bindings.put(store, List.copyOf(merged));
             }
