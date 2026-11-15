@@ -461,8 +461,9 @@ keyed tables' latest-version filters. (Both done 2026-11-15: §15.6a.)
 filters on (§15.6a); the full local gate green on `claude/deephaven-3-browser` at 5a34e63d (529 of 541, the ten
 Postgres lanes and `verify_app_test` green under `tools/postgres/as_unprivileged.sh`, this container's root). Item 7
 is not built: a real broker is a binary this cloud session may not download and run; it waits on a machine or an
-environment that has one. Three things wait on the user's ruling: the positions' format (Parquet to CSV, §15.4),
-`Simulated` (S410) and the check on connect's narrowing (§15.4a).
+environment that has one. **Ruled 2026-11-15:** the positions' format CSV ("Csv is fine"), `Simulated` kept ("Keep
+simulated", S410), the Deephaven lanes manual for the v0 PR and one PR ("Manual is fine and 1 PR is fine"). The check
+on connect (§15.4a) waits on the user, asked first whether upstream does the same (it does not: §15.4a).
 
 ### 15.1 Step 0 in detail (planned 2026-11-15)
 
@@ -587,7 +588,7 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
   delivery (`LAKE_IN_ID` 1). **The format changed to CSV** (`positions::StartOfDay Snapshot<CSV>`, from Parquet): the
   world, standing in for position keeping, writes its files in Node with no Parquet writer (one would need DuckDB, and
   SQL, in the feed), and CSV is upstream's own example format (`Snapshot<CSV>`); a Parquet file on Deephaven is refused
-  by name. This is the user's to overrule.
+  by name. **Ruled 2026-11-15** (the user: "Csv is fine").
 - **Measured** (`deephaven_door_test`): all 21 desk tables land from the plan -- the nineteen topics and the two files
   (positions 148 rows, books 10), each typed as declared (an instant, a day, a truth among them), every key once.
   `stress_suites`, `core_tests_integration`, `verify_live_desk_test` and `deephaven_desk_test` green.
@@ -633,6 +634,15 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
   runtime's that offers it. A table the runtime reads that no deployment lands is refused where a query reads it
   (DH16), naming it. Checking the mapping's tables needs the tables a desk's queries read (its saved queries), not its
   mapping's: later, if wanted.
+- **Upstream does not do this** (read 2026-11-15 in legend-engine `05a3d33`, the pinned commit): nothing checks a
+  server's tables when a runtime connects. Its Deephaven executor (`legend-engine-xt-deephaven-executionPlan`,
+  `DeephavenExecutionNodeExecutor`) sends the query; a table the server lacks fails that query, as Deephaven's own
+  error ("Deephaven query execution failed: ..."), and no column's type is compared with the store's declaration;
+  `DeephavenSession` opens the session and checks nothing. The one "test connection" (`core_relational_mft`'s
+  `testConnection.pure`) builds a test runtime for mapping tests. Upstream's `DeephavenApp` (a function activator)
+  generates an application from a query and checks no table. Read, not exhaustive: the checkout is blobless, and a
+  whole-tree search fetches every file. So the check on connect is lite's addition -- earlier and whole-list where
+  upstream fails at the first query -- as DH16's type comparison is (ruled "always strict", 2026-10-29).
 - **Proven on the pinned server** (`//datacube:deephaven_market_test`): the tables listed are exactly the deployment's,
   the server holds each as declared, and a deployment of a table the server's install never landed is refused, naming
   it. `//datacube:deephaven_desk_test` opens the desk through the check.
