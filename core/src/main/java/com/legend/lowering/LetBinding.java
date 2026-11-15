@@ -57,11 +57,18 @@ final class LetBinding {
                 && (e instanceof SqlExpr.Call || !e.children().isEmpty());
     }
 
-    /** The functions whose call can raise on some input: a planned raise, division, a parse, a domain. */
-    private static final java.util.Set<SqlFn> RAISING = java.util.Set.of(SqlFn.ERROR, SqlFn.DIVIDE, SqlFn.MOD,
-            SqlFn.REM, SqlFn.INT_DIVIDE, SqlFn.PARSE_DATE, SqlFn.PARSE_INT, SqlFn.STRPTIME, SqlFn.SQRT, SqlFn.LN,
-            SqlFn.ACOS, SqlFn.ASIN, SqlFn.REGEXP_EXTRACT, SqlFn.REGEXP_EXTRACT_ALL,
-            SqlFn.REGEXP_FULL_MATCH, SqlFn.REGEXP_REPLACE);
+    /** The functions whose call can raise on some input: the SQL layer's own raising set ({@link SqlFn#RAISING}: a
+     *  planned raise, a parse, a range or interval check, a fresh draw) united with the arithmetic and text domains a
+     *  binding must not lift out of a branch either (division, a root, a logarithm, a pattern) -- one union, here
+     *  (2026-11-15, PR1's review: this list had missed ADD_INTERVAL, TIMEZONE, MAKE_DATE and MAKE_TIMESTAMP). */
+    private static final java.util.Set<SqlFn> RAISING;
+
+    static {
+        java.util.EnumSet<SqlFn> all = java.util.EnumSet.copyOf(SqlFn.RAISING);
+        all.addAll(java.util.EnumSet.of(SqlFn.DIVIDE, SqlFn.MOD, SqlFn.REM, SqlFn.INT_DIVIDE, SqlFn.SQRT, SqlFn.LN,
+                SqlFn.REGEXP_EXTRACT, SqlFn.REGEXP_EXTRACT_ALL, SqlFn.REGEXP_FULL_MATCH, SqlFn.REGEXP_REPLACE));
+        RAISING = java.util.Collections.unmodifiableSet(all);
+    }
 
     /** Whether {@code e} can raise, read from its structure alone (the laziness rule, ruled 2026-11-12): a call of a
      *  {@link #RAISING} function, a cast of anything but a literal, a checked one, anywhere in its tree. */
@@ -137,7 +144,8 @@ final class LetBinding {
         List<Bound> bound = new ArrayList<>();
         SqlSelect at = s;
         while (true) {
-            java.util.Map<SqlExpr, Integer> counts = new java.util.HashMap<>();
+            // insertion-ordered: the same binding chosen on every JVM when two repeats save alike (G10)
+            java.util.Map<SqlExpr, Integer> counts = new java.util.LinkedHashMap<>();
             for (SqlExpr t : terms(at)) {
                 count(t, counts);
             }
@@ -171,10 +179,13 @@ final class LetBinding {
             SqlExpr ref = reference(b);
             SqlExpr found = best;
             Replace swap = x -> x.equals(found) ? ref : null;
-            at = (SqlSelect) map(at, swap);
+            // swapped where it was counted: the select's own terms, never its FROM nor a subquery's (2026-11-15,
+            // PR1's review: the swap had descended into derived tables and subqueries the count never saw, where
+            // the binding's alias is not in scope -- H2 reads no outer column there)
+            at = swapTerms(at, swap);
             List<Bound> rewritten = new ArrayList<>();
             for (Bound o : bound) {
-                rewritten.add(new Bound(o.column(), mapExpr(o.value(), swap), o.type(), 0));
+                rewritten.add(new Bound(o.column(), swapIn(o.value(), swap), o.type(), 0));
             }
             rewritten.add(b);
             bound = rewritten;
@@ -224,6 +235,24 @@ final class LetBinding {
             }
         }
         return false;
+    }
+
+    /** {@code s} with {@code f} applied to its own terms ({@link #terms}), as {@link #count} read them. */
+    private static SqlSelect swapTerms(SqlSelect s, Replace f) {
+        List<SqlSelect.Projection> ps = s.projections().stream()
+                .map(p -> new SqlSelect.Projection(swapIn(p.expr(), f), p.alias(), p.out())).toList();
+        List<SqlSelect.SortKey> order = s.orderBy().stream()
+                .map(k -> new SqlSelect.SortKey(swapIn(k.expr(), f), k.ascending(), k.nullOrder(), k.outputName()))
+                .toList();
+        return new SqlSelect(ps, s.distinct(), s.from(), s.where() == null ? null : swapIn(s.where(), f),
+                s.groupBy().stream().map(g -> swapIn(g, f)).toList(), s.having() == null ? null : swapIn(s.having(), f),
+                s.qualify() == null ? null : swapIn(s.qualify(), f), order, s.limit(), s.offset(), s.outputs());
+    }
+
+    /** {@code e} with {@code f} applied where {@link #count} walks: its children, never into a query a node carries. */
+    private static SqlExpr swapIn(SqlExpr e, Replace f) {
+        SqlExpr replaced = f.apply(e);
+        return replaced != null ? replaced : e.mapChildren(c -> swapIn(c, f));
     }
 
     /** The select's own terms (never its FROM): its projections, filters, groups and orders. */

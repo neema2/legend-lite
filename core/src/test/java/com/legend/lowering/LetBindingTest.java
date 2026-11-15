@@ -91,6 +91,11 @@ class LetBindingTest {
     void aRaisingLetOrALetReadOnceStaysInline() throws Exception {
         String raising = "|let x = 1 / 0; if(false, |$x, |2.0);";
         assertFalse(sql(raising).contains(LetBinding.ALIAS), sql(raising));
+        // read three times under an untaken branch: repeated enough to bind, so only the laziness rule keeps it in
+        // place (2026-11-15, PR1's review: the case above reads its raising value once, so it could not fail)
+        String repeatedRaise = "|let n = 0; if($n == 0, |0.0, |(10 / $n) + (10 / $n) + (10 / $n));";
+        assertFalse(sql(repeatedRaise).contains(LetBinding.ALIAS), sql(repeatedRaise));
+        assertEquals(List.of(List.of(0.0)), rows(repeatedRaise));
         String once = "|let xs = [3, 1, 2]->meta::pure::functions::collection::sort(); $xs->meta::pure::functions::collection::size();";
         assertFalse(sql(once).contains(LetBinding.ALIAS), sql(once));
         assertEquals(List.of(List.of(3L)), rows(once));

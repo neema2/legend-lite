@@ -472,7 +472,10 @@ test_suite(
     name = "pct_channel_b",
     # with the HOST channel-B pass (O5, E-5c): DuckDB's suites and H2's relation suite under the host judge alone
     tests = [":pct_channel_b_" + s.lower() for s in _SUITES] + [":pct_channel_b_host_" + s.lower() for s in _SUITES] +
-            [":pct_channel_b_host_h2_relation"],
+            [":pct_channel_b_host_h2_relation"] +
+            # the runner's own unit tests: the ledger matched on full text, the twice guard's planted violators
+            # (2026-11-15, PR1's review: found in no lane)
+            [":pct_channel_b_ledger_test", ":pct_channel_b_twice_guard_test"],
 )
 
 # CHANNEL B ON EVERY LANE (2026-10-11, the user's ask): the same runner on each database a channel A lane runs on

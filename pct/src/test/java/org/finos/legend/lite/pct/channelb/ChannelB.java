@@ -423,7 +423,9 @@ public final class ChannelB {
                     OPTIONS);
             told.add("ended: pass");
         } catch (java.sql.SQLException | RuntimeException e) {
-            told.add("ended: " + e.getClass().getSimpleName() + ": " + first(e.getMessage()));
+            // the whole message: the twice guard compares two runs' records, and a clipped middle could hide a
+            // difference (2026-11-15, PR1's review)
+            told.add("ended: " + e.getClass().getSimpleName() + ": " + flat(e.getMessage()));
         }
         return told;
     }
