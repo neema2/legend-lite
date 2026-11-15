@@ -463,7 +463,8 @@ Postgres lanes and `verify_app_test` green under `tools/postgres/as_unprivileged
 is not built: a real broker is a binary this cloud session may not download and run; it waits on a machine or an
 environment that has one. **Ruled 2026-11-15:** the positions' format CSV ("Csv is fine"), `Simulated` kept ("Keep
 simulated", S410), the Deephaven lanes manual for the v0 PR and one PR ("Manual is fine and 1 PR is fine"). The check
-on connect (§15.4a) waits on the user, asked first whether upstream does the same (it does not: §15.4a).
+on connect (§15.4a) is kept as lite's addition ("Why not B? Seems like a great addition", S411): upstream checks nothing
+on connect.
 
 ### 15.1 Step 0 in detail (planned 2026-11-15)
 
@@ -642,7 +643,8 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
   `testConnection.pure`) builds a test runtime for mapping tests. Upstream's `DeephavenApp` (a function activator)
   generates an application from a query and checks no table. Read, not exhaustive: the checkout is blobless, and a
   whole-tree search fetches every file. So the check on connect is lite's addition -- earlier and whole-list where
-  upstream fails at the first query -- as DH16's type comparison is (ruled "always strict", 2026-10-29).
+  upstream fails at the first query -- as DH16's type comparison is (ruled "always strict", 2026-10-29). **Ruled
+  2026-11-15: kept** (the user: "Why not B? Seems like a great addition"; register S411).
 - **Proven on the pinned server** (`//datacube:deephaven_market_test`): the tables listed are exactly the deployment's,
   the server holds each as declared, and a deployment of a table the server's install never landed is refused, naming
   it. `//datacube:deephaven_desk_test` opens the desk through the check.
