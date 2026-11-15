@@ -1031,6 +1031,10 @@ In order. Nothing here is in the A/B/C PR.
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
        20 TS sites);
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
+     - (found by C5-P, 2026-11-15) the warehouse's sends: `warehouse.Warehouse.arrow_chunks` asks the native library
+       (`lite_warehouse_call`/`read`) while a run streams it (`_runs._stream`), unseen by the witness only because the
+       engine's `set_library_thread` hops threads; and `engine._warehouse_plan_and_run` sends to the warehouse in no run
+       (its HTTP, not the one send);
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses

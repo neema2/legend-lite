@@ -58,11 +58,13 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
-from ._planned import PlannedSql, across_the_bridge, connect, from_plan, send
+from ._planned import PlannedSql, across_the_bridge, connect, from_plan
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
+from .frames import Frames, Reading, UntypedColumn, redact_held, typed_by_plan
+# the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
+from ._reads import count_of, run_arrow, run_plan, run_rows_json
 from .keeper import PageKeeper, Refused
 from .projects import ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -1547,7 +1549,7 @@ class Engine:
             except (LegendError, ValueError) as refused:
                 return _said(422, f'the snap could not be planned: {refused}')
             try:
-                rows = int(send(self.frames.connection, plan.sql, list(plan.params)).fetchone()[0])
+                rows = count_of(self.frames.connection, plan)
             except duckdb.Error as refused:
                 return _said(422, f'the snap could not be counted: {refused}')
             if rows > _MAX_SNAP_ROWS:
@@ -1724,7 +1726,7 @@ class Engine:
             except LegendError:
                 return _planned({'plan': planned})
             try:
-                rows = typed_by_plan(send(project.cursor, plan.sql, plan.params).to_arrow_table(), plan)
+                rows = run_plan(project.cursor, plan)
             except (duckdb.Error, UntypedColumn) as failure:
                 return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)
@@ -1776,9 +1778,9 @@ class Engine:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 planned = json.loads(answer.body)
                 # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
-                # value this engine holds (a bearer URL: M2)
-                rows = execute_redacted(connection, from_plan(planned['sql']), self.frames.held_values(),
-                                        compiler.plan_params(planned.get('plan'))).to_arrow_table()
+                # value this engine holds (a bearer URL: M2) -- the plan read here, then handed to its run
+                sql, params = from_plan(planned['sql']), compiler.plan_params(planned.get('plan'))
+                rows = run_arrow(connection, sql, self.frames.held_values(), params)
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
                       {'x-legend-response-format': 'FormatNotSet'})
@@ -1795,10 +1797,9 @@ class Engine:
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
                 said = json.loads(planned.body)
-                cursor = execute_redacted(connection, from_plan(said['run']), self.frames.held_values(),
-                                          compiler.plan_params(said.get('plan')))
-                names = [d[0] for d in cursor.description]
-                rows = compiler.host_rows(names, cursor.fetchall())
+                # the plan read here, then handed to its run, which hands its rows back as the driver read them
+                sql, params = from_plan(said['run']), compiler.plan_params(said.get('plan'))
+                rows = run_rows_json(connection, sql, self.frames.held_values(), params)
         answer = self.planner.execute_json_answer(planned.body, rows)
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 

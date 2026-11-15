@@ -25,6 +25,8 @@ from collections import OrderedDict
 from collections.abc import Container, Iterable, Sequence
 from typing import Any
 
+from ._runframe import current_run
+
 
 class PlannedSql(str):
     """A statement a plan carries or the planner wrote: the only text ``send`` runs."""
@@ -397,10 +399,20 @@ def connect(path: str | None = None) -> Database:
     return Database(duckdb.connect() if path is None else duckdb.connect(path))
 
 
+class Unframed(RuntimeError):
+    """A plan's statement sent outside any run (``_runframe``): refused, never run."""
+
+
 def send(target: Database, statement: Any, params: Sequence[Any] | None = None) -> Result:
     """THE ONE SEND: ``statement`` run on ``target`` (the host's :class:`Database`, or a cursor of it), its ``?``s bound
-    to ``params`` in order when there are any -- only if it is a plan's (:func:`require`)."""
+    to ``params`` in order when there are any -- only if it is a plan's (:func:`require`), and only INSIDE A RUN (C5-P,
+    2026-11-15: a frame wraps every send -- ``_runframe.runs``/``in_run``, set by the run side's own functions, _runs.py
+    and _reads.py -- so a flow that sends is one the planner refuses, and one that plans sends nothing; until then a run
+    frame wrapped some sends, and 12 senders, named in the run wall, sent outside one)."""
     if not isinstance(target, Database):
         raise NotPlanned(f"the one send runs on the host's Database, not on a {type(target).__name__}")
     sql = require(statement, 'the database')
+    if current_run() is None:
+        raise Unframed('a plan\'s statement is sent only inside a run (_runframe.runs, in_run): the run side sends it,'
+                       ' handed what the planner answered (G4)')
     return target._send_planned(sql, params)

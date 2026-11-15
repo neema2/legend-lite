@@ -10,8 +10,8 @@ import duckdb
 
 from legend_lite import _host, compiler, projects, warehouse
 from legend_lite._library import library
-from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
-                                  from_plan, plan_from_answer, send)
+from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, Unframed, _keyed_text, across_the_bridge,
+                                  all_from_plan, from_plan, plan_from_answer, send)
 from legend_lite._planner import answer
 from legend_lite._runframe import current_run, in_run, planning, runs
 from legend_lite.compiler import LegendError
@@ -33,9 +33,24 @@ class OneSendTest(unittest.TestCase):
 
     def test_a_plans_statement_is_sent(self):
         con = Database(duckdb.connect())
-        self.assertEqual(send(con, from_plan('SELECT 41 + 1')).fetchall(), [(42,)])
-        # its `?`s bound in order (a plan's payloads)
-        self.assertEqual(send(con, from_plan('SELECT ? || ?'), ['a', 'b']).fetchall(), [('ab',)])
+        with in_run("a test's run"):
+            self.assertEqual(send(con, from_plan('SELECT 41 + 1')).fetchall(), [(42,)])
+            # its `?`s bound in order (a plan's payloads)
+            self.assertEqual(send(con, from_plan('SELECT ? || ?'), ['a', 'b']).fetchall(), [('ab',)])
+
+    def test_a_plans_statement_sent_outside_a_run_is_refused_and_never_reaches_the_database(self):
+        # C5-P (2026-11-15): a frame wraps every send -- the run side's own functions set it -- so a flow that sends is one
+        # the planner refuses; a plan's statement sent in no run is refused by name, and nothing reaches the database
+        con = _Recording()
+        with self.assertRaisesRegex(Unframed, r"a plan's statement is sent only inside a run"):
+            send(Database(con), from_plan('SELECT 1'))
+        self.assertEqual(con.sent, [])
+        # a text no plan carries is refused as that first, in a run or not
+        with self.assertRaises(NotPlanned):
+            send(Database(con), 'SELECT 1')
+        with in_run("a test's run"):
+            send(Database(con), from_plan('SELECT 1'))
+        self.assertEqual(con.sent, ['SELECT 1'])
 
     def test_text_no_plan_carries_is_refused_by_name_and_never_reaches_the_database(self):
         con = _Recording()
@@ -72,7 +87,8 @@ class OneSendTest(unittest.TestCase):
         for way in ('execute', 'executemany', 'sql', 'query', 'from_query', 'from_arrow', 'from_df', 'read_csv',
                     'read_parquet', 'read_json', 'table', 'view', 'install_extension', 'load_extension'):
             self.assertFalse(hasattr(db, way), f'a Database offers {way}')
-        result = send(db, from_plan('SELECT 1'))
+        with in_run("a test's run"):
+            result = send(db, from_plan('SELECT 1'))
         for way in ('execute', 'sql', 'query', 'cursor', 'from_arrow'):
             self.assertFalse(hasattr(result, way), f'a statement\'s answer offers {way}')
         with self.assertRaises(NotPlanned) as refused:
@@ -201,8 +217,9 @@ class WitnessTest(unittest.TestCase):
         project = compiler.project_data(fixture['model'], fixture['databaseType'])
         witness = _Witness(duckdb.connect())
         db = Database(witness)
-        for sql in [*project['open'], *project['use']]:
-            send(db, sql)
+        with in_run("a test's run"):
+            for sql in [*project['open'], *project['use']]:
+                send(db, sql)
         witness.received.clear()
         projects.run_load(project['load'], lambda statement: send(db, statement))
         self.assertGreater(len(witness.received), 1)
@@ -489,20 +506,23 @@ class RunFrameTest(unittest.TestCase):
         frames = frames_module.Frames()
         table = frames.register('trades', pa.table({'id': [1, 2], 'desk': ['FX', 'EQ']}))
         seen = []
-        real = frames_module.send
+        # the run side's send (C5-P, 2026-11-15: frames.py's reads moved to _reads.py, frames.py now plans and hands the
+        # run its statements)
+        from legend_lite import _reads
+        real = _reads.send
 
         def recording(*args, **kwargs):
             seen.append(current_run())
             return real(*args, **kwargs)
 
-        with mock.patch.object(frames_module, 'send', recording):
+        with mock.patch.object(_reads, 'send', recording):
             table.execute('->select(~[desk])')
             self.assertTrue(seen and set(seen) == {'a plan'}, seen)
             seen.clear()
             plan = table.plan('->select(~[desk])')
             with frames.reading() as read:
-                # what the read's own run sends: the read's session setup, sent as it begins, is no run's (frames at
-                # every send site are the follow-up stream's, C5)
+                # the read begun in its own run (C5-P: its session's setup and its pin, framed since)
+                self.assertTrue(seen and set(seen) == {'a read begun'}, seen)
                 seen.clear()
                 read.run(plan)
                 self.assertTrue(seen and set(seen) == {'a read'}, seen)
