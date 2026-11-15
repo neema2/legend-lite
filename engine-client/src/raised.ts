@@ -7,12 +7,12 @@
  * (sql.RaiseKind, the dialect's raise), and the tab words it as Java's runner does (exec.RaisedErrors, error.DataError):
  * the kind's sentence, then its where -- at its one send's failure (DuckDbEngine's), so every route that sends a plan's
  * statement says the same words, as Python's one send does. The envelope's marks and the sentences are GENERATED from
- * legend-lite (src/generated/lite-facts.ts, error.ErrorKind): one source, never copied; the envelope's cases are one
+ * legend-lite (src/generated/lite-raise.ts, error.ErrorKind): one source, never copied; the envelope's cases are one
  * shared fixture (test/fixtures/raise-envelopes.json) Java's, the tab's and Python's readers all read.
  */
 
 import { QueryError } from './engine.ts';
-import { RAISE, RAISED_KINDS } from './generated/lite-facts.ts';
+import { RAISE, RAISED_KINDS } from './generated/lite-raise.ts';
 
 /** A product raise a plan's statement made: its kind, its where (a fixed text known at planning, or none), and its
  *  words -- the kind's sentence, then the where -- as its message. A QueryError, as every failure of a send is. */

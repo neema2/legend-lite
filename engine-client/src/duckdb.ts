@@ -18,7 +18,6 @@ import type { ConnectionSettings } from './connection-settings.ts';
 import type { Receipt } from './receipt.ts';
 import type { QueryEngine, RawColumn, RawTable } from './engine.ts';
 import { type QueryError, typedByPlan } from './engine.ts';
-import { failure } from './raised.ts';
 import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
 import { dayText, decimalText, exactInteger, timeText, timestampText } from './values.ts';
@@ -439,7 +438,7 @@ export class DuckDbEngine implements QueryEngine {
           }
         } catch (cause) {
           // the database's words, any value a kept setting binds taken out (M2)
-          throw this.#failed(cause, sql);
+          throw await this.#failed(cause, sql);
         }
       },
       table: (sql) => this.#whole(sql, 0, undefined, performance.now()),
@@ -449,7 +448,7 @@ export class DuckDbEngine implements QueryEngine {
         try {
           await insert.call(conn, bytes, { name: target.table, ...(target.schema ? { schema: target.schema } : {}), create });
         } catch (cause) {
-          throw this.#failed(cause, `the rows streamed into ${target.schema ? `${target.schema}.` : ''}${target.table}`);
+          throw await this.#failed(cause, `the rows streamed into ${target.schema ? `${target.schema}.` : ''}${target.table}`);
         }
       },
     }));
@@ -561,10 +560,12 @@ export class DuckDbEngine implements QueryEngine {
    * value a kept setting binds taken out (ConnectionSettings.redact) -- an expired presigned link's read repeats the
    * whole URL -- and, where any was, without the database's own error, which still holds it.
    */
-  #failed(cause: unknown, sql: string): QueryError {
+  async #failed(cause: unknown, sql: string): Promise<QueryError> {
     const said = cause instanceof Error ? cause.message : String(cause);
     const message = this.settings === undefined ? said : this.settings.redact(said);
-    // a product raise in lite's words, as Java's runner and Python's one send word it (raised.ts; #104's M2(b))
+    // a product raise in lite's words, as Java's runner and Python's one send word it (raised.ts; #104's M2(b)) --
+    // loaded on the first failure, its own chunk, never in the grid's startup set (2026-11-15: the bundle budget)
+    const { failure } = await import('./raised.ts');
     return failure(message, sql, message === said ? { cause } : {});
   }
 
@@ -587,7 +588,7 @@ export class DuckDbEngine implements QueryEngine {
         return acc.build(epoch, performance.now() - started);
       }
     } catch (cause) {
-      throw this.#failed(cause, sql);
+      throw await this.#failed(cause, sql);
     }
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
     return toRawTable(table, epoch, performance.now() - started);
@@ -627,7 +628,7 @@ export class DuckDbEngine implements QueryEngine {
       batches = params.length === 0 ? await send.call(this.#conn, sql) : this.#bound(sql, params);
     } catch (cause) {
       if (signal?.aborted) throw signal.reason ?? cause;
-      throw this.#failed(cause, sql);
+      throw await this.#failed(cause, sql);
     }
 
     try {
@@ -643,7 +644,7 @@ export class DuckDbEngine implements QueryEngine {
         await cancel();
         throw signal.reason ?? cause;
       }
-      throw this.#failed(cause, sql);
+      throw await this.#failed(cause, sql);
     }
 
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');

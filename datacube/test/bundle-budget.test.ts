@@ -557,13 +557,8 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  RoutedEngine -- generatePlan, relationType, compile, compileErrors, returnType -- and planner.ts's UpstreamPlanner,
  *  the final audit of 9af16fbe58's T2 and its last list), and the run frame's NOT_PLANNING (T6): 63 bytes, 436,935
  *  without them. Measured 436,998 on Linux; Windows' 28 bytes more are its own build's -- the startup files name 305
- *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here.
- *  437,300 -> 438,500 (2026-11-15, #104's M2(b), the total-wall phase D: the tab words a product raise from its kind
- *  and place -- engine-client's raised.ts, PlanRaise and failure(), and the generated RAISE and RAISED_KINDS tables of
- *  lite-facts.ts, one per ErrorKind, the hosts' shared envelope; #104's CI red on every OS's datacube lane for it).
- *  Measured 438,124 on Linux at #104's merge of main (0c9032f56), the budget keeping its 300 bytes over for Windows'
- *  own build. */
-const BUDGET = 438_500;
+ *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here. */
+const BUDGET = 437_300;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom

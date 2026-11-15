@@ -147,6 +147,19 @@ java_run(
     deps = [":type_facts_main"],
 )
 
+# a product raise's envelope and words (#104's M2(b), 2026-11-15), a module of their own: raised.ts reads them, and the
+# tab loads it on a statement's first failure -- outside the grid's startup set (its bundle budget, 2026-11-15)
+java_run(
+    name = "lite_raise",
+    outs = ["generated/lite-raise.gen.ts"],
+    arguments = [
+        "raise-ts",
+        "{OUT}",
+    ],
+    main_class = "typefacts.TypeFacts",
+    deps = [":type_facts_main"],
+)
+
 # the same table for Python's reading of a column's type (python/legend_lite/_types.py,
 # docs/PYTHON_ASKS_DATACUBE_2026_10_15.md item 4): committed and diff-tested by //python:update_generated
 java_run(
@@ -166,6 +179,7 @@ write_source_files(
     diff_test_failure_message = "{{DEFAULT_MESSAGE}}\nlegend-lite changed a fact the engine client mirrors -- regenerate: bazel run //engine-client:update_generated, then read the diff (a changed Pure kind or pivot separator changes what a grid shows)",
     files = {
         "src/generated/lite-facts.ts": ":lite_facts",
+        "src/generated/lite-raise.ts": ":lite_raise",
     },
     visibility = ["//:__pkg__"],
 )
