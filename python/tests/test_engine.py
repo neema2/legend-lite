@@ -672,9 +672,10 @@ class PlanAndRunRoutes(Served):
         status, headers, body = self.plan_and_run_over(model, '|#>{trades::DB.salaries}#->select(~[name])')
         self.assertEqual((status, headers['Content-Type']), (200, 'application/json'))
         self.assertTrue(json.loads(body)['plan'].startswith('ERR\nMODEL\n'), body)
-        # nor one that does not read as a model at all
+        # nor one that does not read as a model at all -- refused in the compiler's words, its kind PARSER (2026-11-15,
+        # the C5 follow-up's check: until then ERR MODEL, "reads only the tables it serves", naming none)
         status, _, body = self.plan_and_run_over('not a model', '|1')
-        self.assertTrue(json.loads(body)['plan'].startswith('ERR\nMODEL\n'), body)
+        self.assertTrue(json.loads(body)['plan'].startswith('ERR\nPARSER\n'), body)
 
     def test_a_plan_and_run_over_a_read_its_failure_ended_is_answered_422_with_its_plan(self):
         # the C4 audit's M4, 2026-11-13: a read a failing query ended refuses its later queries in the database's own
@@ -717,7 +718,8 @@ class PlanAndRunRoutes(Served):
         # never run, and only over the models this engine serves (R4): another is the planner's refusal, in its words
         refused = json.loads(self.post('/plan.json', json.dumps({
             'lambda': lam, 'model': 'unserved', 'runtime': self.table.runtime}))[2])
-        self.assertTrue(refused['plan'].startswith('ERR\nMODEL\n'), refused)
+        # a text that is no model: the compiler's own refusal (2026-11-15, the C5 follow-up's check: until then ERR MODEL)
+        self.assertTrue(refused['plan'].startswith('ERR\nPARSER\n'), refused)
 
     def test_the_planner_worker_tunnel_is_gone(self):
         # a page asks Python as it asks any host: legend-engine's own routes, and the host's compute -- never the tab's
