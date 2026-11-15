@@ -446,6 +446,33 @@ class ProjectQueries(Served):
             self.assertRegex(json.loads(body)['plan'], r'reads only the tables it serves.*it reads PARTY\.PARTY, which it '
                                                        r'does not serve now', path)
 
+    def test_a_saved_querys_model_that_is_no_model_is_refused_by_the_compiler(self):
+        # the C5 follow-up's held item (the user's ruling of 2026-11-10: a product error carries its kind and where): a
+        # project's model that does not parse was answered "this model has none" (no Data rows); its plan is the
+        # compiler's own refusal now, by the run and the dry run alike
+        broken = PARTY + '\n###Pure\nClass demo::party::Broken {\n'
+        asked = {'lambda': json.dumps(ll.parse(PARTY_QUERY)), 'model': broken, 'runtime': 'demo::party::Runtime',
+                 'project': True}
+        for path in ('/plan-and-run.json', '/plan.json'):
+            status, _, body = self.post(path, json.dumps(asked))
+            self.assertEqual(status, 200, body)
+            plan = json.loads(body)['plan']
+            self.assertTrue(plan.startswith('ERR\nPARSER\n'), plan)
+            self.assertNotIn('this model has none', plan)
+
+    def test_a_page_model_that_does_not_compile_is_refused_by_the_compiler(self):
+        # the C5 follow-up's held item: a page's model of the tables this engine serves, which does not compile, was
+        # answered "reads only the tables it serves", naming none; its plan is the compiler's own refusal now
+        broken = self.table.model + '\n###Pure\nClass trades::A\n{\n  x: trades::Nope[1];\n}\n'
+        asked = {'lambda': json.dumps(self.query('->select(~[desk])')), 'model': broken, 'runtime': self.table.runtime}
+        for path in ('/plan-and-run.json', '/plan.json'):
+            status, _, body = self.post(path, json.dumps(asked))
+            self.assertEqual(status, 200, body)
+            plan = json.loads(body)['plan']
+            self.assertTrue(plan.startswith('ERR\nCOMPILATION\n'), plan)
+            self.assertIn('trades::Nope', plan)
+            self.assertNotIn('reads only the tables it serves', plan)
+
     def test_kept_for_the_process_and_named_by_what_it_holds(self):
         for _ in range(2):
             self.assertEqual(self.post('/api/pure/v1/execution/execute', self.project_input())[0], 200)

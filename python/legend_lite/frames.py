@@ -443,7 +443,10 @@ class Frames:
         option (c)): one held for a frame or a page's file (``held_for``), or a model the page sent -- its project's, say
         -- every table of whose Databases is one Python serves, so the SQL planned over it reads only what Python showed
         the page, never another table of this database (a person's own, an attached database's). Held while recent;
-        None when it declares a table Python does not serve, or does not read as a model."""
+        None when it declares a table Python does not serve, or does not read as a model; one that reads as a model of
+        served tables but does not compile is refused by the compiler's own words (``compiler.LegendError``: the C5
+        follow-up's held item, 2026-11-15 -- until then None, and the page told this engine serves none of its
+        tables)."""
         with self._lock:
             held = self.held_for(model)
             if held is not None:
@@ -458,11 +461,8 @@ class Frames:
                 return None
             if not tables <= served:
                 return None
-            try:
-                held = compiler.HeldModel(model)
-            except compiler.LegendError:
-                # it reads as a model, but does not compile: no model to plan over
-                return None
+            # it reads as a model of the tables served; one that does not compile raises the compiler's refusal
+            held = compiler.HeldModel(model)
             self._admitted[model] = (held, frozenset(tables))
             while len(self._admitted) > _ADMITTED:
                 self._admitted.pop(next(iter(self._admitted)))[0].close()
@@ -576,7 +576,8 @@ class Frames:
     def plan_over(self, model: str, plan: Callable[[compiler.HeldModel], Any]) -> Any:
         """``plan`` against the model a page's query may be planned over (``model_for``), held while it plans -- a frame
         registered again meanwhile lets go of its model only after -- or None: no such model served. For a read's query
-        (D15): the model of that text is of the tables the read sees as they were (the same text, the same columns)."""
+        (D15): the model of that text is of the tables the read sees as they were (the same text, the same columns). A
+        model that does not compile raises the compiler's refusal (``model_for``)."""
         with self._lock:
             held = self.model_for(model)
             return None if held is None else plan(held)

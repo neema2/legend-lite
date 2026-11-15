@@ -66,7 +66,7 @@ from .frames import Frames, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from .keeper import PageKeeper, Refused
-from .projects import ProjectDatabases, run_host_load, run_write
+from .projects import NotAModel, ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
 _API = '/api/pure/v1/'
@@ -441,6 +441,10 @@ class NativePlanner:
 
     def refused_plan(self, message: str) -> str:
         return f'ERR\nMODEL\n{message}'
+
+    def refused_by(self, refused: LegendError) -> str:
+        """The compiler's own refusal, as the planner answers one: its kind and its words."""
+        return f'ERR\n{refused.kind}\n{refused.message}'
 
 
 class _WarehouseTable:
@@ -1531,7 +1535,11 @@ class Engine:
         # its turn first, then the frames held: the copy is landed and modelled by DataCube's code inside (D15)
         with headless.turn(), self.frames.serving() as models:
             self._noted(models)
-            held = self.frames.model_for(asked['model'])
+            try:
+                held = self.frames.model_for(asked['model'])
+            except LegendError as refused:
+                # a model of served tables that does not compile: the compiler's words (the C5 follow-up's held item)
+                return _said(422, f'the snap could not be planned: {refused}')
             if held is None:
                 return _said(404, 'this engine serves no model of that text: it snaps a page\'s frames and files, and '
                                   'warehouse tables it opened')
@@ -1644,7 +1652,12 @@ class Engine:
         the read's own cursor, as the read sees the database. A model of a table not served now is refused, naming it
         (F28). The frames' models noted as last read, never older than the read (F30)."""
         self._noted(self.frames.models())
-        planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
+        try:
+            planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
+        except LegendError as no_model:
+            # the model's own refusal by the compiler (the C5 follow-up's held item: until then "reads only the tables
+            # it serves", naming none)
+            return _planned({'plan': self.planner.refused_by(no_model)})
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
         try:
@@ -1710,20 +1723,24 @@ class Engine:
         """A plan-and-run over a project's model (a saved query opened on Python's page: C5): planned against
         the model held beside the project's own database, by Python's planner, and run there on its cursor -- the
         page sent Pure; the rows are the project's Data rows. A model with none is refused, as one Python serves no
-        table of is."""
-        with self.projects.using(asked['model']) as project:
-            if project is None:
-                return _planned({'plan': refused})
-            planned = self._plan_with(asked, project.held)
-            try:
-                plan = self.planner.read(planned)
-            except LegendError:
-                return _planned({'plan': planned})
-            try:
-                # a project's database binds no value this engine holds: nothing to take out of a failure's words
-                rows = run_plan(project.cursor, plan, ())
-            except (duckdb.Error, UntypedColumn) as failure:
-                return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
+        table of is; a model that is no model, by the compiler's own refusal (the C5 follow-up's held item: until then
+        said to have no Data rows)."""
+        try:
+            with self.projects.using(asked['model'], surface=True) as project:
+                if project is None:
+                    return _planned({'plan': refused})
+                planned = self._plan_with(asked, project.held)
+                try:
+                    plan = self.planner.read(planned)
+                except LegendError:
+                    return _planned({'plan': planned})
+                try:
+                    # a project's database binds no value this engine holds: nothing to take out of a failure's words
+                    rows = run_plan(project.cursor, plan, ())
+                except (duckdb.Error, UntypedColumn) as failure:
+                    return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
+        except NotAModel as no_model:
+            return _planned({'plan': self.planner.refused_by(no_model)})
         return _arrow_rows(rows, planned)
 
     def _plan(self, body: str) -> Answer:
@@ -1743,10 +1760,14 @@ class Engine:
         if refused is not None:
             return _planned({'plan': self.planner.refused_plan(refused)})
         if asked.get('project') is True:
-            with self.projects.using(asked['model']) as project:
-                if project is None:
-                    return _planned({'plan': self.planner.refused_plan(_NO_PROJECT_ROWS)})
-                return _planned({'plan': self._plan_with(asked, project.held)})
+            try:
+                with self.projects.using(asked['model'], surface=True) as project:
+                    if project is None:
+                        return _planned({'plan': self.planner.refused_plan(_NO_PROJECT_ROWS)})
+                    return _planned({'plan': self._plan_with(asked, project.held)})
+            except NotAModel as no_model:
+                # the compiler's own refusal of the model (the C5 follow-up's held item: until then "this model has none")
+                return _planned({'plan': self.planner.refused_by(no_model)})
         with self._warehouse_lock:
             table = self._warehouse_tables.get(asked['model'])
         if table is not None:
@@ -1756,7 +1777,12 @@ class Engine:
                 return _planned({'plan': self.planner.refused_plan(wrong)})
             return _planned({'plan': self._plan_with(asked, table.held)})
         self._noted(self.frames.models())
-        planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
+        try:
+            planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
+        except LegendError as no_model:
+            # the model's own refusal by the compiler (the C5 follow-up's held item: until then "reads only the tables
+            # it serves", naming none)
+            return _planned({'plan': self.planner.refused_by(no_model)})
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
         return _planned({'plan': planned})
