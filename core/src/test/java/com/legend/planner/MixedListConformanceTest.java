@@ -123,7 +123,7 @@ class MixedListConformanceTest {
      */
     @Test
     void aMixedListRanksAnExactLiteralAndRefusesAnInexactOne() {
-        String model = StorelessRuntime.with("", com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
+        String model = StorelessRuntime.with("", TestBackends.platform().type());
         Compiler.query(Compiler.compileModel(model), "|['b', 1, 2.5D, 'a']->sort()")
                 .executionPlan(StorelessRuntime.RUNTIME);
         // PCT's testMixedSortNoComparator: Integers and Floats, one negative (round 55f: refused as "a Decimal")
@@ -146,7 +146,7 @@ class MixedListConformanceTest {
      */
     @Test
     void aComputedIntegerBeyond2To53InAMixedRankPlans_aKnownLimit() {
-        String model = StorelessRuntime.with("", com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
+        String model = StorelessRuntime.with("", TestBackends.platform().type());
         // the computed value through a let: a list literal holds no arithmetic (SpecParser, round 55f); every literal
         // below 2^53, so only the computed value is beyond it (round 55k)
         Compiler.query(Compiler.compileModel(model),
