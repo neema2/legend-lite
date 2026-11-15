@@ -65,24 +65,20 @@ class LeanSqlCorpusTest {
             } catch (RuntimeException | StackOverflowError e) {
                 family = "refused";
             }
-            long chars = productSql.stream().mapToLong(String::length).sum();
             long planChars = 0;
             for (ExecutionPlan.Node n : productNodes) {
                 planChars += PlanJson.write(ExecutionPlan.reading(List.of(), n)).length();
             }
-            add(product, new LeanSqlBaseline.Key("corpus", database, family), productSql.size(), chars, planChars,
-                    t.fqn());
-            add(judge, new LeanSqlBaseline.Key("corpus-judge", database, family), judgeSql.size(),
-                    judgeSql.stream().mapToLong(String::length).sum(), 0, t.fqn());
+            add(product, new LeanSqlBaseline.Key("corpus", database, family), productSql, planChars, t.fqn());
+            add(judge, new LeanSqlBaseline.Key("corpus-judge", database, family), judgeSql, 0, t.fqn());
         }
         return new Map[] {product, judge};
     }
 
-    private static void add(Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> into, LeanSqlBaseline.Key k, long s,
-            long c, long p, String test) {
-        LeanSqlBaseline.Measure was = into.get(k);
-        into.put(k, was == null ? new LeanSqlBaseline.Measure(s, c, p, test)
-                : new LeanSqlBaseline.Measure(was.statements() + s, was.chars() + c, was.plan() + p, was.worst()));
+    private static void add(Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> into, LeanSqlBaseline.Key k,
+            List<String> statements, long p, String test) {
+        LeanSqlBaseline.Measure was = into.getOrDefault(k, new LeanSqlBaseline.Measure(0, 0, 0, ""));
+        into.put(k, was.plus(statements, p, test));
     }
 
     /** The body's own statement nodes to the product's; the verdict steps' statements to the judge's. */
