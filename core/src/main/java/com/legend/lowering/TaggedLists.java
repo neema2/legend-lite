@@ -258,17 +258,32 @@ final class TaggedLists {
      * enumerations' values of one name -- since the sort orders such a tie as the database likes and the end it
      * answers would then be either kind (2026-11-15, PR1's review, D2: a G10 hole). Refused until the ordered aggregate
      * takes the element's position as its second key; a tie of one kind is one value, whichever end answers.
+     * A list holding two DATE kinds (a StrictDate and a DateTime, say) is refused too, by the orchestrator's ruling of
+     * 2026-11-15 under the user's delegation: its extreme waits for the run-time kind carrier, as S341's run-time kind
+     * does.
      */
     static void refuseKindTies(SqlExpr.TaggedList tl, String what) {
         java.util.Set<String> numbers = new java.util.TreeSet<>();
         java.util.Set<String> enumerations = new java.util.TreeSet<>();
+        java.util.Set<String> dates = new java.util.TreeSet<>();
         for (SqlExpr.TaggedList.Channel ch : tl.channels()) {
             String kind = ch.kind();
             if (kind.equals("Integer") || kind.equals("Float") || kind.equals("Decimal")) {
                 numbers.add(kind);
-            } else if (!PRIMITIVE_KINDS.contains(kind) && !kind.startsWith("DateTime(")) {
+            } else if (kind.equals("StrictDate") || kind.equals("DateTime") || kind.equals("Date")
+                    || kind.startsWith("DateTime(")) {
+                dates.add(kind);
+            } else if (!PRIMITIVE_KINDS.contains(kind)) {
                 enumerations.add(kind);
             }
+        }
+        if (dates.size() > 1) {
+            // the orchestrator's ruling under the user's delegation of 2026-11-15
+            // (docs/records/pr1-rulings-2026-11-15.md, R3): a mixed list's extreme over two date kinds waits for the
+            // run-time carrier, as S341's run-time kind does
+            throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
+                    + String.join(" and ", dates) + ": an extreme across date kinds is refused until the run-time"
+                    + " kind carrier (O2 step 3) answers it as legend-pure does");
         }
         if (numbers.size() > 1 || enumerations.size() > 1) {
             throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "

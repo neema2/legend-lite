@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -85,5 +86,36 @@ class MixedListConformanceTest {
         }
         // at least two databases answer every case (the in-process set holds two that place a mixed list)
         assertTrue(answered >= 2 * CASES.size(), "answered " + answered + " of " + CASES.size() + " cases a database");
+    }
+
+    /**
+     * A mixed list's extreme across DATE kinds (a StrictDate and a DateTime) is refused by name at planning: the
+     * orchestrator's ruling of 2026-11-15 under the user's delegation (docs/records/pr1-rulings-2026-11-15.md, R3),
+     * the same rule as S341's run-time kind -- it waits for the run-time kind carrier (O2 step 3). A database whose
+     * dialect places no mixed list refuses it first, by its own name.
+     */
+    @Test
+    void anExtremeAcrossDateKindsIsRefusedByName() {
+        int refused = 0;
+        for (com.legend.testbackend.TestBackend backend : TestBackends.inProcess()) {
+            String model = StorelessRuntime.with("", backend.type());
+            for (String fn : new String[] {"min", "max", "least", "greatest"}) {
+                String query = "|[%2025-02-10, %2025-02-10T00:00:00, %2024-01-01]->" + fn + "()";
+                try {
+                    String message = assertThrows(com.legend.error.NotImplementedException.class,
+                            () -> Compiler.query(Compiler.compileModel(model), query)
+                                    .executionPlan(StorelessRuntime.RUNTIME), backend.type() + ": " + query)
+                            .getMessage();
+                    assertTrue(message.contains("of a mixed list holding DateTime and StrictDate: an extreme across"
+                            + " date kinds is refused until the run-time kind carrier"), message);
+                    refused++;
+                } catch (org.opentest4j.AssertionFailedError e) {
+                    if (!(e.getCause() instanceof com.legend.sql.DialectCapability)) {
+                        throw e;
+                    }
+                }
+            }
+        }
+        assertTrue(refused >= 2 * 4, "refused " + refused);
     }
 }
