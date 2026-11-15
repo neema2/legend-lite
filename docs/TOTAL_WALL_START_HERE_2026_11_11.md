@@ -1020,7 +1020,10 @@ In order. Nothing here is in the A/B/C PR.
        `//tools/deps:ts_layering_test`), each type-checked alone by a strict tsc that sees nothing else
        (`//tools/deps:layers_alone`, with a planted violator's bite), every send on Node refused outside a run at its
        choke point (`run-frame.ts` `sending`: DuckDB's connection, the warehouse's submit), and
-       `datacube/test/run-wall.test.ts` deleted; Python's half remains. The audit's fix round of the same day restored
+       `datacube/test/run-wall.test.ts` deleted. PYTHON'S HALF IS DONE (C5-P, 2026-11-15, PR #103, merged to `main` at
+       f4baf1d10): its run side is `//python:run` (`_runs.py`, `_reads.py`, the type facts), which reaches no planner
+       (`//python:run_closure_test`, by the build and by the sources both ways), every send framed, and
+       `python/tests/test_run_wall.py` deleted (docs/GATES.md's C5-P entry). The audit's fix round of the same day restored
        what the deletion dropped: DataCube's doors a target of their own (`//datacube:doors`), the apps' own
        plan-and-run sites a shrink-only census (`//tools/deps:app_runs_test`), and the wall's signature, suppression and
        literal-specifier rules on each run layer (`//tools/deps:layers_alone`); docs/GATES.md says what it covers. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
@@ -1056,8 +1059,20 @@ In order. Nothing here is in the A/B/C PR.
      - cross-listed so it is not lost (stream D's, not C5's): lineage rebuilt upstream's way, for everything -- its
        terms are under "Moved to D's batch" below;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
-       20 TS sites; the TS sites DONE with the structural split's TypeScript half, C5-T, 2026-11-15);
+       20 TS sites) -- Python's half DONE by C5-P (2026-11-15: `_planned.send` refuses outside a run, every send in
+       `:run`); TypeScript's DONE with the structural split's TypeScript half (C5-T, 2026-11-15);
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
+     - (C5-P's audit, 2026-11-15) the native library's loader split into keys, a run taking a planner by annotation,
+       transactions and the warehouse's HTTP outside a frame, a stream's pulls on DuckDB's own threads: DONE in C5-P's
+       last round (A1-A5, the user's go of 2026-11-15; docs/GATES.md's C5-P entry);
+     - (C5-P's final audit, 2026-11-15, held out) `_runs._stream` re-enters one copied context at every pull: if DuckDB
+       ever pulls on two threads at once, the second raises "cannot enter context" (measured on one thread only);
+     - (C5-P's final audit, 2026-11-15, held out) `_reads.end_read`'s `suppress(duckdb.Error)` around the read's rollback,
+       moved unchanged;
+     - (C5-P's final audit, 2026-11-15, held out; pre-existing) `_runs._stream` sends its transaction's begin before its
+       `try`;
+     - (C5-P's final audit, 2026-11-15, held out) `//python:run_closure_test`'s static half could run on every platform
+       (today gated by `target_compatible_with`);
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses

@@ -138,10 +138,10 @@ test_suite(
         # Python half read by Python's parser (2026-11-12, the C checkpoint's code audit SHOULD-FIX 2)
         "//tools/guards:planned_sql_test",
         "//python:planned_guard_test",
-        # the run wall's Python half (M2, 2026-11-13), in no gate suite until the final audit of 9af16fbe58's P1
-        # (2026-11-14); its TypeScript half was deleted for the layers' rule (C5-T, 2026-11-15: //tools/deps:layers_alone
-        # and //tools/deps:ts_layering_test, in the checks above)
-        "//python:run_wall_test",
+        # Python's plan/exec split, a plain dependency rule (C5-P, 2026-11-15: it replaced the run wall's Python half,
+        # //python:run_wall_test, in this suite since the final audit of 9af16fbe58's P1, 2026-11-14); TypeScript's, the
+        # layers' rule (C5-T, 2026-11-15: //tools/deps:layers_alone and //tools/deps:ts_layering_test, in the checks above)
+        "//python:run_closure_test",
         "//tools/browser:revision_test",
         "//tools/browser:proxy_args_test",
         "//tools/bump:bump_test",
