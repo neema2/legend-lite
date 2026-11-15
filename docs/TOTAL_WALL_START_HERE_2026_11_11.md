@@ -1090,6 +1090,16 @@ In order. Nothing here is in the A/B/C PR.
          parse was unwitnessed at run time -- and so were the #SQL, #IQ and #Cypher islands' readers;
        - DONE in the last round (A3, e31b8a2bbe): `Compiler.programFacts` had no caller since the PCT runner reads the
          test plan's facts, and is off the closed surface (ROOT_DOORS, QUERY_ROADS);
+       - (the last round's re-check, 2026-11-15) H2 has no base64 in SQL, so an object reference cannot be built on H2:
+         its dialect refuses the encoding by name (`AsorRefRoundTripTest`, `asor-round-trip/outcomes.tsv`), while
+         upstream's goldens pin H2's references. Pre-existing, and no register row covers it; the orchestrator posts it
+         to the user;
+       - (the re-check) an object reference's frame lengths disagree outside the BMP: the SQL side counts code points
+         (`LENGTH`, `SnapshotEnvelope.asorWrap`), `AsorRef.ref` and `decode` count UTF-16 units, so a key holding a
+         character outside the BMP frames off by one. Pre-existing; a compatibility format, stream D's edge;
+       - (the re-check) `ArchitectureTest.ISLAND_DIALECTS` exempts whole classes: `IqDialect`'s public `reading()` and
+         `defaultName` re-read a select item's text, and `IqNames.name` (package-private) is no entry. Routes an
+         adversary alone would take;
        - the Lowerer's other bare IllegalStateExceptions (beyond its isolation walls) are unnamed: name each that a
          caller means to catch, the rest stay bugs;
        - a backslash OUTSIDE quotes in a date pattern: `DateFormats` passes it through as text, where pure refuses it

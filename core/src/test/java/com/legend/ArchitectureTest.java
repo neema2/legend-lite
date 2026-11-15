@@ -861,6 +861,10 @@ final class ArchitectureTest {
         }
         org.junit.jupiter.api.Assertions.assertEquals(8,
                 com.legend.compiler.spec.PlantedIslandParse.class.getDeclaredClasses().length);
+        // the last round's re-check (2026-11-15): a model-package class past the doors, and a dialect's parse called on
+        // an anonymous subclass, whose compiled owner sits in the caller's package
+        bites(PARSE_BY_THE_DOORS, com.legend.model.PlantedModelIslandRead.class);
+        bites(PARSE_BY_THE_DOORS, com.legend.sql.dialect.PlantedDialectSubclassParse.class);
         java.util.Map<Class<?>, String> doors = java.util.Map.of(
                 com.legend.door.PlantedUnaskedDoor.class, "parses without asking the run's wall",
                 com.legend.door.PlantedLateDoor.class, "parses before it asks the run's wall",
@@ -904,7 +908,10 @@ final class ArchitectureTest {
         if (ISLAND_READERS.contains(owner.getName())) {
             return !ISLAND_READER_HELPERS.contains(owner.getName() + "#" + a.getName());
         }
-        if (a.getName().equals("parse") && p.startsWith("com.legend.protocol.")
+        // any dialect's parse, whatever the call's owner -- an anonymous or other subclass of a dialect outside the
+        // protocol layer included (the last round's re-check, 2026-11-15: `new <a dialect>(){}.parse(sql)` compiles to an
+        // owner in the caller's own package, which a check of the protocol's packages alone let through)
+        if (a.getName().equals("parse") && p.startsWith("com.legend.")
                 && com.legend.protocol.sql.InputDialect.class.isAssignableFrom(owner.reflect())) {
             return true;
         }
@@ -937,9 +944,9 @@ final class ArchitectureTest {
             "com.legend.protocol.ts.TsParser",
             "com.legend.protocol.cypher.CypherLexer", "com.legend.protocol.cypher.CypherParser");
 
-    /** What the island readers hold that reads no text, by owner and name: a word's test (is it reserved, its lower
-     *  case) and a test of a tree the parse made -- the translators' and the printers' to ask. A new method of a reader
-     *  is an entry until it is named here. */
+    /** What the island readers hold that reads no text, by owner and name (C5-J's last round, A1, 2026-11-15): a word's
+     *  test (is it reserved, its lower case) and a test of a tree the parse made -- the translators' and the printers'
+     *  to ask. A new method of a reader is an entry until it is named here. */
     static final java.util.Set<String> ISLAND_READER_HELPERS = java.util.Set.of(
             "com.legend.protocol.sql.SqlParser#reservedWord",
             "com.legend.protocol.sql.iq.IqLexer#reserved", "com.legend.protocol.sql.iq.IqLexer#lower",
@@ -954,11 +961,16 @@ final class ArchitectureTest {
             "com.legend.protocol.sql.PostgresDialect", "com.legend.protocol.sql.iq.IqDialect",
             "com.legend.protocol.sql.iq.IqNames");
 
-    /** The rule of {@link #everyParseIsReachedThroughADoorThatAsks}: no class but the lexer's, the parser's, the model
-     *  package's, the island readers and dialects ({@link #ISLAND_READERS}, {@link #ISLAND_DIALECTS}) and the parse
-     *  doors reaches a parse entry. */
+    /** The rule of {@link #everyParseIsReachedThroughADoorThatAsks}: no class but the lexer's, the parser's, the model's
+     *  records door ({@code ModelFromProtocol}; the whole model package until the last round's re-check, 2026-11-15),
+     *  the island readers and dialects ({@link #ISLAND_READERS}, {@link #ISLAND_DIALECTS}) and the parse doors reaches a
+     *  parse entry. */
     static final com.tngtech.archunit.lang.ArchRule PARSE_BY_THE_DOORS = noClasses()
-            .that().resideOutsideOfPackages("com.legend.lexer..", "com.legend.parser..", "com.legend.model")
+            .that().resideOutsideOfPackages("com.legend.lexer..", "com.legend.parser..")
+            // the model package's records door alone (the last round's re-check, 2026-11-15): the whole package was
+            // exempt, harmless until the island readers it may reach (:protocol) became parse entries
+            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are not the model's records door",
+                    c -> !topLevel(c).equals("com.legend.model.ModelFromProtocol")))
             .and().doNotHaveFullyQualifiedName("com.legend.door.Parse")
             .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
             .and().doNotHaveFullyQualifiedName("com.legend.ide.DocumentParse")

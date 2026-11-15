@@ -30,7 +30,8 @@ import org.junit.jupiter.api.Test;
  * the mapping, the root set id, the set id and the primary-key map it was built from -- every segment -- or the
  * database's dialect refuses the encoding by name. Measured 2026-11-15: DuckDB (the platform's own engine) and SQLite
  * build it; H2 has no base64 in SQL, and its dialect refuses it ("encodeBase64 reached H2, which has no to_base64()"). The
- * platform's own database must build it. The rows are the model's data, loaded by the plan on the server's road (a
+ * platform's own database must build it, and each database's outcome is pinned ({@code asor-round-trip/outcomes.tsv}:
+ * the re-check of 2026-11-15, so a database that stops building it fails here). The rows are the model's data, loaded by the plan on the server's road (a
  * project's data fills the project's database). Red on revert: a segment
  * width changed on one side alone (the SQL side's {@code lpad} width) fails it.
  */
@@ -111,6 +112,32 @@ class AsorRefRoundTripTest {
         }
         assertTrue(built.contains(TestBackends.platform().name()),
                 "the platform's own database builds a reference: built on " + built + ", refused on " + refused);
+        // the measured outcome on each database, pinned (the re-check, 2026-11-15): a database that stops building it,
+        // or starts, moves the ledger
+        java.util.Map<String, String> measured = new java.util.TreeMap<>();
+        built.forEach(b -> measured.put(b, "built"));
+        refused.forEach(b -> measured.put(b, "refused"));
+        assertEquals(pinned(), measured, "the round trip's outcome on each in-process database moved");
+    }
+
+    /** The pinned outcome on each in-process database ({@code asor-round-trip/outcomes.tsv}): its name, built or
+     *  refused. */
+    private static java.util.Map<String, String> pinned() {
+        java.util.Map<String, String> out = new java.util.TreeMap<>();
+        try (java.io.InputStream in = AsorRefRoundTripTest.class.getResourceAsStream("/asor-round-trip/outcomes.tsv")) {
+            String text = new String(java.util.Objects.requireNonNull(in, "the ledger is on the class path").readAllBytes(),
+                    java.nio.charset.StandardCharsets.UTF_8);
+            for (String line : text.split("\n")) {
+                if (line.isBlank() || line.startsWith("#")) {
+                    continue;
+                }
+                String[] cells = line.split("\t");
+                out.put(cells[0], cells[1]);
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return out;
     }
 
     /** The object references a serialization of every item builds on {@code backend}'s database, in order: the

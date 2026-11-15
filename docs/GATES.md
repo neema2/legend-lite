@@ -22319,7 +22319,8 @@ answers, the same errors outside a run.
   is `AsorRef.ref`'s byte for byte and decodes to every segment, on each in-process database that can build one (DuckDB
   and SQLite; H2 refuses the encoding by name). Red on revert: the SQL side's segment width changed alone.
 - **S342, date-format item (a), RULED by the user (2026-11-15, "(a) record it"; docs only).** The difference the audit
-  fix round posted for the user (above: "One difference has no user ruling") is recorded in S342's row: lite takes a
+  fix round posted for the user (above: "One difference has no user ruling") is recorded (in S342's row; its own scope
+  row, S343, since the re-check below): lite takes a
   format string written into the query only, and refuses one known only at run time by name, where pure accepts it and
   refuses it at run time only if malformed -- lite translates the pattern into each database's syntax while planning,
   and a plan is reused across parameter values. Items (b) and (c) moved to stream D; not touched here.
@@ -22335,4 +22336,31 @@ answers, the same errors outside a run.
   - `//parser-equivalence/...`: 6 of 6.
 - **The gate** at 11e4592ed6 (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
   Postgres-backed targets, refused as root, pass unprivileged (11 of 11).
+
+### 2026-11-15 — C5-J's last round, the re-check's items (PR #106)
+
+The orchestrator's independent re-check of 595adaefe..b70e87085 found no must-fix: no product code reaches an island
+reader past the doors, no user-visible text moved, A3 is word for word and S342 says what the user ruled. Its five items,
+each red on revert where it is code:
+
+- **1, the model package's exemption narrowed.** `PARSE_BY_THE_DOORS` exempted the whole model package, harmless until
+  the island readers it may reach (`:protocol`) became parse entries; it exempts the records door
+  (`ModelFromProtocol`) alone now. Planted: `model.PlantedModelIslandRead` (a model class reading a #Cypher statement).
+  Red on revert: the package exempted again, the planted class is not checked ("failed to check any classes").
+- **2, a dialect's parse on any owner.** A dialect's `parse` counted only on an owner in the protocol layer, and
+  `new PostgresDialect(){}.parse(sql)` compiles to an owner in the caller's package (the dialect is not final, its
+  constructor protected); any `com.legend.` owner that is an `InputDialect` counts now. Planted:
+  `sql.dialect.PlantedDialectSubclassParse` (in the dialect package's tests, which name databases by design). Red on
+  revert: the protocol-only check lets the planted class through.
+- **3, S342's item (a) is its own row, S343 (scope)**, citing the user's ruling of 2026-11-15 in its words; S342 points
+  to it (one row per difference; S342 is a representation, S343 a scope difference).
+- **4, the round trip's outcome pinned per database** (`asor-round-trip/outcomes.tsv`: DuckDB and SQLite build the
+  reference, H2 refuses by name), a resource, so no database is named in code. Red on revert: SQLite pinned as
+  refusing fails it.
+- **5, `ISLAND_READER_HELPERS`' javadoc** dated with its task.
+- **Backlog** (start-here's C5 list; not fixed): H2 builds no object reference (no base64 in SQL; upstream's goldens pin
+  H2's); the frames' lengths outside the BMP (code points in SQL, UTF-16 units in `AsorRef`); `ISLAND_DIALECTS`
+  exempts whole classes (IQ's `reading()` and `defaultName`, `IqNames.name`).
+- **Retested:** `//core:guardrails`, `//core:census`, `//core:core_tests_lowering` pass; the rest of the round's
+  measurements stand (no product code moved: the changes are a guard's, its planted classes, a test's pin and docs).
 
