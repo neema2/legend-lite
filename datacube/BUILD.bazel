@@ -165,6 +165,21 @@ _SCANNED = {
         "src/theme.css",
     ],
     "menu-ids": [":src"],
+    # THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13): the run side's imports and signatures, read
+    # over DataCube's planner and the engine client, and the protocol library the snapshot's runner imports (the
+    # follow-up audit's G2, 2026-11-14), and Studio's and Query's apps with the libraries they import (the final audit
+    # of 9af16fbe58's T5, 2026-11-14)
+    "run-wall": [
+        ":src",
+        "//depot-client:depot_client",
+        "//engine-client:engine_client",
+        "//legend-art:legend_art",
+        "//pure-protocol:pure_protocol",
+        "//query:src",
+        "//query-store:query_store",
+        "//sdlc-client:sdlc_client",
+        "//studio:src",
+    ],
     # everything a build or a person runs from this package
     "portability": [":src", ":scanned_scripts"],
     "state-guardrail": [":src"],
@@ -533,6 +548,37 @@ _SLOW_WALK_TESTS = [
     "page-between",
 ]
 
+# The small tests near `small`'s 60 s on CI, sized `medium` as a class (2026-11-14, the C4 last two rulings' round: PR
+# #101's gates run 43641250351 at 4a8e448917 timed //datacube:brand_casts_test out on Windows at 60.1 s, the second
+# Windows small-test timeout in a row after //python:run_wall_test). Measured from the lanes' test.xml in three CI runs
+# -- main 3a217086a (43529139053), 5fdeb94d54 (43629433980) and 4a8e448917 (43641250351) -- over every test whose
+# timeout is `short` (368): a test is here when CI's Linux took 12 s or more in either Linux run, or CI's Windows 20 s
+# or more in any of the three. CI's Windows is no fixed multiple of CI's Linux in the same run: 0.9-1.0x at the median,
+# 1.6-2.0x at the 90th percentile, up to 6x; and one test's Windows time moves 2x to 6x between two runs of identical
+# inputs (brand_casts 30 s then 60 s+; python:planned_guard 34 s then 6 s). Ten tests, each "CI Linux main/now; CI
+# Windows main/5fdeb94d54/now" in seconds:
+#   //datacube:brand_casts_test         21.0/10.0;   32/30/60.1 TIMEOUT
+#   //datacube:page_app_test            30.0/19.0;   31/30/25
+#   //datacube:live_channel_test        17.0/15.0;   21/22/19
+#   //datacube:chart_tiles_test         17.0/8.0;    -/13/15
+#   //datacube:run_wall_test            -/16.0;      -/21/18 (new in C4)
+#   //datacube:cube_transactions_test   11.0/8.0;    12/21/10
+#   //engine-client:plan_runner_test    24.0/24.0;   17/-/22
+#   //engine-client:model_data_test     12.0/12.0;   11/-/9
+#   //tools/guards:planned_sql_test     13.0/24.7;   16.9/22.3/25.1
+#   //python:planned_guard_test         5.0/8.0;     28/34/6
+# None grew by C4: brand_casts' inputs are byte-identical at 5fdeb94d54 and 4a8e448917 (11.8 s and 12.0 s here, three
+# runs each), and planned_sql_test is 6.9 s on main and 7.3 s here (its CI 13.0 -> 24.7 s is the runner: the same lane's
+# untouched //scripts/corpus:stacking_gate went 14 -> 29 s). The next ones stay small: join_dialog (CI at most 14 s).
+_SLOW_ON_CI_TESTS = [
+    "brand-casts",
+    "page-app",
+    "live-channel",
+    "chart-tiles",
+    "run-wall",
+    "cube-transactions",
+]
+
 # node:test files, each its own node_test (tools/js/defs.bzl: types stripped, the spec and strict reporters, a
 # pinned locale and clock). Each finds its inputs through //tools/js:runfiles.
 [node_test(
@@ -540,7 +586,9 @@ _SLOW_WALK_TESTS = [
     # The tests that load the WebAssembly planner compile it first: seconds on a desk (infer: 6 s), but past
     # `small`'s 60 s on CI's Windows runner while the same lane builds the native image (main's CI run
     # 37214692462, 2026-10-04). Those get `medium` (300 s); the rest stay `small`.
-    size = "medium" if t[len("test/"):-len(".test.ts")] in _WASM_TESTS + _SLOW_DOM_TESTS + _SLOW_WALK_TESTS else "small",
+    size = "medium" if t[len("test/"):-len(".test.ts")] in (
+        _WASM_TESTS + _SLOW_DOM_TESTS + _SLOW_WALK_TESTS + _SLOW_ON_CI_TESTS
+    ) else "small",
     # a scanner reads every source; any other test, the files its imports reach (a test not yet in the generated
     # list takes them all until //datacube:update_generated adds it)
     data = [

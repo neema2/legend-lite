@@ -347,7 +347,7 @@ legend_java_library(
         "src/main/java/com/legend/server/TestDataRoutes.java",
         "src/main/java/com/legend/server/TsTree.java",
     ],
-    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
 )
 legend_java_library(
     name = "server_lib",
@@ -776,14 +776,22 @@ _CORE_TEST_EXCLUDED_TAGS = [
     "arrow",       # the Arrow writer's round-trip gate (track A, 2026-10-29): :arrow_writer_test, with its pyarrow judge
 ]
 
+# THE MANUAL PROBES, each excluded from its package's suites BY NAME (the C4 audit's M3, 2026-11-13: until then by a
+# "probe" tag, which any future test could take and leave every suite silently): a live cloud's measurement asked by
+# hand, each its own manual target (:identifier_escaping_cloud_probe). A class not listed here runs in its package.
+_CORE_MANUAL_PROBES = {
+    "sql": [".*IdentifierEscapingCloudProbeTest"],
+}
+
 [junit_test(
     name = "core_tests_" + p,
     memory_mb = _CORE_TEST_MEMORY_MB,
     size = "large" if p in _CORE_TEST_LARGE else "medium",
+    # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared; a manual probe
+    # in its own target
     select = ["--select-package=com.legend." + p] + (
-        # A7: the differential runs in //core:corpus_differential_test alone, where its data is declared
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
-    ),
+    ) + ["--exclude-classname=" + c for c in _CORE_MANUAL_PROBES.get(p, [])],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     runtime_deps = [
         ":core_tests_lib",
@@ -894,7 +902,7 @@ _JUDGED_PACKAGES = ["compiler", "exec", "integration", "lowering", "normalizer",
     size = "large" if p in _CORE_TEST_LARGE else "medium",
     select = ["--select-package=com.legend." + p] + (
         ["--exclude-classname=.*CorpusDifferentialTest"] if p == "integration" else []
-    ),
+    ) + ["--exclude-classname=" + c for c in _CORE_MANUAL_PROBES.get(p, [])],
     exclude_tags = _CORE_TEST_EXCLUDED_TAGS,
     tags = ["ci-linux-only"],
     runtime_deps = [
@@ -988,6 +996,33 @@ junit_test(
 # through a counting sink by each way a result can cross the session seam (typed columns, the JSON rows wire, a CSV
 # line per row, the whole CSV text), on DuckDB and H2; wall time, the heap's peak, the characters that crossed. Manual:
 # a measurement recorded in GATES, never a gate. The small-heap variant shows which paths drain under 256 MB.
+# THE IDENTIFIER ESCAPING, MEASURED ON A LIVE CLOUD (the orchestrator's item 4, 2026-11-13): IdentifierEscapingTest's
+# name and the injection fuzz's payloads, each the alias of one literal column rendered by Snowflake's or Databricks'
+# dialect and run on the account the cloud lanes' properties file names; each must come back one column, labelled
+# exactly. Set LEGENDLITE_PCT_CLOUD_PROPERTIES (the account) and LEGENDLITE_PROBE_CLOUD (snowflake or databricks).
+# Manual, external and local, as the cloud PCT lanes: it needs the account, a run costs money, and it reads that file.
+junit_test(
+    name = "identifier_escaping_cloud_probe",
+    memory_mb = 1024,
+    env_inherit = [
+        "LEGENDLITE_PCT_CLOUD_PROPERTIES",
+        "LEGENDLITE_PROBE_CLOUD",
+    ],
+    jvm_flags = ["--add-opens=java.base/java.nio=ALL-UNNAMED"],
+    select = ["--select-class=com.legend.sql.dialect.IdentifierEscapingCloudProbeTest"],
+    tags = [
+        "external",
+        "local",
+        "manual",
+    ],
+    runtime_deps = [
+        ":core_tests_lib",
+        ":drivers",
+        "@databricks_jdbc//jar",
+        "@snowflake_jdbc//jar",
+    ],
+)
+
 junit_test(
     name = "seam_benchmark",
     memory_mb = 2048,
@@ -2271,7 +2306,8 @@ java_jars(
 # the hosts' doors to the authored statement, by class: the boundary, the tab's adapter and the native entry, whose
 # reach of the planner's Authored.plan ArchitectureTest.theAuthoredDoorIsReachedFromTheBoundaryAlone pins (the third
 # re-audit's SHOULD-FIX 5, 2026-11-12: until then a source regex alone, PlannedSqlTest.AUTHORED_JAVA_REFERENCE, which a
-# method reference or a static import passed)
+# method reference or a static import passed), and whose reach of ProductStatements.prepare
+# ArchitectureTest.theHostsDoorsPrepareNoProductStatement pins (the follow-up audit's G1, 2026-11-14)
 java_jars(
     name = "authored_door_jars",
     testonly = True,

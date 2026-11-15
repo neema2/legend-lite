@@ -1,0 +1,25 @@
+"""SELECT 1 bare vs in the run frame: 200 alternating batches of 50; paired differences (each framed batch minus the
+bare batch beside it): their median and a bootstrap 95% interval; with Python's GC on, then off."""
+import gc, random, statistics, sys, time
+import duckdb
+from legend_lite._runframe import runs
+con = duckdb.connect()
+sql = sys.argv[1] if len(sys.argv) > 1 else 'select 1'
+def bare(): return con.execute(sql).fetchall()
+framed = runs('a read')(bare)
+for mode in ('gc on', 'gc off'):
+    (gc.enable if mode == 'gc on' else gc.disable)()
+    for _ in range(500): bare(); framed()
+    diffs, b_all, f_all = [], [], []
+    for b in range(200):
+        pair = {}
+        for name, f in ((('bare', bare), ('framed', framed)) if b % 2 == 0 else (('framed', framed), ('bare', bare))):
+            t0 = time.perf_counter_ns()
+            for _ in range(50): f()
+            pair[name] = (time.perf_counter_ns() - t0) / 50
+        diffs.append(pair['framed'] - pair['bare']); b_all.append(pair['bare']); f_all.append(pair['framed'])
+    random.seed(1)
+    boots = sorted(statistics.median(random.choices(diffs, k=len(diffs))) for _ in range(2000))
+    print(f"{sql!r} {mode}: bare median {statistics.median(b_all)/1000:.1f} us, framed median {statistics.median(f_all)/1000:.1f} us;"
+          f" paired difference median {statistics.median(diffs):+.0f} ns, 95% interval [{boots[50]:+.0f}, {boots[1950]:+.0f}] ns")
+gc.enable()

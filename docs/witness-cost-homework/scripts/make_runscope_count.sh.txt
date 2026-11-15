@@ -1,0 +1,15 @@
+#!/bin/bash
+# The COUNT variant of RunScope: the real class, every check counted in a public COUNTS array the probes read by
+# reflection. $1 = base/src/main/java/com/legend/base/RunScope.java, $2 = the output file.
+sed -e 's/^public final class RunScope implements AutoCloseable {/public final class RunScope implements AutoCloseable {\n    \/** MEASUREMENT (witness cost, 2026-11-13; never committed): calls per check, read by the probe. *\/\n    public static final long[] COUNTS = new long[8];   \/\/ planning, plans, enter, opening, statement, judging+callingBack, isPlanning+planningWhat, running/' \
+    -e 's/^    public static void planning(String what) {/    public static void planning(String what) {\n        COUNTS[0]++;/' \
+    -e 's/^    public static Planning plans(String what) {/    public static Planning plans(String what) {\n        COUNTS[1]++;/' \
+    -e 's/^    public static RunScope enter() {/    public static RunScope enter() {\n        COUNTS[2]++;/' \
+    -e 's/^    public static void opening(String act) {/    public static void opening(String act) {\n        COUNTS[3]++;/' \
+    -e 's/^    public static void statement(String act) {/    public static void statement(String act) {\n        COUNTS[4]++;/' \
+    -e 's/^    public static Judging judging() {/    public static Judging judging() {\n        COUNTS[5]++;/' \
+    -e 's/^    public static Judging callingBack() {/    public static Judging callingBack() {\n        COUNTS[5]++;/' \
+    -e 's/^    public static boolean isPlanning() {/    public static boolean isPlanning() {\n        COUNTS[6]++;/' \
+    -e 's/^    public static @Nullable String planningWhat() {/    public static @Nullable String planningWhat() {\n        COUNTS[6]++;/' \
+    -e 's/^    public static boolean running() {/    public static boolean running() {\n        COUNTS[7]++;/' \
+    "$1" > "$2"

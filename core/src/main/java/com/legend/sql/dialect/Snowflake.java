@@ -294,8 +294,7 @@ public final class Snowflake extends AnsiSqlRenderer {
      *  already its own spelling. */
     @Override
     protected String ident(String name) {
-        if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
-                && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"")) {
+        if (quotedIdentifier(name, '"')) {
             return name;
         }
         return delimited(name);

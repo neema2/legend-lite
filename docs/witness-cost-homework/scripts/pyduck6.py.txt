@@ -1,0 +1,48 @@
+"""SELECT 1 per call, paired with bare batch by batch: a plain do-nothing wrapper, a wrapper that sets and resets the
+frame's variable directly (token = _RUN.set; finally _RUN.reset), and the frame as shipped (@runs: contextlib's
+generator context manager)."""
+import functools, random, statistics, time
+import duckdb
+from legend_lite._runframe import runs, in_run, _RUN
+con = duckdb.connect()
+def bare(): return con.execute('select 1').fetchall()
+def plain(f):
+    @functools.wraps(f)
+    def w(*a, **k): return f(*a, **k)
+    return w
+def direct(what):
+    def wrap(f):
+        @functools.wraps(f)
+        def w(*a, **k):
+            token = _RUN.set(what)
+            try:
+                return f(*a, **k)
+            finally:
+                _RUN.reset(token)
+        return w
+    return wrap
+def old_runs(what):
+    def wrap(f):
+        @functools.wraps(f)
+        def w(*a, **k):
+            with in_run(what):
+                return f(*a, **k)
+        return w
+    return wrap
+variants = {'plain wrapper': plain(bare), 'the old frame (in_run\'s generator)': old_runs('a read')(bare), 'the frame as shipped now (@runs, direct)': runs('a read')(bare)}
+def batch(f, n=50):
+    t0 = time.perf_counter_ns()
+    for _ in range(n): f()
+    return (time.perf_counter_ns() - t0) / n
+for _ in range(20):
+    batch(bare)
+    for f in variants.values(): batch(f)
+d = {k: [] for k in variants}
+for b in range(200):
+    for name, f in (variants.items() if b % 2 == 0 else reversed(list(variants.items()))):
+        a1 = batch(bare); x = batch(f); a2 = batch(bare)
+        d[name].append(x - (a1 + a2) / 2)
+random.seed(1)
+for name, ds in d.items():
+    boots = sorted(statistics.median(random.choices(ds, k=len(ds))) for _ in range(2000))
+    print(f"SELECT 1, {name:30s}: per call {statistics.median(ds):+6.0f} ns vs bare, 95% interval [{boots[50]:+.0f}, {boots[1950]:+.0f}] ns")

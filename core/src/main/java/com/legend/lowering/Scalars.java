@@ -3454,7 +3454,9 @@ final class Scalars {
             pat = pat.substring(0, pat.length() - 1);
         }
         if (pat.contains("Z")) {
-            throw new IllegalStateException(
+            // a construct not implemented, refused by name as DateFormats refuses an unsupported token (the C4 final fix
+            // round's B4, 2026-11-14: until then a bare IllegalStateException, which the server answered 500 as a bug)
+            throw new NotImplementedException(
                     "a zone-shifted date pattern supports Z only as a suffix: " + pattern);
         }
         SqlExpr wall = SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit(zone),

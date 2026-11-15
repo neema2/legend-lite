@@ -17,4 +17,15 @@ public final class PlantedServerMint {
     public static java.util.UUID minted() {
         return java.util.UUID.randomUUID();
     }
+
+    /** An id minted by the method's reference, never called (the next PR's item 1, 2026-11-13: the method rules read
+     *  calls alone). */
+    public static final class ByReference {
+        private ByReference() {
+        }
+
+        public static java.util.function.Supplier<java.util.UUID> minting() {
+            return java.util.UUID::randomUUID;
+        }
+    }
 }

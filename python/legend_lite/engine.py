@@ -1107,7 +1107,9 @@ class Engine:
         if found is None:
             return _said(404, f'{schema}.{name} is not a table {signed.principal} may read in {catalog}')
         spec = {'table': name, 'schema': schema, 'convertible': False, 'databaseType': found['databaseType'],
-                'columns': [{**c, 'dataType': c['type']} for c in found['columns']]}
+                # the catalog's 'type' renamed, never carried beside it: the planner's tableModel refuses a key it
+                # has not (2026-11-13, every request door closed by only(...))
+                'columns': [{('dataType' if k == 'type' else k): v for k, v in c.items()} for c in found['columns']]}
         # on the compiler's threads -- in place on one, DataCube's thread among them (F29: never waiting on the pool)
         written = _on_compiler_threads(lambda: compiler.table_model(spec))
         if self.frames.held_for(written['model']) is not None:

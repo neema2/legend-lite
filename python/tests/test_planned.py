@@ -13,6 +13,7 @@ from legend_lite._library import library
 from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, _keyed_text, across_the_bridge, all_from_plan,
                                   from_plan, plan_from_answer, send)
 from legend_lite._planner import answer
+from legend_lite._runframe import current_run, in_run, planning, runs
 from legend_lite.compiler import LegendError
 from legend_lite.frames import execute_redacted
 
@@ -386,6 +387,260 @@ class HostOperationsTextTest(unittest.TestCase):
                                                          'convert': [{'name': 'big', 'dataType': 'UBIGINT',
                                                                       'logicalType': 'UBIGINT'}]}])
         self.assertIn('CAST("big" AS DECIMAL(20,0))', copy)
+
+
+class _RunWitness:
+    """A duckdb-python connection that records the run each text it is handed arrived inside (the witness)."""
+
+    def __init__(self, con):
+        self._con, self.runs = con, []
+
+    def execute(self, sql, params=None):
+        self.runs.append(current_run())
+        return self._con.execute(sql) if params is None else self._con.execute(sql, params)
+
+    def __getattr__(self, name):
+        return getattr(self._con, name)
+
+
+class RunFrameTest(unittest.TestCase):
+    """THE RUN FRAME (_runframe.py, the next PR's item 2, "separation made foolproof": the standing witness, 2026-11-13):
+    a planner entry -- the native library's every entry but its services -- asked inside a run of its own flow is
+    refused by name; outside one, after one and on another thread while one runs, it answers. The runners' sends are
+    each inside a run."""
+
+    def test_a_planner_entry_is_refused_inside_a_run_and_answers_outside_one(self):
+        planning('plan')
+        with in_run("a test's run"):
+            self.assertEqual(current_run(), "a test's run")
+            with self.assertRaisesRegex(RuntimeError, r"the planner was asked 'plan' inside a run \(a test's run\)"):
+                planning('plan')
+            with self.assertRaisesRegex(RuntimeError, r"the planner was asked 'lite_session_setup' inside a run"):
+                library().call('lite_session_setup', 'DuckDB')
+            # a service plans nothing: the site's types answer inside a run
+            self.assertTrue(library().call('lite_site_types').startswith('OK'))
+        self.assertIsNone(current_run(), 'the run ended with its block')
+        self.assertTrue(library().call('lite_session_setup', 'DuckDB').startswith('OK'))
+
+    def test_the_frame_is_the_flows_another_thread_plans_while_a_run_is_open(self):
+        import threading
+        seen = []
+        with in_run("a test's run"):
+            other = threading.Thread(target=lambda: seen.append((current_run(), compiler.session_setup('DuckDB') != [])))
+            other.start()
+            other.join()
+        self.assertEqual(seen, [(None, True)])
+
+    def test_a_runs_frame_ends_with_its_call_whether_it_returns_or_raises(self):
+        # the frame `runs` marks is the call's own: after the call -- returned or raised -- the flow is in no run, and
+        # the planner answers again (the orchestrator's condition for the direct set/reset, 2026-11-13)
+        @runs("a test's run")
+        def returns():
+            self.assertEqual(current_run(), "a test's run")
+            return 'answered'
+
+        @runs("a test's run")
+        def raises():
+            self.assertEqual(current_run(), "a test's run")
+            raise KeyError('the run failed')
+
+        self.assertEqual(returns(), 'answered')
+        self.assertIsNone(current_run(), 'the run ended with its call')
+        with self.assertRaisesRegex(KeyError, 'the run failed'):
+            raises()
+        self.assertIsNone(current_run(), 'the run ended with its call, which raised')
+        planning('plan')
+
+    def test_a_run_inside_a_run_names_itself_and_hands_back_the_outer(self):
+        @runs('the inner run')
+        def inner(fail):
+            self.assertEqual(current_run(), 'the inner run')
+            if fail:
+                raise KeyError('the inner run failed')
+
+        with in_run('the outer run'):
+            inner(False)
+            self.assertEqual(current_run(), 'the outer run')
+            with self.assertRaisesRegex(KeyError, 'the inner run failed'):
+                inner(True)
+            self.assertEqual(current_run(), 'the outer run', 'the outer run holds after the inner one raised')
+            with self.assertRaisesRegex(RuntimeError, r"asked 'plan' inside a run \(the outer run\)"):
+                planning('plan')
+        self.assertIsNone(current_run())
+
+    def test_each_python_run_sends_inside_its_own_run(self):
+        # Reading.run, Frames.run, run_write and run_host_load (the C4 audit's M3, 2026-11-13: no test asserted these
+        # four, so a run taken off one passed; the run wall pins them by name too): each statement each sends is sent
+        # inside the run it names
+        from unittest import mock
+        import pyarrow as pa
+        from legend_lite import frames as frames_module
+        con = duckdb.connect()
+        con.execute("CREATE TABLE t (id INTEGER, desk VARCHAR, qty DOUBLE)")
+        con.execute("INSERT INTO t VALUES (1, 'FX', 1.5)")
+        witness = _RunWitness(con)
+        projects.run_write(compiler.snap_copy({'databaseType': 'DuckDB', **_pull(), 'table': 'copied'}), Database(witness))
+        self.assertEqual(set(witness.runs), {'a plan of writes'})
+        witness = _RunWitness(duckdb.connect())
+        load = compiler.frame_load({'databaseType': 'DuckDB', 'held': 'h', 'as': '__legend_lite_h', 'live': True,
+                                    'schema': 'main', 'relation': 'h'})
+        projects.run_host_load(load, Database(witness), values=lambda held: pa.table({'x': [1]}))
+        self.assertTrue(witness.runs and set(witness.runs) == {"a host's load"}, witness.runs)
+        frames = frames_module.Frames()
+        table = frames.register('trades', pa.table({'id': [1, 2], 'desk': ['FX', 'EQ']}))
+        seen = []
+        real = frames_module.send
+
+        def recording(*args, **kwargs):
+            seen.append(current_run())
+            return real(*args, **kwargs)
+
+        with mock.patch.object(frames_module, 'send', recording):
+            table.execute('->select(~[desk])')
+            self.assertTrue(seen and set(seen) == {'a plan'}, seen)
+            seen.clear()
+            plan = table.plan('->select(~[desk])')
+            with frames.reading() as read:
+                # what the read's own run sends: the read's session setup, sent as it begins, is no run's (frames at
+                # every send site are the follow-up stream's, C5)
+                seen.clear()
+                read.run(plan)
+                self.assertTrue(seen and set(seen) == {'a read'}, seen)
+
+    def test_a_planner_entry_asked_through_the_pool_inside_a_run_is_refused(self):
+        # the C4 audit's M4, 2026-11-13: the pool's thread ran a call in its own, empty context, so a run's frame did not
+        # reach it and a planner entry asked through it inside a run answered; the call now runs in a copy of the
+        # caller's context. A service and a held model let go stay exempt, as on the caller's own thread.
+        from legend_lite._pool import _on_compiler_threads
+        held = compiler.HeldModel(_PULL_MODEL)
+        with in_run("a test's run"):
+            with self.assertRaisesRegex(RuntimeError, r"asked 'lite_session_setup' inside a run \(a test's run\)"):
+                _on_compiler_threads(lambda: library().call('lite_session_setup', 'DuckDB'))
+            self.assertTrue(_on_compiler_threads(lambda: library().call('lite_site_types')).startswith('OK'))
+            _on_compiler_threads(held.close)
+        self.assertTrue(_on_compiler_threads(lambda: library().call('lite_session_setup', 'DuckDB')).startswith('OK'))
+
+    def test_no_crossing_is_known_and_none_is_exempt(self):
+        # shrink-only: the read's re-pin went with the user's ruling (1b), 2026-11-13; a gone session's finalizer (named
+        # 2026-11-14, the final audit of 9af16fbe58's P6) went with the user's ruling (b) that day, the C4 final fix
+        # round's D2: it queues its session, drained outside any run. The mechanism stays, refusing every name
+        from legend_lite._runframe import EXEMPTIONS, exempt
+        self.assertEqual(EXEMPTIONS, frozenset())
+        with in_run("a test's run"):
+            for crossing in ("a read's re-pin after its statement failed",
+                             "a gone session's frames let go (its finalizer may land inside a run)",
+                             'a crossing of my own'):
+                with self.assertRaisesRegex(ValueError, 'no known crossing is named'):
+                    with exempt(crossing):
+                        pass
+            with self.assertRaisesRegex(RuntimeError, 'inside a run'):
+                planning('plan')
+
+    def _gone_session(self, connection):
+        """A marimo session over ``connection``, a frame registered, held as marimo's sessions are (its key)."""
+        import pyarrow as pa
+        from legend_lite import datacube
+        from legend_lite.frames import Frames
+        session = datacube._Session()
+        session.frames = Frames(connection)
+        session.frames.register('gone_t', pa.table({'a': [1, 2]}))
+        key = id(session)
+        with datacube._marimo_lock:
+            datacube._marimo_sessions[key] = session
+        self.addCleanup(lambda: datacube._marimo_sessions.pop(key, None))
+        return session, key
+
+    def test_a_gone_sessions_finalizer_sends_nothing_inside_a_run_and_its_frames_go_after_it(self):
+        # the user's ruling (b) of 2026-11-14, the C4 final fix round's D2: garbage collection runs datacube._release (a
+        # weakref.finalize) wherever it fires, a run's flow included -- it queues the session and sends nothing there;
+        # the next call that finds its session (_current), outside any run, lets the session's frames go
+        from legend_lite import datacube
+        witness = _RunWitness(duckdb.connect())
+        session, key = self._gone_session(witness)
+        sent = len(witness.runs)
+        with in_run("a test's run"):
+            datacube._release(key, session)
+            self.assertEqual(current_run(), "a test's run")
+            # a call that finds its session inside a run leaves the queue for the next
+            datacube._current()
+        self.assertEqual(len(witness.runs), sent, 'the finalizer sent nothing inside the run')
+        self.assertIn('gone_t', session.frames._tables)
+        self.assertIn(key, datacube._marimo_sessions)
+        datacube._current()
+        self.assertEqual(session.frames._tables, {})
+        self.assertNotIn(key, datacube._marimo_sessions)
+        self.assertNotIn((key, session), datacube._gone)
+        self.assertGreater(len(witness.runs), sent)
+        self.assertNotIn("a test's run", witness.runs[sent:])
+
+    def test_no_drop_of_a_gone_session_interleaves_with_a_runs_statements(self):
+        # D2: a run's statements on one database, the finalizer of another session firing between them: every statement
+        # the gone session's frames send comes after the run's last, each inside its own host operations' run
+        from legend_lite import datacube
+        log = []
+
+        class Logged(_RunWitness):
+            def __init__(self, con, who):
+                super().__init__(con)
+                self.who = who
+
+            def execute(self, sql, params=None):
+                log.append((self.who, current_run(), str(sql)))
+                return super().execute(sql, params)
+
+        session, key = self._gone_session(Logged(duckdb.connect(), 'gone'))
+        running = Database(Logged(duckdb.connect(), 'run'))
+        del log[:]
+        with in_run("a test's run"):
+            send(running, PlannedSql('SELECT 1'))
+            datacube._release(key, session)
+            send(running, PlannedSql('SELECT 2'))
+        datacube._current()
+        whose = [who for who, _, _ in log]
+        self.assertEqual(whose[:2], ['run', 'run'], log)
+        gone = log[2:]
+        self.assertTrue(gone and all(who == 'gone' for who, _, _ in gone), log)
+        self.assertTrue(any('DROP' in sql.upper() for _, _, sql in gone), log)
+        self.assertEqual({run for _, run, _ in gone}, {"a host's operations"}, log)
+
+    def test_a_gone_sessions_cleanup_error_is_reported_never_raised_and_the_queue_goes_on(self):
+        # the C4 second small round's item 2b, 2026-11-14: a gone session's cleanup error is no caller's failure -- it
+        # is reported through sys.unraisablehook (as a finalizer's error was, before the finalizer only queued), the
+        # call that drained the queue raises nothing, and the next queued session is let go all the same
+        import sys
+        from unittest import mock
+        from legend_lite import datacube
+        first, first_key = self._gone_session(duckdb.connect())
+        second, second_key = self._gone_session(duckdb.connect())
+        reported = []
+        with mock.patch.object(first.frames, 'close', side_effect=duckdb.IOException('the drop failed')), \
+                mock.patch.object(sys, 'unraisablehook', reported.append):
+            datacube._release(first_key, first)
+            datacube._release(second_key, second)
+            datacube._current()
+        self.assertEqual(len(reported), 1, reported)
+        self.assertIn("a gone marimo session's frames was not let go: the drop failed", str(reported[0].exc_value))
+        self.assertIsInstance(reported[0].exc_value.__cause__, duckdb.IOException)
+        self.assertNotIn(first_key, datacube._marimo_sessions)
+        self.assertNotIn(second_key, datacube._marimo_sessions)
+        self.assertEqual(second.frames._tables, {})
+        self.assertEqual(len(datacube._gone), 0)
+
+    def test_each_runner_sends_inside_its_run(self):
+        import os
+        fixture = json.loads(open(os.environ['LEGEND_LITE_RUN_LOAD_FIXTURE'], encoding='utf-8').read())
+        project = compiler.project_data(fixture['model'], fixture['databaseType'])
+        seen = []
+        projects.run_load(project['load'], lambda statement: seen.append(current_run()))
+        self.assertTrue(seen and set(seen) == {'a load'}, seen)
+        witness = _RunWitness(duckdb.connect())
+        db = Database(witness)
+        _host.run(db, {'op': 'schema', 'name': 'witnessed'})
+        _host.ask(db, {'op': 'platform'})
+        self.assertEqual(witness.runs, ["a host's operations", "a host's question"])
+        # a run's planner entry, refused inside it: a load whose execute asks the planner
+        with self.assertRaisesRegex(RuntimeError, r"asked 'lite_session_setup' inside a run \(a load\)"):
+            projects.run_load(project['load'], lambda statement: compiler.session_setup('DuckDB'))
 
 
 class TheBridgeTest(unittest.TestCase):

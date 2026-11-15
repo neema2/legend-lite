@@ -1,0 +1,9 @@
+public final class CountRun {
+    public static void main(String[] a) throws Exception {
+        long[] before = ((long[]) Class.forName("com.legend.base.RunScope").getField("COUNTS").get(null)).clone();
+        com.legend.integration.RunProbe.main(a);
+        long[] c = (long[]) Class.forName("com.legend.base.RunScope").getField("COUNTS").get(null);
+        System.out.println("[count] planning=" + c[0] + " plans=" + c[1] + " enter=" + c[2] + " opening=" + c[3] + " statement=" + c[4]
+                + " judging/callingBack=" + c[5] + " isPlanning/planningWhat=" + c[6] + " running=" + c[7]);
+    }
+}

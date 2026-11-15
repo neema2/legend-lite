@@ -647,15 +647,395 @@ final class ArchitectureTest {
      */
     @Test
     void theProgramRoadsTestEntryIsTheTestDoors() {
-        noClasses()
+        PROGRAM_ROAD_TEST_ENTRY.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #theProgramRoadsTestEntryIsTheTestDoors} over the hosts' doors as well (the final audit of 9af16fbe58's J2,
+     *  2026-11-14: a class in the boundary's package {@code planner} called PlanMaker.testProgram and had raw SQL
+     *  planned, the rule reading core alone). */
+    @Test
+    void theHostsDoorsReachNotTheProgramRoadsTestEntry() {
+        PROGRAM_ROAD_TEST_ENTRY.check(coreAndTheHostsDoors());
+    }
+
+    /** The plan handles' scans each ask {@code PlanAllocations.noLineageRows} before answering "no rows" for a
+     *  lowering's failure, so the raw-SQL refusal propagates by name (the final audit of 9af16fbe58's J7, 2026-11-14:
+     *  the catches swallowed Compiler.lowerResolved's refusal). The predicate is ProductStatementsTest's
+     *  theLineageScansLetTheRawSqlRefusalThrough (the refusal told apart by its class, com.legend.error.RawSqlRefusal);
+     *  that the refusal is rethrown, BodyRouterParityTest's theColumnLineageScanLetsTheRawSqlRefusalThroughAsItself
+     *  (a body's failure is the refusal itself, under both judges; the C4 final fix round's nit, 2026-11-14). */
+    @Test
+    void thePlanHandlesScansLetTheRawSqlRefusalThrough() {
+        com.tngtech.archunit.core.domain.JavaClass allocations = CORE_PROD_CLASSES.get(
+                com.legend.planner.PlanAllocations.class);
+        for (String scan : java.util.List.of("registerPlanRows", "registerLineageRows", "registerColumnLineageRows")) {
+            org.junit.jupiter.api.Assertions.assertTrue(allocations.getMethods().stream()
+                    .filter(m -> m.getName().equals(scan))
+                    .flatMap(m -> m.getMethodCallsFromSelf().stream())
+                    .anyMatch(c -> c.getName().equals("noLineageRows")), scan + " answers no rows without asking");
+        }
+    }
+
+    /** {@link #PROGRAM_ROAD_TEST_ENTRY} fails on a planted caller outside the test door ({@code server.PlantedTestProgram},
+     *  the final audit of 9af16fbe58's J2: until then no planted violator held it). */
+    @Test
+    void theProgramRoadRuleBitesAPlantedCaller() {
+        bites(PROGRAM_ROAD_TEST_ENTRY, com.legend.server.PlantedTestProgram.class);
+    }
+
+    /** B12 item 1 (the rule of {@link #theProgramRoadsTestEntryIsTheTestDoors}): a call or a reference
+     *  ({@link #invokesWhere}). */
+    static final com.tngtech.archunit.lang.ArchRule PROGRAM_ROAD_TEST_ENTRY = noClasses()
             .that().resideOutsideOfPackage("com.legend.testplan")
-            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.AccessTarget.Predicates.declaredIn(
-                            com.legend.planner.PlanMaker.class))
-                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                            com.tngtech.archunit.core.domain.properties.HasName.Predicates.name("testProgram"))))
-            .as("B12 item 1: the program road's test entry is the test door's")
-            .check(CORE_PROD_CLASSES);
+            .should().accessTargetWhere(invokesWhere("PlanMaker.testProgram",
+                    a -> a.getTargetOwner().isEquivalentTo(com.legend.planner.PlanMaker.class)
+                            && a.getName().equals("testProgram")))
+            .as("B12 item 1: the program road's test entry is the test door's");
+
+    /**
+     * <strong>A product statement is prepared by the planners alone (the C4 audit's M5, 2026-11-13).</strong>
+     * {@code ProductStatements.prepare} is the first step of the product's road (the inliner, the resolver, the
+     * cross-store and raw-SQL guards before the lowering); its plan and lowering steps ({@code planned}, {@code lower},
+     * {@code lowerer}) are package-private to the planner. Only the planner's own package and the test planner's call
+     * it, by a call or a reference. {@link #thePrepareRuleBitesAPlantedCaller} shows it bites.
+     */
+    @Test
+    void aProductStatementIsPreparedByThePlannersAlone() {
+        PREPARE_IS_THE_PLANNERS.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #aProductStatementIsPreparedByThePlannersAlone} over the hosts' doors as well (the follow-up audit's G1,
+     *  2026-11-14): the boundary ({@code //wasm:boundary}, its package {@code planner}, outside the planners'), the
+     *  tab's adapter ({@code //wasm:tab}) and the native entry ({@code //native:entry}) prepare no product statement
+     *  either. */
+    @Test
+    void theHostsDoorsPrepareNoProductStatement() {
+        JavaClasses classes = coreAndTheHostsDoors();
+        // each host's door is held by the rule: none resides in the planners' packages, which the rule exempts
+        for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.nativelib.Compiler")) {
+            org.junit.jupiter.api.Assertions.assertFalse(classes.get(door).getPackageName().matches(
+                    "com\\.legend\\.(planner|testplan)(\\..*)?"), door + " is exempt from the rule");
+        }
+        PREPARE_IS_THE_PLANNERS.check(classes);
+    }
+
+    /**
+     * <strong>A MODEL'S RECORDS ARE READ BY THE CHECKED DOORS ALONE (the final audit of 9af16fbe58's J5,
+     * 2026-11-14).</strong> The model's door ({@code model.ModelFromProtocol}: records in, the compiler's parsed model
+     * out) is pure data -- its package reaches protocol, values and error alone (invariant 6j, {@link #modelIsPureData})
+     * -- so it cannot ask the run's wall itself. Its callers do, and are these alone, default-deny: the root's
+     * {@code Compiler} (whose {@code compileModel(records)} asks first) and {@code door.ModelFromText} (whose
+     * {@code parse} and {@code element} ask first). A new caller is named here the day it is written.
+     */
+    @Test
+    void aModelsRecordsAreReadByTheCheckedDoorsAlone() {
+        MODEL_RECORDS_BY_THE_CHECKED_DOORS.check(coreAndTheHostsDoors());
+    }
+
+    /** {@link #aModelsRecordsAreReadByTheCheckedDoorsAlone} fails on a class that reads a model's records past the
+     *  checked doors, by a call and by a reference ({@code server.PlantedModelRead}, planted for this alone). */
+    @Test
+    void theModelRecordsRuleBitesAPlantedCaller() {
+        bites(MODEL_RECORDS_BY_THE_CHECKED_DOORS, com.legend.server.PlantedModelRead.class);
+        bites(MODEL_RECORDS_BY_THE_CHECKED_DOORS, com.legend.server.PlantedModelRead.ByReference.class);
+    }
+
+    /** The rule of {@link #aModelsRecordsAreReadByTheCheckedDoorsAlone}. */
+    static final com.tngtech.archunit.lang.ArchRule MODEL_RECORDS_BY_THE_CHECKED_DOORS = noClasses()
+            .that().resideOutsideOfPackage("com.legend.model")
+            .and().doNotHaveFullyQualifiedName("com.legend.Compiler")
+            .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
+            .should().accessTargetWhere(invokesWhere("ModelFromProtocol.of or element",
+                    a -> a.getTargetOwner().isEquivalentTo(com.legend.model.ModelFromProtocol.class)
+                            && (a.getName().equals("of") || a.getName().equals("element"))))
+            .as("J5 (2026-11-14): a model's records are read by the doors that ask the run's wall alone");
+
+    /** The rule of {@link #aProductStatementIsPreparedByThePlannersAlone}. */
+    static final com.tngtech.archunit.lang.ArchRule PREPARE_IS_THE_PLANNERS = noClasses()
+            .that().resideOutsideOfPackages("com.legend.planner", "com.legend.testplan")
+            .should().accessTargetWhere(invokesWhere("ProductStatements.prepare",
+                    a -> a.getTargetOwner().isEquivalentTo(com.legend.planner.ProductStatements.class)
+                            && a.getName().equals("prepare")))
+            .as("M5 (2026-11-13): a product statement is prepared by the planner and the test planner alone");
+
+    /**
+     * <strong>THE PLANNER'S ENTRY POINTS, DEFAULT-DENY (the final audit of 9af16fbe58's J1, 2026-11-14; until then
+     * LOWERING_IS_THE_PLANNERS listed what was forbidden, and a probe in the server's package reached five public routes
+     * it did not name).</strong> Outside the planner, the test planner and the lowering's own packages (each with its
+     * subpackages), a class -- core's, the root's {@code Compiler} among them (exempt until the C4 final fix round's T3,
+     * 2026-11-14), the boundary's, the tab's adapter's, the native entry's -- reaches a member of those packages (a
+     * call, a reference, a constructor, a field: an enum's constant too) ONLY if that member, by its full signature, is
+     * listed in {@link #PLANNER_ENTRIES} with the class among its callers. Anything else -- a Lowerer constructed, a
+     * lowering static, a frame's chain or CTE, an activity's SQL, a seed's planning, a routine table, a new overload of
+     * a listed name, a listed entry from a class not its caller -- is refused, so a new route is named the day it is
+     * called. Narrowed first, so no allowlist entry was needed for them: ProductStatements'
+     * {@code planned}, {@code lower}, {@code lowerer} and {@code storeWrite}; BodyPlanner's {@code lowerAndPrepare},
+     * {@code lowererFor}, {@code prepare} and {@code bare}; {@code PlanMaker.copyInto}; EnginePlans' {@code engineSql},
+     * {@code engineTestSql} and {@code planModel}; {@code SidePlanner.prepare} and {@code PlanAllocations.node}. The
+     * list moves only with a dated note naming the task. {@link #thePlannerEntriesRuleBitesAPlantedCaller} shows it
+     * bites, on ten planted callers ({@code server.PlantedLowering}): the audit's five probes, a Lowerer constructed by
+     * a call and by a reference, a view's fetch, a side's staging by its reference and the seedable lets' prefix.
+     */
+    @Test
+    void thePlannersAreReachedByTheirListedEntriesAlone() {
+        PLANNER_ENTRIES_ONLY.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #thePlannersAreReachedByTheirListedEntriesAlone} over the hosts' doors as well (//wasm:boundary,
+     *  //wasm:tab, //native:entry). */
+    @Test
+    void theHostsDoorsReachThePlannersByTheirListedEntriesAlone() {
+        PLANNER_ENTRIES_ONLY.check(coreAndTheHostsDoors());
+    }
+
+    /** THE PLANNER'S ENTRY POINTS from outside it, each by its owner (its binary name past {@code com.legend.}), its
+     *  member and, for a method or a constructor, its parameters ({@link #entryKey}), with the classes that reach it
+     *  (each a top-level class's binary name: its nested and anonymous classes are its own), measured over core's
+     *  classes and the hosts' doors, 2026-11-14 (the final audit of 9af16fbe58's J1). Since the C4 final fix round's T3
+     *  (2026-11-14) an entry is its full signature, so a new overload of a listed name is no entry until it is listed,
+     *  and its callers are listed with it, so a listed entry reached from another class is refused; the root's Compiler
+     *  is checked as every class is, its own entries listed (QueryDoor's (List, SpecCompiler) overload among them, which
+     *  the key by name admitted to every caller). {@link #thePlannerEntriesAreTheMeasuredOnesExactly} pins the list to
+     *  what is reached, so an entry no class reaches any more goes. Moves only with a dated note naming the task. */
+    static final java.util.Map<String, java.util.Set<String>> PLANNER_ENTRIES = entries(
+            // the query door, from the root's TypedQuery: a query's plan (QueryDoor first), its runtime, its parameters
+            "planner.PlanMaker#plan(com.legend.TypedQuery, java.lang.String, java.util.Set, boolean)",
+            "com.legend.TypedQuery",
+            "planner.PlanMaker#runtimeOf(com.legend.TypedQuery, java.lang.String)", "com.legend.TypedQuery",
+            "planner.QueryParameters$Declared#<init>(java.lang.String, com.legend.compiler.element.type.Type, "
+                    + "com.legend.compiler.element.type.Multiplicity)", "com.legend.TypedQuery",
+            // the test door, from the root's TestExecution: a test body's plan
+            "testplan.TestPlanner#plan(com.legend.TypedQuery, java.lang.String, com.legend.testplan.PlanningOptions)",
+            "com.legend.TestExecution",
+            // the test door's options, from the root's ExecuteOptions: planning's half, a record of closed words
+            "testplan.PlanningOptions#<init>(com.legend.testexecutionplan.Edge, com.legend.executionplan.DataStores, "
+                    + "java.util.Set, com.legend.testplan.PlanningOptions$JudgeMode, "
+                    + "com.legend.testexecutionplan.TestPlan$JudgingRules, java.util.Set)", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#edge()", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#judgeMode()", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#judgingRules()", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#rules(boolean)", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#withEngineCompat(boolean)", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#withFeatures(java.util.Set)", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#withJudgeMode(com.legend.testplan.PlanningOptions$JudgeMode)",
+            "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions#withOptions(java.util.Set)", "com.legend.ExecuteOptions",
+            "testplan.PlanningOptions$JudgeMode#HOST", "com.legend.ExecuteOptions",
+            // the test-data routes (server.TestDataRoutes): the raw-SQL refusal of a typed query, and the seed's one
+            // entry, which refuses
+            "planner.ProductStatements#lowerTestDataSeed(com.legend.TypedQuery, java.lang.String)",
+            "com.legend.server.TestDataRoutes",
+            "planner.QueryDoor#refuseRawSql(com.legend.TypedQuery)", "com.legend.server.TestDataRoutes",
+            // the root's Compiler, the lowering of a resolved query (lowerResolved): QueryDoor's refusal of a typed
+            // body's executeInDb read (its (List, SpecCompiler) overload, the G1 follow-up audit's, 2026-11-14), the
+            // cross-store guard, the Lowerer and its object sites, the platform's registrations, and a program's facts
+            // (the PCT runner reads them too)
+            "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
+                    + "com.legend.platform.ImplementationTable)", "com.legend.Compiler",
+            "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler",
+            "lowering.Lowerer#withEngineExistsJoinForm()", "com.legend.Compiler",
+            "lowering.Lowerer#withInstanceKeys(java.util.function.Function)", "com.legend.Compiler",
+            "lowering.Lowerer#withObjectIdentity(java.util.function.Function)", "com.legend.Compiler",
+            "lowering.ObjectSites#<init>()", "com.legend.Compiler",
+            "lowering.ObjectSites#idOf(java.lang.Object)", "com.legend.Compiler",
+            "lowering.PlatformRegistrations#current()", "com.legend.Compiler com.legend.probe.Shadow",
+            "planner.CrossStoreGuard#check(java.util.List, com.legend.compiler.element.ModelContext, "
+                    + "java.lang.String)", "com.legend.Compiler",
+            "planner.ProgramFacts#<init>(boolean, boolean, boolean, java.util.Set, java.lang.String)",
+            "com.legend.Compiler",
+            "planner.ProgramFacts#effects()", "com.legend.Compiler com.legend.test.PureTestRunner",
+            "planner.QueryDoor#refuseRawSql(java.util.List, com.legend.compiler.spec.SpecCompiler)",
+            "com.legend.Compiler",
+            // the PCT runner's facts of a test body (test.PureTestRunner): read, never planned
+            "planner.ProgramFacts#seedsInlineCsv()", "com.legend.test.PureTestRunner",
+            "planner.ProgramFacts#shape()", "com.legend.test.PureTestRunner",
+            "planner.ProgramFacts#verdicts()", "com.legend.test.PureTestRunner",
+            // the boundary's doors (//wasm:boundary's planner.Boundary, its anonymous classes included): each request
+            // door's planner
+            "lowering.LiteralSpelling#inZone(java.lang.String, java.lang.String)", "planner.Boundary",
+            "planner.Authored#plan(com.legend.sql.dialect.SqlDialect, com.legend.executionplan.DatabaseType, "
+                    + "java.lang.String)", "planner.Boundary",
+            "planner.ConnectionPlans#type(com.legend.model.ConnectionDefinition$DatabaseType)", "planner.Boundary",
+            "planner.LoadPlanner#frameLoad(com.legend.sql.dialect.SqlDialect, com.legend.executionplan.DatabaseType, "
+                    + "com.legend.planner.LoadPlanner$FrameLoad)", "planner.Boundary",
+            "planner.LoadPlanner#hostFile(com.legend.sql.dialect.SqlDialect, com.legend.executionplan.DatabaseType, "
+                    + "com.legend.executionplan.DataRef, com.legend.planner.LoadPlanner$HostFileInto)",
+            "planner.Boundary",
+            "planner.LoadPlanner#projectData(com.legend.compiler.element.ModelContext, "
+                    + "com.legend.sql.dialect.SqlDialect, com.legend.executionplan.DatabaseType)", "planner.Boundary",
+            "planner.LoadPlanner#remoteMount(com.legend.sql.dialect.SqlDialect, "
+                    + "com.legend.executionplan.DatabaseType, com.legend.planner.LoadPlanner$RemoteMount)",
+            "planner.Boundary",
+            "planner.LoadPlanner#snapStream(com.legend.sql.dialect.SqlDialect, "
+                    + "com.legend.executionplan.DatabaseType, com.legend.planner.LoadPlanner$SnapStream)",
+            "planner.Boundary",
+            "planner.LoadPlanner$BearerLocation#<init>(java.lang.String, java.lang.String)", "planner.Boundary",
+            "planner.LoadPlanner$DeclaredTable#<init>(com.legend.compiler.element.ModelContext, java.lang.String, "
+                    + "java.lang.String, java.lang.String)", "planner.Boundary",
+            "planner.LoadPlanner$FrameLoad#<init>(java.lang.String, java.lang.String, boolean, java.lang.String, "
+                    + "java.lang.String)", "planner.Boundary",
+            "planner.LoadPlanner$NewTable#<init>(java.lang.String)", "planner.Boundary",
+            "planner.LoadPlanner$PlainLocation#<init>(java.lang.String)", "planner.Boundary",
+            "planner.LoadPlanner$RemoteCredentials#<init>(java.lang.String, java.util.List)", "planner.Boundary",
+            "planner.LoadPlanner$RemoteMount#<init>(java.lang.String, com.legend.planner.LoadPlanner$RemoteLocation, "
+                    + "com.legend.sql.dialect.HostOperation$RemoteFormat, "
+                    + "com.legend.planner.LoadPlanner$RemoteCredentials)", "planner.Boundary",
+            "planner.LoadPlanner$SnapStream#<init>(java.lang.String, java.lang.String, java.lang.String, "
+                    + "java.lang.String)", "planner.Boundary",
+            "planner.OutputPlan#make(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, "
+                    + "com.legend.planner.OutputPlan$Mode, java.lang.String, com.legend.sql.dialect.SqlDialect)",
+            "planner.Boundary",
+            "planner.OutputPlan#write(com.legend.compiler.element.ModelContext, java.lang.String, java.lang.String, "
+                    + "com.legend.planner.OutputPlan$Mode)", "planner.Boundary",
+            "planner.OutputPlan$Mode#APPEND", "planner.Boundary",
+            "planner.OutputPlan$Mode#CREATE", "planner.Boundary",
+            "planner.OutputPlan$Mode#DELETE_APPEND", "planner.Boundary",
+            "planner.OutputPlan$Mode#MERGE", "planner.Boundary",
+            "planner.OutputPlan$Mode#OVERWRITE", "planner.Boundary",
+            "planner.OutputPlan$Mode#makes()", "planner.Boundary",
+            "planner.OutputPlan$Mode#named(java.lang.String)", "planner.Boundary",
+            "planner.OutputPlan$Mode#ordinal()", "planner.Boundary",
+            "planner.OutputPlan$Mode#spelled()", "planner.Boundary",
+            "planner.OutputPlan$Mode#values()", "planner.Boundary",
+            "planner.SnapCopy#plan(com.legend.TypedQuery, java.lang.String, com.legend.sql.dialect.SqlDialect, "
+                    + "com.legend.executionplan.DatabaseType, java.lang.String, java.lang.String)", "planner.Boundary",
+            "planner.Synthesize#plan(com.legend.sql.dialect.SqlDialect, com.legend.executionplan.DatabaseType, "
+                    + "com.legend.planner.LoadPlanner$DeclaredTable, long, java.util.Map)", "planner.Boundary",
+            "planner.Synthesize$Knob$Range#<init>(java.lang.String, java.lang.String, java.lang.Integer)",
+            "planner.Boundary",
+            "planner.Synthesize$Knob$Values#<init>(java.util.List)", "planner.Boundary",
+            // the resolver's reads of the lowering's names and reducers (resolver.CorrelatedSubselects, GraphEmission,
+            // Substitution, ObjectReferenceDecode): spelling and classification, no lowering
+            "lowering.Aggregates#isDemandReducer(com.legend.compiler.element.TypedFunction)",
+            "com.legend.resolver.CorrelatedSubselects",
+            "lowering.Aggregates#isDemandReducer(com.legend.compiler.element.TypedFunction, "
+                    + "com.legend.compiler.spec.typed.TypedSpec)", "com.legend.resolver.CorrelatedSubselects",
+            "lowering.Aggregates#isReducer(com.legend.compiler.element.TypedFunction)",
+            "com.legend.resolver.GraphEmission",
+            "lowering.AsorRef#decode(java.lang.String)", "com.legend.resolver.Substitution",
+            "lowering.AsorRef#prefix(java.lang.String, java.lang.String, java.lang.String)",
+            "com.legend.resolver.GraphEmission",
+            "lowering.AsorRef#prefixMapping(java.lang.String)", "com.legend.resolver.ObjectReferenceDecode",
+            "lowering.AsorRef$Ref#pkJson()", "com.legend.resolver.Substitution"
+    );
+
+    /** {@link #PLANNER_ENTRIES} from its pairs: an entry, then its callers separated by a space; an entry twice is
+     *  refused. */
+    private static java.util.Map<String, java.util.Set<String>> entries(String... pairs) {
+        java.util.Map<String, java.util.Set<String>> out = new java.util.TreeMap<>();
+        for (int i = 0; i < pairs.length; i += 2) {
+            if (out.put(pairs[i], java.util.Set.of(pairs[i + 1].split(" "))) != null) {
+                throw new IllegalStateException("an entry listed twice: " + pairs[i]);
+            }
+        }
+        return java.util.Collections.unmodifiableMap(out);
+    }
+
+    /** The class that makes an access, as {@link #PLANNER_ENTRIES} names a caller: its top-level class's binary name. */
+    static String callerOf(com.tngtech.archunit.core.domain.JavaAccess<?> a) {
+        String name = a.getOriginOwner().getName();
+        int nested = name.indexOf('$');
+        return nested < 0 ? name : name.substring(0, nested);
+    }
+
+    /** Every entry of the planners that a class outside them reaches in {@code classes}, with the classes reaching it. */
+    static java.util.Map<String, java.util.Set<String>> reachedEntries(JavaClasses classes) {
+        java.util.Map<String, java.util.Set<String>> out = new java.util.TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            if (plannersPackage(c.getPackageName())) {
+                continue;
+            }
+            for (com.tngtech.archunit.core.domain.JavaAccess<?> a : c.getAccessesFromSelf()) {
+                if (plannersPackage(a.getTargetOwner().getPackageName())) {
+                    out.computeIfAbsent(entryKey(a), k -> new java.util.TreeSet<>()).add(callerOf(a));
+                }
+            }
+        }
+        return out;
+    }
+
+    /** {@link #PLANNER_ENTRIES} is what core's classes and the hosts' doors reach, exactly: no entry unlisted (as
+     *  {@link #thePlannersAreReachedByTheirListedEntriesAlone} holds) and none listed that no class reaches (the C4
+     *  final fix round's T3, 2026-11-14), so the list shrinks as the entries go. */
+    @Test
+    void thePlannerEntriesAreTheMeasuredOnesExactly() {
+        org.junit.jupiter.api.Assertions.assertEquals(PLANNER_ENTRIES, reachedEntries(coreAndTheHostsDoors()));
+    }
+
+    /** Whether {@code packageName} is the planner's, the test planner's or the lowering's, or a subpackage of one. */
+    static boolean plannersPackage(String packageName) {
+        return packageName.matches("com\\.legend\\.(planner|testplan|lowering)(\\..*)?");
+    }
+
+    /** An access's entry, as {@link #PLANNER_ENTRIES} lists it: its owner's binary name past {@code com.legend.}, then
+     *  {@code #} and the member's name, and for a method or a constructor its parameters' binary names in parentheses --
+     *  the full signature, so a new overload of a listed name is no entry until it is listed (the C4 final fix round's
+     *  T3, 2026-11-14: until then the key was the owner and the name, admitting every overload). */
+    static String entryKey(com.tngtech.archunit.core.domain.JavaAccess<?> a) {
+        String entry = a.getTargetOwner().getName().substring("com.legend.".length()) + "#" + a.getName();
+        if (a.getTarget() instanceof com.tngtech.archunit.core.domain.AccessTarget.CodeUnitAccessTarget unit) {
+            entry += unit.getRawParameterTypes().stream().map(com.tngtech.archunit.core.domain.JavaClass::getName)
+                    .collect(java.util.stream.Collectors.joining(", ", "(", ")"));
+        }
+        return entry;
+    }
+
+    /** The rule of {@link #thePlannersAreReachedByTheirListedEntriesAlone}. */
+    static final com.tngtech.archunit.lang.ArchRule PLANNER_ENTRIES_ONLY = noClasses()
+            .that(com.tngtech.archunit.base.DescribedPredicate.describe("are outside the planners",
+                    (com.tngtech.archunit.core.domain.JavaClass c) -> !plannersPackage(c.getPackageName())))
+            .should().accessTargetWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a member of the planner, the test planner or the lowering not listed in PLANNER_ENTRIES for its"
+                            + " caller, by its full signature",
+                    (com.tngtech.archunit.core.domain.JavaAccess<?> a) -> plannersPackage(a.getTargetOwner().getPackageName())
+                            && !PLANNER_ENTRIES.getOrDefault(entryKey(a), java.util.Set.of()).contains(callerOf(a))))
+            .as("J1 (2026-11-14), T3 (2026-11-14): the planners are reached from outside by their listed entry points"
+                    + " alone, each by its full signature from its listed callers");
+
+    /** {@link #thePlannersAreReachedByTheirListedEntriesAlone} fails on each planted outside caller
+     *  ({@code server.PlantedLowering}): a Lowerer constructed by a call and by a reference, the three lowering statics
+     *  G1 pinned, and the final audit's five probes (an activity's SQL, a frame's chain and its CTE, the routine table, a
+     *  seed's planning). */
+    @Test
+    void thePlannerEntriesRuleBitesAPlantedCaller() {
+        for (Class<?> planted : com.legend.server.PlantedLowering.class.getDeclaredClasses()) {
+            if (!planted.isInterface()) {
+                bites(PLANNER_ENTRIES_ONLY, planted);
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(10, java.util.Arrays.stream(
+                com.legend.server.PlantedLowering.class.getDeclaredClasses()).filter(c -> !c.isInterface()).count());
+    }
+
+    /** T3 (the C4 final fix round, 2026-11-14): an entry is its full signature and its callers. The rule fails on an
+     *  overload of a listed name that is not listed for its caller ({@code server.PlantedOverload.AnotherOverload}:
+     *  QueryDoor's {@code refuseRawSql(List, SpecCompiler)}, which the key by name admitted to every class, the test-data
+     *  routes' {@code refuseRawSql(TypedQuery)} being listed), and on a listed entry reached from a class not its caller
+     *  ({@code server.PlantedOverload.AnotherCaller}). */
+    @Test
+    void thePlannerEntriesRuleBitesAnUnlistedOverloadAndAnUnlistedCaller() {
+        String byQuery = "planner.QueryDoor#refuseRawSql(com.legend.TypedQuery)";
+        String byBody = "planner.QueryDoor#refuseRawSql(java.util.List, com.legend.compiler.spec.SpecCompiler)";
+        // the test-data routes may refuse a typed query, never a typed body: the overload is the root Compiler's alone
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("com.legend.server.TestDataRoutes"),
+                PLANNER_ENTRIES.get(byQuery));
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Set.of("com.legend.Compiler"), PLANNER_ENTRIES.get(byBody));
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of(byBody, java.util.Set.of(
+                "com.legend.server.PlantedOverload")), reachedEntries(new ClassFileImporter().importClasses(
+                        com.legend.server.PlantedOverload.AnotherOverload.class)));
+        bites(PLANNER_ENTRIES_ONLY, com.legend.server.PlantedOverload.AnotherOverload.class);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of(byQuery, java.util.Set.of(
+                "com.legend.server.PlantedOverload")), reachedEntries(new ClassFileImporter().importClasses(
+                        com.legend.server.PlantedOverload.AnotherCaller.class)));
+        bites(PLANNER_ENTRIES_ONLY, com.legend.server.PlantedOverload.AnotherCaller.class);
+    }
+
+    /** {@link #aProductStatementIsPreparedByThePlannersAlone} fails on a class that prepares a statement past the
+     *  planners, by a call and by a reference ({@code server.PlantedPrepare}, test classes planted for this alone). */
+    @Test
+    void thePrepareRuleBitesAPlantedCaller() {
+        bites(PREPARE_IS_THE_PLANNERS, com.legend.server.PlantedPrepare.class);
+        bites(PREPARE_IS_THE_PLANNERS, com.legend.server.PlantedPrepare.ByReference.class);
     }
 
     @Test
@@ -933,12 +1313,14 @@ final class ArchitectureTest {
      */
     @Test
     void theProductBorrowsNoConnection() {
-        noClasses()
-            .that().resideInAPackage("com.legend..")
-            .should().callMethod(com.legend.exec.Sessions.class, "borrowed", java.sql.Connection.class)
-            .as("D70: Sessions.borrowed is the test side's door; a product session owns its connection")
-            .check(CORE_PROD_CLASSES);
+        PRODUCT_BORROWS_NO_CONNECTION.check(CORE_PROD_CLASSES);
     }
+
+    /** D70 (the rule of {@link #theProductBorrowsNoConnection}): a call or a reference ({@link #invokes}). */
+    static final com.tngtech.archunit.lang.ArchRule PRODUCT_BORROWS_NO_CONNECTION = noClasses()
+            .that().resideInAPackage("com.legend..")
+            .should().accessTargetWhere(invokes(com.legend.exec.Sessions.class, "borrowed", java.sql.Connection.class))
+            .as("D70: Sessions.borrowed is the test side's door; a product session owns its connection");
 
     /** Public or protected: what a class offers beyond its package. */
     private static boolean exposed(com.tngtech.archunit.core.domain.JavaMember m) {
@@ -1054,19 +1436,22 @@ final class ArchitectureTest {
             .as("the plan runner reaches no compiler, lowering, SQL tree, dialect or plan side: it runs the plan's"
                     + " statement as the plan says")
             .check(CORE_PROD_CLASSES);
-        noClasses()
+        runnerTypesNothing(runner).check(CORE_PROD_CLASSES);
+    }
+
+    /** The plan runner's one use of the SQL typing owner is a Float's binding, over the classes {@code runner} names:
+     *  a call or a reference ({@link #invokesWhere}); {@link #theMethodRulesBiteAReference} names a planted class. */
+    static com.tngtech.archunit.lang.ArchRule runnerTypesNothing(String runner) {
+        return noClasses()
             .that().haveNameMatching(runner)
-            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.AccessTarget.Predicates.declaredIn(com.legend.sql.SqlTyping.class))
-                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                            com.tngtech.archunit.base.DescribedPredicate.not(
-                                    com.tngtech.archunit.core.domain.properties.HasName.Predicates.name("floatDecimal")))))
+            .should().accessTargetWhere(invokesWhere("a SqlTyping method but floatDecimal",
+                    a -> a.getTargetOwner().isEquivalentTo(com.legend.sql.SqlTyping.class)
+                            && !a.getName().equals("floatDecimal")))
             .orShould().accessFieldWhere(com.tngtech.archunit.core.domain.JavaFieldAccess.Predicates.target(
                     com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
                             com.tngtech.archunit.core.domain.JavaClass.Predicates.equivalentTo(
                                     com.legend.sql.SqlTyping.class))))
-            .as("the plan runner's one use of the SQL typing owner is a Float's binding (Rule 1, floatDecimal)")
-            .check(CORE_PROD_CLASSES);
+            .as("the plan runner's one use of the SQL typing owner is a Float's binding (Rule 1, floatDecimal)");
     }
 
     /** The packages an exec class may reach inside {@code com.legend}: exactly {@code //core:exec}'s dependency list
@@ -1961,30 +2346,27 @@ final class ArchitectureTest {
 
     @Test
     void reflectionIsBannedInProduction() {
-        noClasses()
+        REFLECTION_BANNED.check(CORE_PROD_CLASSES);
+    }
+
+    /** F1.11 (the rule of {@link #reflectionIsBannedInProduction}): a Class method's call or reference
+     *  ({@link #invokesWhere}). */
+    static final com.tngtech.archunit.lang.ArchRule REFLECTION_BANNED = noClasses()
             .that().resideInAPackage("com.legend..")
             .should().dependOnClassesThat()
             .resideInAnyPackage("java.lang.reflect..", "java.lang.invoke..")
             // and the reflective doors on Class itself (no java.lang.reflect
             // import needed to open them)
-            .orShould().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
-                    com.tngtech.archunit.core.domain.JavaMethodCall>(
+            .orShould().accessTargetWhere(invokesWhere(
                     "a reflective Class method (forName, getRecordComponents, getDeclared*,"
-                    + " getMethod*, getField*, getConstructor*, newInstance)") {
-                @Override
-                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
-                    var target = call.getTarget();
-                    return target.getOwner().isEquivalentTo(Class.class)
-                            && target.getName().matches(
+                    + " getMethod*, getField*, getConstructor*, newInstance)",
+                    a -> a.getTargetOwner().isEquivalentTo(Class.class)
+                            && a.getName().matches(
                                     "forName|getRecordComponents|getDeclared\\w*|getMethods?"
-                                    + "|getFields?|getConstructors?|newInstance");
-                }
-            })
+                                    + "|getFields?|getConstructors?|newInstance")))
             .as("F1.11: NO reflection in production — the product never discovers or"
                     + " invokes its own types by name: walk typed children, switch on"
-                    + " node kinds, register plugins through the SPI seam")
-            .check(CORE_PROD_CLASSES);
-    }
+                    + " node kinds, register plugins through the SPI seam");
 
     /**
      * TeaVM's class library (0.15, the tab's WebAssembly build) answers {@code String.isBlank()} differently: it counts
@@ -1996,12 +2378,14 @@ final class ArchitectureTest {
      */
     @Test
     void textTheTabWritesDifferentlyIsWrittenPortably() {
-        noClasses()
-            .that().resideInAPackage("com.legend..")
-            .should().callMethod(String.class, "isBlank")
-            .as("String.isBlank() is TeaVM's ' ' only in the tab: write s.strip().isEmpty()")
-            .check(CORE_PROD_CLASSES);
+        TEXT_WRITTEN_PORTABLY.check(CORE_PROD_CLASSES);
     }
+
+    /** The rule of {@link #textTheTabWritesDifferentlyIsWrittenPortably}: a call or a reference ({@link #invokes}). */
+    static final com.tngtech.archunit.lang.ArchRule TEXT_WRITTEN_PORTABLY = noClasses()
+            .that().resideInAPackage("com.legend..")
+            .should().accessTargetWhere(invokes(String.class, "isBlank"))
+            .as("String.isBlank() is TeaVM's ' ' only in the tab: write s.strip().isEmpty()");
 
     // F1.3b, rootJavaSqlSurfaceIsPinned (2026-10-03 to 2026-10-30), DELETED with the java.sql revamp's step 3 (D69,
     // the audit's finding): it pinned the root package's java.sql surface to an enumerated set while the funnel
@@ -2067,22 +2451,13 @@ final class ArchitectureTest {
     /** THE DOORS (the rule of {@link #theRunnerIsTheOneCallerOfTheSessionsStatements}). */
     static final com.tngtech.archunit.lang.ArchRule RUNNER_IS_THE_ONE_CALLER = noClasses()
             .that().haveNameNotMatching(SESSION_SEAM)
-            .should().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
-                            com.tngtech.archunit.core.domain.JavaClass.Predicates.assignableTo(
-                                    com.legend.exec.Statements.class))))
-            .orShould().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
-                    com.tngtech.archunit.core.domain.JavaMethodCall>("a session's statements (Sessions.Session"
-                    + ".statements)") {
-                @Override
-                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
-                    // statementsOf: the session's own unguarded form, package-private (THE WALL, 2026-11-06: the
-                    // final audit -- a class of the seam's package calling it would pass the name check alone)
-                    return call.getTarget().getOwner().isAssignableTo(com.legend.exec.Sessions.Session.class)
-                            && (call.getTarget().getName().equals("statements")
-                                    || call.getTarget().getName().equals("statementsOf"));
-                }
-            })
+            .should().accessTargetWhere(invokesWhere("a Statements method",
+                    a -> a.getTargetOwner().isAssignableTo(com.legend.exec.Statements.class)))
+            // statementsOf: the session's own unguarded form, package-private (THE WALL, 2026-11-06: the final audit --
+            // a class of the seam's package calling it would pass the name check alone)
+            .orShould().accessTargetWhere(invokesWhere("a session's statements (Sessions.Session.statements)",
+                    a -> a.getTargetOwner().isAssignableTo(com.legend.exec.Sessions.Session.class)
+                            && (a.getName().equals("statements") || a.getName().equals("statementsOf"))))
             .as("the doors: the plan runner is the one caller of a session's statements (Statements, "
                     + "Sessions.Session.statements)");
 
@@ -2101,15 +2476,16 @@ final class ArchitectureTest {
             // an id until the exec-id item, unseen by this rule)
             .that().resideInAnyPackage("com.legend.exec..", "com.legend.base..", "com.legend.testexec..",
                     "com.legend.result..")
-            .should().callMethod(java.util.UUID.class, "randomUUID")
+            // each method by a call or a reference (invokes; the next PR's item 1, 2026-11-13)
+            .should().accessTargetWhere(invokes(java.util.UUID.class, "randomUUID"))
             // an id made any other way (the re-audit's note 6, 2026-11-12: the rule caught randomness alone, so an id
             // built from two longs, parsed from text or named from bytes passed it)
             // by a call or a reference (UUID::new; 2026-11-13, the orchestrator's completion B)
             .orShould().accessTargetWhere(constructs("java\\.util\\.UUID"))
-            .orShould().callMethod(java.util.UUID.class, "fromString", String.class)
-            .orShould().callMethod(java.util.UUID.class, "nameUUIDFromBytes", byte[].class)
-            .orShould().callMethod(Math.class, "random")
-            .orShould().callMethod(StrictMath.class, "random")
+            .orShould().accessTargetWhere(invokes(java.util.UUID.class, "fromString", String.class))
+            .orShould().accessTargetWhere(invokes(java.util.UUID.class, "nameUUIDFromBytes", byte[].class))
+            .orShould().accessTargetWhere(invokes(Math.class, "random"))
+            .orShould().accessTargetWhere(invokes(StrictMath.class, "random"))
             // SecureRandom and ThreadLocalRandom are Randoms
             .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
             .as("exec makes no value of its own: an execution's id is its door's (Execution, TestExecution), passed in"
@@ -2186,18 +2562,14 @@ final class ArchitectureTest {
     private static com.tngtech.archunit.lang.ArchRule planningMakesNoValue(java.util.List<String> roots) {
         return noClasses()
             .that(planningSide(roots))
-            .should().callMethod(java.util.UUID.class, "randomUUID")
-            .orShould().callMethod(Math.class, "random")
-            .orShould().callMethod(StrictMath.class, "random")
-            .orShould().callMethod(System.class, "nanoTime")
-            .orShould().callMethod(System.class, "currentTimeMillis")
-            .orShould().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
-                    com.tngtech.archunit.core.domain.JavaMethodCall>("a java.time now()") {
-                @Override
-                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
-                    return call.getName().equals("now") && call.getTargetOwner().getPackageName().equals("java.time");
-                }
-            })
+            // each method by a call or a reference (invokes; the next PR's item 1, 2026-11-13)
+            .should().accessTargetWhere(invokes(java.util.UUID.class, "randomUUID"))
+            .orShould().accessTargetWhere(invokes(Math.class, "random"))
+            .orShould().accessTargetWhere(invokes(StrictMath.class, "random"))
+            .orShould().accessTargetWhere(invokes(System.class, "nanoTime"))
+            .orShould().accessTargetWhere(invokes(System.class, "currentTimeMillis"))
+            .orShould().accessTargetWhere(invokesWhere("a java.time now()",
+                    a -> a.getName().equals("now") && a.getTargetOwner().getPackageName().equals("java.time")))
             // SecureRandom and ThreadLocalRandom are Randoms
             .orShould().dependOnClassesThat().areAssignableTo(java.util.Random.class)
             .as("planning makes no value of its own: the same model and query plan to the same plan, byte for byte");
@@ -2264,19 +2636,10 @@ final class ArchitectureTest {
     /** THE SERVER'S MINTS (the rule of {@link #theServersMintsAreItsHostDoorsAlone}). */
     static final com.tngtech.archunit.lang.ArchRule SERVER_MINTS_AT_ITS_HOST_DOORS = noClasses()
             .that().resideInAPackage("com.legend.server..")
-            .should().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
-                    com.tngtech.archunit.core.domain.JavaMethodCall>("UUID.randomUUID outside PureV1Api's jsonPlan and"
-                    + " arrowPlan") {
-                @Override
-                public boolean test(com.tngtech.archunit.core.domain.JavaMethodCall call) {
-                    if (!call.getTargetOwner().isEquivalentTo(java.util.UUID.class)
-                            || !call.getName().equals("randomUUID")) {
-                        return false;
-                    }
-                    return !(call.getOriginOwner().getName().equals("com.legend.server.PureV1Api")
-                            && call.getOrigin().getName().matches(SERVER_DOOR_MINTS));
-                }
-            })
+            .should().accessTargetWhere(invokesWhere("UUID.randomUUID outside PureV1Api's jsonPlan and arrowPlan",
+                    a -> a.getTargetOwner().isEquivalentTo(java.util.UUID.class) && a.getName().equals("randomUUID")
+                            && !(a.getOriginOwner().getName().equals("com.legend.server.PureV1Api")
+                                    && a.getOrigin().getName().matches(SERVER_DOOR_MINTS))))
             .as("the server mints an execution's id at its two host doors alone (PureV1Api.jsonPlan, arrowPlan)");
 
     /**
@@ -2293,16 +2656,35 @@ final class ArchitectureTest {
     void theServersMintsAreItsHostDoorsAlone() {
         SERVER_MINTS_AT_ITS_HOST_DOORS.check(CORE_PROD_CLASSES);
         // and each door mints once
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("arrowPlan", 1, "jsonPlan", 1),
+                doorMints(CORE_PROD_CLASSES.get("com.legend.server.PureV1Api")),
+                "the server's two host doors, one mint each");
+    }
+
+    /** Each method's mints of {@code c} -- a call of {@code UUID.randomUUID} AND a method reference to it (the C4
+     *  audit's M3, 2026-11-13: the count read the calls alone, so a door minting twice, once by {@code UUID::randomUUID},
+     *  counted one) -- a lambda's counted as its method's. */
+    static java.util.Map<String, Integer> doorMints(com.tngtech.archunit.core.domain.JavaClass c) {
         java.util.Map<String, Integer> mints = new java.util.TreeMap<>();
-        for (com.tngtech.archunit.core.domain.JavaMethodCall call : CORE_PROD_CLASSES.get(
-                "com.legend.server.PureV1Api").getMethodCallsFromSelf()) {
-            if (call.getTargetOwner().isEquivalentTo(java.util.UUID.class) && call.getName().equals("randomUUID")) {
-                mints.merge(call.getOrigin().getName().replaceAll("^lambda\\$(\\w+)\\$\\d+$", "$1"), 1,
+        java.util.List<com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?>> accesses = new java.util.ArrayList<>();
+        accesses.addAll(c.getMethodCallsFromSelf());
+        accesses.addAll(c.getMethodReferencesFromSelf());
+        for (com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?> a : accesses) {
+            if (a.getTargetOwner().isEquivalentTo(java.util.UUID.class) && a.getName().equals("randomUUID")) {
+                mints.merge(a.getOrigin().getName().replaceAll("^lambda\\$(\\w+)\\$\\d+$", "$1"), 1,
                         Integer::sum);
             }
         }
-        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("arrowPlan", 1, "jsonPlan", 1), mints,
-                "the server's two host doors, one mint each");
+        return mints;
+    }
+
+    /** The one-mint count sees a method reference: {@code server.PlantedDoorMints}'s jsonPlan mints once by a call and
+     *  once by {@code UUID::randomUUID}, and is counted twice. */
+    @Test
+    void theDoorMintCountSeesAMethodReference() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.Map.of("jsonPlan", 2), doorMints(
+                new com.tngtech.archunit.core.importer.ClassFileImporter().importClass(
+                        com.legend.server.PlantedDoorMints.class)));
     }
 
     /** {@link #theServersMintsAreItsHostDoorsAlone} fails on another class of the server's package that mints an id
@@ -2466,6 +2848,12 @@ final class ArchitectureTest {
      */
     @Test
     void theAuthoredDoorIsReachedFromTheBoundaryAlone() {
+        AUTHORED_DOOR.check(coreAndTheHostsDoors());
+    }
+
+    /** The classes of core and of the hosts' doors ({@code //core:product_jars} and {@code //core:authored_door_jars}:
+     *  the boundary, the tab's adapter and the native entry), the import checked to hold each door. */
+    private static JavaClasses coreAndTheHostsDoors() {
         java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
         try {
             for (String property : java.util.List.of("legend.product.jars", "legend.authored.jars")) {
@@ -2480,7 +2868,7 @@ final class ArchitectureTest {
         for (String door : java.util.List.of("planner.Boundary", "planner.TabExports", "com.legend.nativelib.Compiler")) {
             org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
         }
-        AUTHORED_DOOR.check(classes);
+        return classes;
     }
 
     /** {@link #theAuthoredDoorIsReachedFromTheBoundaryAlone} fails on a class that plans a person's statement past the
@@ -3045,21 +3433,7 @@ final class ArchitectureTest {
      */
     @Test
     void normalizerNeverWritesIntoTheModelIndex() {
-        noClasses()
-            .that().resideInAPackage("com.legend.normalizer..")
-            .should().callCodeUnitWhere(
-                    com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                            com.tngtech.archunit.core.domain.properties.HasOwner
-                                    .Predicates.With.<com.tngtech.archunit.core
-                                            .domain.JavaClass>owner(
-                                    com.tngtech.archunit.core.domain.JavaClass
-                                            .Predicates.simpleName("ModelBuilder")))
-                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                            com.tngtech.archunit.core.domain.properties.HasName
-                                    .Predicates.nameMatching(
-                                            "add|retainLegacySurface|registerMappedClass"))))
-            .as("T4.1 invariant 5: the normalizer performs no write into the model index")
-            .check(CORE_PROD_CLASSES);
+        NORMALIZER_WRITES_NO_INDEX.check(CORE_PROD_CLASSES);
         com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noFields()
             .that().areDeclaredIn(com.legend.compiler.ModelBuilder.class)
             .should().bePublic()
@@ -3067,30 +3441,34 @@ final class ArchitectureTest {
             .check(CORE_PROD_CLASSES);
     }
 
+    /** T4.1 invariant 5 (the rule of {@link #normalizerNeverWritesIntoTheModelIndex}'s first half): a call or a
+     *  reference ({@link #reachesCodeUnitWhere}). */
+    static final com.tngtech.archunit.lang.ArchRule NORMALIZER_WRITES_NO_INDEX = noClasses()
+            .that().resideInAPackage("com.legend.normalizer..")
+            .should().accessTargetWhere(reachesCodeUnitWhere("ModelBuilder's add, retainLegacySurface or"
+                    + " registerMappedClass", a -> a.getTargetOwner().getSimpleName().equals("ModelBuilder")
+                            && a.getName().matches("add|retainLegacySurface|registerMappedClass")))
+            .as("T4.1 invariant 5: the normalizer performs no write into the model index");
+
     @Test
     void typedNodesAreMintedOnlyByCompilerLayers() {
-        noClasses()
+        TYPED_NODES_MINTED_BY_THE_COMPILER.check(CORE_PROD_CLASSES);
+    }
+
+    /** Invariant 7 (the rule of {@link #typedNodesAreMintedOnlyByCompilerLayers}): a typed node's constructor by a
+     *  call or a reference ({@link #reachesCodeUnitWhere}; B of the A/B/C PR missed this callCodeUnitWhere rule). */
+    static final com.tngtech.archunit.lang.ArchRule TYPED_NODES_MINTED_BY_THE_COMPILER = noClasses()
             .that().resideOutsideOfPackages(
                     "com.legend.compiler..",
                     "com.legend.resolver..",
                     "com.legend.normalizer..",
                     "com.legend.lowering..")
-            .should().callCodeUnitWhere(
-                    com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                            com.tngtech.archunit.core.domain.properties.HasName
-                                    .Predicates.name("<init>"))
-                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                            com.tngtech.archunit.core.domain.properties.HasOwner
-                                    .Predicates.With.<com.tngtech.archunit.core
-                                            .domain.JavaClass>owner(
-                                    com.tngtech.archunit.core.domain.JavaClass
-                                            .Predicates.resideInAPackage(
-                                                    "com.legend.compiler.spec.typed")))))
+            .should().accessTargetWhere(reachesCodeUnitWhere("a typed node's constructor",
+                    a -> a.getName().equals("<init>")
+                            && a.getTargetOwner().getPackageName().equals("com.legend.compiler.spec.typed")))
             .as("Invariant 7: typed-HIR nodes are minted only by the compiler"
                     + " layers (compiler/resolver/normalizer/lowering) — the"
-                    + " pinned exceptions only shrink; see the rule javadoc")
-            .check(CORE_PROD_CLASSES);
-    }
+                    + " pinned exceptions only shrink; see the rule javadoc");
 
     /**
      * <strong>THE PROGRAM IS PARSED ONCE.</strong> Protocol nodes
@@ -3229,6 +3607,41 @@ final class ArchitectureTest {
                 + " reference)", a -> (a instanceof com.tngtech.archunit.core.domain.JavaConstructorCall
                         || a instanceof com.tngtech.archunit.core.domain.JavaConstructorReference)
                         && a.getTargetOwner().getName().matches(owner));
+    }
+
+    /**
+     * An access that INVOKES a method {@code which} accepts: its call, or its reference ({@code Type::method}), which
+     * {@code callMethod}, {@code callMethodWhere} and {@code callCodeUnitWhere} do not see -- ArchUnit reads a method's
+     * reference as an access of its own ({@code JavaMethodReference}), so {@code UUID::randomUUID} as a Supplier passed
+     * every method rule (C4's finding, 2026-11-13; the next PR's item 1, "separation made foolproof"). Every method
+     * rule reads its accesses through this, and {@link #theMethodRulesBiteAReference} plants a reference per clause.
+     */
+    static com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaAccess<?>> invokesWhere(
+            String description,
+            java.util.function.Predicate<com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?>> which) {
+        return com.tngtech.archunit.base.DescribedPredicate.describe("invoke " + description
+                + " (by a call or a ::reference)", a -> (a instanceof com.tngtech.archunit.core.domain.JavaMethodCall
+                        || a instanceof com.tngtech.archunit.core.domain.JavaMethodReference)
+                        && which.test((com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?>) a));
+    }
+
+    /** {@link #invokesWhere} of one method: {@code owner}'s {@code name} taking exactly {@code parameters}, as
+     *  {@code callMethod(owner, name, parameters)} named it. */
+    static com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaAccess<?>> invokes(
+            Class<?> owner, String name, Class<?>... parameters) {
+        java.util.List<String> params = java.util.Arrays.stream(parameters).map(Class::getName).toList();
+        return invokesWhere(owner.getName() + "." + name + params, a -> a.getTargetOwner().isEquivalentTo(owner)
+                && a.getName().equals(name) && a.getTarget().getRawParameterTypes().stream()
+                        .map(com.tngtech.archunit.core.domain.JavaClass::getName).toList().equals(params));
+    }
+
+    /** A code unit's call or reference -- a method's or a constructor's -- that {@code which} accepts: the
+     *  {@code callCodeUnitWhere} rules', each seeing a reference as a call (the next PR's item 1, 2026-11-13). */
+    static com.tngtech.archunit.base.DescribedPredicate<com.tngtech.archunit.core.domain.JavaAccess<?>> reachesCodeUnitWhere(
+            String description,
+            java.util.function.Predicate<com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?>> which) {
+        return com.tngtech.archunit.base.DescribedPredicate.describe(description + " (by a call or a ::reference)",
+                a -> a instanceof com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?> u && which.test(u));
     }
 
     /** Whether {@code c} constructs a class {@code owner} matches, by a call or a reference ({@link #constructs}). */
@@ -3375,6 +3788,57 @@ final class ArchitectureTest {
         });
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), blind,
                 "a constructor rule blind to a ::new reference");
+    }
+
+    /** Every method rule fails on a class that names its method BY REFERENCE ({@code Type::method}) and never calls it,
+     *  one planted class per clause (the next PR's item 1, "separation made foolproof", 2026-11-13; C4's finding: the
+     *  rules read calls alone; {@code planner}, {@code exec}, {@code normalizer}{@code .PlantedMethodReference} and
+     *  {@code server.PlantedServerMint.ByReference}, test classes planted for this alone). Every rule is tried and each
+     *  that does not bite is named. */
+    @Test
+    void theMethodRulesBiteAReference() {
+        java.util.List<java.util.Map.Entry<com.tngtech.archunit.lang.ArchRule, Class<?>>> planted = java.util.List.of(
+                java.util.Map.entry(PROGRAM_ROAD_TEST_ENTRY, com.legend.planner.PlantedMethodReference.TestEntry.class),
+                java.util.Map.entry(PRODUCT_BORROWS_NO_CONNECTION, com.legend.exec.PlantedMethodReference.Borrows.class),
+                java.util.Map.entry(runnerTypesNothing(java.util.regex.Pattern.quote(
+                        com.legend.exec.PlantedMethodReference.RunnerTyping.class.getName())),
+                        com.legend.exec.PlantedMethodReference.RunnerTyping.class),
+                java.util.Map.entry(REFLECTION_BANNED, com.legend.planner.PlantedMethodReference.Reflects.class),
+                java.util.Map.entry(TEXT_WRITTEN_PORTABLY, com.legend.planner.PlantedMethodReference.Blank.class),
+                java.util.Map.entry(RUNNER_IS_THE_ONE_CALLER, com.legend.exec.PlantedMethodReference.Sends.class),
+                java.util.Map.entry(RUNNER_IS_THE_ONE_CALLER, com.legend.exec.PlantedMethodReference.Takes.class),
+                java.util.Map.entry(EXEC_MAKES_NO_VALUE, com.legend.exec.PlantedMethodReference.RandomUuid.class),
+                java.util.Map.entry(EXEC_MAKES_NO_VALUE, com.legend.exec.PlantedMethodReference.ParsedUuid.class),
+                java.util.Map.entry(EXEC_MAKES_NO_VALUE, com.legend.exec.PlantedMethodReference.NamedUuid.class),
+                java.util.Map.entry(EXEC_MAKES_NO_VALUE, com.legend.exec.PlantedMethodReference.MathRandom.class),
+                java.util.Map.entry(EXEC_MAKES_NO_VALUE, com.legend.exec.PlantedMethodReference.StrictMathRandom.class),
+                java.util.Map.entry(PLANNING_MAKES_NO_VALUE,
+                        com.legend.planner.PlantedMethodReference.PlanningRandomUuid.class),
+                java.util.Map.entry(PLANNING_MAKES_NO_VALUE,
+                        com.legend.planner.PlantedMethodReference.PlanningMathRandom.class),
+                java.util.Map.entry(PLANNING_MAKES_NO_VALUE,
+                        com.legend.planner.PlantedMethodReference.PlanningStrictMathRandom.class),
+                java.util.Map.entry(PLANNING_MAKES_NO_VALUE,
+                        com.legend.planner.PlantedMethodReference.PlanningNanoTime.class),
+                java.util.Map.entry(PLANNING_MAKES_NO_VALUE,
+                        com.legend.planner.PlantedMethodReference.PlanningCurrentTimeMillis.class),
+                java.util.Map.entry(PLANNING_MAKES_NO_VALUE, com.legend.planner.PlantedMethodReference.PlanningNow.class),
+                java.util.Map.entry(SERVER_MINTS_AT_ITS_HOST_DOORS, com.legend.server.PlantedServerMint.ByReference.class),
+                java.util.Map.entry(NORMALIZER_WRITES_NO_INDEX, com.legend.normalizer.PlantedMethodReference.class),
+                java.util.Map.entry(TYPED_NODES_MINTED_BY_THE_COMPILER,
+                        com.legend.planner.PlantedMethodReference.TypedNode.class),
+                java.util.Map.entry(CALLS_BUILT_BY_THE_BUILDER,
+                        com.legend.planner.PlantedMethodReference.CallFactory.class));
+        java.util.List<String> blind = new java.util.ArrayList<>();
+        for (var p : planted) {
+            try {
+                bites(p.getKey(), p.getValue());
+            } catch (AssertionError e) {
+                blind.add(p.getValue().getName());
+            }
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), blind,
+                "a method rule blind to a ::method reference");
     }
 
     /**
@@ -3573,13 +4037,9 @@ final class ArchitectureTest {
             .and().resideOutsideOfPackages("com.legend.parser..", "com.legend.protocol..", "com.legend.test..")
             .and().haveNameNotMatching("com\\.legend\\.compiler\\.(spec\\.Calls|NameResolver)(\\$.*)?")
             .should().accessTargetWhere(constructs("com\\.legend\\.protocol\\.spec\\.AppliedFunction"))
-            .orShould().callMethodWhere(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                    com.tngtech.archunit.core.domain.properties.HasOwner.Predicates.With.owner(
-                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
-                                    .name("com.legend.protocol.spec.AppliedFunction")))
-                    .and(com.tngtech.archunit.core.domain.JavaCall.Predicates.target(
-                            com.tngtech.archunit.core.domain.properties.HasName.Predicates
-                                    .nameMatching("infixRun|list|tableReference"))))
+            .orShould().accessTargetWhere(invokesWhere("AppliedFunction's parser-side factories",
+                    a -> a.getTargetOwner().getName().equals("com.legend.protocol.spec.AppliedFunction")
+                            && a.getName().matches("infixRun|list|tableReference")))
             .as("L7 step 3: a call built after the resolver is built by com.legend.compiler.spec.Calls, with its"
                     + " record; no other class constructs an AppliedFunction or calls its parser-side factories"
                     + " (infixRun, list, tableReference), the parser, the protocol readers and the test runners"
