@@ -194,7 +194,7 @@ legend_java_library(
 legend_java_library(
     name = "resolver",
     srcs = glob(["src/main/java/com/legend/resolver/*.java"]),
-    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":lowering", ":model", ":plan", ":platform", ":sql", ":values"],
+    deps = ["//base", ":builtin", ":compiler", ":compiler_element_type", ":error", ":model", ":plan", ":platform", ":sql", ":values"],
 )
 # A CONNECTION'S SETUP, as text and rows (docs/EXECUTION_PLAN_BOUNDARY_2026_10_05.md §9, moved out of exec 2026-10-08):
 # a declared connection's test data and the store's DDL, spelled by the target's dialect. No connection: the planner

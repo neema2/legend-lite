@@ -93,7 +93,10 @@ lineage	base builtin compiler compiler_element_type error model platform protoco
 validation	base builtin compiler compiler_element_type error model protocol
 lowering	base builtin compiler compiler_element_type error model platform protocol sql values
 plan	base builtin compiler compiler_element_type error execution_plan lineage model sql
-resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
+# 2026-11-15 (C5-J item 3, the Java lock-down): `resolver` no longer reaches `lowering` -- its reads of the lowering's
+# helpers moved below both: the reducer table to compiler (compiler.element.Reducers), the object reference's protocol to
+# model (model.AsorRef).
+resolver	base builtin compiler compiler_element_type error model plan platform sql values
 setup	base cache compiler error execution_plan model protocol sql sql_dialect
 # D71, 2026-10-30 (the seam-and-wall program's B1, the decisions log): the judges and the probes left exec for `judge` and the
 # root, taking exec's reaches into `lowering`, `plan` and `platform` with them; `judge` reads the compiler's types and renders

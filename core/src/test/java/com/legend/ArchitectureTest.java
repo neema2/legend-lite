@@ -903,20 +903,10 @@ final class ArchitectureTest {
                     + "com.legend.planner.LoadPlanner$DeclaredTable, long, java.util.Map)", "planner.Boundary",
             "planner.Synthesize$Knob$Range#<init>(java.lang.String, java.lang.String, java.lang.Integer)",
             "planner.Boundary",
-            "planner.Synthesize$Knob$Values#<init>(java.util.List)", "planner.Boundary",
-            // the resolver's reads of the lowering's names and reducers (resolver.CorrelatedSubselects, GraphEmission,
-            // Substitution, ObjectReferenceDecode): spelling and classification, no lowering
-            "lowering.Aggregates#isDemandReducer(com.legend.compiler.element.TypedFunction)",
-            "com.legend.resolver.CorrelatedSubselects",
-            "lowering.Aggregates#isDemandReducer(com.legend.compiler.element.TypedFunction, "
-                    + "com.legend.compiler.spec.typed.TypedSpec)", "com.legend.resolver.CorrelatedSubselects",
-            "lowering.Aggregates#isReducer(com.legend.compiler.element.TypedFunction)",
-            "com.legend.resolver.GraphEmission",
-            "lowering.AsorRef#decode(java.lang.String)", "com.legend.resolver.Substitution",
-            "lowering.AsorRef#prefix(java.lang.String, java.lang.String, java.lang.String)",
-            "com.legend.resolver.GraphEmission",
-            "lowering.AsorRef#prefixMapping(java.lang.String)", "com.legend.resolver.ObjectReferenceDecode",
-            "lowering.AsorRef$Ref#pkJson()", "com.legend.resolver.Substitution"
+            "planner.Synthesize$Knob$Values#<init>(java.util.List)", "planner.Boundary"
+            // 2026-11-15 (C5-J item 3): the resolver's seven reads of the lowering's helpers left this list -- the
+            // reducer table moved to compiler.element.Reducers and the object reference's protocol to model.AsorRef, below
+            // both; the resolver reaches the lowering no more (tools/deps/core-layers.txt)
     );
 
     /** {@link #PLANNER_ENTRIES} from its pairs: an entry, then its callers separated by a space; an entry twice is
