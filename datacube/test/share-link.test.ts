@@ -141,6 +141,20 @@ describe('a link gives back EXACTLY the page', () => {
     same(p, readPageFragment(fragment));
     same(p, readPageFragment(fragment.slice(1)));
   });
+
+  it("carries a link in the page's own address as its address alone, never its token (the TypeScript hunt's T-F)", () => {
+    // the demo page opened over a presigned file (?remote=, boot.ts): its signature is the token
+    const presigned = 'https://bucket.s3.example.invalid/trades.parquet?X-Amz-Signature=SENTINEL-SIGNATURE&X-Amz-Expires=600';
+    const link = shareLink(`http://127.0.0.1:8000/demo/index.html?remote=${encodeURIComponent(presigned)}&format=parquet#stale`, page(12));
+    assert.ok(!link.url.includes('SENTINEL'), link.url);
+    const shared = new URL(link.url);
+    assert.equal(shared.searchParams.get('remote'), 'https://bucket.s3.example.invalid/trades.parquet');
+    assert.equal(shared.searchParams.get('format'), 'parquet', 'every other parameter as it was');
+    same(page(12), readPageFragment(shared.hash));
+    // an Iceberg table's mark is its address's, and kept
+    const iceberg = shareLink(`http://h/demo/?remote=${encodeURIComponent('s3://b/t/metadata?X-Amz-Signature=SENTINEL#iceberg')}`, page(12));
+    assert.equal(new URL(iceberg.url).searchParams.get('remote'), 's3://b/t/metadata#iceberg');
+  });
 });
 
 describe('a link that cannot be read fails LOUDLY, saying why', () => {

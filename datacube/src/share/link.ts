@@ -16,6 +16,7 @@
 
 import { deflateSync, inflateSync, strFromU8, strToU8 } from 'fflate';
 
+import { carriesQuery, linkAddress } from '../cube-document.ts';
 import { pageToJson, readPage, type PageDocument } from '../page-document.ts';
 import { LINK_DICTIONARY_P1 } from './link-p1.ts';
 
@@ -84,10 +85,17 @@ export interface ShareLink {
   readonly long: boolean;
 }
 
-/** The link for a page, at `base` (the page's address; any fragment it has is replaced). */
+/**
+ * The link for a page, at `base` (the page's address; any fragment it has is replaced). A query parameter holding a link
+ * with a query string -- `?remote=` with a presigned link's token -- is kept as its address alone, as the page's own
+ * remote files are (page-document.ts pageAsSaved): a token never travels in a share link (2026-11-15, the TypeScript
+ * hunt's T-F).
+ */
 export function shareLink(base: string, page: PageDocument): ShareLink {
-  const hash = base.indexOf('#');
-  const url = `${hash >= 0 ? base.slice(0, hash) : base}#${pageFragment(page)}`;
+  const at = new URL(base);
+  at.hash = '';
+  for (const [name, value] of [...at.searchParams]) if (carriesQuery(value)) at.searchParams.set(name, linkAddress(value));
+  const url = `${at.href}#${pageFragment(page)}`;
   return { url, length: url.length, long: url.length > LINK_BUDGET };
 }
 
