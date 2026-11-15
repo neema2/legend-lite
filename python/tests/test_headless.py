@@ -1419,6 +1419,38 @@ class V8Started(unittest.TestCase):
         self.assertEqual(json.loads(ran.stdout.strip().splitlines()[-1]),
                          {'seen': [['--single-threaded', '--no-memory-protection-keys']], 'two': 2})
 
+    def test_a_call_stopped_at_the_memory_cap_after_an_await_fails_by_name_and_breaks_the_engine(self):
+        # the C5 batch's P1 (2026-11-15): V8 stopping a call at the memory cap AFTER an await left its promise never
+        # settled -- the caller waited for ever, holding the engine's turn (and on a page's write, the frames' lock), and
+        # the engine was not marked broken. It fails by name now, and the engine is broken, as at the cap before an await
+        ran = self.run_alone("""
+            import json
+            from legend_lite.frames import Frames
+            from legend_lite._headless import Headless, bundle
+            with Headless(bundle(), connection=Frames().connection, memory_limit=512 * 1024 ** 2) as h:
+                said = {}
+                try:
+                    h.evaluate("(async () => { await legendLiteHost.digest('SHA-256', '');"
+                               " const kept = []; for (;;) kept.push(new Array(1e6).fill(Math.random())); })()",
+                               timeout=120)
+                except MemoryError as e:
+                    said = {'failed': type(e).__name__, 'words': str(e)}
+                except TimeoutError:
+                    said = {'failed': 'TimeoutError'}
+                said['broken'] = h.broken
+                try:
+                    h.evaluate('1 + 1')
+                except RuntimeError as e:
+                    said['then'] = str(e)
+                print(json.dumps(said))
+        """)
+        self.assertEqual(ran.returncode, 0, ran.stderr[-2000:])
+        said = json.loads(ran.stdout.strip().splitlines()[-1])
+        self.assertEqual(said['failed'], 'MemoryError', said)
+        self.assertIn("DataCube's engine reached its memory cap", said['words'])
+        self.assertTrue(said['broken'], said)
+        self.assertIn('ran out of its memory', said['then'])
+
     def test_v8_started_by_other_code_first_is_refused_in_words(self):
         ran = self.run_alone("""
             from py_mini_racer import MiniRacer

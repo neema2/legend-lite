@@ -50,6 +50,10 @@ _DIGESTS = {'SHA-1': 'sha1', 'SHA-256': 'sha256', 'SHA-384': 'sha384', 'SHA-512'
 # how much of V8's heap the engine may use: past it, the call that needs more fails, not the process
 DEFAULT_MEMORY_LIMIT = 2 * 1024 ** 3
 
+# how often a call's wait asks whether V8 stopped it at the memory cap after an await (Headless._settled): a call that
+# settles is answered at once; one stopped there is said within this
+_CAP_POLL_S = 0.1
+
 # a server is given this long to answer one fetch (seconds)
 _FETCH_TIMEOUT = 60
 
@@ -371,7 +375,7 @@ class Headless:
         self._over = over
         try:
             promise = self._mr.eval(f'Promise.resolve({expression}).then((v) => JSON.stringify(v === undefined ? null : v))')
-            return json.loads(await promise)
+            return json.loads(await self._settled(promise))
         except Exception as e:
             if self._mr.was_hard_memory_limit_reached():
                 # V8 stopped this call at the cap; what its context holds now is not to be trusted with another
@@ -380,6 +384,27 @@ class Headless:
             raise
         finally:
             self._over = None
+
+    async def _settled(self, promise: Any) -> Any:
+        """``promise``'s value, awaited -- or MemoryError when V8 stops the call at the memory cap after an await: the
+        promise then never settles (measured 2026-11-15, mini-racer 0.14.1: an async function that awaits a host call,
+        then allocates past the cap, never answers, while later calls do), so the wait is in slices, the cap asked after
+        each (mini-racer says no other way: ``was_hard_memory_limit_reached``). The engine is then broken, as at the cap
+        before an await (the C5 batch's P1, 2026-11-15)."""
+        async def settling() -> Any:
+            return await promise
+
+        waiting = asyncio.ensure_future(settling())
+        try:
+            while True:
+                done, _ = await asyncio.wait({waiting}, timeout=_CAP_POLL_S)
+                if done:
+                    return waiting.result()
+                if self._mr.was_hard_memory_limit_reached():
+                    raise MemoryError(f"DataCube's engine reached its memory cap ({self._memory_limit} bytes)")
+        finally:
+            if not waiting.done():
+                waiting.cancel()
 
     def evaluate(self, expression: str, timeout: float | None = None) -> Any:
         """A JavaScript expression's value, awaited when it is a Promise, as JSON gives it to Python: within ``timeout``
