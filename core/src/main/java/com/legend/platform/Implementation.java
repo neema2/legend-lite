@@ -81,7 +81,7 @@ public sealed interface Implementation {
     enum Position {
         /** Scalars.RULES — a SQL expression. */
         SCALAR,
-        /** Aggregates.REDUCERS — a SQL aggregate. */
+        /** Reducers.REDUCERS (compiler.element; Aggregates.REDUCERS until C5-J item 3, 2026-11-15) — a SQL aggregate. */
         AGGREGATE,
         /** Windows.FNS — a window function. */
         WINDOW,

@@ -5,9 +5,7 @@ package com.legend.server;
 
 import com.legend.lexer.Lexer;
 import com.legend.lexer.TokenStream;
-import com.legend.parser.Dialect;
 import com.legend.parser.SpecParser;
-import com.legend.protocol.spec.ValueSpecification;
 
 /**
  * A class PLANTED in the server's package to parse past the parse doors, for one test alone (C5-J item 1, 2026-11-15):
@@ -19,9 +17,9 @@ public final class PlantedParse {
     private PlantedParse() {
     }
 
-    /** A query parsed outside the doors: the defect the rule refuses. */
-    public static ValueSpecification parse(String query) {
-        return SpecParser.parse(query, Dialect.LEGEND_LITE);
+    /** A lambda parsed outside the doors: the defect the rule refuses. */
+    public static String parse(String lambda) {
+        return SpecParser.lambdaJson(lambda, false);
     }
 
     /** A text lexed outside the doors, by the method's reference, never called. */
