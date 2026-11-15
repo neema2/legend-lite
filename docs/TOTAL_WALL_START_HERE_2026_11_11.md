@@ -1048,6 +1048,11 @@ In order. Nothing here is in the A/B/C PR.
        the method's name alone -- an adversarial route only; and the headless bridge's connection
        (`datacube/src/headless/connection.ts`, reached by `hostConnection`) does not call `sending()` -- right in the V8,
        which keeps no frame, but a Node test of `hostDatabase` would send outside a run;
+     - (C5-T's bundle-inputs round, 2026-11-15; recorded, not fixed) esbuild also searches upward for `tsconfig.json`
+       from each input's REAL path, so a bundle could read a tsconfig another action copied into bazel-bin, and its
+       compile settings would depend on build order: no such file is there today (engine-client has none; DataCube,
+       Query and Studio declare theirs in `:src`), but nothing guards it, and the metafile
+       (`//tools/deps:bundle_inputs_test`) does not list a tsconfig read;
      - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
        `verdicts`) carried in the test plan instead;
      - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),

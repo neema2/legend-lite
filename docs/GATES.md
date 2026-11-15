@@ -22167,6 +22167,11 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
       the headless grid's table output) -- or one of those page boots;
     - the workspace's tables (Studio's Data panel, `tab-data.ts`): load, put, reset and tables run one at a time, so a
       Reset never plans without a file whose put then lands (the C5-T final audit's MUST 2);
+    - every module a browser bundle reads is one it declares (`//tools/deps:bundle_inputs_test`, 2026-11-15): esbuild
+      looks for a sandboxed input's relative imports in the real output tree, so `//engine-client:planner_worker`,
+      three files named by hand, built only when another action had copied the fourth, `plan-guard.ts`; it now takes
+      the planner layer whole. Each bundle writes esbuild's metafile and the files it declares (tools/js/esbuild.bzl),
+      collected from every package (guards_package's `guard_bundles`), so a new bundle is checked with no list;
     - every worker the product starts is pinned by call site, through any receiver (`new globalThis.Worker(`), as
       each send, connect, fetch and submit is (`PlannedSqlTest.WORKERS`, the C5-T last round's T4 and the final
       audit's item 7): the planner's, DuckDB's own, and Monaco's;

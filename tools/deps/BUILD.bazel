@@ -1,5 +1,6 @@
 # Guards on the build graph itself: who may reach which jars (MODULE.bazel, THE JAR
 # POOLS). Bazel-only by nature — they check what Bazel resolves and links.
+load("@repo_inventory//:packages.bzl", "PACKAGES")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/js:defs.bzl", "node_test")
 load(":pools.bzl", "POOLS", "TESTONLY_POOLS")
@@ -369,6 +370,24 @@ node_test(
         "RUN_SRCS": "$(rlocationpath :run_layer_srcs)",
         "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src) $(rlocationpaths //datacube:pages) $(rlocationpaths //query:pages) $(rlocationpaths //studio:pages) $(rlocationpaths //depot-client:depot_client) $(rlocationpaths //legend-art:legend_art) $(rlocationpaths //model-changes:model_changes) $(rlocationpaths //model-changes:records) $(rlocationpaths //pure-protocol:pure_protocol) $(rlocationpaths //query-store:query_store) $(rlocationpaths //sdlc-client:records) $(rlocationpaths //sdlc-client:sdlc_client)",
     },
+)
+
+# Every module a browser bundle reads is one it declares (2026-11-15, the C5-T final audit's finding from the Java
+# worker's gate: //engine-client:planner_worker read a file it did not declare, which esbuild found outside the sandbox
+# only when another action had copied it). Each bundle's metafile and declared files, from every package
+# (guards_package's guard_bundles), so a new bundle is read without a list to update.
+filegroup(
+    name = "bundle_inputs",
+    testonly = True,
+    srcs = ["//%s:guard_bundles" % p for p in PACKAGES],
+)
+
+node_test(
+    name = "bundle_inputs_test",
+    size = "small",
+    data = [":bundle_inputs"],
+    entry_point = "bundle-inputs.test.ts",
+    env = {"BUNDLE_INPUTS": "$(rlocationpaths :bundle_inputs)"},
 )
 
 # tools/deps/pools.bzl's pools are exactly MODULE.bazel's, and its testonly pools are testonly as a whole (Bazel workplan P1-25)

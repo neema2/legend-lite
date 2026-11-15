@@ -122,6 +122,9 @@ test_suite(
         "//tools/deps:layers_alone",
         # the apps' own plan-and-run sites, a shrink-only census (the C5-T audit's MUST 2, 2026-11-15)
         "//tools/deps:app_runs_test",
+        # every module a browser bundle reads is one it declares, by esbuild's own metafile, every package's bundles
+        # (2026-11-15: //engine-client:planner_worker read plan-guard.ts undeclared, found only when copied by another action)
+        "//tools/deps:bundle_inputs_test",
         "//tools/deps:pools_list_test",
         "//tools/deps:warehouse_closure_test",
         "//tools/guards:classpath_test",

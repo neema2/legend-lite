@@ -248,11 +248,10 @@ filegroup(
 # DataCube, Query and Studio serve it as their ./planner-worker.js, next to //wasm:planner's module.
 esbuild_bundle(
     name = "planner_worker",
-    srcs = [
-        "src/legend/planner-answer.ts",
-        "src/legend/planner-protocol.ts",
-        "src/legend/planner-worker.ts",
-    ],
+    # the planner layer whole, its records with it (2026-11-15, the C5-T final audit's finding from the Java worker's
+    # gate: three files named by hand left out what planner-answer.ts imports -- run-frame.ts on main, plan-guard.ts here
+    # -- and esbuild found it outside the sandbox only when another action had copied it; //tools/deps:bundle_inputs_test)
+    srcs = [":planner"],
     outs = ["planner-worker.js"],
     args = [
         "src/legend/planner-worker.ts",
