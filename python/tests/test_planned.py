@@ -909,7 +909,8 @@ class TheBridgeTest(unittest.TestCase):
         raw.execute('CREATE TABLE T_TREES (CITY VARCHAR, YR INTEGER, TREES INTEGER)')  # the test's own fixture
         raw.execute("INSERT INTO T_TREES VALUES ('NYC', 2000, 5), ('LDN', 2000, 3), ('NYC', 2011, 2)")
         con = Database(raw)
-        keys = send(con, across_the_bridge(keyed['keys']['statement'], "the hosted DataCube's query", answered)).fetchall()
+        with in_run("a test's run"):  # the hosted runner's sends, each in its run (C5-P)
+            keys = send(con, across_the_bridge(keyed['keys']['statement'], "the hosted DataCube's query", answered)).fetchall()
         self.assertEqual(len(keys), 2, keys)
         written = _keyed_text(body['statement'], tuple(body['regions']), len(keys))
         params = []
@@ -917,7 +918,8 @@ class TheBridgeTest(unittest.TestCase):
             for key in keys:
                 for s in range(r['firstSlot'], r['firstSlot'] + r['slotCount']):
                     params.append(key[body['slots'][s]['binding']['cell']])
-        rows = send(con, across_the_bridge(written, "the hosted DataCube's query", answered), params).fetchall()
+        with in_run("a test's run"):
+            rows = send(con, across_the_bridge(written, "the hosted DataCube's query", answered), params).fetchall()
         # each year's total per city, the cities in the order the keys were read
         totals = {2000: {'NYC': 5, 'LDN': 3}, 2011: {'NYC': 2}}
         self.assertEqual(sorted(rows), [(yr, *[totals[yr].get(key[0]) for key in keys]) for yr in (2000, 2011)])

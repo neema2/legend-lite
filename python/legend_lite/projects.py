@@ -19,12 +19,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from . import compiler
+# the plan the planner answered, by the type the runners take: named here as it always was (C5-P)
+from ._planned import PlanText  # noqa: F401
 # the runners, the run side's since C5-P (2026-11-15: _runs.py): named here as they always were
 from ._runs import (HostLoad, Landed, LoadRefused, PLAN_VERSION, open_project, run_host_load,  # noqa: F401
                     run_load, run_write)
 
 # each still named as projects.py's, as it was before the move (its repr, a traceback's class, help()): no change seen
-for _moved in (HostLoad, Landed, LoadRefused, run_host_load, run_load, run_write):
+for _moved in (HostLoad, Landed, LoadRefused):
     _moved.__module__ = __name__
 del _moved
 

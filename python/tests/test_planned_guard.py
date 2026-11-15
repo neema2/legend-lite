@@ -55,7 +55,8 @@ IMPORTS = {
     # 2026-11-15 (C5-P): PlannedSql, Result and send gone with the reads, the run side's now (_reads.py)
     'frames.py': {'Database', 'connect'},
     # 2026-11-12 (M1): the runners read only a plan the planner answered (read_plan)
-    # 2026-11-15 (C5-P): projects.py's runners moved to _runs.py, which it names; it imports nothing of _planned
+    # 2026-11-15 (C5-P): projects.py's runners moved to _runs.py, which it names; the plan's type alone kept, named
+    'projects.py': {'PlanText'},
     'warehouse.py': {'PlannedSql', 'require'},
 }
 
