@@ -31,7 +31,7 @@ describe('the run frame', () => {
   it("reads the run through run-frame.ts's reader, installed once: a second install is refused by name (MUST 1)", () => {
     // run-frame.ts, which opens a run, installed its reader as it loaded; the planner's side (plan-guard.ts, a record
     // the planner reaches) holds no way to open one, and no other module may put a blind reader in its place
-    assert.throws(() => readRunsWith(() => undefined), /the run frame's reader is installed already/);
+    assert.throws(() => readRunsWith(() => undefined), /the run frame reader is installed once/);
   });
 
   it('refuses a planner entry inside a run, across its awaits, and not outside it or after it', async () => {

@@ -12,8 +12,7 @@ let runOf: (() => string | undefined) | undefined;
 /** run-frame.ts's reader of the run a flow is in: installed as it loads, once (a second install is refused). */
 export function readRunsWith(reader: () => string | undefined): void {
   if (runOf !== undefined) {
-    throw new Error("the run frame's reader is installed already: run-frame.ts installs it once, as it loads, and no"
-      + ' other module may stand in its place (plan-guard.ts)');
+    throw new Error('the run frame reader is installed once');
   }
   runOf = reader;
 }
