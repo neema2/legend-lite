@@ -90,6 +90,8 @@ class CompatSpellingGuardTest {
             "D1.6",   // the compile messages in the product's own wording, keyed by kind
             "D1.7",   // engine text (EngineText, EnginePlans' text half, EngineStyle*), RawSqlBoundary, appeals, referee
             "D1.8",   // pure/v1's upstream routes (and the query store they answer) to the edge
+            "D1.9",   // the judges' compatibility to the edge, handed in by a hook (the user, 2026-11-15: COMPILED_PURE_COMPAT's
+                      // branches, Pure's sentences the asserts expect, the canons that reproduce legend-pure's equality)
             "HOOK",   // the edge's hook: a type the product's plan style names so the edge hands its printers in, the
                       // product's style refusing it by name (O3; the D part 1 audit's nit, 2026-11-15)
             "JUDGE",  // the judges' own canon on the test road (D0 §10): not compatibility, never moved
