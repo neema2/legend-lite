@@ -12,6 +12,7 @@ Mapping risk::RiskMapping
         greeksId: [store::DB] GREEKS.GREEKS_ID, calcDate: [store::DB] GREEKS.CALC_DATE, delta: [store::DB] GREEKS.DELTA, gamma: [store::DB] GREEKS.GAMMA, vega: [store::DB] GREEKS.VEGA, theta: [store::DB] GREEKS.THETA, rho: [store::DB] GREEKS.RHO, charm: [store::DB] GREEKS.CHARM, vanna: [store::DB] GREEKS.VANNA, volga: [store::DB] GREEKS.VOLGA, currency: [store::DB] GREEKS.CURRENCY, model: [store::DB] GREEKS.MODEL, isEOD: [store::DB] GREEKS.IS_EOD, underlyingPrice: [store::DB] GREEKS.UNDERLYING_PRICE
     }
     risk::RiskLimit: Relational {
+        ~filter [store::DB] RiskLimit_Latest
         ~mainTable [store::DB] RISK_LIMIT
         limitId: [store::DB] RISK_LIMIT.LIMIT_ID, limitType: [store::DB] RISK_LIMIT.LIMIT_TYPE, limitAmount: [store::DB] RISK_LIMIT.LIMIT_AMOUNT, currentUtilization: [store::DB] RISK_LIMIT.CURRENT_UTILIZATION, utilizationPct: [store::DB] RISK_LIMIT.UTILIZATION_PCT, currency: [store::DB] RISK_LIMIT.CURRENCY, effectiveDate: [store::DB] RISK_LIMIT.EFFECTIVE_DATE, expiryDate: [store::DB] RISK_LIMIT.EXPIRY_DATE, status: [store::DB] RISK_LIMIT.STATUS, approvedBy: [store::DB] RISK_LIMIT.APPROVED_BY, approvalDate: [store::DB] RISK_LIMIT.APPROVAL_DATE, warningThreshold: [store::DB] RISK_LIMIT.WARNING_THRESHOLD, hardLimit: [store::DB] RISK_LIMIT.HARD_LIMIT, isActive: [store::DB] RISK_LIMIT.IS_ACTIVE
     }

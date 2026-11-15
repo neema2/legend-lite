@@ -4,10 +4,12 @@
 Mapping positions::PositionsMapping
 (
     positions::Book: Relational {
+        ~filter [store::DB] Book_Latest
         ~mainTable [store::DB] BOOK
         bookId: [store::DB] BOOK.BOOK_ID, name: [store::DB] BOOK.NAME, bookType: [store::DB] BOOK.BOOK_TYPE, currency: [store::DB] BOOK.CURRENCY, isActive: [store::DB] BOOK.IS_ACTIVE, openDate: [store::DB] BOOK.OPEN_DATE, closeDate: [store::DB] BOOK.CLOSE_DATE, legalEntity: [store::DB] BOOK.LEGAL_ENTITY, strategy: [store::DB] BOOK.STRATEGY, pnlYTD: [store::DB] BOOK.PNL_YTD, positionCount: [store::DB] BOOK.POSITION_COUNT, riskLimit: [store::DB] BOOK.RISK_LIMIT, description: [store::DB] BOOK.DESCRIPTION
     }
     positions::Position: Relational {
+        ~filter [store::DB] Position_Latest
         ~mainTable [store::DB] POSITION
         positionId: [store::DB] POSITION.POSITION_ID, quantity: [store::DB] POSITION.QUANTITY, averageCost: [store::DB] POSITION.AVERAGE_COST, marketValue: [store::DB] POSITION.MARKET_VALUE, unrealizedPnL: [store::DB] POSITION.UNREALIZED_PN_L, realizedPnL: [store::DB] POSITION.REALIZED_PN_L, currency: [store::DB] POSITION.CURRENCY, positionDate: [store::DB] POSITION.POSITION_DATE, direction: [store::DB] POSITION.DIRECTION, costBasis: [store::DB] POSITION.COST_BASIS, accruedInterest: [store::DB] POSITION.ACCRUED_INTEREST, lastUpdated: [store::DB] POSITION.LAST_UPDATED, isOpen: [store::DB] POSITION.IS_OPEN, settlementDate: [store::DB] POSITION.SETTLEMENT_DATE
     }

@@ -4,10 +4,12 @@
 Mapping org::OrgMapping
 (
     org::Desk: Relational {
+        ~filter [store::DB] Desk_Latest
         ~mainTable [store::DB] DESK
         deskId: [store::DB] DESK.DESK_ID, name: [store::DB] DESK.NAME, deskType: [store::DB] DESK.DESK_TYPE, assetClass: [store::DB] DESK.ASSET_CLASS, region: [store::DB] DESK.REGION, isActive: [store::DB] DESK.IS_ACTIVE, headTrader: [store::DB] DESK.HEAD_TRADER, costCenter: [store::DB] DESK.COST_CENTER, floor: [store::DB] DESK.FLOOR, building: [store::DB] DESK.BUILDING, phone: [store::DB] DESK.PHONE, riskLimit: [store::DB] DESK.RISK_LIMIT, pnlTarget: [store::DB] DESK.PNL_TARGET
     }
     org::Trader: Relational {
+        ~filter [store::DB] Trader_Latest
         ~mainTable [store::DB] TRADER
         traderId: [store::DB] TRADER.TRADER_ID, firstName: [store::DB] TRADER.FIRST_NAME, lastName: [store::DB] TRADER.LAST_NAME, badge: [store::DB] TRADER.BADGE, email: [store::DB] TRADER.EMAIL, hireDate: [store::DB] TRADER.HIRE_DATE, seniority: [store::DB] TRADER.SENIORITY, isActive: [store::DB] TRADER.IS_ACTIVE, specialization: [store::DB] TRADER.SPECIALIZATION, license: [store::DB] TRADER.LICENSE, maxNotional: [store::DB] TRADER.MAX_NOTIONAL, pnlYTD: [store::DB] TRADER.PNL_YTD, phone: [store::DB] TRADER.PHONE
     }
@@ -16,6 +18,7 @@ Mapping org::OrgMapping
         pmId: [store::DB] PORTFOLIO_MANAGER.PM_ID, firstName: [store::DB] PORTFOLIO_MANAGER.FIRST_NAME, lastName: [store::DB] PORTFOLIO_MANAGER.LAST_NAME, email: [store::DB] PORTFOLIO_MANAGER.EMAIL, strategy: [store::DB] PORTFOLIO_MANAGER.STRATEGY, aum: [store::DB] PORTFOLIO_MANAGER.AUM, hireDate: [store::DB] PORTFOLIO_MANAGER.HIRE_DATE, isActive: [store::DB] PORTFOLIO_MANAGER.IS_ACTIVE, performanceYTD: [store::DB] PORTFOLIO_MANAGER.PERFORMANCE_YTD, benchmark: [store::DB] PORTFOLIO_MANAGER.BENCHMARK, riskBudget: [store::DB] PORTFOLIO_MANAGER.RISK_BUDGET, investmentStyle: [store::DB] PORTFOLIO_MANAGER.INVESTMENT_STYLE, cfa: [store::DB] PORTFOLIO_MANAGER.CFA
     }
     org::BusinessUnit: Relational {
+        ~filter [store::DB] BusinessUnit_Latest
         ~mainTable [store::DB] BUSINESS_UNIT
         buId: [store::DB] BUSINESS_UNIT.BU_ID, name: [store::DB] BUSINESS_UNIT.NAME, head: [store::DB] BUSINESS_UNIT.HEAD, division: [store::DB] BUSINESS_UNIT.DIVISION, isActive: [store::DB] BUSINESS_UNIT.IS_ACTIVE, headcount: [store::DB] BUSINESS_UNIT.HEADCOUNT, budget: [store::DB] BUSINESS_UNIT.BUDGET, costCenter: [store::DB] BUSINESS_UNIT.COST_CENTER, region: [store::DB] BUSINESS_UNIT.REGION, establishedDate: [store::DB] BUSINESS_UNIT.ESTABLISHED_DATE, description: [store::DB] BUSINESS_UNIT.DESCRIPTION
     }

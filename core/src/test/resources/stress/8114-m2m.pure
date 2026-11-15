@@ -304,6 +304,7 @@ Mapping m2m::SourceMapping
 
     m2m::src::Party: Relational
     {
+        ~filter [store::DB] Counterparty_Latest
         ~mainTable [store::DB] COUNTERPARTY
         partyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
         legalName: [store::DB] COUNTERPARTY.LEGAL_NAME,
@@ -319,6 +320,7 @@ Mapping m2m::SourceMapping
 
     m2m::src::BookRecord: Relational
     {
+        ~filter [store::DB] Book_Latest
         ~mainTable [store::DB] BOOK
         bookId: [store::DB] BOOK.BOOK_ID,
         name: [store::DB] BOOK.NAME,
@@ -340,6 +342,7 @@ Mapping m2m::SourceMapping
 
     m2m::src::PartyName: Relational
     {
+        ~filter [store::DB] Counterparty_Latest
         ~mainTable [store::DB] COUNTERPARTY
         partyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
         legalName: [store::DB] COUNTERPARTY.LEGAL_NAME
@@ -347,6 +350,7 @@ Mapping m2m::SourceMapping
 
     m2m::src::PartyRating: Relational
     {
+        ~filter [store::DB] Counterparty_Latest
         ~mainTable [store::DB] COUNTERPARTY
         partyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
         rating: [store::DB] COUNTERPARTY.CREDIT_RATING,

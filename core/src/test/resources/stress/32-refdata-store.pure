@@ -8,10 +8,12 @@ Mapping refdata::RefdataMapping
         code: [store::DB] CURRENCY.CODE, name: [store::DB] CURRENCY.NAME, numericCode: [store::DB] CURRENCY.NUMERIC_CODE, minorUnit: [store::DB] CURRENCY.MINOR_UNIT, symbol: [store::DB] CURRENCY.SYMBOL, isActive: [store::DB] CURRENCY.IS_ACTIVE, region: [store::DB] CURRENCY.REGION, isMajor: [store::DB] CURRENCY.IS_MAJOR, centralBank: [store::DB] CURRENCY.CENTRAL_BANK, fixingSource: [store::DB] CURRENCY.FIXING_SOURCE
     }
     refdata::Exchange: Relational {
+        ~filter [store::DB] Exchange_Latest
         ~mainTable [store::DB] EXCHANGE
         mic: [store::DB] EXCHANGE.MIC, name: [store::DB] EXCHANGE.NAME, city: [store::DB] EXCHANGE.CITY, timezone: [store::DB] EXCHANGE.TIMEZONE, openTime: [store::DB] EXCHANGE.OPEN_TIME, closeTime: [store::DB] EXCHANGE.CLOSE_TIME, isElectronic: [store::DB] EXCHANGE.IS_ELECTRONIC, operatingMic: [store::DB] EXCHANGE.OPERATING_MIC, website: [store::DB] EXCHANGE.WEBSITE, regulatoryBody: [store::DB] EXCHANGE.REGULATORY_BODY
     }
     refdata::Sector: Relational {
+        ~filter [store::DB] Sector_Latest
         ~mainTable [store::DB] SECTOR
         sectorId: [store::DB] SECTOR.SECTOR_ID, name: [store::DB] SECTOR.NAME, gicsCode: [store::DB] SECTOR.GICS_CODE, level: [store::DB] SECTOR.LEVEL, description: [store::DB] SECTOR.DESCRIPTION, isActive: [store::DB] SECTOR.IS_ACTIVE, parentSectorId: [store::DB] SECTOR.PARENT_SECTOR_ID, marketCapWeight: [store::DB] SECTOR.MARKET_CAP_WEIGHT, numberOfCompanies: [store::DB] SECTOR.NUMBER_OF_COMPANIES, lastUpdated: [store::DB] SECTOR.LAST_UPDATED
     }

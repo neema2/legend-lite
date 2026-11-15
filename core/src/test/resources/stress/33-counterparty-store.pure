@@ -4,6 +4,7 @@
 Mapping counterparty::CounterpartyMapping
 (
     counterparty::Counterparty: Relational {
+        ~filter [store::DB] Counterparty_Latest
         ~mainTable [store::DB] COUNTERPARTY
         counterpartyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID, legalName: [store::DB] COUNTERPARTY.LEGAL_NAME, shortName: [store::DB] COUNTERPARTY.SHORT_NAME, lei: [store::DB] COUNTERPARTY.LEI, counterpartyType: [store::DB] COUNTERPARTY.COUNTERPARTY_TYPE, domicile: [store::DB] COUNTERPARTY.DOMICILE, incorporationCountry: [store::DB] COUNTERPARTY.INCORPORATION_COUNTRY, isActive: [store::DB] COUNTERPARTY.IS_ACTIVE, onboardDate: [store::DB] COUNTERPARTY.ONBOARD_DATE, creditRating: [store::DB] COUNTERPARTY.CREDIT_RATING, ratingAgency: [store::DB] COUNTERPARTY.RATING_AGENCY, tier: [store::DB] COUNTERPARTY.TIER, parentEntityId: [store::DB] COUNTERPARTY.PARENT_ENTITY_ID, industry: [store::DB] COUNTERPARTY.INDUSTRY, website: [store::DB] COUNTERPARTY.WEBSITE
     }

@@ -1239,6 +1239,25 @@ Database store::DB
 
     // The coupon schedule. Security to period is one-to-sixty at the deep end; period to
     // payment is one-to-zero-or-one, and the zero half is every coupon not yet due.
+    // each milestoned dataset's open version (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5: the batch milestoned
+    // tables' LAKE_OUT_ID is 999999999 while a version is current): the latest-version filter every class
+    // mapping over the table reads, so a query reads the current rows wherever closed versions are kept
+    Filter Book_Latest(BOOK.LAKE_OUT_ID = 999999999)
+    Filter BusinessUnit_Latest(BUSINESS_UNIT.LAKE_OUT_ID = 999999999)
+    Filter Counterparty_Latest(COUNTERPARTY.LAKE_OUT_ID = 999999999)
+    Filter Desk_Latest(DESK.LAKE_OUT_ID = 999999999)
+    Filter Equity_Latest(EQUITY.LAKE_OUT_ID = 999999999)
+    Filter Exchange_Latest(EXCHANGE.LAKE_OUT_ID = 999999999)
+    Filter FxRate_Latest(FX_RATE.LAKE_OUT_ID = 999999999)
+    Filter Instrument_Latest(INSTRUMENT.LAKE_OUT_ID = 999999999)
+    Filter MarketQuote_Latest(MARKET_QUOTE.LAKE_OUT_ID = 999999999)
+    Filter Option_Latest(OPTION.LAKE_OUT_ID = 999999999)
+    Filter Position_Latest(POSITION.LAKE_OUT_ID = 999999999)
+    Filter Rfq_Latest(RFQ.LAKE_OUT_ID = 999999999)
+    Filter RiskLimit_Latest(RISK_LIMIT.LAKE_OUT_ID = 999999999)
+    Filter Sector_Latest(SECTOR.LAKE_OUT_ID = 999999999)
+    Filter Trader_Latest(TRADER.LAKE_OUT_ID = 999999999)
+    Filter TradeOrder_Latest(TRADE_ORDER.LAKE_OUT_ID = 999999999)
     Filter CaCashDividendRows(CA_EVENT.ACTION_TYPE = 'CASH_DIVIDEND')
     Filter CaSpecialDividendRows(CA_EVENT.ACTION_TYPE = 'SPECIAL_DIVIDEND')
     Filter CaStockDividendRows(CA_EVENT.ACTION_TYPE = 'STOCK_DIVIDEND')

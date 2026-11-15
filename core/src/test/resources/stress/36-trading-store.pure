@@ -10,6 +10,7 @@ Mapping trading::TradingMapping
         tradeId: [store::DB] TRADE.TRADE_ID, tradeDate: [store::DB] TRADE.TRADE_DATE, settlementDate: [store::DB] TRADE.SETTLEMENT_DATE, quantity: [store::DB] TRADE.QUANTITY, price: [store::DB] TRADE.PRICE, notional: [store::DB] TRADE.NOTIONAL, side: EnumerationMapping SideMapping: [store::DB] TRADE.SIDE, status: [store::DB] TRADE.STATUS, tradeType: [store::DB] TRADE.TRADE_TYPE, currency: [store::DB] TRADE.CURRENCY, commission: [store::DB] TRADE.COMMISSION, fees: [store::DB] TRADE.FEES, executionVenue: [store::DB] TRADE.EXECUTION_VENUE, isBlock: [store::DB] TRADE.IS_BLOCK, createdTime: [store::DB] TRADE.CREATED_TIME, lastModifiedTime: [store::DB] TRADE.LAST_MODIFIED_TIME
     }
     trading::Order: Relational {
+        ~filter [store::DB] TradeOrder_Latest
         ~mainTable [store::DB] TRADE_ORDER
         orderId: [store::DB] TRADE_ORDER.ORDER_ID, orderDate: [store::DB] TRADE_ORDER.ORDER_DATE, side: [store::DB] TRADE_ORDER.SIDE, quantity: [store::DB] TRADE_ORDER.QUANTITY, filledQuantity: [store::DB] TRADE_ORDER.FILLED_QUANTITY, remainingQuantity: [store::DB] TRADE_ORDER.REMAINING_QUANTITY, limitPrice: [store::DB] TRADE_ORDER.LIMIT_PRICE, stopPrice: [store::DB] TRADE_ORDER.STOP_PRICE, timeInForce: [store::DB] TRADE_ORDER.TIME_IN_FORCE, status: [store::DB] TRADE_ORDER.STATUS, priority: [store::DB] TRADE_ORDER.PRIORITY, createdTime: [store::DB] TRADE_ORDER.CREATED_TIME, lastModifiedTime: [store::DB] TRADE_ORDER.LAST_MODIFIED_TIME, expiryDate: [store::DB] TRADE_ORDER.EXPIRY_DATE, isAlgoOrder: [store::DB] TRADE_ORDER.IS_ALGO_ORDER, algoStrategy: [store::DB] TRADE_ORDER.ALGO_STRATEGY
     }
@@ -42,6 +43,7 @@ Mapping trading::TradingMapping
         correctionId: [store::DB] TRADE_CORRECTION.CORRECTION_ID, correctionDate: [store::DB] TRADE_CORRECTION.CORRECTION_DATE, correctionType: [store::DB] TRADE_CORRECTION.CORRECTION_TYPE, originalValue: [store::DB] TRADE_CORRECTION.ORIGINAL_VALUE, correctedValue: [store::DB] TRADE_CORRECTION.CORRECTED_VALUE, fieldCorrected: [store::DB] TRADE_CORRECTION.FIELD_CORRECTED, reason: [store::DB] TRADE_CORRECTION.REASON, performedBy: [store::DB] TRADE_CORRECTION.PERFORMED_BY, approvedBy: [store::DB] TRADE_CORRECTION.APPROVED_BY, status: [store::DB] TRADE_CORRECTION.STATUS, isReversed: [store::DB] TRADE_CORRECTION.IS_REVERSED
     }
     trading::Rfq: Relational {
+        ~filter [store::DB] Rfq_Latest
         ~mainTable [store::DB] RFQ
         rfqId: [store::DB] RFQ.RFQ_ID, requestTime: [store::DB] RFQ.REQUEST_TIME, currencyPair: [store::DB] RFQ.CURRENCY_PAIR, side: [store::DB] RFQ.SIDE, notional: [store::DB] RFQ.NOTIONAL, tenor: [store::DB] RFQ.TENOR, quotedRate: [store::DB] RFQ.QUOTED_RATE, spreadBps: [store::DB] RFQ.SPREAD_BPS, status: [store::DB] RFQ.STATUS, responseTimeMs: [store::DB] RFQ.RESPONSE_TIME_MS, isHit: [store::DB] RFQ.IS_HIT
     }

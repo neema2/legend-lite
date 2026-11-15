@@ -855,6 +855,7 @@ Mapping stress::DenseMapping
 
    *counterparty::Counterparty[d35_counterparty]: Relational
    {
+      ~filter [store::DB] Counterparty_Latest
       ~primaryKey ( [store::DB]COUNTERPARTY.COUNTERPARTY_ID )
       ~mainTable [store::DB]COUNTERPARTY
       counterpartyId: [store::DB]COUNTERPARTY.COUNTERPARTY_ID,
@@ -1350,6 +1351,7 @@ Mapping stress::DenseMapping
 
    *marketdata::FxRate[d56_fxrate]: Relational
    {
+      ~filter [store::DB] FxRate_Latest
       ~primaryKey ( [store::DB]FX_RATE.RATE_ID )
       ~mainTable [store::DB]FX_RATE
       rateId: [store::DB]FX_RATE.RATE_ID,
@@ -1421,6 +1423,7 @@ Mapping stress::DenseMapping
 
    *marketdata::MarketQuote[d59_marketquote]: Relational
    {
+      ~filter [store::DB] MarketQuote_Latest
       ~primaryKey ( [store::DB]MARKET_QUOTE.QUOTE_ID )
       ~mainTable [store::DB]MARKET_QUOTE
       quoteId: [store::DB]MARKET_QUOTE.QUOTE_ID,

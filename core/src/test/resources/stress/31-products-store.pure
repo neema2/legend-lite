@@ -4,10 +4,12 @@
 Mapping products::ProductsMapping
 (
     products::Instrument: Relational {
+        ~filter [store::DB] Instrument_Latest
         ~mainTable [store::DB] INSTRUMENT
         instrumentId: [store::DB] INSTRUMENT.INSTRUMENT_ID, ticker: [store::DB] INSTRUMENT.TICKER, name: [store::DB] INSTRUMENT.NAME, isin: [store::DB] INSTRUMENT.ISIN, cusip: [store::DB] INSTRUMENT.CUSIP, sedol: [store::DB] INSTRUMENT.SEDOL, assetClass: [store::DB] INSTRUMENT.ASSET_CLASS, productType: [store::DB] INSTRUMENT.PRODUCT_TYPE, isActive: [store::DB] INSTRUMENT.IS_ACTIVE, listingDate: [store::DB] INSTRUMENT.LISTING_DATE, maturityDate: [store::DB] INSTRUMENT.MATURITY_DATE, notionalAmount: [store::DB] INSTRUMENT.NOTIONAL_AMOUNT, currency: [store::DB] INSTRUMENT.CURRENCY, description: [store::DB] INSTRUMENT.DESCRIPTION, issueDate: [store::DB] INSTRUMENT.ISSUE_DATE
     }
     products::Equity: Relational {
+        ~filter [store::DB] Equity_Latest
         ~mainTable [store::DB] EQUITY
         equityId: [store::DB] EQUITY.EQUITY_ID, ticker: [store::DB] EQUITY.TICKER, companyName: [store::DB] EQUITY.COMPANY_NAME, shareClass: [store::DB] EQUITY.SHARE_CLASS, marketCap: [store::DB] EQUITY.MARKET_CAP, sharesOutstanding: [store::DB] EQUITY.SHARES_OUTSTANDING, dividendYield: [store::DB] EQUITY.DIVIDEND_YIELD, peRatio: [store::DB] EQUITY.PE_RATIO, beta: [store::DB] EQUITY.BETA, primaryExchange: [store::DB] EQUITY.PRIMARY_EXCHANGE, isADR: [store::DB] EQUITY.IS_ADR, lotSize: [store::DB] EQUITY.LOT_SIZE, lastPrice: [store::DB] EQUITY.LAST_PRICE, priceDate: [store::DB] EQUITY.PRICE_DATE
     }
@@ -16,6 +18,7 @@ Mapping products::ProductsMapping
         bondId: [store::DB] BOND.BOND_ID, issuerName: [store::DB] BOND.ISSUER_NAME, couponRate: [store::DB] BOND.COUPON_RATE, couponFrequency: [store::DB] BOND.COUPON_FREQUENCY, faceValue: [store::DB] BOND.FACE_VALUE, maturityDate: [store::DB] BOND.MATURITY_DATE, issueDate: [store::DB] BOND.ISSUE_DATE, creditRating: [store::DB] BOND.CREDIT_RATING, yieldToMaturity: [store::DB] BOND.YIELD_TO_MATURITY, duration: [store::DB] BOND.DURATION, convexity: [store::DB] BOND.CONVEXITY, isCallable: [store::DB] BOND.IS_CALLABLE, callDate: [store::DB] BOND.CALL_DATE, callPrice: [store::DB] BOND.CALL_PRICE, bondType: [store::DB] BOND.BOND_TYPE, currency: [store::DB] BOND.CURRENCY
     }
     products::Option: Relational {
+        ~filter [store::DB] Option_Latest
         ~mainTable [store::DB] OPTION
         optionId: [store::DB] OPTION.OPTION_ID, optionType: [store::DB] OPTION.OPTION_TYPE, strikePrice: [store::DB] OPTION.STRIKE_PRICE, expirationDate: [store::DB] OPTION.EXPIRATION_DATE, premium: [store::DB] OPTION.PREMIUM, impliedVolatility: [store::DB] OPTION.IMPLIED_VOLATILITY, delta: [store::DB] OPTION.DELTA, gamma: [store::DB] OPTION.GAMMA, theta: [store::DB] OPTION.THETA, vega: [store::DB] OPTION.VEGA, exerciseStyle: [store::DB] OPTION.EXERCISE_STYLE, isInTheMoney: [store::DB] OPTION.IS_IN_THE_MONEY, underlyingPrice: [store::DB] OPTION.UNDERLYING_PRICE, contractSize: [store::DB] OPTION.CONTRACT_SIZE, openInterest: [store::DB] OPTION.OPEN_INTEREST
     }

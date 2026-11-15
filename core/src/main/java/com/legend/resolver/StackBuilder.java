@@ -1890,6 +1890,22 @@ final class StackBuilder {
     }
 
     static TypedSpec demandForKeys(TypedSpec pipeline, Set<String> cols) {
+        // a JOIN's row is its left's, then its right's under the join's prefix: a key the join's row lacks is its
+        // left's to carry (a second hop off a routed union whose first hop has joined already reads its key off the
+        // union's own row, through the first hop's join)
+        if (pipeline instanceof com.legend.compiler.spec.typed.TypedJoin j) {
+            Set<String> lacking = new LinkedHashSet<>(missingOf(j, cols));
+            TypedSpec left = lacking.isEmpty() ? j.left() : demandForKeys(j.left(), lacking);
+            if (left == j.left()) {
+                return pipeline;
+            }
+            List<Type.Column> row = new ArrayList<>(Type.requireRelationSchema(left.info().type()).columns());
+            List<Type.Column> was = Type.requireRelationSchema(j.info().type()).columns();
+            row.addAll(was.subList(Type.requireRelationSchema(j.left().info().type()).columns().size(), was.size()));
+            return new com.legend.compiler.spec.typed.TypedJoin(left, j.right(), j.kind(), j.condition(), j.prefix(),
+                    j.frameName(), new ExprType(Type.relation(new Type.RelationType(row)), j.info().multiplicity()),
+                    j.userCondition());
+        }
         if (pipeline instanceof TypedFilter f) {
             TypedSpec inner = demandForKeys(f.source(), cols);
             if (inner == f.source()) {

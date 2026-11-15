@@ -44,6 +44,7 @@ Mapping conf::Confluence
     // The fallback target. `Otherwise` names a ROOT set implementation of the property's
     // type, so one has to exist for counterparty::Counterparty in this mapping.
     counterparty::Counterparty[confCptyRoot]: Relational {
+        ~filter [store::DB] Counterparty_Latest
         ~primaryKey ([store::DB] COUNTERPARTY.COUNTERPARTY_ID)
         ~mainTable [store::DB] COUNTERPARTY
         counterpartyId: [store::DB] COUNTERPARTY.COUNTERPARTY_ID,
