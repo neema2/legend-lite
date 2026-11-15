@@ -66,57 +66,57 @@ Database riskdb::DB
 
 ###Lakehouse
 // MARKET DATA, streamed from the ticker plant (the market data team)
-Ingest marketdata::MarketDataFeed Stream
+Ingest marketdata::MarketDataFeed Delta<JSON>
 [
   MARKET_TRADE( |#>{tickerplant::Topics."tp.us-equities.trades.v3"}# ) pk=[ PRINT_ID ] writeMode=AppendOnly retention=LastRows(25000);
-  MARKET_QUOTE( |#>{tickerplant::Topics."tp.us-equities.nbbo.v2"}# ) pk=[ QUOTE_ID ] writeMode=LatestByKey;
-  FX_RATE( |#>{tickerplant::Topics."tp.fx.spot.v1"}# ) pk=[ RATE_ID ] writeMode=LatestByKey;
+  MARKET_QUOTE( |#>{tickerplant::Topics."tp.us-equities.nbbo.v2"}# ) pk=[ QUOTE_ID ] writeMode=BatchMilestoned;
+  FX_RATE( |#>{tickerplant::Topics."tp.fx.spot.v1"}# ) pk=[ RATE_ID ] writeMode=BatchMilestoned;
 ]
 // NEWS, streamed from the vendor
-Ingest marketdata::NewsFeed Stream
+Ingest marketdata::NewsFeed Delta<JSON>
 [
   NEWS_STORY( |#>{newswire::Topics."vendor.newswire.stories.v1"}# ) pk=[ STORY_ID ] writeMode=AppendOnly retention=LastRows(5000);
 ]
 // THE ORDER SYSTEM, streamed from its drop copy
-Ingest trading::OrderFlowFeed Stream
+Ingest trading::OrderFlowFeed Delta<JSON>
 [
-  TRADE_ORDER( |#>{oms::Topics."oms.equities.orders.v4"}# ) pk=[ ORDER_ID ] writeMode=LatestByKey;
+  TRADE_ORDER( |#>{oms::Topics."oms.equities.orders.v4"}# ) pk=[ ORDER_ID ] writeMode=BatchMilestoned;
   EXECUTION( |#>{oms::Topics."oms.equities.fills.v4"}# ) pk=[ EXECUTION_ID ] writeMode=AppendOnly retention=LastRows(50000);
   ORDER_ROUTE( |#>{oms::Topics."oms.equities.routes.v4"}# ) pk=[ ROUTE_ID ] writeMode=AppendOnly retention=LastRows(50000);
-  RFQ( |#>{oms::Topics."oms.fx.rfqs.v2"}# ) pk=[ RFQ_ID ] writeMode=LatestByKey;
+  RFQ( |#>{oms::Topics."oms.fx.rfqs.v2"}# ) pk=[ RFQ_ID ] writeMode=BatchMilestoned;
 ]
 // THE SECURITY MASTER, pulled each morning (the security master's team)
-Ingest products::SecurityMasterLoad Pull<Daily('06:00', 'America/New_York')> writeMode=LatestByKey
+Ingest products::SecurityMasterLoad Snapshot writeMode=BatchMilestoned schedule=Daily('06:00', 'America/New_York')
 [
   INSTRUMENT( |#>{secmaster::DB.INSTRUMENT_V}# ) pk=[ INSTRUMENT_ID ];
   EQUITY( |#>{secmaster::DB.EQUITY_V}# ) pk=[ EQUITY_ID ];
   OPTION( |#>{secmaster::DB.OPTION_V}# ) pk=[ OPTION_ID ];
 ]
 // THE REFERENCE MASTER: exchanges and sectors
-Ingest refdata::MarketsLoad Pull<Daily('05:30', 'America/New_York')> writeMode=LatestByKey
+Ingest refdata::MarketsLoad Snapshot writeMode=BatchMilestoned schedule=Daily('05:30', 'America/New_York')
 [
   EXCHANGE( |#>{refmaster::DB.EXCHANGE_V}# ) pk=[ MIC ];
   SECTOR( |#>{refmaster::DB.SECTOR_V}# ) pk=[ SECTOR_ID ];
 ]
 // THE ORGANISATION: business units, desks and traders
-Ingest org::OrganisationLoad Pull<Daily('05:00', 'America/New_York')> writeMode=LatestByKey
+Ingest org::OrganisationLoad Snapshot writeMode=BatchMilestoned schedule=Daily('05:00', 'America/New_York')
 [
   BUSINESS_UNIT( |#>{hr::DB.BUSINESS_UNIT_V}# ) pk=[ BU_ID ];
   DESK( |#>{hr::DB.DESK_V}# ) pk=[ DESK_ID ];
   TRADER( |#>{hr::DB.TRADER_V}# ) pk=[ TRADER_ID ];
 ]
 // THE CLIENT MASTER
-Ingest counterparty::ClientMasterLoad Pull<Daily('05:45', 'America/New_York')> writeMode=LatestByKey
+Ingest counterparty::ClientMasterLoad Snapshot writeMode=BatchMilestoned schedule=Daily('05:45', 'America/New_York')
 [
   COUNTERPARTY( |#>{clientmaster::DB.COUNTERPARTY_V}# ) pk=[ COUNTERPARTY_ID ];
 ]
 // RISK LIMITS, pulled every fifteen minutes
-Ingest risk::LimitsLoad Pull<Every('PT15M')> writeMode=LatestByKey
+Ingest risk::LimitsLoad Snapshot writeMode=BatchMilestoned schedule=Every('PT15M')
 [
   RISK_LIMIT( |#>{riskdb::DB.RISK_LIMIT_V}# ) pk=[ LIMIT_ID ];
 ]
 // POSITIONS at the start of the day: position keeping drops its files
-Ingest positions::StartOfDay Snapshot<Parquet> writeMode=LatestByKey
+Ingest positions::StartOfDay Snapshot<Parquet> writeMode=BatchMilestoned
 [
   POSITION( POSITION_ID: Varchar(200)[1], QUANTITY: Double, AVERAGE_COST: Double, MARKET_VALUE: Double, UNREALIZED_PN_L: Double, REALIZED_PN_L: Double, CURRENCY: Varchar(200), POSITION_DATE: StrictDate, DIRECTION: Varchar(200), COST_BASIS: Double, ACCRUED_INTEREST: Double, LAST_UPDATED: Timestamp, IS_OPEN: Boolean, SETTLEMENT_DATE: StrictDate, BOOK_ID: Varchar(200), PORTFOLIO_ID: Varchar(200), INSTRUMENT_ID: Varchar(200) ) pk=[ POSITION_ID ];
   BOOK( BOOK_ID: Varchar(200)[1], NAME: Varchar(200)[1], BOOK_TYPE: Varchar(200), CURRENCY: Varchar(200)[1], IS_ACTIVE: Boolean, OPEN_DATE: StrictDate, CLOSE_DATE: StrictDate, LEGAL_ENTITY: Varchar(200), STRATEGY: Varchar(200), PNL_YTD: Double, POSITION_COUNT: Int, RISK_LIMIT: Double, DESCRIPTION: Varchar(200), DESK_ID: Varchar(200) ) pk=[ BOOK_ID ];

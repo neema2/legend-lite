@@ -411,6 +411,9 @@ Each becomes a docs/SEMANTICS_REGISTER.md row, ruled by the user, when it is bui
 4. **Reference data as published topics; positions as files.**
 5. **The tab on the same path:** the world publishes to the tab's log, the tab lands with the same plans.
 6. **`market.groovy` deleted:** every Deephaven lane green with only the feed and the plan.
+Before the history tier: **lite's lowering joins from a filtered class mapping** (found in step 0b), then the
+keyed tables' latest-version filters.
+
 7. **Last, maybe:** a lane against a real Kafka-compatible broker (the user: "Real Kafka maybe at the end").
 
 ### 15.1 Step 0 in detail (planned 2026-11-15)
@@ -432,6 +435,13 @@ no corpus test reads them raw but `BOOK` (4 reads). In order, each committed wit
   LAKE_OUT_ID = 999999999)` per keyed table in `store::DB` and `~filter` in each keyed class mapping; the test data's
   rows gain their three columns (one version each: `LAKE_IN_ID` 1, `LAKE_OUT_ID` 999999999); the corpus lanes and
   their oracle answers rerun.
+  **Found 2026-11-15, the filters deferred:** with the 26 `~filter`s in place, about 1,000 stress suites failed
+  with `join condition references unknown column 'BOOK_ID' on its left side`: lite's lowering makes a filtered class
+  mapping's table a sub-select that does not carry every column the class's joins read -- a compiler gap, since
+  upstream joins from a filtered class mapping. Without the filters the corpus is green (above its floor of 5,614),
+  and no answer changes: on a live target and in the test data every row is its key's open version, so
+  `LAKE_OUT_ID = 999999999` is always true. The filters land with that compiler fix, which the history tier needs
+  first (the order, §15).
 - **0c. The planner.** `IngestTopics` reads `Delta` datasets (a topic store's table, or the ingest's own topic);
   C0's land plans for `BatchMilestoned` kept current: the key's row replaced, `LAKE_IN_ID` the delivery's batch,
   `LAKE_OUT_ID` 999999999, `LAKE_DIGEST` the database's hash of the row's own columns; a delete indicator's row
