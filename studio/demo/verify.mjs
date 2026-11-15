@@ -278,6 +278,17 @@ async function loop(browser, name, query) {
     await page.getByTestId('sql-status').waitFor();
     assert.match(await statusOf('sql-status'), /^1 row in \d+ ms/);
     assert.equal((await page.getByTestId('sql-rows').locator('tbody td').first().textContent())?.trim(), '5');
+    // a large answer is drawn in view only, and scrolls (upstream's grid draws the rows in view and caps none: the
+    // TypeScript hunt's T-D, 2026-11-15): 200,000 rows, a few dozen drawn, the last reached by scrolling
+    await page.getByTestId('sql-text').fill('SELECT range AS n FROM range(200000)');
+    await page.getByTestId('sql-run').click();
+    await waitStatus('sql-status', /^200000 rows in \d+ ms/);
+    const drawnRows = await page.getByTestId('sql-rows').locator('tbody tr').count();
+    assert.ok(drawnRows < 500, `${drawnRows} rows drawn of 200,000`);
+    await page.locator('[data-testid=sql-out] .run-result__rows').evaluate((view) => { view.scrollTop = view.scrollHeight; });
+    await page.waitForFunction(() => [...document.querySelectorAll('[data-testid=sql-rows] tbody td')].some((td) => td.textContent === '199999'),
+      undefined, { timeout: 60_000 });
+    await page.getByTestId('sql-text').fill('SELECT COUNT(*) AS n FROM "PARTY"."PARTY"');
     // 3g. the Data panel (plan A2): party's table from its test data (5 rows), then from a person's CSV -- which the next
     // run keeps -- then reset to the model's own rows
     const partyTable = page.locator('[data-testid=data-tables] tr[data-table="PARTY.PARTY"]');

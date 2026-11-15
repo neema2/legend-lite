@@ -304,12 +304,16 @@ textarea.input { height: 80px; padding: 5px; line-height: 20px; resize: none; }
 /* running a function (plan A3): the tab bar's Run, and its result in the panel group's RESULTS -- the bar, then the
    rows as upstream's result grid reads (header on the header grey, cells in muted text) */
 .tabs__run { gap: 5px; margin-right: 5px; }
-.run-result { display: flex; flex-direction: column; min-height: 0; }
+.run-result { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+/* the rows scroll here, drawn only in view (editor.ts rowsTable): each row one line of a fixed height */
+.run-result__rows { flex: 1; min-height: 0; overflow: auto; }
+.run-result__table tbody tr { height: 24px; }
 .run-result__bar { display: flex; align-items: center; gap: 10px; height: 28px; padding: 0 10px; color: var(--color-text-muted); font-family: var(--font-mono); font-size: 12px; }
 .run-result__sql { padding: 0 6px; border-radius: 2px; background: var(--color-bg-tag); color: var(--color-text-secondary); cursor: help; }
 .run-result__table { border-collapse: collapse; margin: 0 10px 10px; font-size: 13px; color: var(--color-text-secondary); }
 .run-result__table th { position: sticky; top: 0; padding: 4px 10px; background: var(--color-bg-panel-header); color: var(--color-text-primary); font-weight: 500; text-align: left; }
-.run-result__table td { padding: 3px 10px; border-bottom: 1px solid var(--color-border-subtle); }
+.run-result__table td { padding: 3px 10px; border-bottom: 1px solid var(--color-border-subtle); white-space: nowrap; }
+.run-result__gap td { padding: 0; border: 0; }
 .run-result__json { margin: 10px; font-family: var(--font-mono); font-size: 12px; color: var(--color-text-secondary); white-space: pre-wrap; }
 .panel-group__run-error { display: flex; align-items: flex-start; gap: 8px; margin: 10px; color: var(--color-status-error); }
 /* the SQL playground: the statement over its rows */

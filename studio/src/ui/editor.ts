@@ -1075,9 +1075,7 @@ function resultView(r: ExecutionResult, ms: number): HTMLElement {
     h('div', { class: 'run-result__bar', 'data-testid': 'run-status' },
       `${rows.length} row${rows.length === 1 ? '' : 's'} in ${ms} ms`,
       sql ? h('span', { class: 'run-result__sql', title: sql }, 'SQL') : null),
-    h('table', { class: 'run-result__table', 'data-testid': 'run-rows' },
-      h('thead', {}, h('tr', {}, ...r.result.columns.map((c) => h('th', {}, c)))),
-      h('tbody', {}, ...rows.map((row) => h('tr', {}, ...row.values.map((v) => h('td', {}, v === null || v === undefined ? '' : String(v))))))));
+    rowsTable('run-rows', r.result.columns, rows.length, (i, j) => rows[i]!.values[j]));
 }
 
 /** A hint of how a value of `type` is written in Pure, for the parameter dialog's field. */
@@ -1095,10 +1093,48 @@ function placeholderFor(type: string): string {
 
 /** Raw SQL's answer (the SQL playground): its columns and rows, how many, how long. */
 function rawView(t: RawTable, ms: number): HTMLElement {
-  const rows = Array.from({ length: t.rowCount }, (_, i) => t.columns.map((c) => c.values[i]));
   return h('div', { class: 'run-result' },
     h('div', { class: 'run-result__bar', 'data-testid': 'sql-status' }, `${t.rowCount} row${t.rowCount === 1 ? '' : 's'} in ${ms} ms`),
-    h('table', { class: 'run-result__table', 'data-testid': 'sql-rows' },
-      h('thead', {}, h('tr', {}, ...t.columns.map((c) => h('th', {}, c.name)))),
-      h('tbody', {}, ...rows.map((row) => h('tr', {}, ...row.map((v) => h('td', {}, v === null || v === undefined ? '' : String(v))))))));
+    rowsTable('sql-rows', t.columns.map((c) => c.name), t.rowCount, (i, j) => t.columns[j]!.values[i]));
+}
+
+/** A row's height in a result's table, in px: fixed (app.css), so where a row is drawn is known without drawing the
+ *  rows above it. */
+const ROW_PX = 24;
+/** Rows drawn past the view on each side, so a scroll shows drawn rows before the next draw. */
+const AHEAD = 40;
+
+/**
+ * A result's rows as a table that draws only the rows in view, scrolling the rest, as upstream Studio's results do: its
+ * DataGrid (ag-grid) draws the rows in view, and its Run and SQL playground cap no rows (FunctionEditorState.runFunc,
+ * StudioSQLPlaygroundPanelState.executeRawSQL; read at legend-studio c5b2f2c78). A large answer no longer freezes the
+ * tab while every row is drawn (2026-11-15, the TypeScript hunt's T-D).
+ */
+function rowsTable(testId: string, columns: readonly string[], rowCount: number, cell: (row: number, column: number) => unknown): HTMLElement {
+  const body = h('tbody', {});
+  const view = h('div', { class: 'run-result__rows' },
+    h('table', { class: 'run-result__table', 'data-testid': testId },
+      h('thead', {}, h('tr', {}, ...columns.map((c) => h('th', {}, c)))), body));
+  /** The undrawn rows' height, above or below the drawn ones. */
+  const gap = (rows: number): HTMLElement => h('tr', { class: 'run-result__gap' }, h('td', { colspan: columns.length, style: `height:${rows * ROW_PX}px` }));
+  let drawn = '';
+  const draw = (): void => {
+    const first = Math.max(0, Math.floor(view.scrollTop / ROW_PX) - AHEAD);
+    const last = Math.min(rowCount, Math.ceil((view.scrollTop + view.clientHeight) / ROW_PX) + AHEAD);
+    if (drawn === `${first}:${last}`) return;
+    drawn = `${first}:${last}`;
+    const rows: HTMLElement[] = [];
+    for (let i = first; i < last; i++) {
+      rows.push(h('tr', {}, ...columns.map((_, j) => {
+        const v = cell(i, j);
+        return h('td', {}, v === null || v === undefined ? '' : String(v));
+      })));
+    }
+    body.replaceChildren(...(first > 0 ? [gap(first)] : []), ...rows, ...(last < rowCount ? [gap(rowCount - last)] : []));
+  };
+  view.addEventListener('scroll', draw, { passive: true });
+  // drawn again once it is laid out (its height is known) and whenever the panel's height changes
+  new ResizeObserver(draw).observe(view);
+  draw();
+  return view;
 }
