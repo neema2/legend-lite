@@ -9986,6 +9986,7 @@ TEST_IMPORTS = {
         "src/upload.ts",
         "src/value-filter.ts",
     ],
+    "run-wall": [],
     "runner": [
         "src/calc.ts",
         "src/cube.ts",

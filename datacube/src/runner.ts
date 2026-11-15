@@ -30,6 +30,7 @@ import type { CubeSnapshot } from './snapshot.ts';
 import type { LevelScope } from './query.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
 import type { Plan, PlanColumn } from '../../engine-client/src/relation-type.ts';
+import { inRun } from '../../engine-client/src/run-frame.ts';
 import { measured } from '../../engine-client/src/timeline.ts';
 
 export interface RunOutcome {
@@ -287,19 +288,22 @@ export function localHost(planner: Planner, engine: QueryEngine): PlanAndRunHost
     planner,
     planAndWindow: executeWindow === undefined ? undefined : async (query, epoch, window, signal) => {
       const plan = await step(query, undefined, signal, () => planner.plan(query, signal));
-      return { plan, rows: await step(query, plan.sql, signal, () => executeWindow(plan, epoch, window, signal)) };
+      // a window's run a run too (run-frame.ts), as the grid query's below
+      return { plan, rows: await step(query, plan.sql, signal,
+        () => inRun('a grid query, windowed', () => executeWindow(plan, epoch, window, signal))) };
     },
     async planAndRun(query, epoch, signal) {
       const planning = performance.now();
       const plan = await step(query, undefined, signal, () => planner.plan(query, signal));
       // the planner's time on the browser's timeline, beside its engine's steps (docs/DEEPHAVEN_PLAN_2026_10_22.md O1)
       measured('plan', planning);
-      // the engine types every column by the plan (engine.ts typedByPlan)
-      return { plan, rows: await step(query, plan.sql, signal, () => engine.execute(plan, epoch, signal)) };
+      // the engine types every column by the plan (engine.ts typedByPlan); its run a run, which plans nothing
+      // (run-frame.ts: the grid road's run marker, the witness's first, 2026-11-13)
+      return { plan, rows: await step(query, plan.sql, signal, () => inRun('a grid query', () => engine.execute(plan, epoch, signal))) };
     },
     async stream(query, epoch, onChunk, signal) {
       const plan = await step(query, undefined, signal, () => planner.plan(query, signal));
-      await step(query, plan.sql, signal, () => engine.stream(plan, epoch, onChunk, signal));
+      await step(query, plan.sql, signal, () => inRun('a grid query, streamed', () => engine.stream(plan, epoch, onChunk, signal)));
     },
   };
 }

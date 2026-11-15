@@ -57,7 +57,7 @@ class DeephavenDialectTest {
     private static final com.legend.compiler.element.ModelContext CTX = Compiler.compileModel(MODEL);
 
     private static SqlQuery ir(String query) {
-        return Compiler.query(CTX, query).lower("risk::RT", false).plan();
+        return com.legend.planner.Lowered.lower(Compiler.query(CTX, query), "risk::RT", false).plan();
     }
 
     private static String batch(String query) {
@@ -504,8 +504,8 @@ class DeephavenDialectTest {
                 }
                 """;
         var ctx = Compiler.compileModel(model);
-        String b = new Deephaven().render(Compiler.query(ctx, "risk::Pillar.all()->project(~[pid:x|$x.pid])")
-                .lower("risk::CurveRT", false).plan());
+        String b = new Deephaven().render(com.legend.planner.Lowered.lower(
+                Compiler.query(ctx, "risk::Pillar.all()->project(~[pid:x|$x.pid])"), "risk::CurveRT", false).plan());
         assertTrue(b.contains("interp == false"), b);
         assertFalse(b.contains("== 0L"), b);
     }

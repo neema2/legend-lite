@@ -165,8 +165,9 @@ write_source_files(
 # (WebAssembly) gives for a model's text
 node_test(
     name = "model_data_test",
-    # 7.5 s measured on a desk, the planner loaded (2026-10-08)
-    size = "small",
+    # 7.5 s measured on a desk, the planner loaded (2026-10-08). `medium` since 2026-11-14 (the C4 last two rulings'
+    # round): CI's Linux 12.0 s on main and on PR #101, Windows 9-11 s -- `_SLOW_ON_CI_TESTS` in datacube/BUILD.bazel
+    size = "medium",
     data = [
         "test/unplanned.ts",
         ":engine_client",
@@ -278,11 +279,22 @@ js_library(
     visibility = ["//datacube:__pkg__"],
 )
 
+# THE RUN FRAME (run-frame.ts, the witness, 2026-11-13): a planner entry inside a run of its own flow refused by name,
+# outside one or on another flow answered; the planner's in-thread answer and a worker's port among the entries
+node_test(
+    name = "run_frame_test",
+    size = "small",
+    data = [":engine_client"],
+    entry_point = "test/run-frame.test.ts",
+)
+
 # A write's execution plan (the planner's executionPlan) run by the host's plan runner on DuckDB-WASM, in one
 # transaction (plan-runner.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6)
 node_test(
     name = "plan_runner_test",
-    size = "small",
+    # `medium` since 2026-11-14 (the C4 last two rulings' round): CI's Linux 24.0 s on main and on PR #101, Windows
+    # 17-22 s -- `_SLOW_ON_CI_TESTS` in datacube/BUILD.bazel
+    size = "medium",
     data = [
         "test/unplanned.ts",
         ":engine_client",
@@ -377,6 +389,7 @@ test_suite(
         ":node_duckdb_test",
         ":plan_runner_test",
         ":planned_sql_test",
+        ":run_frame_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",

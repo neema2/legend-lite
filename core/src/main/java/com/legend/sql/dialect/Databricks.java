@@ -405,8 +405,7 @@ public final class Databricks extends AnsiSqlRenderer {
     /** Every identifier in backticks; a double-quoted declaration ({@code "date"}) is its inner name. */
     @Override
     protected String ident(String name) {
-        if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
-                && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"")) {
+        if (quotedIdentifier(name, '"')) {
             return delimited(name.substring(1, name.length() - 1).replace("\"\"", "\""));
         }
         return delimited(name);

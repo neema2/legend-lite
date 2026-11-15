@@ -552,7 +552,13 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  434,500 -> 437,000 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
  *  file). Measured 436,691.
- *  437,000 -> 448,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
+ *  437,000 -> 437,300 (2026-11-14, PR #101's CI on Windows: the grid's script measured 437,026 there, run 43564396326).
+ *  The separation's last checks: the server planners' and the server typing's planning() (engine.ts's HttpEngine and
+ *  RoutedEngine -- generatePlan, relationType, compile, compileErrors, returnType -- and planner.ts's UpstreamPlanner,
+ *  the final audit of 9af16fbe58's T2 and its last list), and the run frame's NOT_PLANNING (T6): 63 bytes, 436,935
+ *  without them. Measured 436,998 on Linux; Windows' 28 bytes more are its own build's -- the startup files name 305
+ *  chunks by esbuild's content hashes, and the files embed no path, so the bytes that differ were not found here.
+ *  On the Deephaven line: 437,000 -> 448,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
  *  D9: main measured 436,691, the line +11,237 over it -- its own steps since its last merge (the desk's screens,
  *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'
  *  client). Measured 447,928. */
@@ -789,7 +795,12 @@ const BUDGET = 448_500;
  *  422,000 -> 425,500 (2026-11-13, main's #95 -- the total wall -- merged into the timeseries branch, the user:
  *  "let's merge in here": main's growth and the branch's together, each side's notes above; the merge adds no
  *  file). Measured 425,126.
- *  425,500 -> 434,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
+ *  422,000 -> 422,500 (2026-11-13, the next PR's item 2, "separation made foolproof", the standing witness: the run
+ *  frame -- engine-client's run-frame.ts, the grid road's run marker in runner.ts and the planner's guard in
+ *  LitePlanner's one dispatch and the in-thread answer -- over by 108 bytes). Measured 422,108.
+ *  422,500, 425,500 -> 425,500 (2026-11-14, merged main 3a217086a (#81) into the separation stream: both sides' growth
+ *  together, each side's notes above, measured on the merged tree; the merge adds no file). Measured 425,382.
+ *  On the Deephaven line: 425,500 -> 434,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
  *  D9: main measured 425,126, the line +9,075 over it -- its own steps since its last merge (the desk's screens,
  *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'
  *  client). Measured 434,201. */

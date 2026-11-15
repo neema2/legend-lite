@@ -27,6 +27,7 @@ final class CreateDataSpace {
 
     /** {@code spec}: {@code {"name", "title"?, "description"?, "classes"?}}; the data space's path. */
     static String apply(ModelChanges m, String pkg, Json.Obj spec) {
+        ModelChanges.only(spec, "a data space to make", "name", "title", "description", "classes");
         String name = spec.getString("name");
         if (!isIdentifier(name)) {
             throw refused("a data space's name is a Pure name: '" + name + "'");

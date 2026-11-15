@@ -210,7 +210,7 @@ async function run(): Promise<void> {
     deepEqual(objects.map((o) => `${o.schema}.${o.name}`), ['main.TRADES'], 'the reader sees exactly what it was granted:');
     const trades = objects[0]!;
     // legend-lite's one model writer: the planner's own module (infer.ts `TableModels`)
-    const m = await planner.tableModel(trades.columns.map((c) => ({ ...c, dataType: c.type })),
+    const m = await planner.tableModel(trades.columns.map(({ type, ...c }) => ({ ...c, dataType: type })),
       { table: trades.name, schema: trades.schema, convertible: false, databaseType: 'DuckDB' });
     deepEqual(m.excluded, []);
     const own = planner.withModel(m.model, m.runtime);

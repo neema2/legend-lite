@@ -78,7 +78,10 @@ class FixtureWriteCensusTest {
      *  and filled as a page's file or a person's table is (DuckDbOutputPlanTest, 2: the Output reads a table its host
      *  holds, never one a model declares), a table of every DuckDB type a source column can hold, which no model can
      *  declare (1), and today's CREATE of the rows' statement LIMIT 0, the form the plan replaces, measured beside it
-     *  (1). 922 -> 947 (2026-11-13, main's #95 merged into the timeseries branch, measured by the census's run): the
+     *  (1). 922 -> 925 (2026-11-13, the ClickHouse identifier breakout, the user's ruling: every dialect's identifier
+     *  escaped for its own lexer): DataSourceServersTest's own table on the pinned ClickHouse, its backslash-named
+     *  columns in the server's own spelling -- made by the server's DDL, never by the dialect whose identifier writer it
+     *  checks (3). 922 -> 947 (2026-11-13, main's #95 merged into the timeseries branch, measured by the census's run): the
      *  timeseries branch's twelve files, written before this census, each a fixture's own rows or a lane's own database
      *  set up as its user's -- the price, cash and adversarial tables the #TS tests read (TsIslandTest 4,
      *  TsScaleMeasureTest 5 at 10M rows, TimeseriesLibraryTest 2; the documents', the oracle's, the replay's and the
@@ -87,7 +90,10 @@ class FixtureWriteCensusTest {
      *  Deephaven branch, measured by the census's run): the branch's three dialect tests written before this census --
      *  a session's own table of prints the EMA and the shared subtrees read (EmaTest 4, DuckDbSharedSubtreesTest 2) and
      *  H2's argMax and time buckets (H2ArgExtremeAndTimeBucketTest 2) -- and the ingest plans' test, whose one write is
-     *  the host's part: the batch it holds, made the relation the land plan attaches (DuckDbIngestPlansTest 1); 9. */
+     *  the host's part: the batch it holds, made the relation the land plan attaches (DuckDbIngestPlansTest 1); 9. On main: 925, 947 -> 950 (2026-11-14, merged
+     *  main 3a217086a (#81) into the separation stream, measured by the census's run on the merged tree): both sides'
+     *  moves together. 956, 950 -> MERGED (2026-11-15, main cf865632 merged into the Deephaven branch, measured by the
+     *  census's run on the merged tree): both sides' moves together. */
     private static final int CEILING = 956;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
@@ -102,6 +108,10 @@ class FixtureWriteCensusTest {
             Map.entry("core/src/test/java/com/legend/exec/CatalogTurnFailureTest.java", 6),
             Map.entry("core/src/test/java/com/legend/exec/ContainsOverloadTest.java", 2),
             Map.entry("core/src/test/java/com/legend/exec/DataLoadsTest.java", 6),
+            // 2026-11-13, the ClickHouse identifier breakout (the user's ruling: every dialect's identifier escaped for
+            // its own lexer): the test's own table, its backslash-named columns in ClickHouse's own spelling -- made
+            // by the server's DDL, never by the dialect whose identifier writer the test checks
+            Map.entry("core/src/test/java/com/legend/exec/DataSourceServersTest.java", 3),
             // 2026-11-12, the third re-audit's MUST-FIX 2: a declared database's own table, made by its user (the
             // ceiling's note)
             Map.entry("core/src/test/java/com/legend/exec/DatabaseSettingsH2Test.java", 2),

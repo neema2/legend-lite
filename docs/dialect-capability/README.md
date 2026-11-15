@@ -23,7 +23,8 @@ its reason, what it was read through (a parent, a helper), and the cases reachin
 
 The reach is a MEASUREMENT, `reach.tsv`: each case the five PCT suites record on DuckDB
 (`-Dlegend.diagnostics=pct-cases`) planned as its lane plans it, up to the dialect (the storeless
-runtime, the plan-only seam `TypedQuery.lower`, a relation result wrapped in the PCT wire text), then put
+runtime, the plan-only seam `planner.Lowered.lower` -- the tests' helper since TypedQuery's `lower` went,
+2026-11-13 --, a relation result wrapped in the PCT wire text), then put
 through each dialect's own passes; a function is reached when it is still in the case's IR. Not applied:
 the lane's feature flags and its database-side probes (a dynamically pivoting relation stays unwrapped).
 A reached function may still be one its lane pins as failing. Re-measure when the lowering, the passes

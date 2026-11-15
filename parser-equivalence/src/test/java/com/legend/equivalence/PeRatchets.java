@@ -77,11 +77,19 @@ public final class PeRatchets {
                     + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
                     + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
                     + " tests')",
+            "own_corpus.matched 3211 -> 3226 (2026-11-14, C4's must-haves M1-M5, found red by the gate on b915e29405):"
+                    + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
+                    + " them)",
+            "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
             "own_corpus.matched 3246 -> 3272 (main merged into claude/deephaven-3-browser, 729e3e6d; recorded"
                     + " 2026-11-15, the move landed without its line): the Deephaven branch's and main's tests' models",
             "own_corpus.matched 3272 -> 3274 (2026-11-15, the deployment program's steps 3 and 5 on"
                     + " claude/deephaven-3-browser): DeploymentPlannerTest's runtimes and its in-tab deployment's"
-                    + " model");
+                    + " model",
+            "own_corpus.matched 3274, 3261 -> 3289 (2026-11-15, main cf865632 merged into claude/deephaven-3-browser,"
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together,"
+                    + " 3274 + 3261 - 3246, their shared base");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

@@ -291,7 +291,9 @@ junit_test(
 junit_test(
     name = "planned_sql_test",
     memory_mb = 768,
-    size = "small",
+    # `medium` since 2026-11-14 (the C4 last two rulings' round): CI's Linux 13.0 s on main and 24.7 s on PR #101 (the
+    # runner: 6.9 s and 7.3 s locally), Windows 16.9-25.1 s -- `_SLOW_ON_CI_TESTS` in datacube/BUILD.bazel
+    size = "medium",
     srcs = ["PlannedSqlTest.java"],
     data = [
         ":host_sql.txt",

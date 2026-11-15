@@ -1,0 +1,89 @@
+package com.legend.integration;
+
+import com.legend.Compiler;
+import com.legend.Execution;
+import com.legend.TypedQuery;
+import com.legend.compiler.element.ModelContext;
+
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+/** THROWAWAY (witness cost, 2026-11-13; never committed): the product path whole, per query -- names and type
+ *  (Compiler.query), then plan and run (Execution.run: executionPlan, then ProductRun on an in-memory DuckDB session,
+ *  the answer written as JSON rows to nowhere) -- for the trades corpus's queries; run against the real RunScope and
+ *  against the no-op stub.  RunProbe <model.pure> <queries.tsv> <runtime> <rows> <passes> */
+public final class RunProbe {
+    public static void main(String[] a) throws Exception {
+        String model = Files.readString(Path.of(a[0]));
+        List<String[]> cases = new ArrayList<>();
+        for (String line : Files.readAllLines(Path.of(a[1]))) {
+            int tab = line.indexOf('\t');
+            if (!line.isBlank() && !line.startsWith("#") && tab > 0) {
+                cases.add(new String[] {line.substring(0, tab), line.substring(tab + 1)});
+            }
+        }
+        String runtime = a[2];
+        int rows = Integer.parseInt(a[3]);
+        int passes = Integer.parseInt(a[4]);
+        java.sql.Connection c = java.sql.DriverManager.getConnection("jdbc:duckdb:");
+        try (var s = c.createStatement()) {
+            s.execute("create table DESKS(name varchar(32) primary key, head varchar(64), budget double)");
+            s.execute("insert into DESKS select 'desk' || i, 'head' || i, i * 1000.0 from range(20) t(i)");
+            s.execute("create table TRADES(id integer primary key, region varchar(32), desk varchar(32), book varchar(32),"
+                    + " trader varchar(64), year integer, qtr varchar(8), notional double, pnl double, qty integer,"
+                    + " booked date, active boolean)");
+            s.execute("insert into TRADES select i, 'region' || (i % 5), 'desk' || (i % 20), 'book' || (i % 50),"
+                    + " 'trader' || (i % 200), 2020 + (i % 6), 'Q' || (1 + i % 4), (i % 997) * 1.5, (i % 101) - 50.0,"
+                    + " i % 1000, date '2020-01-01' + (i % 2000)::integer, i % 2 = 0 from range(" + rows + ") t(i)");
+        }
+        ModelContext ctx = Compiler.compileModel(model);
+        java.io.Writer nowhere = java.io.Writer.nullWriter();
+        for (int p = 1; p <= passes; p++) {
+            long[] typed = new long[cases.size()], ran = new long[cases.size()];
+            int ok = 0;
+            List<String> failed = new ArrayList<>();
+            for (int i = 0; i < cases.size(); i++) {
+                long t0 = System.nanoTime();
+                try {
+                    TypedQuery q = Compiler.query(ctx, cases.get(i)[1]);
+                    q.body();
+                    long t1 = System.nanoTime();
+                    Execution.run(q, runtime,
+                            com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(c)),
+                            com.legend.exec.PlanSessions.of(com.legend.testbackend.TestSessions.over(c)),
+                            com.legend.exec.ProductRun.Establish.DECLARED_SETUP,
+                            new com.legend.result.Output.JsonRows(nowhere));
+                    long t2 = System.nanoTime();
+                    typed[i] = t1 - t0;
+                    ran[i] = t2 - t1;
+                    ok++;
+                } catch (Exception | Error e) {
+                    typed[i] = -1;
+                    ran[i] = -1;
+                    failed.add(cases.get(i)[0] + ": " + e.getClass().getSimpleName() + ": "
+                            + String.valueOf(e.getMessage()).lines().findFirst().orElse(""));
+                }
+            }
+            long[] tot = new long[ok];
+            long sumT = 0, sumR = 0;
+            for (int i = 0, k = 0; i < cases.size(); i++) {
+                if (typed[i] >= 0) {
+                    tot[k++] = typed[i] + ran[i];
+                    sumT += typed[i];
+                    sumR += ran[i];
+                }
+            }
+            Arrays.sort(tot);
+            System.out.printf(java.util.Locale.ROOT, "[run] pass %d: %d of %d ok; per query mean: names+type %.1f us,"
+                    + " plan+run %.1f us, whole %.1f us; whole p50 %.1f us; sums ms: names+type %.2f plan+run %.2f%n",
+                    p, ok, cases.size(), sumT / 1e3 / ok, sumR / 1e3 / ok, (sumT + sumR) / 1e3 / ok,
+                    tot.length == 0 ? 0 : tot[tot.length / 2] / 1e3, sumT / 1e6, sumR / 1e6);
+            if (p == 1 && !failed.isEmpty()) {
+                failed.forEach(f -> System.out.println("[run] failed: " + f));
+            }
+        }
+    }
+}

@@ -1,0 +1,21 @@
+"""Reads ab2.log (the second W1 A/B: 6 GB heap, 2 builds, 10 passes): per JVM the planning stages over warm passes 3-10;
+then OFF vs ON medians across JVMs. A JVM whose run did not end (rc=0) is left out."""
+import re, statistics, sys
+log = re.split(r'(?m)^### (?=(?:ON|OFF) r\d$)', open(sys.argv[1]).read())
+rows = {'ON': [], 'OFF': []}
+for ch in log[1:]:
+    if 'rc=0' not in ch: continue
+    lab = ch.split('\n')[0]; v = lab.split()[0]
+    ps = {int(p): tuple(map(float, x)) for p, *x in re.findall(r'pass (\d+): \d+ cases \(\d+ ok\) in ([\d.]+) ms; sums ms names ([\d.]+) type ([\d.]+) plan ([\d.]+) json ([\d.]+)', ch)}
+    warm = [ps[p] for p in range(3, 11)]
+    planning = [w[1] + w[2] + w[3] for w in warm]
+    rows[v].append(dict(lab=lab, med=statistics.median(planning), mn=min(planning), json=statistics.median(w[4] for w in warm),
+                        names=statistics.median(w[1] for w in warm), type=statistics.median(w[2] for w in warm), plan=statistics.median(w[3] for w in warm),
+                        sd=statistics.pstdev(planning)))
+for v in ('OFF', 'ON'):
+    for r in rows[v]:
+        print(f"{r['lab']:7s} names+type+plan over passes 3-10: median {r['med']:7.1f} min {r['mn']:7.1f} sd {r['sd']:5.1f} | names {r['names']:6.1f} type {r['type']:6.1f} plan {r['plan']:7.1f} | json {r['json']:6.1f}")
+for key, name in [('med', 'names+type+plan (median of passes 3-10)'), ('mn', 'names+type+plan (min of passes 3-10)'), ('names','names'),('type','type'),('plan','plan'), ('json', 'PlanJson.write: the control, no checks')]:
+    off = [r[key] for r in rows['OFF']]; on = [r[key] for r in rows['ON']]
+    mo, mn = statistics.median(off), statistics.median(on)
+    print(f"{name:42s} OFF {mo:7.1f} [{min(off):.1f}-{max(off):.1f}]  ON {mn:7.1f} [{min(on):.1f}-{max(on):.1f}]  ON-OFF {mn-mo:+6.1f} ms ({100*(mn-mo)/mo:+.2f}%)")
