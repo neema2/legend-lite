@@ -17,8 +17,9 @@
 // "broke" is what this exists to find. A large "refused" count is
 // expected and its messages are worth reading.
 
-import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { openDuckDbInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
+// the tab's engine, as its door hands it (the C5-T last round's T4, 2026-11-15: a page names no run module's type)
+type DuckDbEngine = Awaited<ReturnType<typeof openDuckDbInTab>>['engine'];
 import type { Lambda } from '../../pure-protocol/src/index.ts';
 import { levelWithValues } from '../src/plan.ts';
 import { col, lambda, lit, times, type ValueSpecification } from '../../pure-protocol/src/index.ts';

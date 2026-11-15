@@ -11,8 +11,9 @@
 // so a node test here would be green and meaningless.
 
 
-import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { openDuckDbInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
+// the tab's engine, as its door hands it (the C5-T last round's T4, 2026-11-15: a page names no run module's type)
+type DuckDbEngine = Awaited<ReturnType<typeof openDuckDbInTab>>['engine'];
 import type { TableModels } from '../src/infer.ts';
 import { mountRemote, type RemoteSource } from '../src/remote.ts';
 import { loadModel } from './boot.ts';

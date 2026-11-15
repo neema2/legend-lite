@@ -1029,9 +1029,13 @@ In order. Nothing here is in the A/B/C PR.
      - each multi-step TS door made one keyed plan, as Java's Keyed pattern does (a step's rows fill the next statement),
        so a door is one planning call and one run call (the orchestrator's note 3 on C5-T, 2026-11-15: the snap door,
        `writeTable`, the upload and catalog flows, `TabTables`, accepted as multi-step doors until then);
-     - the C5-T audit's backlog (2026-11-15; pre-existing, out of its scope, not fixed): `upload.ts`'s `?? 0` (:360);
-       `tab-data.ts` `tables()`'s catch-all; `PlannedSqlTest.UNPLANNED_IMPORT`'s quote style; `infer.ts`'s stale
-       reference (:152); `warehouse.ts` `loadWarehouseBinding`'s load callback;
+     - the C5-T audit's backlog (2026-11-15) -- `upload.ts`'s `?? 0` (:360), `tab-data.ts` `tables()`'s catch-all,
+       `PlannedSqlTest.UNPLANNED_IMPORT`'s quote style, `infer.ts`'s stale reference (:152), `warehouse.ts`
+       `loadWarehouseBinding`'s load callback -- FIXED in the C5-T last round's T3 (2026-11-15);
+     - the pages' boots re-pointed to doors (the C5-T last round's T4, 2026-11-15: the pages, `demo/`, are app code no
+       rule read until then): `datacube/demo/boot.ts`'s demo sample (`runLoad` of the synthesize plan), and
+       `query/demo/main.ts`'s warehouse seed (`runLoad`) and warehouse sign-in by password (`warehouse.ts`'s driver) --
+       pinned meanwhile, shrink-only, by `//tools/deps:app_runs_test` (`PAGE_REACHES`, and their sites in `CENSUS`);
      - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
        `verdicts`) carried in the test plan instead;
      - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),

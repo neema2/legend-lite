@@ -314,16 +314,19 @@ node_test(
     data = [
         ":app_runs_layered",
         ":run_layer_srcs",
+        "//datacube:pages",
         "//datacube:sources",
         "//engine-client:sources",
+        "//query:pages",
         "//query:src",
+        "//studio:pages",
         "//studio:src",
     ],
     entry_point = "app-runs.test.ts",
     env = {
         "LAYERED_SRCS": "$(rlocationpath :app_runs_layered)",
         "RUN_SRCS": "$(rlocationpath :run_layer_srcs)",
-        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src)",
+        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src) $(rlocationpaths //datacube:pages) $(rlocationpaths //query:pages) $(rlocationpaths //studio:pages)",
     },
 )
 

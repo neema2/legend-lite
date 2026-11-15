@@ -332,3 +332,11 @@ genquery(
     scope = [":src"],
     visibility = ["//tools/deps:__pkg__"],
 )
+
+# the page's own modules (demo/), read by //tools/deps:app_runs_test as app code: the page is the app's entry, bundled
+# beside src/ (the C5-T last round's T4, 2026-11-15). A js_library, as a scanner's data must be; nothing depends on it
+js_library(
+    name = "pages",
+    srcs = glob(["demo/**/*.ts"]),
+    visibility = ["//tools/deps:__pkg__"],
+)

@@ -22140,15 +22140,23 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
       typechecked alone by a strict tsc over its closure, with no `@ts-nocheck`, `@ts-ignore` or `@ts-expect-error`
       (`//tools/deps:layers_alone`). They open no import door chosen at run time but the two vendor loads named, and
       no literal worker, URL, require or importScripts specifier names a module they may not reach. No function,
-      member or interface of theirs takes anything that answers a planner's statement, plan or planned record;
+      member or interface of theirs takes anything that answers a planner's statement, plan or planned record. No module
+      of theirs, nor of the doors', writes an explicit `any` (the C5-T last round's T2, 2026-11-15);
     - the planner layers, `//engine-client:planner` and `//datacube:planner`: they reach the records alone, and each
       is typechecked alone;
     - the doors, `//engine-client:doors` and `//datacube:doors`: each asks the planner, then runs its answer in a run
-      frame; their deps are pinned;
-    - the apps' own code (DataCube's app, Query, Studio), which no layer holds: every plan-and-run site outside the
-      doors and the run targets is a shrink-only census (`//tools/deps:app_runs_test`). 16 sites remain in 8 files,
-      each a call of a door: DataCube's runner (cube, plan, treeview), or an Engine's execute, a server's or
-      BrowserEngine's (Query's cube, probe, run and results; Studio's Run);
+      frame; their deps are pinned, and each is typechecked alone (the C5-T last round's T2);
+    - the apps (DataCube's app, Query, Studio; the C5-T last round's T1, 2026-11-15): their targets depend on no run
+      layer, nor do the libraries they depend on (`//tools/deps:ts_layering_test`: an app reaches the run side through
+      the doors alone). No app module, nor any page of theirs (`demo/`), imports a run module by any import -- a `.js`
+      spelling or none read as the module it loads -- or through a re-export of one it imports
+      (`//tools/deps:app_runs_test`), but three named page boots (DataCube's demo sample, Query's warehouse seed and
+      sign-in), shrink-only, C5's backlog line. Every plan-and-run site of theirs outside the doors and the run targets
+      is a shrink-only census there: 21 sites remain in 12 files, each a call of a door -- DataCube's runner (cube,
+      plan, treeview), or an Engine's execute, a server's or BrowserEngine's (Query's cube, probe, run and results;
+      Studio's Run), or an engine a door handed (the stress and remote harness pages) -- or one of those page boots;
+    - every worker the product starts is pinned by call site, as each send, connect, fetch and submit is
+      (`PlannedSqlTest.WORKERS`, the C5-T last round's T4): the planner's, DuckDB's own, and Monaco's;
     - on Node: every send is refused outside a run at the send primitives (DuckDB's #whole, #batches and #bound, the
       held connection's sends, the warehouse's submit), and every node_test runs with
       `--experimental-async-context-frame`;

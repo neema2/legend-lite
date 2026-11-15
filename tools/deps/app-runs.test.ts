@@ -30,6 +30,23 @@ const SOURCES = new Sources('SOURCES', '');
 /** The apps whose own code the census reads. */
 const APPS = ['datacube/src', 'query/src', 'studio/src'];
 
+/** The apps' pages: each app's entries (demo/), bundled beside its src/ -- the app's code too, which no rule read until
+ *  the C5-T last round's T4 (2026-11-15). */
+const PAGES = ['datacube/demo', 'query/demo', 'studio/demo'];
+
+const PAGE_BOOT = "a page's boot, not yet a door's: re-pointed to one with the doors this round leaves (the start-here"
+  + " backlog's C5 list)";
+
+/** Each page module's reach of the run side that remains, with its reason. Shrink-only: a new one fails. */
+const PAGE_REACHES = new Map([
+  ['datacube/demo/boot.ts imports engine-client/src/plan-runner.ts',
+    `the demo sample: the planner's synthesize plan (S303) run by the hosts' runner on the tab's held connection; ${PAGE_BOOT}`],
+  ['query/demo/main.ts imports engine-client/src/plan-runner.ts',
+    `the warehouse demo's seed: the project's Data load (Boundary.projectData) run by the hosts' runner; ${PAGE_BOOT}`],
+  ['query/demo/main.ts imports engine-client/src/warehouse.ts',
+    `Query's sign-in to a warehouse by password: the binding loaded, the session made, its catalogs listed; ${PAGE_BOOT}`],
+]);
+
 /** The doors' and the run targets' own files (a genquery of DataCube's :run and :doors): not the apps' own code. */
 const LAYERED: ReadonlySet<string> = new Set(readFileSync(runfileFromEnv('LAYERED_SRCS'), 'utf8').split('\n')
   .map((l) => l.trim()).filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
@@ -51,7 +68,17 @@ export function importedBy(file: string, text: string): string[] {
     ...code.matchAll(/(?:^|[\n;])\s*(?:import|export)\s+(?:type\s+)?(?:[\w*{}\s,$]+?\s+from\s+)?(['"])([^'"\n]+)\1/g),
     ...code.matchAll(/\bimport\s*\(\s*(['"`])([^'"`$\n]+)\1\s*\)/g),
   ].map((m) => m[2]!);
-  return specs.filter((spec) => spec.startsWith('.')).map((spec) => posix.normalize(posix.join(posix.dirname(file), spec)));
+  return specs.filter((spec) => spec.startsWith('.')).map((spec) => moduleAt(file, spec));
+}
+
+/** The module a relative specifier in `file` names, as the compiler and the bundler find it: a `.js` spelling (`.jsx`,
+ *  `.mjs`, `.cjs`) or none is the TypeScript module beside it (the C5-T last round's T4, 2026-11-15: an app's
+ *  `import ... from '.../duckdb.js'` typechecked and bundled the run module, and this census read another file). */
+export function moduleAt(file: string, spec: string): string {
+  const path = posix.normalize(posix.join(posix.dirname(file), spec));
+  const ext = /\.(?:[cm]?[jt]sx?)$/.exec(path)?.[0];
+  if (ext === undefined) return `${path}.ts`;
+  return path.slice(0, -ext.length) + ext.replace('j', 't');
 }
 
 /** Each module `text` re-exports from (`export ... from '...'`), resolved. */
@@ -59,7 +86,7 @@ export function reExportedBy(file: string, text: string): string[] {
   const code = withoutComments(text);
   return [...code.matchAll(/(?:^|[\n;])\s*export\s+(?:type\s+)?(?:[\w*{}\s,$]+?\s+from\s+)(['"])([^'"\n]+)\1/g)]
     .map((m) => m[2]!).filter((spec) => spec.startsWith('.'))
-    .map((spec) => posix.normalize(posix.join(posix.dirname(file), spec)));
+    .map((spec) => moduleAt(file, spec));
 }
 
 /** Each way an app module of `apps` reaches a run module: one it imports, or one a module it imports re-exports, followed
@@ -105,6 +132,13 @@ const CENSUS = new Map<string, { readonly calls: Readonly<Record<string, number>
   ['query/src/app/run.ts', { calls: { 'engine.execute(': 1 }, why: `Query's run, the query's rows: ${ENGINE_EXECUTE}` }],
   ['query/src/ui/results.ts', { calls: { 'engine.execute(': 1 }, why: `Query's results panel, a page of rows: ${ENGINE_EXECUTE}` }],
   ['studio/src/backend/run.ts', { calls: { 'engine.execute(': 1 }, why: `Studio's Run, a function's or a service's rows: ${ENGINE_EXECUTE}` }],
+  // the pages (2026-11-15, the C5-T last round's T4)
+  ['datacube/demo/boot.ts', { calls: { 'runLoad(': 1 }, why: `the demo sample's synthesize plan, run: ${PAGE_BOOT}` }],
+  ['datacube/demo/remote-harness.ts', { calls: { 'engine.execute(': 1 },
+    why: "the remote harness page's query: a plan its planner answered, executed on the engine the tab's door handed" }],
+  ['datacube/demo/stress.ts', { calls: { 'engine.execute(': 2 },
+    why: "the stress page's queries: plans its planner answered, executed on the engine the tab's door handed" }],
+  ['query/demo/main.ts', { calls: { 'runLoad(': 1, 'engine.run(': 1 }, why: `the warehouse demo's seed, run: ${PAGE_BOOT}` }],
 ]);
 
 /** A call of a run: the plan runner's, the frame's, or a run, an execute or a stream on a session, an engine, a runner,
@@ -136,11 +170,14 @@ function withoutStrings(code: string): string {
 }
 
 describe("the apps' plan-and-run sites, outside every door and run target (shrink-only)", () => {
-  const appFiles = APPS.flatMap((dir) => SOURCES.under(dir, '.ts')).filter((f) => !f.endsWith('.d.ts'));
+  const appFiles = [...APPS, ...PAGES].flatMap((dir) => SOURCES.under(dir, '.ts')).filter((f) => !f.endsWith('.d.ts'));
 
   it('reads every app, and leaves out exactly the doors\' and the run targets\' own files', () => {
     for (const dir of APPS) {
       assert.ok(appFiles.filter((f) => f.startsWith(`${dir}/`)).length >= 10, `the census reads too few of ${dir}: the guard is not looking`);
+    }
+    for (const f of ['datacube/demo/boot.ts', 'datacube/demo/main.ts', 'query/demo/main.ts', 'studio/demo/main.ts']) {
+      assert.ok(appFiles.includes(f), `the census does not read the page ${f}: the guard is not looking`);
     }
     for (const f of ['datacube/src/runner.ts', 'datacube/src/doors.ts', 'datacube/src/upload.ts', 'datacube/src/headless/connection.ts']) {
       assert.ok(LAYERED.has(f), `${f} is not among the doors' and the run targets' files: ${[...LAYERED].join(', ')}`);
@@ -167,8 +204,10 @@ describe("the apps' plan-and-run sites, outside every door and run target (shrin
       `the run layers' files are not read: ${[...RUN_SRCS].join(', ')}`);
     const apps = appFiles.filter((f) => !LAYERED.has(f));
     const read = (f: string): string | undefined => (SOURCES.has(f) ? SOURCES.read(f) : undefined);
-    assert.deepEqual(runReaches(apps, read, RUN_SRCS), [], 'an app module reaches the run side past its doors: take what it'
-      + ' needs from a door (engine-client/src/doors/, //datacube:doors), or its shape from the records');
+    assert.deepEqual(runReaches(apps, read, RUN_SRCS), [...PAGE_REACHES.keys()].sort(), 'an app module reaches the run side'
+      + ' past its doors: take what it needs from a door (engine-client/src/doors/, //datacube:doors), or its shape from the'
+      + " records (a page's boot that still reaches is named, with its reason, in PAGE_REACHES)");
+    for (const [reach, why] of PAGE_REACHES) assert.ok(why.trim().length > 20, `${reach} is pinned without its reason`);
   });
 
   it('names a planted app module that imports a run module, by any import, or through a chain of re-exports', () => {
@@ -181,16 +220,21 @@ describe("the apps' plan-and-run sites, outside every door and run target (shrin
         `${imp} { rows } ${from} '../../engine-client/src/doors/planted-door.ts';`,
         `${exp} { held } ${from} './planted-records.ts';`,
         `// ${imp} { DuckDbEngine } ${from} '../../engine-client/src/duckdb.ts';`,
+        // the module by its `.js` spelling, and by none: the compiler and the bundler load the `.ts` beside it
+        `${imp} { DuckDbEngine as Spelled } ${from} '../../engine-client/src/duckdb.js';`,
+        `${exp} * as unspelled ${from} '../../engine-client/src/arrow-ipc';`,
       ].join('\n')],
       ['engine-client/src/doors/planted-door.ts', `${exp} { rows } ${from} './planted-relay.ts';`],
       ['engine-client/src/doors/planted-relay.ts', `${exp} type { rows } ${from} '../duckdb.ts';`],
       ['datacube/src/planted-records.ts', `${exp} const held = 1;`],
     ]);
     const run = new Set(['engine-client/src/engine.ts', 'engine-client/src/warehouse.ts', 'engine-client/src/plan-runner.ts',
-      'engine-client/src/duckdb.ts']);
+      'engine-client/src/duckdb.ts', 'engine-client/src/arrow-ipc.ts']);
     assert.deepEqual(runReaches(['datacube/src/planted.ts'], (f) => files.get(f), run), [
+      'datacube/src/planted.ts imports engine-client/src/arrow-ipc.ts',
       'datacube/src/planted.ts imports engine-client/src/doors/planted-door.ts, which re-exports'
         + ' engine-client/src/doors/planted-relay.ts, which re-exports engine-client/src/duckdb.ts',
+      'datacube/src/planted.ts imports engine-client/src/duckdb.ts',
       'datacube/src/planted.ts imports engine-client/src/engine.ts',
       'datacube/src/planted.ts imports engine-client/src/plan-runner.ts',
       'datacube/src/planted.ts imports engine-client/src/warehouse.ts',

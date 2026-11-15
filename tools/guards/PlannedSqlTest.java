@@ -207,6 +207,16 @@ class PlannedSqlTest {
             Map.entry("engine-client/src/duckdb.ts", List.of("conn.insertArrowFromIPCStream", "conn.query(", "prepared.query(", "prepared.query(", "prepared.send(", "this.#conn.prepare(", "this.#conn.query(")),
             Map.entry("query/src/app/app.ts", List.of("recent.query(")),
             Map.entry("query/src/ui/queries.ts", List.of("recent.query(")));
+    /** Each worker the product starts, by call site (2026-11-15, the C5-T last round's T4). */
+    static final Map<String, List<String>> WORKERS = Map.ofEntries(
+            // the planner's worker (engine-client's bundle, //engine-client:planner_worker): it plans and holds no database
+            Map.entry("datacube/src/lite-planner.ts", List.of("newWorker(")),
+            Map.entry("engine-client/src/legend/wasm-grammar.ts", List.of("newWorker(")),
+            // DuckDB's own worker, its bundle's, under the one raw connection (duckdb-tab.ts: the run layer's computed
+            // door, tools/deps/layer-alone.test.ts COMPUTED_DOORS)
+            Map.entry("engine-client/src/duckdb-tab.ts", List.of("newWorker(")),
+            // Monaco's editor worker (./editor.worker.js): the editor's language services, no database
+            Map.entry("studio/src/app/app.ts", List.of("newWorker(")));
     static final Map<String, List<String>> CONNECTS = Map.ofEntries(
             // 2026-11-12 (the re-audit's S10, measured): by call site, the receiver and the member -- the others connect a DuckDbEngine (DuckDbInTab.connect), a model home or a warehouse, or are harnesses' own fixture databases
             Map.entry("datacube/demo/torture.mjs", List.of("db.connect(")),
@@ -375,6 +385,9 @@ class PlannedSqlTest {
     private static final Pattern FETCH_CALL = Pattern.compile("(?<![\\w$])fetch\\s*\\(");
     private static final Pattern OTHER_HTTP = Pattern.compile("(?<![\\w$])(?:XMLHttpRequest|WebSocket|EventSource)(?![\\w$])"
             + "|\\.\\s*sendBeacon\\s*\\(");
+    /** A worker started (2026-11-15, the C5-T last round's T4: the one transport no census pinned -- a worker speaks to
+     *  its page by message, so a worker of DuckDB's own, started by hand, is a database no send census reads). */
+    private static final Pattern WORKER_START = Pattern.compile("(?<![\\w$.])new\\s+(?:Shared)?Worker\\s*\\(");
     private static final Pattern SUBMIT_CALL = Pattern.compile("\\bcall\\s*(?:<[^>()]*>)?\\s*\\(\\s*(['\"`])submit\\1");
     /** S6 (the re-audit, 2026-11-12): `any`, cast or not, satisfies every type -- the brand's among them. */
     private static final Pattern ANY = Pattern.compile("(?<![\\w$.])any(?![\\w$])(?!\\s*[:(?])");
@@ -569,6 +582,8 @@ class PlannedSqlTest {
                 "export const connection = await db.connect();");
         bites("the fetch census", PlannedSqlTest::everyTransportHasOneChokePoint,
                 "export const sent = await fetch('https://warehouse.example/api/2.0/sql/statements', { method: 'POST' });");
+        bites("the worker census", PlannedSqlTest::everyTransportHasOneChokePoint,
+                "export const db = new Worker(new URL('./vendor/duckdb-browser-eh.worker.js', location.href));");
         bites("the submit census", PlannedSqlTest::everyTransportHasOneChokePoint,
                 "export const sent = await this.call('submit', { statement: text });");
         bites("the runner census", PlannedSqlTest::thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered,
@@ -1385,6 +1400,7 @@ class PlannedSqlTest {
         Map<String, List<String>> connects = new TreeMap<>();
         Map<String, List<String>> fetches = new TreeMap<>();
         Map<String, List<String>> submits = new TreeMap<>();
+        Map<String, List<String>> workers = new TreeMap<>();
         List<String> otherHttp = new ArrayList<>();
         for (String file : s.inventory()) {
             // the product's TypeScript and the JavaScript beside it (S10: the harnesses' .mjs were not read)
@@ -1397,6 +1413,7 @@ class PlannedSqlTest {
             put(connects, file, sites(CONNECT_CALL, code));
             put(fetches, file, fetchSites(code(src, true)));
             put(submits, file, sites(SUBMIT_CALL, code(src, true)));
+            put(workers, file, sites(WORKER_START, code));
             if (finds(OTHER_HTTP, code) && !OTHER_HTTP_KEPT.contains(file)) {
                 otherHttp.add(file);
             }
@@ -1410,6 +1427,9 @@ class PlannedSqlTest {
                 + " engine-client/src/warehouse.ts alone, as a PlannedSql (PlannedSqlTest.SUBMITS, by call site)");
         assertEquals(new TreeMap<>(FETCHES), fetches, "ONE CHOKE POINT (H13): each HTTP send of the product's is pinned by"
                 + " call site (PlannedSqlTest.FETCHES): a new one could carry a statement to a SQL API");
+        assertEquals(new TreeMap<>(WORKERS), workers, "ONE CHOKE POINT (the C5-T last round's T4): each worker the"
+                + " product starts is pinned by call site (PlannedSqlTest.WORKERS): a new one could be a database's own,"
+                + " spoken to by message where no send census reads");
         assertEquals(List.of(), otherHttp, "ONE CHOKE POINT (H13): the product sends HTTP by fetch alone (no"
                 + " XMLHttpRequest, WebSocket, EventSource or sendBeacon), each fetch pinned");
     }

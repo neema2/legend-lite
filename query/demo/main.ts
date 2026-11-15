@@ -9,10 +9,9 @@
 // and saved queries stay in this browser (the same records and rules as a server's store).
 
 import { openDuckDbInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
-import { ProjectDoor } from '../../engine-client/src/doors/project-data.ts';
+import { ProjectDoor, projectRunner } from '../../engine-client/src/doors/project-data.ts';
 import type { ProjectDataSource } from '../../engine-client/src/planner-sources.ts';
-import { ProjectRunner } from '../../engine-client/src/project-data.ts';
-import type { QueryEngine } from '../../engine-client/src/engine.ts';
+import type { QueryEngine } from '../../engine-client/src/query-engine.ts';
 import { runLoad } from '../../engine-client/src/plan-runner.ts';
 import {
   listObjects, loadWarehouseBinding, signIn, WarehouseEngine, type WarehouseBinding, type WarehouseSession,
@@ -131,13 +130,13 @@ async function boot(): Promise<void> {
       const tab = await openDuckDbInTab(vendor, planner!);
       // a project opened by name brings its own rows, in a database of its own here (C5): the screens run on `runner`,
       // pointed there as it opens (AppContext.activate)
-      const projectRunner = new ProjectRunner(tab.engine);
-      runner = projectRunner;
+      const pointed = projectRunner(tab.engine);
+      runner = pointed;
       tabProjects = {
         databases: new ProjectDoor({
           databaseType: tab.engine.databaseType, engine: tab.engine, connect: () => tab.connect(),
         }, planner!),
-        runner: projectRunner,
+        runner: pointed,
         host: tab.engine,
       };
       user = exec.user;

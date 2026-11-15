@@ -12,8 +12,9 @@ import { DEFAULT_CONFIGURATION, type CubeConfiguration } from '../src/config.ts'
 import type { Planner } from '../src/cube.ts';
 import type { ModelOptions } from '../src/planner.ts';
 import type { TsItemAnswer } from '../src/lite-planner.ts';
-import type { DuckDbEngine } from '../../engine-client/src/duckdb.ts';
 import { openDuckDbInTab } from '../../engine-client/src/doors/tab-duckdb.ts';
+// the tab's engine, as its door hands it (the C5-T last round's T4, 2026-11-15: a page names no run module's type)
+type DuckDbEngine = Awaited<ReturnType<typeof openDuckDbInTab>>['engine'];
 import { DESK_TRADES, DESK_TRADES_FILE, SAMPLE_TRADES, sampleTradesRequest } from '../src/sample-trades.ts';
 import type { ProjectDataSource, SynthesizeSource } from '../../engine-client/src/planner-sources.ts';
 import { mountRemote, shownAddress } from '../src/remote.ts';
