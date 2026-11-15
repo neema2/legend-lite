@@ -119,6 +119,11 @@ final class AgreementRuns {
         private final int closing;
         private final List<Run> runs;
         private final Map<Integer, Run> byHost = new HashMap<>();
+        /** Each database member's root, by its verdict's id: where an error reading the member is raised. */
+        private final Map<Integer, Integer> rootOfMember = new HashMap<>();
+        /** An error reading a member's side, held under its root and raised at that root's turn (2026-11-15, PR1's
+         *  review: raised as read, a later root's error was reported before an earlier root's failure). */
+        private final Map<Integer, RuntimeException> heldErrors = new HashMap<>();
         /** The group's one raising assert, or null (the plan's invariant: a raising assert's group closes it alone). */
         private final @Nullable Run raising;
 
@@ -126,6 +131,15 @@ final class AgreementRuns {
                 java.util.function.IntFunction<com.legend.testexec.RootLoops.Appeal> rowAppeals, BodyRun bodyRun) {
             RootLoop loop = group.roots();
             this.database = loop == null ? null : new RootLoops.Run(loop);
+            if (loop != null) {
+                for (int k = 0; k < loop.roots().size(); k++) {
+                    for (RootLoop.Step step : loop.roots().get(k).steps()) {
+                        if (step instanceof RootLoop.Row row && row.verdict() != RootLoop.NO_VERDICT) {
+                            rootOfMember.putIfAbsent(row.verdict(), k);
+                        }
+                    }
+                }
+            }
             this.closing = group.verdicts().get(group.verdicts().size() - 1).id();
             List<Run> made = new ArrayList<>(group.agreements().size());
             for (Agreement a : group.agreements()) {
@@ -163,7 +177,15 @@ final class AgreementRuns {
                 // what the database's raising step raised is its statement's, bound
                 return;
             }
-            rows.get();
+            try {
+                rows.get();
+            } catch (RuntimeException e) {
+                Integer root = rootOfMember.get(verdict.id());
+                if (root == null) {
+                    throw e;
+                }
+                heldErrors.putIfAbsent(root, e);
+            }
         }
 
         /** The database half's row for {@code verdict}; null where {@code verdict} is not the segment's last. At the
@@ -190,8 +212,13 @@ final class AgreementRuns {
                 return null;
             }
             TypedSide last = null;
-            for (Run r : runs) {
-                last = r.decided(verdict, listener, reader);
+            for (int k = 0; k < runs.size(); k++) {
+                RuntimeException held = heldErrors.get(k);
+                if (held != null) {
+                    // its root's turn: the earlier roots decided (the first failure raised there), this one's error now
+                    throw held;
+                }
+                last = runs.get(k).decided(verdict, listener, reader);
             }
             return last;
         }
