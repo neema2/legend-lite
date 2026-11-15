@@ -43,8 +43,11 @@ final class DateFormats {
                     }
                 }
                 if (!closed) {
-                    // pure's pattern parser's words for it. Through %t it is never reached: a quote left open swallows
-                    // the brace that would end the pattern, which endOfPattern refuses first, as pure's scan does
+                    // pure's pattern parser's words for it. Through %t a quote left open usually swallows the brace
+                    // that would end the pattern, which endOfPattern refuses first, as pure's scan does; but a
+                    // zone-shifted pattern reaches this (the C5-J audit's nit, 2026-11-15): Scalars.dateWithPattern reads
+                    // the zone up to its first ']', blind to quotes, so in %t{["EST]yyyy"} the text after the zone
+                    // opens a quote it never closes (pure reads the zone by its own rule; start-here's C5-J backlog)
                     throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
                             "Missing closing quote in format string: " + pattern);
                 }

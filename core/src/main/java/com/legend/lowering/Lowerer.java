@@ -2449,8 +2449,9 @@ public final class Lowerer {
     /** AN ISOLATION WALL (C5-J item 4, 2026-11-15: named, until then an IllegalStateException, so that a caller that
      *  means this condition catches it alone, G7 -- the test road's plan rows, {@code planner.PlanAllocations
      *  .registerPlanRows}): a reference the lowering cannot resolve even after isolating its select -- a computed
-     *  column a filter, an extend or project, a group, a select, a rename or a relation cast reads, or a join
-     *  condition's variable that neither side nor an enclosing row holds. Its message is the wall's, unchanged. */
+     *  column a filter, an extend or project, a group, a select, a rename, a sort ({@code Sorts}, the C5-J audit's
+     *  nit) or a relation cast reads, or a join condition's variable that neither side nor an enclosing row holds. Its
+     *  message is the wall's, unchanged. */
     public static final class IsolationWall extends IllegalStateException {
         private static final long serialVersionUID = 1L;
 

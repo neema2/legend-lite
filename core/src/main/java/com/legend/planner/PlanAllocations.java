@@ -280,7 +280,7 @@ public final class PlanAllocations {
         if (mappingFqn == null) {
             return null;
         }
-        try {
+        return activityOrNone(() -> {
             // C4 (handed off): the execute call's runtime type is not read here yet
             var renderer = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
             EnginePlans.EngineSql es = EnginePlans.engineSql(
@@ -291,11 +291,21 @@ public final class PlanAllocations {
                     env.postProcessors().extractCtes(),
                     env.postProcessors().nonExecutable());
             return post == es.plan() ? es.sql() : renderer.render(post);
+        });
+    }
+
+    /**
+     * An activity's SQL, or none: the ONE rule for both activities, an {@code execute()}'s ({@link #activitySql}) and
+     * an {@code executeLegendQuery}'s ({@code FramePlanner}) -- the C5-J audit's nit, 2026-11-15: one condition, one
+     * handling. The one condition an activity means (C5-J item 4, G7: until then any NotImplementedException,
+     * TypeInferenceException, MappingResolutionException, IllegalStateException or LegendCompileException): the
+     * engine-style render reaches a reduction its dialect cannot encode, so the activity records no SQL, and a read of
+     * it is a loud missing member. Anything else fails the body by name.
+     */
+    static @Nullable String activityOrNone(java.util.function.Supplier<String> render) {
+        try {
+            return render.get();
         } catch (com.legend.sql.DialectCapability e) {
-            // the one condition the activity means (C5-J item 4, 2026-11-15, G7: until then any NotImplementedException,
-            // TypeInferenceException, MappingResolutionException or IllegalStateException): the engine-style render
-            // reaches a reduction its dialect cannot encode, so the activity records no SQL. Anything else fails the
-            // body by name.
             // diagnostics (env-gated): the render's own wall, which the
             // rows path downstream would otherwise mask
             if (System.getenv("LL_TMP_DEBUG") != null) {

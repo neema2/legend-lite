@@ -141,12 +141,17 @@ public final class FramePlanner {
                 // mapping and renders without one (the resolver and the root
                 // form both take none); a class-rooted chain needs its mapping
                 if (mappingFqn != null || lqChain.relationRooted()) {
-                    // C4 (handed off): the runtime's type is not read here yet. A chain with no engine-style render
-                    // fails the body by name (C5-J item 4, 2026-11-15, G7: until then any LegendCompileException,
-                    // NotImplementedException or IllegalStateException left the activities empty; the census of
-                    // core's suites, PCT's channels and both corpora found none)
-                    activitySql = EnginePlans.engineTestSql(List.of(lqChain.chain()),
-                            mappingFqn, specs, env);
+                    // C4 (handed off): the runtime's type is not read here yet. The activity's rule is execute()'s,
+                    // PlanAllocations.activityOrNone (the C5-J audit's nit, 2026-11-15: one condition, one handling):
+                    // a reduction its dialect cannot encode records no SQL, anything else fails the body by name (C5-J
+                    // item 4, G7: until then any LegendCompileException, NotImplementedException or
+                    // IllegalStateException left the activities empty; the census of core's suites, PCT's channels and
+                    // both corpora found none). The render is not lazy, and cannot be: the activity is part of the
+                    // envelope's value (the JSON string carries its activities), built whether or not a body reads it
+                    String frameMapping = mappingFqn;
+                    PlanEnv frameEnv = env;
+                    activitySql = PlanAllocations.activityOrNone(() -> EnginePlans.engineTestSql(
+                            List.of(lqChain.chain()), frameMapping, specs, frameEnv));
                 }
             }
             TypedSpec envelope = ExecuteChainAssembly

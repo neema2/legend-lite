@@ -39,10 +39,11 @@ import java.util.function.Supplier;
  * {@link #arrowPlan}'s SQL and metadata.
  *
  * <ul>
- *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON ({@link SpecParser#lambdaJson},
- *       byte-exact).</li>
+ *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON ({@link SpecParser#lambdaJson}, byte-exact,
+ *       through the parse door {@code door.Parse.lambdaJson}, which asks the run's wall: C5-J item 1, 2026-11-15).</li>
  *   <li>E2 {@code grammar/grammarToJson/model}: model text to PMCD JSON
- *       ({@link PmcdParser#parseDocument(String, boolean)}, byte-exact).</li>
+ *       ({@link PmcdParser#parseDocument(String, boolean)}, byte-exact, through the parse door
+ *       {@code door.Parse.documentJson}: C5-J item 1, 2026-11-15).</li>
  *   <li>E4 {@code grammar/jsonToGrammar/lambda} (and {@code /batch}): lambda JSON to Pure
  *       text ({@link PureComposer}, byte parity with upstream's printer).</li>
  *   <li>{@code grammar/jsonToGrammar/model}: model JSON to Pure text ({@link ModelComposer}, byte parity with

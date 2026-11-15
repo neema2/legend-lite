@@ -1079,8 +1079,12 @@ In order. Nothing here is in the A/B/C PR.
          closed surface (ROOT_DOORS, QUERY_ROADS);
        - the Lowerer's other bare IllegalStateExceptions (beyond its isolation walls) are unnamed: name each that a
          caller means to catch, the rest stay bugs;
-       - `DateFormats` refuses a backslash OUTSIDE quotes as an unsupported token; pure's pattern parser's answer for
-         it is not yet read from the pinned sources, so lite's words there may not be pure's.
+       - a backslash OUTSIDE quotes in a date pattern: `DateFormats` passes it through as text, where pure refuses it
+         ("Invalid format control character"; corrected by the C5-J audit, 2026-11-15: this line said lite refused
+         it). This predates C5-J, and no register row covers it;
+       - a zone-shifted pattern's zone is read up to its first `]`, blind to quotes (`Scalars.dateWithPattern`), so
+         `%t{["EST]yyyy"}` reaches the pattern parser's "Missing closing quote ...", where pure reads the zone by its
+         own rule and says "Missing closing bracket ..." (the C5-J audit, 2026-11-15).
    - **RULED by the user, 2026-11-14:** "let's finish the foolproof separation and get that out for all hosts" and
      "yes, separate safety stream". The scope is now set as follows.
      - **C4 is the plan/exec separation (G4) only:** proven on Java; fenced and frozen on TypeScript and Python (the
