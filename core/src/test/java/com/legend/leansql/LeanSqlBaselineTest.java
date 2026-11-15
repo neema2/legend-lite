@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -74,5 +75,40 @@ class LeanSqlBaselineTest {
         gone.remove(B);
         assertTrue(LeanSqlBaseline.drift(pins, gone).get(0).contains("pinned and gone"));
         assertEquals(pins.keySet(), LeanSqlBaseline.read(LeanSqlBaseline.write(pins)).keySet());
+    }
+
+    /** The shape measures (the lean program, 2026-11-15): a subselect counted wherever it is parenthesised (a derived
+     *  table, a scalar subquery, EXISTS, a CTE's body), lower or upper case; a group written twice counts its second
+     *  copy once, its own inner groups not again; a group under the threshold, or inside a quoted literal, is none. */
+    @Test
+    void theShapeCountsSubselectsAndRepeats() {
+        assertArrayEquals(new long[] {0, 0}, LeanSqlBaseline.shape("SELECT 1 AS value"));
+        assertArrayEquals(new long[] {2, 0}, LeanSqlBaseline.shape(
+                "WITH c AS (SELECT 1 AS x) SELECT (select x from c) AS v FROM c WHERE EXISTS ( SELECT 1 )"
+                        .replace("WHERE EXISTS ( SELECT 1 )", "")));
+        assertArrayEquals(new long[] {3, 0}, LeanSqlBaseline.shape(
+                "WITH c AS (SELECT 1 AS x) SELECT (select x from c) AS v FROM c WHERE EXISTS ( SELECT 1 )"));
+        String g = "(abs(a.price) + 10)";
+        // the outer group written twice: its copy counted once, its inner (abs(a.price)) group not again
+        assertArrayEquals(new long[] {0, g.length()}, LeanSqlBaseline.shape("SELECT " + g + " * " + g + " AS v"));
+        assertArrayEquals(new long[] {0, 2L * g.length()},
+                LeanSqlBaseline.shape("SELECT " + g + ", " + g + ", " + g + " AS v"));
+        // under the threshold, and a parenthesis inside a literal, are none
+        assertArrayEquals(new long[] {0, 0}, LeanSqlBaseline.shape("SELECT (a) + (a) AS v"));
+        assertArrayEquals(new long[] {0, 0}, LeanSqlBaseline.shape("SELECT '(not a group at all)' AS v"));
+        // the pins carry the two measures, and a growth in either fails
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> pins = new TreeMap<>(Map.of(A,
+                new LeanSqlBaseline.Measure(1, 100, 100, 2, 40, "a")));
+        assertEquals(pins.get(A), LeanSqlBaseline.read(LeanSqlBaseline.write(pins)).get(A).withWorst("a"));
+        assertTrue(LeanSqlBaseline.drift(pins, Map.of(A, new LeanSqlBaseline.Measure(1, 100, 100, 3, 40, "a")))
+                .get(0).startsWith(A + ": subselects GREW 2 -> 3"));
+        assertTrue(LeanSqlBaseline.drift(pins, Map.of(A, new LeanSqlBaseline.Measure(1, 100, 100, 2, 41, "a")))
+                .get(0).startsWith(A + ": repeated chars GREW 40 -> 41"));
+        // a query refused at planning sends nothing: it counts, so a refusal never reads as a family shrinking
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> withRefusals = new TreeMap<>(Map.of(A,
+                new LeanSqlBaseline.Measure(1, 100, 100, 2, 40, 1, "a")));
+        assertEquals(withRefusals.get(A), LeanSqlBaseline.read(LeanSqlBaseline.write(withRefusals)).get(A).withWorst("a"));
+        assertTrue(LeanSqlBaseline.drift(withRefusals, Map.of(A, new LeanSqlBaseline.Measure(1, 100, 100, 2, 40, 2,
+                "a"))).get(0).startsWith(A + ": queries refused GREW 1 -> 2"));
     }
 }

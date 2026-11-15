@@ -87,6 +87,7 @@ public final class ChannelB {
             List<Path> scopeDirs, List<String> wallsOut) throws IOException {
         JUDGE_SQL[0] = 0;
         JUDGE_SQL[1] = 0;
+        JUDGE_SQL[2] = 0;
         // LOUD, NOT SILENT (upstream boundary batch 2): every model root and
         // every scope directory is a hardcoded upstream path — ten across the
         // five suites — and a moved one must fail by name, never walk an empty
@@ -298,7 +299,7 @@ public final class ChannelB {
      *  body's verdict groups' fused statements and the sides that keep statements of their own -- and their characters,
      *  summed from each body's plan (planning only) under the lane's judge. Pinned per suite in {@code ratchets.tsv}
      *  ({@link PctRatchets}) and held by the product's rule on the reference lane under BOTH ({@link ChannelBLane}). */
-    private static final long[] JUDGE_SQL = new long[2];
+    private static final long[] JUDGE_SQL = new long[3];
 
     /** The judge statements and characters the last {@link #run} summed (both zero where it measured none). */
     static long[] judgeSql() {
@@ -326,31 +327,35 @@ public final class ChannelB {
         judgeSql(plan.steps());
     }
 
+    /** The judge's statements as the runner sends them ({@code TestPlan.sent}, 2026-11-15, PR1's review: the fused
+     *  statement and the base sides alone had missed every wrapper, raising verdict and branch condition), and each
+     *  verdict step's plan JSON. */
     private static void judgeSql(List<com.legend.testexecutionplan.TestPlan.TestStep> steps) {
         for (com.legend.testexecutionplan.TestPlan.TestStep step : steps) {
-            if (step instanceof com.legend.testexecutionplan.TestPlan.Branch b) {
-                judgeSql(b.then());
-                judgeSql(b.otherwise());
-            } else if (step instanceof com.legend.testexecutionplan.TestPlan.Verdicts v) {
-                if (v.fused() != null) {
-                    addJudge(v.fused().sql().statement());
+            if (step instanceof com.legend.testexecutionplan.TestPlan.Verdicts
+                    || step instanceof com.legend.testexecutionplan.TestPlan.Branch) {
+                for (com.legend.executionplan.ExecutionPlan.Node n : com.legend.testexecutionplan.TestPlan.sent(step)) {
+                    nodeStatements(n);
                 }
-                for (com.legend.testexecutionplan.TestPlan.Verdict verdict : v.verdicts()) {
-                    for (com.legend.testexecutionplan.TestPlan.Side side : verdict.base()) {
-                        switch (side) {
-                            case com.legend.testexecutionplan.TestPlan.Side.Rows rows ->
-                                    addJudge(rows.result().sql().statement());
-                            case com.legend.testexecutionplan.TestPlan.Side.KeyedRows keyed -> {
-                                addJudge(keyed.keyed().keys().statement());
-                                addJudge(keyed.keyed().body().statement());
-                            }
-                            case com.legend.testexecutionplan.TestPlan.Side.Constant c -> {
-                            }
-                            case com.legend.testexecutionplan.TestPlan.Side.FusedCell f -> {
-                            }
-                        }
-                    }
-                }
+                JUDGE_SQL[2] += com.legend.testexecutionplan.TestPlanJson.writeStep(step).length();
+            }
+        }
+    }
+
+    private static void nodeStatements(com.legend.executionplan.ExecutionPlan.Node node) {
+        switch (node) {
+            case com.legend.executionplan.ExecutionPlan.Sequence s -> s.steps().forEach(ChannelB::nodeStatements);
+            case com.legend.executionplan.ExecutionPlan.TdsResult t -> addJudge(t.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Keyed k -> {
+                addJudge(k.keys().statement());
+                addJudge(k.body().statement());
+            }
+            case com.legend.executionplan.ExecutionPlan.Update u -> addJudge(u.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Effect e -> addJudge(e.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Check c -> addJudge(c.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Load l -> {
+            }
+            case com.legend.executionplan.ExecutionPlan.Constant c -> {
             }
         }
     }

@@ -109,6 +109,12 @@ public final class TestPlanJson {
         return Json.toCompact(out);
     }
 
+    /** One step's JSON, as {@link #write} writes it inside a plan: what a measurement of a step's plan data reads
+     *  (the judge's plan JSON per verdict step, 2026-11-15). */
+    public static String writeStep(TestPlan.TestStep step) {
+        return Json.toCompact(step(step));
+    }
+
     private static List<Object> steps(List<TestPlan.TestStep> steps) {
         List<Object> out = new ArrayList<>(steps.size());
         for (TestPlan.TestStep step : steps) {

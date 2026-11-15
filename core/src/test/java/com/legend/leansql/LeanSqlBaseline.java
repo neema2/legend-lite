@@ -56,12 +56,117 @@ public final class LeanSqlBaseline {
         }
     }
 
-    /** {@code statements} sent, their {@code chars}, the plans' JSON characters ({@code plan}); the worst case. */
-    public record Measure(long statements, long chars, long plan, String worst) {
-        Measure plus(long s, long c, long p, String caseText, long caseChars, long worstChars) {
-            return new Measure(statements + s, chars + c, plan + p, caseChars > worstChars ? caseText : worst);
+    /** {@code statements} sent, their {@code chars}, the plans' JSON characters ({@code plan}), their {@code
+     *  subselects} and their {@code repeated} characters ({@link #shape}; the lean program, the user's definition of
+     *  done of 2026-11-15: "subselects only when need, repetition only when need"; -1 where a pin predates them); the
+     *  worst case. */
+    public record Measure(long statements, long chars, long plan, long subselects, long repeated, long refused,
+            String worst) {
+        public Measure(long statements, long chars, long plan, String worst) {
+            this(statements, chars, plan, 0, 0, 0, worst);
+        }
+
+        public Measure(long statements, long chars, long plan, long subselects, long repeated, String worst) {
+            this(statements, chars, plan, subselects, repeated, 0, worst);
+        }
+
+        Measure plus(long s, long c, long p, long[] shape, String caseText, long caseChars, long worstChars) {
+            return new Measure(statements + s, chars + c, plan + p, subselects + shape[0], repeated + shape[1],
+                    refused, caseChars > worstChars ? caseText : worst);
+        }
+
+        /** This measure with one more query refused at planning (the lean program, 2026-11-15: a refused query sends
+         *  nothing, so without its count it would read as a family's SQL shrinking). */
+        public Measure refusedOne(String caseText) {
+            return new Measure(statements, chars, plan, subselects, repeated, refused + 1,
+                    worst.isEmpty() ? caseText : worst);
+        }
+
+        /** This measure under another worst case (a read pin carries none). */
+        public Measure withWorst(String w) {
+            return new Measure(statements, chars, plan, subselects, repeated, refused, w);
+        }
+
+        /** This measure with {@code statements}' own added (the corpus's: no plan JSON of its own). */
+        public Measure plus(List<String> statements, long plan, String test) {
+            long c = 0;
+            long[] sh = new long[2];
+            for (String st : statements) {
+                c += st.length();
+                long[] one = shape(st);
+                sh[0] += one[0];
+                sh[1] += one[1];
+            }
+            return new Measure(this.statements + statements.size(), chars + c, this.plan + plan,
+                    subselects + sh[0], repeated + sh[1], refused, worst.isEmpty() ? test : worst);
         }
     }
+
+    /** The smallest group counted a repeat (characters, the parentheses included): an operand under this costs less
+     *  written again than bound (the design's §5.1, "trivial operands"). */
+    static final int REPEAT_MIN = 16;
+
+    /**
+     * {@code statement}'s shape, as the database reads it: [0] its SUBSELECTS -- each parenthesised {@code SELECT} or
+     * {@code WITH} (a derived table, a scalar or EXISTS subquery, a CTE's body) -- and [1] its REPEATED characters:
+     * every parenthesised group of at least {@link #REPEAT_MIN} characters whose exact text is written more than once
+     * in the statement counts each copy past the first, and a group inside a repeated group is not counted again (the
+     * outermost repeat is the one a binding removes). Read from the text the plan sends, so a repeat moved into plan
+     * data or a second statement still counts there.
+     */
+    public static long[] shape(String statement) {
+        long subselects = 0;
+        java.util.regex.Matcher m = SUBSELECT.matcher(statement);
+        while (m.find()) {
+            subselects++;
+        }
+        // every balanced group, by its text; quotes skipped so a parenthesis in a literal is no group
+        List<int[]> groups = new ArrayList<>();
+        java.util.ArrayDeque<Integer> open = new java.util.ArrayDeque<>();
+        char quote = 0;
+        for (int i = 0; i < statement.length(); i++) {
+            char ch = statement.charAt(i);
+            if (quote != 0) {
+                if (ch == quote) {
+                    quote = 0;
+                }
+            } else if (ch == '\'' || ch == '"') {
+                quote = ch;
+            } else if (ch == '(') {
+                open.push(i);
+            } else if (ch == ')' && !open.isEmpty()) {
+                int start = open.pop();
+                if (i + 1 - start >= REPEAT_MIN) {
+                    groups.add(new int[] {start, i + 1});
+                }
+            }
+        }
+        Map<String, Integer> copies = new java.util.HashMap<>();
+        for (int[] g : groups) {
+            copies.merge(statement.substring(g[0], g[1]), 1, Integer::sum);
+        }
+        // outermost first: a repeated group's own groups are not counted again
+        groups.sort((a, b) -> a[0] != b[0] ? Integer.compare(a[0], b[0]) : Integer.compare(b[1], a[1]));
+        long repeated = 0;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        int coveredTo = -1;
+        for (int[] g : groups) {
+            if (g[1] <= coveredTo) {
+                continue;
+            }
+            String text = statement.substring(g[0], g[1]);
+            if (copies.get(text) > 1) {
+                if (!seen.add(text)) {
+                    repeated += text.length();
+                }
+                coveredTo = g[1];
+            }
+        }
+        return new long[] {subselects, repeated};
+    }
+
+    private static final java.util.regex.Pattern SUBSELECT = java.util.regex.Pattern.compile(
+            "\\(\\s*(?:SELECT|WITH)\\b", java.util.regex.Pattern.CASE_INSENSITIVE);
 
     /** Every set planned on every database the platform implements whose storeless runtime is relational; a case a
      *  database refuses at planning counts as such ({@code refused}, its own family row), never as nothing. */
@@ -87,10 +192,12 @@ public final class LeanSqlBaseline {
                     Json.Obj c = Json.parseObject(line);
                     String model = ((Json.Str) c.get("model")).value();
                     String expression = ((Json.Str) c.get("expression")).value();
-                    String family;
+                    String family = "refused";
                     long s = 0;
                     long ch = 0;
                     long p = 0;
+                    long[] sh = new long[2];
+                    boolean refused = false;
                     try {
                         TypedQuery q = Compiler.query(Compiler.compileModel(withRuntime(model, type)),
                                 expression);
@@ -102,14 +209,18 @@ public final class LeanSqlBaseline {
                         s = statements.size();
                         for (String st : statements) {
                             ch += st.length();
+                            add(sh, shape(st));
                         }
                         p = PlanJson.write(plan).length();
                     } catch (RuntimeException | StackOverflowError e) {
-                        family = "refused";
+                        // refused at planning: counted under its family where it has one (a query refused by the
+                        // compiler itself has none: "refused")
+                        refused = true;
                     }
                     Key k = new Key(set.getKey(), type.name(), family);
                     long prior = worst.getOrDefault(k, -1L);
-                    out.put(k, out.getOrDefault(k, new Measure(0, 0, 0, "")).plus(s, ch, p, expression, ch, prior));
+                    Measure was = out.getOrDefault(k, new Measure(0, 0, 0, ""));
+                    out.put(k, refused ? was.refusedOne(expression) : was.plus(s, ch, p, sh, expression, ch, prior));
                     if (ch > prior) {
                         worst.put(k, ch);
                     }
@@ -146,6 +257,7 @@ public final class LeanSqlBaseline {
             long s = 0;
             long ch = 0;
             long p = 0;
+            long[] sh = new long[2];
             try {
                 com.legend.compiler.element.ModelContext ctx = compiled.get(id);
                 if (ctx == null) {
@@ -160,22 +272,30 @@ public final class LeanSqlBaseline {
                 s = statements.size();
                 for (String st : statements) {
                     ch += st.length();
+                    add(sh, shape(st));
                 }
                 p = PlanJson.write(plan).length();
                 database = plan.answers() && plan.sendsTheAnswer()
                         ? plan.answerSql().target().database().type().name() : "constant";
             } catch (RuntimeException | StackOverflowError e) {
+                // the database a plan targets is the plan's: a refused query has none, so it counts under "refused"
                 family = "refused";
                 database = "refused";
             }
             Key k = new Key(set, database, family);
             long prior = worst.getOrDefault(k, -1L);
-            out.put(k, out.getOrDefault(k, new Measure(0, 0, 0, "")).plus(s, ch, p, query, ch, prior));
+            Measure was = out.getOrDefault(k, new Measure(0, 0, 0, ""));
+            out.put(k, family.equals("refused") ? was.refusedOne(query) : was.plus(s, ch, p, sh, query, ch, prior));
             if (ch > prior) {
                 worst.put(k, ch);
             }
         }
         return out;
+    }
+
+    private static void add(long[] into, long[] shape) {
+        into[0] += shape[0];
+        into[1] += shape[1];
     }
 
     /** Whether {@code type} is a relational database: MongoDB's sessions are its connector's own and its statement a
@@ -249,6 +369,16 @@ public final class LeanSqlBaseline {
             check(out, e.getKey(), "statements", pin.statements(), now.statements(), now.worst());
             check(out, e.getKey(), "chars", pin.chars(), now.chars(), now.worst());
             check(out, e.getKey(), "plan JSON chars", pin.plan(), now.plan(), now.worst());
+            // a pin that predates the shape measures (-1) holds none of them
+            if (pin.subselects() >= 0) {
+                check(out, e.getKey(), "subselects", pin.subselects(), now.subselects(), now.worst());
+            }
+            if (pin.repeated() >= 0) {
+                check(out, e.getKey(), "repeated chars", pin.repeated(), now.repeated(), now.worst());
+            }
+            if (pin.refused() >= 0) {
+                check(out, e.getKey(), "queries refused", pin.refused(), now.refused(), now.worst());
+            }
         }
         for (Key k : pinned.keySet()) {
             if (!measured.containsKey(k)) {
@@ -268,7 +398,7 @@ public final class LeanSqlBaseline {
         }
     }
 
-    private static final String HEADER = "set\tdatabase\tfamily\tstatements\tchars\tplan";
+    private static final String HEADER = "set\tdatabase\tfamily\tstatements\tchars\tplan\tsubselects\trepeated\trefused";
 
     /** The pins as written: {@code set, database, family, statements, chars, plan}, sorted. */
     public static String write(Map<Key, Measure> pins) {
@@ -279,7 +409,9 @@ public final class LeanSqlBaseline {
             Key k = e.getKey();
             Measure m = e.getValue();
             b.append(k.set()).append('\t').append(k.database()).append('\t').append(k.family()).append('\t')
-                    .append(m.statements()).append('\t').append(m.chars()).append('\t').append(m.plan()).append('\n');
+                    .append(m.statements()).append('\t').append(m.chars()).append('\t').append(m.plan()).append('\t')
+                    .append(m.subselects()).append('\t').append(m.repeated()).append('\t').append(m.refused())
+                    .append('\n');
         }
         return b.toString();
     }
@@ -288,16 +420,19 @@ public final class LeanSqlBaseline {
     public static Map<Key, Measure> read(String tsv) {
         Map<Key, Measure> out = new TreeMap<>();
         for (String line : tsv.split("\n")) {
-            if (line.isBlank() || line.startsWith("#") || line.equals(HEADER)) {
+            // the header, as written since the shape measures (2026-11-15) or before them
+            if (line.isBlank() || line.startsWith("#") || line.startsWith("set\tdatabase\tfamily\t")) {
                 continue;
             }
             String[] f = line.split("\t", -1);
-            if (f.length != 6) {
+            if (f.length != 6 && f.length != 8 && f.length != 9) {
                 throw new IllegalArgumentException("lean-sql/baseline.tsv: a line is set, database, family,"
-                        + " statements, chars, plan: '" + line + "'");
+                        + " statements, chars, plan[, subselects, repeated[, refused]]: '" + line + "'");
             }
             out.put(new Key(f[0], f[1], f[2]),
-                    new Measure(Long.parseLong(f[3]), Long.parseLong(f[4]), Long.parseLong(f[5]), ""));
+                    new Measure(Long.parseLong(f[3]), Long.parseLong(f[4]), Long.parseLong(f[5]),
+                            f.length > 6 ? Long.parseLong(f[6]) : -1, f.length > 7 ? Long.parseLong(f[7]) : -1,
+                            f.length > 8 ? Long.parseLong(f[8]) : -1, ""));
         }
         return out;
     }

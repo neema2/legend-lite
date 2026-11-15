@@ -153,6 +153,44 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         }
     }
 
+    /**
+     * The statements the test runner SENDS for {@code step} (2026-11-15, PR1's review: the judge-SQL pins counted the
+     * fused statement and the base sides alone): a verdict group's fused statement, else each verdict's wrapper; every
+     * raising verdict's wrapper (read with the raise's message bound, fused or not); each verdict's base and message
+     * sides; a branch's condition, then both sides' steps (a measurement counts what either side may send).
+     */
+    public static List<Node> sent(TestStep step) {
+        List<Node> out = new java.util.ArrayList<>();
+        sentOf(step, out);
+        return out;
+    }
+
+    private static void sentOf(TestStep step, List<Node> out) {
+        switch (step) {
+            case Verdicts v -> {
+                if (v.fused() != null) {
+                    out.add(v.fused());
+                }
+                for (Verdict each : v.verdicts()) {
+                    if (each.wrapper() != null && (v.fused() == null || each.raises())) {
+                        out.add(each.wrapper());
+                    }
+                    each.base().forEach(side -> sideStatement(side, out));
+                    if (each.message() != null) {
+                        sideStatement(each.message(), out);
+                    }
+                }
+            }
+            case Branch b -> {
+                sideStatement(b.condition(), out);
+                b.then().forEach(inner -> sentOf(inner, out));
+                b.otherwise().forEach(inner -> sentOf(inner, out));
+            }
+            case Run r -> throw new IllegalArgumentException("a product step's statements are the product plan's");
+            case FrameRun f -> throw new IllegalArgumentException("a frame run's statement is its check's");
+        }
+    }
+
     private static void sideStatement(Side side, List<Node> out) {
         switch (side) {
             case Side.Rows r -> out.add(r.result());

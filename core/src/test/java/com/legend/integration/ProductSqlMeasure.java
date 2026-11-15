@@ -85,7 +85,8 @@ public final class ProductSqlMeasure {
                     } catch (RuntimeException | StackOverflowError e) {
                         refused++;
                         rows.append(type).append('\t').append(i).append("\t-1\t-1\trefused:")
-                                .append(e.getClass().getSimpleName()).append('\n');
+                                .append(e.getClass().getSimpleName()).append(": ")
+                                .append(String.valueOf(e.getMessage()).replace('\n', ' ').replace('\t', ' ')).append('\n');
                         continue;
                     }
                     for (int s = 0; s < statements.size(); s++) {

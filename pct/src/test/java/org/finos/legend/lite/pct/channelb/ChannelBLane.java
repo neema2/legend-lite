@@ -45,6 +45,7 @@ final class ChannelBLane {
             String key = "channel_b." + suite.toLowerCase(java.util.Locale.ROOT) + ".judge.";
             held(suite + " judge statements", j[0], PctRatchets.measured(key + "statements"));
             held(suite + " judge characters", j[1], PctRatchets.measured(key + "chars"));
+            held(suite + " judge plan JSON", j[2], PctRatchets.measured(key + "plan"));
         }
     }
 
