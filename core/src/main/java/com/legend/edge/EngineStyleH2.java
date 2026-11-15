@@ -403,6 +403,15 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
     /** Engine-text lowering (H2/DB2 golden style): minimal quoting. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of());
 
+    /** legend-pure's sentence of a raise ({@link PureMessages}), as the edge's own dialects write it: legend-engine's
+     *  text ({@code toSQLString}, {@code planToString}, an activity's SQL) prints what the engine-text lowering wrote
+     *  before D1.1, byte for byte (the D part 1 audit's S2, 2026-11-15: until then the base dialect's bare kind name).
+     *  EngineStyleDB2 and EngineStyleComposite inherit it. */
+    @Override
+    protected com.legend.sql.SqlExpr raiseMessage(com.legend.sql.SqlExpr.RaiseText r) {
+        return PureMessages.sentence(r);
+    }
+
     public EngineStyleH2() {
         this(false);
     }
