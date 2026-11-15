@@ -192,6 +192,10 @@ class PlannedSqlTest {
      */
     static final Map<String, List<String>> DATABASE_SENDS = Map.ofEntries(
             // 2026-11-12 (the re-audit's S10, measured): by call site, the receiver and the member -- none but duckdb.ts's sends DuckDB-WASM a statement
+            // 2026-11-15 (C5-T, the orchestrator's note 4): with RUNNER_CALLS, the doors-only pin: the product's sends
+            // are the run side's alone (duckdb.ts, and the bridge's headless/connection.ts: //engine-client:run and
+            // //datacube:run), and on Node duckdb.ts and warehouse.ts refuse one sent outside a run (run-frame.ts
+            // sending)
             Map.entry("datacube/demo/verify-features.mjs", List.of("cdp.send(")),
             Map.entry("datacube/demo/verify-real-data.mjs", List.of("conn.query(", "conn.query(", "conn.query(")),
             Map.entry("datacube/demo/verify-remote.mjs", List.of("conn.query(", "conn.query(", "conn.query(", "db.copyFileToBuffer")),
@@ -1389,16 +1393,30 @@ class PlannedSqlTest {
             // a load's: a person's file (model-data.ts, upload.ts), a remote mount (remote.ts), a snapshot's stream
             // (snap.ts), a project's database (project-data.ts; the demos' seeds, boot.ts and query/demo/main.ts), and
             // the playground's authored statement (run.ts)
+            // 2026-11-15 (C5-T, the orchestrator's note 4: the run wall deleted for the layers' rule): THIS CENSUS IS
+            // THE DOORS-ONLY PIN. A runner is called by a DOOR -- it asks the planner, then runs the answer in a run
+            // frame -- or by a RUN function its door hands the plan (model-data.ts putFile, project-data.ts
+            // ProjectDatabases: //engine-client:run, which reaches no planner, //tools/deps:layers_alone), and nowhere
+            // else. Each site below is named by its role; a new one is a door (or a run function) named here.
+            // a demo's door: its seed's plan asked, then loaded
             Map.entry("datacube/demo/boot.ts", List.of("runLoad(")),
+            // a door: runMount (remoteMount asked first)
             Map.entry("datacube/src/remote.ts", List.of("runLoad(")),
+            // a multi-step door: writeTable (note 3)
             Map.entry("datacube/src/table-output.ts", List.of("runPlan(")),
+            // a door: readFileInto (fileLoad asked first)
             Map.entry("datacube/src/upload.ts", List.of("runLoad(")),
+            // run: putFile, handed its plan by doors/file-load.ts
             Map.entry("engine-client/src/model-data.ts", List.of("runLoad(")),
+            // run: handed its statements by doors/project-data.ts
             Map.entry("engine-client/src/project-data.ts", List.of("runLoad(")),
             // 2026-11-12 (the final audit's item 1(b)): a snapshot's local copy, its plan the planner's of the pull
             // (snapCopy)
+            // a multi-step door: SnapManager (note 3)
             Map.entry("engine-client/src/snap.ts", List.of("runLoad(", "runPlan(")),
+            // a demo's door: its seed's plan asked, then loaded
             Map.entry("query/demo/main.ts", List.of("runLoad(")),
+            // a door: the playground (authored asked first)
             Map.entry("studio/src/backend/run.ts", List.of("runAuthored(")));
     // 2026-11-12 (M1, measured): the runner's own read of a plan's format (planned-sql.ts names it in prose alone)
     static final Set<String> PLAN_FORMAT_READERS = Set.of("engine-client/src/plan-runner.ts");

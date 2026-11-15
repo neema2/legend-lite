@@ -1,5 +1,5 @@
 """THE RUN WALL, Python's half (the user's ruling M2, 2026-11-13: "a compile-time wall on both hosts"; its TypeScript half
-is datacube/test/run-wall.test.ts).
+was datacube/test/run-wall.test.ts, deleted for the layers' rule: C5-T, 2026-11-15, //tools/deps:layers_alone).
 
 INTERIM SCAFFOLDING (the user's ruling of 2026-11-14): this wall holds the line until C5 splits the code, and is neither
 slimmed nor re-engineered meanwhile. C5'S FINISH LINE: Python's run code lives in packages whose build deps exclude the

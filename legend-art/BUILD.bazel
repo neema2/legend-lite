@@ -10,9 +10,8 @@ js_library(
     name = "legend_art",
     srcs = glob(["src/**/*.ts"]) + ["package.json"],
     visibility = [
-        # the run wall reads Studio's and Query's imports, these icons included (datacube/test/run-wall.test.ts; the
-        # final audit of 9af16fbe58's T5, 2026-11-14, commit 1915cbbe3c)
-        "//datacube:__pkg__",
+        # (2026-11-15, C5-T: //datacube:__pkg__ went with the interim run wall, datacube/test/run-wall.test.ts, which
+        # read Studio's and Query's imports, these icons included; the layers' rule replaced it, //tools/deps)
         "//query:__pkg__",
         "//studio:__pkg__",
     ],

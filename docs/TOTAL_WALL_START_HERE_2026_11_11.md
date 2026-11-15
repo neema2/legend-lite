@@ -1015,9 +1015,17 @@ In order. Nothing here is in the A/B/C PR.
        merges). Its finish line: TypeScript's and Python's run code live in packages whose build deps exclude the
        planner, a run frame wraps every send, and the run walls (`datacube/test/run-wall.test.ts`,
        `python/tests/test_run_wall.py`) are deleted for a plain dependency rule, as `//core:exec`'s deps are pinned for
-       Java. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
+       Java. TYPESCRIPT'S HALF IS DONE (C5-T, 2026-11-15, branch `claude/total-wall-b3`): its run code is the `run`
+       targets of `//engine-client` and `//datacube`, whose deps `tools/deps/ts-layers.txt` pins (records and npm only;
+       `//tools/deps:ts_layering_test`), each type-checked alone by a strict tsc that sees nothing else
+       (`//tools/deps:layers_alone`, with a planted violator's bite), every send on Node refused outside a run at its
+       choke point (`run-frame.ts` `sending`: DuckDB's connection, the warehouse's submit), and
+       `datacube/test/run-wall.test.ts` deleted; Python's half remains. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
        final fix round's T4); their lists are this work's list: TypeScript's 17 `COMPOSER_MODULES`, 22
        `COMPOSER_SIGNATURES` and 2 `COMPUTED_DOORS`, Python's 12 `UNFRAMED_SENDERS`, each named there;
+     - each multi-step TS door made one keyed plan, as Java's Keyed pattern does (a step's rows fill the next statement),
+       so a door is one planning call and one run call (the orchestrator's note 3 on C5-T, 2026-11-15: the snap door,
+       `writeTable`, the upload and catalog flows, `TabTables`, accepted as multi-step doors until then);
      - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
        `verdicts`) carried in the test plan instead;
      - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
@@ -1029,7 +1037,7 @@ In order. Nothing here is in the A/B/C PR.
      - cross-listed so it is not lost (stream D's, not C5's): lineage rebuilt upstream's way, for everything -- its
        terms are under "Moved to D's batch" below;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
-       20 TS sites);
+       20 TS sites; the TS sites DONE with the structural split's TypeScript half, C5-T, 2026-11-15);
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);

@@ -372,7 +372,8 @@ py_test(
     deps = ["@rules_python//python/runfiles"],
 )
 
-# THE RUN WALL, Python's half (the user's ruling M2, 2026-11-13; its TypeScript half //datacube:run_wall_test): the send
+# THE RUN WALL, Python's half (the user's ruling M2, 2026-11-13; its TypeScript half was deleted for the layers' rule,
+# C5-T, 2026-11-15: //tools/deps:layers_alone): the send
 # seam imports no planner, no run calls or takes one, the runs pinned, and every send in a run or a named unframed sender
 # (the follow-up audit's G2, 2026-11-14) -- read by Python's own parser, no import.
 py_test(
