@@ -116,6 +116,8 @@ test_suite(
         "//projects:tests",
         "//tools/deps:core_closure_test",
         "//tools/deps:core_layering_test",
+        # the TypeScript hosts' layers (C5-T, 2026-11-15): records, run, planner, server, doors, pinned as core's are
+        "//tools/deps:ts_layering_test",
         "//tools/deps:pools_list_test",
         "//tools/deps:warehouse_closure_test",
         "//tools/guards:classpath_test",

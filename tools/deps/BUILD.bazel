@@ -130,6 +130,28 @@ junit_test(
     ],
 )
 
+# THE LAYERS OF THE TYPESCRIPT HOSTS (C5-T, 2026-11-15): each TypeScript layer's direct deps, as Bazel resolves them,
+# one genquery per layer beside it; TsLayeringTest compares them with ts-layers.txt, and holds a run layer to records
+# and npm alone and a planner to nothing that executes.
+junit_test(
+    name = "ts_layering_test",
+    memory_mb = 768,
+    size = "small",
+    srcs = ["TsLayeringTest.java"],
+    data = [
+        "ts-layers.txt",
+        "//engine-client:layer_queries",
+    ],
+    # every layer's query, as a list: an environment variable keeps it one value
+    env = {"TS_LAYER_FILES": "$(rlocationpaths //engine-client:layer_queries)"},
+    jvm_flags = ["-Dts.layers=$(rlocationpath ts-layers.txt)"],
+    select = ["--select-class=com.legend.tools.deps.TsLayeringTest"],
+    deps = [
+        "//testing",
+        "@maven_test//:org_junit_jupiter_junit_jupiter_api",
+    ],
+)
+
 # tools/deps/pools.bzl's pools are exactly MODULE.bazel's, and its testonly pools are testonly as a whole (Bazel workplan P1-25)
 junit_test(
     name = "pools_list_test",

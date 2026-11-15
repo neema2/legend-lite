@@ -155,7 +155,8 @@ _SCANNED = {
     # differentials behind the second planner transport
     "guardrails": [
         ":src",
-        "//engine-client:engine_client",
+        # its files (the aggregate's are its layers', C5-T, 2026-11-15)
+        "//engine-client:sources",
         ":scanned_demo",
         "test/wasm-differential/compare.ts",
         "//wasm:differential",
@@ -172,7 +173,7 @@ _SCANNED = {
     "run-wall": [
         ":src",
         "//depot-client:depot_client",
-        "//engine-client:engine_client",
+        "//engine-client:sources",
         "//legend-art:legend_art",
         "//pure-protocol:pure_protocol",
         "//query:src",

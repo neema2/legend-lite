@@ -1,0 +1,18 @@
+# THE LAYERS OF THE TYPESCRIPT ENGINE CLIENT (C5-T, 2026-11-15: the TypeScript split of plan and run, Java's shape --
+# tools/deps/core-layers.txt is its twin for //core). One line per layer: the target, a tab, then its DIRECT deps as
+# Bazel resolves them, one space apart. TsLayeringTest compares Bazel's own answer (a genquery per layer,
+# engine-client/BUILD.bazel layer_*) with this file, exactly, both ways: a new edge fails, and so does a removed one
+# (delete it here in the same push, so this file only says what is true). Beyond the exact match, the test holds two
+# rules this file cannot loosen:
+#   - a RUN layer reaches the records and npm packages only: no planner, no server, no door, no app (the orchestrator's
+#     note 4, 2026-11-15: no :doors or app module is a dependency of :run);
+#   - a PLANNER layer reaches nothing that can execute: the records (and the protocol records) only -- never a run, a
+#     server or a door (the orchestrator's note 1, 2026-11-15; its planning client is its own file).
+# The run target is typechecked alone, its closure copied out with nothing else (//engine-client:run_typecheck_test):
+# a run module that imports a planner, server or door module fails there by name.
+# 2026-11-15 (C5-T step 3): the engine client's five layers.
+//engine-client:records	//pure-protocol:pure_protocol
+//engine-client:run	//engine-client:node_modules/@duckdb/duckdb-wasm //engine-client:node_modules/apache-arrow //engine-client:records
+//engine-client:planner	//engine-client:records //pure-protocol:pure_protocol
+//engine-client:server	//engine-client:node_modules/fzstd //engine-client:planner //engine-client:records //pure-protocol:pure_protocol
+//engine-client:doors	//engine-client:node_modules/apache-arrow //engine-client:planner //engine-client:records //engine-client:run //engine-client:server //pure-protocol:pure_protocol

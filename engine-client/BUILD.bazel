@@ -19,21 +19,123 @@ npm_link_all_packages(name = "node_modules")
 
 exports_files(["pnpm-lock.yaml", "package.json"])
 
+# THE TARGETS, Java's shape (C5-T, 2026-11-15: the TypeScript split of plan and run; docs/TOTAL_WALL_START_HERE_2026_11_11.md
+# section 6.1). The files stay where they are; each target lists its own, and every source is in exactly one (the load
+# fails otherwise). Their direct deps are pinned by tools/deps/ts-layers.txt (//tools/deps:ts_layering_test, a
+# genquery per target, as core-layers.txt pins Java's), and the run target is typechecked alone (:run_typecheck_test):
+# - records: the shapes both sides read -- no send, no plan (Java's execution_plan, sql and result records);
+# - run: what sends a plan's statements and reads their rows: records and npm only, NO planner, no server, no door;
+# - planner: legend-lite's planner in the tab and its planning client (no execute): records and the protocol only;
+# - server: legend-engine's API clients, whose execute is the SERVER's door;
+# - doors: the one target over both -- each asks the planner, then runs the answer in a run frame (run-frame.ts).
+_RECORDS = [
+    "src/generated/lite-facts.ts",
+    "src/json-unknown.ts",
+    "src/legend/engine-api.ts",
+    "src/legend/planner-protocol.ts",
+    "src/legend/pmcd.ts",
+    "src/legend/wire.ts",
+    "src/locale.ts",
+    "src/plan-params.ts",
+    "src/planned-sql.ts",
+    "src/receipt.ts",
+    "src/relation-type.ts",
+    "src/requests.ts",
+    "src/result.ts",
+    "src/run-frame.ts",
+    "src/sha256.ts",
+    "src/types.ts",
+    "src/values.ts",
+    "src/warehouse-session.ts",
+]
+
+_RUN = [
+    "src/arrow-ipc.ts",
+    "src/connection-settings.ts",
+    "src/duckdb-tab.ts",
+    "src/duckdb-wasm.ts",
+    "src/duckdb.ts",
+    "src/engine.ts",
+    "src/host-operations.ts",
+    "src/model-data.ts",
+    "src/node-require.ts",
+    "src/plan-runner.ts",
+    "src/project-data.ts",
+    "src/warehouse.ts",
+]
+
+_PLANNER = [
+    "src/legend/planner-answer.ts",
+    "src/legend/planner-worker.ts",
+    "src/legend/planning-client.ts",
+    "src/legend/wasm-grammar.ts",
+    "src/planner-sources.ts",
+]
+
+_SERVER = [
+    "src/legend/engine.ts",
+    "src/pure-v1.ts",
+]
+
+# the multi-step doors kept in place (the orchestrator's note 3: each made one keyed plan later, the C5 backlog's line)
+_DOORS = glob(["src/doors/**/*.ts"]) + [
+    "src/engine-remote.ts",
+    "src/legend/browser-engine.ts",
+    "src/snap.ts",
+    "src/tab-data.ts",
+]
+
+_ASSIGNED = _RECORDS + _RUN + _PLANNER + _SERVER + _DOORS
+
+[fail("engine-client/%s is in no target of engine-client/BUILD.bazel: add it to the one whose layer it is" % f) for f in glob(["src/**/*.ts"]) if f not in _ASSIGNED]
+
+[fail("engine-client/%s is listed twice in engine-client/BUILD.bazel's targets" % f) for i, f in enumerate(_ASSIGNED) if f in _ASSIGNED[:i]]
+
+_APPS = [
+    "//datacube:__pkg__",
+    "//query:__pkg__",
+    "//studio:__pkg__",
+]
+
 js_library(
-    name = "engine_client",
-    srcs = glob(["src/**/*.ts"]) + ["package.json"],
-    visibility = [
-        "//datacube:__pkg__",
-        "//query:__pkg__",
-        "//studio:__pkg__",
-    ],
+    name = "records",
+    srcs = _RECORDS,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    # pure/v1's queries and the model's text are built and read as protocol JSON
+    deps = ["//pure-protocol:pure_protocol"],
+)
+
+js_library(
+    name = "run",
+    srcs = _RUN,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
     deps = [
-        # pure/v1's queries are built and read as protocol JSON
-        "//pure-protocol:pure_protocol",
-        # DuckDB in the tab (duckdb-wasm.ts re-exports it for the apps), and the Arrow it brings -- the
-        # one copy every bundle carries, which the warehouse's Arrow IPC chunks are read with too
+        ":records",
+        # DuckDB in the tab (duckdb-wasm.ts re-exports it for the apps), and the Arrow it brings -- the one copy every
+        # bundle carries, which the warehouse's Arrow IPC chunks are read with too
         ":node_modules/@duckdb/duckdb-wasm",
         ":node_modules/apache-arrow",
+    ],
+)
+
+js_library(
+    name = "planner",
+    srcs = _PLANNER,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    deps = [
+        ":records",
+        "//pure-protocol:pure_protocol",
+    ],
+)
+
+js_library(
+    name = "server",
+    srcs = _SERVER,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    deps = [
+        ":planner",
+        ":records",
+        "//pure-protocol:pure_protocol",
         # fzstd 0.1.1, exact (2026-10-08, the user's approval): legend-engine's Arrow answer to execute (ARROW_IPC) is
         # ALWAYS one zstd frame (RelationalResultToArrowIPCSerializer wraps its stream in a ZstdOutputStream; measured,
         # core/src/test/resources/upstream-api/e8-arrow-groupby-sort.json), Python's engine answers the same bytes so
@@ -41,6 +143,70 @@ js_library(
         # measured). A decoder, pure JavaScript, MIT, no dependencies, loaded on the first Arrow answer only
         # (pure-v1.ts arrowIpcStream: the bundles that never meet one do not carry it).
         ":node_modules/fzstd",
+    ],
+)
+
+js_library(
+    name = "doors",
+    srcs = _DOORS,
+    visibility = _APPS + ["//tools/deps:__pkg__"],
+    deps = [
+        ":planner",
+        ":records",
+        ":run",
+        ":server",
+        "//pure-protocol:pure_protocol",
+        ":node_modules/apache-arrow",
+    ],
+)
+
+# every layer at once, what the apps depend on (their own layers name the one they reach: tools/deps/ts-layers.txt)
+js_library(
+    name = "engine_client",
+    srcs = ["package.json"],
+    visibility = _APPS,
+    deps = [
+        ":doors",
+        ":planner",
+        ":records",
+        ":run",
+        ":server",
+    ],
+)
+
+# every source of the package, as files, for a scanner that reads them by $(rlocationpaths) (DataCube's guardrails and
+# run wall): the layers' own files are each layer's, and the aggregate above has none of its own. A js_library, so a
+# test of another package takes them (rules_js copies a source to the output tree only from its own package); no
+# product target depends on it (tools/deps/ts-layers.txt pins every layer's deps)
+js_library(
+    name = "sources",
+    srcs = glob(["src/**/*.ts"]) + ["package.json"],
+    visibility = ["//datacube:__pkg__"],
+)
+
+# each layer's direct deps, as Bazel resolves them: //tools/deps:ts_layering_test holds them to tools/deps/ts-layers.txt
+[genquery(
+    name = "layer_" + layer,
+    expression = "labels(deps, //engine-client:%s)" % layer,
+    scope = [":" + layer],
+    visibility = ["//tools/deps:__pkg__"],
+) for layer in ["records", "run", "planner", "server", "doors"]]
+
+filegroup(
+    name = "layer_queries",
+    srcs = [":layer_" + layer for layer in ["records", "run", "planner", "server", "doors"]],
+    visibility = ["//tools/deps:__pkg__"],
+)
+
+# the files of the layers the run target must never hold (the orchestrator's note 4, 2026-11-15: no door or app module
+# is a dependency of :run), by label: :run_typecheck_test checks none is in the run's closure
+genquery(
+    name = "not_run_srcs",
+    expression = "labels(srcs, //engine-client:planner + //engine-client:server + //engine-client:doors)",
+    scope = [
+        ":doors",
+        ":planner",
+        ":server",
     ],
 )
 
@@ -249,6 +415,27 @@ node_test(
     entry_point = "test/run-frame.test.ts",
 )
 
+# THE RUN TARGET ALONE (C5-T, 2026-11-15: the rule that replaces the interim run wall): //engine-client:run's closure,
+# and nothing else, copied out and typechecked strict by the pinned compiler -- a run module that imports a planner, a
+# server or a door fails by name (TS2307), a planted one proves it; no planner, server or door file is in the closure
+# (:not_run_srcs); and no import door whose module is chosen at run time but the two vendor loads named
+node_test(
+    name = "run_typecheck_test",
+    size = "small",
+    data = [
+        ":not_run_srcs",
+        ":run",
+        "//datacube:node_modules/@types/node",
+        "//datacube:node_modules/typescript",
+    ],
+    entry_point = "test/run-target.test.ts",
+    env = {
+        "NOT_RUN_SRCS": "$(rlocationpath :not_run_srcs)",
+        # the package's link and the store's files it reaches: the test runs the link's bin/tsc
+        "TYPESCRIPT": "$(rlocationpaths //datacube:node_modules/typescript)",
+    },
+)
+
 # A write's execution plan (the planner's executionPlan) run by the host's plan runner on DuckDB-WASM, in one
 # transaction (plan-runner.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6)
 node_test(
@@ -349,6 +536,7 @@ test_suite(
         ":plan_runner_test",
         ":planned_sql_test",
         ":run_frame_test",
+        ":run_typecheck_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",
