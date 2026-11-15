@@ -395,8 +395,11 @@ class PlannerSurfaceTest {
      *  service that plans nothing, with what it is instead. */
     static final Map<String, String> HTTP_ROUTES = new TreeMap<>(Map.of(
             // merged main cf865632c (#101), 2026-11-15: legend-engine's /api/pure/v1/, its store's path and its current
-            // user moved to the edge (phase D's D1.0b: EdgeServer.UPSTREAM, a Mount this census's route(...) scan does
-            // not read -- reported to the orchestrator); lite's own store is /api/lite/v1/query
+            // user moved to the edge (phase D's D1.0b: EdgeServer.UPSTREAM, //core:server's main_class); the census
+            // reads that mount's routes too (2026-11-15, PR1's review); lite's own store is /api/lite/v1/query
+            "/api/pure/v1/", "legend-engine's pure/v1 API, the edge's mount: the product's door in the edge's dialects",
+            "/api/pure/v1/query", "the saved queries' store at upstream's path, the edge's mount: no planner",
+            "/api/server/v1/currentUser", "upstream's current user, the edge's mount: no planner",
             "/api/lite/v1/", "the pure/v1 dispatcher (ROUTES)",
             "/api/lite/v1/query", "the saved queries' and saved cubes' store: no planner",
             "/engine/diagram", "a model's diagrams laid out: no planner",
@@ -945,7 +948,13 @@ class PlannerSurfaceTest {
                 }
             }
         });
-        listedAs(out, "an HTTP route", found(httpSource, "route\\(\"([^\"]+)\""), HTTP_ROUTES.keySet());
+        // the server's own routes, and those of the module the shipped server mounts (EdgeServer.UPSTREAM)
+        Set<String> routes = new TreeSet<>(found(httpSource, "route\\(\"([^\"]+)\""));
+        for (com.legend.server.LegendHttpServer.Routes r : com.legend.edge.EdgeServer.UPSTREAM.routes(
+                new com.legend.server.LegendHttpServer.Context("none", null, null))) {
+            routes.add(r.prefix());
+        }
+        listedAs(out, "an HTTP route", routes, HTTP_ROUTES.keySet());
         return out;
     }
 
