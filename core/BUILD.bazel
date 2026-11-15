@@ -2513,6 +2513,8 @@ legend_java_library(
         "src/test/java/com/legend/leansql/LeanSqlBaseline.java",
         # the census's reader of a dialect's tree after its passes (E-4, 2026-11-12)
         "src/test/java/com/legend/sql/dialect/PassedTrees.java",
+        # the test-side lowering, TypedQuery.lower's replacement (main's 795a7b8af5; merged with cf865632c, 2026-11-15)
+        "src/test/java/com/legend/planner/Lowered.java",
     ],
     deps = [
         ":core",

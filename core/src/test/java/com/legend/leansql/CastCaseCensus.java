@@ -72,7 +72,9 @@ public final class CastCaseCensus {
                 try {
                     TypedQuery q = Compiler.query(Compiler.compileModel(LeanSqlBaseline.withRuntime(model, type)),
                             expression);
-                    SqlQuery lowered = q.lower(StorelessRuntime.RUNTIME, false, List.of(),
+                    // TypedQuery.lower left the root (main's 795a7b8af5, the user's ruling of 2026-11-13, option (b)):
+                    // the test-side Lowered lowers it step by step as it did
+                    SqlQuery lowered = com.legend.planner.Lowered.lower(q, StorelessRuntime.RUNTIME, false, List.of(),
                             java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING)).plan();
                     passed = com.legend.sql.dialect.PassedTrees.passed(dialect, lowered);
                 } catch (RuntimeException | StackOverflowError e) {
@@ -168,8 +170,8 @@ public final class CastCaseCensus {
                 try {
                     TypedQuery q = Compiler.query(Compiler.compileModel(LeanSqlBaseline.withRuntime(
                             ((Json.Str) c.get("model")).value(), type)), ((Json.Str) c.get("expression")).value());
-                    passed = com.legend.sql.dialect.PassedTrees.passed(dialect, q.lower(StorelessRuntime.RUNTIME,
-                            false, List.of(), java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
+                    passed = com.legend.sql.dialect.PassedTrees.passed(dialect, com.legend.planner.Lowered.lower(q,
+                            StorelessRuntime.RUNTIME, false, List.of(), java.util.Set.of(com.legend.platform.Feature.CORRECT_SQL_SUBSTRING_INDEXING))
                             .plan());
                 } catch (RuntimeException | StackOverflowError e) {
                     continue;
