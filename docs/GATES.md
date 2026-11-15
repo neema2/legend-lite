@@ -22125,21 +22125,39 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
 - **The gate** at e9e651b56: 520 pass and 1 skipped; the 11 Postgres-backed targets refused as root pass
   unprivileged. At edd5a0817 (the last list): census, guardrails, the host walls, //tools/guards and //:generated pass.
 - **Its limits, said plainly (the final fix round's T2):**
-  - the browser and the headless V8 keep no frame: there the run-time witness is blind and the wall alone holds;
+  - the browser and the headless V8 keep no frame: there the run-time witness is blind, and the build holds the line
+    (2026-11-15, C5-T: TypeScript's wall was deleted for the layers' rule; what it covers is below);
   - the lexer and the parser are unwitnessed at run time (phases A, the parser half of B, and C);
   - Python's 12 `UNFRAMED_SENDERS` send outside a run, each named in `python/tests/test_run_wall.py` for C5:
     `_headless.Headless._query` and `._statement`, `engine.Engine._execute`, `._execute_json`,
     `._project_plan_and_run` and `._served_snap`, `frames.Table._load`, `frames.Frames.__init__`, `.streaming_file`
     and `.reading`, `projects._stream`, `projects.ProjectDatabases._make`;
-  - TypeScript's 17 `COMPOSER_MODULES` both run and plan, each named in `datacube/test/run-wall.test.ts` for C5:
-    datacube's `runner`, `app/services`, `app/sources`, `services/browser`, `headless/host`, `app/join-flow`, `cube`,
-    `plan` and `treeview`; engine-client's `legend/browser-engine` and `legend/engine`; Query's `app/cube`,
-    `app/probe`, `app/run` and `ui/results`; Studio's `app/app` and `backend/run`;
-  - TypeScript's 22 `COMPOSER_SIGNATURES` take a planner's type in a run signature, each named there for C5:
-    engine-client's `setUpSession`, `ownExtensions`, `startDuckDbInTab`, `runHostOperations`, `loadFileTable`, and
-    the constructors of `ProjectDatabases`, `SnapManager` and `TabTables`; datacube's `accessRemote`, `mountRemote`,
-    `runMount`, `TableWriteHost.models`, `writeTable`, and upload's `catalogColumns`, `catalogColumnsOf`,
-    `dropFileTable`, `forgetUpload`, `ingestFile`, `modelLanded`, `mountRemoteView`, `mountedView`, `readFileInto`.
+  - TypeScript's lists (17 `COMPOSER_MODULES`, 22 `COMPOSER_SIGNATURES`, 2 `COMPUTED_DOORS`) went with its wall
+    (`datacube/test/run-wall.test.ts`, deleted by C5-T, 2026-11-15; the audit's fix round of the same day restored what
+    the deletion had dropped). TYPESCRIPT'S FINISH LINE NOW COVERS:
+    - the run layers, `//engine-client:run` and `//datacube:run`: they reach the records and two pinned npm packages
+      alone (`tools/deps/ts-layers.txt`, `//tools/deps:ts_layering_test`, which pins every label it trusts). Each is
+      typechecked alone by a strict tsc over its closure, with no `@ts-nocheck`, `@ts-ignore` or `@ts-expect-error`
+      (`//tools/deps:layers_alone`). They open no import door chosen at run time but the two vendor loads named, and
+      no literal worker, URL, require or importScripts specifier names a module they may not reach. No function,
+      member or interface of theirs takes anything that answers a planner's statement, plan or planned record;
+    - the planner layers, `//engine-client:planner` and `//datacube:planner`: they reach the records alone, and each
+      is typechecked alone;
+    - the doors, `//engine-client:doors` and `//datacube:doors`: each asks the planner, then runs its answer in a run
+      frame; their deps are pinned;
+    - the apps' own code (DataCube's app, Query, Studio), which no layer holds: every plan-and-run site outside the
+      doors and the run targets is a shrink-only census (`//tools/deps:app_runs_test`). 16 sites remain in 8 files,
+      each a call of a door: DataCube's runner (cube, plan, treeview), or an Engine's execute, a server's or
+      BrowserEngine's (Query's cube, probe, run and results; Studio's Run);
+    - on Node: every send is refused outside a run at the send primitives (DuckDB's #whole, #batches and #bound, the
+      held connection's sends, the warehouse's submit), and every node_test runs with
+      `--experimental-async-context-frame`;
+  - IT DOES NOT COVER:
+    - a run-time witness in the browser or the headless V8 (none is kept there);
+    - a send on a receiver the census's pattern does not name: it reads names, so it catches drift, not an adversary;
+    - the multi-step doors (the snap door, `writeTable`, the upload and catalog flows, `TabTables`), which are not yet
+      one keyed plan each: C5's backlog line;
+    - Python's half, whose wall stands.
 - **The heavy suite and the cloud probe:** `//gates:heavy` holds `//core:identifier_escaping_cloud_probe` (fd7dc25565).
   A heavy run needs `LEGENDLITE_PCT_CLOUD_PROPERTIES` and `LEGENDLITE_PROBE_CLOUD`, and covers ONE cloud a run, the one
   `LEGENDLITE_PROBE_CLOUD` names (`snowflake` or `databricks`); without them the probe fails by name.

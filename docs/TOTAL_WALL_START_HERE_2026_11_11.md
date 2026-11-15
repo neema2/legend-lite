@@ -1020,12 +1020,18 @@ In order. Nothing here is in the A/B/C PR.
        `//tools/deps:ts_layering_test`), each type-checked alone by a strict tsc that sees nothing else
        (`//tools/deps:layers_alone`, with a planted violator's bite), every send on Node refused outside a run at its
        choke point (`run-frame.ts` `sending`: DuckDB's connection, the warehouse's submit), and
-       `datacube/test/run-wall.test.ts` deleted; Python's half remains. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
+       `datacube/test/run-wall.test.ts` deleted; Python's half remains. The audit's fix round of the same day restored
+       what the deletion dropped: DataCube's doors a target of their own (`//datacube:doors`), the apps' own
+       plan-and-run sites a shrink-only census (`//tools/deps:app_runs_test`), and the wall's signature, suppression and
+       literal-specifier rules on each run layer (`//tools/deps:layers_alone`); docs/GATES.md says what it covers. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
        final fix round's T4); their lists are this work's list: TypeScript's 17 `COMPOSER_MODULES`, 22
        `COMPOSER_SIGNATURES` and 2 `COMPUTED_DOORS`, Python's 12 `UNFRAMED_SENDERS`, each named there;
      - each multi-step TS door made one keyed plan, as Java's Keyed pattern does (a step's rows fill the next statement),
        so a door is one planning call and one run call (the orchestrator's note 3 on C5-T, 2026-11-15: the snap door,
        `writeTable`, the upload and catalog flows, `TabTables`, accepted as multi-step doors until then);
+     - the C5-T audit's backlog (2026-11-15; pre-existing, out of its scope, not fixed): `upload.ts`'s `?? 0` (:360);
+       `tab-data.ts` `tables()`'s catch-all; `PlannedSqlTest.UNPLANNED_IMPORT`'s quote style; `infer.ts`'s stale
+       reference (:152); `warehouse.ts` `loadWarehouseBinding`'s load callback;
      - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
        `verdicts`) carried in the test plan instead;
      - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
