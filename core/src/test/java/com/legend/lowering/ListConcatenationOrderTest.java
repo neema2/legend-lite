@@ -72,14 +72,16 @@ class ListConcatenationOrderTest {
 
     /** One ORDER BY, after the last UNION ALL, at the statement's own level; none between the unions. */
     private static boolean outerOrderOnly(String sql) {
-        String flat = sql.replace('\n', ' ');
+        // a branch's ROW_NUMBER() OVER (ORDER BY ...) is its ordinal, not a branch's ORDER BY
+        String flat = sql.replace('\n', ' ').replaceAll("OVER \\(ORDER BY", "OVER (");
         int lastUnion = flat.lastIndexOf("UNION ALL");
         if (lastUnion < 0) {
             return true;
         }
         String before = flat.substring(0, lastUnion);
         String after = flat.substring(lastUnion);
-        boolean outer = after.matches("(?s).*\\)\\s+AS\\s+\"?__lo\"?\\s+ORDER BY.*");
+        // the outer select over the union: the Lowerer's (__lo) or the dialect's explode (__u)
+        boolean outer = after.matches("(?s).*\\)\\s+AS\\s+\"?(__lo|__u)\"?\\s+ORDER BY.*");
         return outer && !before.contains("ORDER BY");
     }
 
