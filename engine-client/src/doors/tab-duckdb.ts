@@ -9,7 +9,8 @@ import {
   connectDuckDbInTab, duckDbRunsHere, extensionRepository, instantiateDuckDbInTab, vendorAsset, type DuckDbInTab, type TabSetup,
 } from '../duckdb-tab.ts';
 import { DuckDbEngine } from '../duckdb.ts';
-import type { TabDuckDbPlanner } from '../planner-sources.ts';
+import type { SynthesizeSource, TabDuckDbPlanner } from '../planner-sources.ts';
+import type { SynthesizeRequest } from '../requests.ts';
 import { inRun } from '../run-frame.ts';
 
 /**
@@ -44,4 +45,16 @@ export async function openedInTab<D, T>(
   })();
   const [database, setup] = await Promise.all([instantiate(), asked]);
   return inRun("the tab's DuckDB started", () => connect(database, setup));
+}
+
+/**
+ * A table made and filled in this tab's DuckDB by the planner's SYNTHESIZE plan for `request` (DataCube's demo sample,
+ * src/sample-trades.ts: the table made as declared, then one statement over range(N), every value the database's,
+ * register S303): the plan asked outside any run, then run by the hosts' plan runner on the held connection inside a
+ * run. The runner is fetched here, as a remote mount fetches it: a grid-only page carries none of it (2026-11-15, the
+ * C5-T fold-in: DataCube's page ran this plan itself until then).
+ */
+export async function synthesizedInTab(engine: DuckDbEngine, planner: SynthesizeSource, request: SynthesizeRequest): Promise<void> {
+  const [plan, { runLoad }] = await Promise.all([planner.synthesize(request), import('../plan-runner.ts')]);
+  await inRun('a table synthesized', () => engine.exclusive((held) => runLoad(plan, (sql, params) => held.rows(sql, params))));
 }

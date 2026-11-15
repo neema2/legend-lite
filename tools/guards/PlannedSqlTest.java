@@ -1462,8 +1462,9 @@ class PlannedSqlTest {
             // 2026-11-15 (the C5-T audit's MUST 2): DataCube's doors are a target of their own, //datacube:doors
             // (remote.ts, table-output.ts, upload.ts among them), and the apps' own plan-and-run sites outside every
             // door and run target are a shrink-only census beside this one (//tools/deps:app_runs_test).
-            // a demo's door: its seed's plan asked, then loaded
-            Map.entry("datacube/demo/boot.ts", List.of("runLoad(")),
+            // 2026-11-15 (the C5-T fold-in): a table synthesized in the tab's DuckDB (synthesizedInTab: synthesize asked
+            // first) -- DataCube's demo sample, which its page ran itself until then
+            Map.entry("engine-client/src/doors/tab-duckdb.ts", List.of("runLoad(")),
             // a door: runMount (remoteMount asked first)
             Map.entry("datacube/src/remote.ts", List.of("runLoad(")),
             // a multi-step door: writeTable (note 3)

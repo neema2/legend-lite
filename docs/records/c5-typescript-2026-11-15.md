@@ -22,8 +22,8 @@ TypeScript's finish line now covers:
     `//tools/deps:ts_layering_test`, which pins every label it trusts).
   - Each is typechecked alone by a strict tsc over its closure, with no `@ts-nocheck`, `@ts-ignore` or
     `@ts-expect-error` (`//tools/deps:layers_alone`).
-  - They open no import door chosen at run time but the two vendor loads named, and no literal worker, URL, require or
-    importScripts specifier names a module they may not reach.
+  - They open no import door chosen at run time, and no literal worker, URL, require or importScripts specifier names
+    a module they may not reach.
   - No function, member or interface of theirs takes anything that answers a planner's statement, plan or planned
     record.
   - No module of theirs, nor of the doors', writes an explicit `any` (the last round's T2).
@@ -43,13 +43,13 @@ TypeScript's finish line now covers:
   - No app module, nor any page of theirs (`demo/`), imports a run module (`//tools/deps:app_runs_test`). That holds
     for any import, a `.js` spelling or none read as the module it loads. It holds through a re-export, followed through
     every package an app imports (an import exported again too; a module the walk cannot read is named, never skipped).
-    The exception is three named page boots, shrink-only: DataCube's demo sample, and Query's warehouse seed and
-    sign-in (the backlog below).
-  - Every plan-and-run site outside the doors and the run side is a shrink-only census: 38 sites in 19 files. It
+    No page boot is an exception any more: DataCube's demo sample and Query's warehouse seed and sign-in go through
+    doors (the fold-in below), and their list, `PAGE_REACHES`, is deleted.
+  - Every plan-and-run site outside the doors and the run side is a shrink-only census: 33 sites in 17 files. It
     covers the apps, their pages, and engine-client's records, planner and server, whose types are structural, so no
     import shows a run there. The held connection's calls (`exclusive(`, `.rows(`) and a database's receivers are
     counted too.
-  - Each site is a call of a door or one of those page boots:
+  - Each site is a call of a door:
     - DataCube's runner (cube, plan, treeview);
     - its services' rows (a planner and the runner);
     - an Engine's execute (a server's or BrowserEngine's; legend-engine's own, passed on by the server layer);
@@ -65,6 +65,12 @@ TypeScript's finish line now covers:
     (`tools/js/esbuild.bzl`).
   - They are collected from every package (guards_package's `guard_bundles`), so a new bundle is checked with no list.
   - A bundle declared after its package's `guards_package()` is refused (`//tools/js:late_bundle_test`).
+- **The deployment's vendor binaries are loaded by doors** (the fold-in below). Loading the deployment's configured
+  vendor binaries is a door's wiring, not a plan/exec exception: the run layers hold zero computed specifiers and take
+  the loaded object, never a loader. `layers_alone` allows a computed specifier only in a door, the named ones only
+  (DuckDB's worker, `doors/tab-duckdb.ts`; TeaVM's warehouse runtime, `doors/warehouse.ts`), so a run layer can never
+  grow one again. The planner layers start the planner's own worker from the page's URL, planning-side, and are read
+  aside.
 - **Every worker the product starts** is pinned by call site, through any receiver (`new globalThis.Worker(`), as each
   send, connect, fetch and submit is (`PlannedSqlTest.WORKERS`, the last round's T4 and the final audit's item 7): the
   planner's, DuckDB's own, and Monaco's.
@@ -88,11 +94,11 @@ other twelve are named by their existing guard.
 
 | # | Route | Answer |
 |---|---|---|
-| R1 | an app imports a run layer | closed for `src/` (T1). **Fixed: the pages (`demo/`)**, which no rule read: now read, three boots pinned |
+| R1 | an app imports a run layer | closed for `src/` (T1). **Fixed: the pages (`demo/`)**, which no rule read: now read; their three boots through doors since the fold-in, none pinned |
 | R2 | an aliased or renamed import | closed (`runReaches` goes by module path). **Fixed: a `.js` spelling**, which typechecked, bundled and passed |
 | R3 | a re-export through a module no rule reads | closed: re-exports are followed through every module read; the apps' libraries reach no run layer |
 | R4 | an `any` | closed: `layers_alone` (T2), `PlannedSqlTest.noAnyInTheProduct` |
-| R5 | a computed import or an injected loader | closed: computed specifiers refused by default in run layers; the loader removed (T3) |
+| R5 | a computed import or an injected loader | closed: no computed specifier in a run or server layer, the doors' vendor loads named (the fold-in); the loader removed (T3) |
 | R6 | a send in the browser or headless V8 outside a door | closed by the choke-point censuses and the host's answered set. **Fixed: a worker**, the one transport no census pinned |
 | R7 | a DuckDB send not through the six send points | closed: `DATABASE_SENDS`, `CONNECTS`, `run_frame_test` |
 | R8 | a planner reached from a run layer through records | closed: `ts_layering_test`, `layers_alone`, the mint and cast censuses |
@@ -136,9 +142,7 @@ Backlog:
   catch-all, `PlannedSqlTest.UNPLANNED_IMPORT`'s quote style, `infer.ts`'s stale reference (:152), `warehouse.ts`
   `loadWarehouseBinding`'s load callback.
 - **The pages' boots re-pointed to doors** (the last round's T4: the pages, `demo/`, are app code no rule read until
-  then): `datacube/demo/boot.ts`'s demo sample (`runLoad` of the synthesize plan), and `query/demo/main.ts`'s warehouse
-  seed (`runLoad`) and warehouse sign-in by password (`warehouse.ts`'s driver). Pinned meanwhile, shrink-only, by
-  `//tools/deps:app_runs_test` (`PAGE_REACHES`, and their sites in `CENSUS`).
+  then): DONE in the fold-in below.
 - **The final audit's backlog** (recorded, not fixed):
   - The planner's server clients keep a protected generic POST (`legend/planning-client.ts` `json()`,
     `pure-v1-planning.ts` `request()`), so "no execute" holds by the method's name alone: an adversarial route only.
@@ -150,3 +154,23 @@ Backlog:
   depend on build order. No such file is there today (engine-client has none; DataCube, Query and Studio declare theirs
   in `:src`), but nothing guards it, and the metafile (`//tools/deps:bundle_inputs_test`) does not list a tsconfig read.
 - **The independent re-check's** (recorded, not fixed): its backlog is in `docs/records/c5-t-recheck-2026-11-15.md`.
+
+## The fold-in: no exceptions (2026-11-15)
+
+The user's line, "should not really have any exceptions", and the orchestrator's go: the five named exceptions #105
+still carried, removed before its CI. Each is its own commit on `claude/total-wall-b3-stage`.
+- **Query's warehouse seed** (b3f1d8cbaa): `doors/project-data.ts` `dataLoaded` asks the planner for the project's Data
+  load, then runs it inside a run frame on the engine it is handed.
+- **Query's sign-in** (b3f1d8cbaa): through `doors/warehouse.ts` `warehouseAt` (`connect`, then `live`), the same calls
+  in the same order.
+- **TeaVM's warehouse runtime** (b3f1d8cbaa): its load moves from `warehouse.ts` into the warehouse door, which hands
+  the run side the loaded binding.
+- **DuckDB's worker** (eb324e538b): the door checks the browser runs DuckDB's one build (before any fetch, as before),
+  starts the worker from the vendor folder, and hands it to `instantiateDuckDbInTab`.
+- **DataCube's demo sample** (this commit): `doors/tab-duckdb.ts` `synthesizedInTab` asks the planner for the
+  SYNTHESIZE plan and runs it on the held connection inside a run, fetching the plan runner as the page did.
+
+No behaviour changes: the same statements in the same order. The grid's startup on Linux, measured as `bundle-budget`
+measures it, after each: 437,266 (fold-in 1, which touches no startup file but one door) -> 437,239 (DuckDB's worker)
+-> 437,249 (the demo sample), with 44 startup files throughout, so nothing split. The engine page stays at 425,492. The
+line was 437,270 on Linux, which keeps Windows' 18-28 bytes more under 437,300.

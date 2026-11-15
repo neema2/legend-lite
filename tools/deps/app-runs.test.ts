@@ -45,15 +45,6 @@ const ENGINE_CLIENT = 'engine-client/src';
  *  the C5-T last round's T4 (2026-11-15). */
 const PAGES = ['datacube/demo', 'query/demo', 'studio/demo'];
 
-const PAGE_BOOT = "a page's boot, not yet a door's: re-pointed to one with the doors this round leaves (C5-T's backlog,"
-  + ' docs/records/c5-typescript-2026-11-15.md)';
-
-/** Each page module's reach of the run side that remains, with its reason. Shrink-only: a new one fails. */
-const PAGE_REACHES = new Map([
-  ['datacube/demo/boot.ts imports engine-client/src/plan-runner.ts',
-    `the demo sample: the planner's synthesize plan (S303) run by the hosts' runner on the tab's held connection; ${PAGE_BOOT}`],
-]);
-
 /** The run side's and the doors' own files -- DataCube's :run and :doors, engine-client's :run, :doors, :engine_api and
  *  :node_host (a genquery): they run by design, so the census reads none of them. */
 const LAYERED: ReadonlySet<string> = new Set(readFileSync(runfileFromEnv('LAYERED_SRCS'), 'utf8').split('\n')
@@ -190,8 +181,6 @@ const CENSUS = new Map<string, { readonly calls: Readonly<Record<string, number>
   ['engine-client/src/legend/engine.ts', { calls: { 'server.execute(': 1 },
     why: "legend-engine's execute, the SERVER's door (pure/v1's execute: the server plans and runs in one request), passed on by the server layer's engine" }],
   // the pages (2026-11-15, the C5-T last round's T4)
-  ['datacube/demo/boot.ts', { calls: { 'runLoad(': 1, 'engine.exclusive(': 1, 'held.rows(': 1 },
-    why: `the demo sample's synthesize plan, run on the tab's held connection: ${PAGE_BOOT}` }],
   ['datacube/demo/remote-harness.ts', { calls: { 'engine.execute(': 1 },
     why: "the remote harness page's query: a plan its planner answered, executed on the engine the tab's door handed" }],
   ['datacube/demo/stress.ts', { calls: { 'engine.execute(': 2 },
@@ -270,10 +259,10 @@ describe("the apps' plan-and-run sites, outside every door and run target (shrin
       `the run layers' files are not read: ${[...RUN_SRCS].join(', ')}`);
     const apps = appFiles.filter((f) => !LAYERED.has(f));
     const read = (f: string): string | undefined => (SOURCES.has(f) ? SOURCES.read(f) : undefined);
-    assert.deepEqual(runReaches(apps, read, RUN_SRCS), [...PAGE_REACHES.keys()].sort(), 'an app module reaches the run side'
-      + ' past its doors: take what it needs from a door (engine-client/src/doors/, //datacube:doors), or its shape from the'
-      + " records (a page's boot that still reaches is named, with its reason, in PAGE_REACHES)");
-    for (const [reach, why] of PAGE_REACHES) assert.ok(why.trim().length > 20, `${reach} is pinned without its reason`);
+    // none, a page's boot included (2026-11-15, the C5-T fold-in: the three page boots, DataCube's demo sample and
+    // Query's warehouse seed and sign-in, went through doors, and their list, PAGE_REACHES, went with them)
+    assert.deepEqual(runReaches(apps, read, RUN_SRCS), [], 'an app module reaches the run side past its doors: take what'
+      + ' it needs from a door (engine-client/src/doors/, //datacube:doors), or its shape from the records');
   });
 
   it('names a planted app module that imports a run module, by any import, or through a chain of re-exports', () => {
