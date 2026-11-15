@@ -1045,6 +1045,21 @@ In order. Nothing here is in the A/B/C PR.
        `try`;
      - (C5-P's final audit, 2026-11-15, held out) `//python:run_closure_test`'s static half could run on every platform
        (today gated by `target_compatible_with`);
+     - (the C5 follow-up's audit, 2026-11-15, held out) the page hash's number forms differ between Python and the tab
+       (Decimal `1E-7` and float repr `5e-05` against JavaScript's `1e-7` and `0.00005`; key order for astral
+       characters): a false mismatch for rare values -- one normalised form in both languages, DataCube's;
+     - (the C5 follow-up's audit, held out) `datacube._current()`'s `except Exception: return _session` shares one
+       session among marimo viewers if marimo's private context moves (G7, latent);
+     - (the C5 follow-up's audit, held out) a gone marimo session leaves its page tabs, apps and `_web` running, and drops
+       a cube's close failure (`pass`);
+     - (the C5 follow-up's audit, held out) the native library called on per-request threads (`/file.json`,
+       `/remote.json`, `/forget.json`, a snap's release, the warehouse snap), each left attached to the isolate (a few
+       KB an action): `_on_compiler_threads`;
+     - (the C5 follow-up's audit, held out) a V8 engine stopped at its memory cap mid-write leaves the main connection in
+       an open transaction (`_headless.py`);
+     - (the C5 follow-up's check, 2026-11-15, held out) a timeseries row's `refused` and a served snap's 422 carry the
+       compiler's LegendError message without its kind (`page.py`'s Tile.queries, `engine.py`'s `_served_snap`), as the
+       snap's existing planning 422 does;
      - **DONE in C5-J (9dcb29f13b, 2026-11-15; the parse doors):** a wider Java witness (phase C,
        `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);

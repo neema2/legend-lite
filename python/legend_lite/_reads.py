@@ -1,6 +1,6 @@
 """A READ OF PYTHON'S DATABASE, the run side (C5-P, 2026-11-15: the plan/exec split on Python, as //core:exec is Java's):
 a plan's statement sent and its answer read -- its rows typed by the plan (``typed_by_plan``), a failure's words cleared
-of every value the host holds (``execute_redacted``), one read of the frames as it saw the database (``Reading``) -- and
+of every value the host holds (``fetched_redacted``), one read of the frames as it saw the database (``Reading``) -- and
 the runs Python's doors hand the planner's statements to (``run_plan``, ``run_arrow``, ``run_rows_json``, ``count_of``,
 ``begin_read``, the hosted DataCube's ``run_bridged_query`` and ``run_bridged_statement``). Each is a run (``@runs``):
 it is handed what the planner answered and plans nothing, and this module imports no planner module
@@ -9,7 +9,6 @@ frames.py's, which names them still, and its runs were sent where they were plan
 
 from __future__ import annotations
 
-import contextlib
 import copy
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
@@ -128,15 +127,18 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     return redacted
 
 
-def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
-    """``sql`` run on ``connection``, its ``?``s bound to ``params`` (a plan's payloads: M3), a failure's words with every
-    held value taken out (``redacted``). A run of its own -- the caller's, named as it is, or one of its own outside any
-    (C5-P's audit M2, 2026-11-15: until then a sending helper, re-exported as frames.execute_redacted and framed by its
-    callers alone)."""
+def fetched_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: Sequence[Any],
+                     fetch: Callable[[Result], Any]) -> Any:
+    """``sql`` run on ``connection`` AND its answer fetched (``fetch``), one failure's words for both with every held
+    value taken out (``redacted``): DuckDB fails at the fetch as well as at the statement (a remote file read as its
+    rows stream, a value that does not convert past the first rows), and a presigned link's expiry there repeats its
+    URL (the C5 follow-up's audit item 1, 2026-11-15: until then the fetch was outside the redaction; its check removed
+    execute_redacted, which redacted the send alone). A run of its own -- the caller's, named as it is, or one of its
+    own outside any."""
     failure: BaseException | None = None
     try:
         with in_run(current_run() or 'a statement redacted'):
-            return send(connection, sql, params)
+            return fetch(send(connection, sql, params))
     except duckdb.Error as e:
         failure = redacted(e, held)
         if failure is None:
@@ -270,30 +272,31 @@ class Reading:
 @runs('a plan')
 def run_plan(target: Database, plan: Plan, held: Iterable[str]) -> pa.Table:
     """PYTHON'S EXECUTOR: a plan's SQL run on ``target``, its rows typed by the plan (``typed_by_plan``), a failure's words
-    with every value in ``held`` taken out (``execute_redacted``). Only SQL a planner wrote for this database comes here."""
-    return typed_by_plan(execute_redacted(target, plan.sql, held, plan.params).to_arrow_table(), plan)
+    with every value in ``held`` taken out, at the statement and at its fetch (``fetched_redacted``). Only SQL a planner
+    wrote for this database comes here."""
+    return typed_by_plan(fetched_redacted(target, plan.sql, held, plan.params, Result.to_arrow_table), plan)
 
 
 @runs('an execute')
 def run_arrow(target: Database, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> pa.Table:
     """An execute's statement run on ``target`` (its ``?``s bound to ``params``), its rows as Arrow, a failure's words
     with every value in ``held`` taken out."""
-    return execute_redacted(target, sql, held, params).to_arrow_table()
+    return fetched_redacted(target, sql, held, params, Result.to_arrow_table)
 
 
 @runs('an execute')
 def run_rows_json(target: Database, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> str:
     """An execute's typed statement run on ``target``, its rows handed back as the driver read them (``host_rows``: what
     the compiler decodes by the plan's columns), a failure's words with every value in ``held`` taken out."""
-    cursor = execute_redacted(target, sql, held, params)
-    names = [d[0] for d in cursor.description]
-    return host_rows(names, cursor.fetchall())
+    return fetched_redacted(target, sql, held, params,
+                            lambda cursor: host_rows([d[0] for d in cursor.description], cursor.fetchall()))
 
 
 @runs("a snap's count")
-def count_of(target: Database, plan: Plan) -> int:
-    """A counting plan's number (its one row's one column), run on ``target`` with its own values bound."""
-    return int(send(target, plan.sql, list(plan.params)).fetchone()[0])
+def count_of(target: Database, plan: Plan, held: Iterable[str]) -> int:
+    """A counting plan's number (its one row's one column), run on ``target`` with its own values bound, a failure's
+    words with every value in ``held`` taken out (the C5 follow-up's audit item 1)."""
+    return fetched_redacted(target, plan.sql, held, list(plan.params), lambda result: int(result.fetchone()[0]))
 
 
 @runs('a read begun')
@@ -316,12 +319,22 @@ def begin_read(cursor: Database, setup: Sequence[PlannedSql],
 
 
 @runs('a read ended')
-def end_read(cursor: Database) -> None:
-    """A read's transaction let go -- rolled back, as nothing it ran is kept; a cursor whose read failed may have none
-    to roll back, which is no failure of its end -- and its cursor closed (``Frames.reading``)."""
+def end_read(cursor: Database, failing: BaseException | None) -> None:
+    """A read's transaction let go -- rolled back when it began (``Database.began``), as nothing it ran is kept -- and
+    its cursor closed (``Frames.reading``). A rollback that fails is said, never swallowed (G7; the C5 follow-up,
+    2026-11-15: until then every duckdb.Error of the rollback was suppressed): raised when the read itself ended well;
+    when the read is ``failing``, that failure stays the one raised -- a read is named by the failure that ended it
+    (C4) -- and the rollback's is noted on it. DuckDB rolls back an aborted transaction without complaint (measured
+    2026-11-15, duckdb 1.5.5): a rollback fails only when no transaction is open on the cursor any longer (ended by a
+    statement of the read's own) or the connection is gone."""
     try:
-        with contextlib.suppress(duckdb.Error):
-            cursor.rollback()
+        if cursor.began:
+            try:
+                cursor.rollback()
+            except duckdb.Error as refused:
+                if failing is None:
+                    raise
+                failing.add_note(f"and rolling the read's transaction back failed: {type(refused).__name__}: {refused}")
     finally:
         cursor.close()
 

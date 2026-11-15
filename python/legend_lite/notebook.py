@@ -22,7 +22,6 @@ from __future__ import annotations
 import hashlib
 import sys
 import threading
-import traceback
 from functools import cache
 from pathlib import Path
 from typing import Any, TypeVar
@@ -36,7 +35,7 @@ except ModuleNotFoundError as missing:
         '(or ll.show(df, inline=False) for a browser tab)', name=missing.name) from missing
 
 from . import datacube
-from .engine import Answer
+from .engine import Answer, unexpected
 
 # DataCube's files for a notebook, in its built site (datacube/BUILD.bazel)
 _LOADER = 'widget-loader.js'
@@ -89,9 +88,9 @@ class _EngineWidget(anywidget.AnyWidget):
             else:
                 answer = self._session.engine().answer(method, path, query, body)
         except Exception as failure:
-            # still an answer: a page waiting on a call never waits forever
-            traceback.print_exc()
-            answer = Answer(500, 'text/plain; charset=utf-8', f'{type(failure).__name__}: {failure}'.encode())
+            # still an answer: a page waiting on a call never waits forever -- the engine's one unexpected answer, its
+            # words with every value the session's frames hold taken out (the C5 follow-up's check, 2026-11-15)
+            answer = unexpected(failure, self._session.frames.held_values())
         if self._closed:
             return
         try:
