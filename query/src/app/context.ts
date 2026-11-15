@@ -156,18 +156,25 @@ export class AppContext {
    * Where a project's own rows go: its database inside this tab's DuckDB (C5), the screens' engine pointed there as
    * it opens, the tab's own connection beside (set by the page; none when queries run elsewhere).
    */
-  tabProjects: { readonly databases: ProjectDoor; readonly runner: PointedEngine; readonly host: QueryEngine } | undefined;
+  tabProjects: {
+    readonly databases: Pick<ProjectDoor, 'engineFor'>;
+    readonly runner: Pick<PointedEngine, 'use'>;
+    readonly host: QueryEngine;
+  } | undefined;
 
   /**
    * The screens' engine pointed at the project's own database (made and filled the first time; another version keeps
    * its own) -- or at the tab's own connection, for a project with none. Only the screen that will show the project
-   * asks (App's #render, once it knows no later navigation overtook it), so a load that answered late cannot move
-   * the engine under another screen.
+   * asks (App's #render), and `current` says whether its navigation is still the newest. It is asked again once the
+   * database is there, because making it takes a while: a navigation overtaken meanwhile -- Back pressed while the
+   * project said "Opening…" -- points nothing, so the newer screen never reads the older project's rows (2026-11-15,
+   * the TypeScript hunt's T-A: it did, with no error).
    */
-  async activate(p: LoadedProject): Promise<void> {
+  async activate(p: LoadedProject, current: () => boolean): Promise<void> {
     if (!this.tabProjects) return;
     const { databases, runner, host } = this.tabProjects;
-    runner.use((await databases.engineFor(p.context.code, host)).engine);
+    const { engine } = await databases.engineFor(p.context.code, host);
+    if (current()) runner.use(engine);
   }
 
   /**

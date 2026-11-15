@@ -106,7 +106,7 @@ export class App {
     if ('gav' in r) {
       const p = await this.#ctx.load(r.gav);
       if (at !== this.#navigations) return;
-      await this.#ctx.activate(p);
+      await this.#ctx.activate(p, () => at === this.#navigations);
     }
     if (at !== this.#navigations) return;
     const app = this.#ctx;
@@ -165,7 +165,7 @@ export class App {
         if (at !== this.#navigations) return;
         const session = await openQuery(app, { ...shared, id: '' }, new Map(), false);
         if (at !== this.#navigations) return;
-        await app.activate(session.project);
+        await app.activate(session.project, () => at === this.#navigations);
         if (at !== this.#navigations) return;
         this.#edit(session);
         return;
@@ -174,7 +174,7 @@ export class App {
         const q = await app.store.get(r.id);
         const session = await openQuery(app, q, r.parameters);
         if (at !== this.#navigations) return;
-        await app.activate(session.project);
+        await app.activate(session.project, () => at === this.#navigations);
         if (at !== this.#navigations) return;
         recent.query(q.id);
         this.#edit(session);
