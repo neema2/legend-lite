@@ -606,6 +606,30 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
 - **Not yet:** the door holds a session's records in the feed's memory (a long show grows it, as the server's own
   tables grow); a restart of the server re-reads every topic from the door.
 
+### 15.6 The filtered-mapping join, diagnosed (2026-11-15; not yet fixed)
+
+Reproduced on the real corpus with ONE filter (`Filter Book_Latest(BOOK.LAKE_OUT_ID = 999999999)` and `~filter
+[store::DB] Book_Latest` on `positions::Book`): 1,046 stress suites fail, every one with `join condition references
+unknown column 'BOOK_ID' on its left side`. The smallest failing query:
+
+    |entitlements::AccessEntitlement.all()
+        ->project(~[r:x|$x.recordId, d:x|$x.book.desk.name, b:x|$x.book.rollup.bookId])
+
+- Each hop alone plans: `book.rollup.bookId` alone narrows the routed Book sub-select to `__route0_0, BOOK_ID`;
+  `book.desk.name` alone carries `DESK_ID`. Book's own `desk` and `rollup` together plan.
+- Together, from a STACK root (`*AccessEntitlement[entitlementsBase]`, its subclasses `extends` it) routed to Book's set
+  (`book[positions_Book]`), the Book sub-select is the class row -- every property, `__route0_0` and `DESK_ID` -- and
+  not `BOOK_ID`: the column the second hop's join (`Book_Rollup(BOOK.BOOK_ID = NOTIONAL_BY_BOOK.BOOK_ID)`) reads is a
+  property's column (`bookId`), so it is carried renamed, and the lowering (`Lowerer.sideCondition`, a join tree on the
+  left) looks it up by its own name.
+- Without the filter Book's rows are the plain table and the name resolves. The scratch model of the same shape
+  (`core/src/test/java/com/legend/lineage/ScratchFilterJoinTest.java`, not committed) does NOT fail: something of the
+  corpus's union stack (its four `extends` sets with their own filters, the routed key) is needed.
+- Where to fix: the routed target's demand in the resolver (`resolver/StackBuilder` route keys and extras,
+  `Pipelines.materialize`), which should carry a hop's join column under its own name when it also feeds a property;
+  not a name look-through in the lowering (a guessed fallback, AGENTS invariant 4). The 26 latest-version filters wait on
+  it; on a live target every row is its key's open version, so nothing reads wrong meanwhile.
+
 ## 16. Upstream, read
 
 Pinned: legend-studio `9775e7283cf2e768293db9982573cecbe8280c4b`, legend-engine
