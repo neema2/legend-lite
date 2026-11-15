@@ -71,7 +71,7 @@ public final class TestPlanner {
         boolean systemRouted;
         HostAsserts host = null;
         DatabaseAsserts database = null;
-        AgreementAsserts agreement = null;
+        TestDoor.Asserts agreement = null;
         // the body's engine-text appeals as its arms planned them, by number: the plan carries those its verdicts name
         // (step 8b, 2026-11-08)
         EngineTextAppeals textAppeals = null;
@@ -122,10 +122,22 @@ public final class TestPlanner {
                 switch (judgesNothing ? PlanningOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
-                    // both judges in one plan: each assert's step carries the host's sides and the database's
-                    // statement
-                    case BOTH -> agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
-                            systemRouted);
+                    // both judges over the DATABASE judge's real program (E-5c, the user's ruling O5 of 2026-11-13):
+                    // its fused statements, the host reading each single-value side as a typed column of them. Where
+                    // the database judge plans no program for the body -- DE4's three groups (an outcome decided at
+                    // planning, a keyed member, the split rung) and DE5's 13 corpus bodies, each declined by name at
+                    // planning (judge-declines) -- the body keeps today's path, pending those rulings (the
+                    // orchestrator, 2026-11-15): each assert's step carrying the host's sides and its own database
+                    // statement (AgreementAsserts.plan, planEach). A planning decline, never a retry: nothing is sent
+                    // before the plan is whole.
+                    case BOTH -> {
+                        agreement = AgreementAsserts.planFused(typed, runtime, on, systemRouted ? bodyEnv : null,
+                                systemRouted);
+                        if (agreement == null) {
+                            agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
+                                    systemRouted);
+                        }
+                    }
                 }
             }
         }

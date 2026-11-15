@@ -9,7 +9,6 @@ import com.legend.TypedQuery;
 import com.legend.compiler.element.ModelContext;
 import com.legend.database.Databases;
 import com.legend.error.AssertFailed;
-import com.legend.error.NotImplementedException;
 import com.legend.exec.StatementOrigin;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testbackend.StorelessRuntime;
@@ -176,12 +175,20 @@ class AgreementFusedPlanTest {
     }
 
     @Test
-    @DisplayName("a root whose rows ride no fused statement (decided at planning) is refused by name, pending Q-E5c-1")
-    void anUncarriedRootIsRefusedByName() {
-        NotImplementedException refused = assertThrows(NotImplementedException.class,
-                () -> fused("{| assertIs(Integer, Integer);}"));
-        assertEquals("meta::pure::functions::asserts::assertIs: an agreement root whose rows ride no fused statement"
-                + " (E-5c, pending the ruling Q-E5c-1)", refused.getMessage());
+    @DisplayName("a root whose rows ride no fused statement (decided at planning, DE4) declines the fused program, and"
+            + " the body keeps today's agreement path")
+    void anUncarriedRootKeepsTodaysPath() {
+        String body = "{| assertIs(Integer, Integer);}";
+        TypedQuery typed = typed(body);
+        ExecuteOptions options = ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.BOTH);
+        BodyDriver.ExecEnv env = BodyDriver.bodyEnv(typed, StorelessRuntime.RUNTIME,
+                Databases.dialect(Databases.PLATFORM), options.planning());
+        // the orchestrator, 2026-11-15: DE4's three groups keep today's behaviour until the user's ruling
+        assertNull(AgreementAsserts.planFused(typed, StorelessRuntime.RUNTIME, env, null, false),
+                body + ": a root no fused row carries declines the fused program");
+        TestPlan plan = today(body);
+        assertEquals(TestPlan.Judge.AGREEMENT, plan.judge());
+        assertEquals(1, groups(plan).stream().mapToInt(g -> g.agreements().size()).sum(), body);
     }
 
     @Test

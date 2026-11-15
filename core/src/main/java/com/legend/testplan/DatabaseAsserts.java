@@ -826,11 +826,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 throw new IllegalStateException("a segment of " + planned.loop().roots().size() + " roots, and the"
                         + " host's half attached to " + roots.size());
             }
-            if (!planned.hostUncarried().isEmpty()) {
-                int k = planned.hostUncarried().iterator().next();
-                throw new com.legend.error.NotImplementedException(roots.get(k).host().assertion().listenerName()
-                        + ": an agreement root whose rows ride no fused statement (E-5c, pending the ruling"
-                        + " Q-E5c-1)");
+            // a root no fused row can carry -- DE4's three groups, pending the user's ruling: an outcome decided at
+            // planning, a keyed member, the split rung -- keeps today's agreement path for its body: the program
+            // declines here, by name, and the test planner plans the body as each assert's own (AgreementAsserts.plan;
+            // the orchestrator, 2026-11-15: "for DE4's three groups, keep today's behaviour until the ruling")
+            String uncarried = uncarried(planned, roots, env);
+            if (uncarried != null) {
+                com.legend.diagnostics.Diagnostics.judgeDecline("fused", place + segment, uncarried);
+                return false;
             }
             for (VerdictBatch.Group g : planned.groups()) {
                 if (!placed(g, env)) {
@@ -869,6 +872,39 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         return true;
     }
 
+    /** Why a segment's roots cannot all ride its fused rows for both judges (E-5c, DE4's three groups), naming the
+     *  first such root; null where each can: a segment decided at planning (no verdict group), a root whose rows join
+     *  no fused statement (a keyed member, the split rung), a root whose host half reads no side (its verdict decided
+     *  at planning), or a root whose host columns read the body's store on a fused row on another session. */
+    private static @Nullable String uncarried(VerdictBatch.Planned planned, List<HostRoot> roots,
+            BodyDriver.ExecEnv env) {
+        if (planned.groups().isEmpty()) {
+            return roots.isEmpty() ? null : roots.get(0).host().assertion().listenerName()
+                    + ": a segment decided at planning, no fused row (DE4)";
+        }
+        if (!planned.hostUncarried().isEmpty()) {
+            return roots.get(planned.hostUncarried().iterator().next()).host().assertion().listenerName()
+                    + ": its rows ride no fused statement, keyed or the split rung (DE4)";
+        }
+        for (int k = 0; k < roots.size(); k++) {
+            HostRoot r = roots.get(k);
+            if (r.host().verdict().base().isEmpty()) {
+                return r.host().assertion().listenerName() + ": its host half reads no side, decided at planning (DE4)";
+            }
+            Integer carrier = planned.hostCarriers().get(k);
+            if (r.storeBound() && carrier != null) {
+                for (VerdictBatch.Group g : planned.groups()) {
+                    boolean holds = g.step().verdicts().stream().anyMatch(v -> v.id() == carrier.intValue());
+                    if (holds && !g.on().equals(env.target())) {
+                        return r.host().assertion().listenerName() + ": its host columns read the body's store, its"
+                                + " fused row on another session (DE4)";
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     /**
      * The host's half of the assert at {@code statement} attached to the root its database arm just opened in
      * {@code batch} (E-5c step 6, the user's ruling O5 of 2026-11-13): each of the host's base sides that is a SINGLE
@@ -901,7 +937,9 @@ final class DatabaseAsserts implements TestDoor.Asserts {
             }
             JudgePlans.PlannedSide side = sides.get(k);
             BodyDriver.WrappedSide w = side.wrapped();
-            if (side.kind() != JudgePlans.Kind.VALUES || w == null
+            // a SINGLE value only (O5): a collection side's rows are one per element, and a fused row holds one --
+            // it keeps its own statement, as a grid does
+            if (side.kind() != JudgePlans.Kind.VALUES || w == null || !JudgePlans.shapeOf(side).scalar()
                     || !(side.side() instanceof TestPlan.Side.Rows rows)
                     || !w.storeFree() && !w.target().equals(env.target())) {
                 continue;
