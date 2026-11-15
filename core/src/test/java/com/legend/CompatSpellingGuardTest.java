@@ -107,9 +107,12 @@ class CompatSpellingGuardTest {
             "compiler/element/ModelIntegrity.java | Invalid supertype | 1 | D1.6",
             "compiler/element/TypeClassifier.java | arguments count ( | 1 | D1.6",
             "compiler/element/TypeClassifier.java | variables count ( | 1 | D1.6",
-            "compiler/element/type/PlatformTypes.java | TDS_NULL_CELL | 2 | D1.3",
+            // D1.3 -> D1.9 (2026-11-15): the constant's users are the judges' (VerdictSql, SideShapes), the #TDS
+            // literal's input read (Scalars, STAYS) and the edge (EngineStyleH2); no product text writes it any more
+            "compiler/element/type/PlatformTypes.java | TDS_NULL_CELL | 2 | D1.9",
             "compiler/spec/TableReferenceChecker.java | Can't find  | 1 | D1.6",
-            "compiler/spec/TdsDesugars.java | TDS_NULL_CELL | 2 | D1.3",
+            // compiler/spec/TdsDesugars.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a TDS cell's toString is cellText,
+            // empty where the cell is in the product, legend-engine's TDSNull at the edge)
             "compiler/spec/TdsDesugars.java | trying to get an element at offset | 1 | D1.6",
             // 2026-11-13 (phase D's O3): the plan style names the type it hands the planner -- the edge's printers
             // implement it; the product's style refuses it by name -- so it stays while the engine-text natives plan
@@ -127,7 +130,11 @@ class CompatSpellingGuardTest {
             // 8 -> 7 (2026-11-15, D1.2: dateTimeText's composition moved to sql/dialect/DateTimePrintText, the judges' and
             // the edge's node DATETIME_PRINT; the product's DateTime text is DATETIME_TO_TEXT, ISO with Z). What stays:
             // the judges' canon (temporalCanon, dateTimeLiteralAt: D1.9) and the TDS text's (Render's: D1.3)
-            "lowering/LiteralSpelling.java | +0000 | 7 | D1.3",
+            // D1.3 -> D1.9 (2026-11-15, D1.3's end): 4 are the judges' canon (temporalCanon, dateTimeLiteralAt), 3 the
+            // TDS text's (Render's dateTimeTextTds, dateTimeTextOfText), which the product now refuses by name
+            // (RELATION_TEXT) and only the edge writes: both move with D1.9's hook, which hands the lowering the edge's
+            // and the judges' compositions
+            "lowering/LiteralSpelling.java | +0000 | 7 | D1.9",
             "lowering/LiteralSpelling.java | FLOAT_CANON | 1 | JUDGE",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
@@ -135,20 +142,24 @@ class CompatSpellingGuardTest {
             // prints a value as the host judge does, judge parity G2) -- the edge writes it for FLOAT_TO_TEXT
             // (edge/PurePrintForms). LiteralSpelling's row went (it writes FLOAT_TO_TEXT); Repr's added (the judges' arm)
             // lowering/Lowerer.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a row's cells joined skip an empty one, the
-            // JOINED_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
+            // CELL_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
             "lowering/Lowerer.java | withEngineText | 1 | D1.7",
             "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
-            "lowering/Repr.java | Repr | 2 | D1.3",
+            // D1.3 -> D1.9 (2026-11-15): Repr is the judges' %r (and format's %r, which the assert bodies write): it
+            // moves with the judges
+            "lowering/Repr.java | Repr | 2 | D1.9",
             // 2 -> 1 (2026-11-15, D1.2: a DateTime literal's text is a node carrying its written text, the edge's +0000).
             // What stays reads a TDS cell's zone suffix as INPUT (a PCT fixture's +0000 or Z dropped), no spelling
             // written: D2 reviews it
             "lowering/Scalars.java | +0000 | 1 | STAYS",
             // lowering/Scalars.java | @_: gone 2026-11-15 (D1.3: an instance's toString is the INSTANCE_TEXT node, refused
             // by the product's renderer -- an object is written by graph fetch -- and composed by the edge)
-            // toRepresentation's (its ruling asked 2026-11-15) and format's %r, which the assert bodies' messages write
-            // (the judges' Repr, measured 2026-11-15: AssertBarTest's assertNotEq message): it moves with them
-            "lowering/Scalars.java | Repr | 2 | D1.3",
-            // 2 -> 1 (2026-11-15, D1.3: makeString's empty element skipped, the JOINED_TEXT node, legend-engine's
+            // toRepresentation's (STAYS: its answer is Pure's source form by definition, the orchestrator's ruling of
+            // 2026-11-15, on D2's list for the user) and format's %r, which the assert bodies' messages write (the
+            // judges' Repr, measured 2026-11-15: AssertBarTest's assertNotEq message): it moves with them, D1.9, and
+            // the row falls to 1 STAYS
+            "lowering/Scalars.java | Repr | 2 | D1.9",
+            // 2 -> 1 (2026-11-15, D1.3: makeString's empty element skipped, the CELL_TEXT node, legend-engine's
             // TDSNull the edge's), reclassified STAYS: what stays reads a #TDS literal's TDSNull cell as NULL -- INPUT,
             // the text legend-pure's TDS literal writes for an empty cell, read, never written: D2 reviews it
             "lowering/Scalars.java | TDS_NULL_CELL | 1 | STAYS",
@@ -208,7 +219,8 @@ class CompatSpellingGuardTest {
             "result/TdsObjectsWriter.java | presentedName | 1 | D1.4",
             "server/PureV1Api.java | Missing external parameter(s) | 1 | D1.6",
             "server/PureV1Api.java | PureV1Writer | 17 | D1.8",
-            "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.3",
+            // D1.3 -> D1.9 (2026-11-15): the constant PlatformTypes names, the judges' and the edge's (above)
+            "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.9",
             "sql/SqlFn.java | FLOAT_CANON | 1 | JUDGE",
             "sql/SqlFn.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/SqlTyping.java | FLOAT_CANON | 1 | JUDGE",

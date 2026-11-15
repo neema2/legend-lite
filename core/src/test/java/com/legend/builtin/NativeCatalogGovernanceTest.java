@@ -163,7 +163,11 @@ class NativeCatalogGovernanceTest {
         // Emitted by the Cypher translator only, by FQN (GraphQL's mutations will be their second emitter). 29 -> 34.
         // 34 -> 35 (2026-10-22, merging main into the Cypher writes branch): main's quotient (+1, above) beside this
         // branch's stage and the five class writes (+6).
-        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 35,
+        // 35 -> 36 (2026-11-15, phase D's D1.3: the user's ruling of 2026-11-10, a TDS cell's toString answers the
+        // empty value where the cell is, relayed by the orchestrator 2026-11-15): cellText, the text of a TDS cell that
+        // TdsDesugars emits for $r.get('c')->toString() -- the product's empty, the compatibility edge's TDSNull, one
+        // node (SqlFn.CELL_TEXT) the two styles spell; it replaced the desugar's literal 'TDSNull' branch.
+        assertTrue(Pure.INTERNAL_DESUGAR.size() <= 36,
                 "INTERNAL_DESUGAR grew: " + Pure.INTERNAL_DESUGAR);
         // +4 2026-08-16: lessThan/lessThanEqual/greaterThan/
         // greaterThanEqual Any-shims — engine DynaFunc ordering

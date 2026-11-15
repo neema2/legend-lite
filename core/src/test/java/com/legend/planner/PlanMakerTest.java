@@ -622,8 +622,8 @@ class PlanMakerTest {
         try (Connection c = fresh(Databases.PLATFORM)) {
             String expression = TREES_PCT + "->pivot(~[year], ~[sum: x | $x.treePlanted->toOne() * $x.coefficient->toOne()"
                     + " : y | $y->plus(), count: x | 1 : y | $y->plus()])->sort(~city->ascending())";
-            assertEquals("city,country,'2000__|__sum','2000__|__count','2011__|__sum','2011__|__count','2012__|__sum',"
-                    + "'2012__|__count'\r\nLDN,UK,,,6000,1,,\r\nNYC,USA,30000,2,5000,1,22800,2\r\nSAN,USA,2000,1,2700,2,,\r\n",
+            assertEquals("city,country,2000__|__sum,2000__|__count,2011__|__sum,2011__|__count,2012__|__sum,"
+                    + "2012__|__count\r\nLDN,UK,,,6000,1,,\r\nNYC,USA,30000,2,5000,1,22800,2\r\nSAN,USA,2000,1,2700,2,,\r\n",
                     csv(Compiler.query(ctx, expression).executionPlan("s::RT"), c));
 
             String pivot = TREES_4 + "->pivot(~[year], ~[newCol: x | $x.treePlanted : y | $y->plus()])" + CAST_PIVOT;

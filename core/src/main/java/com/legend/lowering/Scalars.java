@@ -970,7 +970,7 @@ final class Scalars {
         }
         // makeString: the Any[*] joiner. Elements stringify; an empty element
         // is skipped (the user's ruling of 2026-11-10; phase D's D1.3,
-        // 2026-11-15: JOINED_TEXT), legend-engine's 'TDSNull' cell the
+        // 2026-11-15: CELL_TEXT), legend-engine's 'TDSNull' cell the
         // compatibility edge's.
         for (com.legend.model.FunctionId f : Pure.AT_STRING_MAKE_STRING) {
             RULES.put(f, (n, args) -> {
@@ -1000,12 +1000,12 @@ final class Scalars {
                             !isToOne(n.args().get(0)));
                     SqlExpr text = PureSql.elementText(n.args().get(0), coll,
                             SqlExpr.Column.param("x", coll));
-                    // an empty element: skipped by the product's join (JOINED_TEXT, D1.3 2026-11-15; legend-engine's
+                    // an empty element: skipped by the product's join (CELL_TEXT, D1.3 2026-11-15; legend-engine's
                     // TDSNull is the edge's), '' from an honest [0..1] source
                     strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
                             new SqlExpr.Lambda(List.of("x"), optionalScalar
                                     ? SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit(""))
-                                    : SqlExpr.Call.of(SqlFn.JOINED_TEXT, text)));
+                                    : SqlExpr.Call.of(SqlFn.CELL_TEXT, text)));
                 }
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,
@@ -2802,10 +2802,16 @@ final class Scalars {
                     SqlExpr.Call.of(SqlFn.EQUAL,
                             SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
                             new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.ARRAY)),
-                    cat(new SqlExpr.StringLit("["),
-                            joinList(new SqlExpr.Cast(x, new SqlType.Array(
-                                    PureSql.type(Type.Primitive.STRING)))),
-                            new SqlExpr.StringLit("]")))),
+                    // the product's text of a list, a JSON array: the value's canonical JSON (the user's ruling of
+                    // 2026-11-10; D1.3, 2026-11-15); legend-pure's [a, b] the edge's
+                    SqlExpr.Call.of(SqlFn.TEXT_FORMS,
+                            new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                                    new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.JSON)),
+                                    com.legend.sql.SqlType.Scalar.VARCHAR),
+                            cat(new SqlExpr.StringLit("["),
+                                    joinList(new SqlExpr.Cast(x, new SqlType.Array(
+                                            PureSql.type(Type.Primitive.STRING)))),
+                                    new SqlExpr.StringLit("]"))))),
                     new SqlExpr.Cast(
                             SqlExpr.Call.of(SqlFn.VARIANT_GET, x, new SqlExpr.StringLit("$")),
                             PureSql.type(Type.Primitive.STRING)));

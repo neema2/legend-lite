@@ -154,10 +154,10 @@ public enum SqlFn {
     DATETIME_PRINT,
     /** An element's text in a {@code makeString} ({@code x}, one operand, {@code NULL} where the element is empty): the
      *  product's join skips an empty element (the user's ruling of 2026-11-10, D_BRIEF §1: "makeString skips empty
-     *  elements"; phase D's D1.3, 2026-11-15) -- the base renderer writes the text alone ({@code dialect.JoinedText}),
+     *  elements"; phase D's D1.3, 2026-11-15) -- the base renderer writes the text alone ({@code dialect.CellTexts}),
      *  the join's {@code STRING_AGG} drops a {@code NULL}. legend-engine prints an empty TDS cell as {@code TDSNull}: the
      *  compatibility edge writes that (edge/PurePrintForms). */
-    JOINED_TEXT,
+    CELL_TEXT,
     /** {@code format}'s {@code %0<w>d} ({@code x}, then the width): legend-pure pads the digits and then signs
      *  ({@code -3} at width 5 is {@code -00003}). Only legend-pure's {@code format} writes it: the product's renderer
      *  refuses it by name ({@code dialect.PureOnlyText}), the compatibility edge composes it (edge/PurePrintForms;
@@ -168,6 +168,18 @@ public enum SqlFn {
      *  fetch: its renderer refuses this by name ({@code dialect.PureOnlyText}); the compatibility edge composes it
      *  (edge/PurePrintForms; phase D's D1.3, 2026-11-15). */
     INSTANCE_TEXT,
+    /** A relation's text ({@code x}, then what the text is as a string literal: {@code toString}'s {@code #TDS} text,
+     *  {@code toCSV}, a TDS's {@code csv}): legend-pure's and legend-engine's texts of rows. The product writes a
+     *  relation's rows by its result writers (JSON, CSV, Arrow): its renderer refuses this by name
+     *  ({@code dialect.PureOnlyText}); the compatibility edge writes {@code x}, today's SQL (edge/PurePrintForms; the
+     *  user's ruling of 2026-11-10, "objects and relations are refused", relayed 2026-11-15; phase D's D1.3). */
+    RELATION_TEXT,
+    /** A value's text in two forms ({@code product}, then {@code pure}): the product's (a list's JSON array; the user's
+     *  ruling of 2026-11-10, start-here §5.4, relayed 2026-11-15) and legend-pure's ({@code [a, 1]}), where the two
+     *  differ in their composition, not one spelling. The base renderer keeps the product's
+     *  ({@code dialect.TextForms}); the compatibility edge keeps legend-pure's (edge/PurePrintForms). Phase D's D1.3,
+     *  2026-11-15: until the hook has a lowering half, legend-pure's form is composed beside the product's. */
+    TEXT_FORMS,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */

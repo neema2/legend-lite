@@ -409,12 +409,17 @@ class MongoDbPlanTest {
             spelled.put("text of hugeint(1e20) + '.0'", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT,
                     text(new com.legend.sql.SqlExpr.Cast(big, com.legend.sql.SqlType.Scalar.HUGEINT)),
                     new com.legend.sql.SqlExpr.StringLit(".0")));
-            spelled.put("Pure's print of 1e20", com.legend.lowering.LiteralSpelling.floatPrint(big));
+            // the product's text of a Float (FLOAT_TO_TEXT: six decimals trimmed, S311; phase D's D1.2, 2026-11-15) and
+            // legend-pure's print form (FLOAT_PRINT, the judges' and the edge's)
+            spelled.put("the product's text of 1e20", com.legend.lowering.LiteralSpelling.floatPrint(big));
+            spelled.put("Pure's print of 1e20", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_PRINT, big));
             spelled.put("text of 2.0", text(new com.legend.sql.SqlExpr.FloatLit(2.0)));
             spelled.put("text of 1.5e-8", text(new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
             spelled.put("text of decimal(38,18) of 1.5e-8", text(new com.legend.sql.SqlExpr.Cast(
                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8), new com.legend.sql.SqlType.Decimal(38, 18))));
-            spelled.put("Pure's print of 1.5e-8", com.legend.lowering.LiteralSpelling.floatPrint(
+            spelled.put("the product's text of 1.5e-8", com.legend.lowering.LiteralSpelling.floatPrint(
+                    new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
+            spelled.put("Pure's print of 1.5e-8", com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.FLOAT_PRINT,
                     new com.legend.sql.SqlExpr.FloatLit(1.5e-8)));
             Map<String, Object> got = new java.util.LinkedHashMap<>();
             for (var e : spelled.entrySet()) {
@@ -433,6 +438,8 @@ class MongoDbPlanTest {
                 System.out.println("[mongodb-number-text] spelled " + e.getKey() + " -> " + r);
             }
             assertEquals("2.0", got.get("text of 2.0"));
+            assertEquals("100000000000000000000", got.get("the product's text of 1e20"));
+            assertEquals("0", got.get("the product's text of 1.5e-8"));
             assertEquals("100000000000000000000.0", got.get("Pure's print of 1e20"));
             assertEquals("0.000000015", got.get("Pure's print of 1.5e-8"));
         }

@@ -67,9 +67,24 @@ class RenderCsvIntegrationTest extends AbstractDatabaseTest {
                 connections: [ test::DB: [ environment: store::Conn ] ]; }
             """;
 
+    /** A relation's text is legend-pure's and legend-engine's, the compatibility edge's alone: the product refuses it
+     *  by name, pointing to its result writers (phase D's D1.3, 2026-11-15; the user's ruling of 2026-11-10, "objects
+     *  and relations are refused"), so each text here is planned in the edge's style. */
     private String csv(String query) throws SQLException {
-        Lean.Result r = Lean.run(MODEL, query, "test::RT", connection);
+        Lean.Result r = Lean.runInStyle(MODEL, query, "test::RT", connection, com.legend.edge.PureText.UPSTREAM);
         return r.one().toString();
+    }
+
+    @Test
+    void theProductRefusesARelationsTextByName() {
+        for (String query : java.util.List.of(
+                "|test::Person.all()->project([p | $p.name], ['name'])->meta::relational::tests::csv::toCSV()",
+                "|test::Person.all()->project([p | $p.name], ['name'])->meta::pure::functions::relation::toString()")) {
+            Exception refused = org.junit.jupiter.api.Assertions.assertThrows(Exception.class,
+                    () -> Lean.run(MODEL, query, "test::RT", connection));
+            org.junit.jupiter.api.Assertions.assertTrue(String.valueOf(refused.getMessage()).contains("of a relation")
+                    && refused.getMessage().contains("result writers"), refused.toString());
+        }
     }
 
     @Test

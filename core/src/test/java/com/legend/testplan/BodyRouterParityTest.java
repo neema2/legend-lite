@@ -215,9 +215,6 @@ class BodyRouterParityTest {
                 "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1);}",
-                // the rendered text: one side a grid's text (the CSV form, toCSV, is the relational tests' own
-                // function, absent from this model: the corpora measure it)
-                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
                 // a side whose planning raises (a computed bound the lowering refuses by name): raised at its turn,
                 // after the assert before it ran and reported, counted under its family
                 "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
@@ -229,9 +226,16 @@ class BodyRouterParityTest {
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1, 1.0);}",
                 "{| assert([1, 2]->forAll(e|[1, 2, 3]->contains($e)));}",
-                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}",
-                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
+                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}")) {
             assertParity(backend, body, "select 1");
+        }
+        // the rendered text: one side a grid's text, legend-pure's and the compatibility edge's alone (the product
+        // refuses a relation's text by name: phase D's D1.3, 2026-11-15), so under the compatibility rules (the CSV
+        // form, toCSV, is the relational tests' own function, absent from this model: the corpora measure it)
+        for (String body : List.of(
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
+            inCompatibilityMode(() -> assertParity(backend, body, "select 1"));
         }
     }
 
@@ -791,12 +795,13 @@ class BodyRouterParityTest {
                         + " assertEqWithinTolerance(1.0, 1.05, 0.1);}",
                 // an assert after a failing one: planned, judged after the first failure raised -- never
                 "{| assertEquals(3, 1 + 1); assertEquals(2, 1 + 1);}",
-                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
-                // a relation's toString against a literal: a string equality the database judges (not the rendered
-                // form the host reads: that is toCSV's, pinned walked below)
-                "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}")) {
+                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}")) {
             assertParity(backend, ctx, RT, body, "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
         }
+        // a relation's toString against a literal: a string equality the database judges (not the rendered form the
+        // host reads: that is toCSV's, pinned walked below) -- legend-pure's text, the edge's alone (D1.3, 2026-11-15)
+        inCompatibilityMode(() -> assertParity(backend, ctx, RT, "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}",
+                "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
     }
 
     /** M7: the assert shapes whose DATABASE arm reads a side on the host at the assert's turn ({@code assertEq} over

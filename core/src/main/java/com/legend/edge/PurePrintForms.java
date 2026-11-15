@@ -11,7 +11,7 @@ import com.legend.sql.SqlFn;
  * form of it, which each product dialect spells for the judges already -- a Float's ({@link SqlFn#FLOAT_TO_TEXT}, lite's
  * six decimals) as {@link SqlFn#FLOAT_PRINT}, a DateTime's ({@link SqlFn#DATETIME_TO_TEXT}, ISO with {@code Z}) as
  * {@link SqlFn#DATETIME_PRINT} (a literal's written text kept, its second operand), a joined element's
- * ({@link SqlFn#JOINED_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
+ * ({@link SqlFn#CELL_TEXT}, D1.3: the product skips an empty one) as its text or {@code TDSNull}, and the texts only
  * legend-pure writes (D1.3: the product refuses them by name), {@code format}'s padded {@code %0<w>d}
  * ({@link SqlFn#FORMAT_PADDED}) and an instance's {@code @_} id ({@link SqlFn#INSTANCE_TEXT}), as it writes them. The
  * edge's first pass, so every
@@ -20,7 +20,7 @@ import com.legend.sql.SqlFn;
 final class PurePrintForms extends com.legend.sql.SqlRewriter {
 
     /** legend-engine's text of an empty TDS cell, which its {@code makeString} prints for an empty element (the
-     *  product's join skips one: {@link SqlFn#JOINED_TEXT}, phase D's D1.3, 2026-11-15). */
+     *  product's join skips one: {@link SqlFn#CELL_TEXT}, phase D's D1.3, 2026-11-15). */
     static final String TDS_NULL = "TDSNull";
 
     private PurePrintForms() {
@@ -28,7 +28,17 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
 
     /** The edge's first pass, as a list a dialect returns. */
     static java.util.List<com.legend.sql.SqlRewriter> passes() {
-        return java.util.List.of(new PurePrintForms());
+        return java.util.List.of(new PurePrintForms(), new TdsNullCells());
+    }
+
+    /** The edge's pass after {@link PurePrintForms}: a {@link SqlFn#CELL_TEXT} no join read (a TDS cell's
+     *  {@code toString}), legend-engine's {@code TDSNull} where the cell is empty (D1.3, 2026-11-15: until then the
+     *  compiler's desugar wrote {@code if(isEmpty(cell), 'TDSNull', toString(cell))}, which this answers alike). */
+    private static final class TdsNullCells extends com.legend.sql.SqlRewriter {
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            return isJoined(e) ? tdsNullOf(e) : e;
+        }
     }
 
     /** {@code x}'s legend-pure print form as a Float: the call a pass writes, for a node no pass reached. */
@@ -50,7 +60,7 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
     }
 
     /** A join's element texts as legend-engine writes them (phase D's D1.3: the product skips an empty one), at the
-     *  join -- the walk is bottom-up, so the join reads its elements' {@link SqlFn#JOINED_TEXT}s: a list's elements,
+     *  join -- the walk is bottom-up, so the join reads its elements' {@link SqlFn#CELL_TEXT}s: a list's elements,
      *  each {@code COALESCE(x, 'TDSNull')}; a row's cells ({@code COALESCE(STRING_AGG(<the cells>, sep), '')}),
      *  legend-engine's interleave, the cells and the separator concatenated -- the lowering's forms until 2026-11-15
      *  (an empty separator, the one-argument {@code makeString}'s, is no part). Null where {@code e} is neither. */
@@ -81,10 +91,10 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
     }
 
     private static boolean isJoined(SqlExpr e) {
-        return e instanceof SqlExpr.Call c && c.fn() == SqlFn.JOINED_TEXT;
+        return e instanceof SqlExpr.Call c && c.fn() == SqlFn.CELL_TEXT;
     }
 
-    /** A {@link SqlFn#JOINED_TEXT}'s operand, legend-engine's {@code TDSNull} where it is empty. */
+    /** A {@link SqlFn#CELL_TEXT}'s operand, legend-engine's {@code TDSNull} where it is empty. */
     private static SqlExpr tdsNullOf(SqlExpr joined) {
         return SqlExpr.Call.of(SqlFn.COALESCE, ((SqlExpr.Call) joined).args().get(0), new SqlExpr.StringLit(TDS_NULL));
     }
@@ -106,6 +116,12 @@ final class PurePrintForms extends com.legend.sql.SqlRewriter {
         }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.FORMAT_PADDED) {
             return signedZeroPad(expr(c.args().get(0)), c.args().get(1));
+        }
+        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.TEXT_FORMS) {
+            return c.args().get(1);
+        }
+        if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.RELATION_TEXT) {
+            return c.args().get(0);
         }
         if (e instanceof SqlExpr.Call c && c.fn() == SqlFn.INSTANCE_TEXT) {
             return SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("@_"), expr(c.args().get(0)));

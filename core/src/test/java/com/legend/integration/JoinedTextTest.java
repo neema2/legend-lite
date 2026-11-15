@@ -22,7 +22,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * {@code TDSNull}: the compatibility edge's ({@code edge.PurePrintForms}), pinned beside it.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
-class JoinedTextTest {
+class CellTextsTest {
 
     private static final String ROWS = "#TDS\nx:Integer, y:String\n1, a\n2, null\n#";
 
@@ -39,6 +39,12 @@ class JoinedTextTest {
                     backend.name());
             assertEquals("1,2", Lean.run(model, "|[1, 2]->makeString(',')", StorelessRuntime.RUNTIME, c)
                     .rows().get(0).get(0).toString(), backend.name());
+            // a single cell's text (S316 (a)): the empty value where the cell is; legend-engine's TDSNull at the edge
+            String cell = "|" + ROWS + "->extend(~t: r|$r.get('y')->toString())->select(~t)";
+            assertEquals(List.of("a", "null"), column(Lean.run(model, cell, StorelessRuntime.RUNTIME, c)),
+                    backend.name());
+            assertEquals(List.of("a", "TDSNull"), column(Lean.runInStyle(model, cell, StorelessRuntime.RUNTIME, c,
+                    com.legend.edge.PureText.UPSTREAM)), backend.name());
             // legend-engine's text of the empty cell, at the compatibility edge
             assertEquals(List.of("1,a", "2,TDSNull"), column(Lean.runInStyle(model, query, StorelessRuntime.RUNTIME,
                     c, com.legend.edge.PureText.UPSTREAM)), backend.name());
