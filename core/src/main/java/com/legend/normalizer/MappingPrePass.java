@@ -232,7 +232,7 @@ final class MappingPrePass {
         // replaces the value, as before) -- so the cycle's text starts at the first-declared class of the first
         // chain that closes. Until 2026-11-14 a HashMap: the text started wherever the class names hashed (both
         // `A ~src B, B ~src A` and `B ~src A, A ~src B` answered "model::B -> model::A -> model::B"), an order Rust
-        // cannot reproduce (ruling 29's first policy, the normalizer slice's step 1; docs/SEMANTICS_REGISTER.md S380;
+        // cannot reproduce (the normalizer slice's step 1;
         // MappingNormalizerTest m2mSrcChainCycle_textFollowsDeclarationOrder)
         Map<String, ClassMapping.Pure> pureByTarget = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {

@@ -28,8 +28,8 @@ import java.util.Set;
  *       view's signature column (view-on-view);</li>
  *   <li>a column the operation reads that its database does not have, plain or
  *       nested, refuses the view in the engine's words, as the engine refuses it
- *       when the database compiles (S376, 2026-11-13, ruling 32); a join
- *       navigation's terminal too, once its joins resolve (2026-11-13, ruling 34);</li>
+ * when the database compiles (2026-11-13); a join
+ * navigation's terminal too, once its joins resolve (2026-11-13);</li>
  *   <li>an aggregate column, at any arity, carries its reducer's Pure result over the
  *       argument's store type ({@code count} Integer[1]; {@code sum} and
  *       {@code average} [1]; {@code max} / {@code min} [0..1]; Integer, Float
@@ -85,7 +85,7 @@ public final class ViewSignatures {
         // every column the operation reads exists, or the view is refused in the engine's words, as the engine refuses
         // it when the database compiles (processDatabaseViewSecondPass: each TableAliasColumn through getRelation and
         // getColumn, HelperRelationalBuilder.java:160-165, :284-293); until 2026-11-13 a plain column found nowhere was
-        // typed Any[0..1] and a nested one read as no type (S376, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 32)
+        // typed Any[0..1] and a nested one read as no type
         requireColumns(store, dbFqn, expr);
         if (expr instanceof RelationalOperation.ColumnRef cr) {
             String srcDb = cr.databaseName() != null ? cr.databaseName() : dbFqn;
@@ -112,9 +112,9 @@ public final class ViewSignatures {
         // an aggregate at any arity, typed as the engine's inferRelationalType types it (relationalExtension.pure:
         // count BIGINT and average DOUBLE whatever their arguments, :291-300, :543-551; sum by its first, :1717-1741;
         // max and min over several the safe type when one exists, else the first's, :1151-1197); until 2026-11-13 at
-        // exactly one argument only (S376, ruling 32)
+        // exactly one argument only
         // the name matched exactly, as the engine's map get matches it (relationalExtension.pure:114): COUNT or Sum is
-        // no aggregate, no rule; until 2026-11-14 lower-cased first (S378, the names batch, item 3, ruling 34)
+        // no aggregate, no rule; until 2026-11-14 lower-cased first (the names batch, item 3)
         if (expr instanceof RelationalOperation.FunctionCall fc) {
             String fn = fc.name();
             switch (fn) {
@@ -182,7 +182,7 @@ public final class ViewSignatures {
                 // the engine's getRelation validates the schema before it looks for the table (validateSchemaExists,
                 // HelperRelationalBuilder.java:348-354, called at :286): a schema neither the database nor, through
                 // its includes, an included one declares is refused in its own words; default always exists
-                // (:369-379). Until 2026-11-14 refused as a missing table (S376, the names batch, item 6, ruling 34)
+                // (:369-379). Until 2026-11-14 refused as a missing table (the names batch, item 6)
                 throw schemaMissing(store, srcDb, schemaOf(cr.table())) ? cantFindSchema(schemaOf(cr.table()), srcDb)
                         : cantFindTable(cr.table(), srcDb);
             }
@@ -207,8 +207,8 @@ public final class ViewSignatures {
             // navigation's last join (RelationalParseTreeWalker.java:1024-1044; the model writes the terminal relative to
             // the navigation's own database, RelOpFromProtocol). So a terminal reading a column or table its database
             // lacks refuses the view in the same words, once every join resolves: a missing join is refused first, by the
-            // lift in lite's own words (JoinChainEmission). Until 2026-11-13 the terminal was not checked (S376's join
-            // terminal, the names follow-ups, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 34)
+            // lift in lite's own words (JoinChainEmission). Until 2026-11-13 the terminal was not checked (join
+            // terminal, the names follow-ups)
             case RelationalOperation.JoinNavigation j -> {
                 String navDb = j.databaseName() != null ? j.databaseName() : dbFqn;
                 if (j.terminal() != null && j.chain().stream().allMatch(hop -> store.findJoin(

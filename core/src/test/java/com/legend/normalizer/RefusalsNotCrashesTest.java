@@ -13,7 +13,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * RULING 29'S SECOND POLICY in step E (docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 29; the normalizer slice's
+ * Refused by name, never crashing (the normalizer slice's
  * step 1, 2026-11-14): a raw Java exception a user's model text reached in the normalizer -- an
  * IllegalStateException, a NoSuchElementException, a JDK collection's IllegalArgumentException or
  * NullPointerException -- is a refusal now, its words modelled on the nearest refusal of its kind beside it. Each

@@ -943,7 +943,7 @@ public final class MappingNormalizer {
         // the caller found the association through the mapping's imports (resolveAssociation); a name step D left
         // unresolved -- a mapping D walled in a tolerant build stays as parsed -- is no element's name here. The
         // model's error, in the words of the inline association predicate's same lookup; until 2026-11-14 a bare
-        // orElseThrow(), a raw NoSuchElementException (ruling 29, the normalizer slice's step 1;
+        // orElseThrow(), a raw NoSuchElementException (the normalizer slice's step 1;
         // RefusalsNotCrashesTest)
         AssociationDefinition ad = model.findAssociation(xs.associationName())
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
@@ -1063,7 +1063,7 @@ public final class MappingNormalizer {
     static FunctionDefinition synthesizeModelJoinMapping(ResolvedMapping md,
             AssociationMapping.ModelJoin mj, ModelBuilder model,
             String classA, String classB) {
-        // as synthesizeXStoreMapping's lookup (2026-11-14, ruling 29: a bare orElseThrow() until then)
+        // as synthesizeXStoreMapping's lookup (2026-11-14, a bare orElseThrow() until then)
         AssociationDefinition ad2 = model.findAssociation(mj.associationName())
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
                         "ModelJoin mapping references unknown association '" + mj.associationName()
@@ -1097,7 +1097,7 @@ public final class MappingNormalizer {
         String bVar = pair[1];
         // the lambda's two parameters one name (`{p: A[1], p: B[1]| ...}`, which the grammar admits): one variable
         // cannot be both ends. Refused by name, as the parameter count above is; until 2026-11-14 the maps below
-        // threw a raw "duplicate key" IllegalArgumentException (ruling 29, the normalizer slice's step 1;
+        // threw a raw "duplicate key" IllegalArgumentException (the normalizer slice's step 1;
         // RefusalsNotCrashesTest). ModelJoinNesting.compose relies on it.
         if (aVar.equals(bVar)) {
             throw new NotImplementedException(

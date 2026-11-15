@@ -433,7 +433,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         tablesByDb.put(id, TableIndex.of(db));
         // Precompute filter, join, and view secondary indexes. Last-wins as every slot of a database registered twice
         // (internElement): a second definition with none of a kind clears the first's (until 2026-11-13 the first's
-        // stayed beside the second's tables -- the names fixes, item 6, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+        // stayed beside the second's tables -- the names fixes, item 6)
         filtersByDb.remove(id);
         joinsByDb.remove(id);
         viewsByDb.remove(id);

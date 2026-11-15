@@ -325,7 +325,7 @@ class ModelBuilderTest {
         assertTrue(mb.symbols().allFqns().contains("model::DB"));
     }
 
-    /** The names fixes, item 6 (2026-11-13, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28): a database registered
+    /** The names fixes, item 6 (2026-11-13): a database registered
      * twice is last-wins in every index (the first's joins and views stayed when the second had none); an association
      * end injects through a generic supertype's head too (only a bare name was climbed); a join-only view's root reads
      * its join over the include closure (only the database's own joins, else refused). */

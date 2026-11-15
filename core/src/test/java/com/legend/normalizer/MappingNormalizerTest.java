@@ -4595,8 +4595,8 @@ class MappingNormalizerTest {
     @Test
     @DisplayName("m2mSrcChainCycle_textFollowsDeclarationOrder")
     void m2mSrcChainCycle_textFollowsDeclarationOrder() {
-        // the chain is spelled from the first-declared class (2026-11-14, ruling 29's first policy, the normalizer
-        // slice's step 1; docs/SEMANTICS_REGISTER.md S380): both orders, since one order alone can match the old
+        // the chain is spelled from the first-declared class (2026-11-14, the normalizer
+        // slice's step 1): both orders, since one order alone can match the old
         // HashMap's by luck -- these two names hashed model::B first, whichever was written first
         String aFirst = "Class model::A { x: String[1]; } Class model::B { x: String[1]; }\n###Mapping\nMapping my::M ("
                 + " *model::A: Pure { ~src model::B x: $src.x } *model::B: Pure { ~src model::A x: $src.x } )";

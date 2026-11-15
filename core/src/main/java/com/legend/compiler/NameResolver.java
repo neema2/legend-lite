@@ -254,7 +254,7 @@ public final class NameResolver {
         }
         // every side component survives the rebuild: a resolution rewrites names, nothing else (until 2026-11-13 the
         // six-argument form dropped the unclaimed sections and the element spans whenever a name changed -- the names
-        // fixes, item 1, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+        // fixes, item 1)
         return !changed ? model
                 : new ParsedModel(resolved, model.imports(),
                         model.source(), model.elementOffsets(), model.elementImports(),
@@ -348,8 +348,7 @@ public final class NameResolver {
     /** The call tiers' matches for a bare name (the wildcards, the own package, the core import group over the
      *  scope's universe), EMPTY when none: what {@link #resolveCallCandidates} falls back from, and what the pointer
      *  arm asks for a signature id's base. A qualified spelling matches no tier: it is not prefixed with a package
-     *  (until 2026-11-13 it was, {@code pkg::a::b::f} asked of the universe for every tier -- the names fixes, item 5,
-     *  docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28). */
+     *  (until 2026-11-13 it was, {@code pkg::a::b::f} asked of the universe for every tier -- the names fixes, item 5). */
     private static List<String> callTierMatches(String name, Scope scope) {
         if (name.contains("::")) {
             return List.of();
@@ -415,8 +414,7 @@ public final class NameResolver {
                 // (until 2026-11-13 the two-argument form dropped them and their types were never walked, so
                 // `Primitive IntCap(x:Integer[1])` used as `IntCap(2)` was refused and `IntCap()` accepted -- the
                 // engine compiles the first and refuses the second: legend-pure TestPrimitiveCompile, legend-engine
-                // CompileContext.newGenericType :756-771; the names landings, docs/rust-port/PHASE3_SHIM_DESIGN.md
-                // §10 ruling 32)
+                // CompileContext.newGenericType :756-771; the names landings)
                 String base = resolveName(pe.baseTypeName(), scope);
                 List<ParameterDefinition> typeVariables = resolveParameterList(pe.typeVariables(), scope);
                 yield base.equals(pe.baseTypeName()) && typeVariables == pe.typeVariables() ? pe
@@ -844,7 +842,7 @@ public final class NameResolver {
         // anything that could mention them.
         Scope scope = outer.withTypeParams(cd.typeParams());
         // its type variables' declared types resolve in its scope (until 2026-11-13 they were not walked: the names
-        // landings, ruling 32)
+        // landings)
         List<ParameterDefinition> typeVariables = resolveParameterList(cd.typeVariables(), scope);
         List<TypeExpression> superClasses = resolveTypeList(cd.superClasses(), scope);
         List<PropertyDefinition> properties = resolvePropertyList(cd.properties(), scope);
@@ -1349,7 +1347,7 @@ public final class NameResolver {
                         : new PropertyMapping.Column(c.propertyName(), db, c.table(), c.column());
             }
             // its operation resolves as an Expression's does (until 2026-11-13 it was not walked, so its [db]
-            // qualifiers kept their spelling: the names fixes, item 4, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+            // qualifiers kept their spelling: the names fixes, item 4)
             case PropertyMapping.EnumeratedExpression ee -> {
                 RelationalOperation expr = resolveRelOp(ee.expression(), scope);
                 yield expr == ee.expression() ? ee
@@ -1502,8 +1500,8 @@ public final class NameResolver {
         // jsonConnections (List<JsonModelConnection>) carry only literal
         // JSON payloads; no element FQN inside the public record shape.
         // two keys that name one store keep both connection lists, in order, under the first key's place: a rename
-        // never drops a connection (until 2026-11-13 the second REPLACED the first's -- the names fixes, item 3,
-        // docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28; the engine refuses several connections against one
+        // never drops a connection (until 2026-11-13 the second REPLACED the first's -- the names fixes, item 3;
+        // the engine refuses several connections against one
         // store, HelperRuntimeBuilder, a check lite makes for no runtime)
         Map<String, List<String>> bindings = new java.util.LinkedHashMap<>();
         boolean bindingsChanged = false;

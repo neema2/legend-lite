@@ -30,8 +30,8 @@ import java.util.List;
  *
  * <p>A view column read through its expression is EXPANDING while its expression is typed: a chain of view columns
  * that reaches one of them again (a view-on-view cycle) is refused, a {@code ModelException} worded as
- * {@link ViewSignatures}' own cycle refusal (2026-11-13, the names fixes, item 8: docs/rust-port/PHASE3_SHIM_DESIGN.md
- * §10 ruling 29 -- before, the walk recursed until {@code StackOverflowError}). The set is of the view column records
+ * {@link ViewSignatures}' own cycle refusal (2026-11-13, the names fixes, item 8 --
+ * before, the walk recursed until {@code StackOverflowError}). The set is of the view column records
  * themselves, by identity, and a column leaves it once typed: two reads of one column side by side
  * ({@code concat(V.a, V.a)}) are no cycle.
  */
@@ -59,15 +59,14 @@ public final class RelationalTypeInference {
                     columnType(db, ctx, c.databaseName(), c.table(), c.column(), expanding);
             // a function's name is matched exactly, as the engine's map get matches it (relationalExtension.pure:114,
             // `$dfToReturnFunctionMap->get($d.name)`): each arm spells the map's key; a name spelled otherwise (ABS, Sum)
-            // has no rule, no type. Until 2026-11-14 lower-cased first (S378, the names batch, item 3, ruling 34)
+            // has no rule, no type. Until 2026-11-14 lower-cased first (the names batch, item 3)
             case RelationalOperation.FunctionCall f -> switch (f.name()) {
                 // aggregates carry their argument's type (engine
                 // inferDynaFunctionReturnType: max/min/sum/avg family); max
                 // and min over SEVERAL arguments are the safe type over all
                 // of them when one exists, else the first's -- the engine's
                 // two rules (relationalExtension.pure:1151-1197); until
-                // 2026-11-13 the first's alone (the names fixes, item 11,
-                // docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+                // 2026-11-13 the first's alone (the names fixes, item 11)
                 case "max", "min" -> {
                     List<RelationalDataType> types = new ArrayList<>(f.args().size());
                     for (var arg : f.args()) {
@@ -78,7 +77,7 @@ public final class RelationalTypeInference {
                         yield first;
                     }
                     // an argument with no type drops out, as the engine's map does; the safe type is the
-                    // engine's fold (S378, 2026-11-13, ruling 32)
+                    // engine's fold (2026-11-13)
                     RelationalDataType safe = safeTypeOf(types);
                     yield safe != null ? safe : first;
                 }
@@ -88,7 +87,7 @@ public final class RelationalTypeInference {
                 // sum by its first argument's raw kind, the engine's five rules (relationalExtension.pure:1717-1741):
                 // TINYINT, SMALLINT and INTEGER an INTEGER, BIGINT a BIGINT, a DECIMAL or a NUMERIC its own kind with its
                 // precision capped at 31, FLOAT and DOUBLE a DOUBLE; any other kind (REAL among them) matches no rule, no
-                // type. Until 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (S378, ruling 34; the
+                // type. Until 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (the
                 // follow-ups' first version read four rules, its fifth missed, and typed a FLOAT or DOUBLE nothing)
                 case "sum" -> {
                     RelationalDataType at = f.args().isEmpty() ? null
@@ -104,14 +103,13 @@ public final class RelationalTypeInference {
                 }
                 // average and divide are DOUBLE whatever their arguments, which the engine's one rule each does not read
                 // (relationalExtension.pure:291-300, :693-702); until 2026-11-13 average kept its first argument's type,
-                // a FLOAT or REAL one DOUBLE, and divide was the safe type over its arguments (S378, ruling 34)
+                // a FLOAT or REAL one DOUBLE, and divide was the safe type over its arguments
                 case "average", "divide" -> new RelationalDataType.Double_();
                 // count is BIGINT at any arity (relationalExtension.pure:543-551); until 2026-11-13 INTEGER
-                // (S378, ruling 32)
                 case "count" -> new RelationalDataType.BigInt();
                 // boolean dynafunctions spell BIT (engine H2). like has no rule in the engine's map, so no type
                 // (relationalExtension.pure's getDynaFunctionTypeInferenceMap, asked of the engine: EMPTY); until
-                // 2026-11-14 BIT, a rule only lite had (S378, the names batch, item 2, ruling 34)
+                // 2026-11-14 BIT, a rule only lite had (the names batch, item 2)
                 case "and", "or", "not", "equal", "notEqual", "in",
                         "isNull", "isNotNull", "greaterThan", "lessThan",
                         "greaterThanEqual", "lessThanEqual", "isEmpty",
@@ -125,7 +123,7 @@ public final class RelationalTypeInference {
                 // substring, left, right, trim, ltrim and rtrim are a VARCHAR sized by their first argument's
                 // CHAR or VARCHAR (relationalExtension.pure:1051-1059, :1121-1129, :1509-1517, :1547-1555,
                 // :1647-1655, :1853-1861: a match with those two arms alone, so another first argument has no type);
-                // until 2026-11-13 they kept their first argument's type (S378, ruling 32)
+                // until 2026-11-13 they kept their first argument's type
                 case "substring", "left", "right", "trim", "ltrim", "rtrim" -> {
                     RelationalDataType at = f.args().isEmpty() ? null
                             : infer(f.args().get(0), db, ctx, expanding);
@@ -134,18 +132,17 @@ public final class RelationalTypeInference {
                             : null;
                 }
                 // toUpper and toLower keep their first argument's type (:1793-1801, :1843-1851); upper and lower have no
-                // rule in the engine's map, so no type (until 2026-11-13 they kept their first argument's type: S378,
-                // ruling 34)
+                // rule in the engine's map, so no type (until 2026-11-13 they kept their first argument's type)
                 case "toUpper", "toLower" ->
                         f.args().isEmpty() ? null
                                 : infer(f.args().get(0), db, ctx, expanding);
                 // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
                 // :961-969); position, charindex and locate have no rule in the engine's map, so no type (asked of the
-                // engine: EMPTY); until 2026-11-14 INTEGER, rules only lite had (S378, the names batch, item 2, ruling 34)
+                // engine: EMPTY); until 2026-11-14 INTEGER, rules only lite had (the names batch, item 2)
                 case "length", "indexOf" -> new RelationalDataType.Integer_();
                 // sub is its first argument's type when its first two have one raw kind, else no rule matches
                 // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type
-                // over all its arguments (S378, ruling 32; its INTEGER default went with the names fixes, item 10)
+                // over all its arguments (its INTEGER default went with the names fixes, item 10)
                 case "sub" -> {
                     if (f.args().size() < 2) {
                         yield null;
@@ -159,8 +156,8 @@ public final class RelationalTypeInference {
                 // engine). A joinStrings(...) a Database text writes is a DynaFunction, typed by the map: the
                 // inferRelationalType arm for the JoinStrings OPERATION (:173, its strings', prefix's, separator's and
                 // suffix's sizes summed) types an element only the engine's query translation builds (pureToSQLQuery),
-                // never a parsed one. Until 2026-11-14 VARCHAR(4000) whatever its arguments (S378, the names batch,
-                // item 4, ruling 34)
+                // never a parsed one. Until 2026-11-14 VARCHAR(4000) whatever its arguments (the names batch,
+                // item 4)
                 case "joinStrings" -> {
                     RelationalDataType at = f.args().isEmpty() ? null : infer(f.args().get(0), db, ctx, expanding);
                     yield at != null && isCharOrVarchar(at) ? new RelationalDataType.Varchar(Math.max(4000, size(at)))
@@ -172,9 +169,9 @@ public final class RelationalTypeInference {
                 // typed operand to be one (relationalExtension.pure:463-471);
                 // an operand with no type drops out, as the engine's map does.
                 // Until 2026-11-13 such an operand added 0 (the names fixes,
-                // item 10, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+                // item 10)
                 // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a
-                // concat, S378, ruling 32)
+                // concat,)
                 case "concat" -> {
                     int size = 0;
                     boolean other = false;
@@ -198,7 +195,7 @@ public final class RelationalTypeInference {
                 // never when the database compiles (HelperRelationalBuilder.java:469-517 types no view column). Lite
                 // runs the inference when the model compiles (ViewSignatures, KnowledgeLayer) and when it seeds the
                 // metamodel (RelationalOpRows), where a failure would refuse or break what the engine compiles: it
-                // answers no type there, register row S378's form lite cannot spell (2026-11-13, ruling 34)
+                // answers no type there, a form lite cannot spell (2026-11-13)
                 case "case" -> {
                     List<RelationalDataType> types = new ArrayList<>();
                     for (int i = 1; i < f.args().size(); i += 2) {
@@ -209,7 +206,7 @@ public final class RelationalTypeInference {
                     }
                     yield safeTypeOf(types);
                 }
-                // the numeric operators, each by the engine's own rules (S378, 2026-11-13, ruling 34; until then the
+                // the numeric operators, each by the engine's own rules (2026-11-13; until then the
                 // safe type over every argument, a rule only lite had). plus over ONE argument widens it
                 // (relationalExtension.pure:1408-1436: TINYINT and SMALLINT an INTEGER, INTEGER and BIGINT a BIGINT, a
                 // DECIMAL or NUMERIC its own kind capped at precision 31, FLOAT and DOUBLE a DOUBLE, another kind no
@@ -239,14 +236,14 @@ public final class RelationalTypeInference {
                     RelationalDataType t1 = infer(f.args().get(1), db, ctx, expanding);
                     yield t0 == null || t1 == null ? null : safeTypeOf(List.of(t0, t1));
                 }
-                // ---- the 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1: register row S378,
-                // docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 35; until then no rule, no type). Each is legend-engine
+                // ---- the 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1;
+                // until then no rule, no type). Each is legend-engine
                 // 4.145.0's getDynaFunctionTypeInferenceMap entry (relationalExtension.pure, the lines cited), and every
                 // arm's answer was ASKED of the engine, not only read: the pinned release's own generated
                 // inferRelationalType over each case (port-scratch/namesbatch/engine, InferProbe and cases1.pure), the
                 // same 123 cases through the legend-lsp daemon too. Where the engine's inference fails (a toOne over no
                 // type, an at() past the arguments, a match with no arm), lite answers no type, as for every inference the
-                // engine fails where it is asked (S378).
+                // engine fails where it is asked.
                 //
                 // One type whatever the arguments, which the rule never reads (so an argument no rule types, or none at
                 // all, leaves it typed): bitAnd :321-329, bitShiftLeft :351-359, bitXor :371-379, dayOfMonth :633-641,
@@ -291,7 +288,7 @@ public final class RelationalTypeInference {
                 }
                 // coalesce is the safe type over every argument when one is possible, else no rule (:453-461, its
                 // `$params->map(p | $p->inferRelationalType())`, failOnMatchFailure true): an argument no rule types fails
-                // the engine's inference, so no type -- not dropped, as case's untyped branch is (S378, the owner's) --
+                // the engine's inference, so no type -- not dropped, as case's untyped branch is --
                 // and no argument at all fails its fold's head, no type
                 case "coalesce" -> {
                     List<RelationalDataType> types = everyType(f.args(), db, ctx, expanding);
@@ -351,7 +348,7 @@ public final class RelationalTypeInference {
                         new RelationalDataType.Varchar(str.length());
                 case Integer ignored -> new RelationalDataType.Integer_();
                 case Long ignored -> new RelationalDataType.Integer_();
-                // a float literal is FLOAT (relationalExtension.pure:148); until 2026-11-13 DOUBLE (S378, ruling 34)
+                // a float literal is FLOAT (relationalExtension.pure:148); until 2026-11-13 DOUBLE
                 case Double ignored -> new RelationalDataType.Float_();
                 default -> null;
             };
@@ -417,7 +414,7 @@ public final class RelationalTypeInference {
         throw new IllegalStateException("a " + kind(t) + " asked for a DECIMAL's or NUMERIC's capped precision");
     }
 
-    // ---- the engine's safe type (S378, 2026-11-13, ruling 32): relationalExtension.pure:1926-2033, exactly
+    // ---- the engine's safe type (2026-11-13): relationalExtension.pure:1926-2033, exactly
 
     /** A relational type's raw kind: the engine's datatype class, which its safeTypeMap and sub's rule compare. */
     enum Kind {

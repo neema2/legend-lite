@@ -140,7 +140,7 @@ final class JoinChainEmission {
                 // a class mapping of a class the model has not (`*a::Nope: Relational { ..., p() Inline[s] }`): the
                 // model's error, in the words of emitOtherwiseEmbeddedHop's same refusal below. Until 2026-11-14 a
                 // raw IllegalStateException ("F7.8: class unresolved at JoinChainEmission#2 ..."), reached from 36 of
-                // the front oracle's texts (ruling 29, the normalizer slice's step 1; RefusalsNotCrashesTest)
+                // the front oracle's texts (the normalizer slice's step 1; RefusalsNotCrashesTest)
                 ClassDefinition owner = model.knowledge().hierarchyClass(ownerClassFqn).orElseThrow(() ->
                         new ModelException(LegendCompileException.Phase.NORMALIZE,
                                 "Inline-embedded PM '" + ie.propertyName()
@@ -1059,7 +1059,7 @@ final class JoinChainEmission {
      * {@code propName} and {@code md} name it as that refusal does). Until
      * 2026-11-14 the never-fired funnel's "JoinChainEmission#3", a raw
      * IllegalStateException reached from 3 of the front oracle's texts
-     * (ruling 29, the normalizer slice's step 1; RefusalsNotCrashesTest). */
+     * (the normalizer slice's step 1; RefusalsNotCrashesTest). */
     private static Set<String> targetColumnNames(String dbFqn, String targetTable,
             @com.legend.base.Nullable String viewTarget, ModelBuilder model, String joinName,
             @com.legend.base.Nullable String propName, @com.legend.base.Nullable ResolvedMapping md) {

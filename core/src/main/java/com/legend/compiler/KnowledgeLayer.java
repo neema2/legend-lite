@@ -378,8 +378,7 @@ public final class KnowledgeLayer {
     }
 
     /** One step of a {@link #columnKind} walk: the column's database, table (or view) spelling and name, compared as
-     * a triple. Keyed on the joined text {@code db + "@" + table + "." + col} until 2026-11-13 (the names fixes, item 13,
-     * docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28), two triples that join alike were one step: a schema view's
+     * a triple. Keyed on the joined text {@code db + "@" + table + "." + col} until 2026-11-13 (the names fixes, item 13), two triples that join alike were one step: a schema view's
      * {@code S.V} column {@code c} and a top-level view {@code S}'s quoted column {@code V.c}. */
     private record ColumnStep(String db, String table, String col) {
     }
@@ -482,7 +481,7 @@ public final class KnowledgeLayer {
         }
         // full-arg pass-through: source/offsets/per-element imports,
         // per-element sources, unclaimed sections and element spans all survive (the spans since 2026-11-13: the
-        // seven-argument form dropped them -- the names fixes, item 1, docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 28)
+        // seven-argument form dropped them -- the names fixes, item 1)
         return new ParsedModel(out, parsed.imports(), parsed.source(),
                 parsed.elementOffsets(), parsed.elementImports(),
                 parsed.elementSources(), parsed.unclaimedSections(), parsed.elementSpans());
@@ -545,7 +544,7 @@ public final class KnowledgeLayer {
 
     /** A type as the refusal names it: its class name quoted, else its kind in words. Until 2026-11-13 a type with no
      * class name was spelled by the record's Java {@code toString()} ({@code FunctionType[parameters=[...], ...]}): the
-     * names fixes, item 7 (docs/rust-port/PHASE3_SHIM_DESIGN.md §10 ruling 29). */
+     * names fixes, item 7. */
     private static String spelled(TypeExpression t) {
         return switch (t) {
             case TypeExpression.NameRef n -> "'" + n.name() + "'";
