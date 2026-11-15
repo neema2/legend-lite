@@ -238,7 +238,8 @@ Deployment market::DeskOnDeephaven
 - **`live`, `history`:** a target is a connection (the activators'). The live target reads history before today and
   its own rows since. The target's dialect decides how it makes, lands and keeps.
 - **`keep`:** per target, a default per write mode stated once and overridden per dataset. Appended: `LastRows(n)`,
-  `Last('PT8H')`, `all`. Milestoned: `current` (one row a key: lite's old LatestByKey) or `versions` (every version:
+  `Last('PT8H')`, `all`. Milestoned: `current` (one row a key: lite's old LatestByKey, landed for speed, §5's live column) or `versions`
+  (upstream's milestoning, §5's history column; every version:
   what the history tier keeps). "Latest by key" was never a fact of the data; it is how much of its history a target
   holds. An appended dataset on a live target with no `keep` is refused by name: the compiler assumes no default
   (AGENTS.md invariant 4).
