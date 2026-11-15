@@ -246,7 +246,9 @@ class CatalogUpstreamDiffTest {
     // substrAsGiven's two overloads, lite-INTERNAL and the compiler's own -- the database's own SUBSTRING over Pure's
     // indexes corrected as legend-engine's processSubstr corrects them, which the legend-engine door's engine rewrite
     // alone writes, for substr and the corrected substring; upstream declares no such function
-    private static final int NOT_UPSTREAM_MAX = 80;
+    // 80 -> 81 (2026-11-15, the owner's S308 ruling on PR #107): meta::legend::lite::erf, Gaussian error function on the
+    // lite surface (Pure.Lite.ERF); upstream math package has no erf
+    private static final int NOT_UPSTREAM_MAX = 81;
     private static final int MISSING_MAX = 191;
     private static final int UNREADABLE_MAX = 16;
 

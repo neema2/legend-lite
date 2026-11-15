@@ -53,10 +53,11 @@ class SqlFnSortedTest {
     // (DATETIME_PRINT gone 2026-11-17 with train 7's B12 close, a8b7e2e32e: legend-pure's DateTime print the edge's
     // dialects' over the product's DATETIME_TO_TEXT, no MIR function of its own)
 
-    /** Every other function, the product's: 189, sorted 2026-11-17 by the measured list (a new one is sorted here; IS_NUMERIC
+    /** Every other function, the product's: 190, sorted 2026-11-17 by the measured list (a new one is sorted here; IS_NUMERIC
      *  2026-11-18, J20; SUBSTRING_AS_GIVEN 2026-11-19, A3 of the compatibility program, the user's ruling ~21:10 "Yes to
      *  all three for substring": written by Scalars, the product's, and rendered by every dialect -- not EDGE_ONLY, which
-     *  is the product's dialects refusing it by name). */
+     *  is the product's dialects refusing it by name; ERF 2026-11-21, S308: meta::legend::lite::erf, written by Scalars
+     *  and ErfMath$Expansion). */
     static final Set<String> PRODUCT = Set.of(
             "ABS", "ACOS", "ADD_INTERVAL", "ADD_INTERVAL_TEMPORAL", "ALL_DISTINCT", "AND", "ASCII_CODE", "ASIN",
             "ATAN", "ATAN2", "BINARY_COLLATE", "BIT_AND", "BIT_NOT", "BIT_OR", "BIT_SHIFT_LEFT", "BIT_SHIFT_RIGHT",
@@ -64,7 +65,7 @@ class SqlFnSortedTest {
             "CONCAT_WS", "COS", "COSH", "COT", "CURRENT_USER_FN", "DATETIME_CANON_TEXT", "DATETIME_TO_TEXT",
             "DATE_AT_TIME", "DATE_DIFF", "DATE_TRUNC", "DATE_TRUNC_DAY", "DAYNAME", "DECIMAL_TO_TEXT",
             "DECODE_BASE64", "DEGREES", "DIVIDE", "ENCODE_BASE64", "ENDS_WITH", "EPOCH_MS", "EPOCH_NS",
-            "EPOCH_SECONDS", "EQUAL", "ERROR", "EXP", "EXTRACT", "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT", "FLOOR",
+            "EPOCH_SECONDS", "EQUAL", "ERF", "ERROR", "EXP", "EXTRACT", "FLOAT_SHORTEST_TEXT", "FLOAT_TO_TEXT", "FLOOR",
             "FLOOR_RAW", "FORMAT", "FROM_EPOCH_MS", "FROM_EPOCH_NS", "FROM_EPOCH_SECONDS", "GREATER", "GREATER_EQUAL",
             "GREATEST", "GUID", "HASH", "IN", "INT_DIVIDE", "IS_DISTINCT_FROM", "IS_NOT_NULL", "IS_NULL",
             // IS_NUMERIC added 2026-11-18 with J20 (222d136808, train 11, the user's ruling of 2026-11-17 23:05): the
@@ -161,6 +162,7 @@ class SqlFnSortedTest {
             Map.entry("ABS", Set.of(
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.MixedEncoding",
                     "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
                     "com.legend.sql.dialect.FloatShortestText")),
             // re-measured 2026-11-18 on d-int10 5f83349087: the EXISTS decomposition's writer is sql.ExistsJoins, not
             // lowering.ExistsJoinForm (F's J19, a3b8f3f3: ClickHouse decomposes the EXISTS it cannot correlate at render)
@@ -174,7 +176,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.RelationPredicates",
                     "com.legend.lowering.Scalars", "com.legend.lowering.SqlPostProcessors",
                     "com.legend.lowering.TaggedLists", "com.legend.lowering.VerdictSql",
-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FloatShortestText",
+                    "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
+                    "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.sql.dialect.MongoDbPipeline", "com.legend.sql.dialect.OuterJoinResidualsAsMatches",
                     "com.legend.sql.dialect.OuterJoinSubqueryFilters", "com.legend.sql.dialect.SelectMerge",
                     "com.legend.sql.dialect.WholePartitionOrderedSets",
@@ -247,6 +251,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.MixedEncoding", "com.legend.lowering.RelationPredicates",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
                     "com.legend.sql.dialect.FloatShortestText", "com.legend.sql.dialect.FrameGuard",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("GREATER_EQUAL", Set.of(
@@ -255,6 +260,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
                     "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("IN", Set.of(
@@ -277,6 +283,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Scalars", "com.legend.lowering.VariantShapes",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.dialect.AsOfAsPick",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CellTexts",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
                     "com.legend.sql.dialect.FrameGuard", "com.legend.sql.dialect.LateralExplodeToUnion",
                     "com.legend.testdatagen.LitePrinting", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("LENGTH", Set.of(
@@ -288,7 +295,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.DateCtorRule", "com.legend.lowering.KeyedCounts",
                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FloatShortestText",
+                    "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
+                    "com.legend.sql.dialect.FloatShortestText",
                     "com.legend.sql.dialect.FoldsAsRecursiveCtes", "com.legend.sql.dialect.FrameGuard",
                     "com.legend.testdatagen.TestDataPlanner")),
             // (DateCtorRule joins 2026-11-21, the BE audit 2's S2: a fractional second's whole part below 0 is -1 or less)
@@ -297,6 +306,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Lowerer", "com.legend.lowering.RelationPredicates",
                     "com.legend.lowering.Scalars", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
                     "com.legend.sql.dialect.WindowAggregatesAsCorrelated", "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("LIST_TRANSFORM", Set.of(
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.CastPolicy",
@@ -324,6 +334,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.Scalars", "com.legend.lowering.TaggedLists",
                     "com.legend.lowering.ValueCollections", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.CheckedDefectsToLists",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
                     "com.legend.sql.dialect.QuantileOrder", "com.legend.sql.dialect.WindowAggregatesAsCorrelated",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("NOT", Set.of(
@@ -338,6 +349,7 @@ class SqlFnSortedTest {
                     "com.legend.lowering.CollectionLanes", "com.legend.lowering.DateCtorRule",
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars",
                     "com.legend.lowering.VerdictSql", "com.legend.sql.EnumValueTables",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("OR", Set.of(
                     "com.legend.lowering.CanonicalRenderSql", "com.legend.lowering.DateCtorRule",
@@ -345,7 +357,9 @@ class SqlFnSortedTest {
                     "com.legend.lowering.NullSemantics", "com.legend.lowering.Scalars",
                     "com.legend.lowering.TaggedLists", "com.legend.lowering.VerdictSql",
                     "com.legend.sql.DecodeShapes", "com.legend.sql.dialect.AsOfAsPick",
-                    "com.legend.sql.dialect.CarrierStrategies", "com.legend.sql.dialect.FrameGuard",
+                    "com.legend.sql.dialect.CarrierStrategies",
+                    "com.legend.sql.dialect.ErfMath", // 2026-11-21, S308: ErfMath's fdlibm/Cody erf() expansion
+                    "com.legend.sql.dialect.FrameGuard",
                     "com.legend.testdatagen.TestDataPlanner")),
             Map.entry("PARSE_INT", Set.of("com.legend.lowering.Scalars")),
             Map.entry("REGEXP_REPLACE", Set.of(

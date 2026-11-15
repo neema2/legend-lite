@@ -277,6 +277,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         if (!spellsFloatShortestText()) {
             ps.add(new FloatShortestText.Expansion(readsLongTextOnce()));
         }
+        if (!spellsErf()) {
+            ps.add(new ErfMath.Expansion(bindsErfArg(), expandsErfInline()));
+        }
         ps.addAll(passes());
         ps.add(new StoredReads(this::readsStored));
         return java.util.List.copyOf(ps);
@@ -314,6 +317,23 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     @SpellingArm
     protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
         return java.util.List.of();
+    }
+
+    /** Whether this dialect writes {@link com.legend.sql.SqlFn#ERF} natively; else it is expanded via {@link ErfMath}. */
+    protected boolean spellsErf() {
+        return false;
+    }
+
+    /** Whether {@link ErfMath.Expansion} binds compound arguments once via a one-row derived table ({@link SQLite},
+     *  {@link BigQuery}). */
+    protected boolean bindsErfArg() {
+        return readsLongTextOnce();
+    }
+
+    /** Whether {@link ErfMath.Expansion} expands compound arguments inline because this dialect deduplicates repeated
+     *  subexpressions itself (DuckDB). */
+    protected boolean expandsErfInline() {
+        return false;
     }
 
     /** Whether this dialect reads a column STORED as {@code t} other than as the database holds
@@ -1481,8 +1501,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
-     *  {@link com.legend.sql.SqlFn#CELL_TEXT},
-     *  {@link DateTimeText}, {@link CellTexts}): one reaching a dialect's arm is a renderer
+     *  {@link com.legend.sql.SqlFn#CELL_TEXT}, {@link com.legend.sql.SqlFn#ERF},
+     *  {@link DateTimeText}, {@link CellTexts}, {@link ErfMath}): one reaching a dialect's arm is a renderer
      *  bug, refused by name. */
     protected static IllegalStateException expandedFirst(SqlExpr.Call c) {
         return new IllegalStateException("renderer bug: " + c.fn() + " is expanded before any dialect reads it");

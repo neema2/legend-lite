@@ -95,6 +95,11 @@ public class Postgres extends AnsiSqlRenderer {
     }
 
     @Override
+    protected boolean spellsErf() {
+        return true;
+    }
+
+    @Override
     public @com.legend.base.Nullable RaiseReadBack raiseReadBack() {
         return null;   // its errors carry a raise's text
     }
@@ -832,6 +837,7 @@ public class Postgres extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_SHORTEST_TEXT -> floatShortestTextByCast(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case ERF -> writer.function("erf", c.args());
             case DATETIME_TO_TEXT, DATETIME_CANON_TEXT, CELL_TEXT ->
                     throw expandedFirst(c);
             case CURRENT_USER_FN -> writer.append("current_user");
@@ -913,9 +919,7 @@ public class Postgres extends AnsiSqlRenderer {
 
             // ---- strings
             // the engine coerces a non-text argument (DuckDb's arm)
-            case LENGTH -> a.get(0) instanceof SqlExpr.StringLit
-                    ? writer.append("length(").list(a).append(")")
-                    : writer.append("length(CAST(").expr(a.get(0), 0).append(" AS VARCHAR))");
+            case LENGTH -> lengthArm(writer, a);
             case ENDS_WITH -> writer.append("(right(").expr(a.get(0), 0).append(", length(").expr(a.get(1), 0)
                     .append(")) = ").expr(a.get(1), 0).append(")");
             // MATCHES is the PARTIAL test, Postgres' ~ (never regexp_matches: set-
@@ -996,11 +1000,8 @@ public class Postgres extends AnsiSqlRenderer {
             case JSON_TYPE -> jsonType(writer, c);
             case JSON_ARRAY_LENGTH -> writer.append("jsonb_array_length(").expr(a.get(0), 0).append(")");
             case JSON_PRETTY -> writer.append("jsonb_pretty(").expr(a.get(0), 0).append(")");
-            // a Variant array's elements, each a Variant (DuckDB: CAST(x AS JSON[]))
-            // (idempotent, as DuckDB's cast: a value already a list of Variants passes through)
-            case VARIANT_ELEMENTS -> listElement(a.get(0)) != null
-                    ? writer.expr(a.get(0), 0)
-                    : writer.piece(decode(w -> w.expr(a.get(0), 0), new SqlType.Array(SqlType.Scalar.JSON), 0));
+            // a Variant array's elements, each a Variant (idempotent when already a list of Variants)
+            case VARIANT_ELEMENTS -> variantElements(writer, a);
             case JSON_MERGE_PATCH -> throw wall(c.fn(), "variant over jsonb is leg P4");
             // ---- lists: a list of scalars is a native array (listCall and its siblings below)
             // the hooks: this dialect's own (or the base's refusal)
@@ -1050,6 +1051,21 @@ public class Postgres extends AnsiSqlRenderer {
                 w.expr(x, 0);
             }
         }).append(")");
+    }
+
+    /** LENGTH: the engine coerces a non-text argument (DuckDb's arm). Out of {@link #call} for its length. */
+    private SqlWriter lengthArm(SqlWriter writer, List<SqlExpr> a) {
+        return a.get(0) instanceof SqlExpr.StringLit
+                ? writer.append("length(").list(a).append(")")
+                : writer.append("length(CAST(").expr(a.get(0), 0).append(" AS VARCHAR))");
+    }
+
+    /** VARIANT_ELEMENTS: a Variant array's elements, each a Variant (idempotent when already a list of Variants). */
+    @Override
+    protected SqlWriter variantElements(SqlWriter writer, List<SqlExpr> a) {
+        return listElement(a.get(0)) != null
+                ? writer.expr(a.get(0), 0)
+                : writer.piece(decode(w -> w.expr(a.get(0), 0), new SqlType.Array(SqlType.Scalar.JSON), 0));
     }
 
     /** SPLIT: DuckDB's string_split('', d) is [''], Postgres's string_to_array is {}. */

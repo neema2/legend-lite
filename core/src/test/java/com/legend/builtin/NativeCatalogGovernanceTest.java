@@ -227,7 +227,10 @@ class NativeCatalogGovernanceTest {
         // +1 2026-10-27 (the user's "look at legend-pure first but yeah lets def build some primitive like that",
         // docs/SEMANTICS_REGISTER.md S114): read -- a row's column through a column spec, typed as $r.col; upstream's
         // ColSpec is a name alone and a column is read only as a reflected Column evaluated on a row (typed Any)
-        assertTrue(Pure.LITE_SURFACE.size() <= 9,
+        // +1 2026-11-15 (the owner's S308 ruling on PR #107, Pure.Lite.ERF): erf -- native erf on Postgres 16+ and
+        // ClickHouse, normal_cdf on Trino, Sun fdlibm / Cody IEEE-754 portable SQL expansion elsewhere; upstream math
+        // package stops at exp/log/sqrt/cbrt/trig
+        assertTrue(Pure.LITE_SURFACE.size() <= 10,
                 "LITE_SURFACE grew: " + Pure.LITE_SURFACE);
     }
 
