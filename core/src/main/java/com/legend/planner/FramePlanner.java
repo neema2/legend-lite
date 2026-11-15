@@ -20,7 +20,6 @@ import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.error.LegendCompileException;
 import com.legend.error.NotImplementedException;
 import com.legend.lowering.SqlPostProcessors;
 import com.legend.lowering.VerdictSql;
@@ -142,18 +141,12 @@ public final class FramePlanner {
                 // mapping and renders without one (the resolver and the root
                 // form both take none); a class-rooted chain needs its mapping
                 if (mappingFqn != null || lqChain.relationRooted()) {
-                    try {
-                        // C4 (handed off): the runtime's type is not read here yet
-                        activitySql = EnginePlans.engineTestSql(List.of(lqChain.chain()),
-                                mappingFqn, specs, env);
-                    } catch (LegendCompileException
-                            | NotImplementedException
-                            | IllegalStateException e) {
-                        // no engine-style render for this chain shape: the
-                        // activities array stays empty (a read of it is
-                        // then a loud missing member, never a fabrication)
-                        activitySql = null;
-                    }
+                    // C4 (handed off): the runtime's type is not read here yet. A chain with no engine-style render
+                    // fails the body by name (C5-J item 4, 2026-11-15, G7: until then any LegendCompileException,
+                    // NotImplementedException or IllegalStateException left the activities empty; the census of
+                    // core's suites, PCT's channels and both corpora found none)
+                    activitySql = EnginePlans.engineTestSql(List.of(lqChain.chain()),
+                            mappingFqn, specs, env);
                 }
             }
             TypedSpec envelope = ExecuteChainAssembly

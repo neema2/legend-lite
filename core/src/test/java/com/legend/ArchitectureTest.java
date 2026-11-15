@@ -668,12 +668,17 @@ final class ArchitectureTest {
     void thePlanHandlesScansLetTheRawSqlRefusalThrough() {
         com.tngtech.archunit.core.domain.JavaClass allocations = CORE_PROD_CLASSES.get(
                 com.legend.planner.PlanAllocations.class);
-        for (String scan : java.util.List.of("registerPlanRows", "registerLineageRows", "registerColumnLineageRows")) {
+        for (String scan : java.util.List.of("registerPlanRows", "registerColumnLineageRows")) {
             org.junit.jupiter.api.Assertions.assertTrue(allocations.getMethods().stream()
                     .filter(m -> m.getName().equals(scan))
                     .flatMap(m -> m.getMethodCallsFromSelf().stream())
                     .anyMatch(c -> c.getName().equals("noLineageRows")), scan + " answers no rows without asking");
         }
+        // registerLineageRows answers no rows for no failure since C5-J item 4 (2026-11-15, G7): it catches nothing, so
+        // every failure -- the raw-SQL refusal among them -- propagates as itself
+        org.junit.jupiter.api.Assertions.assertTrue(allocations.getMethods().stream()
+                .filter(m -> m.getName().equals("registerLineageRows"))
+                .allMatch(m -> m.getTryCatchBlocks().isEmpty()), "registerLineageRows catches a failure");
     }
 
     /** {@link #PROGRAM_ROAD_TEST_ENTRY} fails on a planted caller outside the test door ({@code server.PlantedTestProgram},
@@ -878,6 +883,57 @@ final class ArchitectureTest {
                 if (parses != Integer.MAX_VALUE && asks >= parses) {
                     found.add(u.getFullName() + (asks == Integer.MAX_VALUE ? " parses without asking the run's wall"
                             : " parses before it asks the run's wall"));
+                }
+            }
+        }
+        return found;
+    }
+
+    /**
+     * <strong>THE TEST ROAD'S PLAN ROWS CATCH NAMED CONDITIONS ALONE (C5-J item 4, 2026-11-15, G7).</strong> The plan
+     * walk's rows and activities ({@code planner.PlanAllocations}) and the frames ({@code planner.FramePlanner}) caught
+     * and continued: any IllegalStateException, TypeInferenceException, MappingResolutionException or
+     * LegendCompileException registered nothing and the body went on. Measured over core's suites, PCT's channels and
+     * both corpora, the 140 swallows were three named conditions -- a shape not planned yet (NotImplementedException),
+     * a reduction a dialect cannot encode (DialectCapability) and a reference the lowering cannot resolve even after
+     * isolation ({@code Lowerer.IsolationWall}, named for it, the orchestrator's ruling (A)) -- and every other catch
+     * fails by name now. Each try/catch in those classes catches {@link #TEST_ROAD_CATCHES} alone;
+     * {@link #theNamedCatchRuleBitesAPlantedCatch} shows it bites.
+     */
+    @Test
+    void theTestRoadsPlanRowsCatchNamedConditionsAlone() {
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), broadCatches(CORE_PROD_CLASSES,
+                java.util.Set.of("com.legend.planner.PlanAllocations", "com.legend.planner.FramePlanner")));
+    }
+
+    /** {@link #theTestRoadsPlanRowsCatchNamedConditionsAlone} fails on a catch of an IllegalStateException
+     *  ({@code planner.PlantedBroadCatch}, a test class planted for this alone). */
+    @Test
+    void theNamedCatchRuleBitesAPlantedCatch() {
+        org.junit.jupiter.api.Assertions.assertFalse(broadCatches(new ClassFileImporter().importClasses(
+                com.legend.planner.PlantedBroadCatch.class), java.util.Set.of("com.legend.planner.PlantedBroadCatch"))
+                .isEmpty());
+    }
+
+    /** The conditions the test road's plan rows may catch and continue past (C5-J item 4, 2026-11-15). */
+    static final java.util.Set<String> TEST_ROAD_CATCHES = java.util.Set.of(
+            "com.legend.error.NotImplementedException", "com.legend.sql.DialectCapability",
+            "com.legend.lowering.Lowerer$IsolationWall");
+
+    /** Each catch in {@code owners} (and their nested classes) of a type outside {@link #TEST_ROAD_CATCHES}. */
+    static java.util.List<String> broadCatches(JavaClasses classes, java.util.Set<String> owners) {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            if (!owners.contains(topLevel(c))) {
+                continue;
+            }
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                for (com.tngtech.archunit.core.domain.TryCatchBlock b : u.getTryCatchBlocks()) {
+                    for (com.tngtech.archunit.core.domain.JavaClass t : b.getCaughtThrowables()) {
+                        if (!TEST_ROAD_CATCHES.contains(t.getName())) {
+                            found.add(u.getFullName() + " catches " + t.getName());
+                        }
+                    }
                 }
             }
         }
