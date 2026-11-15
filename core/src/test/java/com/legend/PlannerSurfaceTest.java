@@ -1610,22 +1610,17 @@ class PlannerSurfaceTest {
     private static final String HTTP_SOURCE = "core/src/main/java/com/legend/server/LegendHttpServer.java";
 
     /** The server's HTTP routes as one source: the product's ({@code LegendHttpServer}'s {@code route(...)}s) and the
-     *  compatibility edge's mount ({@code edge.EdgeServer.UPSTREAM}: pure/v1's dispatcher at {@code PureV1Routes.PREFIX},
-     *  the query store at {@code QUERY_STORE}, the current user), each edge route read from its declaration and
-     *  written as a route of the one surface (phase D's D1.0b moved them, 2026-11-12; merged with C4's check
-     *  2026-11-15). */
+     *  compatibility edge's mount ({@code edge.EdgeServer.UPSTREAM}), each of the edge's routes read from its real
+     *  declaration -- the mount asked for its routes and each route for its prefix, as the server itself registers them
+     *  ({@code LegendHttpServer}: {@code route(module.prefix(), ...)}) -- and written as a route of the one surface
+     *  (phase D's D1.0b moved them, 2026-11-12; read so since the D part 1 audit's S8, 2026-11-15: a regex over
+     *  {@code EdgeServer}'s text missed a prefix spelled any other way). */
     private static String httpSource() {
         StringBuilder edge = new StringBuilder();
-        String server = read("core/src/main/java/com/legend/edge/EdgeServer.java");
-        for (String route : found(server, "return \"(/api/[^\"]+)\";")) {
-            edge.append("\n        route(\"").append(route).append("\", edge);");
-        }
-        for (String route : found(server, "QUERY_STORE = \"([^\"]+)\"")) {
-            edge.append("\n        route(\"").append(route).append("\", edge);");
-        }
-        for (String route : found(read("core/src/main/java/com/legend/edge/PureV1Routes.java"),
-                "PREFIX = \"([^\"]+)\"")) {
-            edge.append("\n        route(\"").append(route).append("\", edge);");
+        for (com.legend.server.LegendHttpServer.Routes r : com.legend.edge.EdgeServer.UPSTREAM.routes(
+                new com.legend.server.LegendHttpServer.Context(com.legend.server.LegendHttpServer.NO_SOURCES, null,
+                        null))) {
+            edge.append("\n        route(\"").append(r.prefix()).append("\", edge);");
         }
         return read(HTTP_SOURCE) + edge;
     }
