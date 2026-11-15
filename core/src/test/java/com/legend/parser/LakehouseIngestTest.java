@@ -45,7 +45,8 @@ class LakehouseIngestTest {
             ]
             """;
 
-    /** The desk's shapes: a stream from topics, latest by key and appended with a retention, a pull, a group. */
+    /** The desk's shapes in upstream's words (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): a delta from topics, batch
+     *  milestoned and appended with a retention, a pull (a snapshot on a schedule), a group, a delete indicator. */
     private static final String DESK = """
             ###Relational
             Database desk::Topics
@@ -59,27 +60,27 @@ class LakehouseIngestTest {
             )
 
             ###Lakehouse
-            Ingest desk::Feed Stream owner=AppDir(production='111111', prodParallel='222222')
+            Ingest desk::Feed Delta<JSON> owner=AppDir(production='111111', prodParallel='222222')
             [
               MARKET_TRADE( |#>{desk::Topics."tp.trades"}# ) pk=[ PRINT_ID ] writeMode=AppendOnly retention=Last('PT8H');
-              MARKET_QUOTE( |#>{desk::Topics."tp.quotes"}# ) pk=[ QUOTE_ID ] writeMode=LatestByKey;
-              WORLD( item: Varchar(16)[1], state: Varchar(16), detail: Varchar(256) ) pk=[ item ] writeMode=LatestByKey;
+              MARKET_QUOTE( |#>{desk::Topics."tp.quotes"}# ) pk=[ QUOTE_ID ] writeMode=BatchMilestoned;
+              WORLD( item: Varchar(16)[1], state: Varchar(16), detail: Varchar(256) ) pk=[ item ] writeMode=BatchMilestoned;
             ]
-            Ingest desk::Reference Pull<Daily('06:00', 'America/New_York')> writeMode=LatestByKey
+            Ingest desk::Reference Snapshot writeMode=BatchMilestoned schedule=Daily('06:00', 'America/New_York')
             [
               INSTRUMENT( |#>{desk::SecMaster.INSTRUMENT_V}# ) pk=[ INSTRUMENT_ID ];
             ]
-            Ingest desk::Limits Pull<Every('PT15M')> datasetGroup=RISK
+            Ingest desk::Limits Snapshot datasetGroup=RISK schedule=Every('PT15M')
             [
-              RISK_LIMIT( |#>{desk::SecMaster.INSTRUMENT_V}# ) pk=[ INSTRUMENT_ID ] writeMode=LatestByKey;
+              RISK_LIMIT( |#>{desk::SecMaster.INSTRUMENT_V}# ) pk=[ INSTRUMENT_ID ] writeMode=BatchMilestoned;
             ]
             Ingest desk::Positions Delta<Parquet>
             [
               POSITION( POSITION_ID: Varchar(200)[1], QUANTITY: Double, OPENED: StrictDate, AT: Timestamp, OPEN: Boolean, COST: Decimal(18, 4) ) pk=[ POSITION_ID ] writeMode=AppendOnly retention=LastRows(200000) privacyClassification=DP10 storageLayoutClusterColumns=[ OPENED ];
             ]
-            Ingest desk::Status Stream<Json>
+            Ingest desk::Status Delta<JSON> deleteIndicator=DeleteIndicator(deleteField='gone', deleteValues=['true', 'Y'])
             [
-              STATUS( name: String[1], at: DateTime ) pk=[ name ] writeMode=LatestByKey;
+              STATUS( name: String[1], at: DateTime, gone: Boolean ) pk=[ name ] writeMode=BatchMilestoned;
             ]
 
             ###Relational
@@ -120,7 +121,7 @@ class LakehouseIngestTest {
     @Test
     void litesDialectReadsLegendsForm() {
         Protocol.PIngest i = ingest(LEGENDS, "test::IngestDefinition");
-        assertEquals(new Protocol.PIngestFiles("Snapshot", "CSV"), i.readMode());
+        assertEquals(new Protocol.PIngestReadMode("Snapshot", "CSV", null), i.readMode());
         assertEquals(new Protocol.PIngestOwner("297484", null), i.owner());
         Protocol.PIngestDataset d = i.datasets().get(0);
         assertEquals("TEST_TABLE", d.name());
@@ -131,25 +132,39 @@ class LakehouseIngestTest {
     }
 
     @Test
-    void litesDialectReadsLitesAdditions() {
+    void litesDialectReadsUpstreamsWordsAndLitesAdditions() {
         Protocol.PIngest feed = ingest(DESK, "desk::Feed");
-        assertEquals(new Protocol.PIngestStream(null), feed.readMode());
+        assertEquals(new Protocol.PIngestReadMode("Delta", "JSON", null), feed.readMode());
+        assertEquals(null, feed.schedule());
         assertEquals(new Protocol.PIngestOwner("111111", "222222"), feed.owner());
         assertEquals("append_only", feed.datasets().get(0).writeMode());
         assertEquals(new Protocol.PIngestLast("PT8H"), feed.datasets().get(0).retention());
-        assertEquals("latest_by_key", feed.datasets().get(1).writeMode());
+        assertEquals("batch_milestoned", feed.datasets().get(1).writeMode());
         assertTrue(feed.datasets().get(0).source() instanceof Protocol.PIngestFunction);
-        assertEquals(new Protocol.PIngestPull(new Protocol.PIngestDaily("06:00", "America/New_York")),
-                ingest(DESK, "desk::Reference").readMode());
-        assertEquals("latest_by_key", ingest(DESK, "desk::Reference").writeMode());
+        Protocol.PIngest reference = ingest(DESK, "desk::Reference");
+        assertEquals(new Protocol.PIngestReadMode("Snapshot", null, null), reference.readMode(), "a pull: no format");
+        assertEquals(new Protocol.PIngestDaily("06:00", "America/New_York"), reference.schedule());
+        assertEquals("batch_milestoned", reference.writeMode());
         Protocol.PIngest limits = ingest(DESK, "desk::Limits");
-        assertEquals(new Protocol.PIngestPull(new Protocol.PIngestEvery("PT15M")), limits.readMode());
+        assertEquals(new Protocol.PIngestEvery("PT15M"), limits.schedule());
         assertEquals("RISK", limits.datasetGroup());
         Protocol.PIngestDataset position = ingest(DESK, "desk::Positions").datasets().get(0);
         assertEquals(new Protocol.PIngestLastRows(200000), position.retention());
         assertEquals("DP10", position.privacyClassification());
         assertEquals(List.of("OPENED"), position.storageLayoutClusterColumns());
-        assertEquals(new Protocol.PIngestStream("Json"), ingest(DESK, "desk::Status").readMode());
+        assertEquals(new Protocol.PIngestReadMode("Delta", "JSON",
+                new Protocol.PIngestDeleteIndicator("gone", List.of("true", "Y"))), ingest(DESK, "desk::Status").readMode());
+    }
+
+    /** An ingest of materialized views alone names no read mode, as legend-studio's fixtures hold one. (Upstream's
+     *  views read datasets by the ingest accessor, {@code #I{ingest.dataset}#}, which lite's parser does not read yet:
+     *  the views' step, docs/DEPLOYMENT_DESIGN_2026_11_14.md §15.) */
+    @Test
+    void anIngestOfViewsNamesNoReadMode() {
+        Protocol.PIngest views = ingest("###Lakehouse\nIngest v::Views\n[\n  V( |#>{v::DB.T}#->filter(r|$r.X > 0) ) pk=[ X ];\n]\n",
+                "v::Views");
+        assertEquals(null, views.readMode());
+        assertEquals(null, views.schedule());
     }
 
     @Test
@@ -195,17 +210,16 @@ class LakehouseIngestTest {
         assertEquals(2, ingests.items().size());
         for (Json.Node n : ingests.items()) {
             Protocol.PIngest read = (Protocol.PIngest) ModelReader.readElement(n);
-            assertEquals(new Protocol.PIngestFiles("Delta", "Parquet"), read.readMode());
+            assertEquals(new Protocol.PIngestReadMode("Delta", "Parquet", null), read.readMode());
             assertEquals("batch_milestoned", read.writeMode());
             assertEquals(new Protocol.PIngestOwner("111111", "222222"), read.owner());
             String written = SourceInformation.stripAll(ProtocolEmitter.emitElement(read));
             assertEquals(n, Json.parse(written), written);
         }
-        // the minimal one Studio's own test writes by hand says no read mode: refused by name, never given one
+        // the minimal one Studio's own test writes by hand says no read mode, as upstream allows (legend-studio's
+        // TEST_DATA__IngestDefinitionFlow holds another): read with none, never given one
         Json.Arr minimal = (Json.Arr) Json.parse(resource("studio-ingest-minimal.json"));
-        IllegalArgumentException noReadMode = assertThrows(IllegalArgumentException.class,
-                () -> ModelReader.readElement(minimal.items().get(0)));
-        assertTrue(noReadMode.getMessage().contains("readMode"), noReadMode.getMessage());
+        assertEquals(null, ((Protocol.PIngest) ModelReader.readElement(minimal.items().get(0))).readMode());
     }
 
     @Test
@@ -226,16 +240,25 @@ class LakehouseIngestTest {
     @Test
     void theGrammarRefusesByName() {
         refused("Ingest a::I Weekly<CSV> [ T( c: Int ); ]", "unknown read mode 'Weekly'");
-        refused("Ingest a::I Snapshot<Xml> [ T( c: Int ); ]", "unknown file format 'Xml'");
-        refused("Ingest a::I Pull<Every('15 minutes')> [ T( c: Int ); ]", "an ISO 8601 duration");
-        refused("Ingest a::I Pull<Daily('6am', 'America/New_York')> [ T( c: Int ); ]", "HH:MM");
-        refused("Ingest a::I Pull<Daily('06:00', 'Eastern')> [ T( c: Int ); ]", "a named zone");
-        refused("Ingest a::I Stream [ T( c: Int ) writeMode=Upsert; ]", "unknown write mode 'Upsert'");
-        refused("Ingest a::I Stream [ T( c: Int ); T( d: Int ); ]", "declared twice");
-        refused("Ingest a::I Stream [ ]", "declares no dataset");
-        refused("Ingest a::I Stream owner=AppDir(production='12a') [ T( c: Int ); ]", "digits");
-        refused("Ingest a::I Stream [ T( c: Int ) retention=LastRows(0); ]", "at least one row");
-        refused("Ingest a::I Stream [ T( c: Int ) pk=[ c ] pk=[ c ]; ]", "pk");
+        refused("Ingest a::I Snapshot<Xml> [ T( c: Int ); ]", "unknown format 'Xml'");
+        refused("Ingest a::I Snapshot schedule=Every('15 minutes') [ T( c: Int ); ]", "an ISO 8601 duration");
+        refused("Ingest a::I Snapshot schedule=Daily('6am', 'America/New_York') [ T( c: Int ); ]", "HH:MM");
+        refused("Ingest a::I Snapshot schedule=Daily('06:00', 'Eastern') [ T( c: Int ); ]", "a named zone");
+        refused("Ingest a::I Delta<JSON> schedule=Every('PT15M') [ T( c: Int ); ]", "not Snapshot");
+        refused("Ingest a::I Snapshot<CSV> deleteIndicator=DeleteIndicator(deleteField='d', deleteValues=['y'])"
+                + " [ T( c: Int ); ]", "not Delta");
+        refused("Ingest a::I Delta<JSON> deleteIndicator=DeleteIndicator(deleteField='d') [ T( c: Int ); ]",
+                "at least one value");
+        refused("Ingest a::I Delta<JSON> [ T( c: Int ) writeMode=Upsert; ]", "unknown write mode 'Upsert'");
+        refused("Ingest a::I Delta<JSON> [ T( c: Int ); T( d: Int ); ]", "declared twice");
+        refused("Ingest a::I Delta<JSON> [ ]", "declares no dataset");
+        refused("Ingest a::I Delta<JSON> owner=AppDir(production='12a') [ T( c: Int ); ]", "digits");
+        refused("Ingest a::I Delta<JSON> [ T( c: Int ) retention=LastRows(0); ]", "at least one row");
+        refused("Ingest a::I Delta<JSON> [ T( c: Int ) pk=[ c ] pk=[ c ]; ]", "pk");
+        // lite's retired words, each refused with its replacement
+        refused("Ingest a::I Stream [ T( c: Int ); ]", "Stream is retired");
+        refused("Ingest a::I Pull<Every('PT15M')> [ T( c: Int ); ]", "Pull<...> is retired");
+        refused("Ingest a::I Delta<JSON> [ T( c: Int ) pk=[ c ] writeMode=LatestByKey; ]", "LatestByKey is retired");
     }
 
     private static void refused(String ingest, String message) {
@@ -254,6 +277,14 @@ class LakehouseIngestTest {
         assertTrue(trade.columns().get(0).primaryKey());
         assertTrue(trade.columns().get(1).notNull(), "the read table's NOT NULL kept");
         assertEquals(new RelationalDataType.Varchar(16), trade.columns().get(1).dataType());
+        // a batch milestoned dataset: upstream's three columns after its own, its key the read table's
+        DatabaseDefinition.TableDefinition quote = ctx.findTableDefinition("desk::DB", "MARKET_QUOTE").orElseThrow();
+        assertEquals(List.of("QUOTE_ID", "SYMBOL", "BID", "ASK", "LAKE_DIGEST", "LAKE_IN_ID", "LAKE_OUT_ID"),
+                quote.columns().stream().map(c -> c.name()).toList());
+        assertEquals(List.of(new RelationalDataType.Varchar(64), new RelationalDataType.BigInt(),
+                new RelationalDataType.BigInt()), quote.columns().subList(4, 7).stream().map(c -> c.dataType()).toList());
+        assertTrue(quote.columns().subList(4, 7).stream().allMatch(c -> c.notNull() && !c.primaryKey()));
+        assertTrue(quote.columns().get(0).primaryKey(), "the read table's key");
         DatabaseDefinition.TableDefinition world = ctx.findTableDefinition("desk::DB", "WORLD").orElseThrow();
         assertTrue(world.columns().get(0).notNull(), "[1] is NOT NULL");
         assertTrue(!world.columns().get(1).notNull(), "[0..1] is nullable");
@@ -284,21 +315,27 @@ class LakehouseIngestTest {
                 Database t::Topics ( Table T (ID VARCHAR(8) PRIMARY KEY, V DOUBLE) )
                 ###Lakehouse
                 """;
-        modelRefused(topics + "Ingest t::I Stream [ D( |#>{t::Topics.T}# ) writeMode=LatestByKey; ]",
-                "names no key");
-        modelRefused(topics + "Ingest t::I Stream [ D( |#>{t::Topics.T}# ) pk=[ ID ] retention=Last('PT1H'); ]",
-                "only appended data has");
-        modelRefused(topics + "Ingest t::I Pull<Every('PT1H')> [ D( ID: Varchar(8) ) pk=[ ID ]; ]",
+        modelRefused(topics.replace("PRIMARY KEY", "") + "Ingest t::I Delta<JSON> [ D( |#>{t::Topics.T}# )"
+                + " writeMode=BatchMilestoned; ]", "names no key");
+        modelRefused(topics + "Ingest t::I Delta<JSON> [ D( |#>{t::Topics.T}# ) writeMode=BatchMilestoned"
+                + " retention=Last('PT1H'); ]", "only appended data has");
+        modelRefused(topics + "Ingest t::I Snapshot schedule=Every('PT1H') [ D( ID: Varchar(8) ) pk=[ ID ]; ]",
                 "a query of the source's store");
-        modelRefused(topics + "Ingest t::I Stream [ D( |#>{t::Topics.T}# ) pk=[ KEY ]; ]",
+        modelRefused(topics + "Ingest t::I Delta<JSON> [ D( |#>{t::Topics.T}# ) pk=[ KEY ]; ]",
                 "'KEY' is not one of its columns");
-        modelRefused(topics + "Ingest t::I Stream [ D( |#>{t::Topics.NOPE}# ); ]", "does not declare");
-        modelRefused(topics + "Ingest t::I Stream [ D( |#>{t::Topics.T}#->filter(r|$r.V > 0) ); ]",
+        modelRefused(topics + "Ingest t::I Delta<JSON> [ D( |#>{t::Topics.NOPE}# ); ]", "does not declare");
+        modelRefused(topics + "Ingest t::I Delta<JSON> [ D( |#>{t::Topics.T}#->filter(r|$r.V > 0) ); ]",
                 "a materialized view");
-        modelRefused(topics + "Ingest t::I Delta<Parquet> writeMode=BatchMilestoned [ D( ID: Varchar(8) ); ]",
-                "batch milestoned");
-        modelRefused(topics + "Ingest t::I Stream [ D( ID: Integer ); ]", "names no table type");
-        modelRefused(topics + "Ingest t::I Stream [ D( ID: Varchar(8)[*] ); ]", "more than one value");
+        modelRefused(topics + "Ingest t::I Delta<Parquet> writeMode=BatchMilestonedBusinessTemporal"
+                + " [ D( ID: Varchar(8) ) pk=[ ID ]; ]", "business temporal");
+        modelRefused(topics + "Ingest t::I Delta<JSON> deleteIndicator=DeleteIndicator(deleteField='GONE',"
+                + " deleteValues=['true']) [ D( |#>{t::Topics.T}# ) writeMode=BatchMilestoned; ]", "no column 'GONE'");
+        modelRefused(topics + "Ingest t::I Delta<JSON> deleteIndicator=DeleteIndicator(deleteField='V',"
+                + " deleteValues=['true']) [ D( |#>{t::Topics.T}# ) writeMode=AppendOnly; ]", "not batch milestoned");
+        modelRefused(topics + "Ingest t::I Delta<JSON> [ D( ID: Varchar(8)[1], LAKE_IN_ID: BigInt ) pk=[ ID ]"
+                + " writeMode=BatchMilestoned; ]", "which its batch milestoning adds");
+        modelRefused(topics + "Ingest t::I Delta<JSON> [ D( ID: Integer ); ]", "names no table type");
+        modelRefused(topics + "Ingest t::I Delta<JSON> [ D( ID: Varchar(8)[*] ); ]", "more than one value");
     }
 
     private static void modelRefused(String text, String message) {

@@ -267,8 +267,8 @@ final class TailEmitter {
     /**
      * {@code _type:"ingestDefinition"} (LITE-DESIGN-lakehouse): Legend's fields as legend-studio's round-trip fixtures
      * write them -- every slot alphabetical, a dataset's partition, cluster and preprocessor lists always present, an
-     * owner's deployments {@code {appDirId, level: "DEPLOYMENT"}} -- and lite's additions in the same manner: a stream
-     * or pull read mode, the {@code latest_by_key} write mode, a dataset's {@code retention}.
+     * owner's deployments {@code {appDirId, level: "DEPLOYMENT"}} -- and lite's additions in the same manner: a pull's
+     * {@code schedule}, a dataset's {@code retention} (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5).
      */
     static void ingest(StringBuilder b, Protocol.PIngest g) {
         b.append("{\"_type\":\"ingestDefinition\"");
@@ -297,34 +297,44 @@ final class TailEmitter {
         }
         b.append(",\"package\":");
         ProtocolEmitter.str(b, g.pkg());
-        b.append(",\"readMode\":");
-        switch (g.readMode()) {
-            case Protocol.PIngestFiles f -> b.append("{\"_type\":\"").append(f.kind())
-                    .append("\",\"format\":{\"_type\":\"").append(f.format()).append("\"}}");
-            case Protocol.PIngestStream st -> {
-                b.append("{\"_type\":\"Stream\"");
-                if (st.format() != null) {
-                    b.append(",\"format\":{\"_type\":\"").append(st.format()).append("\"}");
+        if (g.readMode() != null) {
+            b.append(",\"readMode\":{\"_type\":");
+            ProtocolEmitter.str(b, g.readMode().kind());
+            if (g.readMode().deleteIndicator() != null) {
+                b.append(",\"deleteIndicator\":{\"deleteField\":");
+                ProtocolEmitter.str(b, g.readMode().deleteIndicator().deleteField());
+                b.append(",\"deleteValues\":[");
+                List<String> values = g.readMode().deleteIndicator().deleteValues();
+                for (int i = 0; i < values.size(); i++) {
+                    if (i > 0) {
+                        b.append(',');
+                    }
+                    ProtocolEmitter.str(b, values.get(i));
                 }
+                b.append("]}");
+            }
+            if (g.readMode().format() != null) {
+                b.append(",\"format\":{\"_type\":");
+                ProtocolEmitter.str(b, g.readMode().format());
                 b.append('}');
             }
-            case Protocol.PIngestPull p -> {
-                b.append("{\"_type\":\"Pull\",\"schedule\":");
-                switch (p.schedule()) {
-                    case Protocol.PIngestDaily d -> {
-                        b.append("{\"_type\":\"Daily\",\"time\":");
-                        ProtocolEmitter.str(b, d.time());
-                        b.append(",\"timeZone\":");
-                        ProtocolEmitter.str(b, d.zone());
-                        b.append('}');
-                    }
-                    case Protocol.PIngestEvery e -> {
-                        b.append("{\"_type\":\"Every\",\"period\":");
-                        ProtocolEmitter.str(b, e.period());
-                        b.append('}');
-                    }
+            b.append('}');
+        }
+        if (g.schedule() != null) {
+            b.append(",\"schedule\":");
+            switch (g.schedule()) {
+                case Protocol.PIngestDaily d -> {
+                    b.append("{\"_type\":\"Daily\",\"time\":");
+                    ProtocolEmitter.str(b, d.time());
+                    b.append(",\"timeZone\":");
+                    ProtocolEmitter.str(b, d.zone());
+                    b.append('}');
                 }
-                b.append('}');
+                case Protocol.PIngestEvery e -> {
+                    b.append("{\"_type\":\"Every\",\"period\":");
+                    ProtocolEmitter.str(b, e.period());
+                    b.append('}');
+                }
             }
         }
         b.append(",\"sourceInformation\":");

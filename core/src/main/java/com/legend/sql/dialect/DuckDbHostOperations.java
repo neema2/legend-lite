@@ -72,7 +72,7 @@ final class DuckDbHostOperations implements HostOperations {
                     + String.join(", ", i.columns().stream().map(c -> physicalName(c.target())).toList())
                     + ") SELECT " + String.join(", ", i.columns().stream().map(c -> quoted(c.from())).toList())
                     + " FROM " + source(i.from()));
-            case HostOperation.Upsert u -> List.of(upsert(u));
+            case HostOperation.Upsert u -> upsert(u);
             case HostOperation.Bound b -> List.of(bound(b));
             // the database makes every row: range(count)'s i, each column its formula of i (SYNTHESIZE, register S303)
             case HostOperation.Synthesize g -> List.of("INSERT INTO " + name(g.target()) + " ("
@@ -251,16 +251,45 @@ final class DuckDbHostOperations implements HostOperations {
         return name;
     }
 
-    /** The source's last row of each key (its row order: a table's, as its rows went in), each replacing the target's
-     *  row of the key; the key's source columns those its target columns come from. */
-    private static String upsert(HostOperation.Upsert u) {
-        List<String> by = u.key().stream().map(k -> quoted(u.columns().stream().filter(c -> c.target().equals(k))
-                .findFirst().orElseThrow().from())).toList();
-        return "INSERT OR REPLACE INTO " + name(u.target()) + " ("
-                + String.join(", ", u.columns().stream().map(c -> physicalName(c.target())).toList())
-                + ") SELECT " + String.join(", ", u.columns().stream().map(c -> quoted(c.from())).toList())
-                + " FROM (SELECT *, row_number() OVER (PARTITION BY " + String.join(", ", by)
-                + " ORDER BY rowid DESC) AS \"__latest\" FROM " + name(u.from().name()) + ") WHERE \"__latest\" = 1";
+    /** The source's last row of each key (its row order: a table's, as its rows went in) as the key's version,
+     *  replacing the target's, its milestoning columns computed here -- the digest DuckDB's SHA-256 of the row's own
+     *  values as text, the batch the table's largest plus one, the open batch id -- and, with a delete indicator, a
+     *  last row it marks removing its key instead (lite's digest: register S406). */
+    private static List<String> upsert(HostOperation.Upsert u) {
+        String table = name(u.target());
+        String latest = "(SELECT *, row_number() OVER (PARTITION BY " + String.join(", ", u.key().stream()
+                .map(k -> quoted(fromOf(u, k))).toList()) + " ORDER BY rowid DESC) AS \"__latest\" FROM "
+                + name(u.from().name()) + ")";
+        HostOperation.DeleteWhen delete = u.delete();
+        String marked = delete == null ? null : marked(delete, "");
+        List<String> own = u.columns().stream().map(c -> quoted(c.from())).toList();
+        String insert = "INSERT OR REPLACE INTO " + table + " ("
+                + String.join(", ", u.columns().stream().map(c -> physicalName(c.target())).toList()) + ", "
+                + physicalName(u.milestones().digest()) + ", "
+                + physicalName(u.milestones().batchIn()) + ", "
+                + physicalName(u.milestones().batchOut()) + ") SELECT " + String.join(", ", own)
+                + ", sha256(CAST(ROW(" + String.join(", ", own) + ") AS VARCHAR)), (SELECT coalesce(max("
+                + physicalName(u.milestones().batchIn()) + "), 0) + 1 FROM " + table + "), "
+                + u.milestones().openBatch() + " FROM " + latest + " WHERE \"__latest\" = 1"
+                + (marked == null ? "" : " AND NOT coalesce(" + marked + ", false)");
+        if (delete == null) {
+            return List.of(insert);
+        }
+        String sameKey = String.join(" AND ", u.key().stream().map(k -> table + "." + physicalName(k) + " = \"l\"."
+                + quoted(fromOf(u, k))).toList());
+        return List.of(insert, "DELETE FROM " + table + " WHERE EXISTS (SELECT 1 FROM " + latest + " AS \"l\" WHERE"
+                + " \"l\".\"__latest\" = 1 AND " + marked(delete, "\"l\".") + " AND " + sameKey + ")");
+    }
+
+    /** A delete indicator's test: the field, as text, among its values. */
+    private static String marked(HostOperation.DeleteWhen d, String qualifier) {
+        return "CAST(" + qualifier + quoted(d.field()) + " AS VARCHAR) IN (" + String.join(", ", d.values().stream()
+                .map(DuckDbHostOperations::literal).toList()) + ")";
+    }
+
+    /** The source column the target's column {@code target} is read from. */
+    private static String fromOf(HostOperation.Upsert u, String target) {
+        return u.columns().stream().filter(c -> c.target().equals(target)).findFirst().orElseThrow().from();
     }
 
     /** Every row older, by arrival, than the latest {@code rows}: DuckDB's row order is its rows' arrival, kept across

@@ -26,8 +26,9 @@ import java.util.Set;
  *   file and a synthesized table are made: {@link LoadPlanner#hostFile}, {@link Synthesize});</li>
  *   <li><b>land</b>: one batch -- the value the host holds under {@code held}, attached by name as the planner's own
  *   relation (the host holds it, the plan never does), put in by the dataset's write mode ({@code append_only} an insert
- *   from it, {@code latest_by_key} an upsert: each key's last row of the batch replacing the table's), the attached copy
- *   dropped before and after;</li>
+ *   from it, {@code batch_milestoned} kept current an upsert: each key's last row of the batch replacing the table's
+ *   version, its milestoning columns computed by the database, a row the ingest's delete indicator marks removing its
+ *   key; docs/DEPLOYMENT_DESIGN_2026_11_14.md §5), the attached copy dropped before and after;</li>
  *   <li><b>keep</b>, where the dataset keeps a retention: {@code LastRows(n)} the rows older than the latest n by arrival
  *   deleted, run when a tenth of n has arrived since the last ({@link Plans#keepEvery}, data the host reads).</li>
  * </ul>
@@ -76,6 +77,10 @@ public final class IngestPlanner {
         HostOperation.Name target = HostOperation.Name.declared(table.schema(), table.table());
         List<HostOperation.Column> columns = def.columns().stream()
                 .map(c -> new HostOperation.Column(c.name(), c.name())).toList();
+        // a batch's own columns: the milestoning columns are the landing's, never a delivery's
+        List<String> lake = List.of(com.legend.protocol.IngestWords.LAKE_DIGEST,
+                com.legend.protocol.IngestWords.LAKE_IN_ID, com.legend.protocol.IngestWords.LAKE_OUT_ID);
+        List<HostOperation.Column> own = columns.stream().filter(c -> !lake.contains(c.target())).toList();
         ExecutionPlan.Target into = Targets.of(new ExecutionPlan.Database.Platform(type, null), dialect);
 
         // make: the table as declared, empty
@@ -90,10 +95,22 @@ public final class IngestPlanner {
         String mode = ingest.writeModeOf(dataset);
         HostOperation put = switch (mode == null ? "" : mode) {
             case "append_only" -> new HostOperation.Insert(target, columns, from);
-            case "latest_by_key" -> new HostOperation.Upsert(target, columns, dataset.primaryKey(), from);
+            case "batch_milestoned" -> {
+                Protocol.PIngestDeleteIndicator d = ingest.ingest().readMode() == null ? null
+                        : ingest.ingest().readMode().deleteIndicator();
+                // the key the table declares: written, or the read table's (IngestDefinition.database)
+                List<String> key = def.columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
+                        .map(DatabaseDefinition.ColumnDefinition::name).toList();
+                yield new HostOperation.Upsert(target, own, key, from,
+                        new HostOperation.Milestones(com.legend.protocol.IngestWords.LAKE_DIGEST,
+                                com.legend.protocol.IngestWords.LAKE_IN_ID, com.legend.protocol.IngestWords.LAKE_OUT_ID,
+                                com.legend.protocol.IngestWords.OPEN_BATCH_ID),
+                        d == null ? null : new HostOperation.DeleteWhen(d.deleteField(), d.deleteValues()));
+            }
             default -> throw new IllegalArgumentException("the ingest " + ingest.qualifiedName() + "'s dataset "
                     + dataset.name() + " lands " + (mode == null ? "by no write mode" : "as " + mode)
-                    + ": an ingest's plans land appended (AppendOnly) or latest by key (LatestByKey) rows");
+                    + ": an ingest's plans land appended (AppendOnly) or keyed, each key's current version kept"
+                    + " (BatchMilestoned)");
         };
         com.legend.setup.LoadSteps.Builder landed = new com.legend.setup.LoadSteps.Builder();
         List<String> drop = host.statements(new HostOperation.Drop(HostOperation.Kind.TABLE, landing));

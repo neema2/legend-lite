@@ -24,8 +24,12 @@ import java.util.Optional;
  * typed: refused by name until that lands (docs/DESK_DATA_ROADMAP_2026_10_29.md stage F).
  *
  * <p>The checks the design's §7 asks of an ingest run here, where its tables are made: a dataset's key is among its
- * columns, {@code LatestByKey} has a key, a {@code retention} is only on appended data, a pulled dataset is a query of
- * another store. Batch milestoning adds columns lite does not make yet: refused by name.
+ * columns, a batch milestoned dataset has a key, a {@code retention} is only on appended data, a pulled dataset is a
+ * query of another store, a delete indicator's field is each of the ingest's datasets' and none is appended. A batch
+ * milestoned dataset lands with upstream's three columns after its own -- {@code LAKE_DIGEST} VARCHAR(64), {@code
+ * LAKE_IN_ID} and {@code LAKE_OUT_ID} BIGINT, none null (legend-studio's lakehouse Cube round trip) -- its latest rows
+ * {@code LAKE_OUT_ID = 999999999} (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5). Business temporal milestoning adds two more
+ * lite does not make yet: refused by name.
  */
 public record IngestDefinition(String qualifiedName, Protocol.PIngest ingest) implements PackageableElement {
 
@@ -65,25 +69,31 @@ public record IngestDefinition(String qualifiedName, Protocol.PIngest ingest) im
         return new TableRead(db.fullPath(), parts.size() == 2 ? RelationalIdentifier.bare(parts.get(0)) : null, last);
     }
 
-    /** The database this ingest makes, its tables' columns and keys; refused by name where the design's checks fail. */
+    /** The database this ingest makes, its tables' columns and keys; refused by name where the design's checks fail. A
+     *  dataset that reads another store's table takes its key as it takes its columns, the table's, unless it writes
+     *  its own ({@code pk=}; docs/DEPLOYMENT_DESIGN_2026_11_14.md §4). */
     public DatabaseDefinition database(TableLookup tables) {
-        boolean pull = ingest.readMode() instanceof Protocol.PIngestPull;
+        boolean pull = ingest.schedule() != null;
+        Protocol.PIngestDeleteIndicator delete = ingest.readMode() == null ? null : ingest.readMode().deleteIndicator();
         List<DatabaseDefinition.TableDefinition> made = new ArrayList<>();
         for (Protocol.PIngestDataset d : ingest.datasets()) {
             String mode = writeModeOf(d);
             String where = "the ingest '" + qualifiedName + "''s dataset '" + d.name() + "'";
-            if ("batch_milestoned".equals(mode) || "batch_milestoned_business_temporal".equals(mode)) {
-                throw new IllegalArgumentException(where + " is batch milestoned: the milestoning columns it lands"
-                        + " with are not made yet");
+            if ("batch_milestoned_business_temporal".equals(mode)) {
+                throw new IllegalArgumentException(where + " is batch milestoned business temporal: the LAKE_FROM and"
+                        + " LAKE_THRU columns it lands with are not made yet");
             }
-            if ("latest_by_key".equals(mode) && d.primaryKey().isEmpty()) {
-                throw new IllegalArgumentException(where + " lands latest by key and names no key (pk=[ ... ])");
-            }
+            boolean milestoned = "batch_milestoned".equals(mode);
             if (d.retention() != null && !"append_only".equals(mode)) {
                 throw new IllegalArgumentException(where + " keeps a retention, which only appended data has"
                         + " (writeMode=AppendOnly)");
             }
-            List<DatabaseDefinition.ColumnDefinition> columns = new ArrayList<>();
+            if (delete != null && !milestoned) {
+                throw new IllegalArgumentException(where + " is not batch milestoned, so a delete indicator has no key"
+                        + " to remove: an ingest with deletes lands its datasets BatchMilestoned");
+            }
+            List<String> key = d.primaryKey();
+            List<DatabaseDefinition.ColumnDefinition> read = new ArrayList<>();
             switch (d.source()) {
                 case Protocol.PIngestColumns written -> {
                     if (pull) {
@@ -91,31 +101,61 @@ public record IngestDefinition(String qualifiedName, Protocol.PIngest ingest) im
                                 + " store (|#>{db.table}#), not columns written out");
                     }
                     for (TypeExpression.Column c : written.columns()) {
-                        columns.add(new DatabaseDefinition.ColumnDefinition(c.name(), columnType(where, c),
-                                d.primaryKey().contains(c.name()), notNull(where, c)));
+                        read.add(new DatabaseDefinition.ColumnDefinition(c.name(), columnType(where, c), false,
+                                notNull(where, c)));
                     }
                 }
                 case Protocol.PIngestFunction f -> {
-                    TableRead read = tableRead(d);
-                    if (read == null) {
+                    TableRead source = tableRead(d);
+                    if (source == null) {
                         throw new IllegalArgumentException(where + " is made by a function other than a read of a"
                                 + " table (|#>{db.table}#): a materialized view, which is not typed yet");
                     }
-                    DatabaseDefinition.TableDefinition source = tables.find(read.database(), read.schema(),
-                                    read.table())
+                    DatabaseDefinition.TableDefinition table = tables.find(source.database(), source.schema(),
+                                    source.table())
                             .orElseThrow(() -> new IllegalArgumentException(where + " reads the table '"
-                                    + (read.schema() == null ? "" : read.schema() + ".") + read.table() + "' of '"
-                                    + read.database() + "', which it does not declare"));
-                    for (DatabaseDefinition.ColumnDefinition c : source.columns()) {
-                        columns.add(new DatabaseDefinition.ColumnDefinition(c.name(), c.dataType(),
-                                d.primaryKey().contains(c.name()), c.notNull(), c.quoted()));
+                                    + (source.schema() == null ? "" : source.schema() + ".") + source.table() + "' of '"
+                                    + source.database() + "', which it does not declare"));
+                    read.addAll(table.columns());
+                    if (key.isEmpty()) {
+                        key = table.columns().stream().filter(DatabaseDefinition.ColumnDefinition::primaryKey)
+                                .map(DatabaseDefinition.ColumnDefinition::name).toList();
                     }
                 }
             }
-            for (String key : d.primaryKey()) {
-                if (columns.stream().noneMatch(c -> c.name().equals(key))) {
-                    throw new IllegalArgumentException(where + "'s key '" + key + "' is not one of its columns");
+            List<String> keyOf = key;
+            for (String k : keyOf) {
+                if (read.stream().noneMatch(c -> c.name().equals(k))) {
+                    throw new IllegalArgumentException(where + "'s key '" + k + "' is not one of its columns");
                 }
+            }
+            if (milestoned && keyOf.isEmpty()) {
+                throw new IllegalArgumentException(where + " is batch milestoned and names no key (pk=[ ... ], or the"
+                        + " read table's primary key): its versions are each key's");
+            }
+            if (delete != null && read.stream().noneMatch(c -> c.name().equals(delete.deleteField()))) {
+                throw new IllegalArgumentException(where + " has no column '" + delete.deleteField() + "', the field"
+                        + " its ingest's delete indicator reads");
+            }
+            List<DatabaseDefinition.ColumnDefinition> columns = new ArrayList<>();
+            for (DatabaseDefinition.ColumnDefinition c : read) {
+                columns.add(new DatabaseDefinition.ColumnDefinition(c.name(), c.dataType(), keyOf.contains(c.name()),
+                        c.notNull(), c.quoted()));
+            }
+            if (milestoned) {
+                for (String lake : List.of(com.legend.protocol.IngestWords.LAKE_DIGEST,
+                        com.legend.protocol.IngestWords.LAKE_IN_ID, com.legend.protocol.IngestWords.LAKE_OUT_ID)) {
+                    if (columns.stream().anyMatch(c -> c.name().equals(lake))) {
+                        throw new IllegalArgumentException(where + " declares the column '" + lake + "', which its"
+                                + " batch milestoning adds");
+                    }
+                }
+                columns.add(new DatabaseDefinition.ColumnDefinition(com.legend.protocol.IngestWords.LAKE_DIGEST,
+                        new RelationalDataType.Varchar(64), false, true));
+                columns.add(new DatabaseDefinition.ColumnDefinition(com.legend.protocol.IngestWords.LAKE_IN_ID,
+                        new RelationalDataType.BigInt(), false, true));
+                columns.add(new DatabaseDefinition.ColumnDefinition(com.legend.protocol.IngestWords.LAKE_OUT_ID,
+                        new RelationalDataType.BigInt(), false, true));
             }
             made.add(new DatabaseDefinition.TableDefinition(d.name(), columns));
         }

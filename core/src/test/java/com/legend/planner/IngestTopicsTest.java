@@ -32,16 +32,16 @@ class IngestTopicsTest {
             )
 
             ###Lakehouse
-            Ingest t::Feed Stream
+            Ingest t::Feed Delta<JSON>
             [
-              TRADES( |#>{t::Topics."tp.trades.v1"}# ) pk=[ ID ] writeMode=AppendOnly retention=LastRows(500);
-              QUOTES( |#>{t::Topics."tp.quotes.v1"}# ) pk=[ SYM ] writeMode=LatestByKey;
+              TRADES( |#>{t::Topics."tp.trades.v1"}# ) writeMode=AppendOnly retention=LastRows(500);
+              QUOTES( |#>{t::Topics."tp.quotes.v1"}# ) writeMode=BatchMilestoned;
             ]
-            Ingest t::Status Stream<Json>
+            Ingest t::Status Delta<JSON>
             [
-              status( item: Varchar(16)[1], state: Varchar(16)[1] ) pk=[ item ] writeMode=LatestByKey;
+              status( item: Varchar(16)[1], state: Varchar(16)[1] ) pk=[ item ] writeMode=BatchMilestoned;
             ]
-            Ingest t::Names Pull<Daily('06:00', 'America/New_York')> writeMode=LatestByKey
+            Ingest t::Names Snapshot writeMode=BatchMilestoned schedule=Daily('06:00', 'America/New_York')
             [
               NAMES( |#>{t::Master.NAMES_V}# ) pk=[ SYM ];
             ]
@@ -71,10 +71,11 @@ class IngestTopicsTest {
         assertEquals(List.of(), trades.key(), "appended: no key a topic keeps the latest of");
         assertEquals(500L, trades.keepRows());
         IngestTopics.Topic quotes = topics.get(1);
-        assertEquals(List.of("SYM"), quotes.key(), "latest by key: a compacted topic, by the dataset's key");
+        assertEquals(List.of("SYM"), quotes.key(), "batch milestoned: a compacted topic, by the read table's key");
         assertEquals(null, quotes.keepRows());
         assertEquals(List.of("item"), topics.get(2).key());
-        assertEquals(List.of("item", "state"), topics.get(2).columns().stream().map(IngestTopics.Column::name).toList());
+        assertEquals(List.of("item", "state"), topics.get(2).columns().stream().map(IngestTopics.Column::name).toList(),
+                "a record carries no milestoning column");
     }
 
     @Test

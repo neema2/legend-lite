@@ -282,21 +282,38 @@ class HostOperationsTest {
         }
     }
 
-    /** An ingest's landing on DuckDB (docs/DESK_DATA_ROADMAP_2026_10_29.md C0), as spelled: an upsert keeps the latest
-     *  row a key -- a batch's last of a key -- and a retention keeps a table's latest rows by arrival, its row order. */
+    /** An ingest's landing on DuckDB (docs/DESK_DATA_ROADMAP_2026_10_29.md C0; docs/DEPLOYMENT_DESIGN_2026_11_14.md
+     *  §5), as spelled: an upsert keeps a batch milestoned table's current version a key -- a batch's last of a key --
+     *  its milestoning columns computed by DuckDB, a marked last row removing its key; a retention keeps a table's
+     *  latest rows by arrival, its row order. */
     @Test
     void anIngestsUpsertAndRetention() throws Exception {
         var quote = HostOperation.Name.declared(null, "QUOTE");
         var staged = new HostOperation.Source.Relation(HostOperation.Name.of("__staged"));
+        var lake = new HostOperation.Milestones("LAKE_DIGEST", "LAKE_IN_ID", "LAKE_OUT_ID", 999_999_999L);
         var upsert = new HostOperation.Upsert(quote, List.of(new HostOperation.Column("SYMBOL", "SYMBOL"),
-                new HostOperation.Column("BID", "bid")), List.of("SYMBOL"), staged);
-        assertEquals("INSERT OR REPLACE INTO QUOTE (SYMBOL, BID) SELECT \"SYMBOL\", \"bid\" FROM (SELECT *, row_number() OVER "
-                + "(PARTITION BY \"SYMBOL\" ORDER BY rowid DESC) AS \"__latest\" FROM \"__staged\") WHERE \"__latest\" = 1", one(upsert));
+                new HostOperation.Column("BID", "bid")), List.of("SYMBOL"), staged, lake, null);
+        String latest = "(SELECT *, row_number() OVER (PARTITION BY \"SYMBOL\" ORDER BY rowid DESC) AS \"__latest\""
+                + " FROM \"__staged\")";
+        assertEquals("INSERT OR REPLACE INTO QUOTE (SYMBOL, BID, LAKE_DIGEST, LAKE_IN_ID, LAKE_OUT_ID) SELECT \"SYMBOL\","
+                + " \"bid\", sha256(CAST(ROW(\"SYMBOL\", \"bid\") AS VARCHAR)), (SELECT coalesce(max(LAKE_IN_ID), 0) + 1"
+                + " FROM QUOTE), 999999999 FROM " + latest + " WHERE \"__latest\" = 1", one(upsert));
+        var deleting = new HostOperation.Upsert(quote, List.of(new HostOperation.Column("SYMBOL", "SYMBOL"),
+                new HostOperation.Column("BID", "bid")), List.of("SYMBOL"), staged, lake,
+                new HostOperation.DeleteWhen("gone", List.of("true", "Y")));
+        assertEquals(List.of("INSERT OR REPLACE INTO QUOTE (SYMBOL, BID, LAKE_DIGEST, LAKE_IN_ID, LAKE_OUT_ID) SELECT"
+                        + " \"SYMBOL\", \"bid\", sha256(CAST(ROW(\"SYMBOL\", \"bid\") AS VARCHAR)), (SELECT"
+                        + " coalesce(max(LAKE_IN_ID), 0) + 1 FROM QUOTE), 999999999 FROM " + latest + " WHERE \"__latest\""
+                        + " = 1 AND NOT coalesce(CAST(\"gone\" AS VARCHAR) IN ('true', 'Y'), false)",
+                "DELETE FROM QUOTE WHERE EXISTS (SELECT 1 FROM " + latest + " AS \"l\" WHERE \"l\".\"__latest\" = 1 AND"
+                        + " CAST(\"l\".\"gone\" AS VARCHAR) IN ('true', 'Y') AND QUOTE.SYMBOL = \"l\".\"SYMBOL\")"),
+                DUCK.statements(deleting));
+        assertThrows(IllegalArgumentException.class, () -> new HostOperation.DeleteWhen("gone", List.of()));
         var tape = HostOperation.Name.declared(null, "TAPE");
         var keep3 = new HostOperation.Bound(tape, 3);
         assertEquals("DELETE FROM TAPE WHERE rowid < (SELECT rowid FROM TAPE ORDER BY rowid DESC LIMIT 1 OFFSET 2)", one(keep3));
         assertThrows(IllegalArgumentException.class, () -> new HostOperation.Upsert(quote,
-                List.of(new HostOperation.Column("BID", "bid")), List.of("SYMBOL"), staged));
+                List.of(new HostOperation.Column("BID", "bid")), List.of("SYMBOL"), staged, lake, null));
         assertThrows(IllegalArgumentException.class, () -> new HostOperation.Bound(tape, 0));
 
         // run on DuckDB through an ingest's plans: planner/DuckDbIngestPlansTest

@@ -27,10 +27,10 @@ class DeephavenStartupTest {
             )
 
             ###Lakehouse
-            Ingest t::Feed Stream
+            Ingest t::Feed Delta<JSON>
             [
               TRADES( |#>{t::Topics."tp.trades.v1"}# ) pk=[ ID ] writeMode=AppendOnly retention=LastRows(500);
-              QUOTES( |#>{t::Topics."tp.quotes.v1"}# ) pk=[ SYM ] writeMode=LatestByKey;
+              QUOTES( |#>{t::Topics."tp.quotes.v1"}# ) pk=[ SYM ] writeMode=BatchMilestoned;
             ]
 
             ###Relational

@@ -315,6 +315,8 @@ falling behind) need a long-running test.
 ## 12. Risks and unknowns (to measure before promising)
 
 1. Materialized views in the tab's DuckDB: maintained incrementally, or only recomputed after each batch.
+   Lite's parser does not read upstream's ingest accessor `#I{ingest.dataset}#` yet (found 2026-11-15, step 0a):
+   the views' step adds it.
 2. The history tier: DuckDB writing Iceberg, Deephaven reading it, and the cut between history and live (their
    overlap, by key or by offset).
 3. `batch_milestoned`'s columns (`LAKE_IN_ID`, `LAKE_OUT_ID`; business temporal `LAKE_FROM`, `LAKE_THRU`), refused by

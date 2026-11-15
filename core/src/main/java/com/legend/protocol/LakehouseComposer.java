@@ -22,7 +22,13 @@ final class LakehouseComposer {
     static String ingest(Protocol.PIngest g, PureComposer.Style style) {
         StringBuilder b = new StringBuilder("Ingest ")
                 .append(DomainComposer.annotations(g.stereotypes(), g.taggedValues()))
-                .append(Composing.elementPath(g.pkg(), g.name())).append(' ').append(readMode(g.readMode()));
+                .append(Composing.elementPath(g.pkg(), g.name()));
+        if (g.readMode() != null) {
+            b.append(' ').append(g.readMode().kind());
+            if (g.readMode().format() != null) {
+                b.append('<').append(g.readMode().format()).append('>');
+            }
+        }
         if (g.owner() != null) {
             b.append(" owner=AppDir(production='").append(g.owner().production()).append('\'');
             if (g.owner().prodParallel() != null) {
@@ -36,22 +42,26 @@ final class LakehouseComposer {
         if (g.writeMode() != null) {
             b.append(" writeMode=").append(writeMode(g.writeMode()));
         }
+        if (g.readMode() != null && g.readMode().deleteIndicator() != null) {
+            Protocol.PIngestDeleteIndicator d = g.readMode().deleteIndicator();
+            List<String> values = new ArrayList<>();
+            for (String v : d.deleteValues()) {
+                values.add(quoted(v));
+            }
+            b.append(" deleteIndicator=DeleteIndicator(deleteField=").append(quoted(d.deleteField()))
+                    .append(", deleteValues=[").append(String.join(", ", values)).append("])");
+        }
+        if (g.schedule() != null) {
+            b.append(" schedule=").append(switch (g.schedule()) {
+                case Protocol.PIngestDaily d -> "Daily(" + quoted(d.time()) + ", " + quoted(d.zone()) + ")";
+                case Protocol.PIngestEvery e -> "Every(" + quoted(e.period()) + ")";
+            });
+        }
         b.append("\n[\n");
         for (Protocol.PIngestDataset d : g.datasets()) {
             b.append(TAB).append(dataset(d, style)).append('\n');
         }
         return b.append(']').toString();
-    }
-
-    private static String readMode(Protocol.PIngestReadMode m) {
-        return switch (m) {
-            case Protocol.PIngestFiles f -> f.kind() + "<" + f.format() + ">";
-            case Protocol.PIngestStream s -> s.format() == null ? "Stream" : "Stream<" + s.format() + ">";
-            case Protocol.PIngestPull p -> "Pull<" + switch (p.schedule()) {
-                case Protocol.PIngestDaily d -> "Daily(" + quoted(d.time()) + ", " + quoted(d.zone()) + ")";
-                case Protocol.PIngestEvery e -> "Every(" + quoted(e.period()) + ")";
-            } + ">";
-        };
     }
 
     private static String dataset(Protocol.PIngestDataset d, PureComposer.Style style) {

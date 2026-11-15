@@ -2035,14 +2035,17 @@ public final class Protocol {
     /**
      * A {@code ###Lakehouse} Ingest -- {@code _type:"ingestDefinition"}: where datasets land, how their rows arrive
      * (the read mode) and how they land (the write mode). Legend's element, its grammar closed: the wire is read from
-     * legend-studio's round-trip fixtures, the written forms Studio shows kept, lite's additions (a stream, a pull,
-     * latest by key, a retention) declared (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN-lakehouse;
-     * docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §3a). Lite's dialect reads it; the engine's refuses the section.
+     * legend-studio's round-trip fixtures, the written forms Studio shows kept, lite's additions (a pull's schedule, a
+     * retention) declared (docs/OWN_CORPUS_DECISIONS.md LITE-DESIGN-lakehouse; docs/DEPLOYMENT_DESIGN_2026_11_14.md
+     * §5). Lite's dialect reads it; the engine's refuses the section.
      */
     public record PIngest(String pkg, String name,
                           List<PStereotype> stereotypes,
                           List<PTaggedValue> taggedValues,
-                          PIngestReadMode readMode,
+                          /** null for an ingest of materialized views alone (legend-studio's fixtures hold one) */
+                          @com.legend.base.Nullable PIngestReadMode readMode,
+                          /** lite's: a pull's schedule -- each dataset a query of another store, run then */
+                          @com.legend.base.Nullable PIngestSchedule schedule,
                           @com.legend.base.Nullable PIngestOwner owner,
                           @com.legend.base.Nullable String datasetGroup,
                           /** the wire's write mode for every dataset that names none; null when unwritten */
@@ -2056,8 +2059,8 @@ public final class Protocol {
 
         /** This ingest with {@code datasets} in place of its own (the name resolver's rewrite of their functions). */
         public PIngest withDatasets(List<PIngestDataset> datasets) {
-            return new PIngest(pkg, name, stereotypes, taggedValues, readMode, owner, datasetGroup, writeMode, datasets,
-                    sourceInformation);
+            return new PIngest(pkg, name, stereotypes, taggedValues, readMode, schedule, owner, datasetGroup, writeMode,
+                    datasets, sourceInformation);
         }
     }
 
@@ -2066,23 +2069,20 @@ public final class Protocol {
     public record PIngestOwner(String production, @com.legend.base.Nullable String prodParallel) {
     }
 
-    /** How an ingest's rows arrive. */
-    public sealed interface PIngestReadMode permits PIngestFiles, PIngestStream, PIngestPull {
+    /** What each delivery of an ingest holds -- Legend's read modes (legend-studio {@code V1_IngestReadModeType}):
+     *  {@code Snapshot} (the whole set each time: a key missing is gone) or {@code Delta} (the changes), in a format
+     *  ({@code CSV}, {@code Parquet}, {@code JSON}, {@code Avro}: {@code V1_IngestMessageFormatType}; null when the rows
+     *  are a query's, a pull's), a delta's deletes marked by a delete indicator. */
+    public record PIngestReadMode(String kind, @com.legend.base.Nullable String format,
+                                  @com.legend.base.Nullable PIngestDeleteIndicator deleteIndicator) {
     }
 
-    /** Legend's: files a producer drops, {@code Snapshot} (the whole set each time) or {@code Delta} (the changes), in
-     *  {@code CSV} or {@code Parquet}. */
-    public record PIngestFiles(String kind, String format) implements PIngestReadMode {
-    }
-
-    /** Lite's: rows arriving live -- from the topic each dataset's function reads, or, for a dataset whose columns are
-     *  written out, written into the ingest's own topic by its producer, in {@code format} ({@code Json},
-     *  {@code Avro}; null when the dataset's source says it). */
-    public record PIngestStream(@com.legend.base.Nullable String format) implements PIngestReadMode {
-    }
-
-    /** Lite's: each dataset's function run on a schedule, each run the whole set. */
-    public record PIngestPull(PIngestSchedule schedule) implements PIngestReadMode {
+    /** {@code deleteIndicator=DeleteIndicator(deleteField='DELETED', deleteValues=['true'])}: a delta's row whose
+     *  field holds one of the values removes its key (legend-studio {@code V1_IngestDeleteIndicator}). */
+    public record PIngestDeleteIndicator(String deleteField, List<String> deleteValues) {
+        public PIngestDeleteIndicator {
+            deleteValues = List.copyOf(deleteValues);
+        }
     }
 
     /** When a pull runs. */

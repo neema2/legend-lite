@@ -32,16 +32,21 @@ class DuckDbIngestPlansTest {
 
     private static final String MODEL = """
             ###Lakehouse
-            Ingest t::Feed Stream
+            Ingest t::Feed Delta<JSON>
             [
               PRINTS( SYMBOL: Varchar(8), SEQ: BigInt[1], PRICE: Double ) pk=[ SEQ ] writeMode=AppendOnly retention=LastRows(20);
-              QUOTES( SYMBOL: Varchar(8)[1], BID: Double ) pk=[ SYMBOL ] writeMode=LatestByKey;
+              QUOTES( SYMBOL: Varchar(8)[1], BID: Double ) pk=[ SYMBOL ] writeMode=BatchMilestoned;
+            ]
+            Ingest t::Masters Delta<JSON> deleteIndicator=DeleteIndicator(deleteField='GONE', deleteValues=['true'])
+            [
+              NAMES( ID: Varchar(8)[1], NAME: Varchar(20), GONE: Boolean ) pk=[ ID ] writeMode=BatchMilestoned;
             ]
 
             ###Relational
             Database t::DB
             (
               include Ingest t::Feed
+              include Ingest t::Masters
               Table OWN (ID INTEGER PRIMARY KEY)
             )
             """;
@@ -123,8 +128,11 @@ class DuckDbIngestPlansTest {
         }
     }
 
+    /** A batch milestoned dataset kept current (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): each key's last row of a
+     *  batch its version, its milestoning columns the database's -- its batch the table's next, the open batch id, a
+     *  64-character digest -- and no retention. */
     @Test
-    void aLatestByKeyDatasetKeepsEachKeysLastRowAndNoRetention() throws Exception {
+    void aMilestonedDatasetKeepsEachKeysCurrentVersionAndNoRetention() throws Exception {
         IngestPlanner.Plans p = plans(MODEL, "QUOTES");
         assertNull(p.keep());
         assertNull(p.keepEvery());
@@ -132,7 +140,24 @@ class DuckDbIngestPlansTest {
             run(st, p.make(), null);
             run(st, p.land(), "SELECT * FROM (VALUES ('AAPL', 1.0), ('MSFT', 10.0), ('AAPL', 3.0)) t(SYMBOL, BID)");
             run(st, p.land(), "SELECT * FROM (VALUES ('MSFT', 12.0)) t(SYMBOL, BID)");
-            assertEquals(List.of("AAPL 3.0", "MSFT 12.0"), rows(st, "SELECT SYMBOL || ' ' || BID FROM QUOTES ORDER BY SYMBOL"));
+            assertEquals(List.of("AAPL 3.0 1 999999999 64", "MSFT 12.0 2 999999999 64"), rows(st, "SELECT SYMBOL || ' '"
+                    + " || BID || ' ' || LAKE_IN_ID || ' ' || LAKE_OUT_ID || ' ' || length(LAKE_DIGEST) FROM QUOTES"
+                    + " ORDER BY SYMBOL"));
+        }
+    }
+
+    /** The ingest's delete indicator: a key's last row it marks removes the key; an unmarked one is its version. */
+    @Test
+    void aDeleteIndicatorsRowRemovesItsKey() throws Exception {
+        IngestPlanner.Plans p = plans(MODEL, "NAMES");
+        try (Connection c = DriverManager.getConnection("jdbc:duckdb:"); Statement st = c.createStatement()) {
+            run(st, p.make(), null);
+            run(st, p.land(), "SELECT * FROM (VALUES ('A', 'Apple', false), ('B', 'Bank', false), ('C', 'Corp', false))"
+                    + " t(ID, NAME, GONE)");
+            run(st, p.land(), "SELECT * FROM (VALUES ('A', 'Apple Inc', false), ('B', NULL, true), ('Z', NULL, true),"
+                    + " ('C', NULL, true), ('C', 'Corp 2', NULL)) t(ID, NAME, GONE)");
+            assertEquals(List.of("A Apple Inc 2", "C Corp 2 2"), rows(st, "SELECT ID || ' ' || NAME || ' ' || LAKE_IN_ID"
+                    + " FROM NAMES ORDER BY ID"));
         }
     }
 

@@ -25,10 +25,13 @@ import java.util.Set;
  * </pre>
  *
  * and every other field is spelled by that form's conventions, {@code key=value} on the header and each dataset, the
- * key the wire's field name: {@code datasetGroup=}, {@code writeMode=}, {@code retention=}, {@code
- * privacyClassification=} and the partition and cluster column lists. Lite's additions are the read modes {@code
- * Stream} and {@code Pull<schedule>}, the write mode {@code LatestByKey}, a dataset's {@code retention}, and a dataset
- * made by a function, {@code NAME( |<lambda> )}.
+ * key the wire's field name: {@code datasetGroup=}, {@code writeMode=}, {@code deleteIndicator=}, {@code retention=},
+ * {@code privacyClassification=} and the partition and cluster column lists. The read modes and formats are Legend's
+ * ({@code Snapshot}, {@code Delta}; {@code CSV}, {@code Parquet}, {@code JSON}, {@code Avro}); an ingest of materialized
+ * views alone writes none, as legend-studio's fixtures hold one. Lite's additions (docs/DEPLOYMENT_DESIGN_2026_11_14.md
+ * §5): a pull's {@code schedule=}, a dataset's {@code retention}, and a dataset made by a read of another store's table
+ * ({@code |#>{db.table}#}). Lite's retired words ({@code Stream}, {@code Pull<...>}, {@code LatestByKey}) are refused
+ * by name with their replacements.
  *
  * <p>The engine's dialect never reaches here: it refuses the section as unknown, in its own words
  * ({@code PmcdParser}). The SPI's re-lex does (at the engine's dialect), and is refused the same way.
@@ -59,10 +62,31 @@ public final class LakehouseSectionGrammar implements ElementwiseSectionGrammar 
         return parseIngest(c);
     }
 
-    /** {@code Ingest qn <read mode> [key=value ...] [ <datasets> ]}. */
+    /** {@code Ingest qn [<read mode>] [key=value ...] [ <datasets> ]}. */
     private static Protocol.PIngest parseIngest(TokenStreamCursor c) {
         SectionParse.Head h = SectionParse.head(c, "Ingest");
-        Protocol.PIngestReadMode readMode = parseReadMode(c);
+        // a read mode is a word not followed by '=' (a header field is); none for an ingest of views alone
+        String kind = null;
+        String format = null;
+        if (c.peek() != TokenType.BRACKET_OPEN && c.peek(1) != TokenType.EQUAL) {
+            kind = c.parseIdentifier();
+            String retired = com.legend.protocol.IngestWords.RETIRED_READ_MODES.get(kind);
+            if (retired != null) {
+                throw c.error(retired);
+            }
+            if (!com.legend.protocol.IngestWords.READ_MODES.contains(kind)) {
+                throw c.error("unknown read mode '" + kind + "' (Snapshot, Delta)");
+            }
+            if (c.match(TokenType.LESS_THAN)) {
+                format = c.parseIdentifier();
+                if (!com.legend.protocol.IngestWords.FORMATS.contains(format)) {
+                    throw c.error("unknown format '" + format + "' (CSV, Parquet, JSON, Avro)");
+                }
+                c.expect(TokenType.GREATER_THAN);
+            }
+        }
+        Protocol.PIngestDeleteIndicator deleteIndicator = null;
+        Protocol.PIngestSchedule schedule = null;
         Protocol.PIngestOwner owner = null;
         String datasetGroup = null;
         String writeMode = null;
@@ -75,9 +99,22 @@ public final class LakehouseSectionGrammar implements ElementwiseSectionGrammar 
                 case "owner" -> owner = parseOwner(c);
                 case "datasetGroup" -> datasetGroup = c.parseIdentifier();
                 case "writeMode" -> writeMode = parseWriteMode(c);
-                default -> throw c.error("unknown Ingest field '" + key + "' (owner, datasetGroup, writeMode)");
+                case "deleteIndicator" -> deleteIndicator = parseDeleteIndicator(c);
+                case "schedule" -> schedule = parseSchedule(c);
+                default -> throw c.error("unknown Ingest field '" + key
+                        + "' (owner, datasetGroup, writeMode, deleteIndicator, schedule)");
             }
         }
+        if (deleteIndicator != null && !"Delta".equals(kind)) {
+            throw c.error("a delete indicator marks a delta's deletes: the ingest '" + h.name() + "' is "
+                    + (kind == null ? "no read" : kind) + ", not Delta");
+        }
+        if (schedule != null && !"Snapshot".equals(kind)) {
+            throw c.error("a pull's schedule runs a query for the whole set each time: the ingest '" + h.name()
+                    + "' is " + (kind == null ? "no read" : kind) + ", not Snapshot");
+        }
+        Protocol.PIngestReadMode readMode = kind == null ? null
+                : new Protocol.PIngestReadMode(kind, format, deleteIndicator);
         c.expect(TokenType.BRACKET_OPEN);
         List<Protocol.PIngestDataset> datasets = new ArrayList<>();
         Set<String> names = new HashSet<>();
@@ -93,61 +130,72 @@ public final class LakehouseSectionGrammar implements ElementwiseSectionGrammar 
             throw c.error("the ingest '" + h.name() + "' declares no dataset");
         }
         return new Protocol.PIngest(h.pkg(), h.name(), h.dec().stereotypes(), h.dec().taggedValues(), readMode,
-                owner, datasetGroup, writeMode, datasets, c.spanOf(h.declStart(), c.pos() - 1));
+                schedule, owner, datasetGroup, writeMode, datasets, c.spanOf(h.declStart(), c.pos() - 1));
     }
 
-    /** {@code Snapshot<CSV>}, {@code Delta<Parquet>}, {@code Stream}, {@code Stream<Json>},
-     *  {@code Pull<Daily('06:00', 'America/New_York')>}, {@code Pull<Every('PT15M')>}. */
-    private static Protocol.PIngestReadMode parseReadMode(TokenStreamCursor c) {
+    /** {@code DeleteIndicator(deleteField='DELETED', deleteValues=['true', 'Y'])}. */
+    private static Protocol.PIngestDeleteIndicator parseDeleteIndicator(TokenStreamCursor c) {
         String kind = c.parseIdentifier();
-        return switch (kind) {
-            case "Snapshot", "Delta" -> {
-                c.expect(TokenType.LESS_THAN);
-                String format = c.parseIdentifier();
-                if (!format.equals("CSV") && !format.equals("Parquet")) {
-                    throw c.error("unknown file format '" + format + "' (CSV, Parquet)");
-                }
-                c.expect(TokenType.GREATER_THAN);
-                yield new Protocol.PIngestFiles(kind, format);
-            }
-            case "Stream" -> {
-                String format = null;
-                if (c.match(TokenType.LESS_THAN)) {
-                    format = c.parseIdentifier();
-                    if (!format.equals("Json") && !format.equals("Avro")) {
-                        throw c.error("unknown stream format '" + format + "' (Json, Avro)");
-                    }
-                    c.expect(TokenType.GREATER_THAN);
-                }
-                yield new Protocol.PIngestStream(format);
-            }
-            case "Pull" -> {
-                c.expect(TokenType.LESS_THAN);
-                String schedule = c.parseIdentifier();
-                c.expect(TokenType.PAREN_OPEN);
-                Protocol.PIngestSchedule s = switch (schedule) {
-                    case "Daily" -> {
-                        String time = SectionParse.stringValue(c);
-                        if (!com.legend.protocol.IngestWords.isTimeOfDay(time)) {
-                            throw c.error("a pull's time of day is HH:MM, not '" + time + "'");
+        if (!kind.equals("DeleteIndicator")) {
+            throw c.error("unknown delete indicator '" + kind + "' (DeleteIndicator)");
+        }
+        c.expect(TokenType.PAREN_OPEN);
+        String field = null;
+        List<String> values = null;
+        Set<String> seen = new HashSet<>();
+        while (c.peek() != TokenType.PAREN_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c);
+            c.expect(TokenType.EQUAL);
+            switch (key) {
+                case "deleteField" -> field = SectionParse.stringValue(c);
+                case "deleteValues" -> {
+                    c.expect(TokenType.BRACKET_OPEN);
+                    values = new ArrayList<>();
+                    while (c.peek() != TokenType.BRACKET_CLOSE) {
+                        values.add(SectionParse.stringValue(c));
+                        if (c.peek() != TokenType.BRACKET_CLOSE) {
+                            c.expect(TokenType.COMMA);
                         }
-                        c.expect(TokenType.COMMA);
-                        String zone = SectionParse.stringValue(c);
-                        if (!com.legend.protocol.IngestWords.isZone(zone)) {
-                            throw c.error("a pull's time zone is a named zone (America/New_York, UTC), not '"
-                                    + zone + "'");
-                        }
-                        yield new Protocol.PIngestDaily(time, zone);
                     }
-                    case "Every" -> new Protocol.PIngestEvery(duration(c, "a pull's interval"));
-                    default -> throw c.error("unknown pull schedule '" + schedule + "' (Daily, Every)");
-                };
-                c.expect(TokenType.PAREN_CLOSE);
-                c.expect(TokenType.GREATER_THAN);
-                yield new Protocol.PIngestPull(s);
+                    c.expect(TokenType.BRACKET_CLOSE);
+                }
+                default -> throw c.error("unknown DeleteIndicator field '" + key + "' (deleteField, deleteValues)");
             }
-            default -> throw c.error("unknown read mode '" + kind + "' (Snapshot, Delta, Stream, Pull)");
+            if (c.peek() != TokenType.PAREN_CLOSE) {
+                c.expect(TokenType.COMMA);
+            }
+        }
+        c.expect(TokenType.PAREN_CLOSE);
+        if (field == null || values == null || values.isEmpty()) {
+            throw c.error("a delete indicator names its field and at least one value (deleteField='...',"
+                    + " deleteValues=['...'])");
+        }
+        return new Protocol.PIngestDeleteIndicator(field, values);
+    }
+
+    /** {@code Daily('06:00', 'America/New_York')} or {@code Every('PT15M')}. */
+    private static Protocol.PIngestSchedule parseSchedule(TokenStreamCursor c) {
+        String schedule = c.parseIdentifier();
+        c.expect(TokenType.PAREN_OPEN);
+        Protocol.PIngestSchedule s = switch (schedule) {
+            case "Daily" -> {
+                String time = SectionParse.stringValue(c);
+                if (!com.legend.protocol.IngestWords.isTimeOfDay(time)) {
+                    throw c.error("a pull's time of day is HH:MM, not '" + time + "'");
+                }
+                c.expect(TokenType.COMMA);
+                String zone = SectionParse.stringValue(c);
+                if (!com.legend.protocol.IngestWords.isZone(zone)) {
+                    throw c.error("a pull's time zone is a named zone (America/New_York, UTC), not '" + zone + "'");
+                }
+                yield new Protocol.PIngestDaily(time, zone);
+            }
+            case "Every" -> new Protocol.PIngestEvery(duration(c, "a pull's interval"));
+            default -> throw c.error("unknown pull schedule '" + schedule + "' (Daily, Every)");
         };
+        c.expect(TokenType.PAREN_CLOSE);
+        return s;
     }
 
     /** {@code AppDir(production='111111', prodParallel='222222')}. */
@@ -186,10 +234,12 @@ public final class LakehouseSectionGrammar implements ElementwiseSectionGrammar 
 
     private static String parseWriteMode(TokenStreamCursor c) {
         String word = c.parseIdentifier();
+        if (word.equals("LatestByKey")) {
+            throw c.error(com.legend.protocol.IngestWords.RETIRED_LATEST_BY_KEY);
+        }
         String wire = com.legend.protocol.IngestWords.writeModeWire(word);
         if (wire == null) {
-            throw c.error("unknown write mode '" + word
-                    + "' (AppendOnly, BatchMilestoned, BatchMilestonedBusinessTemporal, LatestByKey)");
+            throw c.error("unknown write mode '" + word + "' (AppendOnly, BatchMilestoned, BatchMilestonedBusinessTemporal)");
         }
         return wire;
     }

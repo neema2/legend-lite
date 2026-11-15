@@ -156,13 +156,16 @@ public sealed interface HostOperation {
     }
 
     /**
-     * Rows put into a keyed table from a table of the database (an ingest's latest-by-key landing, {@code
-     * planner.IngestPlanner}; docs/DESK_DATA_ROADMAP_2026_10_29.md C0):
-     * each the latest row of its {@code key} -- the target's columns, its primary key's -- so a row of the key the table
-     * holds is replaced, and of the source's rows of one key its last is put in. Each target column from the source's
-     * column {@link Column#from}, the key's columns among them.
+     * Rows put into a batch milestoned table kept current, from a table of the database (an ingest's landing on a
+     * live target, {@code planner.IngestPlanner}; docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): of the source's rows of one
+     * {@code key} -- the target's primary key -- its last is the key's version, replacing the one the table holds, with
+     * upstream's three columns after its own: {@code LAKE_DIGEST} a hash of its own values, {@code LAKE_IN_ID} the
+     * table's next batch (its largest plus one: one batch a landing), {@code LAKE_OUT_ID} the open batch id. A last row
+     * the {@code delete} indicator marks removes its key instead. The database computes every value; the operation
+     * holds none. Each target column from the source's column {@link Column#from}, the key's columns among them.
      */
-    record Upsert(Name target, List<Column> columns, List<String> key, Source.Relation from) implements HostOperation {
+    record Upsert(Name target, List<Column> columns, List<String> key, Source.Relation from, Milestones milestones,
+            @com.legend.base.Nullable DeleteWhen delete) implements HostOperation {
         public Upsert {
             columns = List.copyOf(columns);
             key = List.copyOf(key);
@@ -173,6 +176,22 @@ public sealed interface HostOperation {
                 if (columns.stream().noneMatch(c -> c.target().equals(k))) {
                     throw new IllegalArgumentException("an upsert puts in its key's column " + k);
                 }
+            }
+        }
+    }
+
+    /** A milestoned table's three columns after its own, and the open version's batch id (the planner's, from the
+     *  ingest's words: upstream's {@code LAKE_DIGEST}, {@code LAKE_IN_ID}, {@code LAKE_OUT_ID}, {@code 999999999}). */
+    record Milestones(String digest, String batchIn, String batchOut, long openBatch) {
+    }
+
+    /** A delete indicator's test of a row: its {@code field}, read as text, among {@code values} (an ingest's
+     *  {@code DeleteIndicator(deleteField=..., deleteValues=[...])}, upstream's {@code V1_IngestDeleteIndicator}). */
+    record DeleteWhen(String field, List<String> values) {
+        public DeleteWhen {
+            values = List.copyOf(values);
+            if (values.isEmpty()) {
+                throw new IllegalArgumentException("a delete indicator names at least one value");
             }
         }
     }

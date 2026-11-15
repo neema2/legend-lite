@@ -14,13 +14,42 @@ public final class IngestWords {
     private IngestWords() {
     }
 
-    /** The write modes, written and on the wire: Legend's three (the wire's values, legend-studio's
-     *  {@code V1_WriteModeType}), then lite's. */
+    /** The write modes, written and on the wire: Legend's three, the wire's values legend-studio's
+     *  {@code V1_WriteModeType}. */
     private static final java.util.Map<String, String> WRITE_MODES = java.util.Map.of(
             "AppendOnly", "append_only",
             "BatchMilestoned", "batch_milestoned",
-            "BatchMilestonedBusinessTemporal", "batch_milestoned_business_temporal",
-            "LatestByKey", "latest_by_key");
+            "BatchMilestonedBusinessTemporal", "batch_milestoned_business_temporal");
+
+    /** Lite's retired write mode, written and on the wire, refused by name with its replacement. */
+    public static final String RETIRED_LATEST_BY_KEY = "a dataset kept latest by key is BatchMilestoned"
+            + " (batch_milestoned, every version kept), its latest rows LAKE_OUT_ID = " + 999_999_999L
+            + " (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): LatestByKey is retired";
+
+    /** The read mode words, written and on the wire: Legend's ({@code V1_IngestReadModeType}). */
+    public static final java.util.List<String> READ_MODES = java.util.List.of("Snapshot", "Delta");
+
+    /** The message formats, written and on the wire: Legend's ({@code V1_IngestMessageFormatType}). */
+    public static final java.util.List<String> FORMATS = java.util.List.of("CSV", "Parquet", "JSON", "Avro");
+
+    /** Lite's retired read modes, each refused by name with its replacement. */
+    public static final java.util.Map<String, String> RETIRED_READ_MODES = java.util.Map.of(
+            "Stream", "a stream is Delta<JSON> (or Delta<Avro>), its datasets reading a topic store's tables or"
+                    + " delivered to the ingest's own topic (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): Stream is"
+                    + " retired",
+            "Pull", "a pull is Snapshot with schedule=Daily(...) or schedule=Every(...), its datasets queries of"
+                    + " another store (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): Pull<...> is retired");
+
+    /** The open version's batch id: upstream's infinite batch id (legend-engine's persistence component,
+     *  {@code InfiniteBatchIdValueVisitor.INFINITE_BATCH_ID}; legend-studio's lakehouse Cube round trip reads the
+     *  current rows by it). */
+    public static final long OPEN_BATCH_ID = 999_999_999L;
+
+    /** The columns a batch milestoned dataset lands with after its own, in upstream's order and types (legend-studio
+     *  {@code CubeIngest.engine-roundtrip-test.ts}: VARCHAR(64) and two BIGINTs, none null). */
+    public static final String LAKE_DIGEST = "LAKE_DIGEST";
+    public static final String LAKE_IN_ID = "LAKE_IN_ID";
+    public static final String LAKE_OUT_ID = "LAKE_OUT_ID";
 
     /** The wire's value of a written write mode, null for a word that is none. */
     public static @com.legend.base.Nullable String writeModeWire(String word) {

@@ -200,10 +200,13 @@ final class TailReader {
             owner = o.done(new Protocol.PIngestOwner(appDirNode(o.obj("production")), prodParallel));
         }
         String group = w.optStr("datasetGroup");
-        Protocol.PIngestReadMode readMode = ingestReadMode(w.obj("readMode"));
+        Wire rm = w.optObj("readMode");
+        Protocol.PIngestReadMode readMode = rm == null ? null : ingestReadMode(rm);
+        Wire sc = w.optObj("schedule");
+        Protocol.PIngestSchedule schedule = sc == null ? null : ingestSchedule(sc);
         String writeMode = ingestWriteMode(w.optObj("writeMode"));
         return new Protocol.PIngest(w.str("package"), w.str("name"), DomainReader.stereotypes(w),
-                DomainReader.taggedValues(w), readMode, owner, group, writeMode,
+                DomainReader.taggedValues(w), readMode, schedule, owner, group, writeMode,
                 w.list("datasets", TailReader::ingestDataset), w.span());
     }
 
@@ -219,54 +222,57 @@ final class TailReader {
     private static Protocol.PIngestReadMode ingestReadMode(Wire r) {
         String written = r.type();
         String type = written == null ? "" : written;
-        return switch (type) {
-            case "Snapshot", "Delta" -> {
-                Wire f = r.obj("format");
-                String fileFormat = f.type();
-                String format = fileFormat == null ? "" : fileFormat;
-                if (!format.equals("CSV") && !format.equals("Parquet")) {
-                    throw Wire.refuse("an ingest's file format '" + fileFormat + "' (CSV, Parquet)");
+        String retired = IngestWords.RETIRED_READ_MODES.get(type);
+        if (retired != null) {
+            throw Wire.refuse(retired);
+        }
+        if (!IngestWords.READ_MODES.contains(type)) {
+            throw Wire.refuse("an ingest's read mode '" + type + "' (Snapshot, Delta)");
+        }
+        String format = null;
+        Wire f = r.optObj("format");
+        if (f != null) {
+            String written2 = f.type();
+            if (written2 == null || !IngestWords.FORMATS.contains(written2)) {
+                throw Wire.refuse("an ingest's format '" + written2 + "' (CSV, Parquet, JSON, Avro)");
+            }
+            format = f.done(written2);
+        }
+        Protocol.PIngestDeleteIndicator delete = null;
+        Wire d = r.optObj("deleteIndicator");
+        if (d != null) {
+            if (!type.equals("Delta")) {
+                throw Wire.refuse("a delete indicator on a " + type + " read mode: it marks a delta's deletes");
+            }
+            String field = d.str("deleteField");
+            List<String> values = d.strings("deleteValues");
+            if (values.isEmpty()) {
+                throw Wire.refuse("a delete indicator with no value");
+            }
+            delete = d.done(new Protocol.PIngestDeleteIndicator(field, values));
+        }
+        return r.done(new Protocol.PIngestReadMode(type, format, delete));
+    }
+
+    private static Protocol.PIngestSchedule ingestSchedule(Wire s) {
+        String kind = s.type();
+        return switch (kind == null ? "" : kind) {
+            case "Daily" -> {
+                String time = s.str("time");
+                String zone = s.str("timeZone");
+                if (!IngestWords.isTimeOfDay(time) || !IngestWords.isZone(zone)) {
+                    throw Wire.refuse("a daily pull at '" + time + "' in '" + zone + "' (HH:MM in a named zone)");
                 }
-                f.done(format);
-                yield r.done(new Protocol.PIngestFiles(type, format));
+                yield s.done(new Protocol.PIngestDaily(time, zone));
             }
-            case "Stream" -> {
-                Wire f = r.optObj("format");
-                String format = null;
-                if (f != null) {
-                    String streamFormat = f.type();
-                    if (!"Json".equals(streamFormat) && !"Avro".equals(streamFormat)) {
-                        throw Wire.refuse("an ingest's stream format '" + streamFormat + "' (Json, Avro)");
-                    }
-                    format = f.done(streamFormat);
+            case "Every" -> {
+                String period = s.str("period");
+                if (!IngestWords.isDuration(period)) {
+                    throw Wire.refuse("a pull every '" + period + "' (an ISO 8601 duration)");
                 }
-                yield r.done(new Protocol.PIngestStream(format));
+                yield s.done(new Protocol.PIngestEvery(period));
             }
-            case "Pull" -> {
-                Wire s = r.obj("schedule");
-                String kind = s.type();
-                Protocol.PIngestSchedule schedule = switch (kind == null ? "" : kind) {
-                    case "Daily" -> {
-                        String time = s.str("time");
-                        String zone = s.str("timeZone");
-                        if (!IngestWords.isTimeOfDay(time) || !IngestWords.isZone(zone)) {
-                            throw Wire.refuse("a daily pull at '" + time + "' in '" + zone
-                                    + "' (HH:MM in a named zone)");
-                        }
-                        yield s.done(new Protocol.PIngestDaily(time, zone));
-                    }
-                    case "Every" -> {
-                        String period = s.str("period");
-                        if (!IngestWords.isDuration(period)) {
-                            throw Wire.refuse("a pull every '" + period + "' (an ISO 8601 duration)");
-                        }
-                        yield s.done(new Protocol.PIngestEvery(period));
-                    }
-                    default -> throw Wire.refuse("an ingest's pull schedule '" + kind + "' (Daily, Every)");
-                };
-                yield r.done(new Protocol.PIngestPull(schedule));
-            }
-            default -> throw Wire.refuse("an ingest's read mode '" + type + "' (Snapshot, Delta, Stream, Pull)");
+            default -> throw Wire.refuse("an ingest's pull schedule '" + kind + "' (Daily, Every)");
         };
     }
 
@@ -275,9 +281,12 @@ final class TailReader {
             return null;
         }
         String type = m.type();
+        if ("latest_by_key".equals(type)) {
+            throw Wire.refuse(IngestWords.RETIRED_LATEST_BY_KEY);
+        }
         if (type == null || IngestWords.writeModeWord(type) == null) {
             throw Wire.refuse("an ingest's write mode '" + type
-                    + "' (append_only, batch_milestoned, batch_milestoned_business_temporal, latest_by_key)");
+                    + "' (append_only, batch_milestoned, batch_milestoned_business_temporal)");
         }
         return m.done(type);
     }
