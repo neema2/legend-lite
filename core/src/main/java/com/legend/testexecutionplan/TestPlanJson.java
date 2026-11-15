@@ -44,8 +44,9 @@ public final class TestPlanJson {
      *  a snapshot's pull): the product's version 51; 21 (2026-11-13, phase D's D1.1): the product's version 52; 22 (2026-11-13, E-5c, the user's
      *  ruling O5, its number after D's): a side read from its group's fused row, {@code fusedCell}, a group's agreements
      *  one per root ({@code agreements}, each with its {@code root}), and the product's version 53 (E-4: every cast's and
-     *  case's reason). */
-    public static final int VERSION = 22;
+     *  case's reason); 23 (2026-11-15, main's C5-J item 2 merged into E, its 21 renumbered after E's 22): the body's
+     *  facts, {@code facts} (its effects, inline CSV seeds, verdicts and shape: what a runner reads of the body). */
+    public static final int VERSION = 23;
 
     private TestPlanJson() {
     }
@@ -96,6 +97,12 @@ public final class TestPlanJson {
         out.put("judge", plan.judge().name());
         out.put("answersLastVerdict", plan.answersLastVerdict());
         out.put("session", PlanJson.targetJson(plan.session()));
+        Map<String, Object> facts = new LinkedHashMap<>();
+        facts.put("effects", plan.facts().effects());
+        facts.put("seedsInlineCsv", plan.facts().seedsInlineCsv());
+        facts.put("verdicts", plan.facts().verdicts());
+        facts.put("shape", plan.facts().shape());
+        out.put("facts", facts);
         out.put("parameters", plan.parameters().stream().map(PlanJson::parameterJson).toList());
         out.put("steps", steps(plan.steps()));
         if (!plan.extensionsByStep().isEmpty() || !plan.extensionsByVerdict().isEmpty()) {
@@ -250,7 +257,12 @@ public final class TestPlanJson {
         return new TestPlan(parameters, readSteps(o.getArr("steps")), j,
                 ext == null ? Map.of() : readExtensions(ext.getObj("byStep")),
                 ext == null ? Map.of() : readExtensions(ext.getObj("byVerdict")), o.getBool("answersLastVerdict"),
-                PlanJson.targetOf(o.getObj("session")));
+                PlanJson.targetOf(o.getObj("session")), factsOf(o.getObj("facts")));
+    }
+
+    private static BodyFacts factsOf(Json.Obj f) {
+        return new BodyFacts(f.getBool("effects"), f.getBool("seedsInlineCsv"), f.getBool("verdicts"),
+                f.getString("shape"));
     }
 
     // ---- the edge's records (the plan-as-data design's step 8, 2.7) ------------------------------------------------

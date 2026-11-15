@@ -87,13 +87,19 @@ platform	base builtin error model
 compiler_element_type	base builtin model platform protocol sql
 sql_dialect	base sql
 database	base error model sql_dialect
-compiler	base builtin compiler_element_type error model platform protocol sql values
+# 2026-11-15 (C5-J's last round, A1, the embedded languages' readers): `compiler` reaches `door` -- an island's text
+# (#SQL, #IQ, #TS, #Cypher) is read through the parse doors (door.Parse), each asking the run's wall first; the readers
+# sit in `protocol`, which cannot ask (invariant 7b). `compiler` reached `door` through `builtin` already.
+compiler	base builtin compiler_element_type door error model platform protocol sql values
 normalizer	base builtin compiler compiler_element_type error model platform protocol
 lineage	base builtin compiler compiler_element_type error model platform protocol sql
 validation	base builtin compiler compiler_element_type error model protocol
 lowering	base builtin compiler compiler_element_type error model platform protocol sql values
 plan	base builtin compiler compiler_element_type error execution_plan lineage model sql
-resolver	base builtin compiler compiler_element_type error lowering model plan platform sql values
+# 2026-11-15 (C5-J item 3, the Java lock-down): `resolver` no longer reaches `lowering` -- its reads of the lowering's
+# helpers moved below both: the reducer table to compiler (compiler.element.Reducers), the object reference's protocol to
+# model (model.AsorRef).
+resolver	base builtin compiler compiler_element_type error model plan platform sql values
 setup	base cache compiler error execution_plan model protocol sql sql_dialect
 # D71, 2026-10-30 (the seam-and-wall program's B1, the decisions log): the judges and the probes left exec for `judge` and the
 # root, taking exec's reaches into `lowering`, `plan` and `platform` with them; `judge` reads the compiler's types and renders
@@ -115,7 +121,7 @@ exec_program	base error exec execution_plan result
 # 2026-11-12 (phase D's D1.0b): legend-engine's pure/v1 routes and the test-data routes are the edge's -- over the
 # product's API kit (pure_v1), its compiler, protocol, planner and generator -- and the shipped server's root is
 # `edge_server`, lite's server with those routes mounted, its run the product's door in the edge's dialects.
-edge	arrow_ipc base compiler compiler_element_type database error execution_plan json model parser plan planner protocol pure_v1 result sql sql_dialect test_plan testdatagen
+edge	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol pure_v1 result sql sql_dialect test_plan testdatagen
 edge_server	base edge execution pure_v1 saved_queries server_lib
 probe	base builtin lowering model platform
 # 2026-10-29, the doors (docs/RESULT_BOUNDARY_START_HERE.md §4, "The doors"; the decisions log D62): testdatagen reaches
@@ -145,7 +151,10 @@ planner	base builtin cache compiler compiler_element_type database door error ex
 # (server/CreateClass) reads a table's protocol column names as the compiled model reads them (RelationalIdentifier.bare:
 # quotes off, the lexer's backslash escape decoded), where it took the quotes off and kept the escapes; server_lib reaches
 # `model` already.
-pure_v1	arrow_ipc base compiler compiler_element_type database error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
+# 2026-11-15 (C5-J item 1, the Java lock-down): `pure_v1` reaches `door` -- its parses through the parse doors
+# (door.Parse), each asking the run's wall before the parser runs.
+# 2026-11-15 (main 0c9032f56 merged into claude/total-wall-e, E): `edge` reaches `door` -- pure/v1's grammar routes, moved to the edge by D1.0b, parse through the parse door as C5-J item 1 made pure_v1's do.
+pure_v1	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol result sql sql_dialect testdatagen
 # 2026-10-29, the doors, door 1 (docs/RESULT_BOUNDARY_START_HERE.md §4; the decisions log D63): driver reaches `json` -- the
 # body driver writes a graph fetch's objects as host rows, one per object of the array the database built (BodyDriver.host).
 # 2026-11-09 (docs/PLAN_AS_DATA_2026_11_07.md section 11, slice 5): `driver` deleted. Its planning classes are

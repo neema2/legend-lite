@@ -10,7 +10,10 @@ legend_java_library(
     name = "grammar",
     srcs = glob(["src/main/java/com/legend/sdlc/grammar/*.java"]),
     # the server, the page, and Python's model home (//native: docs/ONE_PLATFORM_PROGRAM_2026_10_12.md B3)
+    # //core: the parse rule reads it (ArchitectureTest.everyParseIsReachedThroughADoorThatAsks; the C5-J audit's nit,
+    # 2026-11-15: the SDLC's door to the compiler parses a model's text)
     visibility = [
+        "//core:__pkg__",
         "//native:__pkg__",
         "//sdlc-server:__pkg__",
     ],

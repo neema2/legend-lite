@@ -122,7 +122,7 @@ final class AgreementPerRootTest {
         TestPlan.Verdicts group = new TestPlan.Verdicts(verdicts, fused, null, TestPlan.JudgingRules.LITE,
                 new RootLoop(loop, Map.of()), agreements);
         TestPlan plan = new TestPlan(List.of(), List.of(group), TestPlan.Judge.AGREEMENT, Map.of(), Map.of(), false,
-                target);
+                target, new com.legend.testexecutionplan.BodyFacts(false, false, true, "FLAXEO"));
         assertNull(TestPlanJson.roundTripDifference(plan), "the plan reads back as written");
         return plan;
     }

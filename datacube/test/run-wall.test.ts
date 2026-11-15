@@ -1,5 +1,6 @@
 // THE RUN WALL, TypeScript's half (the user's ruling M2, 2026-11-13: "a compile-time wall on both hosts"; its Python
-// half is python/tests/test_run_wall.py).
+// half, python/tests/test_run_wall.py, was deleted by C5-P on 2026-11-15 for a plain dependency rule:
+// python/tests/test_run_closure.py).
 //
 // INTERIM SCAFFOLDING (the user's ruling of 2026-11-14): this wall holds the line until C5 splits the code, and is
 // neither slimmed nor re-engineered meanwhile. C5'S FINISH LINE: TypeScript's run code lives in packages whose build

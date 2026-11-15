@@ -98,7 +98,9 @@ public final class PeRatchets {
             "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
                     + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
             "own_corpus.matched 3257/3261 -> 3272 (2026-11-15, merged main cf865632c (#101) into claude/total-wall-e,"
-                    + " measured on the merged tree): E's 3257 and C4's fifteen (3261 - 3246), joined");
+                    + " measured on the merged tree): E's 3257 and C4's fifteen (3261 - 3246), joined",
+            "own_corpus.matched 3272/3262 -> 3273 (2026-11-15, main 0c9032f56 (C5-J's 3261 -> 3262) merged into"
+                    + " claude/total-wall-e, measured on the merged tree): C5-J's one new model joined E's");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

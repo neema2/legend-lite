@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.resolver;
-import com.legend.lowering.AsorRef;
+import com.legend.model.AsorRef;
 
 import com.legend.compiler.element.MilestoningStrategy;
 import com.legend.compiler.element.ModelContext;
@@ -2154,7 +2154,7 @@ final class GraphEmission {
             String thisVar, StoreResolver.Context context,
             String parentRowVar, Type.RelationType parentRowType) {
         if (!(body instanceof TypedNativeCall agg && agg.args().size() == 1
-                && com.legend.lowering.Aggregates.isReducer(agg.callee()))) {
+                && com.legend.compiler.element.Reducers.isReducer(agg.callee()))) {
             return null;
         }
         TypedSpec chain = unwrapToOneFirst(agg.args().get(0));

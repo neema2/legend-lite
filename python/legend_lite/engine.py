@@ -58,13 +58,15 @@ import pyarrow as pa
 import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
-from ._planned import PlannedSql, across_the_bridge, connect, from_plan, send
+from ._planned import PlannedSql, across_the_bridge, connect, from_plan
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, Reading, UntypedColumn, execute_redacted, redact_held, typed_by_plan
+from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
+# the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
+from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from .keeper import PageKeeper, Refused
-from .projects import ProjectDatabases, run_host_load, run_write
+from .projects import NotAModel, ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
 
 _API = '/api/pure/v1/'
@@ -212,15 +214,6 @@ def _snap_refused(headless: Any, rows: int) -> Answer:
     return _said(422, headless.call('snapRefused', str(rows), str(_MAX_SNAP_ROWS)))
 
 
-def _arrow_of(chunks: Iterable[bytes]) -> pa.Table:
-    """A result's Arrow IPC streams, one per chunk, as one table: the first chunk's schema (every chunk carries it;
-    the warehouse's DuckDB writes one at least, its schema alone for no rows)."""
-    tables = [pyarrow.ipc.open_stream(c).read_all() for c in chunks]
-    if not tables:
-        raise pa.ArrowInvalid('the warehouse answered no chunk, not even its columns')
-    return pa.concat_tables(tables) if len(tables) > 1 else tables[0]
-
-
 def _on_planner_threads() -> Callable[..., Any]:
     """Where a planner's calls run: the compiler's threads (the native library's) -- in place on one of them, DataCube's
     engine's among them (_pool.library_thread: D15)."""
@@ -245,14 +238,13 @@ def _planned(said: dict[str, str], status: int = 200) -> Answer:
     return Answer(status, 'application/json', json.dumps(said).encode('utf-8'))
 
 
-def _answered(work: Callable[[str], Answer], body: str) -> Answer:
-    """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug, logged whole
-    and said (500), as the API's are (``Engine._api``)."""
-    try:
-        return work(body)
-    except Exception as failure:
-        traceback.print_exc()
-        return _said(500, f'{type(failure).__name__}: {failure}')
+def unexpected(failure: BaseException, held: Iterable[str]) -> Answer:
+    """A failure no route answered, as an answer: a bug, logged whole, and said (500, its class and words) with every
+    value the engine holds taken out (a presigned link's URL) -- THE one such answer, for the server's handler, a page's
+    planner calls, a cube's and the notebook's channel (the C5 follow-up's check, 2026-11-15: until then four, three of
+    them unredacted)."""
+    traceback.print_exc()
+    return _said(500, redact_held(f'{type(failure).__name__}: {failure}', held))
 
 
 def duckdb_extensions() -> Path | None:
@@ -449,6 +441,10 @@ class NativePlanner:
     def refused_plan(self, message: str) -> str:
         return f'ERR\nMODEL\n{message}'
 
+    def refused_by(self, refused: LegendError) -> str:
+        """The compiler's own refusal, as the planner answers one: its kind and its words."""
+        return f'ERR\n{refused.kind}\n{refused.message}'
+
 
 class _WarehouseTable:
     """A warehouse table a page opened on Python (C3): the model Python wrote for it and holds, read as one person --
@@ -580,14 +576,14 @@ class Engine:
                 table = self._warehouse_table_of(body or '')
                 if table is not None:
                     # a warehouse table's plan runs there: its HTTP on the caller's thread, holding no compiler thread
-                    return _answered(lambda b: self._warehouse_plan_and_run(table, b), body or '')
-                return _workers().submit(_answered, self._plan_and_run, body or '').result()
+                    return self._answered(lambda b: self._warehouse_plan_and_run(table, b), body or '')
+                return _workers().submit(self._answered, self._plan_and_run, body or '').result()
             if path == _PLAN:
-                return _workers().submit(_answered, self._plan, body or '').result()
+                return _workers().submit(self._answered, self._plan, body or '').result()
             if path == _WAREHOUSE:
                 # on the caller's thread: the warehouse's HTTP holds no compiler thread, and only the library's calls go
                 # to one; never a dropped call
-                return _answered(self._warehouse, body or '')
+                return self._answered(self._warehouse, body or '')
             if path == _SNAP:
                 return self._snap_said(body or '')
             if path == _OPENED:
@@ -618,6 +614,14 @@ class Engine:
             return Answer(200, 'application/json', json.dumps(kept).encode('utf-8'))
         return self._file(path)
 
+    def _answered(self, work: Callable[[str], Answer], body: str) -> Answer:
+        """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug,
+        ``unexpected``'s 500, redacted (as the API's are, ``Engine._api``)."""
+        try:
+            return work(body)
+        except Exception as failure:
+            return unexpected(failure, self.frames.held_values())
+
     def answer_over(self, path: str, body: str, over: Reading) -> tuple[int, str, bytes]:
         """A call of DataCube's code run headless for a grid of a page in Python (headless calls.ts ``engine``), answered
         by this engine's own code over the read of the frames its call was made in (``over``: Frames.reading, D15), on
@@ -627,10 +631,10 @@ class Engine:
         engine holds: D13). Any other path refused. Its status, media type, body."""
         if path == _PLAN_AND_RUN:
             table = self._warehouse_table_of(body)
-            said = (_answered(lambda b: self._warehouse_plan_and_run(table, b), body) if table is not None
-                    else _answered(lambda b: self._plan_and_run(b, over), body))
+            said = (self._answered(lambda b: self._warehouse_plan_and_run(table, b), body) if table is not None
+                    else self._answered(lambda b: self._plan_and_run(b, over), body))
         elif path == _WAREHOUSE:
-            said = _answered(self._warehouse, body)
+            said = self._answered(self._warehouse, body)
         else:
             said = _said(404, f'DataCube asks the engine to plan and run ({_PLAN_AND_RUN}) or open a warehouse table '
                               f'({_WAREHOUSE}), not {path}')
@@ -1040,7 +1044,8 @@ class Engine:
             # answered the same way (as legend-lite's server answers both)
             if not isinstance(failure, duckdb.Error):
                 traceback.print_exc()
-            message = f'{type(failure).__name__}: {failure}'
+            # no value this engine holds in its words (a presigned link's URL; found with the C5 follow-up's item 1)
+            message = redact_held(f'{type(failure).__name__}: {failure}', self.frames.held_values())
             try:
                 answer = self.planner.refusal(message)
             except Exception:
@@ -1436,8 +1441,9 @@ class Engine:
                 with self._warehouse_lock:
                     self._copies[name] = made
         except Exception as failure:
-            return _said(422, f'the snap could not be copied into this Python\'s DuckDB: {type(failure).__name__}: '
-                              f'{failure}')
+            # no value this engine holds in its words (a presigned link's URL: the C5 follow-up's audit item 1)
+            return _said(422, redact_held(f'the snap could not be copied into this Python\'s DuckDB: '
+                                          f'{type(failure).__name__}: {failure}', self.frames.held_values()))
         return _copy_said(made, name, rows, None)
 
     def _streamed(self, headless: Any, land: Callable[[Any, dict[str, Any]], int], receipt: dict[str, Any]) -> Answer:
@@ -1492,7 +1498,7 @@ class Engine:
             return _said(422, f'{type(failure).__name__}: {failure}')
         try:
             # counted where the rows are, before anything is copied (the tab's preflight)
-            counted = _arrow_of(table.warehouse.arrow_chunks(plan.sql))
+            counted = read_plane(table.warehouse, plan.sql)
             # the count is the warehouse's one value: none is refused by name, never read as no rows (G7; the final
             # audit, 2026-11-12)
             if counted.num_rows != 1 or counted.num_columns != 1 or counted.column(0)[0].as_py() is None:
@@ -1536,7 +1542,11 @@ class Engine:
         # its turn first, then the frames held: the copy is landed and modelled by DataCube's code inside (D15)
         with headless.turn(), self.frames.serving() as models:
             self._noted(models)
-            held = self.frames.model_for(asked['model'])
+            try:
+                held = self.frames.model_for(asked['model'])
+            except ModelRefused as refused:
+                # a model of served tables that does not compile: the compiler's words (the C5 follow-up's held item)
+                return _said(422, f'the snap could not be planned: {refused}')
             if held is None:
                 return _said(404, 'this engine serves no model of that text: it snaps a page\'s frames and files, and '
                                   'warehouse tables it opened')
@@ -1547,9 +1557,10 @@ class Engine:
             except (LegendError, ValueError) as refused:
                 return _said(422, f'the snap could not be planned: {refused}')
             try:
-                rows = int(send(self.frames.connection, plan.sql, list(plan.params)).fetchone()[0])
+                rows = count_of(self.frames.connection, plan, self.frames.held_values())
             except duckdb.Error as refused:
-                return _said(422, f'the snap could not be counted: {refused}')
+                # no value this engine holds in its words (a presigned link's URL: the C5 follow-up's audit item 1)
+                return _said(422, redact_held(f'the snap could not be counted: {refused}', self.frames.held_values()))
             if rows > _MAX_SNAP_ROWS:
                 return _snap_refused(headless, rows)
 
@@ -1601,7 +1612,7 @@ class Engine:
             return _planned({'plan': planned, 'error': _WAREHOUSE_BINDS_NONE}, 422)
         try:
             said: dict[str, Any] = {}
-            rows = typed_by_plan(_arrow_of(table.warehouse.arrow_chunks(plan.sql, said.update)), plan)
+            rows = run_on_plane(table.warehouse, plan, said.update)
             # the warehouse's own receipt: where, as whom, its statement and its count (the tab's live reads carry it)
             receipt = {'plane': 'warehouse', 'where': said.get('where', ''), 'as': said.get('as', ''),
                        **({'statementId': said['statementId']} if 'statementId' in said else {}),
@@ -1648,7 +1659,12 @@ class Engine:
         the read's own cursor, as the read sees the database. A model of a table not served now is refused, naming it
         (F28). The frames' models noted as last read, never older than the read (F30)."""
         self._noted(self.frames.models())
-        planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
+        try:
+            planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
+        except ModelRefused as no_model:
+            # the model's own refusal by the compiler -- it does not parse or compile -- and that alone (the C5
+            # follow-up's held item: until then "reads only the tables it serves", naming none)
+            return _planned({'plan': self.planner.refused_by(no_model)})
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
         try:
@@ -1714,19 +1730,24 @@ class Engine:
         """A plan-and-run over a project's model (a saved query opened on Python's page: C5): planned against
         the model held beside the project's own database, by Python's planner, and run there on its cursor -- the
         page sent Pure; the rows are the project's Data rows. A model with none is refused, as one Python serves no
-        table of is."""
-        with self.projects.using(asked['model']) as project:
-            if project is None:
-                return _planned({'plan': refused})
-            planned = self._plan_with(asked, project.held)
-            try:
-                plan = self.planner.read(planned)
-            except LegendError:
-                return _planned({'plan': planned})
-            try:
-                rows = typed_by_plan(send(project.cursor, plan.sql, plan.params).to_arrow_table(), plan)
-            except (duckdb.Error, UntypedColumn) as failure:
-                return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
+        table of is; a model that is no model, by the compiler's own refusal (the C5 follow-up's held item: until then
+        said to have no Data rows)."""
+        try:
+            with self.projects.using(asked['model'], surface=True) as project:
+                if project is None:
+                    return _planned({'plan': refused})
+                planned = self._plan_with(asked, project.held)
+                try:
+                    plan = self.planner.read(planned)
+                except LegendError:
+                    return _planned({'plan': planned})
+                try:
+                    # a project's database binds no value this engine holds: nothing to take out of a failure's words
+                    rows = run_plan(project.cursor, plan, ())
+                except (duckdb.Error, UntypedColumn) as failure:
+                    return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
+        except NotAModel as no_model:
+            return _planned({'plan': self.planner.refused_by(no_model)})
         return _arrow_rows(rows, planned)
 
     def _plan(self, body: str) -> Answer:
@@ -1746,10 +1767,14 @@ class Engine:
         if refused is not None:
             return _planned({'plan': self.planner.refused_plan(refused)})
         if asked.get('project') is True:
-            with self.projects.using(asked['model']) as project:
-                if project is None:
-                    return _planned({'plan': self.planner.refused_plan(_NO_PROJECT_ROWS)})
-                return _planned({'plan': self._plan_with(asked, project.held)})
+            try:
+                with self.projects.using(asked['model'], surface=True) as project:
+                    if project is None:
+                        return _planned({'plan': self.planner.refused_plan(_NO_PROJECT_ROWS)})
+                    return _planned({'plan': self._plan_with(asked, project.held)})
+            except NotAModel as no_model:
+                # the compiler's own refusal of the model (the C5 follow-up's held item: until then "this model has none")
+                return _planned({'plan': self.planner.refused_by(no_model)})
         with self._warehouse_lock:
             table = self._warehouse_tables.get(asked['model'])
         if table is not None:
@@ -1759,7 +1784,12 @@ class Engine:
                 return _planned({'plan': self.planner.refused_plan(wrong)})
             return _planned({'plan': self._plan_with(asked, table.held)})
         self._noted(self.frames.models())
-        planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
+        try:
+            planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
+        except ModelRefused as no_model:
+            # the model's own refusal by the compiler -- it does not parse or compile -- and that alone (the C5
+            # follow-up's held item: until then "reads only the tables it serves", naming none)
+            return _planned({'plan': self.planner.refused_by(no_model)})
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
         return _planned({'plan': planned})
@@ -1776,9 +1806,9 @@ class Engine:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 planned = json.loads(answer.body)
                 # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
-                # value this engine holds (a bearer URL: M2)
-                rows = execute_redacted(connection, from_plan(planned['sql']), self.frames.held_values(),
-                                        compiler.plan_params(planned.get('plan'))).to_arrow_table()
+                # value this engine holds (a bearer URL: M2) -- the plan read here, then handed to its run
+                sql, params = from_plan(planned['sql']), compiler.plan_params(planned.get('plan'))
+                rows = run_arrow(connection, sql, self.frames.held_values(), params)
         # upstream's headers for this answer (measured, legend-engine 4.145.0)
         return Answer(200, 'application/json', _arrow_ipc(rows, planned['metadata']),
                       {'x-legend-response-format': 'FormatNotSet'})
@@ -1795,10 +1825,9 @@ class Engine:
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
                 said = json.loads(planned.body)
-                cursor = execute_redacted(connection, from_plan(said['run']), self.frames.held_values(),
-                                          compiler.plan_params(said.get('plan')))
-                names = [d[0] for d in cursor.description]
-                rows = compiler.host_rows(names, cursor.fetchall())
+                # the plan read here, then handed to its run, which hands its rows back as the driver read them
+                sql, params = from_plan(said['run']), compiler.plan_params(said.get('plan'))
+                rows = run_rows_json(connection, sql, self.frames.held_values(), params)
         answer = self.planner.execute_json_answer(planned.body, rows)
         return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
 
@@ -1833,9 +1862,8 @@ class Engine:
                         'version': self.version(name)}
             body = json.dumps(cube).encode('utf-8')
         except Exception as failure:
-            # a frame that could not be read: said, never a dropped call
-            traceback.print_exc()
-            return _said(500, f'{type(failure).__name__}: {failure}')
+            # a frame that could not be read: said, never a dropped call, redacted
+            return unexpected(failure, self.frames.held_values())
         return Answer(200, 'application/json', body)
 
     def _version(self, query: str) -> Answer:
@@ -1931,8 +1959,9 @@ class Engine:
         except Refused as refused:
             return _said(409, str(refused))
         except Exception as failure:
-            # a failure of the library's, said as one (as the API's are) -- never taken for a refusal or a page not served
-            return _said(500, f'{type(failure).__name__}: {failure}')
+            # a failure of the library's or of DataCube's code, said as one (the engine's one unexpected answer, redacted:
+            # a page may name a remote file by its URL) -- never taken for a refusal or a page not served
+            return unexpected(failure, self.frames.held_values())
         self.sweep()
         answer: dict[str, Any] = {'version': settled.version, 'hash': settled.hash}
         if settled.combined:
@@ -2214,7 +2243,17 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         except UnicodeDecodeError:
             self._send(_said(400, 'a request body is UTF-8'))
             return
-        self._send(self.server.web.engine.answer('POST', url.path, url.query, body))
+        self._send(self._answered('POST', url.path, url.query, body))
+
+    def _answered(self, method: str, path: str, query: str, body: str | None) -> Answer:
+        """The engine's answer to a call -- or, a failure no route answered, a 500 naming it, its words with every value
+        the engine holds taken out (a presigned link's URL): still an answer, as the notebook's channel answers one, never
+        a socket closed with the error on stderr alone (the C5 follow-up's audit item 3, 2026-11-15)."""
+        engine = self.server.web.engine
+        try:
+            return engine.answer(method, path, query, body)
+        except Exception as failure:
+            return unexpected(failure, engine.frames.held_values())
 
     def do_GET(self) -> None:  # noqa: N802
         """A frame's cube or version (with the token), or a file of the engine's site (DataCube's built pages), to a
@@ -2241,11 +2280,11 @@ class _Handler(http.server.BaseHTTPRequestHandler):
             if url.path == f'/{app}/demo/config.json':
                 self._send(self.server.web.engine.app_config(app, f'http://{self.headers.get("Host")}'))
                 return
-            self._send(self.server.web.engine.answer('GET', url.path, url.query, None))
+            self._send(self._answered('GET', url.path, url.query, None))
             return
         if self._admitted(url.path):
             self.server.answering(self.connection)
-            self._send(self.server.web.engine.answer('GET', url.path, url.query, None))
+            self._send(self._answered('GET', url.path, url.query, None))
 
     def do_PUT(self) -> None:  # noqa: N802
         """The query store's PUTs (a saved query updated or patched), with the token."""
@@ -2282,7 +2321,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         except UnicodeDecodeError:
             self._send(_said(400, 'a request body is UTF-8'))
             return
-        self._send(self.server.web.engine.answer(method, url.path, url.query, body))
+        self._send(self._answered(method, url.path, url.query, body))
 
     def do_OPTIONS(self) -> None:  # noqa: N802
         # no cross-origin request is answered: only the engine's own page calls it
