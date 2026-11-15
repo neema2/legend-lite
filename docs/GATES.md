@@ -22202,3 +22202,26 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     quoted-brace gap closed (B3's option A, held out of C4 by its freeze; with it, DateFormats' unread backslash escape
     inside quotes and the zone-shifted pattern's quoted `Z`; the terms: start-here §6.1, C5's list);
   - the TypeScript wall on the type checker once its program API is available.
+
+## 2026-11-15 — E: DE5's first group taught: a nested quantified assert gated by its own rule (the corpus's database registers)
+
+The user's ruling DE5 (a), 2026-11-15 ("Def teach the judge the remaining"): the database judge plans the corpus bodies it
+refused before any lane switches to it alone. Group 1: the twelve testDataGeneration bodies, whose inlined
+`createTableRowIdentifiers` asserts every column of every row identifier exists -- `$identifiers->map(i |
+$i.columnValuePairs->map(cv | assert(...)))`, a quantified assert whose elements are quantified asserts. The database
+judge's static gate unrolled the outer level and handed each element's root, itself a `map`, to `gateOf`, which dispatches
+on an assert's function and answered UNPLANNED. `AssertVerdicts.databaseGate` now gates such an element by the quantified
+rule itself, recursively, as `planQuantified` already planned it.
+
+REGISTERS (both lanes, DuckDB and H2):
+- `<lane>-database-accepted-register.txt`: testConstant, testSimpleSingleTable, testSimpleSingleTableWithNoDataToInsert
+  and testSimpleTwoTable move from `judge-parity-gap:database-planner-refuses(P5)` to the host roster's own entry,
+  `by-design:test-data-generator-fetch-text(S193)`: the database judge now reaches the host's verdict, the same
+  engine-text failure the host lane accepts.
+- Four `alloy::` bodies' P5 entries are removed (testConstant_Alloy, testSimpleSingleTable_Alloy,
+  testSimpleSingleTableWithNoDataToInsert_Alloy, testSimpleTwoTable_Alloy): they PASS under the database judge.
+- testQualifier and the three milestoning `alloy::` bodies keep their P5 entries: past the map, their next refusal is the
+  `assertEqualsH2Compatible` helper the gate does not reduce (DE5's next group, with testModelConnectionJoin's let that
+  raises at planning).
+- `<lane>-database-engine-order-register.txt`: the bodies that now run under the database judge, re-blessed by
+  `bazel run //spec:update_rcorpus_<lane>`.

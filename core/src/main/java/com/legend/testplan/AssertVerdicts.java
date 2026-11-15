@@ -180,7 +180,12 @@ final class AssertVerdicts {
             DatabaseGate worst = DatabaseGate.PLANS;
             boolean first = true;
             for (Unrolled u : ((UnrollPlan) qp).elements()) {
-                DatabaseGate g = gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
+                // a NESTED quantification (the engine's guard idiom, DE5: testDataGeneration's createTableRowIdentifiers):
+                // an element whose root is itself a quantified assert is gated by this same rule, as planQuantified
+                // plans it -- recursively, element by element
+                DatabaseGate g = quantifiedForm(u.root()) != null
+                        ? databaseGate(u.root(), u.before(), specs, env, rawHook)
+                        : gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
                 if (g == DatabaseGate.UNPLANNED) {
                     return g;
                 }
