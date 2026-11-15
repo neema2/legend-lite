@@ -112,4 +112,23 @@ class LetBindingTest {
         assertFalse(sql(once).contains(LetBinding.ALIAS), sql(once));
         assertEquals(List.of(List.of(3L)), rows(once));
     }
+
+    /** The always-evaluated set descends through a strict call and never into a skipping one (round 55k, 2026-11-15,
+     *  the orchestrator's ruling: widen the set, never across a rendering that can skip): a raising division under
+     *  UPPER's CONCAT is always evaluated; the same division as COALESCE's second argument, or in a CASE's later
+     *  branch, is not, so a repeat there is never bound. */
+    @Test
+    void theAlwaysEvaluatedSetCrossesStrictCallsAndNeverASkippingOne() {
+        com.legend.sql.SqlExpr raising = com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.DIVIDE,
+                new com.legend.sql.SqlExpr.IntLit(10), new com.legend.sql.SqlExpr.IntLit(0));
+        java.util.Set<com.legend.sql.SqlExpr> strict = new java.util.HashSet<>();
+        LetBinding.alwaysEvaluated(com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.UPPER,
+                com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CONCAT, new com.legend.sql.SqlExpr.StringLit("a"),
+                        raising)), strict);
+        assertTrue(strict.contains(raising), "under strict calls: " + strict);
+        java.util.Set<com.legend.sql.SqlExpr> coalesced = new java.util.HashSet<>();
+        LetBinding.alwaysEvaluated(com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.COALESCE,
+                new com.legend.sql.SqlExpr.IntLit(1), raising), coalesced);
+        assertFalse(coalesced.contains(raising), "a COALESCE may skip its second argument: " + coalesced);
+    }
 }

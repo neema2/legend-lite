@@ -316,28 +316,94 @@ final class LetBinding {
         return closedAndPlain(e, java.util.Set.of()) && (!canRaise(e) || always.contains(e));
     }
 
-    /** The operators every database evaluates both of whose operands, whatever their values: arithmetic and a
-     *  comparison (no database short-circuits them; AND, OR and COALESCE promise no order of evaluation in SQL, and a
-     *  CASE's later conditions and branches may be skipped, so none of those counts). */
-    private static final java.util.Set<SqlFn> STRICT = java.util.Set.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES,
-            SqlFn.DIVIDE, SqlFn.NEGATE, SqlFn.EQUAL, SqlFn.NOT_EQUAL, SqlFn.LESS, SqlFn.LESS_EQUAL, SqlFn.GREATER,
-            SqlFn.GREATER_EQUAL);
+    /**
+     * The calls that may skip an argument on SOME dialect: AND, OR and COALESCE (SQL promises no order of evaluation),
+     * and every function a dialect renders with a branch -- a CASE, ClickHouse's {@code if}/{@code multiIf} (its
+     * short_circuit_function_evaluation), an IIF, an IF or a DECODE -- found by reading each dialect's render arms
+     * (round 55k, 2026-11-15, the orchestrator's ruling under the user's delegation: widen the set, never across a
+     * rendering that can skip). A call not listed evaluates all its arguments on every dialect.
+     */
+    private static final java.util.Set<SqlFn> LAZY = java.util.Set.of(SqlFn.AND, SqlFn.OR, SqlFn.COALESCE,
+            SqlFn.ADD_INTERVAL, SqlFn.ADD_INTERVAL_TEMPORAL, SqlFn.ASCII_CODE, SqlFn.BIT_SHIFT_RIGHT,
+            SqlFn.BOOL_TO_TEXT, SqlFn.CBRT, SqlFn.FLOOR_RAW, SqlFn.INT_DIVIDE, SqlFn.JSON_TYPE, SqlFn.LIST_BOOL_AND,
+            SqlFn.LIST_BOOL_OR, SqlFn.LIST_CONCAT, SqlFn.LIST_DISTINCT, SqlFn.LIST_GET, SqlFn.LIST_POSITION,
+            SqlFn.LIST_PRODUCT, SqlFn.MAP_EXTRACT, SqlFn.MAP_FROM_ENTRIES, SqlFn.MAP_FROM_LISTS, SqlFn.MAP_KEYS,
+            SqlFn.MAP_VALUES, SqlFn.MOD, SqlFn.PARSE_INT, SqlFn.REM, SqlFn.REPEAT_STR, SqlFn.REPEAT_VALUE, SqlFn.RIGHT,
+            SqlFn.SPLIT, SqlFn.SPLIT_PART);
 
-    /** Every expression {@code e} evaluates whatever its values, into {@code into} (the narrow set every one of the
-     *  thirteen databases guarantees, the orchestrator's check of 2026-11-15): itself; a CASE's first condition; the
-     *  operands of a {@link #STRICT} operator; a cast's value. Nothing else is assumed evaluated. */
+    /**
+     * Every expression {@code e} evaluates whatever its values, into {@code into}: itself, and through each node that
+     * is STRICT on every dialect, its children. One exhaustive switch over {@link SqlExpr}'s variants, no default arm
+     * (the orchestrator's ruling, 2026-11-15: a new variant decides strict or skipping at compile time, never by a
+     * default). Skipping, so never descended: a CASE past its first condition, a {@link #LAZY} call, a lambda's body,
+     * a subquery, an aggregate or window, a fold, and the carriers whose renderings branch (tagged, compacted,
+     * membership, checked, raise text).
+     */
     static void alwaysEvaluated(SqlExpr e, java.util.Set<SqlExpr> into) {
         into.add(e);
-        switch (e) {
+        boolean strict = switch (e) {
+            // leaves: nothing below them
+            case SqlExpr.Column x -> false;
+            case SqlExpr.Star x -> false;
+            case SqlExpr.StarExcept x -> false;
+            case SqlExpr.StringLit x -> false;
+            case SqlExpr.IntLit x -> false;
+            case SqlExpr.FloatLit x -> false;
+            case SqlExpr.DecimalLit x -> false;
+            case SqlExpr.BoolLit x -> false;
+            case SqlExpr.NullLit x -> false;
+            case SqlExpr.DateLit x -> false;
+            case SqlExpr.TimestampLit x -> false;
+            case SqlExpr.TimeLit x -> false;
+            case SqlExpr.FormatLit x -> false;
+            case SqlExpr.DatePartLit x -> false;
+            case SqlExpr.JsonKindLit x -> false;
+            case SqlExpr.TypeNameLit x -> false;
+            case SqlExpr.PlanParam x -> false;
+            case SqlExpr.KeyCell x -> false;
+            case SqlExpr.RowOrder x -> false;
+            case SqlExpr.TempTableInSplice x -> false;
+            case SqlExpr.StoredRead x -> false;
+            // strict: every child evaluated on every dialect
+            case SqlExpr.Call c -> !LAZY.contains(c.fn());
+            case SqlExpr.Cast x -> true;
+            case SqlExpr.ArrayLit x -> true;
+            case SqlExpr.StructLit x -> true;
+            case SqlExpr.StructGet x -> true;
+            case SqlExpr.JsonArray x -> true;
+            case SqlExpr.JsonObject x -> true;
+            case SqlExpr.Group x -> true;
+            // a CASE: its first condition alone
             case SqlExpr.Case c -> {
                 if (!c.whens().isEmpty()) {
                     alwaysEvaluated(c.whens().get(0).condition(), into);
                 }
+                yield false;
             }
-            case SqlExpr.Cast c -> alwaysEvaluated(c.value(), into);
-            case SqlExpr.Call c when STRICT.contains(c.fn()) -> c.args().forEach(a -> alwaysEvaluated(a, into));
-            default -> {
-            }
+            // skipping, or evaluated by its own rules: never descended
+            case SqlExpr.Lambda x -> false;
+            case SqlExpr.Exists x -> false;
+            case SqlExpr.ScalarSubquery x -> false;
+            case SqlExpr.InSubquery x -> false;
+            case SqlExpr.Quantified x -> false;
+            case SqlExpr.CheckedOne x -> false;
+            case SqlExpr.CheckedDefects x -> false;
+            case SqlExpr.CheckedChildValue x -> false;
+            case SqlExpr.CompactList x -> false;
+            case SqlExpr.Tagged x -> false;
+            case SqlExpr.TaggedList x -> false;
+            case SqlExpr.RaiseText x -> false;
+            case SqlExpr.DeferredTdsString x -> false;
+            case SqlExpr.WindowCall x -> false;
+            case SqlExpr.FoldCall x -> false;
+            case SqlExpr.JsonArrayAgg x -> false;
+            case SqlExpr.OrderedListAgg x -> false;
+            case SqlExpr.ReduceCollection x -> false;
+            case SqlExpr.Membership x -> false;
+            case SqlAgg.Reducer x -> false;
+        };
+        if (strict) {
+            e.children().forEach(child -> alwaysEvaluated(child, into));
         }
     }
 
