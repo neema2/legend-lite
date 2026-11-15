@@ -22202,3 +22202,58 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     quoted-brace gap closed (B3's option A, held out of C4 by its freeze; with it, DateFormats' unread backslash escape
     inside quotes and the zone-shifted pattern's quoted `Z`; the terms: start-here §6.1, C5's list);
   - the TypeScript wall on the type checker once its program API is available.
+
+## 2026-11-15 — C5-J: the Java lock-down (a wider witness, facts as plan data, the resolver below the lowering, named catches, pure's date-format end)
+
+Brief: the orchestrator's C5-J (start-here §6.1, C5's list). Branch `claude/c5-java` off main cf865632ca; one PR. Each
+item is red on revert.
+
+- **Item 1, a wider Java witness (9dcb29f13b).**
+  - The lexer, the parser and the model's records door (`ModelFromProtocol`) are refused inside a run, as phases D–J
+    are.
+  - Their callers reach them through parse doors that ask first: `door.Parse`, `door.ModelFromText` and the IDE's
+    `ide.DocumentParse`.
+  - The lexer stays JDK-only, the parser's layer reaches nothing above it, and the model package stays pure data.
+  - Why a door rather than an ask at each caller: ArchUnit folds a lambda's calls into its enclosing method, and
+    PureV1Api's grammar routes parse in lambdas.
+  - Guards: `ArchitectureTest.everyParseIsReachedThroughADoorThatAsks` (`PARSE_BY_THE_DOORS`, default-deny over core and
+    the hosts' doors; `parseDoorViolations`: asks before its first parse, holds no lambda, makes no reference, has no
+    nested class), with planted violators.
+  - 6i's sanctioned users are now the doors and the IDE.
+  - `PhaseEntriesRefusedInsideARunTest` pins each door's refusal by phase. `Compiler.query` is refused at phase C (its
+    parse) now, not D.
+- **Item 2, a test body's facts as plan data (8135f28e04, 5eaafc41c0).**
+  - `testexecutionplan.BodyFacts` is carried in the test plan (TestPlanJson v21); the PCT runner reads it from there.
+  - The runner still needs the facts before planning, to choose its session, so it reads them from a new root door,
+    `TestExecution.facts(TypedQuery)`: one planning call and no run.
+  - The door is on the closed surface: ROOT_DOORS and QUERY_ROADS (PLANS_NOTHING), DOOR_PLANNING_CALLS and
+    PLANNING_ENTRIES.
+- **Item 3, the resolver below the lowering (8d25714047).**
+  - The reducer table moved to `compiler.element.Reducers` and the object reference's protocol to `model.AsorRef`.
+  - `//core:resolver` no longer depends on `lowering` (core-layers, dated).
+- **Item 4, the test road's catch-and-continue sites catch named conditions alone (d3913a4f6e).**
+  - The census at main over core, PCT A/B DuckDB+H2 and both corpora found 140 swallows in `registerPlanRows`:
+    44 NotImplementedException, 12 DialectCapability and 84 Lowerer isolation walls. It also found 8 in `activitySql`
+    (all DialectCapability) and 4 in column lineage (all NotImplementedException); `registerLineageRows` and
+    FramePlanner swallowed none.
+  - The walls are now `Lowerer.IsolationWall`, a named IllegalStateException with each message unchanged, per the
+    orchestrator's ruling (A). Each site catches its named conditions alone, and the two that never fired now fail by
+    name.
+  - Option (B), failing the walls by name, was measured first. It moved 13 corpus bodies PASS → FAIL and the DuckDB
+    strength pin 990 → 986, and was refused.
+  - Guard: `theTestRoadsPlanRowsCatchNamedConditionsAlone`, with a planted catch.
+- **Item 5, the date-format end found as pure finds it (3c2a8b5ebf; S342).**
+  - Pure's scan (`FormatTools.findEndOfDateFormatString`), pure's quoted-text rule, and pure's words: "Could not find
+    end of date format starting at index <i> of: <format string>", lite's named refusal at planning.
+  - The bare ISE on an unclosed `%t{` is gone. `%t{yyyy"}"}` is now planned, and a quoted `Z` in a zone-shifted
+    pattern is text.
+  - Ruled by the orchestrator as pure's behaviour. In the injection fuzz, 55 queries plan as pure reads them and 43 are
+    refused as pure refuses them; the coverage pins moved with a dated note.
+  - Every real date pattern of PCT, the corpora and core's tests (34 × 11 databases = 374 queries) plans byte-identical
+    SQL before and after, and `//docs:update_dialect_capability_test` passes.
+- **Item 6 (ded0291e7e).** `PLANNER_ENTRIES` is 70 → 61, equal to what is measured, with a dated note.
+- **Outcomes, before and after (main vs. the branch):**
+  - core's suites: 20,842 testcases pass → 20,848 pass, none moved; the 6 new are this branch's tests under each
+    judge;
+  - PCT A/B DuckDB+H2: 1,573 pass, unchanged against their ledgers (outcome and text);
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's.

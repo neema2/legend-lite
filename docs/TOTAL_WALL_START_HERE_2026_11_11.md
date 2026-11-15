@@ -1018,24 +1018,28 @@ In order. Nothing here is in the A/B/C PR.
        Java. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
        final fix round's T4); their lists are this work's list: TypeScript's 17 `COMPOSER_MODULES`, 22
        `COMPOSER_SIGNATURES` and 2 `COMPUTED_DOORS`, Python's 12 `UNFRAMED_SENDERS`, each named there;
-     - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
-       `verdicts`) carried in the test plan instead;
-     - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
+     - **DONE in C5-J (8135f28e04, 2026-11-15):** the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`:
+       `effects`, `seedsInlineCsv`, `shape`, `verdicts`) carried in the test plan instead;
+     - **DONE in C5-J (d3913a4f6e, 2026-11-15; ruled (A): the isolation walls named, `Lowerer.IsolationWall`):** the
+       test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
        `registerColumnLineageRows` (:492) and `registerLineageRows` (:561), and FramePlanner's legendQuery activity SQL
        (:149, which catches LegendCompileException and so still swallows a malformed date pattern; it predates C4) --
        not a fix in C4 (the C4 second small round's item 3);
-     - the resolver's reads of lowering helpers (`lowering.Aggregates`, `lowering.AsorRef`: spelling and
+     - **DONE in C5-J (8d25714047, 2026-11-15):** the resolver's reads of lowering helpers (`lowering.Aggregates`,
+       `lowering.AsorRef`: spelling and
        classification, listed in `ArchitectureTest.PLANNER_ENTRIES`) moved below both;
      - cross-listed so it is not lost (stream D's, not C5's): lineage rebuilt upstream's way, for everything -- its
        terms are under "Moved to D's batch" below;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
        20 TS sites);
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
-     - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
+     - **DONE in C5-J (9dcb29f13b, 2026-11-15; the parse doors):** a wider Java witness (phase C,
+       `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses
        lite's witness pays about 45 ns;
-     - the date-format end found as pure finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
+     - **DONE in C5-J (3c2a8b5ebf, 2026-11-15; S342, ruled as pure's behaviour):** the date-format end found as pure
+       finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
        quoted-brace gap closed (B3's option A; held out of C4 by its freeze of 2026-11-14, where the refusal stays as at
        4a8e448917, named, at planning; S342 was reserved for its register row):
        - pure (legend-pure 5.99.0) finds the end of `%t{` with `FormatTools.findEndOfDateFormatString`: a `"` opens and
@@ -1055,6 +1059,28 @@ In order. Nothing here is in the A/B/C PR.
        - the javadocs of `AuditRound3Test.malformedDatePatternsAreRefusedByName` and
          `BodyRouterParityTest.aMalformedDatePatternInAScannedQueryIsRefusedByName` still give upstream's answer as
          "Missing closing quote ... when the format runs" (the freeze left them); they are corrected with it.
+   - **C5-J, the Java lock-down (2026-11-15, branch `claude/c5-java`, one PR; `docs/GATES.md`'s C5-J entry):**
+     - Its six items, each red on revert:
+       - a wider Java witness (the parse doors);
+       - a test body's facts as plan data;
+       - the resolver below the lowering;
+       - the test road's named catches;
+       - pure's date-format end (S342);
+       - `PLANNER_ENTRIES` 70 → 61.
+     - Measured before and after: core's suites, PCT A/B DuckDB+H2 and both corpora. No body's outcome or failure text
+       moved.
+     - **Its backlog** (found during C5-J, outside its scope; a line each, start none without the user):
+       - the parse rule reads core and the hosts' doors alone: `//sdlc-server/grammar`'s `CoreGrammar`, the spec
+         generator's `PreludeGenerator` and the tools (`tools/census/RenderCensus`, the engine runner's `LiteParseMain`)
+         call the parser directly, outside its import;
+       - `protocol.ts.TsParser` parses in the protocol layer, outside `com.legend.parser` and outside the parse doors
+         (`PureV1Api`'s TS route, `TsToPure`, `TsShow`), so a TS query's parse is unwitnessed at run time;
+       - `Compiler.programFacts` has no caller since the PCT runner reads the test plan's facts: delete it from the
+         closed surface (ROOT_DOORS, QUERY_ROADS);
+       - the Lowerer's other bare IllegalStateExceptions (beyond its isolation walls) are unnamed: name each that a
+         caller means to catch, the rest stay bugs;
+       - `DateFormats` refuses a backslash OUTSIDE quotes as an unsupported token; pure's pattern parser's answer for
+         it is not yet read from the pinned sources, so lite's words there may not be pure's.
    - **RULED by the user, 2026-11-14:** "let's finish the foolproof separation and get that out for all hosts" and
      "yes, separate safety stream". The scope is now set as follows.
      - **C4 is the plan/exec separation (G4) only:** proven on Java; fenced and frozen on TypeScript and Python (the
