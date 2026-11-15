@@ -79,6 +79,23 @@ class DeephavenDialectTest {
         assertEquals(batch(query), planned);
     }
 
+    /** A relation the statement reads twice is written once as a common table expression (the lowering's
+     *  SharedRelations): on Deephaven its operations are made once, and each read is a view of them. */
+    @Test
+    void aRelationReadTwiceIsMadeOnce() {
+        String emea = "#>{risk::Ref.trades}#->filter(x | $x.region == 'EMEA')->select(~[id, desk])";
+        String query = "{| let e = " + emea + "; $e->join($e->rename(~id, ~id2)->rename(~desk, ~desk2),"
+                + " meta::pure::functions::relation::JoinKind.INNER, {a, b | $a.id == $b.id2}); }";
+        SqlQuery q = ir(query);
+        assertTrue(q instanceof com.legend.sql.SqlWith, "a relation read twice is shared: " + q);
+        String b = new Deephaven().render(q);
+        assertEquals(1, b.split("unstructuredFilter", -1).length - 1, "its filter made once: " + b);
+        assertEquals(1, b.split(ticket("trades"), -1).length - 1, "its table read once: " + b);
+        // each read a view of the one operation that answers it, under its own alias
+        assertTrue(b.contains("{\"view\": {\"sourceId\": {\"batchOffset\": 2}, \"columnSpecs\": [\"t1__id = id\"")
+                && b.contains("{\"view\": {\"sourceId\": {\"batchOffset\": 2}, \"columnSpecs\": [\"t2__id = id\""), b);
+    }
+
     @Test
     void aFilteredSortedLimitedSelectIsOneOperationEach() {
         String b = batch("#>{risk::Ref.trades}#->filter(x | $x.region == 'EMEA')->select(~[desk, pnl])"

@@ -453,7 +453,7 @@ Each becomes a docs/SEMANTICS_REGISTER.md row, ruled by the user, when it is bui
    §15.5a: the tab's own deployment and keep, its source a `Simulated` world; no log in the tab.)
 6. **`market.groovy` deleted:** every Deephaven lane green with only the feed and the plan.
 Before the history tier: **lite's lowering joins from a filtered class mapping** (found in step 0b), then the
-keyed tables' latest-version filters.
+keyed tables' latest-version filters. (Both done 2026-11-15: §15.6a.)
 
 7. **Last, maybe:** a lane against a real Kafka-compatible broker (the user: "Real Kafka maybe at the end").
 
@@ -476,7 +476,7 @@ no corpus test reads them raw but `BOOK` (4 reads). In order, each committed wit
   LAKE_OUT_ID = 999999999)` per keyed table in `store::DB` and `~filter` in each keyed class mapping; the test data's
   rows gain their three columns (one version each: `LAKE_IN_ID` 1, `LAKE_OUT_ID` 999999999); the corpus lanes and
   their oracle answers rerun.
-  **Found 2026-11-15, the filters deferred:** with the 26 `~filter`s in place, about 1,000 stress suites failed
+  **Found 2026-11-15, the filters deferred** (landed the same day with the resolver's fix, §15.6a)**:** with the 26 `~filter`s in place, about 1,000 stress suites failed
   with `join condition references unknown column 'BOOK_ID' on its left side`: lite's lowering makes a filtered class
   mapping's table a sub-select that does not carry every column the class's joins read -- a compiler gap, since
   upstream joins from a filtered class mapping. Without the filters the corpus is green (above its floor of 5,614),
@@ -652,7 +652,14 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
   topics) -- its world is simulated beside it, and a tab reading a real broker is the real-Kafka lane's question (§15,
   item 7).
 
-### 15.6 The filtered-mapping join, diagnosed (2026-11-15; not yet fixed)
+### 15.6 The filtered-mapping join, diagnosed and fixed (2026-11-15)
+
+**Fixed** (§15.6a below): the resolver's key widening (`StackBuilder.demandForKeys`) now reaches through a join to
+its left side. The 26 latest-version filters are on (`<Table>_Latest(<TABLE>.LAKE_OUT_ID = 999999999)`, 16 filters in
+`store::DB`, `~filter` on each of the 26 class mappings over a milestoned table), and `//core:stress_suites` is green
+with them.
+
+The diagnosis as it was found:
 
 Reproduced on the real corpus with ONE filter (`Filter Book_Latest(BOOK.LAKE_OUT_ID = 999999999)` and `~filter
 [store::DB] Book_Latest` on `positions::Book`): 1,046 stress suites fail, every one with `join condition references
@@ -675,6 +682,23 @@ unknown column 'BOOK_ID' on its left side`. The smallest failing query:
   `Pipelines.materialize`), which should carry a hop's join column under its own name when it also feeds a property;
   not a name look-through in the lowering (a guessed fallback, AGENTS invariant 4). The 26 latest-version filters wait on
   it; on a live target every row is its key's open version, so nothing reads wrong meanwhile.
+
+### 15.6a The fix (2026-11-15)
+
+- **The cause.** A routed target's rows (Book's set under the entitlements' stack: a one-arm union, its row the class's
+  properties and the route key) carry a join's key only when a hop asks for it: `StackBuilder.demandForKeys` widens the
+  union's projection with each key column a condition reads that the row lacks. With two sibling hops, the second
+  hop's left side is the first hop's join (Book's rows joined to DESK), and the widening looked through a filter, a
+  projection and a concatenate, not a join: it returned the join unchanged, and `BOOK_ID` (carried only as the
+  property `bookId`) never reached the sub-select. Without the filter Book's rows were the plain table, every column
+  there.
+- **The fix.** A join's row is its left's, then its right's under the join's prefix: a key the join's row lacks is
+  widened on its left, the join's row rebuilt (`demandForKeys`, its `TypedJoin` arm). The lowering is unchanged: it
+  reads the column by its own name, now present (no look-through, AGENTS invariant 4).
+- **The SQL it writes on Deephaven.** With the filters a class's rows are a sub-select, and a statement that reads one
+  twice writes it once as a common table expression (the lowering's `SharedRelations`). Deephaven's batch now makes
+  each expression's operation once and every read of it a view of that operation (`DeephavenBatch.with`, `cte`); a
+  recursive WITH is still refused by name.
 
 ## 16. Upstream, read
 
@@ -751,8 +775,7 @@ topic, a materialized view, two environments. New against today: upstream's inge
 no read mode, as upstream's); an access point with no target, `LH(|...)` (lite's spelling); the connection types
 `Files` and `Iceberg` (`Files` until upstream's nearest connection is read, `Iceberg` at the history step) and the
 tab's source `Simulated`; a Kafka connection with no `format` (it is the read mode's) and no `store` (the deployment
-says what it feeds); the `Deployment` element; the keyed tables' latest-version filters (option A, awaiting the
-user's yes, §13); the data product `desk::Desk`, deployed whole and providing the data space's mapping (step 2).
+says what it feeds); the `Deployment` element; the keyed tables' latest-version filters (option A, ruled 2026-11-15, §13; on since §15.6a); the data product `desk::Desk`, deployed whole and providing the data space's mapping (step 2).
 Everything else exists today. Before step 2, `deploys` lists the ingests and each environment names `mapping:`
 (§7).
 

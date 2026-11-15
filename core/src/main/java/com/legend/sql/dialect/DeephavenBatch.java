@@ -55,6 +55,10 @@ final class DeephavenBatch {
     /** Each store table the batch reads, as its store declares it (DH16): written after the operations, for the sender
      *  to check the server's table against ({@code DeephavenWire.made}). */
     private final List<String> declared = new ArrayList<>();
+    /** The WITH's expressions in scope, by name: each one's operation, made once, every read of it a view of that
+     *  operation under the read's alias (a relation the statement reads more than once: the lowering's SharedRelations,
+     *  SqlWith.SHARED_PREFIX). */
+    private final Map<String, Rel> ctes = new LinkedHashMap<>();
 
     DeephavenBatch(Deephaven dialect, SqlWriter writer) {
         this.dialect = dialect;
@@ -260,9 +264,26 @@ final class DeephavenBatch {
         return switch (q) {
             case SqlSelect s -> select(s);
             case SqlUnion u -> union(u);
-            case SqlWith with -> throw new DialectCapability("a WITH (common table expressions) reached Deephaven:"
-                    + " no shape yet");
+            case SqlWith with -> with(with);
         };
+    }
+
+    /** A WITH: each expression's operation made once, in order (a later one may read an earlier), then the body, every
+     *  read of an expression a view of its operation. A recursive WITH has no shape. */
+    private Rel with(SqlWith with) {
+        if (with.recursive()) {
+            throw new DialectCapability("a recursive WITH reached Deephaven: no shape yet");
+        }
+        Map<String, Rel> outer = new LinkedHashMap<>(ctes);
+        try {
+            for (SqlWith.Cte c : with.ctes()) {
+                ctes.put(c.name(), query(c.query()));
+            }
+            return query(with.body());
+        } finally {
+            ctes.clear();
+            ctes.putAll(outer);
+        }
     }
 
     /** A union: each branch's columns renamed to the first's, then merged; a deduplicating union keeps each row once. */
@@ -1604,7 +1625,7 @@ final class DeephavenBatch {
             case SqlSource.Dual d -> simple("emptyTable", "\"size\": \"1\"");
             case SqlSource.Values v -> throw new DialectCapability("a literal relation reached Deephaven: no shape"
                     + " yet");
-            case SqlSource.Cte c -> throw new DialectCapability("a CTE reference reached Deephaven: no shape yet");
+            case SqlSource.Cte c -> cte(c, scope);
             case SqlSource.VarSetPlaceholder v -> throw new IllegalStateException("a plan variable (" + v.varName()
                     + ") reached an executable dialect: plan-text vocabulary only");
             case SqlSource.RawSql r -> throw new DialectCapability("a raw statement as a relation reached Deephaven,"
@@ -1667,15 +1688,29 @@ final class DeephavenBatch {
 
     /** A subselect's rows, its outputs renamed under its alias. */
     private int subselect(SqlSource.Subselect sub, Deephaven.Scope scope) {
-        Rel inner = query(sub.inner());
+        return aliased(query(sub.inner()), sub.alias(), scope);
+    }
+
+    /** A read of a WITH's expression: a view of its one operation, as a subselect's rows. */
+    private int cte(SqlSource.Cte c, Deephaven.Scope scope) {
+        Rel made = ctes.get(c.name());
+        if (made == null) {
+            throw new IllegalStateException("the common table expression " + c.name() + " is read where no WITH"
+                    + " defines it");
+        }
+        return aliased(made, c.alias(), scope);
+    }
+
+    /** {@code inner}'s rows, its columns renamed under {@code alias}. */
+    private int aliased(Rel inner, String alias, Deephaven.Scope scope) {
         Map<String, String> columns = new LinkedHashMap<>();
         List<Spec> renames = new ArrayList<>();
         for (Map.Entry<String, String> c : inner.columns().entrySet()) {
-            String renamed = alias(sub.alias()) + "__" + c.getValue();
+            String renamed = alias(alias) + "__" + c.getValue();
             columns.put(c.getKey(), renamed);
             renames.add(new Spec(renamed + " = " + c.getValue(), null));
         }
-        scope.sources.put(sub.alias(), columns);
+        scope.sources.put(alias, columns);
         return view("view", inner.op(), renames);
     }
 
