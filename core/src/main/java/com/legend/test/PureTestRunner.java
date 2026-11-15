@@ -7,7 +7,6 @@ package com.legend.test;
 import com.legend.Compiler;
 import com.legend.TestExecution;
 import com.legend.ExecuteOptions;
-import com.legend.planner.ProgramFacts;
 import com.legend.compiler.element.ModelContext;
 import com.legend.testexecutionplan.AssertListener;
 import com.legend.testexec.SqlReplayReferee;
@@ -278,14 +277,16 @@ public final class PureTestRunner implements AutoCloseable {
         // the platform's facts about the program decide the session: a test
         // that seeds inline CSV data gets a private workspace
         ValueSpecification resolved;
-        ProgramFacts facts;
+        com.legend.testexecutionplan.BodyFacts facts;
         try {
             resolved = Compiler.resolveQuery(List.copyOf(body), t.imports(), ctx);
         } catch (RuntimeException e) {
             return new Result(t.fqn(), Status.FAIL, List.of(), "resolve: " + whole(e.getMessage()));
         }
         try {
-            facts = Compiler.programFacts(resolved, ctx);
+            // the body's facts as the test planner states them, data: the record its plan carries (C5-J item 2,
+            // 2026-11-15: until then the planner's ProgramFacts, read here)
+            facts = TestExecution.facts(Compiler.queryResolved(ctx, resolved));
         } catch (RuntimeException e) {
             if (System.getenv("LEGEND_LITE_STACKS") != null) {
                 e.printStackTrace();   // the typing phase, under the same flag as execution
@@ -322,7 +323,8 @@ public final class PureTestRunner implements AutoCloseable {
         }
     }
 
-    private Result judge(PureTests.TestCase t, ValueSpecification resolved, ProgramFacts facts,
+    private Result judge(PureTests.TestCase t, ValueSpecification resolved,
+            com.legend.testexecutionplan.BodyFacts facts,
             com.legend.exec.Sessions.Session conn, ExecuteOptions options, @com.legend.base.Nullable SqlReplayReferee referee) {
         boolean effectful = facts.effects();
         List<Verdict> verdicts = new ArrayList<>();
@@ -337,12 +339,12 @@ public final class PureTestRunner implements AutoCloseable {
         boolean passed = false;
         try {
             String failure = null;
+            com.legend.testexecutionplan.TestPlan planned = null;
             try {
                 // the body planned whole, nothing told to anyone; then run, its listener told each verdict at its
                 // turn (2026-11-10: no fixture is provided between the halves -- the corpus's and the stress lanes'
                 // verdicts measured unmoved without one, census M9)
-                com.legend.testexecutionplan.TestPlan planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved),
-                        runtimeFqn, options);
+                planned = TestExecution.planBody(Compiler.queryResolved(ctx, resolved), runtimeFqn, options);
                 TestExecution.runBody(planned, conn,
                         new AssertListener() {
                             @Override
@@ -389,7 +391,8 @@ public final class PureTestRunner implements AutoCloseable {
             if (failure == null && !failedAsserts.isEmpty()) {
                 failure = "assert " + failedAsserts.get(0);
             }
-            if (failure == null && verdicts.isEmpty() && facts.verdicts()) {
+            // whether the body reaches a verdict: the plan's own fact (planned, since nothing failed)
+            if (failure == null && verdicts.isEmpty() && java.util.Objects.requireNonNull(planned).facts().verdicts()) {
                 failure = "no verdict: the body calls an assert the platform did not adjudicate";
             }
             if (failure != null) {
@@ -398,7 +401,7 @@ public final class PureTestRunner implements AutoCloseable {
             passed = true;
             observer.bodyPassed(conn, effectful);
             if (verdicts.isEmpty()) {
-                // facts.verdicts() is false here: the program reaches no
+                // the plan's facts().verdicts() is false here: the program reaches no
                 // verdict function — nothing was proved
                 return new Result(t.fqn(), Status.SKIPPED, verdicts,
                         "no assertion reachable (the program calls no verdict function)", refereeMatched[0]);

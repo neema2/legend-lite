@@ -75,7 +75,8 @@ public final class RenderCensus {
                     throw e;
                 }
                 ModelContext ctx = (ModelContext) built;
-                var parsed = com.legend.parser.SpecParser.parse(expression, com.legend.parser.Dialect.LEGEND_LITE);
+                // through the parse door, which asks the run's wall (C5-J's last round, A2, 2026-11-15)
+                var parsed = com.legend.door.Parse.query(expression, com.legend.parser.Dialect.LEGEND_LITE);
                 List<com.legend.protocol.spec.ValueSpecification> statements =
                         parsed instanceof com.legend.protocol.spec.LambdaFunction lf && lf.parameters().isEmpty()
                                 ? lf.body() : List.of(parsed);

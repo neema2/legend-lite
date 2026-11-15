@@ -11,7 +11,6 @@ import com.legend.compiler.element.type.PlatformTypes;
 import com.legend.compiler.element.type.Type;
 import com.legend.compiler.spec.SourceSubst;
 import com.legend.compiler.spec.SpecCompiler;
-import com.legend.error.TypeInferenceException;
 import com.legend.compiler.spec.typed.ExecutionContext;
 import com.legend.compiler.spec.typed.Lets;
 import com.legend.compiler.spec.typed.TypedCBoolean;
@@ -26,7 +25,6 @@ import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedPackageableRef;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedVariable;
-import com.legend.error.MappingResolutionException;
 import com.legend.error.NotImplementedException;
 import com.legend.lineage.ColumnLineageRows;
 import com.legend.lineage.LineageRows;
@@ -248,9 +246,13 @@ public final class PlanAllocations {
                     planTemplateFunctions(pnBound, letPrefix, env));
             env.planRows().put(scope, rows);
             env.planRows().put(PlanRows.scopeId(pnBound), rows);
-        } catch (NotImplementedException
-                | TypeInferenceException
-                | IllegalStateException e) {
+        } catch (NotImplementedException | com.legend.sql.DialectCapability
+                | com.legend.lowering.Lowerer.IsolationWall e) {
+            // the plan model's NAMED refusals alone (C5-J item 4, 2026-11-15, G7: until then any IllegalStateException
+            // and TypeInferenceException as well): a shape the plan walk does not build yet, a reduction the dialect
+            // cannot encode, and a reference the lowering cannot resolve even after isolation (the census of core's
+            // suites, PCT's channels and both corpora: 44, 12 and 84 of the 140 it swallowed; the orchestrator's
+            // ruling (A): the walls named, Lowerer.IsolationWall). Anything else fails the body by name
             if (!noLineageRows(e)) {
                 throw e;
             }
@@ -278,7 +280,7 @@ public final class PlanAllocations {
         if (mappingFqn == null) {
             return null;
         }
-        try {
+        return activityOrNone(() -> {
             // C4 (handed off): the execute call's runtime type is not read here yet
             var renderer = EngineText.engineText(EngineText.ENGINE_TEST_DATABASE);
             EnginePlans.EngineSql es = EnginePlans.engineSql(
@@ -289,10 +291,21 @@ public final class PlanAllocations {
                     env.postProcessors().extractCtes(),
                     env.postProcessors().nonExecutable());
             return post == es.plan() ? es.sql() : renderer.render(post);
-        } catch (NotImplementedException
-                | TypeInferenceException
-                | MappingResolutionException
-                | IllegalStateException e) {
+        });
+    }
+
+    /**
+     * An activity's SQL, or none: the ONE rule for both activities, an {@code execute()}'s ({@link #activitySql}) and
+     * an {@code executeLegendQuery}'s ({@code FramePlanner}) -- the C5-J audit's nit, 2026-11-15: one condition, one
+     * handling. The one condition an activity means (C5-J item 4, G7: until then any NotImplementedException,
+     * TypeInferenceException, MappingResolutionException, IllegalStateException or LegendCompileException): the
+     * engine-style render reaches a reduction its dialect cannot encode, so the activity records no SQL, and a read of
+     * it is a loud missing member. Anything else fails the body by name.
+     */
+    static @Nullable String activityOrNone(java.util.function.Supplier<String> render) {
+        try {
+            return render.get();
+        } catch (com.legend.sql.DialectCapability e) {
             // diagnostics (env-gated): the render's own wall, which the
             // rows path downstream would otherwise mask
             if (System.getenv("LL_TMP_DEBUG") != null) {
@@ -489,8 +502,10 @@ public final class PlanAllocations {
             var rows = ColumnLineageRows.rows(scope, env.ctx(),
                     mr.fullPath(), ScanColumns.entries(plan));
             env.planRows().put(scope, rows);
-        } catch (NotImplementedException
-                | IllegalStateException e) {
+        } catch (NotImplementedException e) {
+            // the lowering's named refusal alone (C5-J item 4, 2026-11-15, G7: until then any IllegalStateException as
+            // well): a query the column scan's lowering does not plan yet (a class-typed property used whole is graph
+            // output). Anything else fails the body by name
             if (!noLineageRows(e)) {
                 throw e;
             }
@@ -553,17 +568,12 @@ public final class PlanAllocations {
         if (!(m instanceof TypedPackageableRef mr)) {
             return;
         }
-        try {
-            var lines = ScanRelations.lines(env.ctx(), ql,
-                    mr.fullPath(), pn.args().size() == 4);
-            var rows = LineageRows.rows(scope, lines);
-            env.planRows().put(scope, rows);
-        } catch (NotImplementedException
-                | IllegalStateException e) {
-            if (!noLineageRows(e)) {
-                throw e;
-            }
-            // no rows: the symbolic handle's walls stand
-        }
+        // a scan that fails, fails the body by name (C5-J item 4, 2026-11-15, G7: until then a NotImplementedException
+        // or an IllegalStateException registered nothing, and the handle's reads met its walls instead; the census of
+        // core's suites, PCT's channels and both corpora found none)
+        var lines = ScanRelations.lines(env.ctx(), ql,
+                mr.fullPath(), pn.args().size() == 4);
+        var rows = LineageRows.rows(scope, lines);
+        env.planRows().put(scope, rows);
     }
 }

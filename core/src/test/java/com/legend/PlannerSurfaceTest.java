@@ -541,7 +541,8 @@ class PlannerSurfaceTest {
                     List.of(LAMBDA, NAME, MODEL)),
             Map.entry("Compiler#executesOn(ModelContext, String)", List.of(MODEL, NAME)),
             Map.entry("Compiler#hasStatementEffects(ValueSpecification, ModelContext)", List.of(LAMBDA, MODEL)),
-            Map.entry("Compiler#programFacts(ValueSpecification, ModelContext)", List.of(LAMBDA, MODEL)),
+            // Compiler#programFacts(ValueSpecification, ModelContext) went 2026-11-15 (C5-J's last round, A3): no
+            // caller was left once the PCT runner read a body's facts off its test plan (TestExecution#facts)
             Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
                     List.of(LAMBDA, MODEL, NAME, OPTION)),
             Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean, String)",
@@ -598,6 +599,8 @@ class PlannerSurfaceTest {
                     List.of(LAMBDA, NAME, OPTION, OUTPUT)),
             // TestExecution: a test body planned, then run, its verdicts to the caller's listener and the referee
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", List.of(LAMBDA, NAME, OPTION)),
+            // a test body's facts, data, before it is planned (C5-J item 2, 2026-11-15): the record its plan carries
+            Map.entry("TestExecution#facts(TypedQuery)", List.of(LAMBDA)),
             Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
                     + " ExecuteOptions)", List.of(LAMBDA, NAME, SESSION, CALLBACK, CALLBACK, OPTION)),
             Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
@@ -655,7 +658,7 @@ class PlannerSurfaceTest {
             Map.entry("Compiler#resolveNames(List<ValueSpecification>, ImportScope, ModelContext)",
                     QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#hasStatementEffects(ValueSpecification, ModelContext)", QueryRoad.PLANS_NOTHING),
-            Map.entry("Compiler#programFacts(ValueSpecification, ModelContext)", QueryRoad.PLANS_NOTHING),
+            // Compiler#programFacts went 2026-11-15 (C5-J's last round, A3): no caller was left
             // it types, resolves and lowers on its own: it refuses inside itself (G1)
             Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
                     QueryRoad.REFUSES_RAW_SQL),
@@ -694,6 +697,8 @@ class PlannerSurfaceTest {
             Map.entry("Execution#runOnProjectDatabases(TypedQuery, String, String, Output)",
                     QueryRoad.REFUSES_RAW_SQL),
             Map.entry("TestExecution#planBody(TypedQuery, String, ExecuteOptions)", QueryRoad.TEST_ROAD),
+            // it reads facts of the body and plans nothing (C5-J item 2, 2026-11-15)
+            Map.entry("TestExecution#facts(TypedQuery)", QueryRoad.PLANS_NOTHING),
             Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"
                     + " ExecuteOptions)", QueryRoad.TEST_ROAD),
             Map.entry("TestExecution#runProgram(TypedQuery, String, SessionSource, AssertListener, SqlReplayReferee,"

@@ -81,7 +81,9 @@ public final class PeRatchets {
                     + " the stream's new tests' models (PreQuotedNamesTest's H2 model for the auditor's FILE_READ case among"
                     + " them)",
             "own_corpus.matched 3226, 3246 -> 3261 (2026-11-14, merged main 3a217086a (#81) into the separation stream,"
-                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together");
+                    + " measured by //parser-equivalence:update_ratchets on the merged tree): both sides' models together",
+            "own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models,"
+                    + " measured by //parser-equivalence:update_ratchets");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

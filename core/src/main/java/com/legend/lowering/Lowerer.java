@@ -2014,7 +2014,7 @@ public final class Lowerer {
         if (a2 != null) {
             return a2;
         }
-        throw new IllegalStateException("extend/project columns "
+        throw new IsolationWall("extend/project columns "
                 + columns.stream().map(TypedFuncCol::name).toList()
                 + " reference names unresolvable even after isolation"
                 + (miss[0] == null ? "" : " [col='" + miss[0] + "' ref='" + miss[1] + "']")
@@ -2269,7 +2269,7 @@ public final class Lowerer {
             // row set, a window's, which no scope may write in place) is the enclosing boundary's to cure: it isolates
             // its select, the column becomes a plain one, and the correlated read resolves
             case Resolution.Unfoldable u when u.enclosing() -> throw new UnfoldableRef(u.column(), true);
-            case Resolution.Unfoldable u -> throw new IllegalStateException(
+            case Resolution.Unfoldable u -> throw new IsolationWall(
                     op + " predicate references column '" + u.column()
                             + "', unresolvable even after isolation [param="
                             + lambda.parameters().get(0) + "; pred="
@@ -2446,6 +2446,20 @@ public final class Lowerer {
      * throw {@link UnfoldableRef}; callers at TRY boundaries convert via
      * {@link #attempt} (the ONE catch site).
      */
+    /** AN ISOLATION WALL (C5-J item 4, 2026-11-15: named, until then an IllegalStateException, so that a caller that
+     *  means this condition catches it alone, G7 -- the test road's plan rows, {@code planner.PlanAllocations
+     *  .registerPlanRows}): a reference the lowering cannot resolve even after isolating its select -- a computed
+     *  column a filter, an extend or project, a group, a select, a rename, a sort ({@code Sorts}, the C5-J audit's
+     *  nit) or a relation cast reads, or a join condition's variable that neither side nor an enclosing row holds. Its
+     *  message is the wall's, unchanged. */
+    public static final class IsolationWall extends IllegalStateException {
+        private static final long serialVersionUID = 1L;
+
+        IsolationWall(String message) {
+            super(message);
+        }
+    }
+
     /**
      * The RELATION-LEVEL try boundary: build the op over the folded select;
      * a computed-column reference (extend'ed expression, window column) is
@@ -2460,7 +2474,7 @@ public final class Lowerer {
             try {
                 return build.apply(isolate(base));
             } catch (UnfoldableRef second) {
-                throw new IllegalStateException(op + " reference '"
+                throw new IsolationWall(op + " reference '"
                         + second.getMessage() + "' cannot be resolved even after"
                         + " isolation");
             }
@@ -2498,7 +2512,7 @@ public final class Lowerer {
             base = isolate(base);
             ps = Fold.tryProjectAll(base, columns, contract);
             if (ps == null) {
-                throw new IllegalStateException("select/distinct columns " + columns
+                throw new IsolationWall("select/distinct columns " + columns
                         + " cannot all be resolved even after isolation");
             }
         }
@@ -2584,7 +2598,7 @@ public final class Lowerer {
             String from = sourceOf.apply(c.name());
             SqlExpr e = Fold.resolveInto(base, from);
             if (e == null) {
-                throw new IllegalStateException("rename source column '" + from
+                throw new IsolationWall("rename source column '" + from
                         + "' cannot be resolved after isolation");
             }
             ps.add(new SqlSelect.Projection(e, c.name().equals(
@@ -3192,7 +3206,7 @@ public final class Lowerer {
                         return found.expr();
                     }
                 }
-                throw new IllegalStateException("join condition reads '$" + var
+                throw new IsolationWall("join condition reads '$" + var
                         + "', neither of its sides nor an enclosing row");
             }
             boolean isLeft = leftVar.equals(var);
@@ -4645,7 +4659,7 @@ public final class Lowerer {
             out = tryRelationCast(isolate(first), src, tgtRow, c);
         }
         if (out == null) {
-            throw new IllegalStateException("relation cast columns unresolvable"
+            throw new IsolationWall("relation cast columns unresolvable"
                     + " even after isolation: " + tgtRow.typeName());
         }
         return out;

@@ -187,10 +187,12 @@ public final class TsToPure {
         return found[0];
     }
 
-    /** The relation {@code text}, a {@code #TS{...}#} query, means over {@code model}, its per-point expressions in
-     *  {@code dialect} (Postgres's); a {@link SqlTranslationException}, placed in the text, where it means none. */
-    public static ValueSpecification translate(String text, Model model, InputDialect dialect) {
-        return new Builder(model, dialect, TsParser.parse(text)).query();
+    /** The relation {@code query}, a {@code #TS{...}#} query's tree, means over {@code model}, its per-point
+     *  expressions in {@code dialect} (Postgres's); a {@link SqlTranslationException}, placed in the text, where it
+     *  means none. The text is read through the parse door ({@code door.Parse.tsIsland}, C5-J's last round,
+     *  2026-11-15: until then this took the text and read it here, where the run's wall cannot be asked). */
+    public static ValueSpecification translate(TsAst.Query query, Model model, InputDialect dialect) {
+        return new Builder(model, dialect, query).query();
     }
 
     /** The prefix of the names {@link #bindShared} binds: the translator's own, as its columns' {@code __ts_}. */
