@@ -1243,8 +1243,8 @@ public class MariaDb extends AnsiSqlRenderer {
     }
 
     /** {@code body}, or NULL for a NULL list (DuckDB's list functions answer NULL there). */
-    private static SqlWriter.Piece unlessNull(SqlExpr xs, SqlWriter.Piece body) {
-        return w -> w.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ").piece(body).append(" END)");
+    private SqlWriter.Piece unlessNull(SqlExpr xs, SqlWriter.Piece body) {
+        return nullIfNull(xs, body);
     }
 
     private SqlExpr.Lambda lambdaOf(SqlExpr e, SqlFn fn) {
@@ -1424,9 +1424,9 @@ public class MariaDb extends AnsiSqlRenderer {
         String e = param("__e");
         SqlWriter.Piece needle = nested(el) ? compact(w -> w.expr(m.needle(), 0)) : w -> w.expr(m.needle(), 5);
         SqlWriter.Piece element = nested(el) ? compact(w -> w.append(e)) : w -> w.append(e);
-        return writer.append("(CASE WHEN ").expr(m.collection(), 4).append(" IS NULL OR ").expr(m.needle(), 4)
-                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ").piece(elements(m.collection(), "__e", "__eo",
-                        null)).append(" WHERE ").piece(element).append(" = ").piece(needle).append(") END)");
+        return writer.piece(nullIfAnyNull(List.of(m.collection(), m.needle()), w -> w.append("EXISTS(SELECT 1 FROM ")
+                .piece(elements(m.collection(), "__e", "__eo", null)).append(" WHERE ").piece(element).append(" = ")
+                .piece(needle).append(")")));
     }
 
     @Override
@@ -2051,11 +2051,10 @@ public class MariaDb extends AnsiSqlRenderer {
             case MAKE_DATE -> writer.append("STR_TO_DATE(CONCAT_WS('-', ").list(a).append("), '%Y-%m-%d')");
             case MAKE_TIMESTAMP -> makeTimestamp(writer, a, c);
             // past the years 1000-9999 a date function answers NULL (measured): raised, never a NULL value
-            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("(CASE WHEN ").expr(a.get(1), 4)
-                    .append(" IS NULL OR ").expr(a.get(2), 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                    .piece(addInterval(a, c)).append(", ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
-                            com.legend.sql.RaiseKind.VALUE_NOT_HELD, List.of(new SqlExpr.StringLit(
-                            "a date past the year 9999 has no " + product() + " value")))), typeOf(c))).append(") END)");
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.piece(nullIfAnyNull(List.of(a.get(1), a.get(2)),
+                    w -> w.append("coalesce(").piece(addInterval(a, c)).append(", ").piece(raise(raiseArgs(
+                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD, List.of(new SqlExpr.StringLit(
+                            "a date past the year 9999 has no " + product() + " value")))), typeOf(c))).append(")")));
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC date-time: UTC's wall time is the instant's, either way
@@ -2099,7 +2098,7 @@ public class MariaDb extends AnsiSqlRenderer {
     /** The {@code ACOS} and {@code ASIN} arms of {@link #call}: undefined outside [-1, 1], raised. */
     private SqlWriter domainGuarded(SqlWriter writer, SqlExpr.Call c, String fn) {
         List<SqlExpr> a = c.args();
-        return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
+        return writer.piece(nullIfNull(a.get(0), w -> w.append("coalesce(").append(fn)
                 .append("(").expr(a.get(0), 0).append("), ")
                 // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
                 // engine's answer), and says so -- not DuckDB's words
@@ -2107,7 +2106,7 @@ public class MariaDb extends AnsiSqlRenderer {
                         List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
                         + " of a value outside [-1, 1] is NaN, which this database cannot hold")))),
                         SqlType.Scalar.DOUBLE))
-                .append(") END)");
+                .append(")")));
     }
 
     /** The {@code LPAD} and {@code RPAD} arms of {@link #call}: a space by default. */
@@ -2400,8 +2399,8 @@ public class MariaDb extends AnsiSqlRenderer {
         String p = patternOf(a, SqlFn.REGEXP_EXTRACT);
         int g = group(a);
         if (g == 0) {
-            return w -> w.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE REGEXP_SUBSTR(")
-                    .expr(a.get(0), 0).append(", " + stringLit(p) + ") END)");
+            return nullIfNull(a.get(0), w -> w.append("REGEXP_SUBSTR(").expr(a.get(0), 0)
+                    .append(", " + stringLit(p) + ")"));
         }
         return w -> w.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL WHEN ").expr(a.get(0), 4)
                 .append(" REGEXP " + stringLit(p) + " THEN REGEXP_REPLACE(").expr(a.get(0), 0)
@@ -2429,11 +2428,11 @@ public class MariaDb extends AnsiSqlRenderer {
         SqlWriter.Piece kth = w -> w.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", CONCAT(" + repeat + ", ")
                 .piece(k).append(" - 1, " + stringLit("}[\\s\\S]*?(" + p + ")[\\s\\S]*\\z") + "), "
                         + stringLit(groupRef(ref)) + ")");
-        return w -> w.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce((SELECT ")
+        return nullIfNull(a.get(0), w -> w.append("coalesce((SELECT ")
                 .piece(arrayAgg(false, kth, k, false)).append(" FROM ")
                 .piece(rows(v -> v.append("CHAR_LENGTH(").expr(a.get(0), 0).append(") + 1"), "__k"))
                 .append(" WHERE ").expr(a.get(0), 4).append(" REGEXP CONCAT(" + repeat + ", ").piece(k)
-                .append(", '}')), JSON_ARRAY()) END)");
+                .append(", '}')), JSON_ARRAY())"));
     }
 
     /** The capturing groups of a pattern: each '(' not escaped, not in a class, not a '(?' group (but a named one). */
@@ -2780,10 +2779,10 @@ public class MariaDb extends AnsiSqlRenderer {
 
     /** Pure's parseDate of a text: its date-time ({@link #utcOf}); a text that is no date raises. */
     private SqlWriter.Piece parsedDate(SqlExpr x) {
-        return w -> w.append("(CASE WHEN ").expr(x, 4).append(" IS NULL THEN NULL ELSE coalesce(")
+        return nullIfNull(x, w -> w.append("coalesce(")
                 .piece(utcOf(v -> v.expr(x, 0))).append(", ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
                         com.legend.sql.RaiseKind.TEXT_NOT_DATE, List.of(x))), SqlType.Scalar.TIMESTAMP))
-                .append(") END)");
+                .append(")"));
     }
 
     /** A date-time's microseconds since the epoch (exact, any year: TIMESTAMPDIFF, not UNIX_TIMESTAMP's range). */

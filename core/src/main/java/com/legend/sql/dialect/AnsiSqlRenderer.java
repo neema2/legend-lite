@@ -1208,11 +1208,23 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      * operand whose nullability is unknown keeps its guard.
      */
     protected SqlWriter.Piece nullIfNull(SqlExpr operand, SqlWriter.Piece body) {
-        if (!com.legend.sql.SqlTyping.mayBeNull(operand)) {
+        return nullIfAnyNull(List.of(operand), body);
+    }
+
+    /** {@code body}, NULL where any of {@code operands} is ({@link #nullIfNull}): each operand that cannot be NULL
+     *  left out of the test, and no test at all where none can. */
+    protected SqlWriter.Piece nullIfAnyNull(List<SqlExpr> operands, SqlWriter.Piece body) {
+        List<SqlExpr> tested = operands.stream().filter(com.legend.sql.SqlTyping::mayBeNull).toList();
+        if (tested.isEmpty()) {
             return body;
         }
-        return w -> w.append("(CASE WHEN ").expr(operand, 4).append(" IS NULL THEN NULL ELSE ").piece(body)
-                .append(" END)");
+        return w -> {
+            w.append("(CASE WHEN ");
+            for (int i = 0; i < tested.size(); i++) {
+                w.append(i > 0 ? " OR " : "").expr(tested.get(i), 4).append(" IS NULL");
+            }
+            w.append(" THEN NULL ELSE ").piece(body).append(" END)");
+        };
     }
 
     /** {@code (x IS DISTINCT FROM y)}: the null-safe inequality (the engine's nullSafeNotEqual DynaFunction). */
