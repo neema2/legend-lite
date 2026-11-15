@@ -772,8 +772,9 @@ final class ArchitectureTest {
      * two of the parser's token helpers ({@link #TOKEN_READERS}), named. The embedded languages' readers are entries
      * too (C5-J's last round, A1, 2026-11-15): every method of an island's reader but a word's test it names
      * ({@link #ISLAND_READERS}, {@link #ISLAND_READER_HELPERS}), and a dialect's parse ({@code InputDialect#parse}); they
-     * sit in the protocol layer, which cannot ask (7b), so their callers are the readers and dialects themselves
-     * ({@link #ISLAND_DIALECTS}) and the door ({@code door.Parse}: {@code sqlIsland}, {@code tsIsland},
+     * sit in the protocol layer, which cannot ask (7b), so their callers are the readers themselves, the dialects' named
+     * reads ({@link #ISLAND_DIALECT_READS}, by full signature since C5-J's zone fix, 2026-11-15) and the door
+     * ({@code door.Parse}: {@code sqlIsland}, {@code tsIsland},
      * {@code tsItem}, {@code cypherIsland}), and the translators take the tree. Invariant 6i's sanctioned users of the grammar
      * parsers became the doors with it ({@link #parseMachineryIsUsedOnlyWhereSanctioned}). {@code PhaseEntriesRefusedInsideARunTest} pins
      * each door's refusal by its phase; {@link #theParseRulesBiteAPlantedCaller} shows both halves bite.
@@ -789,6 +790,21 @@ final class ArchitectureTest {
                 "the import holds the SDLC's grammar");
         PARSE_BY_THE_DOORS.check(classes);
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), parseDoorViolations(classes, PARSE_DOORS));
+        // no named dialect read is dead (C5-J's zone fix, 2026-11-15): each signature is a code unit of the import that
+        // reaches a parse entry, so a method that stops reading leaves the list, and a renamed one cannot hide
+        java.util.Map<String, Boolean> reads = new java.util.TreeMap<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                if (ISLAND_DIALECT_READS.contains(u.getFullName())) {
+                    reads.put(u.getFullName(), u.getAccessesFromSelf().stream().anyMatch(a ->
+                            a instanceof com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?> x && isParseEntry(x)));
+                }
+            }
+        }
+        java.util.Map<String, Boolean> expected = new java.util.TreeMap<>();
+        ISLAND_DIALECT_READS.forEach(r -> expected.put(r, true));
+        org.junit.jupiter.api.Assertions.assertEquals(expected, reads,
+                "each named dialect read is a code unit that reaches a parse entry");
     }
 
     /**
@@ -865,6 +881,16 @@ final class ArchitectureTest {
         // an anonymous subclass, whose compiled owner sits in the caller's package
         bites(PARSE_BY_THE_DOORS, com.legend.model.PlantedModelIslandRead.class);
         bites(PARSE_BY_THE_DOORS, com.legend.sql.dialect.PlantedDialectSubclassParse.class);
+        // a dialect's reads are named by signature, not by class (C5-J's zone fix, 2026-11-15): with both of the planted
+        // class's reads named it passes, with one named the other bites -- the same class, its other method
+        Class<?> dialect = com.legend.compiler.spec.PlantedIslandDialect.class;
+        String named = dialect.getName() + ".read(java.lang.String)";
+        String other = dialect.getName() + ".alsoReads(java.lang.String)";
+        parseByTheDoors(java.util.Set.of(named, other)).check(new ClassFileImporter().importClasses(dialect));
+        AssertionError unnamed = org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class,
+                () -> parseByTheDoors(java.util.Set.of(named)).check(new ClassFileImporter().importClasses(dialect)));
+        org.junit.jupiter.api.Assertions.assertTrue(unnamed.getMessage().contains("alsoReads")
+                && !unnamed.getMessage().contains(".read("), unnamed.getMessage());
         java.util.Map<Class<?>, String> doors = java.util.Map.of(
                 com.legend.door.PlantedUnaskedDoor.class, "parses without asking the run's wall",
                 com.legend.door.PlantedLateDoor.class, "parses before it asks the run's wall",
@@ -952,20 +978,32 @@ final class ArchitectureTest {
             "com.legend.protocol.sql.iq.IqLexer#reserved", "com.legend.protocol.sql.iq.IqLexer#lower",
             "com.legend.protocol.sql.iq.IqParser#nullValue", "com.legend.protocol.sql.iq.IqParser#cannotRaise");
 
-    /** The island dialects that read with the readers, by class (C5-J's last round, A1, 2026-11-15): Postgres's and
-     *  SAP IQ's parse ({@code InputDialect#parse}, the reading the parse door {@code door.Parse.sqlIsland} calls), and
-     *  the IQ dialect's own re-reading of a select item's text, which it keeps as written, for the name SQL Anywhere
-     *  gives the item by how it was written ({@code IqDialect}'s bare column, {@code IqNames.name}): inside the
-     *  translation of a statement the door read, never a text of its own. */
-    static final java.util.Set<String> ISLAND_DIALECTS = java.util.Set.of(
-            "com.legend.protocol.sql.PostgresDialect", "com.legend.protocol.sql.iq.IqDialect",
-            "com.legend.protocol.sql.iq.IqNames");
+    /** The island dialects' code units that read with the readers, by full signature (C5-J's zone fix, 2026-11-15: until
+     *  then the three classes whole, 516 code units, ISLAND_DIALECTS; these 4 are the ones measured to reach a reader
+     *  that day, and a new one fails the rule until it is named here): Postgres's and SAP IQ's parse
+     *  ({@code InputDialect#parse}, the reading the parse door {@code door.Parse.sqlIsland} calls), and the IQ dialect's
+     *  own re-reading of a select item's text, which it keeps as written, for the name SQL Anywhere gives the item by how
+     *  it was written ({@code IqDialect}'s bare column, {@code IqNames.name}; its two other overloads delegate to this
+     *  one): inside the translation of a statement the door read, never a text of its own. Each is live
+     *  ({@link #everyParseIsReachedThroughADoorThatAsks}). */
+    static final java.util.Set<String> ISLAND_DIALECT_READS = java.util.Set.of(
+            "com.legend.protocol.sql.PostgresDialect.parse(java.lang.String)",
+            "com.legend.protocol.sql.iq.IqDialect.parse(java.lang.String)",
+            "com.legend.protocol.sql.iq.IqDialect.bareColumn(com.legend.protocol.sql.SqlAst$SelectExpr)",
+            "com.legend.protocol.sql.iq.IqNames.name(java.lang.String, com.legend.protocol.sql.iq.IqSettings,"
+                    + " com.legend.protocol.sql.iq.IqNames$Columns, com.legend.protocol.sql.iq.IqNames$Substitutes,"
+                    + " com.legend.protocol.sql.iq.IqNames$Chains)");
 
     /** The rule of {@link #everyParseIsReachedThroughADoorThatAsks}: no class but the lexer's, the parser's, the model's
      *  records door ({@code ModelFromProtocol}; the whole model package until the last round's re-check, 2026-11-15),
-     *  the island readers and dialects ({@link #ISLAND_READERS}, {@link #ISLAND_DIALECTS}) and the parse doors reaches a
-     *  parse entry. */
-    static final com.tngtech.archunit.lang.ArchRule PARSE_BY_THE_DOORS = noClasses()
+     *  the island readers ({@link #ISLAND_READERS}) and the parse doors reaches a parse entry, and no code unit but the
+     *  dialects' named reads ({@link #ISLAND_DIALECT_READS}; whole classes until C5-J's zone fix, 2026-11-15). */
+    static final com.tngtech.archunit.lang.ArchRule PARSE_BY_THE_DOORS = parseByTheDoors(ISLAND_DIALECT_READS);
+
+    /** {@link #PARSE_BY_THE_DOORS} with {@code dialectReads} the code units, by full signature, that may reach a parse
+     *  entry from outside the exempt classes ({@link #theParseRulesBiteAPlantedCaller} plants its own). */
+    static com.tngtech.archunit.lang.ArchRule parseByTheDoors(java.util.Set<String> dialectReads) {
+        return noClasses()
             .that().resideOutsideOfPackages("com.legend.lexer..", "com.legend.parser..")
             // the model package's records door alone (the last round's re-check, 2026-11-15): the whole package was
             // exempt, harmless until the island readers it may reach (:protocol) became parse entries
@@ -974,13 +1012,17 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.door.Parse")
             .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
             .and().doNotHaveFullyQualifiedName("com.legend.ide.DocumentParse")
-            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are no island's reader or dialect",
-                    c -> !ISLAND_READERS.contains(topLevel(c)) && !ISLAND_DIALECTS.contains(topLevel(c))))
+            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are no island's reader",
+                    c -> !ISLAND_READERS.contains(topLevel(c))))
+            // a dialect's reads by the code unit that makes them, its signature named (C5-J's zone fix, 2026-11-15:
+            // until then the dialects' classes whole); a lambda's are its enclosing method's, a nested class's its own
             .should().accessTargetWhere(reachesCodeUnitWhere("a parse entry (the lexer's, the parser's, the model's"
-                    + " records door, or an island's reader)", ArchitectureTest::isParseEntry))
+                    + " records door, or an island's reader) from a code unit no dialect's named read",
+                    a -> isParseEntry(a) && !dialectReads.contains(a.getOrigin().getFullName())))
             .as("C5-J item 1 (2026-11-15): the lexer, the parser and the model's records door are reached through the"
                     + " parse doors alone, each asking the run's wall first; and since its last round (A1, 2026-11-15)"
                     + " the embedded languages' readers too");
+    }
 
     /** What a parse door does past asking, then parsing ({@link #everyParseIsReachedThroughADoorThatAsks}): a nested
      *  class, a lambda (read through reflection: ArchUnit folds a lambda's body into its enclosing method), a reference,
