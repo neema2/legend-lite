@@ -1252,11 +1252,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
+                    refuseDateKinds(n.args().get(0), "least element");
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
                 if (mixedList != null && !isToOne(n.args().get(0))) {
+                    TaggedLists.refuseKindTies(mixedList, "least element");
                     return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
@@ -1269,6 +1271,9 @@ final class Scalars {
                 }
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
+                    if (ma != null) {
+                        refuseDateKinds(n.args(), "least element");
+                    }
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
                             : new SqlExpr.Call(SqlFn.LEAST, args);
@@ -1286,11 +1291,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
+                    refuseDateKinds(n.args().get(0), "greatest element");
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
                 if (mixedList != null && !isToOne(n.args().get(0))) {
+                    TaggedLists.refuseKindTies(mixedList, "greatest element");
                     return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
@@ -1301,6 +1308,9 @@ final class Scalars {
                 }
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
+                    if (ma != null) {
+                        refuseDateKinds(n.args(), "greatest element");
+                    }
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
                             : new SqlExpr.Call(SqlFn.GREATEST, args);
@@ -1341,11 +1351,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
+                    refuseDateKinds(n.args().get(0), "greatest element");
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
                 if (mixedList != null && !isToOne(n.args().get(0))) {
+                    TaggedLists.refuseKindTies(mixedList, "greatest element");
                     return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 return isToOne(n.args().get(0))
@@ -1357,11 +1369,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
+                    refuseDateKinds(n.args().get(0), "least element");
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
                 if (mixedList != null && !isToOne(n.args().get(0))) {
+                    TaggedLists.refuseKindTies(mixedList, "least element");
                     return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 return isToOne(n.args().get(0))
@@ -3870,5 +3884,75 @@ final class Scalars {
     // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
     static {
         RULES.seal();
+    }
+
+    /** A mixed list's extreme over two DATE kinds, refused by name (docs/records/pr1-rulings-2026-11-15.md, R3: the
+     *  orchestrator's ruling under the user's delegation of 2026-11-15), on the mixed-elements route as on the tagged
+     *  list's (TaggedLists.refuseKindTies): round 55f found [%2025-02-10, %2025-02-10T00:00:00, %2024-01-01]->min()
+     *  answered here, never reaching the tagged list. */
+    private static void refuseDateKinds(TypedSpec arg, String what) {
+        if (arg instanceof TypedCollection c) {
+            refuseDateKinds(c.elements(), what);
+        }
+    }
+
+    private static void refuseDateKinds(List<TypedSpec> elements, String what) {
+        java.util.Set<String> dates = new java.util.TreeSet<>();
+        for (TypedSpec e : elements) {
+            String kind = dateKind(e);
+            if (kind != null) {
+                dates.add(kind);
+            }
+        }
+        if (dates.size() < 2) {
+            return;
+        }
+        // literals are known at planning: the answer can only go wrong on a TIE, two elements of different kinds at
+        // one instant (%2025-02-10 and %2025-02-10T00:00:00), which the extreme answers as either kind -- refused; a
+        // literal list with no such tie is answered (round 55f, 2026-11-15: three DuckDB tests of distinct instants
+        // answered right, and were refused). A computed date's instant is not known here: refused.
+        java.util.Map<java.util.List<Object>, java.util.Set<String>> atInstant = new java.util.HashMap<>();
+        for (TypedSpec e : elements) {
+            String kind = dateKind(e);
+            if (kind == null) {
+                continue;
+            }
+            if (!(e instanceof com.legend.compiler.spec.typed.TypedCDate lit)) {
+                TaggedLists.refuseDateKinds(dates, what);
+                return;
+            }
+            java.util.Set<String> kinds = atInstant.computeIfAbsent(instant(lit.value()),
+                    k -> new java.util.TreeSet<>());
+            kinds.add(kind);
+            if (kinds.size() > 1) {
+                TaggedLists.refuseDateKinds(kinds, what);
+            }
+        }
+    }
+
+    /** {@code e}'s date kind (StrictDate, DateTime, Date) by its static type; null for any other. */
+    private static @com.legend.base.Nullable String dateKind(TypedSpec e) {
+        Type t = e.info().type();
+        return t == Type.Primitive.STRICT_DATE ? "StrictDate" : t == Type.Primitive.DATE_TIME ? "DateTime"
+                : t == Type.Primitive.DATE ? "Date" : null;
+    }
+
+    /** The instant a date literal denotes, as a comparable key: its first moment, a missing part its least (a year's
+     *  January 1st, midnight), trailing zeros of the fraction dropped. */
+    private static java.util.List<Object> instant(com.legend.values.PureDateLiteral d) {
+        return switch (d) {
+            case com.legend.values.PureDateLiteral.Year y -> java.util.List.of(y.year(), 1, 1, 0, 0, 0, "");
+            case com.legend.values.PureDateLiteral.YearMonth m -> java.util.List.of(m.year(), m.month(), 1, 0, 0, 0, "");
+            case com.legend.values.PureDateLiteral.StrictDate sd ->
+                    java.util.List.of(sd.year(), sd.month(), sd.day(), 0, 0, 0, "");
+            case com.legend.values.PureDateLiteral.DateWithHour h ->
+                    java.util.List.of(h.year(), h.month(), h.day(), h.hour(), 0, 0, "");
+            case com.legend.values.PureDateLiteral.DateWithMinute mi ->
+                    java.util.List.of(mi.year(), mi.month(), mi.day(), mi.hour(), mi.minute(), 0, "");
+            case com.legend.values.PureDateLiteral.DateWithSecond se ->
+                    java.util.List.of(se.year(), se.month(), se.day(), se.hour(), se.minute(), se.second(), "");
+            case com.legend.values.PureDateLiteral.DateWithSubsecond ss -> java.util.List.of(ss.year(), ss.month(),
+                    ss.day(), ss.hour(), ss.minute(), ss.second(), ss.subsecond().replaceAll("0+$", ""));
+        };
     }
 }

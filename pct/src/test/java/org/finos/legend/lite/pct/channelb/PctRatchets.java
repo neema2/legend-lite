@@ -57,6 +57,7 @@ public final class PctRatchets {
         long[] j = ChannelB.judgeSql();
         out.put("channel_b." + suite + ".judge.statements", Math.toIntExact(j[0]));
         out.put("channel_b." + suite + ".judge.chars", Math.toIntExact(j[1]));
+        out.put("channel_b." + suite + ".judge.plan", Math.toIntExact(j[2]));
     }
 
     /** The committed file, read on first use only: the generator ({@link #main}) never reads it, so a damaged copy

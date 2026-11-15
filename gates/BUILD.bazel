@@ -438,6 +438,15 @@ test_suite(
         # core/BUILD.bazel's pg_regress_corpus_test): manual, it names a suite kept out of the repository
         # (-Dsql.corpus.regress) and fails without it
         "//core:pg_regress_corpus_test",
+        # manual measurements and guards found in no lane by PR1's review (2026-11-15): channel B run twice (the G10
+        # determinism lanes), P3's before-Christ date probe per lane, and channel A's answer snapshot
+        "//pct:pct_channel_b_twice",
+        "//pct:pct_bc_date_probe_bigquery",
+        "//pct:pct_bc_date_probe_databricks",
+        "//pct:pct_bc_date_probe_h2",
+        "//pct:pct_bc_date_probe_snowflake",
+        "//pct:pct_bc_date_probe_sqlite",
+        "//core:answer_snapshot",
         "//pct:update_ratchets_test",
         "//tools/python:requirements.test",
         # the PCT suites on other databases (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md): the cloud lanes need an

@@ -48,7 +48,13 @@ public final class ChannelB {
     private ChannelB() {
     }
 
-    public record Outcome(String testFqn, Status status, String detail) {
+    /** A test's outcome: its {@code detail} for display (a long middle clipped, {@link #first}) and its {@code full}
+     *  text, the database's whole error, which the ledger matches (2026-11-15, Databricks round 53: a clipped middle
+     *  removed the ledger's text; shortening is presentation and never decides a match). */
+    public record Outcome(String testFqn, Status status, String detail, String full) {
+        public Outcome(String testFqn, Status status, String detail) {
+            this(testFqn, status, detail, detail);
+        }
     }
 
     public enum Status { PASS, FAIL, DECLINED, ERROR }
@@ -81,6 +87,7 @@ public final class ChannelB {
             List<Path> scopeDirs, List<String> wallsOut) throws IOException {
         JUDGE_SQL[0] = 0;
         JUDGE_SQL[1] = 0;
+        JUDGE_SQL[2] = 0;
         // LOUD, NOT SILENT (upstream boundary batch 2): every model root and
         // every scope directory is a hardcoded upstream path — ten across the
         // five suites — and a moved one must fail by name, never walk an empty
@@ -279,11 +286,12 @@ public final class ChannelB {
             // an assert failure arrives as the database's error() — a
             // REAL test failure; other SQL errors are failures too (the
             // diff against channel A adjudicates which are wire bugs)
-            return new Outcome(fqn, Status.FAIL, first(e.getMessage()));
+            return new Outcome(fqn, Status.FAIL, first(e.getMessage()), flat(e.getMessage()));
         } catch (RuntimeException e) {
             // compile/lowering walls — channel B cannot run the shape
             return new Outcome(fqn, Status.ERROR,
-                    e.getClass().getSimpleName() + ": " + first(e.getMessage()));
+                    e.getClass().getSimpleName() + ": " + first(e.getMessage()),
+                    e.getClass().getSimpleName() + ": " + flat(e.getMessage()));
         }
     }
 
@@ -291,7 +299,7 @@ public final class ChannelB {
      *  body's verdict groups' fused statements and the sides that keep statements of their own -- and their characters,
      *  summed from each body's plan (planning only) under the lane's judge. Pinned per suite in {@code ratchets.tsv}
      *  ({@link PctRatchets}) and held by the product's rule on the reference lane under BOTH ({@link ChannelBLane}). */
-    private static final long[] JUDGE_SQL = new long[2];
+    private static final long[] JUDGE_SQL = new long[3];
 
     /** The judge statements and characters the last {@link #run} summed (both zero where it measured none). */
     static long[] judgeSql() {
@@ -313,37 +321,44 @@ public final class ChannelB {
         try {
             plan = TestExecution.planBody(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME, OPTIONS);
-        } catch (RuntimeException e) {
+        } catch (com.legend.error.LegendCompileException | com.legend.error.NotImplementedException
+                | com.legend.sql.DialectCapability | UnsupportedOperationException refused) {
+            // a planning refusal: the body adds no judge SQL (its run fails as it does without the measure); any other
+            // exception is a defect, and fails the body with its stack (G7, round 55f, 2026-11-15)
             return;
         }
         judgeSql(plan.steps());
     }
 
+    /** The judge's statements as the runner sends them ({@code TestPlan.sent}, 2026-11-15, PR1's review: the fused
+     *  statement and the base sides alone had missed every wrapper, raising verdict and branch condition), and each
+     *  verdict step's plan JSON. */
     private static void judgeSql(List<com.legend.testexecutionplan.TestPlan.TestStep> steps) {
         for (com.legend.testexecutionplan.TestPlan.TestStep step : steps) {
-            if (step instanceof com.legend.testexecutionplan.TestPlan.Branch b) {
-                judgeSql(b.then());
-                judgeSql(b.otherwise());
-            } else if (step instanceof com.legend.testexecutionplan.TestPlan.Verdicts v) {
-                if (v.fused() != null) {
-                    addJudge(v.fused().sql().statement());
+            if (step instanceof com.legend.testexecutionplan.TestPlan.Verdicts
+                    || step instanceof com.legend.testexecutionplan.TestPlan.Branch) {
+                for (com.legend.executionplan.ExecutionPlan.Node n : com.legend.testexecutionplan.TestPlan.sent(step)) {
+                    nodeStatements(n);
                 }
-                for (com.legend.testexecutionplan.TestPlan.Verdict verdict : v.verdicts()) {
-                    for (com.legend.testexecutionplan.TestPlan.Side side : verdict.base()) {
-                        switch (side) {
-                            case com.legend.testexecutionplan.TestPlan.Side.Rows rows ->
-                                    addJudge(rows.result().sql().statement());
-                            case com.legend.testexecutionplan.TestPlan.Side.KeyedRows keyed -> {
-                                addJudge(keyed.keyed().keys().statement());
-                                addJudge(keyed.keyed().body().statement());
-                            }
-                            case com.legend.testexecutionplan.TestPlan.Side.Constant c -> {
-                            }
-                            case com.legend.testexecutionplan.TestPlan.Side.FusedCell f -> {
-                            }
-                        }
-                    }
-                }
+                JUDGE_SQL[2] += com.legend.testexecutionplan.TestPlanJson.writeStep(step).length();
+            }
+        }
+    }
+
+    private static void nodeStatements(com.legend.executionplan.ExecutionPlan.Node node) {
+        switch (node) {
+            case com.legend.executionplan.ExecutionPlan.Sequence s -> s.steps().forEach(ChannelB::nodeStatements);
+            case com.legend.executionplan.ExecutionPlan.TdsResult t -> addJudge(t.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Keyed k -> {
+                addJudge(k.keys().statement());
+                addJudge(k.body().statement());
+            }
+            case com.legend.executionplan.ExecutionPlan.Update u -> addJudge(u.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Effect e -> addJudge(e.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Check c -> addJudge(c.sql().statement());
+            case com.legend.executionplan.ExecutionPlan.Load l -> {
+            }
+            case com.legend.executionplan.ExecutionPlan.Constant c -> {
             }
         }
     }
@@ -416,7 +431,9 @@ public final class ChannelB {
                     OPTIONS);
             told.add("ended: pass");
         } catch (java.sql.SQLException | RuntimeException e) {
-            told.add("ended: " + e.getClass().getSimpleName() + ": " + first(e.getMessage()));
+            // the whole message: the twice guard compares two runs' records, and a clipped middle could hide a
+            // difference (2026-11-15, PR1's review)
+            told.add("ended: " + e.getClass().getSimpleName() + ": " + flat(e.getMessage()));
         }
         return told;
     }
@@ -427,8 +444,13 @@ public final class ChannelB {
      * whole statement and then Spark's own words, which a head alone cut off -- the statement each judge writes
      * differs, the database's error does not). */
     private static String first(@com.legend.base.Nullable String msg) {
-        String m = String.valueOf(msg).replace("\n", " ⏎ ").trim();
+        String m = flat(msg);
         return m.length() <= 800 ? m : m.substring(0, 400) + "…" + m.substring(m.length() - 400);
+    }
+
+    /** The whole message, its newlines flattened as {@link #first}'s are: what a ledger row's text is matched in. */
+    private static String flat(@com.legend.base.Nullable String msg) {
+        return String.valueOf(msg).replace("\n", " ⏎ ").trim();
     }
 
     private static final class Declined extends RuntimeException {

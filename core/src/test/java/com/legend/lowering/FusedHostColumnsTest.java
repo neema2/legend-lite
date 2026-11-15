@@ -86,6 +86,25 @@ class FusedHostColumnsTest {
         }
     }
 
+    /** Another member's column is an UNUSED SLOT ({@link SqlExpr.Reason#SLOT}, 2026-11-15): a placeholder the row
+     *  never reads, which a database that cannot hold a NULL of its type fills with the type's default (ClickHouse's
+     *  Map, round 53). */
+    @Test
+    void anotherMembersColumnIsAnUnusedSlot() {
+        java.util.List<SqlExpr.Cast> slots = new ArrayList<>();
+        new com.legend.sql.SqlRewriter() {
+            @Override
+            protected SqlExpr expr(SqlExpr e) {
+                if (e instanceof SqlExpr.Cast c && c.value() instanceof SqlExpr.NullLit
+                        && c.reason() == SqlExpr.Reason.SLOT) {
+                    slots.add(c);
+                }
+                return e;
+            }
+        }.rewriteRoot(twoMembers());
+        assertEquals(2, slots.size(), slots.toString());
+    }
+
     /** No host columns: the database judge's statement, unchanged. */
     @Test
     void withNoHostColumnsTheStatementIsTheDatabaseJudges() {

@@ -153,6 +153,54 @@ public record TestPlan(List<ExecutionPlan.Parameter> parameters, List<TestStep> 
         }
     }
 
+    /**
+     * The statements the test runner SENDS for {@code step} (2026-11-15, PR1's review: the judge-SQL pins counted the
+     * fused statement and the base sides alone): a verdict group's fused statement, else each verdict's wrapper; every
+     * raising verdict's wrapper (read with the raise's message bound, fused or not); each verdict's base and message
+     * sides; a branch's condition, then both sides' judge steps (a measurement counts what either side may send; a side's
+     * product steps are the product's).
+     */
+    public static List<Node> sent(TestStep step) {
+        List<Node> out = new java.util.ArrayList<>();
+        sentOf(step, out);
+        return out;
+    }
+
+    private static void sentOf(TestStep step, List<Node> out) {
+        switch (step) {
+            case Verdicts v -> {
+                if (v.fused() != null) {
+                    out.add(v.fused());
+                }
+                for (Verdict each : v.verdicts()) {
+                    if (each.wrapper() != null && (v.fused() == null || each.raises())) {
+                        out.add(each.wrapper());
+                    }
+                    each.base().forEach(side -> sideStatement(side, out));
+                    if (each.message() != null) {
+                        sideStatement(each.message(), out);
+                    }
+                }
+            }
+            case Branch b -> {
+                sideStatement(b.condition(), out);
+                b.then().forEach(inner -> sentInBranch(inner, out));
+                b.otherwise().forEach(inner -> sentInBranch(inner, out));
+            }
+            case Run r -> throw new IllegalArgumentException("a product step's statements are the product plan's");
+            case FrameRun f -> throw new IllegalArgumentException("a frame run's statement is its check's");
+        }
+    }
+
+    /** A branch side's step: its judge statements, a product step's (a Run, a FrameRun) being the product's, which a
+     *  branch side holds beside its verdicts (round 55f, 2026-11-15: thrown here, two corpus bodies' judges measured
+     *  as refused -- relationalMapper's testRelationalDatabaseMapper, projection::union's testSimpleRelationalUnion). */
+    private static void sentInBranch(TestStep step, List<Node> out) {
+        if (!(step instanceof Run) && !(step instanceof FrameRun)) {
+            sentOf(step, out);
+        }
+    }
+
     private static void sideStatement(Side side, List<Node> out) {
         switch (side) {
             case Side.Rows r -> out.add(r.result());

@@ -10,7 +10,6 @@ import com.legend.testexecutionplan.Failures;
 import com.legend.testexecutionplan.Row;
 
 import com.legend.diagnostics.Census;
-import com.legend.diagnostics.PrepTrace;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.testexecutionplan.RootLoop;
 import com.legend.testexecutionplan.TestPlan;
@@ -544,11 +543,6 @@ public final class VerdictBatch {
         List<Pending> unspelled = new ArrayList<>();
         for (var g : groups.entrySet()) {
             List<Pending> all = g.getValue();
-            if (PrepTrace.on()) {
-                for (Pending p : all) {
-                    PrepTrace.branch(p.name(), runner.chars(p.query()));
-                }
-            }
             // the group as a plan value (S2e): the fused statement its wrapper over wrappers, each verdict a step with
             // no wrapper of its own here
             // a member whose statement reads a raw grid's report is keyed: its wrapper's keys are its grid's columns,

@@ -223,6 +223,7 @@ final class TaggedLists {
      * spelling carrier's own shape (its ids ordered by its comparables), the identity now a position.
      */
     static SqlExpr.TaggedList sort(SqlExpr.TaggedList tl, String alias) {
+        refuseInexactRanks(tl);
         if (tl.rows() != null) {
             return sortRows(tl, alias);
         }
@@ -247,6 +248,149 @@ final class TaggedLists {
      * comparable's channels are the cells' scalar columns ({@code __cmp}, or {@code __cmp_g/n/d/s} for a rank across
      * kinds), compared field by field as the rank's struct compares them, a missing field after a present one.
      */
+    /** The primitive kinds a mixed list's channels name; any other kind is an enumeration's path. */
+    private static final java.util.Set<String> PRIMITIVE_KINDS = java.util.Set.of("Integer", "Float", "Decimal",
+            "String", "Boolean", "StrictDate", "DateTime", "Date");
+
+    /**
+     * A mixed list's extreme (min, max, greatest, least: an end of its sort) refused by name where two of its
+     * elements of DIFFERENT kinds may compare equal -- an Integer and a Float of one value (1 and 1.0), or two
+     * enumerations' values of one name -- since the sort orders such a tie as the database likes and the end it
+     * answers would then be either kind (2026-11-15, PR1's review, D2: a G10 hole). Refused until the ordered aggregate
+     * takes the element's position as its second key; a tie of one kind is one value, whichever end answers.
+     * A list holding two DATE kinds (a StrictDate and a DateTime, say) is refused too, by the orchestrator's ruling of
+     * 2026-11-15 under the user's delegation: its extreme waits for the run-time kind carrier, as S341's run-time kind
+     * does.
+     */
+    static void refuseKindTies(SqlExpr.TaggedList tl, String what) {
+        java.util.Set<String> numbers = new java.util.TreeSet<>();
+        java.util.Set<String> enumerations = new java.util.TreeSet<>();
+        java.util.Set<String> dates = new java.util.TreeSet<>();
+        for (SqlExpr.TaggedList.Channel ch : tl.channels()) {
+            String kind = ch.kind();
+            if (kind.equals("Integer") || kind.equals("Float") || kind.equals("Decimal")) {
+                numbers.add(kind);
+            } else if (kind.equals("StrictDate") || kind.equals("DateTime") || kind.equals("Date")
+                    || kind.startsWith("DateTime(")) {
+                dates.add(kind);
+            } else if (!PRIMITIVE_KINDS.contains(kind)) {
+                enumerations.add(kind);
+            }
+        }
+        refuseDateKinds(dates, what);
+        if (numbers.size() > 1 || enumerations.size() > 1) {
+            throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
+                    + (numbers.size() > 1 ? String.join(" and ", numbers) : String.join(" and ", enumerations))
+                    + ": two of its elements of different kinds may compare equal, and the database orders such a tie"
+                    + " as it likes (refused until the sort breaks a tie by the element's position)");
+        }
+    }
+
+    /** A mixed list's extreme over more than one date kind ({@code dates}), refused by name (R3, the orchestrator's
+     *  ruling under the user's delegation of 2026-11-15): it waits for the run-time kind carrier, as S341's run-time
+     *  kind does. */
+    static void refuseDateKinds(java.util.Set<String> dates, String what) {
+        if (dates.size() > 1) {
+            throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
+                    + String.join(" and ", dates) + ": an extreme across date kinds is refused until the run-time"
+                    + " kind carrier (O2 step 3) answers it as legend-pure does");
+        }
+    }
+
+    /** 2^53: the largest magnitude below which every integer is a double. */
+    private static final long EXACT_IN_A_DOUBLE = 1L << 53;
+
+    /**
+     * A mixed list's numbers are ordered by their value as a DOUBLE (MixedEncoding's rank): a Decimal, or an integer
+     * beyond 2^53, is not held exactly there, and two such values could be ordered wrongly
+     * ({@code [9007199254740993, 9007199254740992, 'a']->min()} answered ...993). Such an order is refused by name at
+     * planning until the kinds-kept carrier ranks numbers exactly (2026-11-15, PR1's review, D2).
+     */
+    static void refuseInexactRanks(SqlExpr.TaggedList tl) {
+        List<SqlExpr> scanned = new ArrayList<>();
+        scanned.add(tl.comparable());
+        if (tl.rows() != null) {
+            scanned.add(tl.rows());
+        }
+        for (SqlExpr e : scanned) {
+            String why = inexact(e);
+            if (why != null) {
+                throw new com.legend.error.NotImplementedException("a mixed list's order over " + why
+                        + ": its numbers are ranked as DOUBLE, which does not hold it exactly (refused until the"
+                        + " kinds-kept carrier ranks numbers exactly)");
+            }
+        }
+    }
+
+    /** The literal {@code v} is, under any casts, groupings and negations; else {@code v} itself. */
+    private static SqlExpr literalUnder(SqlExpr v) {
+        SqlExpr at = v;
+        while (true) {
+            if (at instanceof SqlExpr.Cast c) {
+                at = c.value();
+            } else if (at instanceof SqlExpr.Group g) {
+                at = g.inner();
+            } else if (at instanceof SqlExpr.Call c && c.fn() == SqlFn.NEGATE && c.args().size() == 1) {
+                // a negative literal ({@code -2.0}): its magnitude decides, and the double's range is symmetric
+                at = c.args().get(0);
+            } else {
+                return at;
+            }
+        }
+    }
+
+    /** Whether the double nearest {@code d} is {@code d} itself (it round-trips). */
+    private static boolean exactInADouble(java.math.BigDecimal d) {
+        double x = d.doubleValue();
+        return Double.isFinite(x) && new java.math.BigDecimal(x).compareTo(d) == 0;
+    }
+
+    private static @com.legend.base.Nullable String inexact(SqlExpr e) {
+        if (e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.DOUBLE) {
+            SqlExpr v = c.value();
+            SqlExpr lit = literalUnder(v);
+            // a literal is known at planning, whatever casts carry it (an Integer's rank may pass through a DECIMAL
+            // cast): it ranks exactly where the double holds its value (round 55f, 2026-11-15: an Integer literal under
+            // a DECIMAL cast read as "a Decimal" and refused testMixedSortNoComparator)
+            if (lit instanceof SqlExpr.DecimalLit d) {
+                if (!exactInADouble(d.value())) {
+                    return "the Decimal " + d.value().toPlainString() + " (not exact as a DOUBLE)";
+                }
+            } else if (lit instanceof SqlExpr.IntLit i) {
+                if (i.value() >= EXACT_IN_A_DOUBLE || i.value() <= -EXACT_IN_A_DOUBLE) {
+                    return "the integer " + i.value() + " (beyond 2^53)";
+                }
+            } else if (!(lit instanceof SqlExpr.FloatLit) && v.type() instanceof com.legend.sql.TypeFact.Typed t
+                    && t.type() instanceof SqlType.Decimal) {
+                // a Decimal computed at run time: not known at planning
+                return "a Decimal";
+            }
+        }
+        if (e instanceof SqlExpr.ScalarSubquery q && q.subquery() instanceof SqlSelect s) {
+            for (SqlSelect.Projection pr : s.projections()) {
+                String why = inexact(pr.expr());
+                if (why != null) {
+                    return why;
+                }
+            }
+            if (s.from() instanceof SqlSource.Subselect sub && sub.inner() instanceof SqlSelect in) {
+                for (SqlSelect.Projection pr : in.projections()) {
+                    String why = inexact(pr.expr());
+                    if (why != null) {
+                        return why;
+                    }
+                }
+            }
+        }
+        for (SqlExpr c : e.children()) {
+            String why = inexact(c);
+            if (why != null) {
+                return why;
+            }
+        }
+        return null;
+    }
+
     private static SqlExpr.TaggedList sortRows(SqlExpr.TaggedList tl, String alias) {
         SqlSelect cells = cellsOf(tl);
         var c = SqlExpr.Column.lookup(alias, cells.outputs());

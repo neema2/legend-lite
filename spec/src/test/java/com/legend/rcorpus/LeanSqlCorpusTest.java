@@ -50,27 +50,41 @@ class LeanSqlCorpusTest {
         String database = MinimalCorpus.BACKEND.type().name();
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> product = new java.util.HashMap<>();
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> judge = new java.util.HashMap<>();
-        com.legend.ExecuteOptions options = com.legend.ExecuteOptions.NONE
-                .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+        // the corpus's resource store, as its run has (MinimalCorpus's options): a body that loads a CSV plans its
+        // load against the file's digest. Only the store: the measure keeps lite's own rules and spelling (round 55f,
+        // 2026-11-15: a DataError, "this run was given no store for it", had been counted as a refusal)
+        com.legend.ExecuteOptions options = new com.legend.ExecuteOptions(null,
+                com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()),
+                java.util.Set.of()).withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
         for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
             String family = t.pkg();
             List<String> productSql = new ArrayList<>();
             List<ExecutionPlan.Node> productNodes = new ArrayList<>();
             List<String> judgeSql = new ArrayList<>();
+            long[] judgePlan = {0};
             try {
                 var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
                 TestPlan plan = com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
                         MinimalCorpus.RUNTIME, options);
-                steps(plan.steps(), productSql, productNodes, judgeSql);
-            } catch (RuntimeException | StackOverflowError e) {
-                family = "refused";
+                steps(plan.steps(), productSql, productNodes, judgeSql, judgePlan);
+            } catch (RuntimeException e) {
+                if (!com.legend.leansql.LeanSqlBaseline.isRefusal(e)) {
+                    throw e;
+                }
+                // refused at planning: counted as such under its own family, never as a body of no SQL (2026-11-15,
+                // PR1's review: a refused body pinned 0 0 0 and could not be told from a smaller one)
+                LeanSqlBaseline.Key pk = new LeanSqlBaseline.Key("corpus", database, family);
+                LeanSqlBaseline.Key jk = new LeanSqlBaseline.Key("corpus-judge", database, family);
+                product.put(pk, product.getOrDefault(pk, new LeanSqlBaseline.Measure(0, 0, 0, "")).refusedOne(t.fqn()));
+                judge.put(jk, judge.getOrDefault(jk, new LeanSqlBaseline.Measure(0, 0, 0, "")).refusedOne(t.fqn()));
+                continue;
             }
             long planChars = 0;
             for (ExecutionPlan.Node n : productNodes) {
                 planChars += PlanJson.write(ExecutionPlan.reading(List.of(), n)).length();
             }
             add(product, new LeanSqlBaseline.Key("corpus", database, family), productSql, planChars, t.fqn());
-            add(judge, new LeanSqlBaseline.Key("corpus-judge", database, family), judgeSql, 0, t.fqn());
+            add(judge, new LeanSqlBaseline.Key("corpus-judge", database, family), judgeSql, judgePlan[0], t.fqn());
         }
         return new Map[] {product, judge};
     }
@@ -83,7 +97,7 @@ class LeanSqlCorpusTest {
 
     /** The body's own statement nodes to the product's; the verdict steps' statements to the judge's. */
     private static void steps(List<TestPlan.TestStep> steps, List<String> productSql,
-            List<ExecutionPlan.Node> productNodes, List<String> judgeSql) {
+            List<ExecutionPlan.Node> productNodes, List<String> judgeSql, long[] judgePlan) {
         for (TestPlan.TestStep step : steps) {
             switch (step) {
                 case TestPlan.Run r -> {
@@ -98,37 +112,29 @@ class LeanSqlCorpusTest {
                     productSql.add(f.check().sql().statement());
                     productNodes.add(f.check());
                 }
-                case TestPlan.Verdicts v -> judgeSql.addAll(verdictStatements(v));
+                // the judge's statements as the runner sends them (TestPlan.sent: a fused statement or each wrapper, every
+                // raising verdict's wrapper, the sides, a branch's condition and both its sides' steps) and each step's
+                // plan JSON (2026-11-15, PR1's review: the fused statement and base sides alone, and no plan JSON)
+                case TestPlan.Verdicts v -> judged(v, judgeSql, judgePlan);
                 case TestPlan.Branch b -> {
-                    steps(b.then(), productSql, productNodes, judgeSql);
-                    steps(b.otherwise(), productSql, productNodes, judgeSql);
+                    judged(b, judgeSql, judgePlan);
+                    // a side's product steps are the product's (TestPlan.sent leaves them out); its judge steps were
+                    // counted above, so they go to a list not kept here (round 55f, 2026-11-15)
+                    List<String> counted = new ArrayList<>();
+                    long[] countedPlan = {0};
+                    steps(b.then(), productSql, productNodes, counted, countedPlan);
+                    steps(b.otherwise(), productSql, productNodes, counted, countedPlan);
                 }
             }
         }
     }
 
-    /** A verdict group's statements: its fused statement, each verdict's sides (the judge's SQL). */
-    private static List<String> verdictStatements(TestPlan.Verdicts v) {
-        List<String> out = new ArrayList<>();
-        if (v.fused() != null) {
-            out.add(v.fused().sql().statement());
+    /** {@code step}'s judge statements and plan JSON, added. */
+    private static void judged(TestPlan.TestStep step, List<String> judgeSql, long[] judgePlan) {
+        for (ExecutionPlan.Node n : TestPlan.sent(step)) {
+            LeanSqlBaseline.statements(n, judgeSql);
         }
-        for (TestPlan.Verdict verdict : v.verdicts()) {
-            for (TestPlan.Side side : verdict.base()) {
-                switch (side) {
-                    case TestPlan.Side.Rows rows -> out.add(rows.result().sql().statement());
-                    case TestPlan.Side.KeyedRows keyed -> {
-                        out.add(keyed.keyed().keys().statement());
-                        out.add(keyed.keyed().body().statement());
-                    }
-                    case TestPlan.Side.Constant c -> {
-                    }
-                    case TestPlan.Side.FusedCell f -> {
-                    }
-                }
-            }
-        }
-        return out;
+        judgePlan[0] += com.legend.testexecutionplan.TestPlanJson.writeStep(step).length();
     }
 
     @Test
@@ -292,7 +298,10 @@ class LeanSqlCorpusTest {
             var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
             return com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
                     MinimalCorpus.RUNTIME, com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
-        } catch (RuntimeException | StackOverflowError e) {
+        } catch (RuntimeException e) {
+            if (!com.legend.leansql.LeanSqlBaseline.isRefusal(e)) {
+                throw e;
+            }
             return null;
         }
     }

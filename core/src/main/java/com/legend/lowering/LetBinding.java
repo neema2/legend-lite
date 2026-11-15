@@ -57,11 +57,18 @@ final class LetBinding {
                 && (e instanceof SqlExpr.Call || !e.children().isEmpty());
     }
 
-    /** The functions whose call can raise on some input: a planned raise, division, a parse, a domain. */
-    private static final java.util.Set<SqlFn> RAISING = java.util.Set.of(SqlFn.ERROR, SqlFn.DIVIDE, SqlFn.MOD,
-            SqlFn.REM, SqlFn.INT_DIVIDE, SqlFn.PARSE_DATE, SqlFn.PARSE_INT, SqlFn.STRPTIME, SqlFn.SQRT, SqlFn.LN,
-            SqlFn.ACOS, SqlFn.ASIN, SqlFn.REGEXP_EXTRACT, SqlFn.REGEXP_EXTRACT_ALL,
-            SqlFn.REGEXP_FULL_MATCH, SqlFn.REGEXP_REPLACE);
+    /** The functions whose call can raise on some input: the SQL layer's own raising set ({@link SqlFn#RAISING}: a
+     *  planned raise, a parse, a range or interval check, a fresh draw) united with the arithmetic and text domains a
+     *  binding must not lift out of a branch either (division, a root, a logarithm, a pattern) -- one union, here
+     *  (2026-11-15, PR1's review: this list had missed ADD_INTERVAL, TIMEZONE, MAKE_DATE and MAKE_TIMESTAMP). */
+    private static final java.util.Set<SqlFn> RAISING;
+
+    static {
+        java.util.EnumSet<SqlFn> all = java.util.EnumSet.copyOf(SqlFn.RAISING);
+        all.addAll(java.util.EnumSet.of(SqlFn.DIVIDE, SqlFn.MOD, SqlFn.REM, SqlFn.INT_DIVIDE, SqlFn.SQRT, SqlFn.LN,
+                SqlFn.REGEXP_EXTRACT, SqlFn.REGEXP_EXTRACT_ALL, SqlFn.REGEXP_FULL_MATCH, SqlFn.REGEXP_REPLACE));
+        RAISING = java.util.Collections.unmodifiableSet(all);
+    }
 
     /** Whether {@code e} can raise, read from its structure alone (the laziness rule, ruled 2026-11-12): a call of a
      *  {@link #RAISING} function, a cast of anything but a literal, a checked one, anywhere in its tree. */
@@ -137,12 +144,22 @@ final class LetBinding {
         List<Bound> bound = new ArrayList<>();
         SqlSelect at = s;
         while (true) {
-            java.util.Map<SqlExpr, Integer> counts = new java.util.HashMap<>();
+            // insertion-ordered: the same binding chosen on every JVM when two repeats save alike (G10)
+            java.util.Map<SqlExpr, Integer> counts = new java.util.LinkedHashMap<>();
+            java.util.Set<SqlExpr> always = new java.util.HashSet<>();
             for (SqlExpr t : terms(at)) {
                 count(t, counts);
             }
+            // what the row evaluates whatever its values: its filter, where it has one (a row the filter drops
+            // evaluates none of its projections), else every term
+            if (at.where() != null) {
+                alwaysEvaluated(at.where(), always);
+            } else if (at.having() == null && at.qualify() == null) {
+                terms(at).forEach(t -> alwaysEvaluated(t, always));
+            }
             for (Bound b : bound) {
                 count(b.value(), counts);
+                alwaysEvaluated(b.value(), always);
             }
             SqlExpr best = null;
             long saving = 0;
@@ -158,7 +175,7 @@ final class LetBinding {
                 if (save <= 0 && readsClock(e.getKey())) {
                     save = 1;   // the statement's clock read once, as Pure's let reads it (the design's §5.1)
                 }
-                if (save > saving && eligible(e.getKey())) {
+                if (save > saving && eligible(e.getKey(), always)) {
                     best = e.getKey();
                     saving = save;
                 }
@@ -171,10 +188,13 @@ final class LetBinding {
             SqlExpr ref = reference(b);
             SqlExpr found = best;
             Replace swap = x -> x.equals(found) ? ref : null;
-            at = (SqlSelect) map(at, swap);
+            // swapped where it was counted: the select's own terms, never its FROM nor a subquery's (2026-11-15,
+            // PR1's review: the swap had descended into derived tables and subqueries the count never saw, where
+            // the binding's alias is not in scope -- H2 reads no outer column there)
+            at = swapTerms(at, swap);
             List<Bound> rewritten = new ArrayList<>();
             for (Bound o : bound) {
-                rewritten.add(new Bound(o.column(), mapExpr(o.value(), swap), o.type(), 0));
+                rewritten.add(new Bound(o.column(), swapIn(o.value(), swap), o.type(), 0));
             }
             rewritten.add(b);
             bound = rewritten;
@@ -226,6 +246,24 @@ final class LetBinding {
         return false;
     }
 
+    /** {@code s} with {@code f} applied to its own terms ({@link #terms}), as {@link #count} read them. */
+    private static SqlSelect swapTerms(SqlSelect s, Replace f) {
+        List<SqlSelect.Projection> ps = s.projections().stream()
+                .map(p -> new SqlSelect.Projection(swapIn(p.expr(), f), p.alias(), p.out())).toList();
+        List<SqlSelect.SortKey> order = s.orderBy().stream()
+                .map(k -> new SqlSelect.SortKey(swapIn(k.expr(), f), k.ascending(), k.nullOrder(), k.outputName()))
+                .toList();
+        return new SqlSelect(ps, s.distinct(), s.from(), s.where() == null ? null : swapIn(s.where(), f),
+                s.groupBy().stream().map(g -> swapIn(g, f)).toList(), s.having() == null ? null : swapIn(s.having(), f),
+                s.qualify() == null ? null : swapIn(s.qualify(), f), order, s.limit(), s.offset(), s.outputs());
+    }
+
+    /** {@code e} with {@code f} applied where {@link #count} walks: its children, never into a query a node carries. */
+    private static SqlExpr swapIn(SqlExpr e, Replace f) {
+        SqlExpr replaced = f.apply(e);
+        return replaced != null ? replaced : e.mapChildren(c -> swapIn(c, f));
+    }
+
     /** The select's own terms (never its FROM): its projections, filters, groups and orders. */
     private static List<SqlExpr> terms(SqlSelect s) {
         List<SqlExpr> out = new ArrayList<>();
@@ -260,6 +298,103 @@ final class LetBinding {
             w += weight(c);
         }
         return w;
+    }
+
+    /**
+     * Whether {@code e} may be computed once under the root where {@code always} holds the expressions the root's row
+     * evaluates whatever its values (step 7's first half, 2026-11-15, brought into PR1 by round 55f: item 9 put
+     * MAKE_TIMESTAMP in {@link #RAISING}, and the date family's repeats went unbound on every database): as
+     * {@link #eligible(SqlExpr)}, and a value that can raise too where one of its copies is always evaluated -- it
+     * raises there already, so computing it once, eagerly, raises nothing the statement did not (the laziness rule: a
+     * raise is never moved out of a branch that guards it).
+     */
+    static boolean eligible(SqlExpr e, java.util.Set<SqlExpr> always) {
+        if (!worthBinding(e) || e instanceof SqlExpr.Lambda
+                || !(e.type() instanceof com.legend.sql.TypeFact.Typed)) {
+            return false;
+        }
+        return closedAndPlain(e, java.util.Set.of()) && (!canRaise(e) || always.contains(e));
+    }
+
+    /** The calls that may skip an argument on some dialect ({@link SqlFn#MAY_SKIP_AN_ARGUMENT}: the SQL layer's own
+     *  record of its renderings; round 55k, 2026-11-15, the orchestrator's ruling under the user's delegation: widen the
+     *  set, never across a rendering that can skip). */
+    private static final java.util.Set<SqlFn> LAZY = SqlFn.MAY_SKIP_AN_ARGUMENT;
+
+    /**
+     * Every expression {@code e} evaluates whatever its values, into {@code into}: itself, and through each node that
+     * is STRICT on every dialect, its children. One exhaustive switch over {@link SqlExpr}'s variants, no default arm
+     * (the orchestrator's ruling, 2026-11-15: a new variant decides strict or skipping at compile time, never by a
+     * default). Skipping, so never descended: a CASE past its first condition, a {@link #LAZY} call, a lambda's body,
+     * a subquery, an aggregate or window, a fold, and the carriers whose renderings branch (tagged, compacted,
+     * membership, checked, raise text).
+     */
+    static void alwaysEvaluated(SqlExpr e, java.util.Set<SqlExpr> into) {
+        into.add(e);
+        boolean strict = switch (e) {
+            // leaves: nothing below them
+            case SqlExpr.Column x -> false;
+            case SqlExpr.Star x -> false;
+            case SqlExpr.StarExcept x -> false;
+            case SqlExpr.StringLit x -> false;
+            case SqlExpr.IntLit x -> false;
+            case SqlExpr.FloatLit x -> false;
+            case SqlExpr.DecimalLit x -> false;
+            case SqlExpr.BoolLit x -> false;
+            case SqlExpr.NullLit x -> false;
+            case SqlExpr.DateLit x -> false;
+            case SqlExpr.TimestampLit x -> false;
+            case SqlExpr.TimeLit x -> false;
+            case SqlExpr.FormatLit x -> false;
+            case SqlExpr.DatePartLit x -> false;
+            case SqlExpr.JsonKindLit x -> false;
+            case SqlExpr.TypeNameLit x -> false;
+            case SqlExpr.PlanParam x -> false;
+            case SqlExpr.KeyCell x -> false;
+            case SqlExpr.RowOrder x -> false;
+            case SqlExpr.TempTableInSplice x -> false;
+            case SqlExpr.StoredRead x -> false;
+            // strict: every child evaluated on every dialect
+            case SqlExpr.Call c -> !LAZY.contains(c.fn());
+            case SqlExpr.Cast x -> true;
+            case SqlExpr.ArrayLit x -> true;
+            case SqlExpr.StructLit x -> true;
+            case SqlExpr.StructGet x -> true;
+            case SqlExpr.JsonArray x -> true;
+            case SqlExpr.JsonObject x -> true;
+            case SqlExpr.Group x -> true;
+            // a CASE: its first condition alone
+            case SqlExpr.Case c -> {
+                if (!c.whens().isEmpty()) {
+                    alwaysEvaluated(c.whens().get(0).condition(), into);
+                }
+                yield false;
+            }
+            // skipping, or evaluated by its own rules: never descended
+            case SqlExpr.Lambda x -> false;
+            case SqlExpr.Exists x -> false;
+            case SqlExpr.ScalarSubquery x -> false;
+            case SqlExpr.InSubquery x -> false;
+            case SqlExpr.Quantified x -> false;
+            case SqlExpr.CheckedOne x -> false;
+            case SqlExpr.CheckedDefects x -> false;
+            case SqlExpr.CheckedChildValue x -> false;
+            case SqlExpr.CompactList x -> false;
+            case SqlExpr.Tagged x -> false;
+            case SqlExpr.TaggedList x -> false;
+            case SqlExpr.RaiseText x -> false;
+            case SqlExpr.DeferredTdsString x -> false;
+            case SqlExpr.WindowCall x -> false;
+            case SqlExpr.FoldCall x -> false;
+            case SqlExpr.JsonArrayAgg x -> false;
+            case SqlExpr.OrderedListAgg x -> false;
+            case SqlExpr.ReduceCollection x -> false;
+            case SqlExpr.Membership x -> false;
+            case SqlAgg.Reducer x -> false;
+        };
+        if (strict) {
+            e.children().forEach(child -> alwaysEvaluated(child, into));
+        }
     }
 
     /** Whether {@code e} may be computed once under the root: worth a binding, typed by a plain SQL type, closed, and

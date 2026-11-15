@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -85,5 +86,71 @@ class MixedListConformanceTest {
         }
         // at least two databases answer every case (the in-process set holds two that place a mixed list)
         assertTrue(answered >= 2 * CASES.size(), "answered " + answered + " of " + CASES.size() + " cases a database");
+    }
+
+    /**
+     * A mixed list's extreme across DATE kinds (a StrictDate and a DateTime) is refused by name at planning: the
+     * orchestrator's ruling of 2026-11-15 under the user's delegation (docs/records/pr1-rulings-2026-11-15.md, R3),
+     * the same rule as S341's run-time kind -- it waits for the run-time kind carrier (O2 step 3). A database whose
+     * dialect places no mixed list refuses it first, by its own name.
+     */
+    @Test
+    void anExtremeAcrossDateKindsIsRefusedByName() {
+        int refused = 0;
+        for (com.legend.testbackend.TestBackend backend : TestBackends.inProcess()) {
+            String model = StorelessRuntime.with("", backend.type());
+            for (String fn : new String[] {"min", "max", "least", "greatest"}) {
+                String query = "|[%2025-02-10, %2025-02-10T00:00:00, %2024-01-01]->" + fn + "()";
+                RuntimeException e = assertThrows(RuntimeException.class,
+                        () -> Compiler.query(Compiler.compileModel(model), query)
+                                .executionPlan(StorelessRuntime.RUNTIME), backend.type() + ": " + query);
+                if (e instanceof com.legend.sql.DialectCapability) {
+                    continue;
+                }
+                assertTrue(e instanceof com.legend.error.NotImplementedException, backend.type() + ": " + e);
+                assertTrue(e.getMessage().contains("of a mixed list holding DateTime and StrictDate: an extreme across"
+                        + " date kinds is refused until the run-time kind carrier"), e.getMessage());
+                refused++;
+            }
+        }
+        assertTrue(refused >= 2 * 4, "refused " + refused);
+    }
+
+    /**
+     * A mixed list's numbers rank as DOUBLE: a literal the double holds exactly ranks exactly and plans (round 55f,
+     * 2026-11-15: PCT's testMixedSortNoComparator, a Decimal literal, had been refused); a Decimal literal it does not
+     * hold (0.1D), or an integer beyond 2^53, is refused by name.
+     */
+    @Test
+    void aMixedListRanksAnExactLiteralAndRefusesAnInexactOne() {
+        String model = StorelessRuntime.with("", TestBackends.platform().type());
+        Compiler.query(Compiler.compileModel(model), "|['b', 1, 2.5D, 'a']->sort()")
+                .executionPlan(StorelessRuntime.RUNTIME);
+        // PCT's testMixedSortNoComparator: Integers and Floats, one negative (round 55f: refused as "a Decimal")
+        Compiler.query(Compiler.compileModel(model), "|[342, 5.0, -2.0, 171, 1]->sort()")
+                .executionPlan(StorelessRuntime.RUNTIME);
+        for (String[] c : new String[][] {{"|['b', 1, 0.1D]->sort()", "the Decimal 0.1 (not exact as a DOUBLE)"},
+                {"|['b', 9007199254740993, 9007199254740992]->sort()", "the integer 9007199254740993 (beyond 2^53)"}}) {
+            com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> Compiler.query(Compiler.compileModel(model), c[0]).executionPlan(StorelessRuntime.RUNTIME),
+                    c[0]);
+            assertTrue(e.getMessage().contains(c[1]), e.getMessage());
+        }
+    }
+
+    /**
+     * A KNOWN LIMIT, pinned as it is today (docs/records/pr1-rulings-2026-11-15.md, R4; ruled by the orchestrator under
+     * the user's delegation, 2026-11-15): a COMPUTED Integer beyond 2^53 in a mixed list's order is not known at
+     * planning, so it is ranked as a DOUBLE, inexactly, and not refused. Exact with O2 step 3's carrier; this pin
+     * changes then.
+     */
+    @Test
+    void aComputedIntegerBeyond2To53InAMixedRankPlans_aKnownLimit() {
+        String model = StorelessRuntime.with("", TestBackends.platform().type());
+        // the computed value through a let: a list literal holds no arithmetic (SpecParser, round 55f); every literal
+        // below 2^53, so only the computed value is beyond it (round 55k)
+        Compiler.query(Compiler.compileModel(model),
+                "|let n = 9007199254740990 + 3; ['b', $n, 9007199254740991]->sort();")
+                .executionPlan(StorelessRuntime.RUNTIME);
     }
 }

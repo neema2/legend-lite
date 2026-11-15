@@ -54,6 +54,27 @@ class ClickHouseDialectTest {
         return new ClickHouse().render(q);
     }
 
+    /** A fused verdict row's unused slot of a type ClickHouse never makes NULL (a Map, a Tuple; round 53, 2026-11-15:
+     *  {@code CAST(NULL AS Map(...))} was refused, "Cannot convert NULL to a non-nullable type") holds the type's
+     *  default; a slot of a nullable type stays a typed NULL, and a product NULL of a Map is not a slot. */
+    @Test
+    void anUnusedSlotOfANeverNullTypeHoldsItsDefault() {
+        SqlType map = new SqlType.Map(SqlType.Scalar.VARCHAR, SqlType.Scalar.BIGINT);
+        String sql = render(select(new SqlSource.Dual(), null,
+                new SqlExpr.Cast(new SqlExpr.NullLit(), map, SqlExpr.Reason.SLOT),
+                new SqlExpr.Cast(new SqlExpr.NullLit(), PERSON, SqlExpr.Reason.SLOT),
+                new SqlExpr.Cast(new SqlExpr.NullLit(), SqlType.Scalar.BIGINT, SqlExpr.Reason.SLOT)));
+        assertTrue(sql.contains("defaultValueOfTypeName('Map(String, Nullable(Int64))')"), sql);
+        assertTrue(sql.contains("defaultValueOfTypeName('Tuple("), sql);
+        assertFalse(sql.contains("CAST(NULL AS Map"), sql);
+        assertFalse(sql.contains("CAST(NULL AS Tuple"), sql);
+        assertTrue(sql.contains("CAST(NULL AS Nullable(Int64))"), sql);
+        // the product's own NULL of a Map is not a slot: it is not made a value
+        String product = render(select(new SqlSource.Dual(), null,
+                new SqlExpr.Cast(new SqlExpr.NullLit(), map, SqlExpr.Reason.DECLARED)));
+        assertFalse(product.contains("defaultValueOfTypeName"), product);
+    }
+
     @Test
     void aStructFieldIsItsVariantAndOnlyAFieldReadOfItUnwrapsIt() {
         SqlExpr p = col("t0", "p", PERSON);

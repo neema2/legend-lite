@@ -133,7 +133,8 @@ final class AgreementArm {
         if (message == null) {
             return "";
         }
-        String one = message.strip().replaceAll("\\s*\\R\\s*", " | ");
-        return one.length() > 400 ? one.substring(0, 400) + "..." : one;
+        // the whole message (2026-11-15, Databricks round 53): a ledger matches the database's own words, which a
+        // clipped head cut off; a display shortens it, never this message
+        return message.strip().replaceAll("\\s*\\R\\s*", " | ");
     }
 }

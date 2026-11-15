@@ -1683,6 +1683,12 @@ public class ClickHouse extends AnsiSqlRenderer {
         if (c.value() instanceof SqlExpr.NullLit && c.target() instanceof SqlType.Array) {
             return writer.append("CAST([] AS " + castTypeName(c.target()) + ")");
         }
+        // an unused slot of a type that is never NULL here (a Map, a Tuple: "Cannot convert NULL to a non-nullable
+        // type", measured on round 53's lane, 2026-11-15) holds the type's default: the slot is never read
+        if (c.reason() == SqlExpr.Reason.SLOT && c.value() instanceof SqlExpr.NullLit
+                && (c.target() instanceof SqlType.Map || c.target() instanceof SqlType.Struct)) {
+            return writer.append("defaultValueOfTypeName(" + stringLit(castTypeName(c.target())) + ")");
+        }
         // a zoned timestamp from text: ISO 8601's T, Z and offsets, which a cast reads as NULL (measured)
         if (c.target() == SqlType.Scalar.TIMESTAMPTZ && typeOf(c.value()) == SqlType.Scalar.VARCHAR) {
             return writer.append("parseDateTime64BestEffort(").expr(c.value(), 0).append(", 6, 'UTC')");

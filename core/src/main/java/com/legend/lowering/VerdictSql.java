@@ -1843,7 +1843,8 @@ public final class VerdictSql {
     }
 
     /** Member {@code i}'s host projections, in the union's order of host columns ({@code outs} after its first
-     *  {@code baseSize}): its own columns' values, and a NULL cast to each other member's column type. */
+     *  {@code baseSize}): its own columns' values, and an unused slot ({@link SqlExpr.Reason#SLOT}: a NULL cast to the
+     *  type where the database holds one) for each other member's column. */
     private static List<SqlSelect.Projection> hostTail(List<Member> members, int i, List<OutputCol> outs,
             int baseSize) {
         java.util.Map<String, SqlExpr> own = new java.util.HashMap<>();
@@ -1855,7 +1856,9 @@ public final class VerdictSql {
             OutputCol o = outs.get(c);
             SqlExpr v = own.get(o.name());
             if (v == null) {
-                v = new SqlExpr.Cast(new SqlExpr.NullLit(), o.type(), SqlExpr.Reason.JUDGE);
+                // never read: a placeholder of the column's type (a database that cannot make it NULL writes the
+                // type's default, SqlExpr.Reason.SLOT)
+                v = new SqlExpr.Cast(new SqlExpr.NullLit(), o.type(), SqlExpr.Reason.SLOT);
             }
             tail.add(new SqlSelect.Projection(v, o.name(), o));
         }
