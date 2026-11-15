@@ -9,7 +9,6 @@ frames.py's, which names them still, and its runs were sent where they were plan
 
 from __future__ import annotations
 
-import contextlib
 import copy
 from collections.abc import Callable, Iterable, Sequence
 from typing import Any
@@ -316,12 +315,22 @@ def begin_read(cursor: Database, setup: Sequence[PlannedSql],
 
 
 @runs('a read ended')
-def end_read(cursor: Database) -> None:
-    """A read's transaction let go -- rolled back, as nothing it ran is kept; a cursor whose read failed may have none
-    to roll back, which is no failure of its end -- and its cursor closed (``Frames.reading``)."""
+def end_read(cursor: Database, failing: BaseException | None) -> None:
+    """A read's transaction let go -- rolled back when it began (``Database.began``), as nothing it ran is kept -- and
+    its cursor closed (``Frames.reading``). A rollback that fails is said, never swallowed (G7; the C5 follow-up,
+    2026-11-15: until then every duckdb.Error of the rollback was suppressed): raised when the read itself ended well;
+    when the read is ``failing``, that failure stays the one raised -- a read is named by the failure that ended it
+    (C4) -- and the rollback's is noted on it. DuckDB rolls back an aborted transaction without complaint (measured
+    2026-11-15, duckdb 1.5.5): a rollback fails only when no transaction is open on the cursor any longer (ended by a
+    statement of the read's own) or the connection is gone."""
     try:
-        with contextlib.suppress(duckdb.Error):
-            cursor.rollback()
+        if cursor.began:
+            try:
+                cursor.rollback()
+            except duckdb.Error as refused:
+                if failing is None:
+                    raise
+                failing.add_note(f"and rolling the read's transaction back failed: {type(refused).__name__}: {refused}")
     finally:
         cursor.close()
 

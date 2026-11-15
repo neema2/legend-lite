@@ -875,6 +875,47 @@ class C5SplitTest(unittest.TestCase):
         self.assertEqual(sent, before)
 
 
+class FollowupTest(unittest.TestCase):
+    """The C5 follow-up (2026-11-15): a read's rollback said, never swallowed; a stream's transaction rolled back whatever
+    fails after its begin."""
+
+    def test_a_reads_rollback_that_fails_is_said(self):
+        # a rollback fails only when no transaction is open on the read's cursor any longer (measured, duckdb 1.5.5): one
+        # ended by a statement of the read's own here. The read ended well: the rollback's failure is raised
+        import pyarrow as pa
+        from legend_lite.frames import Frames
+        frames = Frames()
+        frames.register('t', pa.table({'x': [1]}))
+        with self.assertRaisesRegex(duckdb.TransactionException, 'cannot rollback - no transaction is active'):
+            with frames.reading() as read:
+                read.execute(PlannedSql('COMMIT'))  # the test's own statement: the read's transaction ended inside it
+        # the read failed: its failure stays the one raised, the rollback's noted on it
+        with self.assertRaises(KeyError) as failed:
+            with frames.reading() as read:
+                read.execute(PlannedSql('COMMIT'))
+                raise KeyError('the read failed')
+        self.assertEqual(failed.exception.args, ('the read failed',))
+        self.assertTrue(any("rolling the read's transaction back failed: TransactionException" in n
+                            for n in getattr(failed.exception, '__notes__', [])), failed.exception)
+        # a read that ended well, its transaction open: rolled back, nothing said
+        with frames.reading() as read:
+            self.assertEqual(read.run(frames['t'].plan('->select(~[x])')).num_rows, 1)
+
+    def test_a_stream_whose_plane_fails_at_once_is_rolled_back(self):
+        # a plane failing as its statement is asked for (no generator: at once) failed before the stream's try, and left
+        # the transaction its begin opened; it is rolled back now, and the plane's failure raised
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None):
+                raise ConnectionResetError('the plane refused at once')
+
+        plan = compiler.snap_stream({'databaseType': 'DuckDB', 'plane': 'warehouse', **_pull(), 'table': 'never'})
+        step = json.loads(plan)['root']['steps'][0]
+        witness = _Witness(duckdb.connect())
+        with self.assertRaisesRegex(ConnectionResetError, 'the plane refused at once'):
+            projects.run_host_load(plan, Database(witness), planes={'warehouse': Plane()})
+        self.assertEqual(witness.received, [*step['transaction']['begin'], *step['transaction']['rollback']])
+
+
 class TheBridgeTest(unittest.TestCase):
     """THE V8 BRIDGE (the orchestrator's ruling of 2026-11-12): what DataCube's hosted code hands Python's database crosses
     as text, and is sent only if this session's planner answered it -- every text its answers carried, a plan's steps

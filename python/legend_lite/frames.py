@@ -668,10 +668,14 @@ class Frames:
         self._local.reading = read
         try:
             yield read
-        finally:
+        except BaseException as failing:
             self._local.reading = None
-            # the read's transaction let go by its run (C5-P, A3: a transaction's bounds are run acts), its cursor closed
-            end_read(cursor)
+            # the read's transaction let go by its run (C5-P, A3: a transaction's bounds are run acts), its cursor
+            # closed; the read's own failure stays the one raised (a rollback's noted on it: the C5 follow-up)
+            end_read(cursor, failing)
+            raise
+        self._local.reading = None
+        end_read(cursor, None)
 
     def reading_now(self) -> Reading | None:
         """The read this thread is in (``reading``), or None."""
