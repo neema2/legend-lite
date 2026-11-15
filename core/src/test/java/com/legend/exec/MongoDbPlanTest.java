@@ -195,8 +195,8 @@ class MongoDbPlanTest {
         String body = plan.answerSql().statement();
         assertTrue(body.contains("\"$$lp1\"") && body.contains("\"$$lp2\"") && body.contains("$legendParam"),
                 "the parameters' variables and the keys' markers: " + body);
-        assertEquals("[{\"'Oslo__|__s'\":62}]", run(query, PlanCases.Written.JSON, Map.of("lo", 20L, "hi", 40L)));
-        assertEquals("[{\"'Oslo__|__s'\":34,\"'Rome__|__s'\":41}]",
+        assertEquals("[{\"Oslo__|__s\":62}]", run(query, PlanCases.Written.JSON, Map.of("lo", 20L, "hi", 40L)));
+        assertEquals("[{\"Oslo__|__s\":34,\"Rome__|__s\":41}]",
                 run(query, PlanCases.Written.JSON, Map.of("lo", 30L, "hi", 50L)));
     }
 
@@ -210,7 +210,7 @@ class MongoDbPlanTest {
         String query = "|#>{test::Store.people}#->select(~[city, age])->pivot(~city, ~['a\"b\\\\c': x | $x.age : y"
                 + " | $y->plus()])";
         String answered = run(query, PlanCases.Written.JSON, Map.of());
-        assertTrue(answered.contains("\"'Oslo__|__a\\\"b\\\\c'\":"), answered);
+        assertTrue(answered.contains("\"Oslo__|__a\\\"b\\\\c\":"), answered);
     }
 
     /** A parameter inside the per-key region is refused by name: each copy of the region would bind it again, and a

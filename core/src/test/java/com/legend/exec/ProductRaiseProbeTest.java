@@ -112,7 +112,8 @@ class ProductRaiseProbeTest {
         // 5. the edges of a Float's text (the orchestrator's round 54, 2026-11-15): whole numbers (a trim must keep their
         // zeros), zero and its sign, the halfway region, noise above 4.5e9, NUMBER(38,6)'s 32 integer digits, the
         // double's extremes. Exact where register S311 says every database agrees; -0 and below 5e-7 either sign of
-        // zero (S311's rows); from 1e21 up the plain digits with no exponent and no failure (the noise is S311's)
+        // zero (S311's rows); from 1e21 up the plain digits with no exponent and no failure, as many digits as the
+        // value's magnitude (the noise is S311's; a capped text -- MySQL's FORMAT wrote 61 digits for 1e300 -- is wrong)
         String[] values = {"100.0", "10.0", "0.0", "-0.0", "123456789.0", "0.30000000000000004", "-0.0000001",
                 "1.0E21", "1.0E32", "1.0E300", "-1.0E300", "1.7976931348623157E308", "2.2250738585072014E-308"};
         String[][] expected = {{"100"}, {"10"}, {"0"}, {"0", "-0"}, {"123456789"}, {"0.3"}, {"0", "-0"},
@@ -133,7 +134,8 @@ class ProductRaiseProbeTest {
             for (int i = 0; i < values.length; i++) {
                 String g = i < got.size() ? got.get(i) : null;
                 boolean ok = g != null && (expected[i] != null ? List.of(expected[i]).contains(g)
-                        : g.matches("-?[0-9]+(\\.[0-9]{1,6})?") && g.replace("-", "").length() >= 22);
+                        : g.matches("-?[0-9]+") && g.replace("-", "").length()
+                                == (int) Math.floor(Math.log10(Math.abs(Double.parseDouble(values[i])))) + 1);
                 if (!ok) {
                     wrong.add("a Float's text of " + values[i] + ": " + g);
                 }

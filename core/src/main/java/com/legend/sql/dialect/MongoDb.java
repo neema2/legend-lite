@@ -2871,8 +2871,21 @@ public class MongoDb extends AnsiSqlRenderer {
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        writer.append("{\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$toString\": {\"$round\": [");
+        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits, trimmed of the zeros
+        // and a point after them; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
+        // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
+        // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
+        writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
         MongoJson.op1(writer, "$toDecimal", x);
-        return writer.append(", 6]}}, \"chars\": \"0\"}}, \"chars\": \".\"}}");
+        return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
+                + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
+                + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": \"$$s\", \"chars\": \"0\"}}, \"chars\": \".\"}},"
+                + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
+                + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
+                + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"
+                + " \"in\": {\"$concat\": [{\"$replaceAll\": {\"input\": \"$$m\", \"find\": \".\", \"replacement\": \"\"}},"
+                + " {\"$reduce\": {\"input\": {\"$range\": [0, {\"$subtract\": [\"$$n\", {\"$cond\": [{\"$lt\": [\"$$p\", 0]},"
+                + " 0, {\"$subtract\": [{\"$subtract\": [{\"$strLenCP\": \"$$m\"}, \"$$p\"]}, 1]}]}]}]},"
+                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}]}}}}}]}}}}}");
     }
 }

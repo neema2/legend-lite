@@ -425,4 +425,20 @@ public class MySql extends MariaDb {
         return w -> w.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", " + stringLit(pat) + ", "
                 + stringLit(icu.toString()) + ", 1, " + occurrence + ")");
     }
+
+    /** A Float's text (S311): MariaDB's {@code FORMAT} below 1e60; from there MySQL's {@code FORMAT} writes at most 65
+     *  digits (measured 2026-11-15, the probe: 1e300 printed 61 digits), so the value's leading 21 digits are formatted
+     *  and the rest written as zeros -- its magnitude kept, the digits past the 21st zeros (S311's noise above 4.5e9).
+     *  One expression, the database's. */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        SqlExpr d = asDouble(x);
+        writer.append("CASE WHEN ABS(").expr(d, 0).append(") < 1E60 THEN ");
+        super.floatToText(writer, x);
+        writer.append(" ELSE CONCAT(REPLACE(FORMAT(").expr(d, 0).append(" / POW(10, FLOOR(LOG10(ABS(").expr(d, 0)
+                .append("))) - 20), 0, 'en_US'), ',', ''), REPEAT('0', FLOOR(LOG10(ABS(").expr(d, 0)
+                .append("))) - 20)) END");
+        return writer;
+    }
 }
