@@ -130,8 +130,16 @@ public enum SqlFn {
     FLOAT_CANON,
     /** A Float's text as Pure's {@code toString} prints it (2026-10-22): the shortest digits, plain within the
      *  database's plain range and fixed point past it where exact, at least one fraction digit (lowering/LiteralSpelling).
-     *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). */
+     *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). Since phase
+     *  D's D1.2 (2026-11-15) the JUDGES' form: their {@code %r} of a Float in an assert's message, as the host judge
+     *  prints it (judge parity, G2), and what the compatibility edge writes for {@link #FLOAT_TO_TEXT}; never the
+     *  product's text of a Float. */
     FLOAT_PRINT,
+    /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
+     *  zeros and a trailing point trimmed, NaN and the infinities by name (the user's ruling of 2026-11-10, D_BRIEF
+     *  §1; phase D's D1.2, 2026-11-15) -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
+     *  compatibility edge writes {@link #FLOAT_PRINT} for it, legend-pure's print form (edge/FloatToPrint). */
+    FLOAT_TO_TEXT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */

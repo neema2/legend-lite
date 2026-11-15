@@ -1984,6 +1984,7 @@ public class MariaDb extends AnsiSqlRenderer {
             // mixed list, measured 2026-10-11)
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
             case LEAST -> writer.piece(nullSkipping("LEAST", a));
@@ -3602,5 +3603,12 @@ public class MariaDb extends AnsiSqlRenderer {
                 || label instanceof SqlType.Decimal d && wire.startsWith("DECIMAL(")
                         && wire.endsWith("," + d.scale() + ")")
                 || composite && (wire.equals("JSON") || wire.equals("VARCHAR"));
+    }
+
+    /** {@inheritDoc} The double rounded to six places, whose text MariaDB writes with its six decimals, trimmed by the standard's trailing trim (a DECIMAL(65, 6) cast saturates past 10^59; measured on the embedded MariaDB, 2026-11-15). No NaN or infinity is stored. */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return trimmedSixStandard(writer, w -> w.append("CAST(ROUND(").expr(asDouble(x), 0).append(", 6) AS CHAR)"));
     }
 }

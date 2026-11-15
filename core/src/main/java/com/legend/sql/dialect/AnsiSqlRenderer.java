@@ -224,7 +224,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  dialect's pass list can leave the reads out. */
     protected final java.util.List<com.legend.sql.SqlRewriter> renderPasses() {
         java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
-        // a Float's print forms, expanded before every other pass unless this dialect spells them itself
+        // the compatibility edge's spellings, expanded before every other pass (legend-pure's print form of a Float:
+        // phase D's D1.2, 2026-11-15); the product's dialects add none
+        ps.addAll(spellingPasses());
+        // a Float's print forms (the judges' %r; the edge's text of a Float), expanded before every other pass unless
+        // this dialect spells them itself
         if (!spellsFloatPrint()) {
             ps.add(new FloatPrintText.Expansion(bindsFloatPrint()));
         }
@@ -258,6 +262,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  (a dialect whose double text is a long expression and whose derived tables read the row around them). */
     protected boolean bindsFloatPrint() {
         return false;
+    }
+
+    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-pure's print form
+     *  of a Float, {@code FLOAT_PRINT}, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
+     *  The product's dialects run none: they write each node lite's own way. */
+    @SpellingArm
+    protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+        return java.util.List.of();
     }
 
     /** Whether that expansion reads the double's text from a one-row derived table, written once (a dialect whose
@@ -1316,6 +1328,42 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         return writer.expr(FloatPrintText.of(c.args().get(0)), parentPrec);
+    }
+
+    /**
+     * A Float's text ({@link com.legend.sql.SqlFn#FLOAT_TO_TEXT}; the user's ruling of 2026-11-10, D_BRIEF §1, phase
+     * D's D1.2, 2026-11-15): six decimals, the trailing zeros and then a trailing point trimmed ({@code 1.5},
+     * {@code 2}, {@code 0.333333}), NaN and the infinities by name ({@code NaN}, {@code Infinity},
+     * {@code -Infinity}). Each dialect writes it in one format call (measured on each database: register S311); the
+     * compatibility edge writes legend-pure's print form instead. A function-call form: no parenthesis is needed.
+     */
+    @SpellingArm
+    protected abstract SqlWriter floatToText(SqlWriter writer, SqlExpr x);
+
+    /** {@code x} as a double: itself where its fact is one (a column, a computed double), else cast -- a format call's
+     *  {@code %f} reads no integer and no decimal, and a six-decimal text is trimmed only where it has its six
+     *  digits (a literal is cast too: DuckDB reads {@code 1.5} as a DECIMAL). */
+    protected static SqlExpr asDouble(SqlExpr x) {
+        return !(x instanceof SqlExpr.FloatLit) && x.type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE ? x
+                : new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE);
+    }
+
+    /** {@code text} -- a value's fixed-point text with six fraction digits -- with its trailing zeros, then a trailing
+     *  point, dropped, by the trailing trim {@code trim} names ({@code rtrim}, {@code RTRIM}): {@code 2.000000} is
+     *  {@code 2}, {@code 0.300000} is {@code 0.3}. Six digits always follow the point, so no digit before it is cut. */
+    protected static SqlWriter trimmedSix(SqlWriter writer, String trim, java.util.function.Consumer<SqlWriter> text) {
+        writer.append(trim).append("(").append(trim).append("(");
+        text.accept(writer);
+        return writer.append(", '0'), '.')");
+    }
+
+    /** {@link #trimmedSix} spelled by the SQL standard's trailing trim ({@code TRIM(TRAILING '0' FROM ...)}), for a
+     *  database whose {@code RTRIM} takes no character. */
+    protected static SqlWriter trimmedSixStandard(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
+        writer.append("TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM ");
+        text.accept(writer);
+        return writer.append("))");
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----

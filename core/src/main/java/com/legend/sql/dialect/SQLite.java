@@ -1551,6 +1551,7 @@ public class SQLite extends AnsiSqlRenderer {
             case PI -> writer.append("pi()");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -3322,5 +3323,14 @@ public class SQLite extends AnsiSqlRenderer {
                     || label instanceof SqlType.Decimal;
             default -> false;
         };
+    }
+
+    /** {@inheritDoc} {@code printf}'s six decimals, trimmed; its {@code Inf} by Pure's name (no NaN is stored: a NaN reads as NULL; measured 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("replace(");
+        trimmedSix(writer, "rtrim", w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'Inf', 'Infinity')");
     }
 }

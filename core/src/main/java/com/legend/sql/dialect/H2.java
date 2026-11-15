@@ -686,6 +686,7 @@ public class H2 extends AnsiSqlRenderer {
             case ROUND_HALF_UP -> writer.function("ROUND", c.args());
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
@@ -1521,5 +1522,15 @@ public class H2 extends AnsiSqlRenderer {
     @Override
     protected boolean writesGridReports() {
         return true;
+    }
+
+    /** {@inheritDoc} The value's six-decimal DECIMAL text, trimmed; H2's NaN and infinities, which no DECIMAL holds, as its own text of them, Java's (NaN exceeds every number, so one test finds the three; measured on 2.5.252, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("CASE WHEN ABS(").expr(x, 0).append(") > 1.7976931348623157E308 THEN CAST(").expr(x, 0)
+                .append(" AS VARCHAR) ELSE ");
+        trimmedSix(writer, "rtrim", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS DECIMAL(1000, 6)) AS VARCHAR)"));
+        return writer.append(" END");
     }
 }

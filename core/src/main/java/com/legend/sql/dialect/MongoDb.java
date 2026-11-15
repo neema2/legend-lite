@@ -1235,6 +1235,7 @@ public class MongoDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
             // ---- raising
             case ERROR -> raise(writer, a);
         };
@@ -2851,5 +2852,14 @@ public class MongoDb extends AnsiSqlRenderer {
     @Override
     public @com.legend.base.Nullable Integer resultColumnLimit() {
         return null;
+    }
+
+    /** {@inheritDoc} The double rounded to six places, as MongoDB writes it ({@code $round}, then {@code $toString}). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("{\"$toString\": {\"$round\": [");
+        MongoJson.op1(writer, "$toDouble", x);
+        return writer.append(", 6]}}");
     }
 }

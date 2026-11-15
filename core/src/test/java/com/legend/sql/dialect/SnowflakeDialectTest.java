@@ -108,6 +108,15 @@ class SnowflakeDialectTest {
                 SqlExpr.Call.of(SqlFn.FLOAT_PRINT, new SqlExpr.FloatLit(1.5)), "p", null)), false,
                 new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null, List.of()));
         assertFalse(literal.contains("NUMBER(38, 28)"), literal);
+        // the product's text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): six decimals trimmed, NaN and the
+        // infinities by name, no shortest-digits machinery
+        String product = new Snowflake().render(new SqlSelect(List.of(new SqlSelect.Projection(
+                SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x), "p", null)), false, new SqlSource.Table("t", "t",
+                List.of(new OutputCol("x", SqlType.Scalar.DOUBLE, true)), false, Map.of(),
+                com.legend.sql.NameQuoting.BARE), null, List.of(), null, null, List.of(), null, null, List.of()));
+        assertTrue(product.contains("RTRIM(RTRIM(CAST(CAST(\"t\".\"x\" AS NUMBER(38, 6)) AS VARCHAR), '0'), '.')"),
+                product);
+        assertFalse(product.contains("NUMBER(38, 28)"), product);
     }
 
     /**

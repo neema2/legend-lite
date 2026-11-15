@@ -1544,6 +1544,7 @@ public class BigQuery extends AnsiSqlRenderer {
             case ERROR -> raiseEnvelope(writer, c.args(), "ERROR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // the hooks: this dialect's own (or the base's refusal)
             case HASH -> hashSigned(writer, c.args());
             case ROUND -> roundHalfEven(writer, c.args());
@@ -3200,5 +3201,14 @@ public class BigQuery extends AnsiSqlRenderer {
         }
         return label == SqlType.Scalar.HUGEINT || label == SqlType.Scalar.DOUBLE
                 || label instanceof SqlType.Decimal d && d.scale() <= 38 && d.precision() - d.scale() <= 38;
+    }
+
+    /** {@inheritDoc} {@code FORMAT}'s six decimals, trimmed; its {@code nan} and {@code inf} by Pure's names (the brief's measurement, D_BRIEF §1). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("REPLACE(REPLACE(");
+        trimmedSix(writer, "RTRIM", w -> w.append("FORMAT('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
     }
 }

@@ -121,7 +121,7 @@ public class MySql extends MariaDb {
                  LIST_MODE, LIST_SORT, LIST_SORT_DESC, LIST_TAIL, LIST_INIT, RANGE_FN, LIST_PRODUCT, LIST_REDUCE,
                  LIST_SLICE, REPEAT_VALUE, LIST_BOOL_AND, LIST_BOOL_OR, IS_DISTINCT_FROM, ALL_DISTINCT,
                  NULL_SAFE_EQUAL, NULL_SAFE_NOT_EQUAL, STRFTIME, STRPTIME, PARSE_DATE, LIST_REVERSE, TYPEOF,
-                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, VARIANT_ELEMENTS,
+                 ROUND_HALF_UP, ERROR, FLOOR_RAW, TO_VARIANT, BOOL_TO_TEXT, DECIMAL_TO_TEXT, FLOAT_CANON, FLOAT_PRINT, FLOAT_TO_TEXT, VARIANT_ELEMENTS,
                  VARIANT_GET, JSON_TYPE, JSON_ARRAY_LENGTH, JSON_PRETTY -> super.call(writer, c, parentPrec);
         };
     }
@@ -424,5 +424,12 @@ public class MySql extends MariaDb {
         String occurrence = global ? "0" : "1";
         return w -> w.append("REGEXP_REPLACE(").expr(a.get(0), 0).append(", " + stringLit(pat) + ", "
                 + stringLit(icu.toString()) + ", 1, " + occurrence + ")");
+    }
+
+    /** {@inheritDoc} The double rounded to six places as MySQL writes it: its shortest digits, already without trailing zeros, an exponent from 10^15 (register S311; a DECIMAL(65, 6) cast saturates past 10^59; measured on the embedded MySQL, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return writer.append("CAST(ROUND(").expr(asDouble(x), 0).append(", 6) AS CHAR)");
     }
 }

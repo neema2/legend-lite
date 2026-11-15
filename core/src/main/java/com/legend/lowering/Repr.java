@@ -62,6 +62,13 @@ final class Repr {
             return Scalars.cat(Scalars.pureToString(Type.Primitive.DECIMAL, x),
                     new SqlExpr.StringLit("D"));
         }
+        if (t == Type.Primitive.FLOAT) {
+            // legend-pure's print form, the judges' %r of a Float (phase D's D1.2, 2026-11-15: the product's text of a
+            // Float is lite's six decimals, FLOAT_TO_TEXT; an assert's message prints the value as the host judge
+            // does, judge parity G2); a value the store holds as an integer its digits, as before
+            return LiteralSpelling.heldAsInteger(x) ? new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR)
+                    : SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x);
+        }
         // numbers, booleans, and the Any carrier: the toString spelling
         // IS the representation
         return Scalars.pureToString(t, x);

@@ -1408,6 +1408,7 @@ public class Snowflake extends AnsiSqlRenderer {
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -3511,5 +3512,17 @@ public class Snowflake extends AnsiSqlRenderer {
         boolean integral = label == SqlType.Scalar.BIGINT || label == SqlType.Scalar.INTEGER;
         return integral && wire.startsWith("DECIMAL(") && wire.endsWith(",0)")
                 || (label instanceof SqlType.Struct || label instanceof SqlType.Map) && wire.equals("OBJECT");
+    }
+
+    /** {@inheritDoc} The value's NUMBER(38, 6) text, trimmed; NaN and the infinities by Pure's names, which are Java's
+     *  (Snowflake's NaN equals itself and exceeds every number; the brief's measurement, D_BRIEF §1). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("CASE WHEN ").expr(x, 0).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CASE WHEN ")
+                .expr(x, 0).append(" = 'NaN'::FLOAT THEN 'NaN' WHEN ").expr(x, 0)
+                .append(" > 0 THEN 'Infinity' ELSE '-Infinity' END ELSE ");
+        trimmedSix(writer, "RTRIM", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS NUMBER(38, 6)) AS VARCHAR)"));
+        return writer.append(" END");
     }
 }

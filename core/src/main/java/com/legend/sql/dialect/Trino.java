@@ -956,6 +956,7 @@ public class Trino extends AnsiSqlRenderer {
             case DIVIDE -> divideAsDoubles(writer, c.args());
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -2105,5 +2106,12 @@ public class Trino extends AnsiSqlRenderer {
     @Override
     public boolean deliversOwn(SqlType label, String wire) {
         return label instanceof SqlType.Struct && wire.equals("JSON");
+    }
+
+    /** {@inheritDoc} {@code format}'s six decimals (Java's, NaN and the infinities by name), trimmed by the standard's trailing trim (measured on 483, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return trimmedSixStandard(writer, w -> w.append("format('%.6f', ").expr(asDouble(x), 0).append(")"));
     }
 }

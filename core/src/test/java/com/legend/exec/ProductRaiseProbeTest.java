@@ -35,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * <p>A manual probe in {@code //gates:heavy}, beside {@code :identifier_escaping_cloud_probe}: {@code bazel test
  * //core:product_raise_probe} with {@code LEGENDLITE_PROBE_DATABASE} one of {@code mariadb}, {@code mysql},
- * {@code clickhouse}, {@code trino}, {@code mongodb} (the embedded servers; Linux x86_64) or {@code snowflake},
+ * {@code clickhouse}, {@code trino}, {@code mongodb}, {@code postgres} (the embedded servers; Linux x86_64; Postgres
+ * as an unprivileged user, tools/postgres/as_unprivileged.sh) or {@code snowflake},
  * {@code databricks}, {@code bigquery} (with {@code LEGENDLITE_PCT_CLOUD_PROPERTIES}, the cloud lanes' account file).
  * One database a run; without it the probe fails by name, it never skips (the skip census).
  */
@@ -100,11 +101,18 @@ class ProductRaiseProbeTest {
         Object two = run(backend, "toOne over two rows", "|" + ROWS + "->map(r|$r.x)->toOne()->from("
                 + StorelessRuntime.RUNTIME + ")");
         expectKind(wrong, "toOne over two rows", two, com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY, "[1]");
+        // 4. a print site: a Float's text (D1.2, register S311): six decimals, trimmed, the same on every database
+        Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n#->extend(~t: r|"
+                + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+        if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2\"},{\"t\":\"-1.25\"}]")) {
+            wrong.add("a Float's text: " + describe(text));
+        }
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
         System.out.println("[product raise probe] " + backend.name() + " toOne over two rows, raised: " + describe(two));
-        System.out.println("[product raise probe] " + backend.name() + ": " + (3 - wrong.size()) + " of 3 as expected");
+        System.out.println("[product raise probe] " + backend.name() + " a Float's text, answered: " + describe(text));
+        System.out.println("[product raise probe] " + backend.name() + ": " + (4 - wrong.size()) + " of 4 as expected");
         assertEquals(List.of(), wrong, backend.name());
     }
 
