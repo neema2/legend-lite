@@ -1052,9 +1052,8 @@ public class Trino extends AnsiSqlRenderer {
                     .append(") - length(").expr(a.get(1), 0).append(") + 1, 1)) = ").expr(a.get(1), 0)
                     .append(" AND length(").expr(a.get(0), 0).append(") >= length(").expr(a.get(1), 0).append("))");
             // array_join skips a NULL element: no string repeated is NULL, not ''
-            case REPEAT_STR -> writer.append("(CASE WHEN ").expr(a.get(0), 0).append(" IS NULL THEN NULL ELSE")
-                    .append(" array_join(repeat(").expr(a.get(0), 0).append(", greatest(").expr(a.get(1), 0)
-                    .append(", 0)), '') END)");
+            case REPEAT_STR -> writer.piece(nullIfNull(a.get(0), w -> w.append("array_join(repeat(").expr(a.get(0), 0)
+                    .append(", greatest(").expr(a.get(1), 0).append(", 0)), '')")));
             // DuckDB's split_part: the empty string past the end (Trino's is NULL)
             case SPLIT_PART -> writer.append("coalesce(split_part(").list(a).append("), '')");
             case ROUND_HALF_UP -> roundHalfUp(writer, c);

@@ -1096,8 +1096,8 @@ public class Snowflake extends AnsiSqlRenderer {
      *  needle (measured), so the needle is tested first. */
     @Override
     protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
-        return writer.append("(CASE WHEN ").expr(m.needle(), 4).append(" IS NULL THEN NULL ELSE ARRAY_CONTAINS(TO_VARIANT(")
-                .expr(m.needle(), 0).append("), ").expr(m.collection(), 0).append(") END)");
+        return writer.piece(nullIfNull(m.needle(), w -> w.append("ARRAY_CONTAINS(TO_VARIANT(")
+                .expr(m.needle(), 0).append("), ").expr(m.collection(), 0).append(")")));
     }
 
     /** A named aggregate over a list's non-NULL elements, in list order. */
@@ -1590,10 +1590,10 @@ public class Snowflake extends AnsiSqlRenderer {
             // ---- variant
             // in DuckDB's json_type vocabulary (NULL, VARCHAR, BIGINT, DOUBLE, BOOLEAN, ARRAY, OBJECT); Snowflake
             // reads '1.0' as an INTEGER (measured), so a whole decimal is a BIGINT here
-            case JSON_TYPE -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE DECODE(TYPEOF(")
+            case JSON_TYPE -> writer.piece(nullIfNull(a.get(0), w -> w.append("DECODE(TYPEOF(")
                     .append("TO_VARIANT(").expr(a.get(0), 0).append(")), 'NULL_VALUE', 'NULL', 'BOOLEAN', 'BOOLEAN',")
                     .append(" 'INTEGER', 'BIGINT', 'DECIMAL', 'DOUBLE', 'DOUBLE', 'DOUBLE', 'ARRAY', 'ARRAY',")
-                    .append(" 'OBJECT', 'OBJECT', 'VARCHAR') END)");
+                    .append(" 'OBJECT', 'OBJECT', 'VARCHAR')")));
             case JSON_PRETTY -> throw wall(c.fn(), "Snowflake has no JSON pretty-printer in SQL");
             // RFC 7386 with a literal object patch of non-null values: each key replaced (OBJECT_INSERT)
             case JSON_MERGE_PATCH -> jsonMergePatch(writer, c);

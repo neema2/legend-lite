@@ -1065,6 +1065,10 @@ public class BigQuery extends AnsiSqlRenderer {
      *  types INT64 here, and the guard alone answers it. A nested binding shadows this one only inside its own
      *  subquery, which reads its own list. */
     private SqlWriter.Piece unlessNull(SqlExpr xs, java.util.function.Function<SqlExpr, SqlWriter.Piece> body) {
+        // a list that cannot be NULL needs no test, so no binding either (the lean program, 2026-11-15)
+        if (!com.legend.sql.SqlTyping.mayBeNull(xs)) {
+            return body.apply(xs);
+        }
         if (nullList(xs)) {
             return w -> w.append("(CASE WHEN ").expr(xs, 4).append(" IS NULL THEN NULL ELSE ").piece(body.apply(xs))
                     .append(" END)");
@@ -1282,9 +1286,8 @@ public class BigQuery extends AnsiSqlRenderer {
     protected SqlWriter membership(SqlWriter writer, SqlExpr.Membership m) {
         String e = param("__e");
         // the collection bound once (unlessNull), NULL for a NULL collection or needle
-        return writer.piece(unlessNull(m.collection(), b -> w -> w.append("(CASE WHEN ").expr(m.needle(), 4)
-                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM UNNEST(").expr(b, 0)
-                .append(") AS " + e + " WHERE " + e + " = ").expr(m.needle(), 5).append(") END)")));
+        return writer.piece(unlessNull(m.collection(), b -> nullIfNull(m.needle(), w -> w.append("EXISTS(SELECT 1 FROM UNNEST(")
+                .expr(b, 0).append(") AS " + e + " WHERE " + e + " = ").expr(m.needle(), 5).append(")"))));
     }
 
     @Override
@@ -1882,9 +1885,8 @@ public class BigQuery extends AnsiSqlRenderer {
     private SqlWriter regexpExtract(SqlWriter writer, SqlExpr.Call c) {
         List<SqlExpr> a = c.args();
         String pattern = onlyGroup(literal(a.get(1), "a regexp_extract pattern"), group(a));
-        return writer.append("(CASE WHEN ").expr(a.get(0), 4)
-                .append(" IS NULL THEN NULL ELSE COALESCE(REGEXP_EXTRACT(").expr(a.get(0), 0)
-                .append(", " + stringLit(pattern) + "), '') END)");
+        return writer.piece(nullIfNull(a.get(0), w -> w.append("COALESCE(REGEXP_EXTRACT(").expr(a.get(0), 0)
+                .append(", " + stringLit(pattern) + "), '')")));
     }
 
     /** The {@code STRFTIME} arm of {@link #call}. */
@@ -1954,9 +1956,8 @@ public class BigQuery extends AnsiSqlRenderer {
     /** {@code =} between structs or arrays: GoogleSQL defines none ("Equality is not defined for arguments of type
      *  STRUCT", measured); DuckDB's compares nested NULLs as equal, as their JSON texts do; a NULL operand is NULL. */
     private SqlWriter compositeEquality(SqlWriter writer, List<SqlExpr> a, boolean equal) {
-        return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL OR ").expr(a.get(1), 4)
-                .append(" IS NULL THEN NULL ELSE TO_JSON_STRING(").expr(a.get(0), 0).append(equal ? ") = " : ") <> ")
-                .append("TO_JSON_STRING(").expr(a.get(1), 0).append(") END)");
+        return writer.piece(nullIfAnyNull(a.subList(0, 2), w -> w.append("(TO_JSON_STRING(").expr(a.get(0), 0)
+                .append(equal ? ") = " : ") <> ").append("TO_JSON_STRING(").expr(a.get(1), 0).append("))")));
     }
 
     /** printf: a {@code %s} argument as its text (GoogleSQL's %s takes a STRING only: "Expected STRING; Got BOOL",
@@ -2044,11 +2045,10 @@ public class BigQuery extends AnsiSqlRenderer {
     private SqlWriter splitPart(SqlWriter writer, List<SqlExpr> a) {
         SqlWriter.Piece parts = w -> w.append("SPLIT(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
                 .append(")");
-        return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL OR ").expr(a.get(1), 4)
-                .append(" IS NULL THEN NULL ELSE COALESCE((").piece(parts)
+        return writer.piece(nullIfAnyNull(a.subList(0, 2), w -> w.append("COALESCE((").piece(parts)
                 .append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(2), 4).append(" < 0 THEN ARRAY_LENGTH(")
                 .piece(parts).append(") + CAST(").expr(a.get(2), 0).append(" AS INT64) ELSE CAST(")
-                .expr(a.get(2), 0).append(" AS INT64) - 1 END)], '') END)");
+                .expr(a.get(2), 0).append(" AS INT64) - 1 END)], '')")));
     }
 
     private SqlWriter strptime(SqlWriter writer, List<SqlExpr> a, SqlExpr.Call c) {
