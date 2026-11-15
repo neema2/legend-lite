@@ -1,6 +1,6 @@
 # The desk's data, deployed: the design (2026-11-14)
 
-**Status: AGREED 2026-11-15 but for one point** (§13: how a keyed dataset lands, found while preparing step 0).
+**Status: AGREED 2026-11-15.** Every decision is ruled (§13); step 0 is under way (§15.1).
 Written with the user on 2026-11-14 and 15, branch `claude/deephaven-3-browser`. §13 says what the user ruled, in
 the user's words. Nothing here is built yet. When ratified it
 supersedes, in docs/DESK_DATA_ROADMAP_2026_10_29.md, B2's generated Groovy program, B3's pulls and decision P's
@@ -359,7 +359,8 @@ publish themselves"):
 - Standing from before: "if DeepHaven cannot do something refuse and keep going" (2026-11-14); "door for sure, no need
   for tansu just use door" (2026-10-29); no push to main and no PR without the user's word.
 
-**Open: how a keyed dataset lands** (found 2026-11-15, preparing step 0). Upstream's `batch_milestoned` keeps every
+**Ruled 2026-11-15: how a keyed dataset lands, option (A)** (the user: "Yes can be a filter or pure database view too
+whatever is simplier"; a filter is simpler: a view would list every column again). Found preparing step 0: Upstream's `batch_milestoned` keeps every
 version and gives every reader three more columns -- `LAKE_DIGEST` (a string), `LAKE_IN_ID` and `LAKE_OUT_ID`
 (batch ids), plus `LAKE_FROM` and `LAKE_THRU` for business temporal (legend-studio `V1_CubeIngestDefinition.ts`,
 `milestoningColumns`). The user, 2026-11-15: "Batch milestone is all versions but there is a deterministic way to
@@ -409,6 +410,35 @@ Each becomes a docs/SEMANTICS_REGISTER.md row, ruled by the user, when it is bui
 5. **The tab on the same path:** the world publishes to the tab's log, the tab lands with the same plans.
 6. **`market.groovy` deleted:** every Deephaven lane green with only the feed and the plan.
 7. **Last, maybe:** a lane against a real Kafka-compatible broker (the user: "Real Kafka maybe at the end").
+
+### 15.1 Step 0 in detail (planned 2026-11-15)
+
+Measured first: 16 keyed desk tables (`MARKET_QUOTE`, `FX_RATE`, `TRADE_ORDER`, `RFQ`, `INSTRUMENT`, `EQUITY`,
+`OPTION`, `EXCHANGE`, `SECTOR`, `BUSINESS_UNIT`, `DESK`, `TRADER`, `COUNTERPARTY`, `RISK_LIMIT`, `POSITION`, `BOOK`),
+each with one test-data block of 5 to 20 rows in `stress/93-testdata.pure`; about 80 mapping references to them;
+no corpus test reads them raw but `BOOK` (4 reads). In order, each committed with its own tests:
+
+- **0a. Grammar, protocol, model.** Read modes `Delta<FORMAT>` (with `deleteIndicator=DeleteIndicator(deleteField=
+  '...', deleteValues=['...'])`) and `Snapshot<FORMAT>`, and an ingest with none (views only); the formats
+  upstream's (`CSV`, `Avro`, `JSON`, `Parquet`). Write modes `AppendOnly` and `BatchMilestoned`; `LatestByKey` refused
+  by name, naming its replacement; business temporal still refused. A `BatchMilestoned` dataset's table gains
+  `LAKE_DIGEST` (VARCHAR), `LAKE_IN_ID` and `LAKE_OUT_ID` (BIGINT NOT NULL) after its own columns (S404 lifted for
+  it). A pull is `Snapshot` with a function over a store and `schedule=Daily(...)` or `Every(...)`; `Stream` and
+  `Pull<...>` retire. `retention=` stays until step 1 moves it to the deployment. Tests: the parser's, the JSON round
+  trips, the model's.
+- **0b. The desk's model.** `29-desk-sources.pure` and `market.pure` in the new words; a `Filter <T>_Latest(<T>.
+  LAKE_OUT_ID = 999999999)` per keyed table in `store::DB` and `~filter` in each keyed class mapping; the test data's
+  rows gain their three columns (one version each: `LAKE_IN_ID` 1, `LAKE_OUT_ID` 999999999); the corpus lanes and
+  their oracle answers rerun.
+- **0c. The planner.** `IngestTopics` reads `Delta` datasets (a topic store's table, or the ingest's own topic);
+  C0's land plans for `BatchMilestoned` kept current: the key's row replaced, `LAKE_IN_ID` the delivery's batch,
+  `LAKE_OUT_ID` 999999999, `LAKE_DIGEST` the database's hash of the row's own columns; a delete indicator's row
+  removes its key; a `Snapshot` replaces the whole set. Tests: `HostOperationsTest`, `DuckDbIngestPlansTest`.
+- **0d. The Deephaven generator,** until step 1 deletes it: the same words, the format read from the read mode (the
+  Kafka connection's `format` removed), the milestoning columns filled, the delete indicator's rows dropped. Tests:
+  `DeephavenStartupTest`, `deephaven_door_test`.
+- **0e. The TypeScript side:** the live DuckDB engine's keyed tables, the door's topics, the world's feed, their tests.
+- **0f.** S402 rewritten (and S404); the full local gate.
 
 Then, each its own decision: materialized views on both live targets; the history tier (Iceberg or Parquet, read by
 Deephaven and DuckDB; the cut between history and live); data products served wherever deployed; production
