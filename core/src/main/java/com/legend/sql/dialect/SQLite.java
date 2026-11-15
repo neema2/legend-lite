@@ -3253,6 +3253,10 @@ public final class SQLite extends AnsiSqlRenderer {
      *  {@link #render(SqlQuery)} writes one, so its labels are delivered as the trail's text shows them. */
     @Override
     protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
+        if (roots.isEmpty()) {
+            // a temp table's statement starts its fresh names over too, as the outermost render does (2026-11-15)
+            binds[0] = 0;
+        }
         roots.push(ct.query().outputs());
         rootSelects.push(new IdentityHashMap<>());
         try {
