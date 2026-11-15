@@ -218,7 +218,7 @@ public final class StableScanOrder extends SqlRewriter {
         // (binder receipt: LIST(t2...) whose t2 is another scope)
         boolean wants = s.projections().stream().anyMatch(
                 p -> p.expr() instanceof com.legend.sql.SqlAgg.Reducer r
-                        && orderSensitive(r) && r.orderBy().isEmpty()
+                        && orderSensitive(r)
                         && !r.args().isEmpty()
                         && readsAlias(r.args().get(0), sub.alias()));
         if (!wants) {
@@ -278,12 +278,17 @@ public final class StableScanOrder extends SqlRewriter {
         for (int i = 0; i < out.size(); i++) {
             var p = out.get(i);
             if (p.expr() instanceof com.legend.sql.SqlAgg.Reducer r
-                    && orderSensitive(r) && r.orderBy().isEmpty()
+                    && orderSensitive(r)
                     && !r.args().isEmpty()
                     && readsAlias(r.args().get(0), sub.alias())) {
+                // a collect that already carries the source's sort (ValueCollections.orderInside, the order fix of
+                // 2026-11-15: the keys moved from the source's ORDER BY into the aggregate) keeps its keys first,
+                // the scan order breaking their ties as it broke the source ORDER BY's
+                java.util.List<com.legend.sql.SqlSelect.SortKey> rk = new java.util.ArrayList<>(r.orderBy());
+                rk.addAll(keys);
                 out.set(i, new com.legend.sql.SqlSelect.Projection(
                         new com.legend.sql.SqlAgg.Reducer(r.fn(), r.args(),
-                                r.distinct(), keys),
+                                r.distinct(), java.util.List.copyOf(rk)),
                         p.outputName(), p.out()));
             }
         }

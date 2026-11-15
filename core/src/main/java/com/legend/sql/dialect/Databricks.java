@@ -659,8 +659,8 @@ public class Databricks extends AnsiSqlRenderer {
      *  ({@code filter}, {@code transform}: the order probe, 2026-11-15). Narrowed to these on round 55c's measurement
      *  (2026-11-15): {@code array_distinct(filter(...))} over a subquery ran on the lane before the hoist
      *  (equal_Any_MANY's removeDuplicates, both channels), so a function is hoisted only where a refusal was seen. */
-    private static final java.util.Set<SqlFn> HIGHER_ORDER = java.util.EnumSet.of(SqlFn.LIST_FILTER,
-            SqlFn.LIST_TRANSFORM);
+    private static final java.util.Set<SqlFn> HIGHER_ORDER = java.util.Collections.unmodifiableSet(
+            java.util.EnumSet.of(SqlFn.LIST_FILTER, SqlFn.LIST_TRANSFORM));
 
     /** {@code body} over {@code xs} computed once in a select of its own and read as a column: a list that holds a
      *  subquery, out of the higher-order function {@code body} writes (Spark refuses a subquery inside one). */
