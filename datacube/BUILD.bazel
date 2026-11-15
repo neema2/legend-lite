@@ -1909,6 +1909,9 @@ node_test(
         ":headless_bundle",
         ":src",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        # Node's host (node-require.ts), which test/host/node.ts imports: :src reaches the run side through the doors
+        # alone (2026-11-15, the C5-T last round's T1; CI's warehouse lanes found it, run 43731081412)
+        "//engine-client:node_host",
         "//native:compiler",
     ],
     entry_point = "test/python-engine/execute.test.ts",
