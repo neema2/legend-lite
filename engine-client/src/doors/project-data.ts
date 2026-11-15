@@ -7,7 +7,8 @@
 
 import type { QueryEngine } from '../engine.ts';
 import type { ProjectDataSource } from '../planner-sources.ts';
-import { ProjectDatabases, type HeldEngine, type ProjectEngine, type ProjectHost } from '../project-data.ts';
+import { ProjectDatabases, ProjectRunner, type HeldEngine, type ProjectEngine, type ProjectHost } from '../project-data.ts';
+import type { PointedEngine } from '../query-engine.ts';
 import type { ProjectDataStatements } from '../requests.ts';
 import { inRun } from '../run-frame.ts';
 
@@ -53,4 +54,10 @@ export class ProjectDoor {
   dropAll(): Promise<void> {
     return inRun("the project databases dropped", () => this.databases.dropAll());
   }
+}
+
+/** The engine an app's screens run on (the C5-T last round's T1: made here, so an app reaches the run side through its
+ *  doors alone): the host's own connection, pointed at a project's database as one opens (ProjectRunner.use). */
+export function projectRunner(host: QueryEngine): PointedEngine {
+  return new ProjectRunner(host);
 }

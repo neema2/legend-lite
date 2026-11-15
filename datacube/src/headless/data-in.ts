@@ -5,12 +5,12 @@
 // reads them, and hands in only that path, the file's name and the table Python chose: the bytes never cross into the
 // engine, and the SQL is DataCube's, never the page's (R4).
 
-import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { accessRemote, bearerName, inferFormat, isBearer, scanUrl, type S3Credentials } from '../remote.ts';
 import { lastSegment } from '../cube-document.ts';
 import { dropFileTable, modelLanded, mountedView, readFileInto, tableNameOf, uploadFileName } from '../upload.ts';
-import { hostCalls, hostDatabase, hostWorker } from './host.ts';
+import { hostCalls, hostWorker } from './host.ts';
+import { hostQueries } from './host-database.ts';
 import type { HostLeaf } from './host-tables.ts';
 
 /** A file as Python hands it in: where its DuckDB reads it, its name as picked (its format), the table to read it into
@@ -24,12 +24,12 @@ export interface IngestSpec {
 }
 
 /** The host's database and legend-lite's model writer over the host's planner, for one call. */
-async function using<T>(use: (o: { engine: DuckDbEngine; writer: LitePlanner }) => Promise<T>): Promise<T> {
+async function using<T>(use: (o: { engine: ReturnType<typeof hostQueries>; writer: LitePlanner }) => Promise<T>): Promise<T> {
   const calls = hostCalls();
   // the model writer needs no model of its own: it writes one (the worker's tableModel)
   const writer = new LitePlanner({ model: '', runtime: '', worker: () => hostWorker(calls) });
   try {
-    return await use({ engine: new DuckDbEngine(hostDatabase(calls).connection), writer });
+    return await use({ engine: hostQueries(calls), writer });
   } finally {
     writer.dispose();
   }

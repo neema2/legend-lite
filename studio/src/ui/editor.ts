@@ -12,7 +12,7 @@ import type { Compiler } from '../backend/planner.ts';
 import type { QueryBuilder } from '../backend/query-builder.ts';
 import type { EditorHandle } from '../../../query/src/embed.ts';
 import type { Playground, Runner, TableState } from '../backend/run.ts';
-import type { RawTable } from '../../../engine-client/src/engine.ts';
+import type { RawTable } from '../../../engine-client/src/query-engine.ts';
 import { isTds, type ExecutionResult } from '../../../engine-client/src/legend/wire.ts';
 import { renamePath } from '../model/rename.ts';
 import { joinFiles, splitElements } from '../model/split.ts';

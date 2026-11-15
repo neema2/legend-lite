@@ -215,7 +215,9 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/verify-remote.mjs", List.of("db.connect(")),
             Map.entry("datacube/src/app/datacube-app.ts", List.of("modelHome.connect(", "modelHome.connect(")),
             Map.entry("datacube/src/app/sources.ts", List.of(".connect(", "modelHome.connect(", "on.connect(", "on.connect(")),
-            Map.entry("datacube/src/services/browser.ts", List.of("driver.connect(", "o.duckdb.connect(")),
+            // 2026-11-15 (the C5-T last round's T1): the warehouse's sign-in through its door (engine-client's
+            // doors/warehouse.ts), `(await loaded()).connect(` where the page called the driver's own `driver.connect(`
+            Map.entry("datacube/src/services/browser.ts", List.of(".connect(", "o.duckdb.connect(")),
             // THE raw connection, made once and handed to DuckDbEngine
             Map.entry("engine-client/src/duckdb-tab.ts", List.of("db.connect(")),
             Map.entry("engine-client/src/project-data.ts", List.of("this.#host.connect(")),

@@ -131,11 +131,32 @@ junit_test(
     ],
 )
 
+# THE APPS' LIBRARIES REACH NO RUN LAYER (the C5-T last round's T1, 2026-11-15): every target an app depends on directly
+# that is no layer and no app -- the SDLC's client, the Depot's, the query store, the model writer, the art, the protocol
+# and the npm packages -- with all it reaches, met with the run side: empty, or an app reaches the run side past its doors
+# (TsLayeringTest.noLibraryOfAnAppReachesTheRunSide)
+genquery(
+    name = "app_libraries_run",
+    expression = ("deps(labels(deps, //datacube:src_base + //query:src + //studio:src) except " +
+                  "(//datacube:doors + //datacube:model + //datacube:planner + //datacube:records + //datacube:src + " +
+                  "//engine-client:doors + //engine-client:planner + //engine-client:records + //engine-client:server + " +
+                  "//query:src)) intersect (//engine-client:run + //datacube:run + //engine-client:engine_client + " +
+                  "//engine-client:node_host)"),
+    scope = [
+        "//datacube:src",
+        "//engine-client:engine_client",
+        "//query:src",
+        "//studio:src",
+    ],
+)
+
 _TS_LAYER_QUERIES = [
     "//datacube:layer_queries",
     "//engine-client:layer_queries",
     "//model-changes:layer_records",
+    "//query:layer_src",
     "//sdlc-client:layer_records",
+    "//studio:layer_src",
 ]
 
 # THE LAYERS OF THE TYPESCRIPT HOSTS (C5-T, 2026-11-15): each TypeScript layer's direct deps, as Bazel resolves them,
@@ -146,10 +167,13 @@ junit_test(
     memory_mb = 768,
     size = "small",
     srcs = ["TsLayeringTest.java"],
-    data = ["ts-layers.txt"] + _TS_LAYER_QUERIES,
+    data = ["ts-layers.txt", ":app_libraries_run"] + _TS_LAYER_QUERIES,
     # every layer's query, as a list: an environment variable keeps it one value
     env = {"TS_LAYER_FILES": " ".join(["$(rlocationpaths %s)" % q for q in _TS_LAYER_QUERIES])},
-    jvm_flags = ["-Dts.layers=$(rlocationpath ts-layers.txt)"],
+    jvm_flags = [
+        "-Dts.layers=$(rlocationpath ts-layers.txt)",
+        "-Dapp.libraries.run=$(rlocationpath :app_libraries_run)",
+    ],
     select = ["--select-class=com.legend.tools.deps.TsLayeringTest"],
     deps = [
         "//testing",
@@ -254,19 +278,32 @@ genquery(
     ],
 )
 
+# the run layers' own files (the C5-T last round's T1): what no app module imports, nor reaches through a re-export
+genquery(
+    name = "run_layer_srcs",
+    expression = "labels(srcs, //engine-client:run + //datacube:run)",
+    scope = [
+        "//datacube:run",
+        "//engine-client:run",
+    ],
+)
+
 node_test(
     name = "app_runs_test",
     size = "small",
     data = [
         ":app_runs_layered",
+        ":run_layer_srcs",
         "//datacube:sources",
+        "//engine-client:sources",
         "//query:src",
         "//studio:src",
     ],
     entry_point = "app-runs.test.ts",
     env = {
         "LAYERED_SRCS": "$(rlocationpath :app_runs_layered)",
-        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src)",
+        "RUN_SRCS": "$(rlocationpath :run_layer_srcs)",
+        "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src)",
     },
 )
 

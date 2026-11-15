@@ -106,6 +106,8 @@ _MODEL = [
 # mount, a person's file read in, and a table written (the multi-step doors of the orchestrator's note 3)
 _DOORS = [
     "src/doors.ts",
+    # the host's database, through its door (the C5-T last round's T1): DataCube's headless code reaches it here alone
+    "src/headless/host-database.ts",
     "src/remote.ts",
     "src/runner.ts",
     "src/table-output.ts",
@@ -163,6 +165,8 @@ js_library(
     deps = [
         ":model",
         ":planner",
+        ":records",
+        ":run",
         "//engine-client:doors",
         "//engine-client:planner",
         "//engine-client:records",
@@ -204,12 +208,12 @@ js_library(
     # the Query app runs its planned SQL on DataCube's engines (DuckDB-WASM, the warehouse); the layers' test reads its
     # files, as a layer must never hold one (tools/deps:*_alone_test)
     visibility = ["//query:__pkg__", "//tools/deps:__pkg__"],
+    # 2026-11-15 (the C5-T last round's T1): no :run -- the app reaches the run side through its doors alone
     deps = [
         ":doors",
         ":model",
         ":planner",
         ":records",
-        ":run",
         ":src_base",
     ],
 )
@@ -219,11 +223,13 @@ js_library(
     name = "layer_" + layer,
     expression = "labels(deps, //datacube:%s)" % layer,
     scope = [":" + layer],
-) for layer in ["records", "run", "model", "doors", "planner"]]
+) for layer in ["records", "run", "model", "doors", "planner", "src", "src_base"]]
 
+# (2026-11-15, the C5-T last round's T1: the app and what it builds on, src_base, pinned beside its layers -- an app
+# reaches no run layer, tools/deps/ts-layers.txt)
 filegroup(
     name = "layer_queries",
-    srcs = [":layer_" + layer for layer in ["records", "run", "model", "doors", "planner"]],
+    srcs = [":layer_" + layer for layer in ["records", "run", "model", "doors", "planner", "src", "src_base"]],
     visibility = ["//tools/deps:__pkg__"],
 )
 
@@ -250,10 +256,13 @@ js_library(
         # and src/app/sources.ts reads a project's model text, both by a dynamic import that every bundle of the app
         # inlines or splits off
         "//depot-client:depot_client",
-        # where a query runs: the engine interface, results, the type reader, DuckDB, the warehouse,
-        # pure/v1 (engine-client/README.md; moved out of here 2026-10-04)
-        "//engine-client:engine_client",
-        "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        # where a query runs (engine-client/README.md; moved out of here 2026-10-04) -- THROUGH ITS DOORS ALONE (the C5-T
+        # last round's T1, 2026-11-15: an app reaches no run layer, tools/deps/ts-layers.txt): the records it reads, the
+        # planner, legend-engine's API clients and the doors, which reach the run side (DuckDB, the warehouse) themselves
+        "//engine-client:doors",
+        "//engine-client:planner",
+        "//engine-client:records",
+        "//engine-client:server",
         # fflate: the share link's deflate WITH A PRESET DICTIONARY (src/share/link.ts), which the
         # browser's own CompressionStream cannot take. MIT, no dependencies of its own.
         ":node_modules/fflate",
@@ -490,7 +499,7 @@ _EXTRA_DATA = {
         ":src",
         ":node_modules/typescript",
         "//depot-client:depot_client",
-        "//engine-client:engine_client",
+        # (the engine client's union: every test's own, the node_tests' common data, since the C5-T last round's T1)
         "//engine-client:typescript_sources",
         # (legend-art, Studio's and Query's icons: theirs, carried by //query:src and //studio:src)
         "//model-changes:model_changes",
@@ -723,6 +732,9 @@ _SLOW_ON_CI_TESTS = [
         "test/fake-planner.ts",
         # a test's own statement, typed as a plan's by name (the total wall's C3, 2026-11-12)
         "//engine-client:unplanned",
+        # the run side a test drives itself (DuckDB in Node, the plan runner): no app carries it since the C5-T last
+        # round's T1 (2026-11-15), the apps reaching it through their doors alone
+        "//engine-client:engine_client",
     ] + _EXTRA_DATA.get(t[len("test/"):-len(".test.ts")], []) + [f for f in _SCANNED.get(t[len("test/"):-len(".test.ts")], []) if f != ":src"] + (
         [":src"] if t[len("test/"):-len(".test.ts")] in _SCANNED or t[len("test/"):-len(".test.ts")] not in TEST_IMPORTS else [":src_base"] + TEST_IMPORTS[t[len("test/"):-len(".test.ts")]]
     ) + (

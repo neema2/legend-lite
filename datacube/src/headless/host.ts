@@ -14,8 +14,6 @@ import { hostCalls, type HostCalls } from './calls.ts';
 import { fromBase64 } from './web.ts';
 
 export { hostCalls, type HostCalls };
-// the host's database, the bridge's one connection that sends a statement: the run side's (connection.ts, C5-T)
-export { hostDatabase, type HostDatabase } from './connection.ts';
 
 /**
  * A planner worker whose messages the host answers, off the engine's thread, as planner-worker.ts answers them in a

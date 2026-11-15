@@ -38,6 +38,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * and the npm packages a run layer may reach are each pinned by label (RUN_LAYERS, PLANNER_LAYERS, RECORDS, RUN_NPM): a
  * new target named {@code :records} or {@code :run}, or a new {@code node_modules/...}, is no record, no run layer and no
  * package a run may reach until it is pinned here, with its dated note.
+ *
+ * <p>2026-11-15 (the C5-T last round's T1, Java's {@code onlyTheDoorsCompose}): an APP -- DataCube's, Query's and
+ * Studio's own code, and what DataCube's builds on -- reaches no run layer, nor the union that holds them, nor Node's
+ * host: the run side through the doors alone. Each library an app takes beside the layers reaches none either
+ * ({@code app_libraries_run}, a genquery: empty). That an app MODULE imports no run module through what it may reach is
+ * the apps' census's ({@code //tools/deps:app_runs_test}).
  */
 class TsLayeringTest {
 
@@ -104,6 +110,11 @@ class TsLayeringTest {
     /** The records: shapes both sides read, no send, no plan -- and the protocol library, the Pure protocol's. */
     static final Set<String> RECORDS = Set.of("//engine-client:records", "//datacube:records", "//sdlc-client:records",
             "//model-changes:records", PROTOCOL);
+    /** The apps (2026-11-15, the C5-T last round's T1): DataCube's, what it builds on, Query's and Studio's. */
+    static final Set<String> APP_LAYERS = Set.of("//datacube:src", "//datacube:src_base", "//query:src", "//studio:src");
+    /** What no app reaches: the run layers, the union that holds every layer, and Node's host. */
+    static final Set<String> NOT_FOR_APPS = Set.of("//engine-client:run", "//datacube:run", "//engine-client:engine_client",
+            "//engine-client:node_host");
     /** The npm packages a run layer reaches: DuckDB in the tab, and the Arrow its answers and the warehouse's are read with. */
     static final Set<String> RUN_NPM = Set.of("//engine-client:node_modules/@duckdb/duckdb-wasm",
             "//engine-client:node_modules/apache-arrow");
@@ -116,6 +127,17 @@ class TsLayeringTest {
         assertEquals(RUN_LAYERS.size() + PLANNER_LAYERS.size(), runs + planners, "ts-layers.txt names " + runs + " run and "
                 + planners + " planner layers of the " + (RUN_LAYERS.size() + PLANNER_LAYERS.size()) + " pinned: the guard is not looking");
         assertEquals(List.of(), ruleBreaches(lines), "a TypeScript layer reaches past its rule");
+        long apps = lines.stream().filter((l) -> APP_LAYERS.stream().anyMatch((a) -> l.startsWith(a + "\t"))).count();
+        assertEquals(APP_LAYERS.size(), apps, "ts-layers.txt names " + apps + " of the " + APP_LAYERS.size()
+                + " apps pinned: the guard is not looking");
+    }
+
+    @Test
+    void noLibraryOfAnAppReachesTheRunSide() throws IOException {
+        List<String> reached = Files.readAllLines(Runfile.property("app.libraries.run")).stream()
+                .filter((l) -> !l.isBlank()).toList();
+        assertEquals(List.of(), reached, "a library an app takes beside the layers reaches the run side: the app reaches it"
+                + " past its doors (//tools/deps:app_libraries_run)");
     }
 
     @Test
@@ -124,8 +146,12 @@ class TsLayeringTest {
                 "//engine-client:run\t//engine-client:records //planted:records //engine-client:node_modules/left-pad",
                 "//engine-client:planner\t//engine-client:records //datacube:node_modules/fflate //engine-client:run",
                 "//planted:run\t//engine-client:records",
-                "//planted:planner\t//pure-protocol:pure_protocol");
+                "//planted:planner\t//pure-protocol:pure_protocol",
+                "//datacube:src\t//datacube:doors //datacube:run",
+                "//studio:src\t//engine-client:engine_client //engine-client:node_host",
+                "//query:src\t//engine-client:doors //engine-client:run");
         assertEquals(List.of(
+                "//datacube:src reaches //datacube:run: an app reaches the run side through the doors alone",
                 "//engine-client:planner reaches //datacube:node_modules/fflate: a planner reaches nothing that can execute"
                         + " (records and the protocol alone)",
                 "//engine-client:planner reaches //engine-client:run: a planner reaches nothing that can execute"
@@ -135,7 +161,10 @@ class TsLayeringTest {
                 "//engine-client:run reaches //planted:records: a run layer reaches records and the npm packages pinned"
                         + " alone (no planner, server, door or app)",
                 "//planted:planner is named a planner layer, and no planner layer pinned (TsLayeringTest.PLANNER_LAYERS)",
-                "//planted:run is named a run layer, and no run layer pinned (TsLayeringTest.RUN_LAYERS)"),
+                "//planted:run is named a run layer, and no run layer pinned (TsLayeringTest.RUN_LAYERS)",
+                "//query:src reaches //engine-client:run: an app reaches the run side through the doors alone",
+                "//studio:src reaches //engine-client:engine_client: an app reaches the run side through the doors alone",
+                "//studio:src reaches //engine-client:node_host: an app reaches the run side through the doors alone"),
                 ruleBreaches(planted));
     }
 
@@ -159,6 +188,12 @@ class TsLayeringTest {
                     if (!(RECORDS.contains(dep) || RUN_NPM.contains(dep) || RUN_LAYERS.contains(dep))) {
                         breaches.add(layer + " reaches " + dep + ": a run layer reaches records and the npm packages pinned"
                                 + " alone (no planner, server, door or app)");
+                    }
+                }
+            } else if (APP_LAYERS.contains(layer)) {
+                for (String dep : deps) {
+                    if (NOT_FOR_APPS.contains(dep)) {
+                        breaches.add(layer + " reaches " + dep + ": an app reaches the run side through the doors alone");
                     }
                 }
             } else if (PLANNER_LAYERS.contains(layer)) {

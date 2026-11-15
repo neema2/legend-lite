@@ -20,7 +20,7 @@
 import { UI_LOCALE } from './locale.ts';
 import { Table, tableFromIPC, type RecordBatch } from 'apache-arrow';
 
-import { QueryError, typedByPlan, type QueryEngine, type RawTable } from './engine.ts';
+import { QueryError, typedByPlan, type RawTable } from './engine.ts';
 import type { Plan } from './relation-type.ts';
 import { toRawTable, type ArrowishTable } from './duckdb.ts';
 import { hostOf, type Receipt } from './receipt.ts';
@@ -29,40 +29,10 @@ import { SessionExpired } from './warehouse-session.ts';
 import type { PlannedSql } from './planned-sql.ts';
 import { sending } from './run-frame.ts';
 
-/** A signed-in session: where the warehouse is, and the bearer token. */
-export interface WarehouseSession {
-  /** e.g. `https://warehouse.example.com` (no trailing slash needed). */
-  readonly baseUrl: string;
-  readonly token: string;
-  /** Who the server says the token is. */
-  readonly principal: string;
-  readonly expiresAt: string;
-}
-
-/** One table or view the user may read (the catalog call; W2 filters it). */
-export interface CatalogObject {
-  readonly schema: string;
-  readonly name: string;
-  readonly kind: string;
-  /** The warehouse catalog it is in. */
-  readonly catalog: string;
-  /** That catalog's database type, as a Pure connection names it (`DuckDB`, `Postgres`): what its model declares. */
-  readonly databaseType: string;
-  /**
-   * Its columns, as the warehouse's DuckDB catalog reports them: `type` its own name, and
-   * STRUCTURED (as the catalog question reads one, DuckDb.CATALOG_COLUMNS_SQL) its canonical type and a
-   * DECIMAL's precision and scale.
-   */
-  readonly columns: readonly {
-    readonly name: string;
-    readonly type: string;
-    readonly logicalType: string | null;
-    readonly precision: number | null;
-    readonly scale: number | null;
-    /** The catalog says it holds no NULL. */
-    readonly notNull: boolean;
-  }[];
-}
+// a signed-in session and a catalog's object: records since the C5-T last round's T1 (warehouse-session.ts), read here
+// by their importers
+export type { CatalogObject, WarehouseSession } from './warehouse-session.ts';
+import type { CatalogObject, LiveWarehouse, WarehouseSession } from './warehouse-session.ts';
 
 interface ApiError {
   readonly code: string;
@@ -250,7 +220,7 @@ function refuseParams(sql: string, params: readonly string[] | undefined): void 
   }
 }
 
-export class WarehouseEngine implements QueryEngine {
+export class WarehouseEngine implements LiveWarehouse {
   readonly name = 'warehouse';
   /** Its catalog's database type (`DuckDB`, `Postgres`): what a statement run on it is written for (Snap's count). */
   readonly databaseType: string;

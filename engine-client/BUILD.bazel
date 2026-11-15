@@ -38,6 +38,9 @@ _RECORDS = [
     "src/locale.ts",
     "src/plan-params.ts",
     "src/planned-sql.ts",
+    # 2026-11-15 (the C5-T last round's T1): the engine's shapes, out of engine.ts and duckdb.ts, so an app takes them as
+    # records and reaches the run side through the doors alone
+    "src/query-engine.ts",
     "src/receipt.ts",
     "src/relation-type.ts",
     "src/requests.ts",
@@ -200,7 +203,11 @@ js_library(
 js_library(
     name = "sources",
     srcs = glob(["src/**/*.ts"]) + ["package.json"],
-    visibility = ["//datacube:__pkg__"],
+    # (2026-11-15, the C5-T last round's T1: the apps' census follows a re-export through the engine client's modules)
+    visibility = [
+        "//datacube:__pkg__",
+        "//tools/deps:__pkg__",
+    ],
 )
 
 # each layer's direct deps, as Bazel resolves them: //tools/deps:ts_layering_test holds them to tools/deps/ts-layers.txt

@@ -4,7 +4,7 @@
 // each run, plan A2); on a legend server, its pure/v1 execute (the server has its own data).
 
 import { element, fn, type Lambda, type Variable } from '../../../pure-protocol/src/index.ts';
-import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
+import type { QueryEngine, RawTable } from '../../../engine-client/src/query-engine.ts';
 import type { Engine } from '../../../engine-client/src/legend/engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';

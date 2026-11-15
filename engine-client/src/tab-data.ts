@@ -14,7 +14,8 @@ import type { ProjectDoor } from './doors/project-data.ts';
 import { databaseOf, databaseTables, dataTables, putFile, type FilePut, type FileSink } from './model-data.ts';
 import type { PlanText } from './planned-sql.ts';
 import type { FileLoadSource, HostOperationsSource } from './planner-sources.ts';
-import type { HeldEngine, ProjectEngine, ProjectRunner } from './project-data.ts';
+import type { HeldEngine, ProjectEngine } from './project-data.ts';
+import type { PointedEngine } from './query-engine.ts';
 import { inRun } from './run-frame.ts';
 
 type Elements = Parameters<typeof dataTables>[0];
@@ -66,7 +67,7 @@ interface PutFile {
  */
 export class TabTables {
   readonly #projects: ProjectDoor;
-  readonly #runner: ProjectRunner;
+  readonly #runner: PointedEngine;
   readonly #host: QueryEngine & { readonly databaseType: string };
   readonly #sink: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>;
   readonly #source: FileLoadSource & HostOperationsSource;
@@ -89,7 +90,7 @@ export class TabTables {
    * (the tab's database); `source`: the planner's plan for a table a file fills (fileLoad: a planned load, B3) and the
    * tables' counts (its host operations).
    */
-  constructor(projects: ProjectDoor, runner: ProjectRunner, host: QueryEngine & { readonly databaseType: string },
+  constructor(projects: ProjectDoor, runner: PointedEngine, host: QueryEngine & { readonly databaseType: string },
     files: Pick<FileSink, 'registerFileBuffer' | 'dropFile'>, source: FileLoadSource & HostOperationsSource) {
     this.#projects = projects;
     this.#runner = runner;

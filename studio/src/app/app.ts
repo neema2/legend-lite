@@ -5,12 +5,11 @@ import * as monaco from 'monaco-editor/editor/editor.api';
 import 'monaco-editor/features/register.all';
 
 import { openDuckDbInTab } from '../../../engine-client/src/doors/tab-duckdb.ts';
-import type { QueryEngine } from '../../../engine-client/src/engine.ts';
+import type { QueryEngine } from '../../../engine-client/src/query-engine.ts';
 import { BrowserEngine } from '../../../engine-client/src/legend/browser-engine.ts';
 import { HttpEngine } from '../../../engine-client/src/legend/engine.ts';
 import { TabTables } from '../../../engine-client/src/tab-data.ts';
-import { ProjectDoor } from '../../../engine-client/src/doors/project-data.ts';
-import { ProjectRunner } from '../../../engine-client/src/project-data.ts';
+import { ProjectDoor, projectRunner } from '../../../engine-client/src/doors/project-data.ts';
 import { WasmGrammar } from '../../../engine-client/src/legend/wasm-grammar.ts';
 import { Compiler, WorkerPort } from '../backend/planner.ts';
 import { queryBuilder, type BuilderSession } from '../backend/query-builder.ts';
@@ -119,7 +118,7 @@ function inTabSession(grammar: WasmGrammar, duckdbVendor: string, user: string):
     .then((tab) => {
       // the workspace's model in a database of its own inside the tab's DuckDB (C5): every screen runs on `runner`,
       // pointed there as the model loads
-      const runner = new ProjectRunner(tab.engine);
+      const runner = projectRunner(tab.engine);
       const projects = new ProjectDoor({
         databaseType: tab.engine.databaseType, engine: tab.engine, connect: () => tab.connect(),
       }, grammar);

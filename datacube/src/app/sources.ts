@@ -11,8 +11,8 @@
 // a file's table goes with its last grid. A Python host's frame is a source too, its model Python's.
 
 import { UI_LOCALE } from '../../../engine-client/src/locale.ts';
-import type { QueryEngine } from '../../../engine-client/src/engine.ts';
-import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
+import type { QueryEngine } from '../../../engine-client/src/query-engine.ts';
+import type { CatalogObject, LiveWarehouse, WarehouseSession } from '../../../engine-client/src/warehouse-session.ts';
 import type { Query, QueryReader } from '../../../query-store/src/index.ts';
 import { from, fromJson, lambda, type ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { ClassAt, ClassElement, ClassGiven } from '../class-source.ts';
@@ -74,7 +74,7 @@ const joinSources = () => lazily(() => import('./join-app.ts'));
 export type GridPlace = {
   // A warehouse source: Live runs on it, Snap copies into the host's database, and the
   // snap lands under the source's own name so one model reads both.
-  readonly live?: WarehouseEngine;
+  readonly live?: LiveWarehouse;
   readonly snapTarget?: SnapTarget;
   /** A warehouse table its host reads (Python's): Snap copies into the host's database, planned and run there (C3). */
   readonly hostSnap?: HostSnap;
@@ -510,8 +510,8 @@ export function pageSources(d: SourcesOf): PageSources {
   // -- a warehouse table ---------------------------------------------------------------------------------------------
 
   /** The cubes live on a warehouse: renewed when the same user signs in again (P2-297). */
-  const liveEngines = new Set<WarehouseEngine>();
-  const track = (live: WarehouseEngine): WarehouseEngine => {
+  const liveEngines = new Set<LiveWarehouse>();
+  const track = (live: LiveWarehouse): LiveWarehouse => {
     liveEngines.add(live);
     return live;
   };

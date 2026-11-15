@@ -8,11 +8,11 @@
 // for Python's tab and notebook widget).
 
 import type { TsItemAnswer } from '../lite-planner.ts';
-import type { HeldConnection } from '../../../engine-client/src/duckdb.ts';
+import type { HeldConnection } from '../../../engine-client/src/query-engine.ts';
 import type { ModelHome } from '../../../depot-client/src/model-home.ts';
-import type { QueryEngine } from '../../../engine-client/src/engine.ts';
+import type { QueryEngine } from '../../../engine-client/src/query-engine.ts';
 import type { ProjectDoor } from '../../../engine-client/src/doors/project-data.ts';
-import type { CatalogObject, WarehouseEngine, WarehouseSession } from '../../../engine-client/src/warehouse.ts';
+import type { CatalogObject, LiveWarehouse, WarehouseSession } from '../../../engine-client/src/warehouse-session.ts';
 import type { Lambda, ValueSpecification } from '../../../pure-protocol/src/index.ts';
 import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import type { QueryReader } from '../../../query-store/src/index.ts';
@@ -411,7 +411,7 @@ export interface WarehouseService {
   /** The single-user app's launch key: signed in with it, at the warehouse that served the page. */
   signInWithKey(key: string): Promise<{ session: WarehouseSession; objects: CatalogObject[] }>;
   /** A table's rows read Live there, as the signed-in user, by the page itself (the tab's). */
-  live?(session: WarehouseSession, catalog: string, databaseType: string): WarehouseEngine;
+  live?(session: WarehouseSession, catalog: string, databaseType: string): LiveWarehouse;
   /**
    * A table's model written and held by the host, which then plans and runs its queries itself (Python's: C3, R4) --
    * the tab's own writer's answer, read-only.

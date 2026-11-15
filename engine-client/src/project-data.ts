@@ -9,6 +9,7 @@
 
 import type { HeldConnection } from './duckdb.ts';
 import type { QueryEngine } from './engine.ts';
+import type { PointedEngine } from './query-engine.ts';
 import { runLoad } from './plan-runner.ts';
 import type { PlannedSql } from './planned-sql.ts';
 
@@ -191,7 +192,7 @@ function kept(engine: HeldEngine): HeldEngine {
  * connection, or the open project's database once `use`d. Switching drops nothing: a query running keeps the
  * connection it began on, and the project left keeps its database.
  */
-export class ProjectRunner implements QueryEngine {
+export class ProjectRunner implements PointedEngine {
   readonly #host: QueryEngine;
   #current: QueryEngine;
 
