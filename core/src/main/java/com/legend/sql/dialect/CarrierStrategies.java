@@ -304,7 +304,7 @@ public final class CarrierStrategies extends SqlRewriter {
      * ({@code __ord}), its ORDER BY dropped, and the explode reads the union by (position, ordinal) (2026-11-15). A branch
      * that cannot carry its order is refused by name, never sent unordered (G7).
      */
-    private static com.legend.sql.SqlQuery inBranchOrder(com.legend.sql.SqlQuery ex, SqlSelect s) {
+    private com.legend.sql.SqlQuery inBranchOrder(com.legend.sql.SqlQuery ex, SqlSelect s) {
         // the value column is the exploded select's own (an explode's union may declare none)
         if (!(ex instanceof com.legend.sql.SqlUnion u) || u.branches().size() < 2 || s.outputs().size() != 1) {
             return ex;
