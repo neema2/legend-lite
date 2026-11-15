@@ -78,7 +78,27 @@ SEND_NAMES = frozenset({'send', '_urlopen'})
 # stream step (_runs._stream, run_host_load's); (C5-P's A2) the warehouse's HTTP (_reach: its _exchange's, a run, and
 # its statement's chunks') and a statement's chunks (Warehouse.arrow_chunks, a generator, which refuses outside a run
 # itself: Unframed).
-SENDING_HELPERS = frozenset({'execute_redacted', '_stream', '_reach', 'arrow_chunks'})
+# 2026-11-15 (C5-P's audit M2): execute_redacted a run of its own (`with in_run(...)`), no helper -- frames.py
+# re-exports it, and a door takes no sending helper.
+SENDING_HELPERS = frozenset({'_stream', '_reach', 'arrow_chunks'})
+
+# What a module outside the run side takes from NO module, by name, alias, attribute or star: the one send, an opener
+# of a run, a sending helper (C5-P's audit M2, 2026-11-15: until then read only as taken from _planned and _runframe,
+# and the run modules bind them too).
+RUN_ONLY = frozenset({'send'}) | frozenset({'runs', 'in_run', 'exempt'}) | SENDING_HELPERS
+
+# THE STAR IMPORTS, by module and source: default-deny, as the run wall's STAR_IMPORTS (C5-P's audit M2, 2026-11-15):
+# gs-quant's words, generated, in the timeseries builder.
+STAR_IMPORTS = {'timeseries': {'_ts_words'}}
+
+# THE LOADER'S NAMES, referred to by the loader and its two keys alone (C5-P's audit M1, 2026-11-15: a run module took
+# `loaded` from the service key, which binds it, and called any name).
+LOADER_NAMES = frozenset({'loaded', 'Loaded', '_loader'})
+
+# A planner module imports no door, at any level (C5-P's audit M2, 2026-11-15), but these, each by its reason: the
+# package's facade, whose lazy names ARE the doors (Frames, Engine, show, DataCube, Page); the timeseries builder, which
+# hands its query to DataCube's session (datacube._session) when asked to show it.
+PLANNER_DOORS = {'__init__': {'frames', 'engine', 'datacube', 'notebook', 'page'}, 'timeseries': {'datacube'}}
 
 # A PLANNER'S TYPES, which no run function takes or answers (the run wall's L2, restored by C5-P's A5, 2026-11-15): a held
 # model, the planning key, the loader; and a callable answering a plan or a planner's text (a planner handed in under
@@ -129,6 +149,32 @@ def unreadable(tree: ast.AST) -> list[str]:
         elif isinstance(node, ast.Constant) and node.value in ('__import__', 'import_module'):
             out.append(f'line {node.lineno}: {node.value!r}, which this rule cannot read')
     return out
+
+
+def imported(tree: ast.AST) -> tuple[list[tuple[str, str, str]], dict[str, set[str]], set[str]]:
+    """Every name a module takes from the package's modules, ``(module, name, bound as)``; every star it imports, by
+    module (the package's or not); and the names it binds to a package module (``from . import x``, ``import
+    legend_lite.x as y``), whose attributes are the module's names."""
+    taken: list[tuple[str, str, str]] = []
+    stars: dict[str, set[str]] = {}
+    bound: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            own = node.level == 1 or node.module == 'legend_lite' or (node.module or '').startswith('legend_lite.')
+            base = (node.module if node.level == 1 else (node.module or '').removeprefix('legend_lite').lstrip('.')) \
+                if own else None
+            for a in node.names:
+                if a.name == '*':
+                    stars.setdefault((base or '').split('.')[0] if own else (node.module or ''), set()).add(node.lineno)
+                elif own and base:
+                    taken.append((base.split('.')[0], a.name, a.asname or a.name))
+                elif own:
+                    bound.add(a.asname or a.name)
+        elif isinstance(node, ast.Import):
+            for a in node.names:
+                if a.name.startswith('legend_lite.') and a.asname:
+                    bound.add(a.asname)
+    return taken, stars, bound
 
 
 def imports(tree: ast.AST) -> tuple[set[str], set[str], set[str], bool]:
@@ -245,19 +291,88 @@ def unframed_sends(tree: ast.AST) -> tuple[list[str], set[str]]:
 
 
 def _annotation_names(annotation: ast.AST) -> list[ast.AST]:
-    """An annotation's nodes, a quoted one parsed (``from __future__ import annotations`` writes them as text too)."""
+    """An annotation's nodes, a quoted one parsed (``from __future__ import annotations`` writes them as text too); one
+    that does not parse is refused, never skipped (G7; C5-P's audit S1)."""
     if isinstance(annotation, ast.Constant) and isinstance(annotation.value, str):
         try:
             annotation = ast.parse(annotation.value, mode='eval').body
         except SyntaxError:
-            return []
+            raise AssertionError(f'an annotation this rule cannot read: {annotation.value!r}') from None
     return list(ast.walk(annotation))
 
 
+class _Planners:
+    """What names a planner in one module (A5; widened by C5-P's audit S1, 2026-11-15): a planner's type, a planner
+    module's member, a callable answering a plan or a planner's text -- read through the names an import renamed
+    (``PlanText as P``, ``Callable as C``), through a type alias (``Maker = Callable[[], PlanText]``), and through a
+    class (a Protocol) whose ``__call__`` answers one."""
+
+    def __init__(self, tree: ast.AST) -> None:
+        self.renamed = {a.asname: a.name for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom))
+                        for a in n.names if a.asname}
+        self.aliases: set[str] = set()
+        self.answers: set[str] = set(PLANNED_ANSWERS)
+        while True:
+            before = (len(self.aliases), len(self.answers))
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.Assign, ast.AnnAssign)) or type(node).__name__ == 'TypeAlias':
+                    targets = node.targets if isinstance(node, ast.Assign) else [node.target if not type(node).__name__
+                                                                                  == 'TypeAlias' else node.name]
+                    value = node.value
+                    if value is None:
+                        continue
+                    names = [t.id for t in targets if isinstance(t, ast.Name)]
+                    if self.hit(value):
+                        self.aliases.update(names)
+                    if self._name(value) in self.answers:
+                        self.answers.update(names)
+                elif isinstance(node, ast.ClassDef):
+                    for item in node.body:
+                        if isinstance(item, (ast.FunctionDef, ast.AsyncFunctionDef)) and item.name == '__call__' and \
+                                item.returns is not None and (self.hit(item.returns) or
+                                                              self._names_in(item.returns) & self.answers):
+                            self.aliases.add(node.name)
+            if (len(self.aliases), len(self.answers)) == before:
+                return
+
+    def _name(self, node: ast.AST) -> str | None:
+        if isinstance(node, ast.Name):
+            return self.renamed.get(node.id, node.id)
+        if isinstance(node, ast.Attribute):
+            return node.attr
+        if isinstance(node, ast.Constant) and isinstance(node.value, str):
+            try:
+                return self._name(ast.parse(node.value, mode='eval').body)
+            except SyntaxError:
+                raise AssertionError(f'an annotation this rule cannot read: {node.value!r}') from None
+        return None
+
+    def _names_in(self, node: ast.AST) -> set[str]:
+        return {x for x in (self._name(n) for n in _annotation_names(node)) if x}
+
+    def hit(self, annotation: ast.AST) -> list[str]:
+        nodes = _annotation_names(annotation)
+        found: set[str] = set()
+        for n in nodes:
+            name = self._name(n) if isinstance(n, (ast.Name, ast.Attribute)) else None
+            if name in PLANNER_TYPES or (isinstance(n, ast.Name) and name in self.aliases):
+                found.add(name)
+            if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and \
+                    self.renamed.get(n.value.id, n.value.id) in PLANNER_MODULE_NAMES:
+                found.add(f'{n.value.id}.')
+            if isinstance(n, ast.Subscript) and self._name(n.value) == 'Callable':
+                parts = n.slice.elts if isinstance(n.slice, ast.Tuple) else [n.slice]
+                found |= {f'a callable answering {x}' for x in self._names_in(parts[-1]) & self.answers}
+        return sorted(found)
+
+
 def planner_signatures(tree: ast.AST) -> list[str]:
-    """Each run function that takes or answers a planner (A5): a parameter or a return annotated with a planner's type,
-    a planner module's member, or a callable answering a plan or a planner's text."""
+    """Each run function that takes or answers a planner (A5, S1): a parameter or a return annotated with one."""
     out: list[str] = []
+    try:
+        planners = _Planners(tree)
+    except AssertionError as refused:
+        return [str(refused)]
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -268,24 +383,41 @@ def planner_signatures(tree: ast.AST) -> list[str]:
         if node.returns is not None:
             annotated.append(('its answer', node.returns))
         for what, annotation in annotated:
-            nodes = _annotation_names(annotation)
-            named = {n.id for n in nodes if isinstance(n, ast.Name)} | {n.attr for n in nodes if isinstance(n, ast.Attribute)}
-            owners = {n.value.id for n in nodes if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name)}
-            callables = [n for n in nodes if isinstance(n, ast.Subscript) and (
-                (isinstance(n.value, ast.Name) and n.value.id == 'Callable')
-                or (isinstance(n.value, ast.Attribute) and n.value.attr == 'Callable'))]
-            answers = set()
-            for c in callables:
-                parts = c.slice.elts if isinstance(c.slice, ast.Tuple) else [c.slice]
-                for n in ast.walk(parts[-1]):
-                    if isinstance(n, ast.Name):
-                        answers.add(n.id)
-                    elif isinstance(n, ast.Attribute):
-                        answers.add(n.attr)
-            hit = sorted((named & PLANNER_TYPES) | {f'{o}.' for o in owners & PLANNER_MODULE_NAMES}
-                         | {f'a callable answering {x}' for x in answers & PLANNED_ANSWERS})
+            try:
+                hit = planners.hit(annotation)
+            except AssertionError as refused:
+                out.append(f'line {node.lineno}: {node.name} ({what}): {refused}')
+                continue
             if hit:
                 out.append(f'line {node.lineno}: {node.name} ({what}) {hit}: a run takes and answers no planner')
+    return out
+
+
+def late_imports(tree: ast.AST) -> list[str]:
+    """The late-import forms a run or seam module may not use (C5-P's audit S2, 2026-11-15; exactly these: the rules catch
+    drift, not a determined adversary): sys.modules under any name, pkgutil's resolve_name, exec and eval, and a
+    find_spec answer used beyond its `is None`."""
+    out: list[str] = []
+    parents = _parents(tree)
+    systems = {'sys'} | {a.asname for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names
+                         if a.name == 'sys' and a.asname}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == 'sys' and any(a.name == 'modules' for a in node.names):
+            out.append(f'line {node.lineno}: {ast.unparse(node)}: sys.modules, a late import')
+        elif isinstance(node, ast.Attribute) and node.attr == 'modules' and isinstance(node.value, ast.Name) and \
+                node.value.id in systems:
+            out.append(f'line {node.lineno}: {ast.unparse(node)}: sys.modules, a late import')
+        elif (isinstance(node, ast.Name) and node.id in ('resolve_name', 'exec', 'eval')) or \
+                (isinstance(node, ast.Attribute) and node.attr == 'resolve_name') or \
+                (isinstance(node, ast.ImportFrom) and any(a.name == 'resolve_name' for a in node.names)):
+            out.append(f'line {node.lineno}: {ast.unparse(node)[:40]}: a late import or a text run')
+        elif isinstance(node, ast.Call) and ((isinstance(node.func, ast.Attribute) and node.func.attr == 'find_spec')
+                                             or (isinstance(node.func, ast.Name) and node.func.id == 'find_spec')):
+            up = parents.get(id(node))
+            if not (isinstance(up, ast.Compare) and up.left is node and len(up.ops) == 1
+                    and isinstance(up.ops[0], (ast.Is, ast.IsNot)) and isinstance(up.comparators[0], ast.Constant)
+                    and up.comparators[0].value is None):
+                out.append(f'line {node.lineno}: {ast.unparse(node)[:40]}: a find_spec answer used beyond `is None`')
     return out
 
 
@@ -309,13 +441,38 @@ def broken(sources: dict[str, str]) -> list[str]:
                        ' and the seam alone (the loader by its service key alone)')
         if modules & LOADER and name not in KEYS:
             out.append(f'{name} imports the native library\'s loader: its two keys alone do (_library, _services)')
-        if name in LOADER and modules:
-            out.append(f'{name} (the loader) imports {sorted(modules)}: it imports nothing of the package')
-        if name in RUN | SEAM:
+        if name in LOADER and not modules <= SEAM:
+            out.append(f'{name} (the loader) imports {sorted(modules - SEAM)}: it imports the seam alone (the run frame)')
+        taken, stars, bound = imported(tree)
+        if name not in LOADER | set(KEYS):
+            # the loader's names, wherever an import binds them: taken from any module of the package (a key binds
+            # `loaded`), or read off a module of it (`_services.loaded`)
+            reached = sorted({f'{what} from {source}' for source, what, _ in taken if what in LOADER_NAMES} |
+                             {ast.unparse(n) for n in ast.walk(tree) if isinstance(n, ast.Attribute)
+                              and isinstance(n.value, ast.Name) and n.value.id in bound and n.attr in LOADER_NAMES})
+            if reached:
+                out.append(f'{name} reaches {reached}: the native library\'s loader is referred to by its two keys alone'
+                           ' (_library, _services)')
+        for source, lines in sorted(stars.items()):
+            if source not in STAR_IMPORTS.get(name, set()):
+                out.append(f'{name}: line {min(lines)}: a star of {source or "the package"}: a star import is one'
+                           ' STAR_IMPORTS lists')
+        if name not in RUN:
+            for source, what, _ in taken:
+                if what in RUN_ONLY and not (source == '_runframe' and name == '_runframe'):
+                    out.append(f'{name} takes {what} from {source}: the one send, a run\'s opener and a sending helper'
+                               ' are the run side\'s alone')
             for node in ast.walk(tree):
-                if isinstance(node, ast.Attribute) and node.attr == 'modules' and isinstance(node.value, ast.Name) \
-                        and node.value.id == 'sys':
-                    out.append(f'{name}: line {node.lineno}: sys.modules, a late import this rule cannot read')
+                if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in bound \
+                        and node.attr in RUN_ONLY:
+                    out.append(f'{name}: line {node.lineno}: {ast.unparse(node)}: the one send, a run\'s opener and a'
+                               ' sending helper are the run side\'s alone')
+        if name in PLANNER:
+            doors = modules - RUN - SEAM - PLANNER - LOADER - PLANNER_DOORS.get(name, set())
+            if doors:
+                out.append(f'{name} (planner) imports {sorted(doors)}: a planner module imports no door')
+        if name in RUN | SEAM:
+            out += [f'{name}: {r}' for r in late_imports(tree)]
         if name in RUN:
             out += [f'{name}: {r}' for r in planner_signatures(tree)]
         if name in SEAM and not modules <= SEAM:
@@ -415,7 +572,7 @@ class RunClosureTest(unittest.TestCase):
             ('warehouse', 'from ._library import library'): 'the run side imports',
             ('_reads', 'from ._loader import loaded'): "the native library's loader: its two keys alone",
             ('compiler', 'from ._loader import loaded'): "the native library's loader: its two keys alone",
-            ('_loader', 'from ._runframe import planning'): 'it imports nothing of the package',
+            ('_loader', 'from ._library import library'): 'it imports the seam alone',
             ('_reads', 'import sys\nsys.modules["legend_lite.compiler"]'): 'sys.modules',
             # a run takes and answers no planner (A5), quoted or not
             ('_runs', 'def f(held: HeldModel): pass'): 'a run takes and answers no planner',
@@ -431,7 +588,7 @@ class RunClosureTest(unittest.TestCase):
             (door, 'def f():\n    from legend_lite._planned import send'): 'only the run side sends',
             # a plane's send and a sending helper, the run side's alone
             (door, 'rows = table.warehouse.arrow_chunks(plan.sql)'): "a plane's send is the run side's",
-            ('frames', 'execute_redacted(con, sql, ())'): 'a sending helper is called by the run side alone',
+            ('frames', '_stream(root, step, con, None)'): 'a sending helper is called by the run side alone',
             # what this cannot read (the audit's item 5)
             (run, 'import importlib'): 'importlib',
             (run, 'from importlib import import_module'): 'importlib',
@@ -457,7 +614,39 @@ class RunClosureTest(unittest.TestCase):
             ('_runs', 'def f(db, sql):\n    send(db, sql)'): 'in no run',
             ('_reads', 'def f(read, sql):\n    return read.execute(sql)'): 'in no run',
             ('_reads', 'def f(plane, sql):\n    return plane.arrow_chunks(sql)'): 'in no run',
-            ('_runs', 'def f(db, sql):\n    execute_redacted(db, sql, ())'): 'in no run',
+            ('_runs', 'def f(db, sql):\n    _stream(db, sql, None, None)'): 'in no run',
+            # the loader past its keys (C5-P's audit M1)
+            ('_reads', 'from ._services import loaded\nloaded().call("lite_session_setup", "DuckDB")'): "loader is referred",
+            ('_runs', 'from . import _services\n_services.loaded().call("x")'): "loader is referred",
+            ('frames', 'from ._library import loaded as l'): "loader is referred",
+            ('engine', 'from . import _loader'): "the native library's loader",
+            ('_reads', 'from ._services import Loaded'): "loader is referred",
+            # the run side's names taken by a door, by any form (C5-P's audit M2)
+            ('frames', 'from ._runs import in_run, send'): "the run side's alone",
+            ('engine', 'from ._reads import runs as r'): "the run side's alone",
+            ('engine', 'from . import _runs\nwith _runs.in_run("x"): pass'): "the run side's alone",
+            ('engine', 'from ._runframe import *'): 'a star import is one STAR_IMPORTS lists',
+            ('frames', 'from ._runs import *'): 'a star import is one STAR_IMPORTS lists',
+            ('engine', 'from os.path import *'): 'a star import is one STAR_IMPORTS lists',
+            ('timeseries', 'from ._ts_terms import *'): 'a star import is one STAR_IMPORTS lists',
+            # a planner module imports no door, at any level (C5-P's audit M2)
+            ('compiler', 'def f():\n    from .frames import run_plan'): 'a planner module imports no door',
+            ('_home', 'from . import engine'): 'a planner module imports no door',
+            ('timeseries', 'from .frames import Frames'): 'a planner module imports no door',
+            # a run takes and answers no planner, through an alias, a Protocol, a rename (C5-P's audit S1)
+            ('_reads', 'Maker = Callable[[], PlanText]\ndef f(make: Maker): pass'): 'a run takes and answers no planner',
+            ('_reads', 'class Maker(Protocol):\n    def __call__(self) -> PlanText: ...\ndef f(make: "Maker"): pass'):
+                'a run takes and answers no planner',
+            ('_runs', 'from ._planned import PlanText as P\nfrom typing import Callable as C\ndef f(m: C[[], P]): pass'):
+                'a run takes and answers no planner',
+            ('_runs', 'def f(m: "Callable[[, ]"): pass'): 'an annotation this rule cannot read',
+            # the late imports a run or seam module may not use, exactly these (C5-P's audit S2)
+            ('_reads', 'from sys import modules'): 'sys.modules',
+            ('_runs', 'import sys as s\ns.modules["x"]'): 'sys.modules',
+            ('_plans', 'import pkgutil\npkgutil.resolve_name("legend_lite.compiler:plan")'): 'a late import',
+            ('_reads', 'exec("from . import compiler")'): 'a text run',
+            ('_runs', 'eval("1")'): 'a text run',
+            ('_reads', 'import importlib.util\nspec = importlib.util.find_spec("x")'): 'beyond `is None`',
             ('_runs', 'def f(db, r):\n    db.import_stream(r, None, "t")'): 'in no run',
             ('_runs', 'def f(db, sql):\n    with other(): send(db, sql)'): 'in no run',
         }
@@ -475,7 +664,7 @@ class RunClosureTest(unittest.TestCase):
             'frames': 'from ._reads import run_plan\nfrom . import compiler',
             'compiler': 'from ._planned import PlannedSql, from_plan\nfrom ._plans import Plan',
             'warehouse': 'from ._planned import PlannedSql, Unframed, require\nfrom ._runframe import current_run\n'
-                         'import importlib.util\nimportlib.util.find_spec("duckdb")'}))
+                         'import importlib.util\nimportlib.util.find_spec("duckdb") is None'}))
 
     def test_the_one_send_is_framed(self):
         from legend_lite import _reads, _runs

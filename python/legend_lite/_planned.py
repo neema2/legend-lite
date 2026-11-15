@@ -388,6 +388,8 @@ class Database:
         for name in (table, *(() if schema is None else (schema,))):
             if not _PLAIN_NAME.fullmatch(name):
                 raise NotPlanned(f"a stream lands in a table named plainly (letters, digits, '_'), not {name!r}")
+        # a run act, as a transaction's bounds are (C5-P's audit S3, 2026-11-15)
+        _framed('a stream landed')
         self._con.from_arrow(reader).create(table if schema is None else f'{schema}.{table}')
 
     def _send_planned(self, sql: PlannedSql, params: Sequence[Any] | None) -> Result:

@@ -21,7 +21,7 @@ import pyarrow.ipc
 
 from ._planned import Database, PlannedSql, Result, send
 from ._plans import Plan, host_rows
-from ._runframe import runs
+from ._runframe import current_run, in_run, runs
 from ._types import UnknownType, is_integer
 
 # the field metadata that carries a result column's type, as the compiler typed it
@@ -130,10 +130,13 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
 
 def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
     """``sql`` run on ``connection``, its ``?``s bound to ``params`` (a plan's payloads: M3), a failure's words with every
-    held value taken out (``redacted``)."""
+    held value taken out (``redacted``). A run of its own -- the caller's, named as it is, or one of its own outside any
+    (C5-P's audit M2, 2026-11-15: until then a sending helper, re-exported as frames.execute_redacted and framed by its
+    callers alone)."""
     failure: BaseException | None = None
     try:
-        return send(connection, sql, params)
+        with in_run(current_run() or 'a statement redacted'):
+            return send(connection, sql, params)
     except duckdb.Error as e:
         failure = redacted(e, held)
         if failure is None:

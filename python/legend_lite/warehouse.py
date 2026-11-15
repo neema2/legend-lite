@@ -119,7 +119,12 @@ def _urlopen(request: urllib.request.Request) -> Any:
 
 
 def _reach(base_url: str, call: dict[str, Any]) -> tuple[int, bytes]:
-    """The call made, and its answer's status and bytes; a refused connection said as what it is."""
+    """The call made, and its answer's status and bytes; a refused connection said as what it is. Every call is a run's:
+    refused by name outside one (C5-P's audit S3, 2026-11-15: until then a statement's chunks after its first were
+    fetched unchecked)."""
+    if current_run() is None:
+        raise Unframed("a call of the warehouse's SQL API is made only inside a run (_runframe.runs, in_run): the run"
+                       ' side makes it (G4)')
     body = call['body']
     request = urllib.request.Request(base_url.rstrip('/') + call['path'], method=call['method'],
                                      data=body.encode('utf-8') if body is not None else None, headers=call['headers'])

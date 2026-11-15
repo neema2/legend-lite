@@ -24,6 +24,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from ._runframe import planning
+
 _NAMES = {'darwin': 'libcompiler.dylib', 'linux': 'libcompiler.so', 'win32': 'libcompiler.dll'}
 
 # each entry point and how many C strings it takes after its isolate thread
@@ -51,6 +53,16 @@ _ARITY = {
     'lite_sdlc_handle': 4, 'lite_depot_handle': 4, 'lite_saved_queries': 6, 'lite_saved_cubes': 6,
 }
 
+
+# The library's entries that plan nothing: its services (the site's types, the warehouse's binding, the model home's
+# stores) and a held model let go -- which a finalizer may do at any point, a run's included. Every other entry is the
+# planner's, refused inside a run of its flow (_runframe.py, the witness, 2026-11-13), by Loaded.call itself (C5-P's
+# audit M1, 2026-11-15). _library.py writes the same set (_NOT_PLANNING, which PlannerSurfaceTest reads), held equal
+# to this one when it loads.
+NOT_PLANNING = frozenset({
+    'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
+    'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model',
+})
 
 # THE SERVICE KEY'S NAMES (_services.py): the warehouse's SQL API, as the one binding speaks it -- the run side's, and
 # no other key's. 2026-11-15 (C5-P, A1).
@@ -104,7 +116,11 @@ class Loaded:
 
     def call(self, name: str, *args: str) -> str:
         """One entry point; its answer text (``OK\\n...`` or ``ERR\\n...``), the native string freed -- a key's to ask
-        (each key checks what it may carry first)."""
+        (each key checks what it may carry first). A planner's entry is refused inside a run of its flow HERE, whoever
+        asks (C5-P's audit M1, 2026-11-15: until then the planning key alone checked, and a module reaching the loader
+        past the keys skipped it): every name but the library's services and a held model let go (``NOT_PLANNING``)."""
+        if name not in NOT_PLANNING:
+            planning(name)
         for a in args:
             if '\0' in a:
                 # a C string ends at its first NUL: the compiler would silently read less than was given

@@ -37,11 +37,6 @@ py_library(
     imports = ["."],
 )
 
-# THE RUN SIDE (C5-P, 2026-11-15; Python's //core:exec): what sends a plan's statements and reads their answers -- the
-# hosts' runners (_runs.py) and a read of Python's database (_reads.py), with the type facts a plan's rows are typed by.
-# Its deps hold NO PLANNER (no :compiler, no native library), and no package __init__: what it imports is in its own
-# srcs or :seam's, or it does not load -- //python:run_closure_test imports it with these deps alone, and reads every
-# import of the package's modules for the rule both ways
 # THE NATIVE LIBRARY'S LOADER (C5-P, 2026-11-15, the orchestrator's A1): the one isolate and its threads, calling by
 # name for the two keys alone -- the planning key (_library.py, :compiler's) and the service key (_services.py, :run's).
 # One package, so Bazel's visibility cannot hold that; //python:run_closure_test does (only the keys import it)
@@ -51,8 +46,17 @@ py_library(
     name = "loader",
     srcs = _LOADER_SRCS,
     imports = ["."],
+    # the run frame: a planner's entry refused inside a run by the loader itself, whoever asks (C5-P's audit M1)
+    deps = [":seam"],
 )
 
+# THE RUN SIDE (C5-P, 2026-11-15; Python's //core:exec): what sends a plan's statements and reads their answers -- the
+# hosts' runners (_runs.py), a read of Python's database (_reads.py), the warehouse's client (warehouse.py), with the
+# type facts a plan's rows are typed by. Its deps hold NO PLANNER (no :compiler, no planning key) and no package
+# __init__; it reaches the native library through the service key alone (_services.py over :loader: the warehouse's
+# wire, every other name refused). What it imports is in its own srcs, :seam's or :loader's, or it does not load --
+# //python:run_closure_test imports it with these deps alone, and reads every import of the package's modules for the
+# rule both ways
 _RUN_SRCS = [
     "legend_lite/_reads.py",
     "legend_lite/_runs.py",

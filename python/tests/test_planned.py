@@ -693,6 +693,34 @@ class C5SplitTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, f"{name} is the warehouse's wire, the run side's service key's"):
                 library().call(name, 'x', 'y')
 
+    def test_the_loader_itself_refuses_a_planner_entry_inside_a_run(self):
+        # C5-P's audit M1 (2026-11-15): the planning check is the loader's, so no path past the keys skips it -- the
+        # loader reached directly, inside a run, refuses a planner's entry by name; a service passes
+        from legend_lite._loader import loaded
+        with in_run("a test's run"):
+            with self.assertRaisesRegex(RuntimeError, r"asked 'lite_session_setup' inside a run \(a test's run\)"):
+                loaded().call('lite_session_setup', 'DuckDB')
+            self.assertTrue(loaded().call('lite_site_types').startswith('OK'))
+        self.assertTrue(loaded().call('lite_session_setup', 'DuckDB').startswith('OK'))
+
+    def test_a_streams_landing_and_every_warehouse_fetch_refuse_outside_a_run(self):
+        # C5-P's audit S3 (2026-11-15): a stream's landing is a run act, as a transaction's bounds are; and every call of
+        # the warehouse's SQL API -- a statement's later chunks too, fetched by _reach -- refuses outside a run
+        import pyarrow as pa
+        reader = pa.RecordBatchReader.from_batches(pa.schema([('x', pa.int64())]), iter([]))
+        with self.assertRaisesRegex(Unframed, 'a stream landed only inside a run'):
+            Database(duckdb.connect()).import_stream(reader, None, 't')
+        with self.assertRaisesRegex(Unframed, "a call of the warehouse's SQL API is made only inside a run"):
+            warehouse._reach('http://wh.invalid', {'body': None, 'path': '/x', 'method': 'GET', 'headers': {}})
+
+    def test_the_pool_carries_the_callers_run_for_every_caller(self):
+        # C5-P's audit S4 (2026-11-15): the compiler's pool runs every call it is handed in a copy of the caller's
+        # context -- a caller submitting to it directly too, not only _on_compiler_threads
+        from legend_lite._pool import _workers
+        with in_run("a test's run"):
+            self.assertEqual(_workers().submit(current_run).result(), "a test's run")
+        self.assertIsNone(_workers().submit(current_run).result())
+
     def test_the_warehouses_every_call_is_a_run(self):
         # A2 (2026-11-15): a sign-in, a listing, a statement's poll or close -- every call of the SQL API -- is a send,
         # made in a run ("the warehouse's SQL API"), whoever asks it

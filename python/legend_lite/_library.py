@@ -9,8 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from ._loader import SERVICE_KEY_NAMES, loaded
-from ._runframe import planning
+from ._loader import NOT_PLANNING, SERVICE_KEY_NAMES, loaded
 
 # The library's entries that plan nothing: its services (the site's types, the warehouse's binding, the model home's
 # stores) and a held model let go -- which a finalizer may do at any point, a run's included. Every other entry is the
@@ -21,7 +20,9 @@ _NOT_PLANNING = frozenset({
     'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
     'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model',
 })
-
+if _NOT_PLANNING != NOT_PLANNING:
+    raise ImportError(f'the planning key\'s services ({sorted(_NOT_PLANNING)}) are not the loader\'s'
+                      f' ({sorted(NOT_PLANNING)}): one set, written twice for PlannerSurfaceTest, held equal')
 
 
 class Library:
@@ -38,8 +39,7 @@ class Library:
         if name in SERVICE_KEY_NAMES:
             raise ValueError(f"{name} is the warehouse's wire, the run side's service key's (_services.py), not the"
                              " planning key's")
-        if name not in _NOT_PLANNING:
-            planning(name)
+        # a planner's entry refused inside a run by the loader itself (C5-P's audit M1): no path past it
         return loaded().call(name, *args)
 
     def exports(self, name: str) -> bool:
