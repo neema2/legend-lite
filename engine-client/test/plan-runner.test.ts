@@ -75,8 +75,10 @@ const src = (): ValueSpecification => accessor('w::DB', 'SRC');
 const target = (): ValueSpecification => accessor('w::DB', 'T');
 /** A host's session over a held connection: its statements sent one at a time, its transactions the plan's (S8). */
 const sessionOn = (databaseType: string, held: { rows: PlanSession['run'] }): PlanSession => ({ databaseType, run: held.rows });
-/** The program run on the tab's engine, held for it, its transaction its plan's. */
-const run = (plan: string): Promise<string> => asTest(engine).exclusive(async (held) =>
+/** The program run on the tab's engine, held for it, its transaction its plan's -- in runPlan's OWN run frame, never a
+ *  test's (the C5-T audit's nit: wrapped in asTest, a runPlan that lost its frame went unseen; unwrapped, its held
+ *  connection's sends are refused outside one). */
+const run = (plan: string): Promise<string> => engine.exclusive(async (held) =>
   runPlan(unplannedPlan(plan), sessionOn(engine.databaseType, held)));
 const rows = async (): Promise<string> => {
   const t = await inRun('a test', () => asTest(engine).exclusive((held) => held.rows(unplanned('SELECT id, name, amount FROM T ORDER BY id'), [])));

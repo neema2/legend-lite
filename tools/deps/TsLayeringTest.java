@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeSet;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -32,6 +33,11 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  *
  * The protocol library ({@code //pure-protocol:pure_protocol}) is the Pure protocol's records: both may reach it.
+ *
+ * <p>2026-11-15 (the C5-T audit's nit): the rule trusts no target by its name. The run and planner layers, the records
+ * and the npm packages a run layer may reach are each pinned by label (RUN_LAYERS, PLANNER_LAYERS, RECORDS, RUN_NPM): a
+ * new target named {@code :records} or {@code :run}, or a new {@code node_modules/...}, is no record, no run layer and no
+ * package a run may reach until it is pinned here, with its dated note.
  */
 class TsLayeringTest {
 
@@ -90,52 +96,86 @@ class TsLayeringTest {
         assertEquals(List.of(), drift, "the layers of the TypeScript hosts changed");
     }
 
+    // 2026-11-15 (the C5-T audit's nit, measured): the layers and the labels the rule reads, each by its label
+    /** The run layers: what sends a plan's statements and reads their rows. */
+    static final Set<String> RUN_LAYERS = Set.of("//engine-client:run", "//datacube:run");
+    /** The planner layers: what plans, and executes nothing. */
+    static final Set<String> PLANNER_LAYERS = Set.of("//engine-client:planner", "//datacube:planner");
+    /** The records: shapes both sides read, no send, no plan -- and the protocol library, the Pure protocol's. */
+    static final Set<String> RECORDS = Set.of("//engine-client:records", "//datacube:records", "//sdlc-client:records",
+            "//model-changes:records", PROTOCOL);
+    /** The npm packages a run layer reaches: DuckDB in the tab, and the Arrow its answers and the warehouse's are read with. */
+    static final Set<String> RUN_NPM = Set.of("//engine-client:node_modules/@duckdb/duckdb-wasm",
+            "//engine-client:node_modules/apache-arrow");
+
     @Test
     void aRunLayerReachesRecordsAndNpmAloneAndAPlannerNothingThatExecutes() throws IOException {
+        List<String> lines = Files.readAllLines(Runfile.property("ts.layers"));
+        long runs = lines.stream().filter((l) -> RUN_LAYERS.stream().anyMatch((r) -> l.startsWith(r + "\t"))).count();
+        long planners = lines.stream().filter((l) -> PLANNER_LAYERS.stream().anyMatch((p) -> l.startsWith(p + "\t"))).count();
+        assertEquals(RUN_LAYERS.size() + PLANNER_LAYERS.size(), runs + planners, "ts-layers.txt names " + runs + " run and "
+                + planners + " planner layers of the " + (RUN_LAYERS.size() + PLANNER_LAYERS.size()) + " pinned: the guard is not looking");
+        assertEquals(List.of(), ruleBreaches(lines), "a TypeScript layer reaches past its rule");
+    }
+
+    @Test
+    void theRuleTrustsNoTargetByItsName() {
+        List<String> planted = List.of(
+                "//engine-client:run\t//engine-client:records //planted:records //engine-client:node_modules/left-pad",
+                "//engine-client:planner\t//engine-client:records //datacube:node_modules/fflate //engine-client:run",
+                "//planted:run\t//engine-client:records",
+                "//planted:planner\t//pure-protocol:pure_protocol");
+        assertEquals(List.of(
+                "//engine-client:planner reaches //datacube:node_modules/fflate: a planner reaches nothing that can execute"
+                        + " (records and the protocol alone)",
+                "//engine-client:planner reaches //engine-client:run: a planner reaches nothing that can execute"
+                        + " (records and the protocol alone)",
+                "//engine-client:run reaches //engine-client:node_modules/left-pad: a run layer reaches records and the"
+                        + " npm packages pinned alone (no planner, server, door or app)",
+                "//engine-client:run reaches //planted:records: a run layer reaches records and the npm packages pinned"
+                        + " alone (no planner, server, door or app)",
+                "//planted:planner is named a planner layer, and no planner layer pinned (TsLayeringTest.PLANNER_LAYERS)",
+                "//planted:run is named a run layer, and no run layer pinned (TsLayeringTest.RUN_LAYERS)"),
+                ruleBreaches(planted));
+    }
+
+    /** Each line of {@code lines} (ts-layers.txt's) whose layer reaches past its rule, or is named a run or planner
+     *  layer and not pinned as one. */
+    static List<String> ruleBreaches(List<String> lines) {
         List<String> breaches = new ArrayList<>();
-        int runs = 0;
-        int planners = 0;
-        for (String line : Files.readAllLines(Runfile.property("ts.layers"))) {
+        for (String line : lines) {
             if (line.isBlank() || line.startsWith("#")) {
                 continue;
             }
             String[] parts = line.split("\t", -1);
             String layer = parts[0];
             List<String> deps = parts.length > 1 ? List.of(parts[1].split(" ")) : List.of();
-            if (name(layer).equals("run")) {
-                runs++;
+            if (name(layer).equals("run") && !RUN_LAYERS.contains(layer)) {
+                breaches.add(layer + " is named a run layer, and no run layer pinned (TsLayeringTest.RUN_LAYERS)");
+            } else if (name(layer).equals("planner") && !PLANNER_LAYERS.contains(layer)) {
+                breaches.add(layer + " is named a planner layer, and no planner layer pinned (TsLayeringTest.PLANNER_LAYERS)");
+            } else if (RUN_LAYERS.contains(layer)) {
                 for (String dep : deps) {
-                    if (!(isRecords(dep) || isNpm(dep) || name(dep).equals("run"))) {
-                        breaches.add(layer + " reaches " + dep + ": a run layer reaches records and npm packages alone"
-                                + " (no planner, server, door or app)");
+                    if (!(RECORDS.contains(dep) || RUN_NPM.contains(dep) || RUN_LAYERS.contains(dep))) {
+                        breaches.add(layer + " reaches " + dep + ": a run layer reaches records and the npm packages pinned"
+                                + " alone (no planner, server, door or app)");
                     }
                 }
-            } else if (name(layer).equals("planner")) {
-                planners++;
+            } else if (PLANNER_LAYERS.contains(layer)) {
                 for (String dep : deps) {
-                    if (!(isRecords(dep) || isNpm(dep) || name(dep).equals("planner"))) {
+                    if (!(RECORDS.contains(dep) || PLANNER_LAYERS.contains(dep))) {
                         breaches.add(layer + " reaches " + dep + ": a planner reaches nothing that can execute"
                                 + " (records and the protocol alone)");
                     }
                 }
             }
         }
-        assertTrue(runs >= 1 && planners >= 1, "ts-layers.txt names " + runs + " run and " + planners
-                + " planner layers: the guard is not looking");
-        assertEquals(List.of(), breaches, "a TypeScript layer reaches past its rule");
+        return breaches.stream().sorted().toList();
     }
 
     /** A label's target name: `//engine-client:run` is `run`. */
     private static String name(String label) {
         return label.substring(label.indexOf(':') + 1);
-    }
-
-    private static boolean isRecords(String label) {
-        return label.equals(PROTOCOL) || name(label).equals("records");
-    }
-
-    private static boolean isNpm(String label) {
-        return name(label).startsWith("node_modules/");
     }
 
     /** The labels, sorted, one space apart. */
