@@ -22262,7 +22262,34 @@ outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf86
   headless 73, notebook 31, engine 345, model 19 (1 skipped), bindings 29, ts_builder 7, markets 3, host_sql 3.
   `//gates:local` did not fit that session's disk allowance (453 targets failed to build, "No space left on device");
   PR #103's CI runs the gate. jupyterlab_test and marimo_test not attempted there.
-- **Held out, backlogged (start-here §6.1):** the native library's loader split into service and planner halves, so the
-  warehouse client can live in `:run` (a packaging change); a run taking a planner by annotation (the wall's L2);
-  `Database.begin/commit/rollback` outside a frame; the warehouse's metadata HTTP; `_stream`'s chunks pulled on
-  DuckDB's Arrow threads (predating C5-P).
+- **The last round (the user's go of 2026-11-15, A1-A6), closing what the audit had held out:**
+  - **A1, the native library by two keys:** `_loader.py` (`//python:loader`) loads the one library and its one isolate,
+    and calls by name for its two keys alone (one package, so the closure test holds that, not Bazel's visibility). The
+    PLANNING key (`_library.py`, `:compiler`) carries every entry but the warehouse's wire, as before; the SERVICE key
+    (`_services.py`, `:run`) carries `lite_warehouse_call` and `lite_warehouse_read` alone. `warehouse.py` is a run
+    module over the service key; the `:compiler` carve-out is gone. The run side's closure reaches the planning key
+    never, and the loader through the service key alone.
+  - **A2:** every call of the warehouse's SQL API (`warehouse._exchange`: a sign-in, a listing, a poll, a close) is a
+    run; its HTTP is a send the closure test holds framed.
+  - **A3:** a transaction's bounds (`Database.begin/commit/rollback`) refuse outside a run; a read's end is a run
+    (`_reads.end_read`).
+  - **A4, DuckDB's own threads -- a hole, closed:** DuckDB pulls a stream's batches on a thread of its own (measured
+    2026-11-15: duckdb 1.5.5 and pyarrow 23.0.1, every pull of a `RecordBatchReader` made from a Python generator on one
+    foreign thread, `Dummy-1`, at 10 rows to 12M and 1 to 16 threads), where the run's frame was not set: a plane's
+    later chunks were fetched in no run. `_runs._stream` runs each pull in the run's context.
+  - **A5:** a run function takes and answers no planner (the wall's L2, restored), quoted annotations included.
+  - **A6, the hole check -- a fixed list of routes, each answered:**
+
+    | Route | Answer |
+    |---|---|
+    | a planner entry called from run code | closed: the build (`run_closure_test`'s load with `:run` alone), the import rule, the witness (`_runframe.planning` at the planning key) |
+    | the planner reached through the warehouse object | closed by A1: the service key refuses every name but the wire (`test_the_two_keys_carry_their_own_names_alone`) |
+    | a planner handed in as a value at run time | closed by the witness alone, shown firing: `test_a_planner_entry_reached_through_a_plane_inside_its_run_is_refused_by_name` |
+    | the compiler's worker pool | closed: `_pool._on_compiler_threads` copies the caller's context (C4's M4), `test_a_planner_entry_asked_through_the_pool_inside_a_run_is_refused` |
+    | DuckDB's own threads | a hole, fixed (A4), `test_a_streams_every_pull_is_in_its_run_on_duckdbs_own_thread` |
+    | renamed or late imports | closed: the closure test reads every import, a function's own and renamed ones, refuses importlib but `find_spec`, `__import__`, `import_module`, the package itself; `sys.modules` in a run or seam module refused (added) |
+    | an exemption | closed: `EXEMPTIONS` empty, `test_no_crossing_is_known_and_none_is_exempt` |
+    | a finalizer firing in a run | closed: a held model let go is a service (`lite_release_model` in `_NOT_PLANNING`, pinned by `PlannerSurfaceTest`); a gone session's frames queued and dropped outside any run (C4's D2 tests) |
+    | the hosted DataCube calling the planner during a bridged send | closed: the bridged runs' bodies call no V8 (`_reads.run_bridged_query`/`statement`); the planner answers on DataCube's calls outside them |
+
+- **Held out:** nothing. The audit's four and the loader split are done here (A1-A5); A6 found one hole (A4), fixed.
