@@ -92,9 +92,10 @@ class FixtureWriteCensusTest {
      *  H2's argMax and time buckets (H2ArgExtremeAndTimeBucketTest 2) -- and the ingest plans' test, whose one write is
      *  the host's part: the batch it holds, made the relation the land plan attaches (DuckDbIngestPlansTest 1); 9. On main: 925, 947 -> 950 (2026-11-14, merged
      *  main 3a217086a (#81) into the separation stream, measured by the census's run on the merged tree): both sides'
-     *  moves together. 956, 950 -> MERGED (2026-11-15, main cf865632 merged into the Deephaven branch, measured by the
-     *  census's run on the merged tree): both sides' moves together. */
-    private static final int CEILING = 956;
+     *  moves together. 956, 950 -> 959 (2026-11-15, main cf865632 merged into the Deephaven branch, measured by the
+     *  census's run on the merged tree): both sides' moves together, 956 + 950 - 947, their shared base; the merge
+     *  writes no fixture of its own. */
+    private static final int CEILING = 959;
 
     /** Each file's literal write sends (2026-11-11, B2c: the baseline as measured). */
     private static final Map<String, Integer> PINNED = Map.ofEntries(

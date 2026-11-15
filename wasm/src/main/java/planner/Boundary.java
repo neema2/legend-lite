@@ -637,7 +637,6 @@ public final class Boundary {
         });
     }
 
-    /** The topics as JSON: each one's landing table, name, columns (name and Deephaven type), key, retention. */
     /** {@code runtime}'s held tables ({@code DeploymentPlanner.onConnect}), each with the plan that reads it on its server:
      *  {@code {"tables": [{"connection", "deployment", "table", "sql"}]}}. */
     private static String holds(com.legend.compiler.element.ModelContext ctx, String runtime) {
@@ -653,6 +652,7 @@ public final class Boundary {
         return com.legend.json.Json.toCompact(java.util.Map.of("tables", out));
     }
 
+    /** The topics as JSON: each one's landing table, name, columns (name and Deephaven type), key, retention. */
     private static String topics(java.util.List<com.legend.planner.IngestTopics.Topic> topics) {
         java.util.List<Object> out = new java.util.ArrayList<>();
         for (com.legend.planner.IngestTopics.Topic t : topics) {

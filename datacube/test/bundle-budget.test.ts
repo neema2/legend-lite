@@ -803,8 +803,11 @@ const BUDGET = 448_500;
  *  On the Deephaven line: 425,500 -> 434,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
  *  D9: main measured 425,126, the line +9,075 over it -- its own steps since its last merge (the desk's screens,
  *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'
- *  client). Measured 434,201. */
-const ENGINE_BUDGET = 434_500;
+ *  client). Measured 434,201.
+ *  434,500 -> 435,000 (2026-11-15, main cf865632 merged into the Deephaven line: main's growth since the last merge
+ *  -- the run frame and the separation's last checks, each in main's notes above -- and the merge's one line of its
+ *  own, the window path's run marker (runner.ts, inRun as the grid query's). Measured 434,512. */
+const ENGINE_BUDGET = 435_000;
 
 /** What a page's first chart fetches beyond its startup, gzipped: ECharts (its chunk) and the drawing (chart-option.ts).
  *  Set 2026-10-14 at its first measure (DataCube charts batch 2, docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5: "the
@@ -1347,8 +1350,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  453,800 -> 463,500 (2026-11-14, main's #77-#98 merged into the Deephaven line, within the user's sign-off,
  *  D9: main measured 453,495, the line +9,761 over it -- its own steps since its last merge (the desk's screens,
  *  the live engine, Open With's hooks, the model home's releases) and the ingest plans'
- *  client). Measured 463,256. */
-const WIDGET_BUDGET = 463_500;
+ *  client). Measured 463,256.
+ *  463,500 -> 464,000 (2026-11-15, main cf865632 merged into the Deephaven line: main's growth since the last merge
+ *  and the merge's one line of its own, the window path's run marker -- the engine page's note of the same date).
+ *  Measured 463,574. */
+const WIDGET_BUDGET = 464_000;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
