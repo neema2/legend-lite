@@ -258,8 +258,7 @@ public final class NameResolver {
             changed |= r != el;
         }
         // every side component survives the rebuild: a resolution rewrites names, nothing else (until 2026-11-13 the
-        // six-argument form dropped the unclaimed sections and the element spans whenever a name changed -- the names
-        // fixes, item 1)
+        // six-argument form dropped the unclaimed sections and the element spans whenever a name changed)
         return !changed ? model
                 : new ParsedModel(resolved, model.imports(),
                         model.source(), model.elementOffsets(), model.elementImports(),
@@ -353,7 +352,7 @@ public final class NameResolver {
     /** The call tiers' matches for a bare name (the wildcards, the own package, the core import group over the
      *  scope's universe), EMPTY when none: what {@link #resolveCallCandidates} falls back from, and what the pointer
      *  arm asks for a signature id's base. A qualified spelling matches no tier: it is not prefixed with a package
-     *  (until 2026-11-13 it was, {@code pkg::a::b::f} asked of the universe for every tier -- the names fixes, item 5). */
+     *  (until 2026-11-13 it was, {@code pkg::a::b::f} asked of the universe for every tier). */
     private static List<String> callTierMatches(String name, Scope scope) {
         if (name.contains("::")) {
             return List.of();
@@ -419,7 +418,7 @@ public final class NameResolver {
                 // (until 2026-11-13 the two-argument form dropped them and their types were never walked, so
                 // `Primitive IntCap(x:Integer[1])` used as `IntCap(2)` was refused and `IntCap()` accepted -- the
                 // engine compiles the first and refuses the second: legend-pure TestPrimitiveCompile, legend-engine
-                // CompileContext.newGenericType :756-771; the names landings)
+                // CompileContext.newGenericType :756-771)
                 String base = resolveName(pe.baseTypeName(), scope);
                 List<ParameterDefinition> typeVariables = resolveParameterList(pe.typeVariables(), scope);
                 yield base.equals(pe.baseTypeName()) && typeVariables == pe.typeVariables() ? pe
@@ -668,7 +667,7 @@ public final class NameResolver {
                 String r = resolveName(g.name(), scope);
                 List<TypeExpression> args = resolveTypeList(g.arguments(), scope);
                 // the type-variable values resolve as any value specification in the element's scope (until
-                // 2026-11-13 they were not walked: the names fixes, item 4)
+                // 2026-11-13 they were not walked)
                 List<ValueSpecification> values = resolveVsList(g.typeVariableValues(), scope);
                 // the rebuild keeps the MULTIPLICITY arguments and the type
                 // variable values (Result<TabularDataSet|1>: dropping the |1
@@ -849,8 +848,7 @@ public final class NameResolver {
         // inside the body. Push them onto the scope before resolving
         // anything that could mention them.
         Scope scope = outer.withTypeParams(cd.typeParams());
-        // its type variables' declared types resolve in its scope (until 2026-11-13 they were not walked: the names
-        // landings)
+        // its type variables' declared types resolve in its scope (until 2026-11-13 they were not walked)
         List<ParameterDefinition> typeVariables = resolveParameterList(cd.typeVariables(), scope);
         List<TypeExpression> superClasses = resolveTypeList(cd.superClasses(), scope);
         List<PropertyDefinition> properties = resolvePropertyList(cd.properties(), scope);
@@ -1355,7 +1353,7 @@ public final class NameResolver {
                         : new PropertyMapping.Column(c.propertyName(), db, c.table(), c.column());
             }
             // its operation resolves as an Expression's does (until 2026-11-13 it was not walked, so its [db]
-            // qualifiers kept their spelling: the names fixes, item 4)
+            // qualifiers kept their spelling)
             case PropertyMapping.EnumeratedExpression ee -> {
                 RelationalOperation expr = resolveRelOp(ee.expression(), scope);
                 yield expr == ee.expression() ? ee
@@ -1392,7 +1390,7 @@ public final class NameResolver {
                 List<PropertyMapping> subs = resolvePropertyMappingList(
                         e.propertyMappings(), scope);
                 // its ~primaryKey's operations resolve as a class mapping's do, and ride the rebuild (until
-                // 2026-11-13 the two-argument form dropped them: the names fixes, item 2)
+                // 2026-11-13 the two-argument form dropped them)
                 List<RelationalOperation> pk = resolveRelOpList(e.primaryKey(), scope);
                 yield subs == e.propertyMappings() && pk == e.primaryKey() ? e
                         : new PropertyMapping.Embedded(e.propertyName(), subs, pk);
@@ -1508,7 +1506,7 @@ public final class NameResolver {
         // jsonConnections (List<JsonModelConnection>) carry only literal
         // JSON payloads; no element FQN inside the public record shape.
         // two keys that name one store keep both connection lists, in order, under the first key's place: a rename
-        // never drops a connection (until 2026-11-13 the second REPLACED the first's -- the names fixes, item 3;
+        // never drops a connection (until 2026-11-13 the second REPLACED the first's;
         // the engine refuses several connections against one
         // store, HelperRuntimeBuilder, a check lite makes for no runtime)
         Map<String, List<String>> bindings = new java.util.LinkedHashMap<>();
@@ -1535,7 +1533,7 @@ public final class NameResolver {
             inlineChanged |= r != el;
             inline.add(r);
         }
-        // the connection ids' stores resolve whatever else changed (until 2026-11-13 only on a rebuild: item 3)
+        // the connection ids' stores resolve whatever else changed (until 2026-11-13 only on a rebuild)
         Map<String, String> ids = new java.util.LinkedHashMap<>();
         boolean idsChanged = false;
         for (Map.Entry<String, String> e : rd.connectionIds().entrySet()) {
@@ -1884,8 +1882,7 @@ public final class NameResolver {
             case com.legend.protocol.spec.GraphFetchLiteral gf -> resolveGraphFetch(gf, scope);
             // the tree resolves in the SECTIONLESS scope (the core imports, no section imports) over the same
             // universe: the engine compiles the quoted string as a section of its own with no imports
-            // (LegendCompile.doCompileVS, `function a::f():Any[*]{ <code> }`). Until 2026-11-13 it was not walked:
-            // the names fixes, item 4
+            // (LegendCompile.doCompileVS, `function a::f():Any[*]{ <code> }`). Until 2026-11-13 it was not walked
             case com.legend.protocol.spec.QuotedTreeCall q ->
                     new com.legend.protocol.spec.QuotedTreeCall(
                             (com.legend.protocol.spec.AppliedFunction)
@@ -1935,7 +1932,7 @@ public final class NameResolver {
             case EnumValue ev -> {
                 String r = resolveName(ev.fullPath(), scope);
                 // the positions and the wire spelling ride the rebuild (until 2026-11-13 the two-argument form dropped
-                // both positions, and so made the value the real enumValue node: the names fixes, item 2)
+                // both positions, and so made the value the real enumValue node)
                 yield r.equals(ev.fullPath()) ? ev
                         : new EnumValue(r, ev.value(), ev.enumerationPos(), ev.pos(), ev.node());
             }

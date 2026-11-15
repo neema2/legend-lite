@@ -43,8 +43,8 @@ class NativeRegistryGovernanceTest {
                 "JAVA_ROUTINE rows and staged routines drifted");
     }
 
-    /** RowGetter.of reads an APPLIED spelling, ofLifted a lifted FQN, and neither answers the other's (2026-11-12, the
-     *  owner's ruling on slice 1b's report: of never resolving a lifted FQN is its contract, now pinned). */
+    /** RowGetter.of reads an APPLIED spelling, ofLifted a lifted FQN, and neither answers the other's (2026-11-12:
+     *  of never resolving a lifted FQN is its contract, now pinned). */
     @Test
     @DisplayName("ROW_GETTER: of reads applied spellings, ofLifted lifted FQNs")
     void rowGetterLookupsReadTheirOwnSpellings() {
@@ -60,8 +60,7 @@ class NativeRegistryGovernanceTest {
     }
 
     /** GroupAggregate has no by-id {@code of}: its call is read by name before typing and its overloads by
-     *  {@code Pure.AT_RELATION_JOIN_STRINGS} -- the member is held to both (2026-11-12, the owner's ruling on slice 1b's
-     *  report). */
+     *  {@code Pure.AT_RELATION_JOIN_STRINGS} -- the member is held to both (2026-11-12). */
     @Test
     @DisplayName("GROUP_AGGREGATE rows == the group desugar's name and the lowering's overloads")
     void groupAggregateIsTheDesugarsNameAndTheLoweringsOverloads() {

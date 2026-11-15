@@ -494,7 +494,7 @@ public final class Compiler {
             // the boot layer's own index is checked and then discarded: its
             // prepared elements enter every graph's index at that graph's gate
             // (every side component rides the rebuild, the element spans too: until 2026-11-13 the seven-argument
-            // form dropped them -- the names landings, items 1 and 2)
+            // form dropped them)
             Layer layer = normalizeLayer(new ParsedModel(all, resolved.imports(), resolved.source(),
                     resolved.elementOffsets(), resolved.elementImports(), resolved.elementSources(),
                     resolved.unclaimedSections(), resolved.elementSpans()), null);
@@ -567,8 +567,7 @@ public final class Compiler {
                 kept.add(el);
             }
         }
-        // (the element spans ride the rebuild: until 2026-11-13 the seven-argument form dropped them -- the names
-        // landings, items 1 and 2)
+        // (the element spans ride the rebuild: until 2026-11-13 the seven-argument form dropped them)
         return kept.size() == parsed.elements().size() ? parsed
                 : new ParsedModel(kept, parsed.imports(), parsed.source(),
                         parsed.elementOffsets(), parsed.elementImports(),
@@ -625,8 +624,7 @@ public final class Compiler {
             }
             own.add(el);
         }
-        // (the element spans ride the rebuild: until 2026-11-13 the seven-argument form dropped them -- the names
-        // landings, items 1 and 2)
+        // (the element spans ride the rebuild: until 2026-11-13 the seven-argument form dropped them)
         Layer user = normalizeLayer(adopted.isEmpty() ? graph
                 : new ParsedModel(own, graph.imports(), graph.source(), graph.elementOffsets(),
                         graph.elementImports(), graph.elementSources(), graph.unclaimedSections(),

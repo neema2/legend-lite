@@ -58,8 +58,8 @@ public final class DeclarationTable {
                 byId.put(id, f);
             } else if (f instanceof FunctionDefinition && prior instanceof FunctionDefinition
                     && !f.equals(prior)) {
-                // each id once, in first-met order (2026-11-12, the owner's ruling on slice 1b's report: a third
-                // differing body reported the id again)
+                // each id once, in first-met order (2026-11-12: until then a third differing body reported the id
+                // again)
                 if (!duplicates.contains(id.qualified())) {
                     duplicates.add(id.qualified());
                 }

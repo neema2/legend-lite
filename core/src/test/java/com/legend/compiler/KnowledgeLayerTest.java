@@ -128,11 +128,11 @@ class KnowledgeLayerTest {
         assertFalse(carries(module.context(), "w::Synonym", "stray"));
     }
 
-    /** The names fixes, item 7 (2026-11-13): a qualified property
+    /** Since 2026-11-13: a qualified property
      * returning a type that names no class is refused with the type's kind in words -- it was spelled by the record's
      * Java {@code toString()} ({@code FunctionType[parameters=[...], ...]}). The function type is set on the records, as a
      * model given as protocol records can carry it: the engine's grammar refuses a function type there ("not supported
-     * yet"), and the own-corpus guards keep that grammar to the declared hosts (2026-11-13, the names fixes). */
+     * yet"), and the own-corpus guards keep that grammar to the declared hosts (2026-11-13). */
     @Test
     @DisplayName("no unique owning end: a type that names no class is refused by its kind, never a record's toString")
     void noClassReturnTypeIsRefusedByItsKind() {
@@ -275,7 +275,7 @@ class KnowledgeLayerTest {
         assertEquals(null, k.columnKind("w::Base", "DeptView", "nope"));
     }
 
-    /** The names fixes, item 13 (2026-11-13): {@code columnKind}'s
+    /** Since 2026-11-13: {@code columnKind}'s
      * walk keys each step on its (database, table, column) triple. A schema view {@code S.V}'s column {@code c} reading
      * a top-level view {@code S}'s column {@code V.c} is two steps; the joined text {@code a::Db@S.V.c} made them one
      * and the walk answered nothing. A text cannot name that column (a dotted name is quoted, and a definition keeps
@@ -320,7 +320,7 @@ class KnowledgeLayerTest {
         assertEquals("String", k.columnKind("a::Db", "S.V", "c"), "two triples that join alike are two steps");
     }
 
-    /** The names fixes, item 8 (2026-11-13): the type inference
+    /** Since 2026-11-13: the type inference
      * refuses a view-on-view cycle by name, worded as {@code ViewSignatures}' own refusal -- a computed column whose
      * expression reaches its own view through a column reference recursed until {@code StackOverflowError}. One column
      * read twice side by side is no cycle. */
@@ -351,7 +351,7 @@ class KnowledgeLayerTest {
         assertEquals("String", k.columnKind("a::Db", "R", "D"), "one column read twice side by side is no cycle");
     }
 
-    /** The names fixes, items 9 to 11 (2026-11-13): the type
+    /** Since 2026-11-13: the type
      * inference's engine rules (relationalExtension.pure). A decimal is safe with the integer and float kinds alone (with
      * a string there is no safe type: it beat any type); {@code sub} with no typed operand has no type (it defaulted to
      * INTEGER); {@code max} and {@code min} over several arguments are the safe type over all of them when one exists,
@@ -381,7 +381,7 @@ class KnowledgeLayerTest {
         assertEquals(dec, infer.apply(5), "min over one: its own");
     }
 
-    /** The type inference's safe type (2026-11-13, the names landings): the type inference's
+    /** The type inference's safe type (2026-11-13): the type inference's
      * safe type is the engine's safeTypeMap, isSafeTypePossible and getSafeType exactly (relationalExtension.pure
      * :1926-2033): a FLOAT with an INTEGER is FLOAT (the integer lists it), a BIGINT with a FLOAT has none (neither lists
      * the other), two CHARs or a CHAR and a VARCHAR are a VARCHAR of the larger size, two equal NUMERICs a DECIMAL;
@@ -418,7 +418,7 @@ class KnowledgeLayerTest {
         assertEquals(null, infer.apply(10), "group_concat: no rule");
     }
 
-    /** The safe type's remainder (2026-11-13, the names follow-ups): the
+    /** The safe type's remainder (2026-11-13): the
      * operators, {@code sum}, {@code average}, a float literal and {@code upper}/{@code lower} typed by the engine's own
      * rules (relationalExtension.pure): {@code plus} over one argument widens it (:1408-1436), {@code plus} and
      * {@code minus} over several are their first argument's type when a safe type is possible (:1408-1436, :1209-1218),
@@ -477,7 +477,7 @@ class KnowledgeLayerTest {
         assertEquals("L1:Float[0..1]", signature.get(17).text());
     }
 
-    /** The engine's type-inference cases (2026-11-14, the names batch), one Database whose every view column is one
+    /** The engine's type-inference cases (2026-11-14), one Database whose every view column is one
      * case, every arm of each
      * rule. Each answer below is legend-engine 4.145.0's for that column, ASKED of the engine, not read: the pinned
      * release's own generated {@code inferRelationalType} (failOnMatchFailure false) over this very text, compiled by
@@ -551,7 +551,7 @@ class KnowledgeLayerTest {
         return b.toString();
     }
 
-    /** The 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1;
+    /** The 30 rules the seeded Database texts use (2026-11-14;
      * until then each had no rule here, no type), every arm, typed as the engine types them ({@link #ENGINE_CASES}: the
      * engine's own answers). The one answer that differs: RP6, a VARCHAR(2000000000) replaced, which the engine types
      * VARCHAR(4000000000) (its Integer) and lite VARCHAR(-294967296) (Java's int doubling, as concat's sum wraps: a
@@ -581,7 +581,7 @@ class KnowledgeLayerTest {
                 inferenceTable(ENGINE_CASES, "VABS", "VADD", "VBIT", "VCONST", "VCOAL", "VIF", "VLPAD", "VREPL"));
     }
 
-    /** The four rules only lite had (2026-11-14, the names batch, item 2): like, position,
+    /** The four rules only lite had (2026-11-14): like, position,
      * charindex and locate are keys of no entry of the engine's map, so no type ({@link #ENGINE_CASES}: the engine
      * answers EMPTY for each, and fails each with failOnMatchFailure true); like was BIT here and the three INTEGER. */
     @Test
@@ -590,7 +590,7 @@ class KnowledgeLayerTest {
         assertEquals("VLITE.LK1=- VLITE.PO1=- VLITE.CI1=- VLITE.LO1=- VLITE.LK2=-", inferenceTable(ENGINE_CASES, "VLITE"));
     }
 
-    /** A function's name matched exactly (2026-11-14, the names batch, item 3), as the
+    /** A function's name matched exactly (2026-11-14), as the
      * engine's map {@code get} matches it (relationalExtension.pure:114): a name spelled otherwise than its key has no
      * rule ({@link #ENGINE_CASES}: the engine answers EMPTY for ABS, Sum, COUNT, Max, CONCAT, Coalesce, SUM and AVERAGE),
      * in the inference and in the view signature's aggregate switch alike (COUNT is no aggregate: Any[0..1]). Each was
@@ -610,7 +610,7 @@ class KnowledgeLayerTest {
         assertEquals("UA9:Integer[1]", signature.get(8).text(), "count is");
     }
 
-    /** A view column read through a schema its database lacks (2026-11-14, the names batch, item 6)
+    /** A view column read through a schema its database lacks (2026-11-14)
      * is refused in the engine's words, {@code Can't find schema 's9' in database 'Db'} (HelperRelationalBuilder
      * .java:348-354, validateSchemaExists, before the table is looked for; asked of the engine, the database written as its
      * own name), nested in an operation too; a schema an included database declares exists, and a table it lacks is then
@@ -642,7 +642,7 @@ class KnowledgeLayerTest {
                 """));
     }
 
-    /** joinStrings (2026-11-14, the names batch, item 4): a VARCHAR of the larger of 4000
+    /** joinStrings (2026-11-14): a VARCHAR of the larger of 4000
      * and its first argument's CHAR or VARCHAR size, no rule for another first argument (relationalExtension.pure
      * :1031-1039; {@link #ENGINE_CASES}: the engine's own answers; its own testJoinStringsTypeInference expects
      * VARCHAR(4000) of a VARCHAR(200)). It was VARCHAR(4000) whatever its arguments. */
@@ -655,7 +655,7 @@ class KnowledgeLayerTest {
                 """.trim().split("\\s+")), inferenceTable(ENGINE_CASES, "VJS"));
     }
 
-    /** join terminal (2026-11-13, the names follow-ups): a join
+    /** join terminal (2026-11-13): a join
      * navigation's terminal is compiled as any other operation once the navigation's joins resolve
      * (HelperRelationalBuilder.java:1181-1186), in the database of its last join (RelationalParseTreeWalker.java
      * :1024-1044), so a terminal reading a column or table its database lacks refuses the view in the engine's words,
@@ -707,7 +707,7 @@ class KnowledgeLayerTest {
         assertEquals("X:Integer[1], Y:String[0..1]", signature.apply("V8"));
     }
 
-    /** A view reading what its database lacks (2026-11-13, the names landings): a view column whose
+    /** A view reading what its database lacks (2026-11-13): a view column whose
      * operation reads a column or a table its database does not have is refused in the engine's words, as the engine
      * refuses it when the database compiles (HelperRelationalBuilder.getColumn :160-165, getRelation :284-293), the
      * plain column mapping's and a nested reference alike (a column found nowhere was {@code Any[0..1]}); an aggregate
@@ -742,7 +742,7 @@ class KnowledgeLayerTest {
         assertEquals("C0:Integer[1], C2:Integer[1], M2:Integer[0..1], A2:Float[1]", signature.apply("V4"));
     }
 
-    /** The names fixes, item 10 (2026-11-13): a concatenation with an operand typed other than CHAR or
+    /** Since 2026-11-13: a concatenation with an operand typed other than CHAR or
      * VARCHAR has no type -- the engine's one concat rule asks every typed operand to be one -- and an operand with no
      * type drops out. It summed the string operands' sizes and skipped the rest ({@code concat(INT, 'ab')} was
      * VARCHAR(2)). */

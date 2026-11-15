@@ -42,7 +42,7 @@ public final class PlatformPure {
      * rebinding (every twin measured on 2026-10-09 agrees: {@code Phase3bProbesTest} H1).
      *
      * <p>The declaration keeps its pre- and post-conditions too: they are the declaration's, not the body's
-     * (2026-11-12, the owner's ruling on slice 1b's report: they were dropped). Measured that day: no adopted
+     * (2026-11-12: until then they were dropped). Measured that day: no adopted
      * declaration carries one -- the boot layer adopts none, and none of upstream's 43 declarations at the platform's
      * names in the pinned sources has a condition -- so keeping them changes no answer today. The platform's own
      * versions declare none (the system metamodel's 35); one that did would be the platform's bug, refused here, never

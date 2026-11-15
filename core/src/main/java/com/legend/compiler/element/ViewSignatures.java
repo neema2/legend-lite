@@ -114,7 +114,7 @@ public final class ViewSignatures {
         // max and min over several the safe type when one exists, else the first's, :1151-1197); until 2026-11-13 at
         // exactly one argument only
         // the name matched exactly, as the engine's map get matches it (relationalExtension.pure:114): COUNT or Sum is
-        // no aggregate, no rule; until 2026-11-14 lower-cased first (the names batch, item 3)
+        // no aggregate, no rule; until 2026-11-14 lower-cased first
         if (expr instanceof RelationalOperation.FunctionCall fc) {
             String fn = fc.name();
             switch (fn) {
@@ -182,7 +182,7 @@ public final class ViewSignatures {
                 // the engine's getRelation validates the schema before it looks for the table (validateSchemaExists,
                 // HelperRelationalBuilder.java:348-354, called at :286): a schema neither the database nor, through
                 // its includes, an included one declares is refused in its own words; default always exists
-                // (:369-379). Until 2026-11-14 refused as a missing table (the names batch, item 6)
+                // (:369-379). Until 2026-11-14 refused as a missing table
                 throw schemaMissing(store, srcDb, schemaOf(cr.table())) ? cantFindSchema(schemaOf(cr.table()), srcDb)
                         : cantFindTable(cr.table(), srcDb);
             }
@@ -207,8 +207,7 @@ public final class ViewSignatures {
             // navigation's last join (RelationalParseTreeWalker.java:1024-1044; the model writes the terminal relative to
             // the navigation's own database, RelOpFromProtocol). So a terminal reading a column or table its database
             // lacks refuses the view in the same words, once every join resolves: a missing join is refused first, by the
-            // lift in lite's own words (JoinChainEmission). Until 2026-11-13 the terminal was not checked (join
-            // terminal, the names follow-ups)
+            // lift in lite's own words (JoinChainEmission). Until 2026-11-13 the terminal was not checked
             case RelationalOperation.JoinNavigation j -> {
                 String navDb = j.databaseName() != null ? j.databaseName() : dbFqn;
                 if (j.terminal() != null && j.chain().stream().allMatch(hop -> store.findJoin(
@@ -247,7 +246,7 @@ public final class ViewSignatures {
 
     /** The engine's validateSchemaExists refusal (HelperRelationalBuilder.java:348-354): {@code Can't find schema 's' in
      *  database 'D'}, the database written as its own name (the engine concatenates the Database itself, whose text is
-     *  its name: asked of the engine, 2026-11-14, the names batch). */
+     *  its name: asked of the engine, 2026-11-14). */
     private static com.legend.error.ModelException cantFindSchema(String schema, String dbFqn) {
         return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
                 "Can't find schema '" + schema + "' in database '" + com.legend.protocol.Protocol.splitFqn(dbFqn)[1] + "'");

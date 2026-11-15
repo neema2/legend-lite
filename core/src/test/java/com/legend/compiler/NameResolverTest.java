@@ -1914,7 +1914,7 @@ class NameResolverTest {
                 "T inside Bar (no type params) resolves to model::T \u2014 no leak");
     }
 
-    /** The names fixes, item 5 (2026-11-13): a qualified call is
+    /** Since 2026-11-13: a qualified call is
      * itself -- the call tiers no longer prefix it with a package, so {@code b::f()} under {@code import a::*;} is not
      * {@code a::b::f} (Pure has no relative qualified names). */
     @Test
@@ -1934,7 +1934,7 @@ class NameResolverTest {
         assertEquals("a::b::f", call.apply("c::h").function());
     }
 
-    /** The names fixes, item 3 (2026-11-13): two binding keys that
+    /** Since 2026-11-13: two binding keys that
      * name one store keep both connection lists under the first key's place (the second replaced the first's), and the
      * connection ids' stores resolve whatever else changed (only on a rebuild before). A text spells an id's store as
      * its binding key, so they change together; a model given as protocol records need not. */
@@ -1971,7 +1971,7 @@ class NameResolverTest {
         assertEquals(java.util.Map.of("id3", "a::S"), runtime.apply(bare, "a::Q").connectionIds());
     }
 
-    /** The names fixes, item 4 (2026-11-13): three places the
+    /** Since 2026-11-13: three places the
      * resolver did not walk. An enumerated-expression property mapping's operation resolves as an expression mapping's
      * does; a generic's type-variable values resolve as any value (a text's are literals, the parser takes no other; a
      * model given as protocol records may carry any value, so the test sets one); a quoted tree call's tree resolves in
@@ -2031,15 +2031,15 @@ class NameResolverTest {
                 "the tree's qualifier argument resolves through the core imports: " + q.tree());
     }
 
-    /** The names fixes, items 1 and 2 (2026-11-13): a rebuilt record
+    /** Since 2026-11-13: a rebuilt record
      * keeps every component but the names it resolved -- a resolved model its unclaimed sections, a name reference, a
      * collection and an enum value their positions, the enum value its wire spelling too. The convenience constructors
      * dropped each (and the enum value became the real {@code enumValue} node). */
     @Test
     void aRebuiltRecordKeepsEveryComponentButItsNames() {
         // a section no grammar claims (the platform's dialect leaves one unclaimed, lite's refuses it), set on the
-        // records: the own-corpus guards keep a test's text to the engine's grammar (2026-11-13, the names landings;
-        // the names fixes' first version parsed one, `###Unknown`, at the platform's dialect)
+        // records: the own-corpus guards keep a test's text to the engine's grammar (2026-11-13;
+        // the fix's first version parsed one, `###Unknown`, at the platform's dialect)
         ParsedModel p = com.legend.testing.Own.model("""
                 import app::*;
                 Class app::A { b: B[1]; }
@@ -2068,7 +2068,8 @@ class NameResolverTest {
         assertTrue(!ev.node(), "and its wire spelling: a property on an element pointer, not the enumValue node");
     }
 
-    /** A primitive extension's type variables, fully (2026-11-13, the names landings): a rebuilt PrimitiveExtensionDefinition keeps them (the two-argument form dropped them), and each type
+    /** A primitive extension's type variables, fully (2026-11-13): a rebuilt PrimitiveExtensionDefinition keeps
+     * them (the two-argument form dropped them), and each type
      * variable's declared type resolves in the element's scope, a primitive extension's and a class's alike (neither was
      * walked). Held to legend-pure's own tests of the four cases (5.99.0, TestPrimitiveCompile:113-126
      * testPrimitiveVariableTypeInheritance, :154-166 testPrimitiveWithParameterInClass, :168-181

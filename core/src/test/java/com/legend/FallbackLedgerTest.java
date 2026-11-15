@@ -80,13 +80,12 @@ class FallbackLedgerTest {
     // 6 -> 5 (2026-10-21, the independent audit of the reference checks): ImplicitInheritance#1, an association
     // mapping of an association the model has not, reached from a user's text (ReferenceIntegrityTest
     // anAssociationMappingsAssociationExists): "Can't find association 'x'" now
-    // 5 -> 4 (2026-11-14, the normalizer slice's step 1): JoinChainEmission#3, a join hop's
-    // target table no database of the hop declares, reached from 3 of the front oracle's texts (the normalizer
-    // differential's discovery run) and from a two-line join (RefusalsNotCrashesTest): a ModelException in the words
+    // 5 -> 4 (2026-11-14): JoinChainEmission#3, a join hop's target table no database of the hop declares, reached
+    // from a two-line join (RefusalsNotCrashesTest): a ModelException in the words
     // of the join-not-found refusal beside it now -- still loud, and the user's, not an internal state
-    // 4 -> 3 (2026-11-14, the same step): AssociationSynthesis#1, an included mapping's association mapping of an
-    // association the model has not, read through the including mapping's closure in a tolerant build (14 front-oracle
-    // texts; RefusalsNotCrashesTest): "Can't find association 'x'" now, MappingClosures' same lookup's words
+    // 4 -> 3 (2026-11-14): AssociationSynthesis#1, an included mapping's association mapping of an
+    // association the model has not, read through the including mapping's closure in a tolerant build
+    // (RefusalsNotCrashesTest): "Can't find association 'x'" now, MappingClosures' same lookup's words
     private static final int NEVER_FIRED_FLOOR = 3;
 
     @org.junit.jupiter.api.Test

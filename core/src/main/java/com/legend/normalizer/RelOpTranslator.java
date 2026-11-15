@@ -608,7 +608,7 @@ final class RelOpTranslator {
             // A lambda argument (the relational grammar's `x | body`, `(a, b | body)`) and its `$x` are parsed and
             // carried; translating them is a leg of its own, refused by name until then. Until 2026-11-14 both fell
             // to the default arm, a raw IllegalStateException naming the Java class, from a user's text
-            // (the normalizer slice's step 1; RefusalsNotCrashesTest). A function call's arguments reach here
+            // (RefusalsNotCrashesTest). A function call's arguments reach here
             // whatever the function (a translator arm's or the generic one's), and a view column's too.
             case RelationalOperation.Lambda lam -> throw new NotImplementedException(
                     "a lambda argument (" + String.join(", ", lam.parameters())
@@ -734,7 +734,7 @@ final class RelOpTranslator {
             // a TRANSLATED name in a shape no arm above rewrites (an arm's guard -- its argument count, a literal it
             // needs -- did not match): the user's call, refused by name as the UNSUPPORTED arm below refuses one.
             // Until 2026-11-14 a raw IllegalStateException ("declared TRANSLATED but no translator arm rewrote it"),
-            // from a user's text (the normalizer slice's step 1; RefusalsNotCrashesTest). The group
+            // from a user's text (RefusalsNotCrashesTest). The group
             // reducers' callers (GroupBySynthesis, ViewRelation) ask only for PURE names.
             case TRANSLATED -> throw new com.legend.error.NotImplementedException(
                     "engine dynafunction '" + call.name() + "' is not supported by this platform yet in this shape ("

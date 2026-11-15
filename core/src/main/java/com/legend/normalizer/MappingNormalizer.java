@@ -440,8 +440,7 @@ public final class MappingNormalizer {
                 lifted.add(fn);
                 // the binding is keyed by the association synthesis found; an association it did not find is the
                 // model's error, in MappingClosures' words for the same lookup. Until 2026-11-14 the raw spelling
-                // (`.orElse(am.associationName())`), a Phase-D fallback no text reached -- 0 of the 74,292 front-oracle
-                // asks and the slice's cases, strict and tolerant (the normalizer slice's measuring run)
+                // (`.orElse(am.associationName())`), a Phase-D fallback no text reached, strict or tolerant (measured)
                 assocBindings.add(new MappingDefinition.AssociationBinding(
                         AssociationSynthesis.resolveAssociation(model, md, am)
                                 .map(a -> a.qualifiedName())
@@ -952,8 +951,7 @@ public final class MappingNormalizer {
         // the caller found the association through the mapping's imports (resolveAssociation); a name step D left
         // unresolved -- a mapping D walled in a tolerant build stays as parsed -- is no element's name here. The
         // model's error, in the words of the inline association predicate's same lookup; until 2026-11-14 a bare
-        // orElseThrow(), a raw NoSuchElementException (the normalizer slice's step 1;
-        // RefusalsNotCrashesTest)
+        // orElseThrow(), a raw NoSuchElementException (RefusalsNotCrashesTest)
         AssociationDefinition ad = model.findAssociation(xs.associationName())
                 .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
                         "XStore mapping references unknown association '" + xs.associationName()
@@ -1106,8 +1104,8 @@ public final class MappingNormalizer {
         String bVar = pair[1];
         // the lambda's two parameters one name (`{p: A[1], p: B[1]| ...}`, which the grammar admits): one variable
         // cannot be both ends. Refused by name, as the parameter count above is; until 2026-11-14 the maps below
-        // threw a raw "duplicate key" IllegalArgumentException (the normalizer slice's step 1;
-        // RefusalsNotCrashesTest). ModelJoinNesting.compose relies on it.
+        // threw a raw "duplicate key" IllegalArgumentException (RefusalsNotCrashesTest).
+        // ModelJoinNesting.compose relies on it.
         if (aVar.equals(bVar)) {
             throw new NotImplementedException(
                     "ModelJoin for '" + mj.associationName() + "' needs two distinct lambda parameter names;"

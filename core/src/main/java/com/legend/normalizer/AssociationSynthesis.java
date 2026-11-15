@@ -82,8 +82,8 @@ final class AssociationSynthesis {
             // an included mapping's association mapping of an association the model has not: its pre-pass refused it
             // (a strict build stops there; a module walls that mapping), but this mapping's closure still reads its
             // surface. The model's error, in legend-engine's words, as MappingClosures' same lookup says it. Until
-            // 2026-11-14 the never-fired funnel's "AssociationSynthesis#1", a raw IllegalStateException from 14 of the
-            // front oracle's texts, tolerant only (the normalizer slice's step 1; RefusalsNotCrashesTest)
+            // 2026-11-14 the never-fired funnel's "AssociationSynthesis#1", a raw IllegalStateException, tolerant only
+            // (RefusalsNotCrashesTest)
             AssociationDefinition ad = model.findAssociation(rel.associationName()).orElseThrow(() ->
                     new ModelException(LegendCompileException.Phase.MAPPING,
                             "Can't find association '" + rel.associationName() + "'"));

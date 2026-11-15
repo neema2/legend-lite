@@ -96,8 +96,8 @@ public final class NativeFn {
 
     /** Every family, by name — THE registration the claim registry reads. A
      *  new enum in this file that is not listed here is unclaimed, and the
-     *  ledger says so. Each family once (2026-11-12, the owner's ruling on
-     *  slice 1b's report: RowGetter was put twice, the second put a no-op). */
+     *  ledger says so. Each family once (2026-11-12: RowGetter was put
+     *  twice, the second put a no-op). */
     public static Map<String, List<? extends Member>> families() {
         Map<String, List<? extends Member>> out = new LinkedHashMap<>();
         out.put("Calendar", List.of(Calendar.values()));
@@ -347,8 +347,8 @@ public final class NativeFn {
 
         private static final Map<com.legend.model.FunctionId, LowererForm> BY_ID = indexById(values());
 
-        /** rowMapper / wavgRowMapper — the bi-variate aggregate map bodies. THE INVARIANT (2026-11-12, the owner's
-         *  ruling on slice 1b's report: the one family predicate whose id is not {@code @Nullable}, by design): a
+        /** rowMapper / wavgRowMapper — the bi-variate aggregate map bodies. THE INVARIANT (2026-11-12: the
+         *  one family predicate whose id is not {@code @Nullable}, by design): a
          *  resolved native callee's id, never null -- its one caller (the lowering's aggregate map body) passes
          *  {@code TypedFunction.id()}, which throws rather than answer null; a null here is refused, never read as
          *  "not a map". */
@@ -501,7 +501,7 @@ public final class NativeFn {
      *  desugared by GroupLambdaAggs to the map/reduce aggregate form whose
      *  reducer is the ordered {@code string_agg}. Never lowered as a call.
      *
-     *  <p>NO {@code of} (2026-11-12, the owner's ruling on slice 1b's report: the
+     *  <p>NO {@code of} (2026-11-12: the
      *  one family with overloads and no id lookup, by design): no resolved callee
      *  is dispatched through this family -- GroupLambdaAggs reads the call by its
      *  resolved name ({@code PlatformTypes.RELATION_JOIN_STRINGS}) before typing,
@@ -798,7 +798,7 @@ public final class NativeFn {
             this(fqn, null, null, overloads);
         }
 
-        /** THE INVARIANT (2026-11-12, the owner's ruling on slice 1b's report): the implemented class member is an
+        /** THE INVARIANT (2026-11-12): the implemented class member is an
          *  owner AND a property, given together or not at all. A constructor that took an owner alone (no member
          *  used it) set neither field, dropping the owner silently; it is gone, and a half-given member is refused. */
         JavaRoutine(String fqn, @com.legend.base.Nullable String derivedOwner,
@@ -1069,7 +1069,7 @@ public final class NativeFn {
 
         /** Every run by the identity of each of its overloads: an overload in two DIFFERENT runs is refused, a run
          *  naming one overload twice is the same mapping -- {@link #indexById}'s rule, the one every by-id map follows
-         *  (2026-11-12, the owner's ruling on slice 1b's report: a repeat within one run was refused too, under a
+         *  (2026-11-12: a repeat within one run was refused too, under a
          *  message, "in two operator runs", that was then false). */
         private static Map<com.legend.model.FunctionId, OperatorRun> byId() {
             Map<com.legend.model.FunctionId, OperatorRun> out = new HashMap<>();
@@ -1304,8 +1304,8 @@ public final class NativeFn {
             BY_PROPERTY = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
         }
 
-        /** The accessor an APPLIED (bare) name spells, or empty. THE INVARIANT (2026-11-12, the owner's ruling on
-         *  slice 1b's report): an applied spelling, never a lifted FQN -- its callers (the typer's row-cell read,
+        /** The accessor an APPLIED (bare) name spells, or empty. THE INVARIANT (2026-11-12): an applied
+         *  spelling, never a lifted FQN -- its callers (the typer's row-cell read,
          *  JoinChecker's row read) pass an AppliedFunction's name, which never holds a lifted one (DerivedProps makes
          *  those after parsing, and they reach the typer as typed calls); a lifted FQN is {@link #ofLifted}'s, and
          *  here answers empty ({@code NativeRegistryGovernanceTest} pins both for every getter). */

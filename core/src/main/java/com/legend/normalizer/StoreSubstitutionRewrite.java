@@ -387,8 +387,7 @@ final class StoreSubstitutionRewrite {
                         // a store spelling step D left unqualified that an import of the mapping's section names: the
                         // model's error, in the words of the store lookups beside this one (XStore's, ModelJoin's).
                         // Until 2026-11-14 this rewrote the spelling to the import's database, a Phase-D fallback no
-                        // text reached -- 0 rewrites over the 74,292 front-oracle asks and the slice's cases, strict
-                        // and tolerant (the normalizer slice's measuring run; invariant 4)
+                        // text reached, strict or tolerant (measured; invariant 4)
                         throw new com.legend.error.ModelException(
                                 com.legend.error.LegendCompileException.Phase.NORMALIZE,
                                 "Mapping references unknown database '" + r + "' (name resolution left it"

@@ -336,7 +336,7 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
-    /** StoreLookups' join lookup, relayed as {@link #findJoinDefinition} (2026-11-13, the names follow-ups). */
+    /** StoreLookups' join lookup, relayed as {@link #findJoinDefinition} (2026-11-13). */
     @Override
     default Optional<com.legend.model.DatabaseDefinition.JoinDefinition>
             findJoin(@com.legend.base.Nullable String dbFqn, String joinName) {

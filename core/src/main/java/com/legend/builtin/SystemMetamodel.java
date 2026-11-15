@@ -133,7 +133,7 @@ public final class SystemMetamodel {
                     .append("(metamodel.activities.kind = '").append(k[1]).append("')\n");
         }
         // no line terminator after the last filter, as the source's other builders end (String.join): the text
-        // block's own line ends it (2026-11-12, the owner's ruling on slice 1b's report: the two made a blank line
+        // block's own line ends it (2026-11-12: the two made a blank line
         // before the Database block's ")")
         sb.setLength(sb.length() - 1);
         return sb.toString();
@@ -538,8 +538,8 @@ public final class SystemMetamodel {
     }
 
     /** Schema (charter &sect;4 + step 3); grow BY WITNESS ONLY. A Pure string's line break is Pure's escape,
-     *  written {@code \\n} here so the text block hands Pure the two characters (2026-11-12, the owner's ruling on
-     *  slice 1b's report: a bare {@code \n} gave Pure a raw line break inside the literal; upstream's own
+     *  written {@code \\n} here so the text block hands Pure the two characters (2026-11-12: a bare
+     *  {@code \n} gave Pure a raw line break inside the literal; upstream's own
      *  relationTreeAsString spells it {@code '\n'}, scanRelations.pure). */
     private static final String SOURCE = """
             ###Relational

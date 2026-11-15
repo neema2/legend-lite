@@ -435,7 +435,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         tablesByDb.put(id, TableIndex.of(db));
         // Precompute filter, join, and view secondary indexes. Last-wins as every slot of a database registered twice
         // (internElement): a second definition with none of a kind clears the first's (until 2026-11-13 the first's
-        // stayed beside the second's tables -- the names fixes, item 6)
+        // stayed beside the second's tables)
         filtersByDb.remove(id);
         joinsByDb.remove(id);
         viewsByDb.remove(id);
@@ -789,7 +789,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             }
             findClass(cls).ifPresent(cd -> {
                 // bare and generic heads alike, as directSubclasses (extends Foo<T> IS a superclass; until 2026-11-13
-                // only a bare name was climbed -- the names fixes, item 6)
+                // only a bare name was climbed)
                 for (var sup : cd.superClasses()) {
                     String head = com.legend.protocol.TypeExpression.rawClassName(sup);
                     if (head != null) {
@@ -1208,7 +1208,7 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         String joinDb = first.databaseName() != null ? first.databaseName() : dbFqn;
         String joinName = first.joinName();
         // the database's own join first, then the include closure, as every join lookup (findJoin; the engine's
-        // getJoin). Until 2026-11-13 only the database's own joins: the names fixes, item 6
+        // getJoin). Until 2026-11-13 only the database's own joins
         JoinDefinition jd = findDatabase(joinDb)
                 .flatMap(d -> d.joins().stream().filter(j -> j.name().equals(joinName)).findFirst())
                 .or(() -> findJoin(joinDb, joinName))

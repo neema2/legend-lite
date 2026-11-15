@@ -231,9 +231,8 @@ final class MappingPrePass {
         // DECLARATION order -- the order its first Pure class mapping is written in (a later one of the same class
         // replaces the value, as before) -- so the cycle's text starts at the first-declared class of the first
         // chain that closes. Until 2026-11-14 a HashMap: the text started wherever the class names hashed (both
-        // `A ~src B, B ~src A` and `B ~src A, A ~src B` answered "model::B -> model::A -> model::B"), an order Rust
-        // cannot reproduce (the normalizer slice's step 1;
-        // MappingNormalizerTest m2mSrcChainCycle_textFollowsDeclarationOrder)
+        // `A ~src B, B ~src A` and `B ~src A, A ~src B` answered "model::B -> model::A -> model::B")
+        // (MappingNormalizerTest m2mSrcChainCycle_textFollowsDeclarationOrder)
         Map<String, ClassMapping.Pure> pureByTarget = new LinkedHashMap<>();
         for (ClassMapping cm : md.classMappings()) {
             if (cm instanceof ClassMapping.Pure pcm) {

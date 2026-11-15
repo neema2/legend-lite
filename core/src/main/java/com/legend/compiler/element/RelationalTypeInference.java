@@ -30,8 +30,8 @@ import java.util.List;
  *
  * <p>A view column read through its expression is EXPANDING while its expression is typed: a chain of view columns
  * that reaches one of them again (a view-on-view cycle) is refused, a {@code ModelException} worded as
- * {@link ViewSignatures}' own cycle refusal (2026-11-13, the names fixes, item 8 --
- * before, the walk recursed until {@code StackOverflowError}). The set is of the view column records
+ * {@link ViewSignatures}' own cycle refusal (2026-11-13; before,
+ * the walk recursed until {@code StackOverflowError}). The set is of the view column records
  * themselves, by identity, and a column leaves it once typed: two reads of one column side by side
  * ({@code concat(V.a, V.a)}) are no cycle.
  */
@@ -59,14 +59,14 @@ public final class RelationalTypeInference {
                     columnType(db, ctx, c.databaseName(), c.table(), c.column(), expanding);
             // a function's name is matched exactly, as the engine's map get matches it (relationalExtension.pure:114,
             // `$dfToReturnFunctionMap->get($d.name)`): each arm spells the map's key; a name spelled otherwise (ABS, Sum)
-            // has no rule, no type. Until 2026-11-14 lower-cased first (the names batch, item 3)
+            // has no rule, no type. Until 2026-11-14 lower-cased first
             case RelationalOperation.FunctionCall f -> switch (f.name()) {
                 // aggregates carry their argument's type (engine
                 // inferDynaFunctionReturnType: max/min/sum/avg family); max
                 // and min over SEVERAL arguments are the safe type over all
                 // of them when one exists, else the first's -- the engine's
                 // two rules (relationalExtension.pure:1151-1197); until
-                // 2026-11-13 the first's alone (the names fixes, item 11)
+                // 2026-11-13 the first's alone
                 case "max", "min" -> {
                     List<RelationalDataType> types = new ArrayList<>(f.args().size());
                     for (var arg : f.args()) {
@@ -88,7 +88,7 @@ public final class RelationalTypeInference {
                 // TINYINT, SMALLINT and INTEGER an INTEGER, BIGINT a BIGINT, a DECIMAL or a NUMERIC its own kind with its
                 // precision capped at 31, FLOAT and DOUBLE a DOUBLE; any other kind (REAL among them) matches no rule, no
                 // type. Until 2026-11-13 its first argument's type, a FLOAT or REAL one DOUBLE (the
-                // follow-ups' first version read four rules, its fifth missed, and typed a FLOAT or DOUBLE nothing)
+                // fix's first version read four rules, its fifth missed, and typed a FLOAT or DOUBLE nothing)
                 case "sum" -> {
                     RelationalDataType at = f.args().isEmpty() ? null
                             : infer(f.args().get(0), db, ctx, expanding);
@@ -109,7 +109,7 @@ public final class RelationalTypeInference {
                 case "count" -> new RelationalDataType.BigInt();
                 // boolean dynafunctions spell BIT (engine H2). like has no rule in the engine's map, so no type
                 // (relationalExtension.pure's getDynaFunctionTypeInferenceMap, asked of the engine: EMPTY); until
-                // 2026-11-14 BIT, a rule only lite had (the names batch, item 2)
+                // 2026-11-14 BIT, a rule only lite had
                 case "and", "or", "not", "equal", "notEqual", "in",
                         "isNull", "isNotNull", "greaterThan", "lessThan",
                         "greaterThanEqual", "lessThanEqual", "isEmpty",
@@ -138,11 +138,11 @@ public final class RelationalTypeInference {
                                 : infer(f.args().get(0), db, ctx, expanding);
                 // length and indexOf are INTEGER whatever their arguments (relationalExtension.pure:1061-1069,
                 // :961-969); position, charindex and locate have no rule in the engine's map, so no type (asked of the
-                // engine: EMPTY); until 2026-11-14 INTEGER, rules only lite had (the names batch, item 2)
+                // engine: EMPTY); until 2026-11-14 INTEGER, rules only lite had
                 case "length", "indexOf" -> new RelationalDataType.Integer_();
                 // sub is its first argument's type when its first two have one raw kind, else no rule matches
                 // (relationalExtension.pure:1637-1645): no type, never a default. Until 2026-11-13 the safe type
-                // over all its arguments (its INTEGER default went with the names fixes, item 10)
+                // over all its arguments, with an INTEGER default
                 case "sub" -> {
                     if (f.args().size() < 2) {
                         yield null;
@@ -156,8 +156,7 @@ public final class RelationalTypeInference {
                 // engine). A joinStrings(...) a Database text writes is a DynaFunction, typed by the map: the
                 // inferRelationalType arm for the JoinStrings OPERATION (:173, its strings', prefix's, separator's and
                 // suffix's sizes summed) types an element only the engine's query translation builds (pureToSQLQuery),
-                // never a parsed one. Until 2026-11-14 VARCHAR(4000) whatever its arguments (the names batch,
-                // item 4)
+                // never a parsed one. Until 2026-11-14 VARCHAR(4000) whatever its arguments
                 case "joinStrings" -> {
                     RelationalDataType at = f.args().isEmpty() ? null : infer(f.args().get(0), db, ctx, expanding);
                     yield at != null && isCharOrVarchar(at) ? new RelationalDataType.Varchar(Math.max(4000, size(at)))
@@ -168,10 +167,9 @@ public final class RelationalTypeInference {
                 // VARCHAR leaves it no type -- the engine's one rule asks every
                 // typed operand to be one (relationalExtension.pure:463-471);
                 // an operand with no type drops out, as the engine's map does.
-                // Until 2026-11-13 such an operand added 0 (the names fixes,
-                // item 10)
+                // Until 2026-11-13 such an operand added 0.
                 // group_concat has no rule in the engine's map (no type: until 2026-11-13 it was typed as a
-                // concat,)
+                // concat)
                 case "concat" -> {
                     int size = 0;
                     boolean other = false;
@@ -236,8 +234,8 @@ public final class RelationalTypeInference {
                     RelationalDataType t1 = infer(f.args().get(1), db, ctx, expanding);
                     yield t0 == null || t1 == null ? null : safeTypeOf(List.of(t0, t1));
                 }
-                // ---- the 30 rules the seeded Database texts use (2026-11-14, the names batch, item 1;
-                // until then no rule, no type). Each is legend-engine
+                // ---- the 30 rules the seeded Database texts use (2026-11-14; until then no rule, no type).
+                // Each is legend-engine
                 // 4.145.0's getDynaFunctionTypeInferenceMap entry (relationalExtension.pure, the lines cited), and every
                 // arm's answer was ASKED of the engine, not only read: the pinned release's own generated
                 // inferRelationalType over each case, the
@@ -383,7 +381,7 @@ public final class RelationalTypeInference {
 
     /** Every argument's type, in order, each typed (the engine's {@code map} over {@code inferRelationalType()}, which
      *  is failOnMatchFailure true); null when any has none, as the engine's inference fails there (coalesce's rule,
-     *  2026-11-14, the names batch, item 1). */
+     *  2026-11-14). */
     private static @com.legend.base.Nullable List<RelationalDataType> everyType(List<RelationalOperation> args,
             @com.legend.base.Nullable DatabaseDefinition db, @com.legend.base.Nullable StoreLookups ctx,
             java.util.Set<DatabaseDefinition.ViewDefinition.ViewColumnMapping> expanding) {
