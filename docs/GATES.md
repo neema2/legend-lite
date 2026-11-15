@@ -22263,3 +22263,32 @@ item is red on revert.
   - the generated native-claims file (the reducer table's move);
   - the Dialect allowlist (the parse doors);
   - FramePlanner's evaluation pin and parser-equivalence's corpus count.
+
+### 2026-11-15 — C5-J's audit fix round (PR #106)
+
+The orchestrator's read-only audit found no must-fix. Its should-fixes and nits are fixed, each red on revert where
+it is code:
+
+- **SHOULD 1, the facts stated over the body as given (7b920b86f4).** The plan's facts had been stated after the test
+  planner's rewrites: the generator spliced, the census carrier inlined, an unread let made a statement. They are now
+  stated in `TestPlanner.plan` first, and the facts planner asks the run's wall itself. Tests: an unread let (LA), the
+  census carrier, a generator body (LLLLLA), and the facts phase entry.
+- **SHOULD 2, the token stream's readers only (416f88ef26).** `TokenStream.lexRange` lexes, so it is a parse entry; a
+  planted `lexRange` caller shows the rule bites.
+- **SHOULD 3, S342 (59b9b3a9cc).** S342 now cites the user's rulings: the tenet of 2026-10-29, AGENTS.md's eight
+  phases, and Q6 of 2026-11-10. One difference has no user ruling and is posted for the user: lite takes a literal
+  format string only.
+- **The nits (7b3ee3f036, 3bba5f6b50, 388e89b804):**
+  - CoreGrammar parses through the door, and the rule reads `//sdlc-server/grammar`;
+  - only the reducers' membership sits below both layers; the `SqlAgg.Fn` binding is back in `lowering.Aggregates`,
+    with a class-init check that the two key sets are one;
+  - one activity rule (`PlanAllocations.activityOrNone`). The executeLegendQuery activity is not lazy and cannot be,
+    since it is part of the envelope's value;
+  - the sort walls are `IsolationWall`;
+  - the comment that was false, the stale javadocs, the dead overload, the wrong name and AGENTS.md's facts door are
+    fixed;
+  - the backlog lines are corrected and added.
+- **Outcomes, the fix round against main, on the same lanes:**
+  - core: 20,842 → 20,849 pass, none moved; the 7 new are this round's and C5-J's tests;
+  - PCT A/B on DuckDB and H2: 1,573 pass, unchanged;
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's.
