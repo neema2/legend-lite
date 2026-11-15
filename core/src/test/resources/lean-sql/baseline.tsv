@@ -2499,7 +2499,7 @@ channel_a	SQLite	TypedDrop	11	2692	20410	27	879	0
 channel_a	SQLite	TypedEval	4	169	5261	0	0	0
 channel_a	SQLite	TypedExtend	24	16806	137192	102	2024	0
 channel_a	SQLite	TypedExtendAgg	2	1253	14251	2	73	0
-channel_a	SQLite	TypedExtendWindow	201	194338	1813256	218	52090	4
+channel_a	SQLite	TypedExtendWindow	201	193724	1812642	220	51892	4
 channel_a	SQLite	TypedFilter	31	15905	180800	53	958	0
 channel_a	SQLite	TypedFold	13	5266	37295	51	993	0
 channel_a	SQLite	TypedGroupBy	47	30544	351936	65	2798	0
@@ -2589,8 +2589,8 @@ channel_a	SQLite	meta::pure::functions::collection::sort_T_m__T_m_	4	5239	27090	
 channel_a	SQLite	meta::pure::functions::collection::tail_T_MANY__T_MANY_	3	207	4189	1	0	0
 channel_a	SQLite	meta::pure::functions::collection::values_Map_1__V_MANY_	3	2651	9883	30	1156	0
 channel_a	SQLite	meta::pure::functions::collection::zip_T_MANY__U_MANY__Pair_MANY_	6	909	15813	3	0	0
-channel_a	SQLite	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	89224	211145	0	21705	0
-channel_a	SQLite	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	64557	240739	0	16569	0
+channel_a	SQLite	meta::pure::functions::date::adjust_Date_1__Integer_1__DurationUnit_1__Date_1_	77	45048	166969	244	4930	0
+channel_a	SQLite	meta::pure::functions::date::dateDiff_Date_1__Date_1__DurationUnit_1__Integer_1_	75	48093	224275	264	16843	0
 channel_a	SQLite	meta::pure::functions::date::datePart_Date_1__Date_1_	8	256	10564	0	0	0
 channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Date_1_	2	432	4152	0	40	0
 channel_a	SQLite	meta::pure::functions::date::date_Integer_1__Integer_1__Date_1_	3	1028	8409	0	75	0
@@ -2631,8 +2631,8 @@ channel_a	SQLite	meta::pure::functions::date::min_StrictDate_MANY__StrictDate_$0
 channel_a	SQLite	meta::pure::functions::date::minute_Date_1__Integer_1_	4	338	6092	0	0	0
 channel_a	SQLite	meta::pure::functions::date::monthNumber_Date_1__Integer_1_	17	9225	38045	48	216	0
 channel_a	SQLite	meta::pure::functions::date::second_Date_1__Integer_1_	3	268	4694	0	0	0
-channel_a	SQLite	meta::pure::functions::date::timeBucket_DateTime_1__Integer_1__DurationUnit_1__DateTime_1_	77	171193	353615	0	41296	0
-channel_a	SQLite	meta::pure::functions::date::timeBucket_StrictDate_1__Integer_1__DurationUnit_1__StrictDate_1_	32	42656	91792	0	10704	3
+channel_a	SQLite	meta::pure::functions::date::timeBucket_DateTime_1__Integer_1__DurationUnit_1__DateTime_1_	77	63178	245600	330	20881	0
+channel_a	SQLite	meta::pure::functions::date::timeBucket_StrictDate_1__Integer_1__DurationUnit_1__StrictDate_1_	32	19568	68704	96	6928	3
 channel_a	SQLite	meta::pure::functions::date::year_Date_1__Integer_1_	7	1813	12125	8	36	0
 channel_a	SQLite	meta::pure::functions::flow::coalesce_T_$0_1$__T_$0_1$__T_$0_1$_	2	75	2544	0	0	0
 channel_a	SQLite	meta::pure::functions::flow::coalesce_T_$0_1$__T_$0_1$__T_$0_1$__T_$0_1$_	3	132	4032	0	0	0

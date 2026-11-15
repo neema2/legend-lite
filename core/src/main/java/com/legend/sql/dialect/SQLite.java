@@ -2468,14 +2468,35 @@ public class SQLite extends AnsiSqlRenderer {
     /** A date-time's microseconds since the epoch: its whole seconds ({@code unixepoch} of its first 19 characters,
      *  exact) and its fraction's digits, as written (SQLite's own functions keep milliseconds). */
     private static SqlWriter.Piece micros(SqlExpr t) {
-        return w -> w.append("(unixepoch(substr(").expr(t, 0).append(", 1, 19)) * 1000000 + CASE WHEN instr(")
-                .expr(t, 0).append(", '.') > 0 THEN CAST(substr(substr(").expr(t, 0).append(", instr(").expr(t, 0)
+        // the text read once, bound by a one-row select (as the float printer binds its value; P4, 2026-11-15): it is
+        // read four times; a column is read in place
+        // (a value holding a window or an aggregate is evaluated in its own select's rows, never a select of its own:
+        // a LEAD read there sees one row, testExtendLeadAdjustDerivedOffset, measured 2026-11-15)
+        if (t instanceof SqlExpr.Column || grouped(t)) {
+            return microsOf(w -> w.expr(t, 0));
+        }
+        return w -> w.append("(SELECT ").piece(microsOf(x -> x.append("__mt.t"))).append(" FROM (SELECT ")
+                .expr(t, 0).append(" AS t) AS __mt)");
+    }
+
+    private static SqlWriter.Piece microsOf(SqlWriter.Piece t) {
+        return w -> w.append("(unixepoch(substr(").piece(t).append(", 1, 19)) * 1000000 + CASE WHEN instr(")
+                .piece(t).append(", '.') > 0 THEN CAST(substr(substr(").piece(t).append(", instr(").piece(t)
                 .append(", '.') + 1) || '000000', 1, 6) AS INTEGER) ELSE 0 END)");
     }
 
     /** A date-time of the given microseconds since the epoch: its seconds by {@code datetime}, its fraction's digits
      *  (none when whole; else six, trailing zeros trimmed). */
-    private static SqlWriter.Piece fromMicros(SqlWriter.Piece us) {
+    private static SqlWriter.Piece fromMicros(SqlWriter.Piece value, SqlExpr of) {
+        // the microseconds computed once, bound by a one-row select: the text reads them four times (P4, 2026-11-15)
+        if (grouped(of)) {
+            return textOfMicros(value);
+        }
+        SqlWriter.Piece text = textOfMicros(w -> w.append("__mu.u"));
+        return w -> w.append("(SELECT ").piece(text).append(" FROM (SELECT ").piece(value).append(" AS u) AS __mu)");
+    }
+
+    private static SqlWriter.Piece textOfMicros(SqlWriter.Piece us) {
         SqlWriter.Piece secs = w -> w.append("((").piece(us).append(" - ((").piece(us)
                 .append(" % 1000000) + 1000000) % 1000000) / 1000000)");
         SqlWriter.Piece frac = w -> w.append("(((").piece(us).append(" % 1000000) + 1000000) % 1000000)");
@@ -2559,7 +2580,8 @@ public class SQLite extends AnsiSqlRenderer {
             return w -> w.append("date(").expr(t, 0).append(", printf('%+d days', ").expr(n, 6)
                     .append(" * " + days + "))");
         }
-        return fromMicros(w -> w.append("(").piece(micros(t)).append(" + ").expr(n, 6).append(" * " + micros + ")"));
+        return fromMicros(w -> w.append("(").piece(micros(t)).append(" + ").expr(n, 6).append(" * " + micros + ")"),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS, t, n));
     }
 
     /** A fixed-length unit's length in microseconds; null for a calendar one. */
@@ -2634,7 +2656,7 @@ public class SQLite extends AnsiSqlRenderer {
             SqlWriter.Piece m = w -> w.append("(").piece(micros(t)).append(" - (" + origin + "))");
             SqlWriter.Piece floored = w -> w.append("((").piece(m).append(" - (((").piece(m).append(") % ").piece(size)
                     .append(" + ").piece(size).append(") % ").piece(size).append(")) + (" + origin + "))");
-            return fromMicros(floored);
+            return fromMicros(floored, SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS, t, n));
         }
         int months = unit == com.legend.sql.DatePart.MONTH ? 1 : unit == com.legend.sql.DatePart.YEAR ? 12 : 0;
         if (months == 0) {
