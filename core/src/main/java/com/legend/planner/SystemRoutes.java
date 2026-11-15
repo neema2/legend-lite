@@ -25,9 +25,11 @@ public final class SystemRoutes {
     public record Route(com.legend.executionplan.DatabaseType engine, com.legend.model.DatabaseDefinition store,
             boolean ownEngine) {
 
-        /** The dialect a statement on this route is written in: its catalog's. */
-        public com.legend.sql.dialect.SqlDialect dialect() {
-            return com.legend.database.Databases.dialect(ConnectionPlans.model(engine));
+        /** The dialect a statement on this route is written in: its catalog's, in the plan's style (the D part 1
+         *  audit's S1, 2026-11-15: until then the product's dialect whatever the style, so a catalog side under the
+         *  edge's style raised the product's kind names). */
+        public com.legend.sql.dialect.SqlDialect dialect(com.legend.database.PlanStyle style) {
+            return style.dialect(ConnectionPlans.model(engine));
         }
     }
 
@@ -65,6 +67,6 @@ public final class SystemRoutes {
      *  test body's on a server, B4); unchanged where it is, or where {@code env} names no dialect (the product's
      *  statement road, whose caller renders). */
     public static PlanEnv onCatalog(PlanEnv env, Route route) {
-        return env.dialect() == null || route.ownEngine() ? env : env.withDialect(route.dialect());
+        return env.dialect() == null || route.ownEngine() ? env : env.withDialect(route.dialect(env.style()));
     }
 }
