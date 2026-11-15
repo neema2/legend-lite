@@ -22142,29 +22142,46 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
       no literal worker, URL, require or importScripts specifier names a module they may not reach. No function,
       member or interface of theirs takes anything that answers a planner's statement, plan or planned record. No module
       of theirs, nor of the doors', writes an explicit `any` (the C5-T last round's T2, 2026-11-15);
-    - the planner layers, `//engine-client:planner` and `//datacube:planner`: they reach the records alone, and each
-      is typechecked alone;
+    - the engine's API, `//engine-client:engine_api` (2026-11-15, the C5-T final audit's MUST 1): the engines'
+      interfaces, whose methods send, and the run frame, which opens a run -- out of the records. The run layers, the
+      doors and the apps reach it; it reaches the records alone, and is typechecked alone. The planner's check of the
+      frame is a record (`plan-guard.ts`), which cannot open a run: it reads the run through the reader the frame
+      installs once;
+    - the planner layers, `//engine-client:planner` and `//datacube:planner`, and the server layer,
+      `//engine-client:server` (legend-engine's clients): they reach the records (the server, the planner and its npm
+      package too) and no engine's API, run layer or door, and each is typechecked alone;
     - the doors, `//engine-client:doors` and `//datacube:doors`: each asks the planner, then runs its answer in a run
       frame; their deps are pinned, and each is typechecked alone (the C5-T last round's T2);
     - the apps (DataCube's app, Query, Studio; the C5-T last round's T1, 2026-11-15): their targets depend on no run
       layer, nor do the libraries they depend on (`//tools/deps:ts_layering_test`: an app reaches the run side through
       the doors alone). No app module, nor any page of theirs (`demo/`), imports a run module by any import -- a `.js`
-      spelling or none read as the module it loads -- or through a re-export of one it imports
+      spelling or none read as the module it loads -- or through a re-export of one it imports, followed through every
+      package an app imports (an import exported again too; a module the walk cannot read is named, never skipped)
       (`//tools/deps:app_runs_test`), but three named page boots (DataCube's demo sample, Query's warehouse seed and
-      sign-in), shrink-only, C5's backlog line. Every plan-and-run site of theirs outside the doors and the run targets
-      is a shrink-only census there: 21 sites remain in 12 files, each a call of a door -- DataCube's runner (cube,
-      plan, treeview), or an Engine's execute, a server's or BrowserEngine's (Query's cube, probe, run and results;
-      Studio's Run), or an engine a door handed (the stress and remote harness pages) -- or one of those page boots;
-    - every worker the product starts is pinned by call site, as each send, connect, fetch and submit is
-      (`PlannedSqlTest.WORKERS`, the C5-T last round's T4): the planner's, DuckDB's own, and Monaco's;
+      sign-in), shrink-only, C5's backlog line. Every plan-and-run site outside the doors and the run side -- in the
+      apps, their pages, and engine-client's records, planner and server, whose types are structural so no import
+      shows a run there -- is a shrink-only census: 38 sites in 19 files, the held connection's calls (`exclusive(`,
+      `.rows(`) and a database's receivers counted too. Each is a call of a door -- DataCube's runner (cube, plan,
+      treeview), its services' rows (a planner and the runner), an Engine's execute (a server's or BrowserEngine's;
+      legend-engine's own, passed on by the server layer), an engine a door handed (the stress and remote harness pages,
+      the headless grid's table output) -- or one of those page boots;
+    - the workspace's tables (Studio's Data panel, `tab-data.ts`): load, put, reset and tables run one at a time, so a
+      Reset never plans without a file whose put then lands (the C5-T final audit's MUST 2);
+    - every worker the product starts is pinned by call site, through any receiver (`new globalThis.Worker(`), as
+      each send, connect, fetch and submit is (`PlannedSqlTest.WORKERS`, the C5-T last round's T4 and the final
+      audit's item 7): the planner's, DuckDB's own, and Monaco's;
     - on Node: every send is refused outside a run at the send primitives (DuckDB's #whole, #batches and #bound, the
-      held connection's sends, the warehouse's submit), and every node_test runs with
+      held connection's sends, the warehouse's submit) -- the streaming path, Node's real one, tested by name (the final
+      audit's item 5) -- and every node_test runs with
       `--experimental-async-context-frame`;
   - IT DOES NOT COVER:
     - a run-time witness in the browser or the headless V8 (none is kept there);
     - a send on a receiver the census's pattern does not name: it reads names, so it catches drift, not an adversary;
     - the multi-step doors (the snap door, `writeTable`, the upload and catalog flows, `TabTables`), which are not yet
-      one keyed plan each: C5's backlog line;
+      one keyed plan each: moved to the DataCube stream's one-intent API (C5's backlog line, the user's word of
+      2026-11-15);
+    - the planner's server clients' protected generic POST ("no execute" by the method's name alone, an adversarial
+      route), and the headless bridge's connection, which calls no `sending()` (the V8 keeps no frame): C5's backlog;
     - Python's half, whose wall stands.
 - **The heavy suite and the cloud probe:** `//gates:heavy` holds `//core:identifier_escaping_cloud_probe` (fd7dc25565).
   A heavy run needs `LEGENDLITE_PCT_CLOUD_PROPERTIES` and `LEGENDLITE_PROBE_CLOUD`, and covers ONE cloud a run, the one

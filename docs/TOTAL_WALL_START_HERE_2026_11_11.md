@@ -1040,6 +1040,11 @@ In order. Nothing here is in the A/B/C PR.
        rule read until then): `datacube/demo/boot.ts`'s demo sample (`runLoad` of the synthesize plan), and
        `query/demo/main.ts`'s warehouse seed (`runLoad`) and warehouse sign-in by password (`warehouse.ts`'s driver) --
        pinned meanwhile, shrink-only, by `//tools/deps:app_runs_test` (`PAGE_REACHES`, and their sites in `CENSUS`);
+     - the C5-T final audit's backlog (2026-11-15; recorded, not fixed): the planner's server clients keep a protected
+       generic POST (`legend/planning-client.ts` `json()`, `pure-v1-planning.ts` `request()`), so "no execute" holds by
+       the method's name alone -- an adversarial route only; and the headless bridge's connection
+       (`datacube/src/headless/connection.ts`, reached by `hostConnection`) does not call `sending()` -- right in the V8,
+       which keeps no frame, but a Node test of `hostDatabase` would send outside a run;
      - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
        `verdicts`) carried in the test plan instead;
      - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
