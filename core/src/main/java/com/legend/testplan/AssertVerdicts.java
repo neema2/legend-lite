@@ -186,10 +186,8 @@ final class AssertVerdicts {
                 DatabaseGate g = quantifiedForm(u.root()) != null
                         ? databaseGate(u.root(), u.before(), specs, env, rawHook)
                         : gateOf(u.assertion(), u.root(), u.before(), specs, env, rawHook);
-                if (g == DatabaseGate.UNPLANNED) {
-                    return g;
-                }
-                if (g == DatabaseGate.RAISES && first) {
+                // an unplanned element keeps the body off the database; a raise decides only as the first element's
+                if (g == DatabaseGate.UNPLANNED || g == DatabaseGate.RAISES && first) {
                     return g;
                 }
                 if (engineText(g) && worst != DatabaseGate.ENGINE_TEXT_READ) {
