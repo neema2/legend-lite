@@ -1004,7 +1004,11 @@ public sealed interface SqlExpr
         /** A database's own requirement, made by its dialect: an argument type its function needs, its encoding. */
         DIALECT("dialect"),
         /** The test road's verdict statement (the judges'; never a product query's). */
-        JUDGE("judge");
+        JUDGE("judge"),
+        /** A fused verdict row's UNUSED slot (E-5c; 2026-11-15, ClickHouse's round 53): another member's column, held
+         *  by this member's row as a placeholder of that column's type and never read. A NULL where the database can
+         *  hold one; the type's own default where it cannot (ClickHouse's Map and Tuple). */
+        SLOT("slot");
 
         private final String code;
 

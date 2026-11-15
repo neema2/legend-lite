@@ -77,7 +77,8 @@ final class ChannelBLedger {
                 }
             } else if (e == null) {
                 wrong.add("FAILS, not ledgered: " + o.testFqn() + " :: " + o.status() + " " + o.detail());
-            } else if (!o.detail().contains(e.contains())) {
+            } else if (!o.full().contains(e.contains())) {
+                // matched in the FULL text: the display's clipped middle never decides a match (2026-11-15)
                 wrong.add("FAILS DIFFERENTLY: " + o.testFqn() + " :: " + o.detail() + " -- the ledger expects it to"
                         + " contain: " + e.contains());
             }

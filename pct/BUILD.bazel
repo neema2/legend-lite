@@ -686,6 +686,15 @@ _LANE_LEDGER = "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%s_%sFun
     runtime_deps = [":pct_tests_lib"] + deps,
 ) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items() if lane == "h2" for s in suites if s == "Relation"]
 
+# the ledger matches a failure's full text, never its clipped display (ChannelBLedgerTest, 2026-11-15)
+junit_test(
+    name = "pct_channel_b_ledger_test",
+    memory_mb = 512,
+    size = "small",
+    select = ["--select-class=org.finos.legend.lite.pct.channelb.ChannelBLedgerTest"],
+    runtime_deps = [":pct_tests_lib"],
+)
+
 # the guard's own planted violators (ChannelBTwiceTest): it names two differing plans and two differing runs
 junit_test(
     name = "pct_channel_b_twice_guard_test",

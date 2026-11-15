@@ -48,7 +48,13 @@ public final class ChannelB {
     private ChannelB() {
     }
 
-    public record Outcome(String testFqn, Status status, String detail) {
+    /** A test's outcome: its {@code detail} for display (a long middle clipped, {@link #first}) and its {@code full}
+     *  text, the database's whole error, which the ledger matches (2026-11-15, Databricks round 53: a clipped middle
+     *  removed the ledger's text; shortening is presentation and never decides a match). */
+    public record Outcome(String testFqn, Status status, String detail, String full) {
+        public Outcome(String testFqn, Status status, String detail) {
+            this(testFqn, status, detail, detail);
+        }
     }
 
     public enum Status { PASS, FAIL, DECLINED, ERROR }
@@ -279,11 +285,12 @@ public final class ChannelB {
             // an assert failure arrives as the database's error() — a
             // REAL test failure; other SQL errors are failures too (the
             // diff against channel A adjudicates which are wire bugs)
-            return new Outcome(fqn, Status.FAIL, first(e.getMessage()));
+            return new Outcome(fqn, Status.FAIL, first(e.getMessage()), flat(e.getMessage()));
         } catch (RuntimeException e) {
             // compile/lowering walls — channel B cannot run the shape
             return new Outcome(fqn, Status.ERROR,
-                    e.getClass().getSimpleName() + ": " + first(e.getMessage()));
+                    e.getClass().getSimpleName() + ": " + first(e.getMessage()),
+                    e.getClass().getSimpleName() + ": " + flat(e.getMessage()));
         }
     }
 
@@ -427,8 +434,13 @@ public final class ChannelB {
      * whole statement and then Spark's own words, which a head alone cut off -- the statement each judge writes
      * differs, the database's error does not). */
     private static String first(@com.legend.base.Nullable String msg) {
-        String m = String.valueOf(msg).replace("\n", " ⏎ ").trim();
+        String m = flat(msg);
         return m.length() <= 800 ? m : m.substring(0, 400) + "…" + m.substring(m.length() - 400);
+    }
+
+    /** The whole message, its newlines flattened as {@link #first}'s are: what a ledger row's text is matched in. */
+    private static String flat(@com.legend.base.Nullable String msg) {
+        return String.valueOf(msg).replace("\n", " ⏎ ").trim();
     }
 
     private static final class Declined extends RuntimeException {
