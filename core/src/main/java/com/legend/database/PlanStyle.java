@@ -37,6 +37,15 @@ public interface PlanStyle {
      *  is legend-engine's text, for engine clients. */
     String activitySql(Activity activity);
 
+    /** A graph fetch's key argument that is a date, from its written text (no zone): the product's text of the type
+     *  (a DateTime ISO 8601 in UTC with six fraction digits and {@code Z}, a date as written), the edge legend-engine's
+     *  ({@code +0000} after a time) (phase D's D1.2, 2026-11-15; register S312). */
+    String graphKeyDate(String written);
+
+    /** A graph fetch's key argument that is a String: the product's text, the String itself; the edge legend-engine's,
+     *  quoted (D1.2). */
+    String graphKeyString(String value);
+
     /** An execute's chain, written either way: the planner supplies both, the style picks one (no mode, no flag). */
     interface Activity {
         /** lite's own SQL for the chain: the product's lowering, written in the frame database's product dialect. */
@@ -72,7 +81,35 @@ public interface PlanStyle {
         public String activitySql(Activity activity) {
             return activity.lites();
         }
+
+        @Override
+        public String graphKeyDate(String written) {
+            return dateTimeText(written);
+        }
+
+        @Override
+        public String graphKeyString(String value) {
+            return value;
+        }
     };
+
+    /** A literal date's written text ({@code 2023-10-15}, {@code 2023-10-15T10}, {@code 2023-10-15T10:30:00.5}) as the
+     *  product's text of its type: a date with no time as written; a DateTime ISO 8601 in UTC with six fraction digits
+     *  and {@code Z}, its missing parts zero, a finer fraction cut to six (the literal is already in UTC). A constant
+     *  spelled at planning, as its written text was (register S312). */
+    private static String dateTimeText(String written) {
+        int t = written.indexOf('T');
+        if (t < 0) {
+            return written;
+        }
+        String[] hms = written.substring(t + 1).split(":", -1);
+        String seconds = hms.length > 2 ? hms[2] : "00";
+        int dot = seconds.indexOf('.');
+        String whole = dot < 0 ? seconds : seconds.substring(0, dot);
+        String fraction = ((dot < 0 ? "" : seconds.substring(dot + 1)) + "000000").substring(0, 6);
+        return written.substring(0, t) + "T" + hms[0] + ":" + (hms.length > 1 ? hms[1] : "00") + ":" + whole + "."
+                + fraction + "Z";
+    }
 
     /** The product writes none of legend-engine's text: the natives whose upstream value IS that text are the
      *  compatibility edge's (phase D, 2026-11-12; the product's own answer for them is the orchestrator's ruling). */

@@ -70,6 +70,9 @@ public final class BodyPlanner {
     public static StoreResolver resolver(
             SpecCompiler specs, PlanEnv env) {
         return new StoreResolver(env.ctx(), specs)
+                // a graph fetch's key arguments in the plan's style (D1.2, register S312)
+                .withGraphKeyText(new com.legend.resolver.GraphKeyText(env.style()::graphKeyDate,
+                        env.style()::graphKeyString))
                 .withLetBindings(env.queryLets()).withPlanRows(env.planRows())
                 .withHandleRegistrar(pn -> {
                     // an INLINE handle met by the resolver: build its rows

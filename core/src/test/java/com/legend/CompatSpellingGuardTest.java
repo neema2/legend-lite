@@ -180,7 +180,9 @@ class CompatSpellingGuardTest {
             "protocol/ts/TsShow.java | +0000 | 1 | STAYS",
             "resolver/ChainDispatch.java | Cast exception:  | 1 | D1.1",
             "resolver/ClassSources.java | TDS_NULL_CELL | 1 | D1.3",
-            "resolver/GraphEmission.java | +0000 | 2 | D1.2",
+            // resolver/GraphEmission.java | +0000: gone 2026-11-15 (D1.2, the orchestrator's ruling under the user's of
+            // 2026-11-10, S312: a graph fetch's key arguments in the plan style's text, PlanStyle.graphKeyDate/String;
+            // legend-engine's +0000 and quoting the edge's)
             "resolver/Substitution.java | Cast exception:  | 1 | D1.1",
             "result/CellText.java | +0000 | 1 | D1.4",
             "result/CellText.java | @_ | 1 | D1.4",
@@ -225,7 +227,8 @@ class CompatSpellingGuardTest {
             "sql/dialect/H2.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MariaDb.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/MariaDb.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/MongoDb.java | +0000 | 4 | D1.2",
+            // sql/dialect/MongoDb.java | +0000: gone 2026-11-15 (D1.2: its date-time format a @SpellingArm hook,
+            // dateTimeFormat, the product's ISO with Z; legend-pure's +0000 the edge's MongoDb's)
             "sql/dialect/MongoDb.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/MongoDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MySql.java | FLOAT_CANON | 1 | JUDGE",
@@ -245,8 +248,11 @@ class CompatSpellingGuardTest {
             "test/ServiceTestRunner.java | TdsObjectsWriter | 1 | D1.4",
             "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",
             "testdatagen/TestDataGenerator.java | EngineTextDialect | 3 | D1.7",
-            "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.2",
-            "testdatagen/TestDataPlanner.java | COMPAT | 3 | D1.2",
+            // retagged 2026-11-15 (D1.2's end): the generator's CLEAN timestamp text mirrors lite's writers (CellText's
+            // INSTANT precision), so it moves with them (D1.4); its COMPAT printing follows the judging rules
+            // (TestPlanner picks it by COMPILED_PURE_COMPAT), a judges' compatibility branch D1.9 moves to the edge
+            "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.4",
+            "testdatagen/TestDataPlanner.java | COMPAT | 3 | D1.9",
             "testexec/AssertRuns.java | EngineText | 1 | D1.7",
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
             "testexec/HostJudgments.java | EngineText | 1 | D1.7",
@@ -266,8 +272,11 @@ class CompatSpellingGuardTest {
             "testplan/Seeds.java | EnginePlans | 1 | D1.7",
             "testplan/SqlTextVerdicts.java | EngineText | 1 | D1.7",
             "testplan/SqlTextVerdicts.java | withEngineText | 3 | D1.7",
-            "testplan/TestPlanner.java | COMPAT | 1 | D1.2",
-            "values/PureDateLiteral.java | +0000 | 4 | D1.2"
+            // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
+            "testplan/TestPlanner.java | COMPAT | 1 | D1.9",
+            // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value, read by lite's writers (CellText's
+            // engine JSON and Pure text) -- the writers' step (D1.4)
+            "values/PureDateLiteral.java | +0000 | 4 | D1.4"
     );
 
     @Test

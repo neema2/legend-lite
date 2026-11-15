@@ -101,6 +101,14 @@ public final class StoreResolver {
     /** Pre-seed the let env with bindings a caller already consumed
      * (the inliner β-reduces query lets, but graph-tree date args keep
      * their source spelling and resolve here — engine inScopeVars). */
+    private @com.legend.base.Nullable GraphKeyText graphKeyText;
+
+    /** A graph fetch's key arguments spelled in the plan's style ({@link GraphKeyText}, D1.2), its planner's. */
+    public StoreResolver withGraphKeyText(GraphKeyText text) {
+        this.graphKeyText = text;
+        return this;
+    }
+
     public StoreResolver withLetBindings(Map<String, TypedSpec> lets) {
         letBindings.putAll(lets);
         return this;
@@ -3294,7 +3302,7 @@ public final class StoreResolver {
 
         if (tree != null) {   // 4a. GRAPH terminal (H4a snapshot envelope)
             TypedSerializeGraph env = new GraphEmission(ctx, sources, assocMaterial, temporal, this::dispatch, () -> freshVarCounter++)
-                    .buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(), fresh, tree, context, /*arrayWrap*/ true, g.info(), checkedEnvelope);
+                    .withKeyText(graphKeyText).buildGraphNode(cs, pipeline, m.slotPrefixes(), m.stripped(), fresh, tree, context, /*arrayWrap*/ true, g.info(), checkedEnvelope);
             return serializeTypeCfg == null ? env : GraphEmission.withTypeKey(
                     env, serializeTypeCfg, GraphEmission.stringPlusCallee(ctx),
                     serializeTypeCfg.includeObjectReference() ? GraphEmission.asorPrefix(ctx, cs) : null);

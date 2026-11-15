@@ -43,6 +43,18 @@ public final class PureText {
             return PureText.enginePlanText(type, quoteIdentifiers, timeZone);
         }
 
+        /** legend-engine's key argument: the date's written text, {@code +0000} after a time (D1.2). */
+        @Override
+        public String graphKeyDate(String written) {
+            return written + (written.indexOf('T') >= 0 ? "+0000" : "");
+        }
+
+        /** legend-engine's key argument: the String quoted (D1.2). */
+        @Override
+        public String graphKeyString(String value) {
+            return "'" + value + "'";
+        }
+
         /** legend-engine's text, as its activity records the SQL it generated. */
         @Override
         public String activitySql(Activity activity) {
@@ -344,6 +356,12 @@ public final class PureText {
 
     /** MongoDB, spelled as upstream spells it. */
     public static final class MongoDb extends com.legend.sql.dialect.MongoDb {
+        /** legend-pure's text of a date-time, to the millisecond with {@code +0000} (D1.2: until then the product's). */
+        @Override
+        protected String dateTimeFormat() {
+            return "%Y-%m-%dT%H:%M:%S.%L+0000";
+        }
+
         /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
