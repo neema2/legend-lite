@@ -38,8 +38,13 @@ export interface TableState {
   readonly table: string;
   readonly columns: readonly { readonly name: string }[];
   readonly source: TableSource;
-  /** How many rows it has; undefined when there is no table yet. */
+  /** How many rows it has; undefined when there is no table yet, or its count failed (countFailed). */
   readonly rows: number | undefined;
+  /**
+   * Why its rows were not counted -- the count's failure, in the database's words, or a count that answered no count
+   * (2026-11-15, the C5-T final audit's item 3): said on this table alone, the other tables' rows still counted.
+   */
+  readonly countFailed?: string;
   /**
    * The person's file for it that the model no longer takes (its columns changed, say): not in the database, which
    * holds the model's own rows for it, and kept, to go in again when it fits -- why, in the database's words.
@@ -83,6 +88,14 @@ export class TabTables {
    */
   readonly #refused = new Map<string, string>();
   #uploads = 0;
+  /**
+   * The last step begun (2026-11-15, the C5-T final audit's MUST 2): load, put, reset and tables run ONE AT A TIME, each
+   * after the one before has settled. A step plans before it runs (its files hashed, each put asked of the planner:
+   * seconds), so two at once interleaved -- a reset planned without a file whose put then landed, the database made
+   * again without it and recorded as current, and the panel naming a file that Run never read. Planning stays inside
+   * each step, outside its run.
+   */
+  #turn: Promise<unknown> = Promise.resolve();
 
   /**
    * `projects`: the workspace's databases, each made from the planner's statements; `host`: the tab's own connection
@@ -99,16 +112,29 @@ export class TabTables {
     this.#source = source;
   }
 
+  /** `step`, once every step begun before it has settled (its failure no bar to the next). */
+  #oneAtATime<T>(step: () => Promise<T>): Promise<T> {
+    const taken = this.#turn.then(step, step);
+    this.#turn = taken.catch(() => undefined);
+    return taken;
+  }
+
   /** The workspace's database for the model as it is now, and the screens on it. */
-  async load(model: Model): Promise<void> {
-    await this.#open(model);
+  load(model: Model): Promise<void> {
+    return this.#oneAtATime(async () => {
+      await this.#open(model);
+    });
   }
 
   /**
    * `schema.table` filled from a person's file (a .csv or .parquet), until reset -- the table the one Database that
    * declares it makes (databaseOf: none, or two, is refused). A refused file leaves the table as it was.
    */
-  async put(model: Model, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
+  put(model: Model, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
+    return this.#oneAtATime(() => this.#put(model, schema, table, file));
+  }
+
+  async #put(model: Model, schema: string, table: string, file: { readonly name: string; readonly bytes: Uint8Array }): Promise<void> {
     const { held } = await this.#open(model);
     // the workspace's own database (own: true), always made: its connection takes the put's bound statements
     if (held === undefined) throw new Error("the workspace's database was not made");
@@ -121,14 +147,20 @@ export class TabTables {
   }
 
   /** `schema.table` back to the model's own rows (none: no table): the database made again without the file. */
-  async reset(model: Model, schema: string, table: string): Promise<void> {
-    if (this.#files.delete(key(schema, table))) this.#filesChanged++;
-    this.#refused.delete(key(schema, table));
-    await this.#open(model);
+  reset(model: Model, schema: string, table: string): Promise<void> {
+    return this.#oneAtATime(async () => {
+      if (this.#files.delete(key(schema, table))) this.#filesChanged++;
+      this.#refused.delete(key(schema, table));
+      await this.#open(model);
+    });
   }
 
   /** Every table the model declares: where its rows are from, and how many there are (counted by the planner's name). */
-  async tables(model: Model): Promise<TableState[]> {
+  tables(model: Model): Promise<TableState[]> {
+    return this.#oneAtATime(() => this.#tables(model));
+  }
+
+  async #tables(model: Model): Promise<TableState[]> {
     const { engine } = await this.#open(model);
     const tests = new Map(dataTables(model.elements).map((t) => [key(t.schema, t.table), t.element]));
     const declared = databaseTables(model.elements).map((t) => {
@@ -141,7 +173,8 @@ export class TabTables {
     // a table nothing fills (no Data element's rows, no file of the person's) is not made, so it has no rows to count and
     // none is asked; every other table's rows are counted by the planner's statement for it (D5), the table named as the
     // model declares it, and a count that fails, or answers no count, is said -- never read as a table not made (G7; the
-    // C5-T last round's T3, 2026-11-15: a catch-all here read every failure so)
+    // C5-T last round's T3, 2026-11-15: a catch-all here read every failure so) -- on THAT table's row, by its words, the
+    // others still counted (the C5-T final audit's item 3: one table's failure no longer blanks the whole list)
     const made = declared.filter((d) => d.source.kind !== 'none');
     const counts = made.length === 0 ? [] : await this.#source.hostOperations(this.#host.databaseType, made.map(({ t }) => ({
       op: 'count' as const, from: { relation: { schema: t.schema, name: t.table, declared: true } },
@@ -150,13 +183,19 @@ export class TabTables {
     for (const d of declared) {
       const { t, refused, source } = d;
       let rows: number | undefined;
+      let countFailed: string | undefined;
       if (source.kind !== 'none') {
-        const counted = await inRun("a table's rows counted", () => engine.run(counts[made.indexOf(d)]![0]!, 0));
-        const raw = counted.rowCount === 1 ? counted.columns[0]?.values[0] : undefined;
-        rows = raw === null || raw === undefined ? Number.NaN : Number(raw);
-        if (!Number.isSafeInteger(rows) || rows < 0) throw new Error(`the rows of ${t.schema}.${t.table} were counted as ${String(raw)}, which is no count`);
+        try {
+          const counted = await inRun("a table's rows counted", () => engine.run(counts[made.indexOf(d)]![0]!, 0));
+          const raw = counted.rowCount === 1 ? counted.columns[0]?.values[0] : undefined;
+          const n = raw === null || raw === undefined ? Number.NaN : Number(raw);
+          if (!Number.isSafeInteger(n) || n < 0) throw new Error(`the rows of ${t.schema}.${t.table} were counted as ${String(raw)}, which is no count`);
+          rows = n;
+        } catch (e) {
+          countFailed = e instanceof Error ? e.message : String(e);
+        }
       }
-      out.push({ ...t, source, rows,
+      out.push({ ...t, source, rows, ...(countFailed !== undefined ? { countFailed } : {}),
         ...(refused !== undefined ? { refusedFile: { name: this.#files.get(key(t.schema, t.table))!.name, why: refused } } : {}) });
     }
     return out;
@@ -175,7 +214,7 @@ export class TabTables {
     const statements = await this.#projects.statements(model.text);
     const name = statements.name;
     const remake = this.#current?.name === name && this.#current.files !== this.#filesChanged;
-    const puts = remake || !this.#projects.databases.holds(name) ? await this.#planPuts(model) : new Map<string, Put>();
+    const puts = remake || !this.#projects.holds(name) ? await this.#planPuts(model) : new Map<string, Put>();
     const made = async (engine: HeldEngine): Promise<void> => {
       this.#refused.clear();
       for (const [k, put] of puts) {
@@ -188,15 +227,15 @@ export class TabTables {
         }
       }
     };
-    return inRun("the workspace's database", async () => {
-      // the same model, the person's files changed (a reset): dropped, then made again
-      if (remake) await this.#projects.databases.drop(name);
-      const project = await this.#projects.databases.engineFor(model.text, statements, this.#host, made, { own: true });
-      const before = this.#current?.name;
-      this.#current = { name, files: this.#filesChanged };
-      this.#runner.use(project.engine);
-      if (before !== undefined && before !== name) await this.#projects.databases.drop(before);
-      return project;
+    // in ONE run, the door's (ProjectDoor.remade): the same model with the person's files changed (a reset) dropped and
+    // made again; the screens pointed at it; the one before dropped when it is another
+    return this.#projects.remade(model.text, statements, this.#host, made, {
+      remake,
+      before: this.#current?.name,
+      opened: (project) => {
+        this.#current = { name, files: this.#filesChanged };
+        this.#runner.use(project.engine);
+      },
     });
   }
 

@@ -275,13 +275,26 @@ describe("a table's rows from a person's file (plan A2)", () => {
     assert.deepEqual((await tabs.tables(m)).map((t) => [t.table, t.source.kind, t.rows]), [['PARTY', 'test', 2], ['DESK', 'none', undefined]]);
   });
 
-  it("a made table's count that fails is said, never read as a table not made (G7; C5-T last round T3)", async () => {
+  it("a made table's count that fails is said on its row, never read as a table not made (G7; C5-T T3, final audit 3)", async () => {
     const v1 = await version(V1);
     const tabs = tables();
     await tabs.load(v1);
-    // the table taken away behind the workspace: its count fails, and the failure is the answer
+    // the table taken away behind the workspace: its count fails, and the failure is that row's answer
     await inRun('a test', () => runner.run(unplanned('DROP TABLE "PARTY"."PARTY"'), 0));
-    await assert.rejects(tabs.tables(v1), /PARTY does not exist/);
+    const [party] = await tabs.tables(v1);
+    assert.equal(party!.rows, undefined);
+    assert.match(party!.countFailed ?? '', /PARTY does not exist/);
+  });
+
+  it("one table's failed count is said on its row, and the others are still counted (the C5-T final audit's item 3)", async () => {
+    // the audit's case: a Data element's table whose CSV is empty -- no table is made for it (CsvSeed), so its count fails
+    const m = await modelOf(partyText(V1, ''));
+    const tabs = tables();
+    await tabs.load(m);
+    const said = await tabs.tables(m);
+    assert.deepEqual(said.map((t) => [t.table, t.source.kind, t.rows]), [['PARTY', 'test', 2], ['DESK', 'test', undefined]]);
+    assert.equal(said[0]!.countFailed, undefined);
+    assert.match(said[1]!.countFailed ?? '', /DESK does not exist/);
   });
 
   it("a made table's count that answers no count is said by name, never read as rows (G7; C5-T last round T3)", async () => {
@@ -301,7 +314,67 @@ describe("a table's rows from a person's file (plan A2)", () => {
     const own = new ProjectRunner(engine);
     const made = new TabTables(projectsOf(), own, engine, asTheBrowserTakesThem, uncounting);
     await made.load(v1);
-    await assert.rejects(made.tables(v1), /the rows of PARTY\.PARTY were counted as null, which is no count/);
+    const [party] = await made.tables(v1);
+    assert.equal(party!.rows, undefined);
+    assert.match(party!.countFailed ?? '', /the rows of PARTY\.PARTY were counted as null, which is no count/);
+  });
+
+  it("holds its databases to itself: reached through its runs alone (the C5-T final audit's item 4)", () => {
+    const door = projectsOf();
+    // a private field: no caller -- an app least of all -- makes, drops or sends on one outside the door's run
+    assert.equal('databases' in door, false);
+    assert.deepEqual(Object.keys(door), []);
+    // @ts-expect-error -- private: the door's databases are reached through its runs (remade, engineFor, drop) alone
+    void door.databases;
+  });
+
+  it("runs one step at a time: a file put while a reset is asked lands, and stays (the C5-T final audit's MUST 2)", async () => {
+    const both = await version(V1, DESK);
+    /** A gate: held until let go, and told when first reached. */
+    const gate = (): { wait: () => Promise<void>; reached: Promise<void>; letGo: () => void } => {
+      let letGo!: () => void;
+      let arrive!: () => void;
+      const open = new Promise<void>((done) => { letGo = done; });
+      const reached = new Promise<void>((done) => { arrive = done; });
+      return { wait: () => { arrive(); return open; }, reached, letGo };
+    };
+    let planning: ReturnType<typeof gate> | undefined;   // the planner's plan of a file's put
+    let running: ReturnType<typeof gate> | undefined;    // the door's run of the workspace's database
+    const planner$ = new Proxy(planner, {
+      get(target, key) {
+        if (key === 'fileLoad') return async (...args: Parameters<WasmGrammar['fileLoad']>) => { await planning?.wait(); return target.fileLoad(...args); };
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const door = projectsOf();
+    const door$ = new Proxy(door, {
+      get(target, key) {
+        if (key === 'remade') return async (...args: Parameters<ProjectDoor['remade']>) => { await running?.wait(); return target.remade(...args); };
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const own = new ProjectRunner(engine);
+    const tabs = new TabTables(door$, own, engine, asTheBrowserTakesThem, planner$);
+    await tabs.load(both);
+    await tabs.put(both, 'PARTY', 'PARTY', { name: 'x.csv', bytes: enc('ID,NAME,COUNTRY\n7,Osprey Fund,NZ\n') });
+    // the audit's order: Upload of Y (still planning), then Reset of X -- its plan made without Y; Y's put lands; then
+    // Reset's run. Studio's buttons do not wait for each other.
+    planning = gate();
+    const y = tabs.put(both, 'PARTY', 'DESK', { name: 'y.csv', bytes: enc('ID,NAME,COUNTRY\n9,Kestrel Desk,FR\n') });
+    await planning.reached;
+    running = gate();
+    const reset = tabs.reset(both, 'PARTY', 'PARTY');
+    // reset planned up to its run -- or, one at a time, waiting for Y's put to finish first
+    await Promise.race([running.reached, new Promise((done) => setTimeout(done, 1500))]);
+    planning.letGo();
+    await y;
+    running.letGo();
+    await reset;
+    assert.deepEqual(await rowsOf('DESK', own), [[9, 'Kestrel Desk', 'FR']], "Y's rows, in the database Run reads");
+    assert.deepEqual(await rowsOf('PARTY', own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
+    assert.deepEqual((await tabs.tables(both)).map((t) => [t.table, t.source.kind]), [['PARTY', 'test'], ['DESK', 'file']]);
   });
 
   it('fills a table from a CSV, kept over the test data until reset', async () => {

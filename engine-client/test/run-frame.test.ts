@@ -230,6 +230,27 @@ describe('a statement is sent inside a run, on Node (the choke points, C5-T)', (
     assert.deepEqual(sent, ['SELECT 1', 'SELECT 3', 'SELECT 4', 'an Arrow import']);
   });
 
+  it("DuckDB's streaming connection -- Node's real path (send, #batches): a run and a stream refused outside a run, sent inside one (the C5-T final audit's item 5)", async () => {
+    const sent: string[] = [];
+    const empty: ArrowishTable = { numRows: 0, schema: { fields: [] }, getChildAt: () => null };
+    const batches = (): AsyncIterable<ArrowishTable> => (async function* () { yield empty; })();
+    const engine = new DuckDbEngine({
+      query: (sql) => { sent.push(`query ${sql}`); return empty; },
+      // DuckDB-WASM's Node connection streams: a run and a stream go by send, batch by batch (duckdb.ts #batches)
+      send: async (sql) => { sent.push(`send ${sql}`); return batches(); },
+      prepare: async (sql) => ({ query: async () => { sent.push(`prepared ${sql}`); return empty; } }),
+    });
+    const refused = OUTSIDE("DuckDB's connection");
+    await assert.rejects(engine.run(unplanned('SELECT 1'), 0), refused);
+    await assert.rejects(engine.stream({ sql: unplanned('SELECT 2'), columns: [] }, 0, () => {}), refused);
+    assert.deepEqual(sent, [], 'a statement refused is never sent');
+    await inRun("a test's run", async () => {
+      await engine.run(unplanned('SELECT 1'), 0);
+      await engine.stream({ sql: unplanned('SELECT 2'), columns: [] }, 0, () => {});
+    });
+    assert.deepEqual(sent, ['send SELECT 1', 'send SELECT 2'], 'each sent by send, inside the run');
+  });
+
   it("the warehouse's submit: refused outside a run before the binding is asked for it, and asked inside one", async () => {
     const asked: string[] = [];
     const binding = new WarehouseBinding({ exports: {

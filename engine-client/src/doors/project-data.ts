@@ -14,23 +14,47 @@ import { inRun } from '../run-frame.ts';
 
 /** The tab's project databases (project-data.ts), each made from what `planner` answers for its model. */
 export class ProjectDoor {
-  /** The databases this tab holds: the run side, which a door that composes more (tab-data.ts) runs on itself. */
-  readonly databases: ProjectDatabases;
+  /** The databases this tab holds: the run side, reached through this door alone, inside its runs (2026-11-15, the C5-T
+   *  final audit's item 4: until then public, so an app could make or drop one outside any run). */
+  readonly #databases: ProjectDatabases;
   readonly #planner: ProjectDataSource;
 
   constructor(host: ProjectHost, planner: ProjectDataSource) {
-    this.databases = new ProjectDatabases(host);
+    this.#databases = new ProjectDatabases(host);
     this.#planner = planner;
   }
 
   /** The project databases this tab holds, by name. */
   get names(): readonly string[] {
-    return this.databases.names;
+    return this.#databases.names;
+  }
+
+  /** Whether this tab holds the database `name` (no statement: the tab's own record of what it made). */
+  holds(name: string): boolean {
+    return this.#databases.holds(name);
   }
 
   /** The planner's statements for `model`'s database on this tab's database type. */
   statements(model: string): Promise<ProjectDataStatements> {
-    return this.#planner.projectData(model, this.databases.databaseType);
+    return this.#planner.projectData(model, this.#databases.databaseType);
+  }
+
+  /**
+   * The workspace's database (tab-data.ts, a door that composes more), in ONE run: `model`'s, made from `statements` --
+   * the planner's, asked before (statements) -- the one of that name dropped first when `how.remake`, `made` run on it
+   * as it is made, `how.opened` told of it, then `how.before` dropped when it is another. The steps of the run side, each
+   * inside this run: no caller reaches the databases themselves (the C5-T final audit's item 4, 2026-11-15).
+   */
+  remade(model: string, statements: ProjectDataStatements, hostEngine: QueryEngine,
+    made: (engine: HeldEngine, name: string) => Promise<void>,
+    how: { readonly remake: boolean; readonly before: string | undefined; readonly opened: (project: ProjectEngine) => void }): Promise<ProjectEngine> {
+    return inRun("the workspace's database", async () => {
+      if (how.remake) await this.#databases.drop(statements.name);
+      const project = await this.#databases.engineFor(model, statements, hostEngine, made, { own: true });
+      how.opened(project);
+      if (how.before !== undefined && how.before !== statements.name) await this.#databases.drop(how.before);
+      return project;
+    });
   }
 
   /**
@@ -39,20 +63,20 @@ export class ProjectDoor {
    */
   async engineFor(model: string, hostEngine: QueryEngine,
     made?: (engine: HeldEngine, name: string) => Promise<void>, options: { readonly own?: boolean } = {}): Promise<ProjectEngine> {
-    const known = options.own ? undefined : this.databases.known(model, hostEngine);
+    const known = options.own ? undefined : this.#databases.known(model, hostEngine);
     if (known !== undefined) return known;
     const statements = await this.statements(model);
-    return inRun("a project's database", () => this.databases.engineFor(model, statements, hostEngine, made, options));
+    return inRun("a project's database", () => this.#databases.engineFor(model, statements, hostEngine, made, options));
   }
 
   /** `name` dropped, if this tab holds it (ProjectDatabases.drop): the planner's statements it was made with, run. */
   drop(name: string): Promise<void> {
-    return inRun("a project's database dropped", () => this.databases.drop(name));
+    return inRun("a project's database dropped", () => this.#databases.drop(name));
   }
 
   /** Every project database dropped -- between a test's cases, which share one DuckDB. */
   dropAll(): Promise<void> {
-    return inRun("the project databases dropped", () => this.databases.dropAll());
+    return inRun("the project databases dropped", () => this.#databases.dropAll());
   }
 }
 

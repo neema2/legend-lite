@@ -154,7 +154,11 @@ export async function renderEditor(root: HTMLElement, ctx: EditorContext): Promi
       return h('tr', { 'data-table': name },
         h('td', { title: t.database }, name),
         h('td', { 'data-source': t.source.kind }, source, refused),
-        h('td', { class: 'data-tables__rows' }, t.rows === undefined ? '' : String(t.rows)),
+        // a count that failed is said on its own row, the database's words in its tip (the C5-T final audit's item 3,
+        // 2026-11-15: until then one table's failure replaced the whole list with it)
+        h('td', { class: 'data-tables__rows' }, t.countFailed !== undefined
+          ? h('span', { class: 'data-tables__count-failed', 'data-count-failed': name, title: t.countFailed }, icon('error'), 'count failed')
+          : t.rows === undefined ? '' : String(t.rows)),
         h('td', { class: 'data-tables__actions' }, file,
           h('button', { class: 'btn btn-small', 'data-testid': 'data-upload', title: 'Fill this table from a .csv (a header row) or .parquet file', onclick: () => file.click() }, 'Upload…'),
           reset !== undefined ? h('button', { class: 'btn btn-small', 'data-testid': 'data-reset', title: reset,
