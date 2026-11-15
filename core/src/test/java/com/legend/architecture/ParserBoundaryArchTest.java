@@ -50,6 +50,12 @@ class ParserBoundaryArchTest {
             "com/legend/door/ModelFromText.java",
             // and its test (2026-10-21): the door takes the dialect its caller names, so its test names one
             "com/legend/door/ModelFromTextTest.java",
+            // the parse doors (C5-J item 1, 2026-11-15): each asks the run's wall, then passes the dialect its caller
+            // names to the one parser, naming none itself -- door.Parse, and the IDE's own (a token stream is the
+            // parser's and the IDE's alone); and the test that pins each door's refusal, which names one to call them
+            "com/legend/door/Parse.java",
+            "com/legend/ide/DocumentParse.java",
+            "com/legend/PhaseEntriesRefusedInsideARunTest.java",
             "com/legend/builtin/Pure.java",
             // metamodel-store leg (2026-08-28): the system store/mapping
             // are fixed Pure SOURCE parsed once at class load — the same

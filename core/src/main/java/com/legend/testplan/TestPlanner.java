@@ -33,6 +33,11 @@ public final class TestPlanner {
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
     public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        // the body's facts over the body as given, BEFORE any rewrite below (the generator's planning, the unread lets
+        // made statements, the lift): the record the test door's facts state, carried by the plan (the C5-J audit's
+        // SHOULD 1, 2026-11-15: until then stated over the rewritten body, so an unread let or a generator's effect
+        // read differently at the door and in the plan)
+        com.legend.testexecutionplan.BodyFacts facts = facts(typed);
         // none given: the one runtime the body's from()s name (A5, PlanMaker.runtimeOf)
         String runtimeFqn = com.legend.planner.PlanMaker.runtimeOf(typed, given);
         SqlDialect dialect = com.legend.database.Databases.dialect(com.legend.Compiler.executesOn(typed.context(),
@@ -46,7 +51,7 @@ public final class TestPlanner {
                 ? com.legend.testdatagen.TestDataPlanner.Printing.COMPAT
                 : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
         return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing)), runtimeFqn,
-                dialect, options);
+                dialect, options, facts);
     }
 
     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */
@@ -64,7 +69,7 @@ public final class TestPlanner {
      * plan's data, at its turn in the run). A body the program road does not plan is refused by name.
      */
     static TestPlan plan(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
-            PlanningOptions options) {
+            PlanningOptions options, com.legend.testexecutionplan.BodyFacts facts) {
         PlanningOptions.JudgeMode mode = options.judgeMode();
         TypedQuery typed;
         BodyClass bodyClass;
@@ -146,7 +151,7 @@ public final class TestPlanner {
         try (var p = com.legend.base.RunScope.plans("a test body's program")) {
             plan = TestDoor.planned(typed, runtimeFqn, options.features(),
                     asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.stores(),
-                    options.edge());
+                    options.edge(), facts);
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
@@ -171,6 +176,19 @@ public final class TestPlanner {
             System.out.println("[plan-json] " + com.legend.testexecutionplan.TestPlanJson.write(plan));
         }
         return plan;
+    }
+
+    /** The body's facts as data (C5-J item 2, 2026-11-15): the planner's {@link com.legend.planner.ProgramFacts}
+     *  over the body as its caller gave it, before any rewrite -- a test-data generator's planning, an unread let made
+     *  the statement it binds, an assert lifted -- what a test runner reads of a body. {@link #plan(TypedQuery,
+     *  String, PlanningOptions)} states them first and the test plan carries that record
+     *  ({@link com.legend.testexecutionplan.TestPlan#facts}), so a runner choosing the body's session before it is
+     *  planned reads the same record here (the C5-J audit's SHOULD 1, 2026-11-15). */
+    public static com.legend.testexecutionplan.BodyFacts facts(TypedQuery given) {
+        // planning, refused inside a run on its own -- never by the typing it happens to start (the C5-J audit's nit)
+        com.legend.base.RunScope.planning("state a test body's facts");
+        com.legend.planner.ProgramFacts f = com.legend.planner.ProgramFacts.of(given.body(), given.specs());
+        return new com.legend.testexecutionplan.BodyFacts(f.effects(), f.seedsInlineCsv(), f.verdicts(), f.shape());
     }
 
     /** {@code given} as every road sees it: the lift (the asserts-as-plan-nodes program, step 4: an assert in a value's

@@ -77,7 +77,8 @@ final class Sorts {
             String name = java.util.Objects.requireNonNull(carriedName(src, k));
             SqlExpr.Column c = Fold.sourceColumn(base.from(), name);
             if (c == null) {
-                throw new IllegalStateException("sort key '" + name + "' cannot be resolved after isolation");
+                // an isolation wall, named (the C5-J audit's nit, 2026-11-15: a sort's wall is a filter's)
+                throw new Lowerer.IsolationWall("sort key '" + name + "' cannot be resolved after isolation");
             }
             keys.add(new SqlSelect.SortKey(c, k.ascending(), k.nullOrder(), k.outputName()));
         }
@@ -188,7 +189,8 @@ final class Sorts {
         for (TypedSort.TypedSortKey k : s.keys()) {
             SqlExpr.Column e = Fold.sourceColumn(base.from(), k.column());
             if (e == null) {
-                throw new IllegalStateException("sort key '" + k.column()
+                // an isolation wall, named (the C5-J audit's nit, 2026-11-15)
+                throw new Lowerer.IsolationWall("sort key '" + k.column()
                         + "' cannot be resolved after isolation");
             }
             keys.add(new SqlSelect.SortKey(e, k.ascending(), nullsOf(k, s.pureNullOrder()), null));

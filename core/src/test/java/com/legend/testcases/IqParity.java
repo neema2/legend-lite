@@ -1576,7 +1576,7 @@ public final class IqParity {
     private static @com.legend.base.Nullable String pureOf(String sql, List<SqlParity.Table> tables,
             IqDialect dialect, List<Param> params) {
         try {
-            return com.legend.protocol.PureComposer.valueSpecification(com.legend.protocol.sql.SqlToPure.translate(sql,
+            return com.legend.protocol.PureComposer.valueSpecification(com.legend.testcases.SqlText.translate(sql,
                     sources(tables, params), dialect), com.legend.protocol.PureComposer.Style.STANDARD);
         } catch (com.legend.protocol.sql.SqlTranslationException e) {
             return e.kind() == com.legend.protocol.sql.SqlTranslationException.Kind.UNSUPPORTED ? null
@@ -1600,7 +1600,7 @@ public final class IqParity {
                 settings(java.util.Objects.requireNonNull(run.c().settings())));
         List<Param> params = params(run.c().params());
         String pure = parsedTds(com.legend.protocol.PureComposer.valueSpecification(
-                com.legend.protocol.sql.SqlToPure.translate(rewrite(run.c().sql(), tables, settings),
+                com.legend.testcases.SqlText.translate(rewrite(run.c().sql(), tables, settings),
                         sources(schema, params), IqDialect.of(settings)), com.legend.protocol.PureComposer.Style.STANDARD));
         if (params.isEmpty()) {
             return pure;

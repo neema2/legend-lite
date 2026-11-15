@@ -1,7 +1,6 @@
 package com.legend.server;
 
 import com.legend.json.Json;
-import com.legend.parser.PmcdParser;
 import com.legend.protocol.ModelReader;
 import com.legend.protocol.Protocol;
 
@@ -41,7 +40,7 @@ sealed interface ModelInput {
 
         @Override
         public Protocol.PureModelContextData records() {
-            return PmcdParser.parseModel(code);
+            return com.legend.door.Parse.records(code);
         }
     }
 
