@@ -100,8 +100,8 @@ public final class StableScanOrder extends SqlRewriter {
                     frameNames(s.from(), false, out);
                 }
                 if (s.projections().stream().anyMatch(p -> p.expr()
-                        instanceof com.legend.sql.SqlAgg.Reducer r && orderSensitive(r)
-                        && r.orderBy().isEmpty())) {
+                        instanceof com.legend.sql.SqlAgg.Reducer r && orderSensitive(r))) {
+                    // a collect with keys of its own too: its ties read the frame's order (orderInside, 2026-11-15)
                     frameNames(s.from(), true, out);
                 }
                 return s;
