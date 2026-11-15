@@ -10,8 +10,10 @@ package com.legend.planner;
  * writes, executions, test-data generation), whether its execution
  * contexts seed inline CSV test data (a session-isolation fact), and
  * whether it calls a verdict function (an assert the statement channel
- * adjudicates). Computed by {@link Compiler#programFacts} in ONE typing
- * pass.
+ * adjudicates). Computed by {@link #of} in ONE typing pass, for the
+ * compiler's door ({@link Compiler#programFacts}) and the test planner
+ * ({@code testplan.TestPlanner.facts}, whose record the test plan carries:
+ * C5-J item 2, 2026-11-15).
  */
 public record ProgramFacts(boolean effects, boolean seedsInlineCsv, boolean verdicts,
         java.util.Set<String> seedsStores, String shape) {
