@@ -1559,6 +1559,37 @@ class WarehouseOnPython(unittest.TestCase):
         self.assertTrue(said.startswith('the snap could not be planned: COMPILATION: '), said)
         self.assertIn('served::Nope', said)
 
+    def test_a_served_snaps_count_plan_refused_says_the_compilers_kind(self):
+        # the C5 follow-up's kind fix (2026-11-15): a served snap whose count the planner refuses says its kind; a
+        # ValueError (no kind) as it is
+        from legend_lite.compiler import LegendError
+        table = self.frames.register('served', pd.DataFrame({'desk': ['FX', 'EQ'], 'qty': [1, 2]}))
+        pull = json.dumps(ll.parse('|' + table.accessor + '->select(~[desk, qty])'))
+        asked = json.dumps({'op': 'snap', 'model': table.model, 'runtime': table.runtime, 'pull': pull})
+        for raised, said in ((LegendError('the count is refused', 'COMPILATION'), 'COMPILATION: the count is refused'),
+                             (ValueError('the count is no query'), 'the count is no query')):
+            def refusing(*_args, raised=raised, **_kw):
+                raise raised
+
+            with self.subTest(said=said), mock.patch.object(self.engine.planner, 'plan', refusing):
+                answer = self.engine.answer('POST', '/snap.json', '', asked)
+                self.assertEqual((answer.status, answer.body.decode()), (422, f'the snap could not be planned: {said}'))
+
+    def test_a_warehouse_snaps_count_plan_refused_says_the_compilers_kind(self):
+        # the C5 follow-up's kind fix (2026-11-15): a warehouse snap whose count the planner refuses says its kind; a
+        # ValueError (no kind) as it is
+        from legend_lite.compiler import LegendError
+        m = self.opened()
+        asked = {'op': 'snap', 'model': m['model'], 'runtime': m['runtime'], 'pull': self.query(m)}
+        for raised, said in ((LegendError('the count is refused', 'COMPILATION'), 'COMPILATION: the count is refused'),
+                             (ValueError('the count is no query'), 'the count is no query')):
+            def refusing(*_args, raised=raised, **_kw):
+                raise raised
+
+            with self.subTest(said=said), mock.patch.object(self.engine.planner, 'plan', refusing):
+                status, body = self.call(asked, '/snap.json')
+                self.assertEqual((status, body.decode()), (422, f'the snap could not be planned: {said}'))
+
     def test_a_served_snaps_count_and_copy_say_no_held_value(self):
         # the C5 follow-up's audit item 1 (2026-11-15): a served snap's count and its copy failed with DuckDB's own words,
         # which repeat a presigned link's URL (its signature) -- answered as they were. Each failure's words now have

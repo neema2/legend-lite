@@ -189,6 +189,11 @@ def _said(status: int, message: str) -> Answer:
     return Answer(status, 'text/plain; charset=utf-8', message.encode('utf-8'))
 
 
+def _worded(refused: Exception) -> str:
+    """A refusal's words: a compiler's with its kind (``LegendError.worded``), any other as it is."""
+    return refused.worded() if isinstance(refused, LegendError) else str(refused)
+
+
 def _count_of(pull: str) -> str:
     """A pull's rows counted, as a query (the final audit's item 1, 2026-11-12; snap.ts countQuery's twin): its one
     expression's ``size()`` (meta::pure::functions::relation::size), which the planner plans as the database's count of
@@ -1487,7 +1492,8 @@ class Engine:
             # audit's item 1, 2026-11-12: never the pull's statement handed back as a host operation's query)
             plan = on(self.planner.read, on(self.planner.plan, _count_of(asked['pull']), table.held, table.runtime))
         except (LegendError, ValueError) as refused:
-            return _said(422, f'the snap could not be planned: {refused}')
+            # a compiler's refusal with its kind (the C5 follow-up's kind fix, 2026-11-15); DataCube's ValueError as it is
+            return _said(422, f'the snap could not be planned: {_worded(refused)}')
         if plan.params:
             # the warehouse runs SQL text alone: a statement binding a data: payload (M3) is refused by name, never sent
             return _said(422, _WAREHOUSE_BINDS_NONE)
@@ -1556,7 +1562,8 @@ class Engine:
                 # the pull's statement handed back as a host operation's query), its own values bound
                 plan = self.planner.read(self.planner.plan(_count_of(asked['pull']), held, asked['runtime']))
             except (LegendError, ValueError) as refused:
-                return _said(422, f'the snap could not be planned: {refused}')
+                # a compiler's refusal with its kind (the C5 follow-up's kind fix); DataCube's ValueError as it is
+                return _said(422, f'the snap could not be planned: {_worded(refused)}')
             try:
                 rows = count_of(self.frames.connection, plan, self.frames.held_values())
             except duckdb.Error as refused:
