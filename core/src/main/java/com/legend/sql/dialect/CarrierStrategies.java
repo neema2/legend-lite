@@ -77,6 +77,70 @@ public final class CarrierStrategies extends SqlRewriter {
 
     private final Caps caps;
 
+    /** The explodes {@link #inBranchOrder} left in their union's own order (an element reads the enclosing row), each
+     *  with its refusal: released by an order-blind consumer, refused at the root otherwise. One statement's state:
+     *  cleared by {@link #rewriteRoot}. */
+    private final java.util.Map<com.legend.sql.SqlQuery, String> unorderedCorrelated = new java.util.IdentityHashMap<>();
+
+    @Override
+    public com.legend.sql.SqlQuery rewriteRoot(com.legend.sql.SqlQuery q) {
+        unorderedCorrelated.clear();
+        com.legend.sql.SqlQuery out = super.rewriteRoot(q);
+        if (!unorderedCorrelated.isEmpty()) {
+            throw new DialectCapability(unorderedCorrelated.values().iterator().next());
+        }
+        return out;
+    }
+
+    /** The aggregates whose answer is the same in any order of their rows. */
+    private static final java.util.Set<SqlAgg.Fn> ORDER_BLIND = java.util.EnumSet.of(SqlAgg.Fn.SUM, SqlAgg.Fn.COUNT,
+            SqlAgg.Fn.AVG, SqlAgg.Fn.MIN, SqlAgg.Fn.MAX, SqlAgg.Fn.BOOL_AND, SqlAgg.Fn.BOOL_OR);
+
+    /** {@code q}'s rows read where their order cannot change the answer (an EXISTS's, an IN's, an order-blind
+     *  aggregate's): an explode reached through selects that keep no order of their own (no LIMIT, no OFFSET, no window,
+     *  no aggregate but an order-blind one) needs no order, and is released from its refusal. */
+    private void releaseOrderBlind(com.legend.sql.SqlQuery q) {
+        com.legend.sql.SqlQuery at = q;
+        while (true) {
+            if (unorderedCorrelated.remove(at) != null) {
+                return;
+            }
+            if (!(at instanceof SqlSelect s) || s.limit() != null || s.offset() != null
+                    || !(s.from() instanceof com.legend.sql.SqlSource.Subselect sub)
+                    || !s.projections().stream().allMatch(p -> orderBlind(p.expr()))) {
+                return;
+            }
+            at = sub.inner();
+        }
+    }
+
+    /** Whether {@code e} reads its rows without regard to their order: no window, and no aggregate but an order-blind
+     *  one (a nested query is its own; its rows are not these). */
+    private static boolean orderBlind(SqlExpr e) {
+        if (e instanceof SqlExpr.WindowCall) {
+            return false;
+        }
+        if (e instanceof SqlAgg.Reducer r && !ORDER_BLIND.contains(r.fn())) {
+            return false;
+        }
+        if (e instanceof SqlExpr.Exists || e instanceof SqlExpr.InSubquery || e instanceof SqlExpr.ScalarSubquery) {
+            return true;
+        }
+        for (SqlExpr c : e.children()) {
+            if (!orderBlind(c)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Whether every projection of {@code q} is an order-blind aggregate (a scalar subquery's one row of them). */
+    private static boolean aggregatesOrderBlind(com.legend.sql.SqlQuery q) {
+        return q instanceof SqlSelect s && s.groupBy().isEmpty() && !s.projections().isEmpty()
+                && s.projections().stream().allMatch(p -> p.expr() instanceof SqlAgg.Reducer r
+                        && ORDER_BLIND.contains(r.fn()) && orderBlind(p.expr()));
+    }
+
     /** Whether a reduction over a COMPILE-TIME literal collection folds
      * to its scalar chain here (the execution dialects: yes); the
      * engine-TEXT renderer keeps the semantic node — its own spelling
@@ -186,18 +250,45 @@ public final class CarrierStrategies extends SqlRewriter {
         return new com.legend.sql.SqlUnion(branches, true, os.outputs());
     }
 
-    /** Whether {@code e} reads a column anywhere in its tree (a lambda's own parameter is read as a column too, so a
-     *  filtered branch whose predicate names its element counts: the element itself is the branch's literal). */
+    /** Whether {@code e} reads the ENCLOSING row: a column of a table alias that nothing inside {@code e} defines --
+     *  neither a source of a query nested in it (an {@code exists} over the element's own list, testExistsInSelect's
+     *  {@code $f.employees->exists(...)}: its rows are its own) nor a lambda's parameter. Round 55e (2026-11-15):
+     *  counting every column read refused that test on MariaDB and MySQL, which it had passed; only a free read makes
+     *  the ordering select a correlated derived table. */
     private static boolean readsAColumn(SqlExpr e) {
-        if (e instanceof SqlExpr.Column c) {
-            return c.table() != null;
+        FreeReads r = FreeReads.of(e);
+        return !r.defined.containsAll(r.read);
+    }
+
+    /** The table aliases an expression's columns read, and those its nested queries' sources and lambdas define. */
+    private static final class FreeReads extends com.legend.sql.SqlRewriter {
+        private final java.util.Set<String> read = new java.util.HashSet<>();
+        private final java.util.Set<String> defined = new java.util.HashSet<>();
+
+        static FreeReads of(SqlExpr e) {
+            FreeReads r = new FreeReads();
+            r.rewriteExpr(e);
+            return r;
         }
-        for (SqlExpr child : e.children()) {
-            if (readsAColumn(child)) {
-                return true;
+
+        @Override
+        protected com.legend.sql.SqlSource source(com.legend.sql.SqlSource s) {
+            // a Dual and a join have no alias of their own (a join's sides are visited as sources themselves)
+            if (!(s instanceof com.legend.sql.SqlSource.Dual) && !(s instanceof com.legend.sql.SqlSource.Join)) {
+                defined.add(s.alias());
             }
+            return s;
         }
-        return false;
+
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            if (e instanceof SqlExpr.Column c && c.table() != null) {
+                read.add(c.table());
+            } else if (e instanceof SqlExpr.Lambda l) {
+                defined.addAll(l.params());
+            }
+            return e;
+        }
     }
 
     /** The position column {@link #inBranchOrder} orders by. */
@@ -235,8 +326,12 @@ public final class CarrierStrategies extends SqlRewriter {
                 // a branch that reads the enclosing row would make the ordering select a correlated derived table,
                 // which H2 has no form for (LATERAL, measured on its lane)
                 if (bs.where() != null && readsAColumn(bs.where()) || readsAColumn(bs.projections().get(0).expr())) {
-                    throw new DialectCapability("an exploded list's concatenation whose element reads the enclosing"
+                    // left in the union's own order, and refused at the root unless every consumer of it is blind to
+                    // order (an EXISTS, an IN, an order-blind aggregate: round 55e, testExistsInSelect on MariaDB and
+                    // MySQL): never sent unordered where its order is read (G7)
+                    unorderedCorrelated.put(ex, "an exploded list's concatenation whose element reads the enclosing"
                             + " row: its order needs a correlated derived table this database has no form for");
+                    return ex;
                 }
             }
             anySorted |= !bs.orderBy().isEmpty();
@@ -1215,6 +1310,13 @@ public final class CarrierStrategies extends SqlRewriter {
     protected SqlExpr expr(SqlExpr e) {
         if (caps.nativeLists()) {
             return e;
+        }
+        if (e instanceof SqlExpr.Exists ex) {
+            releaseOrderBlind(ex.subquery());
+        } else if (e instanceof SqlExpr.InSubquery in) {
+            releaseOrderBlind(in.subquery());
+        } else if (e instanceof SqlExpr.ScalarSubquery sq && aggregatesOrderBlind(sq.subquery())) {
+            releaseOrderBlind(sq.subquery());
         }
         // LIST_CONCAT over compile-time collections FOLDS (R5b,
         // witnessed: month-name lists concatenated before explode).
