@@ -47,6 +47,9 @@ public final class DeephavenProgram {
     }
 
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+
+    /** A live batch id's partition prefix: {@code partition × 10^12 + offset}, one partition's offsets below it. */
+    private static final long PARTITION_PREFIX = 1_000_000_000_000L;
     private static final Pattern TOPIC = Pattern.compile("[A-Za-z0-9._-]{1,249}");
     private static final Pattern SERVERS = Pattern.compile("[A-Za-z0-9._:,-]+");
 
@@ -136,9 +139,11 @@ public final class DeephavenProgram {
                 }
                 b.append(")')");
             }
-            // the version's milestoning columns: its record's offset its batch, the open batch id, a hash of its values
+            // the version's milestoning columns (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5, the live column): its record's
+            // partition-prefixed offset its batch, the open batch id, a hash of its values
             HostOperation.Milestones m = java.util.Objects.requireNonNull(lake);
-            b.append(".update('").append(m.batchIn()).append(" = KafkaOffset', '").append(m.batchOut())
+            b.append(".update('").append(m.batchIn()).append(" = KafkaPartition * ").append(PARTITION_PREFIX)
+                    .append("L + KafkaOffset', '").append(m.batchOut())
                     .append(" = ").append(m.openBatch()).append("L', '").append(m.digest())
                     .append(" = Integer.toHexString(java.util.Objects.hash(");
             for (int i = 0; i < s.columns().size(); i++) {

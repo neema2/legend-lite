@@ -82,7 +82,7 @@ class DeephavenStartupTest {
                 + " KafkaTools.Consume.jsonSpec([ColumnDefinition.ofString('SYM'), ColumnDefinition.ofDouble('BID')]"
                 + " as ColumnDefinition[]), KafkaTools.TableType.blink()).lastBy('SYM')"
                 // its version's milestoning columns (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5)
-                + ".update('LAKE_IN_ID = KafkaOffset', 'LAKE_OUT_ID = 999999999L',"
+                + ".update('LAKE_IN_ID = KafkaPartition * 1000000000000L + KafkaOffset', 'LAKE_OUT_ID = 999999999L',"
                 + " 'LAKE_DIGEST = Integer.toHexString(java.util.Objects.hash(SYM, BID))')"
                 + ".view('SYM', 'BID', 'LAKE_DIGEST', 'LAKE_IN_ID', 'LAKE_OUT_ID')\n"), p);
         assertEquals(p, program(MODEL), "the same model, the same program");
