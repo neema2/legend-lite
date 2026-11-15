@@ -375,7 +375,9 @@ test_suite(
         ":planned_sql_test",
         ":run_frame_test",
         ":snap_test",
-        ":update_generated_test",
+        # two generated sources since 2026-11-15 (lite-raise.ts, #104's raise wording out of the grid's startup): one
+        # diff test each, their suite
+        ":update_generated_tests",
         ":warehouse_corpus_test",
     ],
 )
