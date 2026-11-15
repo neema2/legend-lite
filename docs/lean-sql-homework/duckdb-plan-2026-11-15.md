@@ -98,3 +98,32 @@ slower.
   - (b) DuckDB's expression form, measured;
   - (c) fold at planning, as a ruled exception.
 - Recommendation: (a) for now. The 4 statements are tests of the stacking itself.
+
+## Two `let` findings from the derivative-pricing review (PRs #107-#109, 2026-11-15)
+
+They come before steps 1-5. They are the largest repeats a real model shows, and the user's S308 ruling (PR #107)
+names them: a compound `erf` argument is refused by name on most databases "until lite shares scalar lets".
+
+6. **A relation `let` over a mapped class is shared, as one over a table is.**
+   - Today a class read is pasted at each read of the `let`: two scans and a UNION ALL of equal subtrees, where
+     the same `let` over a table renders `WITH __let0` read twice.
+   - Cause: `SharedRelations` shares by object identity. `StoreResolver.resolveNode` rebuilds an object-space node
+     on every visit, so the inliner's one object reaches the lowering as two equal trees.
+   - Fix, measured by the review session: memoize `resolveNode` by node identity and `Context` (a value record,
+     so a node under two mappings still resolves twice). About 14 lines.
+     - The pricing model's cashflow NPV goes from 16.2 KB with 19 scans to 5.1 KB; its swaption from 169 KB with
+       90 scans to 76 KB on DuckDB, and from 208 KB to 103 KB on Postgres.
+     - NPV time over 2.3M rows goes from 1.3-1.6x a hand-written SQL to 0.7-0.9x, with the same answers.
+     - It passed core's resolver, lowering, planner, compiler, exec, sql and root tests, and integration on
+       DuckDB, H2 and SQLite.
+   - To check before landing: that resolution has no per-visit side effect the memo skips. Then the gate, PCT and
+     the corpus lanes (SQL text changes; answers must not).
+7. **A scalar `let` read more than once in a row's expression is computed once.**
+   - One `bachelierSwaptionPv` holds its vol 9 times and its strike 6 times (19 KB on DuckDB for literal inputs),
+     because P1a binds only at a FROM-less root and these `let`s read a row.
+   - Planned: such a `let`'s value becomes a column of an inner projection of the row's own select, which removes
+     the repeat for every Pure library that names its intermediates. On DuckDB it is the same select's column, read
+     by a `LATERAL` or by an inner projection; the form is measured.
+   - It also ends #107's `erf` expansion repeating its argument 70 times on H2, Trino, Snowflake, Databricks and
+     MongoDB, which lifts S308's refusals.
+   - The laziness rule holds: a value that can raise is bound only where every read is evaluated.
