@@ -632,25 +632,54 @@ final class ArchitectureTest {
      */
     @Test
     void thePlannerWritesNoFile() {
-        noClasses()
+        PLANNER_WRITES_NO_FILE.check(CORE_PROD_CLASSES);
+    }
+
+    /** {@link #thePlannerWritesNoFile} fails on a planner class that writes a file ({@code planner.PlantedFileWrite}, a
+     *  test class in the planner's package: a {@code Files.writeString} and a {@code new PrintWriter(File)}) -- the
+     *  rule bites (2026-11-15, PR1's review: it had no planted violator). */
+    @Test
+    void thePlannerFileRuleBitesAPlantedWrite() {
+        bites(PLANNER_WRITES_NO_FILE, com.legend.planner.PlantedFileWrite.class);
+    }
+
+    /** The calls that write a file: {@code java.nio.file.Files}' writers, copies, moves and channels, and a
+     *  {@code FileChannel} opened. */
+    private static final java.util.Set<String> FILES_WRITES = java.util.Set.of("write", "writeString", "newOutputStream",
+            "newBufferedWriter", "copy", "move", "createFile", "createTempFile", "newByteChannel");
+
+    /** The planner's library (its doors, {@code com.legend.planner}, lowering, the compilers, the resolver, the
+     *  normalizer, the parser and the lexer, the SQL tree and its dialects, the test planner and the diagnostics
+     *  switchboard planning reads) opens no file for writing. */
+    private static final com.tngtech.archunit.lang.ArchRule PLANNER_WRITES_NO_FILE = noClasses()
             .that().haveFullyQualifiedName("com.legend.Compiler")
             .or().haveFullyQualifiedName("com.legend.TypedQuery")
             .or().haveFullyQualifiedName("com.legend.HeldModels")
             .or().resideInAnyPackage("com.legend.planner..", "com.legend.lowering..", "com.legend.compiler..",
                     "com.legend.resolver..", "com.legend.normalizer..", "com.legend.parser..", "com.legend.lexer..",
-                    "com.legend.sql..")
+                    "com.legend.sql..", "com.legend.testplan..", "com.legend.diagnostics..")
             .should().dependOnClassesThat().haveFullyQualifiedName("java.io.FileOutputStream")
             .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.FileWriter")
             .orShould().dependOnClassesThat().haveFullyQualifiedName("java.io.RandomAccessFile")
+            .orShould().callConstructorWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
+                    "a PrintWriter or PrintStream over a file",
+                    (com.tngtech.archunit.core.domain.JavaConstructorCall call) -> {
+                        String owner = call.getTargetOwner().getFullName();
+                        if (!owner.equals("java.io.PrintWriter") && !owner.equals("java.io.PrintStream")) {
+                            return false;
+                        }
+                        var params = call.getTarget().getRawParameterTypes();
+                        return !params.isEmpty() && (params.get(0).getFullName().equals("java.io.File")
+                                || params.get(0).getFullName().equals("java.lang.String"));
+                    }))
             .orShould().callMethodWhere(com.tngtech.archunit.base.DescribedPredicate.describe(
-                    "a java.nio.file.Files write",
+                    "a java.nio.file.Files write or a FileChannel opened",
                     (com.tngtech.archunit.core.domain.JavaMethodCall call) ->
                             call.getTargetOwner().getFullName().equals("java.nio.file.Files")
-                            && java.util.Set.of("write", "writeString", "newOutputStream", "newBufferedWriter",
-                                    "copy", "createFile", "createTempFile").contains(call.getName())))
-            .as("E-1: the planner writes no file; a capture is a test harness's observer")
-            .check(CORE_PROD_CLASSES);
-    }
+                                    && FILES_WRITES.contains(call.getName())
+                            || call.getTargetOwner().getFullName().equals("java.nio.channels.FileChannel")
+                                    && call.getName().equals("open")))
+            .as("E-1: the planner writes no file; a capture is a test harness's observer");
 
     /**
      * <strong>The test-planning library is the driver's alone (the test-is-the-product plan's B4, brought forward to
