@@ -1452,8 +1452,9 @@ class PlannedSqlTest {
     static final Map<String, List<String>> RUNNER_CALLS = Map.ofEntries(
             // 2026-11-12 (M1, measured): each with the plan its planner client answered -- a write's (table-output.ts),
             // a load's: a person's file (model-data.ts, upload.ts), a remote mount (remote.ts), a snapshot's stream
-            // (snap.ts), a project's database (project-data.ts; the demos' seeds, boot.ts and query/demo/main.ts), and
-            // the playground's authored statement (run.ts)
+            // (snap.ts), a project's database (project-data.ts), and the playground's authored statement (run.ts); the
+            // demos' seeds through their doors since 2026-11-15 (the C5-T fold-in: doors/project-data.ts dataLoaded,
+            // doors/tab-duckdb.ts synthesizedInTab), where boot.ts and query/demo/main.ts ran them
             // 2026-11-15 (C5-T, the orchestrator's note 4: the run wall deleted for the layers' rule): THIS CENSUS IS
             // THE DOORS-ONLY PIN. A runner is called by a DOOR -- it asks the planner, then runs the answer in a run
             // frame -- or by a RUN function its door hands the plan (model-data.ts putFile, project-data.ts

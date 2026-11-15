@@ -160,7 +160,7 @@ export interface TableModels {
   /** A remote file mounted, as a plan (Boundary.remoteMount, B3's Q3): PlanJson's text, run by runLoad. */
   remoteMount(request: RemoteMountRequest): Promise<PlanText>;
   /** Rows the database makes in a declared table, as a plan (Boundary.synthesize, S303): PlanJson's text, run by
-   *  runLoad -- the demo's sample (demo/boot.ts synthesizeTrades). */
+   *  runLoad through the tab DuckDB's door -- the demo's sample (doors/tab-duckdb.ts synthesizedInTab). */
   synthesize(request: SynthesizeRequest): Promise<PlanText>;
   /** A table Output, as ONE plan (Boundary.outputPlan, the final audit's item 2): PlanJson's text, run by runPlan. */
   outputPlan(request: OutputRequest): Promise<PlanText>;

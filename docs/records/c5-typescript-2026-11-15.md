@@ -69,8 +69,9 @@ TypeScript's finish line now covers:
   vendor binaries is a door's wiring, not a plan/exec exception: the run layers hold zero computed specifiers and take
   the loaded object, never a loader. `layers_alone` allows a computed specifier only in a door, the named ones only
   (DuckDB's worker, `doors/tab-duckdb.ts`; TeaVM's warehouse runtime, `doors/warehouse.ts`), so a run layer can never
-  grow one again. The planner layers start the planner's own worker from the page's URL, planning-side, and are read
-  aside.
+  grow one again. Every other computed load in the product is named where it is read, each in the target that holds its
+  module (the review fold-in below): the planner layers' four in `layers_alone`'s `COMPUTED_PLANNER`, and the apps' and
+  their pages' own three in `app_runs_test`'s `COMPUTED_PAGES`.
 - **Every worker the product starts** is pinned by call site, through any receiver (`new globalThis.Worker(`), as each
   send, connect, fetch and submit is (`PlannedSqlTest.WORKERS`, the last round's T4 and the final audit's item 7): the
   planner's, DuckDB's own, and Monaco's.
@@ -139,8 +140,9 @@ Backlog:
     The truly two-phase intents (upload, describe) are named exceptions. A test counts the planning and run calls of
     each intent.
 - **The C5-T audit's backlog: FIXED** in the last round's T3: `upload.ts`'s `?? 0` (:360), `tab-data.ts` `tables()`'s
-  catch-all, `PlannedSqlTest.UNPLANNED_IMPORT`'s quote style, `infer.ts`'s stale reference (:152), `warehouse.ts`
-  `loadWarehouseBinding`'s load callback.
+  catch-all, `PlannedSqlTest.UNPLANNED_IMPORT`'s quote style, `infer.ts`'s stale reference (:152), and
+  `loadWarehouseBinding`'s load callback (then `warehouse.ts`'s; the load itself is the warehouse door's since the
+  fold-in below).
 - **The pages' boots re-pointed to doors** (the last round's T4: the pages, `demo/`, are app code no rule read until
   then): DONE in the fold-in below.
 - **The final audit's backlog** (recorded, not fixed):
@@ -174,3 +176,44 @@ No behaviour changes: the same statements in the same order. The grid's startup 
 measures it, after each: 437,266 (fold-in 1, which touches no startup file but one door) -> 437,239 (DuckDB's worker)
 -> 437,249 (the demo sample), with 44 startup files throughout, so nothing split. The engine page stays at 425,492. The
 line was 437,270 on Linux, which keeps Windows' 18-28 bytes more under 437,300.
+
+## The review fold-in: every computed load named (2026-11-15)
+
+The narrow review of the fold-in (b3f1d8cbaa..1f54b8d924) found no must-fix. Its items, folded in before the push to
+#105, so TypeScript lands with no unpinned computed load anywhere:
+- **S1, the planner kind read.** `layers_alone` no longer skips the planner layers or sets their files aside. A run
+  layer holds no computed load; a planner, server or door layer exactly the named loads of its closure's modules.
+  - `COMPUTED_PLANNER` names the planner's four, two of which were pinned nowhere:
+    - the planner's worker, `legend/wasm-grammar.ts`;
+    - the planner worker's TeaVM runtime, `legend/planner-worker.ts`;
+    - DataCube's planner on its worker, `lite-planner.ts`;
+    - DataCube's in-thread planner's TeaVM runtime, `lite-planner.ts`.
+  - `lite-planner.ts`'s `loadRuntime` option is deleted: the same injectable loader shape T3 took from `warehouse.ts`.
+    The runtime comes from its asset folder alone. The tests serve a stand-in runtime from a folder of their own, and a
+    missing runtime is now a missing file.
+  - The literal-specifier check reads the planner layers too.
+- **S2, the two new doors witnessed on Node**, as `openedInTab` is (`run-frame.test.ts`): `dataLoaded` and
+  `synthesizedInTab` each ask their stand-in planner outside a run and send the answer's statement inside one.
+  `sample-trades.test.ts` makes its table through `synthesizedInTab`.
+- **B1.** A named load is a door's or a planner's by the target that holds its module (`door_layer_srcs`,
+  `planner_layer_srcs`), not by a path's prefix.
+- **B2.** On each layer, a named load of a module the layer holds as its own (`<layer>_own`) must be read there: no
+  dead row.
+- **B3.** The door also hands DuckDB's module URL to the run side; `instantiateDuckDbInTab(worker, module)` names no
+  vendor folder.
+- **B4.** Stale comments fixed in `PlannedSqlTest.RUNNER_CALLS`, `infer.ts`, `sample-trades.test.ts` and this record's
+  backlog.
+- **B5.** The apps' and their pages' own modules are scanned with the same scanner (`tools/deps/computed-doors.mts`,
+  shared). `COMPUTED_PAGES` names their three:
+  - a notebook cube's chunk and its module, each imported from a blob URL (`datacube/demo/widget-loader.ts`);
+  - Studio's Monaco editor worker, from the page's own site (`studio/src/app/app.ts`). The review's list did not have
+    this one; the scan found it.
+
+The grid's startup on Linux: 437,249 -> 437,233; the engine page 425,492 -> 425,473; 44 startup files.
+
+Red on revert:
+- a planner load left unnamed fails its planner layer;
+- a planner row keyed to a run module fails ("is not a planner's");
+- a row whose module no longer opens its door fails ("is named, and read nowhere");
+- an app's load left unnamed fails `app_runs_test`;
+- a door that asks its planner inside the run fails its witness.
