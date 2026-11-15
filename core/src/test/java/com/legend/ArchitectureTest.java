@@ -791,6 +791,56 @@ final class ArchitectureTest {
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), parseDoorViolations(classes, PARSE_DOORS));
     }
 
+    /**
+     * <strong>THE BUILD-TIME CODE PARSES THROUGH THE DOORS, OR IS NAMED (C5-J's last round, A2, 2026-11-15).</strong>
+     * Code outside the product reads Pure text too: the generators that write the platform's declarations
+     * ({@code //spec:generators}), the render census's hand tool ({@code RenderCensus}) and the engine runner's parse
+     * probe ({@code perf.LiteParseMain}). Until now the parse rule read the product's jars and the hosts' doors alone,
+     * so these were unscanned, silently. They are read now ({@code //core:build_time_jars}), each held to
+     * {@link #PARSE_BY_THE_DOORS} -- the census and the probe parse through {@code door.Parse} -- but for the ones named
+     * in {@link #BUILD_TIME_READERS}, each with its reason; and each named one is shown to read past the doors still,
+     * so a name does not outlive its reason.
+     */
+    @Test
+    void theBuildTimeCodeParsesThroughTheDoorsOrIsNamed() {
+        JavaClasses build = buildTimeCode();
+        for (String tool : java.util.List.of("com.legend.generators.PreludeGenerator", "RenderCensus",
+                "perf.LiteParseMain")) {
+            org.junit.jupiter.api.Assertions.assertTrue(build.contain(tool), "the import holds " + tool);
+        }
+        PARSE_BY_THE_DOORS.check(build.that(com.tngtech.archunit.base.DescribedPredicate.describe(
+                "are no named build-time reader", c -> !BUILD_TIME_READERS.containsKey(topLevel(c)))));
+        for (String named : BUILD_TIME_READERS.keySet()) {
+            JavaClasses one = build.that(com.tngtech.archunit.base.DescribedPredicate.describe(named,
+                    c -> topLevel(c).equals(named)));
+            org.junit.jupiter.api.Assertions.assertThrows(AssertionError.class, () -> PARSE_BY_THE_DOORS.check(one),
+                    named + " is named as reading past the doors, and reads through them: drop its name");
+        }
+    }
+
+    /** The build-time code that reads Pure text past the parse doors, by class, with its reason
+     *  ({@link #theBuildTimeCodeParsesThroughTheDoorsOrIsNamed}). */
+    static final java.util.Map<String, String> BUILD_TIME_READERS = java.util.Map.of(
+            "com.legend.generators.PreludeGenerator",
+            "it writes the platform's declarations (prelude.pure) from upstream's .pure sources as a build action"
+                    + " (//spec:gen_prelude, under //:update_generated and its diff test), reading each declaration at"
+                    + " its token with the parser's cursor (ElementParser.at over a token stream it lexed): a cursor no"
+                    + " door offers, in a process no plan runs in -- never in a query, never in the product");
+
+    /** The build-time code's classes ({@code //core:build_time_jars}): the generators, the render census, the engine
+     *  runner. */
+    private static JavaClasses buildTimeCode() {
+        java.util.List<java.util.jar.JarFile> jars = new java.util.ArrayList<>();
+        try {
+            for (java.nio.file.Path jar : com.legend.testing.Runfile.listed("legend.build_time.jars")) {
+                jars.add(new java.util.jar.JarFile(jar.toFile()));
+            }
+        } catch (java.io.IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+        return new ClassFileImporter().importJars(jars);
+    }
+
     /** {@link #everyParseIsReachedThroughADoorThatAsks} fails on a class that parses past the doors -- by a call, by a
      *  reference, a token stream's range lexed again ({@code lexRange}), and a model's records read
      *  ({@code server.PlantedParse}, {@code server.PlantedModelRead}); an island's text read by each embedded

@@ -2249,6 +2249,7 @@ junit_test(
         "src/main/java/com/legend/compiler/spec/LiteralUnroll.java",
         "src/main/java/com/legend/sql/dialect/DuckDb.java",
         ":authored_door_jars",
+        ":build_time_jars",
         ":core_test_jar",
         ":guardrails_sources",
         ":product_jars",
@@ -2262,6 +2263,7 @@ junit_test(
         "-Dlegend.product.jars=$(rlocationpath :product_jars)",
         "-Dlegend.test.jars=$(rlocationpath :core_test_jar)",
         "-Dlegend.authored.jars=$(rlocationpath :authored_door_jars)",
+        "-Dlegend.build_time.jars=$(rlocationpath :build_time_jars)",
     ],
     select = [
         "--select-package=com.legend",
@@ -2323,6 +2325,24 @@ java_jars(
         "//sdlc-server/grammar",
         "//wasm:boundary",
         "//wasm:tab",
+    ],
+)
+
+# THE BUILD-TIME CODE THAT PARSES (C5-J's last round, A2, 2026-11-15): the generators that write the platform's
+# declarations (//spec:generators), the render census's hand tool and the engine runner's parse probe read Pure text
+# too, outside any query; the parse rule (ArchitectureTest.everyParseIsReachedThroughADoorThatAsks) reads their classes
+# beside the product's, so none is unscanned, and names the one that reads past the doors (the prelude generator's
+# cursor-level read of upstream's sources). Each is built by the local gate already (//:generated, the census's and
+# the engine runner's build and smoke tests).
+java_jars(
+    name = "build_time_jars",
+    testonly = True,
+    rlocation_paths = True,
+    transitive = False,
+    deps = [
+        "//spec:generators",
+        "//tools/census:render_census_lib",
+        "//tools/engine-runner:runner",
     ],
 )
 
