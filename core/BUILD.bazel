@@ -347,7 +347,8 @@ legend_java_library(
         "src/main/java/com/legend/server/TestDataRoutes.java",
         "src/main/java/com/legend/server/TsTree.java",
     ],
-    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":error", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
+    # door (C5-J item 1, 2026-11-15): its parses through the parse doors, which ask the run's wall
+    deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":door", ":error", ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":result", ":sql", ":sql_dialect", ":testdatagen"],
 )
 legend_java_library(
     name = "server_lib",

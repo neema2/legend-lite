@@ -28,16 +28,17 @@ import org.junit.jupiter.api.Test;
  *
  * <p>The entries the final audit of 9af16fbe58 found still open (J5, 2026-11-14) ask too: an element read into the
  * model ({@code ModelFromText.element}), a model's records read ({@code Compiler.compileModel(records)}), a model's index
- * ({@code ModelBuilder.from}), a model's mappings normalized ({@code MappingNormalizer.normalize}, both). What does
- * NOT ask, and why: the lexer ({@code Lexer.tokenize}: JDK-only, invariant 7a) and the parser ({@code ElementParser},
- * {@code SpecParser}, {@code PmcdParser}: tokens in, protocol records out, invariant 7c) depend on nothing above them,
- * {@code RunScope} included. They make data, never a model or a plan: a parse a run made reaches the planner only
- * through an entry above it -- phase B's reads, D's names, E's normalization, F's typed model -- each of which asks.
- * So does the model's own door ({@code ModelFromProtocol}: the model's package depends on protocol, values and error
- * alone, invariant 6j): its callers ask -- {@code Compiler.compileModel(records)} and {@code ModelFromText}'s
- * {@code parse} and {@code element} -- and {@code ArchitectureTest.aModelsRecordsAreReadByTheCheckedDoorsAlone}
- * keeps them its only callers.
- * A spec's parse (phase C) is name-resolved in phase D, which asks.
+ * ({@code ModelBuilder.from}), a model's mappings normalized ({@code MappingNormalizer.normalize}, both).
+ *
+ * <p>Since C5-J item 1 (2026-11-15) the lexer and the parser ask too: until then they were let off, since the lexer
+ * ({@code Lexer.tokenize}: JDK-only, invariant 7a) and the parser ({@code ElementParser}, {@code SpecParser},
+ * {@code PmcdParser}: tokens in, protocol records out, invariant 7c) depend on nothing above them, {@code RunScope}
+ * included, and the model's own door ({@code ModelFromProtocol}) is pure data (6j). They still cannot ask; their
+ * callers cannot reach them but through the parse doors -- {@code door.Parse}, {@code door.ModelFromText} and the IDE's
+ * {@code ide.DocumentParse} -- each of
+ * which asks first ({@code ArchitectureTest.everyParseIsReachedThroughADoorThatAsks}). So a run lexes nothing, parses no
+ * model, no element, no import, no query and no lambda, and reads no model's records, each refused by its phase's name:
+ * the doors below, and the product's callers of them (the compiler's query parse, the IDE's document).
  *
  * <p>A correction to 02e111ef0's message, which called {@code ModelFromText.parse} "the text door every model's parse
  * goes through": it is the door the compiler's model texts go through ({@code Compiler.parseModel}, {@code compileModel},
@@ -90,7 +91,28 @@ class PhaseEntriesRefusedInsideARunTest {
                 .MappingNormalizer.normalize(resolved, forTolerant, new java.util.HashMap<>()));
         // the driver's own doors, which reach the phases: the first phase each reaches refuses it
         out.put("parse a model (phases A and B) <- Compiler.compileModel", () -> Compiler.compileModel(MODEL));
-        out.put("resolve a model's names (phase D) <- Compiler.query", () -> Compiler.query(ctx, QUERY));
+        // C5-J item 1 (2026-11-15): a query's text is parsed (phase C) before its names are resolved (D), and the
+        // parse asks now -- until then Compiler.query's refusal was phase D's
+        out.put("parse a query (phase C) <- Compiler.query", () -> Compiler.query(ctx, QUERY));
+        out.put("parse a query (phase C) <- Compiler.parseQuery", () -> Compiler.parseQuery(QUERY));
+        // C5-J item 1 (2026-11-15): the parse doors, each the one way past the lexer, the parser and the model's
+        // records door
+        com.legend.lexer.TokenStream tokens = com.legend.lexer.Lexer.tokenize("Class m::B { y: String[1]; }");
+        com.legend.lexer.TokenStream imported = com.legend.lexer.Lexer.tokenize("import m::*;");
+        out.put("lex a model's text (phase A)", () -> com.legend.ide.DocumentParse.tokens(MODEL));
+        out.put("lex a model's text (phase A) <- the IDE's document", () -> new com.legend.ide.ModelOrchestrator(MODEL));
+        out.put("parse a model's element (phase B)", () -> com.legend.ide.DocumentParse.element(tokens,
+                com.legend.parser.Dialect.LEGEND_LITE));
+        out.put("parse a model's import (phase B)", () -> com.legend.ide.DocumentParse.importOf(imported,
+                com.legend.parser.Dialect.LEGEND_LITE));
+        out.put("parse a model (phases A and B) <- Parse.records", () -> com.legend.door.Parse.records(MODEL));
+        out.put("parse a model (phases A and B) <- Parse.documentJson", () -> com.legend.door.Parse.documentJson(MODEL));
+        out.put("parse a model (phases A and B) <- Parse.documentJson, its source information named",
+                () -> com.legend.door.Parse.documentJson(MODEL, true));
+        out.put("parse a query (phase C) <- Parse.query", () -> com.legend.door.Parse.query(QUERY,
+                com.legend.parser.Dialect.LEGEND_LITE));
+        out.put("parse a lambda (phase C)", () -> com.legend.door.Parse.lambdaJson(QUERY, false));
+        out.put("read a model's records (phase B) <- Parse.model", () -> com.legend.door.Parse.model(records));
         out.put("TypedQuery.executionPlan", () -> query.executionPlan("m::RT"));
         return out;
     }

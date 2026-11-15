@@ -42,8 +42,8 @@ public final class Compiler {
     /** Parse one query/expression at the PRODUCT level. */
     public static com.legend.protocol.spec.ValueSpecification
             parseQuery(String query) {
-        return com.legend.parser.SpecParser.parse(query,
-                com.legend.parser.Dialect.LEGEND_LITE);
+        // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15)
+        return com.legend.door.Parse.query(query, com.legend.parser.Dialect.LEGEND_LITE);
     }
 
 
@@ -205,13 +205,12 @@ public final class Compiler {
      * its record carries source information.
      */
     public static ModelContext compileModel(com.legend.protocol.Protocol.PureModelContextData model) {
-        // the model's door is pure data (invariant 6j: com.legend.model reaches no RunScope), so its callers ask the
-        // run's wall: this door and ModelFromText's (the final audit of 9af16fbe58's J5; ArchitectureTest
-        // .aModelsRecordsAreReadByTheCheckedDoorsAlone keeps them its only callers)
-        com.legend.base.RunScope.planning("read a model's records (phase B)");
+        // the model's door is pure data (invariant 6j: com.legend.model reaches no RunScope), so it is reached through
+        // the doors that ask the run's wall: door.Parse.model here, ModelFromText's for a text (the final audit of
+        // 9af16fbe58's J5; through the door since C5-J item 1, 2026-11-15: ArchitectureTest.PARSE_BY_THE_DOORS)
         ParsedModel parsed;
         try {
-            parsed = com.legend.model.ModelFromProtocol.of(Objects.requireNonNull(model, "model"));
+            parsed = com.legend.door.Parse.model(Objects.requireNonNull(model, "model"));
         } catch (com.legend.model.ModelFromProtocol.Unrepresentable u) {
             // a shape the compiler's model cannot represent: a construct legend-lite does not compile. With its
             // record's position it is the text door's error, word for word and at the same place (2026-10-21, the

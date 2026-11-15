@@ -215,12 +215,12 @@ public final class PureV1Api {
     /** E1: a lambda's text to its protocol JSON. Text without a leading {@code |} is
      *  wrapped in a parameterless lambda spanning the whole text, as the engine does. */
     public static Answer grammarToJsonLambda(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> SpecParser.lambdaJson(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> com.legend.door.Parse.lambdaJson(text, returnSourceInformation));
     }
 
     /** E2: a model's text to its PMCD JSON. */
     public static Answer grammarToJsonModel(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> PmcdParser.parseDocument(text, returnSourceInformation));
+        return answer(400, "PARSER", () -> com.legend.door.Parse.documentJson(text, returnSourceInformation));
     }
 
     // ---------------------------------------------------------------------

@@ -723,9 +723,11 @@ final class ArchitectureTest {
      * <strong>A MODEL'S RECORDS ARE READ BY THE CHECKED DOORS ALONE (the final audit of 9af16fbe58's J5,
      * 2026-11-14).</strong> The model's door ({@code model.ModelFromProtocol}: records in, the compiler's parsed model
      * out) is pure data -- its package reaches protocol, values and error alone (invariant 6j, {@link #modelIsPureData})
-     * -- so it cannot ask the run's wall itself. Its callers do, and are these alone, default-deny: the root's
-     * {@code Compiler} (whose {@code compileModel(records)} asks first) and {@code door.ModelFromText} (whose
-     * {@code parse} and {@code element} ask first). A new caller is named here the day it is written.
+     * -- so it cannot ask the run's wall itself. Its callers do, and are these alone, default-deny: the parse doors,
+     * {@code door.Parse} (whose {@code model} asks first; until C5-J item 1, 2026-11-15, the root's {@code Compiler}
+     * called it directly, asking in {@code compileModel(records)}) and {@code door.ModelFromText} (whose {@code parse}
+     * and {@code element} ask first). A new caller is named here the day it is written; since C5-J item 1 the wider
+     * {@link #everyParseIsReachedThroughADoorThatAsks} holds every parse entry, this door's among them.
      */
     @Test
     void aModelsRecordsAreReadByTheCheckedDoorsAlone() {
@@ -743,12 +745,144 @@ final class ArchitectureTest {
     /** The rule of {@link #aModelsRecordsAreReadByTheCheckedDoorsAlone}. */
     static final com.tngtech.archunit.lang.ArchRule MODEL_RECORDS_BY_THE_CHECKED_DOORS = noClasses()
             .that().resideOutsideOfPackage("com.legend.model")
-            .and().doNotHaveFullyQualifiedName("com.legend.Compiler")
+            .and().doNotHaveFullyQualifiedName("com.legend.door.Parse")
             .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
             .should().accessTargetWhere(invokesWhere("ModelFromProtocol.of or element",
                     a -> a.getTargetOwner().isEquivalentTo(com.legend.model.ModelFromProtocol.class)
                             && (a.getName().equals("of") || a.getName().equals("element"))))
             .as("J5 (2026-11-14): a model's records are read by the doors that ask the run's wall alone");
+
+    /**
+     * <strong>EVERY PARSE IS REACHED THROUGH A DOOR THAT ASKS (C5-J item 1, 2026-11-15: a wider Java witness).</strong>
+     * The lexer (phase A) is JDK-only (invariant 7a), the parser (the parser half of B, and C) depends on nothing above
+     * it (7c), and the model's records door ({@code ModelFromProtocol}) is pure data (6j): none can ask the run's wall.
+     * So outside them they are reached through the parse doors alone ({@link #PARSE_DOORS}: {@code door.Parse},
+     * {@code door.ModelFromText} and the IDE's {@code ide.DocumentParse}), default-deny, by a call or a reference ({@link #PARSE_BY_THE_DOORS}); and every door
+     * method that reaches one asks FIRST ({@link #parseDoorViolations}: a call of {@code RunScope.planning} on an
+     * earlier line than its first parse), holds no lambda, makes no reference, and the doors hold no nested class --
+     * ArchUnit reads a lambda's calls as its enclosing method's, so a question asked when a callback is MADE would pass
+     * for one asked when it RUNS. A parse entry ({@link #isParseEntry}) is a constructor or a method of a lexer or
+     * parser class that is not data the parse made or names (an exception, an enum, a record, the token stream), and
+     * {@code ModelFromProtocol}'s {@code of} and {@code element}; the IDE's indexer reads a lexed document's tokens with
+     * two of the parser's token helpers ({@link #TOKEN_READERS}), named. Invariant 6i's sanctioned users of the grammar
+     * parsers became the doors with it ({@link #parseMachineryIsUsedOnlyWhereSanctioned}). {@code PhaseEntriesRefusedInsideARunTest} pins
+     * each door's refusal by its phase; {@link #theParseRulesBiteAPlantedCaller} shows both halves bite.
+     */
+    @Test
+    void everyParseIsReachedThroughADoorThatAsks() {
+        JavaClasses classes = coreAndTheHostsDoors();
+        for (String door : PARSE_DOORS) {
+            org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
+        }
+        PARSE_BY_THE_DOORS.check(classes);
+        org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), parseDoorViolations(classes, PARSE_DOORS));
+    }
+
+    /** {@link #everyParseIsReachedThroughADoorThatAsks} fails on a class that parses past the doors -- by a call, by a
+     *  reference, and a model's records read ({@code server.PlantedParse}, {@code server.PlantedModelRead}) -- and on a
+     *  door that parses without asking, asks after it parses, or parses in a lambda ({@code door.PlantedUnaskedDoor},
+     *  {@code PlantedLateDoor}, {@code PlantedLambdaDoor}): test classes planted for this alone. */
+    @Test
+    void theParseRulesBiteAPlantedCaller() {
+        bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.class);
+        bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.ByReference.class);
+        bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedModelRead.class);
+        java.util.Map<Class<?>, String> doors = java.util.Map.of(
+                com.legend.door.PlantedUnaskedDoor.class, "parses without asking the run's wall",
+                com.legend.door.PlantedLateDoor.class, "parses before it asks the run's wall",
+                com.legend.door.PlantedLambdaDoor.class, "holds a lambda");
+        doors.forEach((door, said) -> {
+            java.util.List<String> found = parseDoorViolations(new ClassFileImporter().importClasses(door),
+                    java.util.Set.of(door.getName()));
+            org.junit.jupiter.api.Assertions.assertTrue(found.stream().anyMatch(f -> f.contains(said)),
+                    door.getName() + ": " + found);
+        });
+    }
+
+    /** The parse doors: each method asks the run's wall, then parses ({@link #everyParseIsReachedThroughADoorThatAsks}). */
+    static final java.util.Set<String> PARSE_DOORS = java.util.Set.of("com.legend.door.Parse",
+            "com.legend.door.ModelFromText", "com.legend.ide.DocumentParse");
+
+    /** The parser's token helpers the IDE's indexer ({@code ide.ModelIndexer}) reads a lexed document with, by owner and
+     *  name (C5-J item 1, 2026-11-15): a lookahead and an error at a token, over tokens the door lexed (its caller,
+     *  {@code ide.ModelOrchestrator}, lexes through {@code door.Parse.tokens}) -- reads, never a parse. */
+    static final java.util.Set<String> TOKEN_READERS = java.util.Set.of(
+            "com.legend.parser.ElementParser#looksLikeTaggedValueBlock", "com.legend.parser.TokenStreamCursor#throwAt");
+
+    /** Whether {@code a} enters the lexer, the parser or the model's records door ({@link #everyParseIsReachedThroughADoorThatAsks}). */
+    static boolean isParseEntry(com.tngtech.archunit.core.domain.JavaCodeUnitAccess<?> a) {
+        com.tngtech.archunit.core.domain.JavaClass owner = a.getTargetOwner();
+        if (owner.getName().equals("com.legend.model.ModelFromProtocol")) {
+            return a.getName().equals("of") || a.getName().equals("element");
+        }
+        String p = owner.getPackageName();
+        if (!(p.equals("com.legend.lexer") || p.startsWith("com.legend.lexer.") || p.equals("com.legend.parser")
+                || p.startsWith("com.legend.parser."))) {
+            return false;
+        }
+        // data the parse made or names: its error, an enum, a record, the token stream -- read off the class itself,
+        // since an import of the product's jars holds no JDK supertype to read a Throwable by
+        Class<?> k = owner.reflect();
+        if (Throwable.class.isAssignableFrom(k) || k.isEnum() || k.isRecord() || k == com.legend.lexer.TokenStream.class) {
+            return false;
+        }
+        return !(TOKEN_READERS.contains(owner.getName() + "#" + a.getName())
+                && topLevel(a.getOriginOwner()).equals("com.legend.ide.ModelIndexer"));
+    }
+
+    /** The rule of {@link #everyParseIsReachedThroughADoorThatAsks}: no class but the lexer's, the parser's, the model
+     *  package's and the parse doors reaches a parse entry. */
+    static final com.tngtech.archunit.lang.ArchRule PARSE_BY_THE_DOORS = noClasses()
+            .that().resideOutsideOfPackages("com.legend.lexer..", "com.legend.parser..", "com.legend.model")
+            .and().doNotHaveFullyQualifiedName("com.legend.door.Parse")
+            .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
+            .and().doNotHaveFullyQualifiedName("com.legend.ide.DocumentParse")
+            .should().accessTargetWhere(reachesCodeUnitWhere("a parse entry (the lexer's, the parser's, or the model's"
+                    + " records door)", ArchitectureTest::isParseEntry))
+            .as("C5-J item 1 (2026-11-15): the lexer, the parser and the model's records door are reached through the"
+                    + " parse doors alone, each asking the run's wall first");
+
+    /** What a parse door does past asking, then parsing ({@link #everyParseIsReachedThroughADoorThatAsks}): a nested
+     *  class, a lambda (read through reflection: ArchUnit folds a lambda's body into its enclosing method), a reference,
+     *  a method that parses before it asks or without asking. */
+    static java.util.List<String> parseDoorViolations(JavaClasses classes, java.util.Set<String> doors) {
+        java.util.List<String> found = new java.util.ArrayList<>();
+        for (com.tngtech.archunit.core.domain.JavaClass c : classes) {
+            String top = topLevel(c);
+            if (!doors.contains(top)) {
+                continue;
+            }
+            if (!c.getName().equals(top)) {
+                found.add("a nested class " + c.getName());
+                continue;
+            }
+            for (java.lang.reflect.Method m : c.reflect().getDeclaredMethods()) {
+                if (m.isSynthetic() && m.getName().startsWith("lambda$")) {
+                    found.add(c.getName() + " holds a lambda, " + m.getName());
+                }
+            }
+            for (com.tngtech.archunit.core.domain.JavaCodeUnit u : c.getCodeUnits()) {
+                if (!u.getMethodReferencesFromSelf().isEmpty() || !u.getConstructorReferencesFromSelf().isEmpty()) {
+                    found.add(u.getFullName() + " makes a reference");
+                }
+                int asks = Integer.MAX_VALUE;
+                int parses = Integer.MAX_VALUE;
+                for (com.tngtech.archunit.core.domain.JavaCall<?> call : u.getCallsFromSelf()) {
+                    if (call.getTargetOwner().getName().equals("com.legend.base.RunScope")
+                            && call.getName().equals("planning")) {
+                        asks = Math.min(asks, call.getLineNumber());
+                    } else if (isParseEntry(call)) {
+                        parses = Math.min(parses, call.getLineNumber());
+                    }
+                }
+                if (parses != Integer.MAX_VALUE && asks >= parses) {
+                    found.add(u.getFullName() + (asks == Integer.MAX_VALUE ? " parses without asking the run's wall"
+                            : " parses before it asks the run's wall"));
+                }
+            }
+        }
+        return found;
+    }
 
     /** The rule of {@link #aProductStatementIsPreparedByThePlannersAlone}. */
     static final com.tngtech.archunit.lang.ArchRule PREPARE_IS_THE_PLANNERS = noClasses()
@@ -3020,24 +3154,25 @@ final class ArchitectureTest {
         return textual;
     }
 
-    /** Grammar cursors and section parsers are parse-time machinery. */
+    /** Grammar cursors and section parsers are parse-time machinery. Since C5-J item 1 (2026-11-15) their users outside
+     *  the parser are the parse doors ({@code com.legend.door}, which asks the run's wall) and the IDE (its document door
+     *  and its indexer's token readers): the root's driver, the platform's bootstrap parse and the server shell, each a
+     *  sanctioned user until then, reach the parser through a door ({@link #everyParseIsReachedThroughADoorThatAsks}). */
     @Test
     void parseMachineryIsUsedOnlyWhereSanctioned() {
         noClasses()
             .that().resideOutsideOfPackages(
                     "com.legend.parser..", "com.legend.ide..",
-                    "com.legend.builtin", "com.legend",
-                    // the server shell receives RAW PURE TEXT over HTTP —
-                    // a parse ENTRY like the driver (LSP diagnostics,
-                    // diagram extraction, runtime->connection resolution)
-                    "com.legend.server..")
+                    // the parse doors (C5-J item 1, 2026-11-15): until then the root's driver, the platform's
+                    // bootstrap parse (builtin) and the server shell, which receives raw Pure text over HTTP, were
+                    // sanctioned here; each parses through a door now
+                    "com.legend.door")
             .should().dependOnClassesThat().haveNameMatching(
                     "com\\.legend\\.parser\\.(ElementParser|SpecParser"
                     + "|MappingGrammarParser|RelationalGrammarParser"
                     + "|TokenStreamCursor)(\\$.*)?")
             .as("Invariant 6i: grammar parsers/cursors live and die at parse"
-              + " time (builtin's bootstrap parse + the driver are the two"
-              + " sanctioned exceptions)")
+              + " time (the parse doors and the IDE are the sanctioned users)")
             .check(CORE_PROD_CLASSES);
     }
 
