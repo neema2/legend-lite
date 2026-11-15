@@ -1,7 +1,8 @@
 # The desk's data, deployed: the design (2026-11-14)
 
-**Status: PROPOSED, not ratified.** Written with the user on 2026-11-14, branch `claude/deephaven-3-browser`. §13
-says what the user ruled (in the user's words) and what is open. Nothing here is built yet. When ratified it
+**Status: AGREED 2026-11-15 but for one point** (§13: how a keyed dataset lands, found while preparing step 0).
+Written with the user on 2026-11-14 and 15, branch `claude/deephaven-3-browser`. §13 says what the user ruled, in
+the user's words. Nothing here is built yet. When ratified it
 supersedes, in docs/DESK_DATA_ROADMAP_2026_10_29.md, B2's generated Groovy program, B3's pulls and decision P's
 runner, and the ingest words `Stream`, `Pull`, `LatestByKey` and `retention` (docs/SEMANTICS_REGISTER.md S402).
 `include Ingest`, the topic stores and C0's ingest plans stay.
@@ -299,7 +300,7 @@ falling behind) need a long-running test.
 - **Decision P** (how pulled reference data reaches Deephaven; options (a) to (d), docs/DESK_DATA_ROADMAP_2026_10_29.md
   §2) is deferred: with the masters publishing, the desk holds no pull -- its five pulls become topic reads, like
   prices -- so P has nothing to decide, and a pull on a Deephaven target is refused by name until a model needs one.
-  It returns only if a team cannot publish, and (c) -- lite runs the pull and publishes to a keyed
+  It is relitigated only if a reference data team cannot publish themselves (the user, 2026-11-15), and (c) -- lite runs the pull and publishes to a keyed
   topic -- is still the recommendation then. A pull is `Snapshot` of a database query on its schedule.
 
 ## 12. Risks and unknowns (to measure before promising)
@@ -332,27 +333,37 @@ falling behind) need a long-running test.
 - Upstream's ingest words (§5): "Upstream ingest yes".
 - The masters publish (§11): "Reference published yes".
 - A lane against a real Kafka-compatible broker: "Real Kafka maybe at the end" (the last step, §15).
+
+**Ruled, 2026-11-15** ("Yes to all, decision P we should just say it's only relitigated if ref data team can't
+publish themselves"):
+- Data products at step 2, the small form: one product, `desk::Desk`, over today's mapping; the domain products
+  (and splitting the desk's mapping by domain) a later decision of their own.
+- Decision P: relitigated only if a reference data team cannot publish themselves.
+- A deployment's owner (`ownership: Deployment { identifier }`) later, when production needs to know who may
+  install; an ingest's owner (`owner=AppDir(...)`) stays as it is.
+- The positions' drop location: upstream's nearest connection read first, before step 4. (Code search of
+  legend-engine at `05a3d33c` found neither `ExternalFormatConnection` nor `UrlStreamExternalSource`; the reading
+  is still owed.) A lite `Files` type only if nothing upstream fits.
+- The history tier's connection at the history step.
+- `Simulated` as the tab's source, `TabLog` dropped.
+- No sandbox stage now.
 - Standing from before: "if DeepHaven cannot do something refuse and keep going" (2026-11-14); "door for sure, no need
   for tansu just use door" (2026-10-29); no push to main and no PR without the user's word.
 
-**Open, the recommendation first:**
-1. Data products (§7): at step 2 in the small form -- one product, `desk::Desk`, over today's mapping -- with the
-   domain products (and splitting the desk's mapping by domain) a later decision of their own; or all of it later,
-   the deployment listing ingests until then.
-2. Decision P: deferred until a model holds a pull on Deephaven (§11); or ruled now as (c), for whenever one is
-   needed.
-3. A deployment's owner (`ownership: Deployment { identifier }`, the activators'): added when production needs to
-   know who may install an environment. An ingest's owner (`owner=AppDir(...)`, upstream's) stays as it is.
-4. The positions' drop location: upstream's nearest connection (`ExternalFormatConnection` with a `UrlStream`
-   source, to be read in legend-engine before choosing), or a lite `Files` type. Upstream's lakehouse needs neither:
-   its ingest platform answers the write location from the owner's deployment.
-5. The history tier's connection (`Iceberg`, or the firm's Snowflake or Databricks where they expose Iceberg): at
-   the history step.
-6. `Simulated` as the tab's source (§9), meaning "the topics the simulated world publishes in this tab": the word of
-   2026-10-29 kept, its first meaning (the world writing the tables directly) retired. `TabLog`, proposed earlier,
-   is dropped.
-7. A sandbox stage (the activators': unreleased work installed somewhere to try it, production taking only released
-   versions): not now; a development environment is a deployment like any other.
+**Open: how a keyed dataset lands** (found 2026-11-15, preparing step 0). Upstream's `batch_milestoned` gives every
+reader of the dataset three more columns -- `LAKE_DIGEST` (a string), `LAKE_IN_ID` and `LAKE_OUT_ID` (batch ids),
+plus `LAKE_FROM` and `LAKE_THRU` for business temporal (legend-studio `V1_CubeIngestDefinition.ts`,
+`milestoningColumns`) -- and its current rows are the versions not yet closed. How upstream's ingest-generated
+databases expose those columns to class mappings is not visible (closed services). The table in §5 mapped lite's
+`LatestByKey` onto `batch_milestoned` without saying so.
+- **(B), recommended:** step 0 adopts what fits now -- `Delta`/`Snapshot`, `deleteIndicator`, `append_only`, the
+  format in the read mode -- and keyed current-only data keeps lite's `LatestByKey` (the lakehouse has no
+  current-only write mode; `###Persistence`'s words for it are a nontemporal delta, v2 `updatesHandling:
+  Overwrite`). `batch_milestoned`, its columns and the reading of current versions arrive with the history tier,
+  its own decision, since only history needs versions. Step 0 stays small; one lite word stays (S402).
+- **(A):** upstream exactly now: keyed datasets `batch_milestoned`, their tables carrying the milestoning columns on
+  every target, every mapping and screen over keyed data reading the open versions, S404 lifted. Large: it touches
+  the desk's mappings and screens before anything else is built.
 
 ## 14. Differences from upstream, to register
 

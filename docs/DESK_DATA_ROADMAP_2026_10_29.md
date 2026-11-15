@@ -54,7 +54,7 @@ all together in same PR don't worry about license for the moment".
 | **W** | The words (below) | A1 | `retention=` (the user). The other two as recommended below, taken under "do all in order you think"; still the user's to change |
 | **K** | The Deephaven demo's Kafka: our door, or a real broker | B1 | the door ("door for sure") |
 | **S** | Decision 3 of the design said "the demo's simulator stays in the server, writing rows only". With the door, the simulation runs as its own process instead | B1 | yes: it follows from K |
-| **P** | How pulled reference data reaches Deephaven (below) | B3 | **open**: the user asked for the best options; recommended (c) |
+| **P** | How pulled reference data reaches Deephaven (below) | B3 | **deferred** (the user, 2026-11-15): the masters publish to Kafka; P is relitigated only if a reference data team cannot publish themselves (docs/DEPLOYMENT_DESIGN_2026_11_14.md §11); (c) the recommendation then |
 | **X** | A comparison lane against Tansu or Apache Kafka | B5 | no ("no need for tansu just use door"): B5 dropped |
 | **O** | The order | after A | the recommended order (§4) |
 | **L** | Where it lands | -- | one PR for all of it; the licence set aside for now (§5) |
