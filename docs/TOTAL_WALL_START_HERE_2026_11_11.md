@@ -1069,14 +1069,27 @@ In order. Nothing here is in the A/B/C PR.
        - `PLANNER_ENTRIES` 70 → 61.
      - Measured before and after: core's suites, PCT A/B DuckDB+H2 and both corpora. No body's outcome or failure text
        moved.
+     - **Its last round (the user's "Yes do it", 2026-11-15; `docs/GATES.md`'s C5-J last-round entry), each red on
+       revert:**
+       - A1 (53fba7ef80): the embedded languages' readers (#SQL's and #IQ's dialects, `TsParser`, `CypherParser`)
+         through the parse doors (`door.Parse.sqlIsland`, `tsIsland`, `tsItem`, `cypherIsland`), the translators taking
+         the tree; `PARSE_BY_THE_DOORS` covers the readers, default-deny; none was reached inside a run;
+       - A2 (a5ee9bdb82): the build-time code under the parse rule (`//core:build_time_jars`: the generators, the
+         render census, the engine runner's probe), the census and the probe through the doors, the prelude generator
+         the one named reader;
+       - A3 (e31b8a2bbe): `Compiler.programFacts` off the closed surface;
+       - A4 (d7299fe47f): an object reference built in SQL is `AsorRef`'s byte for byte and decodes to every segment
+         (DuckDB and SQLite; H2 refuses the encoding by name).
      - **Its backlog** (found during C5-J, outside its scope; a line each, start none without the user):
-       - the parse rule reads core and the hosts' doors alone: `//sdlc-server/grammar`'s `CoreGrammar`, the spec
-         generator's `PreludeGenerator` and the tools (`tools/census/RenderCensus`, the engine runner's `LiteParseMain`)
-         call the parser directly, outside its import;
-       - `protocol.ts.TsParser` parses in the protocol layer, outside `com.legend.parser` and outside the parse doors
-         (`PureV1Api`'s TS route, `TsToPure`, `TsShow`), so a TS query's parse is unwitnessed at run time;
-       - `Compiler.programFacts` has no caller since the PCT runner reads the test plan's facts: delete it from the
-         closed surface (ROOT_DOORS, QUERY_ROADS);
+       - DONE in the last round (A2, a5ee9bdb82; CoreGrammar in the audit fix round, 7b3ee3f036): the parse rule read
+         core and the hosts' doors alone -- `//sdlc-server/grammar`'s `CoreGrammar`, the spec generator's
+         `PreludeGenerator` and the tools (`tools/census/RenderCensus`, the engine runner's `LiteParseMain`) called the
+         parser directly, outside its import;
+       - DONE in the last round (A1, 53fba7ef80): `protocol.ts.TsParser` parsed in the protocol layer, outside
+         `com.legend.parser` and outside the parse doors (`PureV1Api`'s TS route, `TsToPure`, `TsShow`), so a TS query's
+         parse was unwitnessed at run time -- and so were the #SQL, #IQ and #Cypher islands' readers;
+       - DONE in the last round (A3, e31b8a2bbe): `Compiler.programFacts` had no caller since the PCT runner reads the
+         test plan's facts, and is off the closed surface (ROOT_DOORS, QUERY_ROADS);
        - the Lowerer's other bare IllegalStateExceptions (beyond its isolation walls) are unnamed: name each that a
          caller means to catch, the rest stay bugs;
        - a backslash OUTSIDE quotes in a date pattern: `DateFormats` passes it through as text, where pure refuses it

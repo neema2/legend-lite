@@ -22294,3 +22294,43 @@ it is code:
   - both corpora: the four judge TSVs and every failure text are byte-identical to main's.
 - **The gate** at f8c49446b3 (`bazel test --lockfile_mode=error //gates:local`): 520 pass and 1 skipped. The 11
   Postgres-backed targets, refused as root, pass unprivileged (11 of 11).
+
+### 2026-11-15 — C5-J's last round (PR #106; the user's "Yes do it")
+
+The last Java plan/exec cleanup before the merge, four items, each red on revert. Behaviour does not move: the same
+answers, the same errors outside a run.
+
+- **A1, the embedded languages' readers through the parse doors (53fba7ef80).** The island readers -- #SQL's and
+  #IQ's dialects over `SqlParser` and `IqParser`, `TsParser`, `CypherParser` -- sit in the protocol layer, which cannot
+  ask the run's wall (7b). `door.Parse` gains `sqlIsland`, `tsIsland`, `tsItem` and `cypherIsland`, each asking first;
+  the translators take the tree (`SqlToPure`'s text overloads and `CypherToPure.translate(String)` are gone,
+  `TsToPure.translate` takes the query's tree, `TsShow.of` takes a reader asked where the text was read before), and
+  every caller reads through the door (the compiler's island seams, which now reach `door`; the server's `jsonToTs` and
+  `tsItem`). `PARSE_BY_THE_DOORS` covers the readers default-deny (`ISLAND_READERS`, `ISLAND_READER_HELPERS`,
+  `ISLAND_DIALECTS`); eight planted violators (`compiler.spec.PlantedIslandParse`) and a phase row per entry. None was
+  reached inside a run: no outcome moved.
+- **A2, the build-time code under the rule (a5ee9bdb82).** `//core:build_time_jars` brings the generators, the render
+  census and the engine runner's parse probe into the guard's import; the census and the probe parse through the doors;
+  the prelude generator (a cursor-level read of upstream's sources, a build action) is the one named reader
+  (`BUILD_TIME_READERS`), shown to read past the doors still.
+- **A3, `Compiler.programFacts` off the closed surface (e31b8a2bbe).** No caller was left; `hasStatementEffects` states
+  the facts itself. The root-door pins drop its rows with a dated note.
+- **A4, an object reference's round trip (d7299fe47f).** `AsorRefRoundTripTest`: a reference the database builds in SQL
+  is `AsorRef.ref`'s byte for byte and decodes to every segment, on each in-process database that can build one (DuckDB
+  and SQLite; H2 refuses the encoding by name). Red on revert: the SQL side's segment width changed alone.
+- **S342, date-format item (a), RULED by the user (2026-11-15, "(a) record it"; docs only).** The difference the audit
+  fix round posted for the user (above: "One difference has no user ruling") is recorded in S342's row: lite takes a
+  format string written into the query only, and refuses one known only at run time by name, where pure accepts it and
+  refuses it at run time only if malformed -- lite translates the pattern into each database's syntax while planning,
+  and a plan is reused across parameter values. Items (b) and (c) moved to stream D; not touched here.
+- **Red on revert, measured:** a caller back past the door (CypherIslands) fails `everyParseIsReachedThroughADoorThatAsks`;
+  a door's ask removed (`sqlIsland`) fails `PhaseEntriesRefusedInsideARunTest`; the census tool back on `SpecParser`
+  fails `theBuildTimeCodeParsesThroughTheDoorsOrIsNamed`; `programFacts` put back fails `theRootDoorsAreClosed` and
+  `everyRootDoorThatTakesAQueryNamesItsRoad`; `lpad` to 9 fails the round trip at row 0.
+- **Outcomes, against main, on the same lanes:**
+  - core: 20,842 → 20,852 pass, none moved; the 10 new are C5-J's tests (7 from its earlier rounds, and this round's
+    round trip under its 3 judge targets);
+  - PCT A/B on DuckDB and H2: 1,573 pass, unchanged;
+  - both corpora: the four judge TSVs and every failure text are byte-identical to main's;
+  - `//parser-equivalence/...`: 6 of 6.
+
