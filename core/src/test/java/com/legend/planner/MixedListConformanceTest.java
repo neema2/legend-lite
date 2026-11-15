@@ -126,6 +126,9 @@ class MixedListConformanceTest {
         String model = StorelessRuntime.with("", com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
         Compiler.query(Compiler.compileModel(model), "|['b', 1, 2.5D, 'a']->sort()")
                 .executionPlan(StorelessRuntime.RUNTIME);
+        // PCT's testMixedSortNoComparator: Integers and Floats, one negative (round 55f: refused as "a Decimal")
+        Compiler.query(Compiler.compileModel(model), "|[342, 5.0, -2.0, 171, 1]->sort()")
+                .executionPlan(StorelessRuntime.RUNTIME);
         for (String[] c : new String[][] {{"|['b', 1, 0.1D]->sort()", "the Decimal 0.1 (not exact as a DOUBLE)"},
                 {"|['b', 9007199254740993, 9007199254740992]->sort()", "the integer 9007199254740993 (beyond 2^53)"}}) {
             com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
@@ -144,7 +147,9 @@ class MixedListConformanceTest {
     @Test
     void aComputedIntegerBeyond2To53InAMixedRankPlans_aKnownLimit() {
         String model = StorelessRuntime.with("", com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
-        Compiler.query(Compiler.compileModel(model), "|['b', 9007199254740992 + 1, 9007199254740992]->sort()")
+        // the computed value through a let: a list literal holds no arithmetic (SpecParser, round 55f)
+        Compiler.query(Compiler.compileModel(model),
+                "|let n = 9007199254740992 + 1; ['b', $n, 9007199254740992]->sort();")
                 .executionPlan(StorelessRuntime.RUNTIME);
     }
 }

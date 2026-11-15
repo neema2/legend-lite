@@ -1252,6 +1252,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
+                    refuseDateKinds(n.args().get(0), "least element");
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
@@ -1270,6 +1271,9 @@ final class Scalars {
                 }
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
+                    if (ma != null) {
+                        refuseDateKinds(n.args(), "least element");
+                    }
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
                             : new SqlExpr.Call(SqlFn.LEAST, args);
@@ -1287,6 +1291,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
+                    refuseDateKinds(n.args().get(0), "greatest element");
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
@@ -1303,6 +1308,9 @@ final class Scalars {
                 }
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
+                    if (ma != null) {
+                        refuseDateKinds(n.args(), "greatest element");
+                    }
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
                             : new SqlExpr.Call(SqlFn.GREATEST, args);
@@ -1343,6 +1351,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
+                    refuseDateKinds(n.args().get(0), "greatest element");
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
@@ -1360,6 +1369,7 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
+                    refuseDateKinds(n.args().get(0), "least element");
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
@@ -3873,5 +3883,27 @@ final class Scalars {
     // the registry is a constant of the process from here on (2026-11-09, base.Sealed: a write after this is refused)
     static {
         RULES.seal();
+    }
+
+    /** A mixed list's extreme over two DATE kinds, refused by name (docs/records/pr1-rulings-2026-11-15.md, R3: the
+     *  orchestrator's ruling under the user's delegation of 2026-11-15), on the mixed-elements route as on the tagged
+     *  list's (TaggedLists.refuseKindTies): round 55f found [%2025-02-10, %2025-02-10T00:00:00, %2024-01-01]->min()
+     *  answered here, never reaching the tagged list. */
+    private static void refuseDateKinds(TypedSpec arg, String what) {
+        if (arg instanceof TypedCollection c) {
+            refuseDateKinds(c.elements(), what);
+        }
+    }
+
+    private static void refuseDateKinds(List<TypedSpec> elements, String what) {
+        java.util.Set<String> dates = new java.util.TreeSet<>();
+        for (TypedSpec e : elements) {
+            Type t = e.info().type();
+            if (t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE_TIME || t == Type.Primitive.DATE) {
+                dates.add(t == Type.Primitive.STRICT_DATE ? "StrictDate"
+                        : t == Type.Primitive.DATE_TIME ? "DateTime" : "Date");
+            }
+        }
+        TaggedLists.refuseDateKinds(dates, what);
     }
 }

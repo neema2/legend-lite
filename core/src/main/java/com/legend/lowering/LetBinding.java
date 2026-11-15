@@ -319,7 +319,7 @@ final class LetBinding {
     /** The operators every database evaluates both of whose operands, whatever their values: arithmetic and a
      *  comparison (no database short-circuits them; AND, OR and COALESCE promise no order of evaluation in SQL, and a
      *  CASE's later conditions and branches may be skipped, so none of those counts). */
-    private static final java.util.Set<SqlFn> STRICT = java.util.EnumSet.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES,
+    private static final java.util.Set<SqlFn> STRICT = java.util.Set.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES,
             SqlFn.DIVIDE, SqlFn.NEGATE, SqlFn.EQUAL, SqlFn.NOT_EQUAL, SqlFn.LESS, SqlFn.LESS_EQUAL, SqlFn.GREATER,
             SqlFn.GREATER_EQUAL);
 

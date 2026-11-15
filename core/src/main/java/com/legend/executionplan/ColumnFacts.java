@@ -40,7 +40,9 @@ public final class ColumnFacts {
      * {@link #precision}). A column is matched to its output by name, and only by name. A column no output is named
      * after is a pivot's generated column (its slot the template's type, when the template carries one); any other
      * difference is a planner defect, refused by name (2026-11-15, PR1's review, G7: the positional pairing of a value
-     * root's one output, the host's half deleted with E1 item 6, is deleted here too: a name that differs fails loudly)
+     * root's one output, the host's half deleted with E1 item 6, is deleted here too: a name that differs fails loudly),
+     * but for one NAMED pairing: a value root's {@code value} over the map binder's marker-named cell
+     * ({@link #mapBinderValue}, round 55f)
      * (a row-struct column reaches here flattened, {@code TypedRows.flat}: until 2026-10-29 one unflattened passed
      * with no slot, and the plan declared one column where the statement answered its parts).
      */
@@ -52,6 +54,12 @@ public final class ColumnFacts {
         for (int i = 0; i < pure.size(); i++) {
             Pure p = pure.get(i);
             OutputCol out = outs.stream().filter(o -> o.name().equals(p.name())).findFirst().orElse(null);
+            if (out == null && mapBinderValue(pure, outs, shape)) {
+                // a value root through a class's chain: its one column 'value' is the map binder's cell, which keeps
+                // its marker name in the statement (SqlSelect.SYNTH_MAP_COL: the renderers and ResultShape read it)
+                // -- a NAMED pairing, never a positional one (round 55f, 2026-11-15: item 10 had refused it)
+                out = outs.get(0);
+            }
             if (out != null) {
                 SqlDdl.ColumnType stored = stored(lowered, out.name(), Map.of());
                 // a raw grid's column read by the name the program wrote (the seam program's S3c, 2026-10-30): its
@@ -79,6 +87,13 @@ public final class ColumnFacts {
             }
         }
         return cols;
+    }
+
+    /** Whether {@code pure} is a value root's one column {@code value} over the map binder's one output (its name the
+     *  {@link SqlSelect#SYNTH_MAP_COL} marker's). */
+    private static boolean mapBinderValue(List<Pure> pure, List<OutputCol> outs, ExecutionPlan.TdsResult.Shape shape) {
+        return shape == ExecutionPlan.TdsResult.Shape.VALUE && pure.size() == 1 && pure.get(0).name().equals("value")
+                && outs.size() == 1 && outs.get(0).name().startsWith(SqlSelect.SYNTH_MAP_COL);
     }
 
     /** Whether {@code name} in {@code q} is a plain read, through subselects, CTEs, joins and a one-cell scalar

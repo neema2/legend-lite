@@ -50,8 +50,12 @@ class LeanSqlCorpusTest {
         String database = MinimalCorpus.BACKEND.type().name();
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> product = new java.util.HashMap<>();
         Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> judge = new java.util.HashMap<>();
-        com.legend.ExecuteOptions options = com.legend.ExecuteOptions.NONE
-                .withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+        // the corpus's resource store, as its run has (MinimalCorpus's options): a body that loads a CSV plans its
+        // load against the file's digest. Only the store: the measure keeps lite's own rules and spelling (round 55f,
+        // 2026-11-15: a DataError, "this run was given no store for it", had been counted as a refusal)
+        com.legend.ExecuteOptions options = new com.legend.ExecuteOptions(null,
+                com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()),
+                java.util.Set.of()).withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
         for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
             String family = t.pkg();
             List<String> productSql = new ArrayList<>();

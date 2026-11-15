@@ -179,7 +179,9 @@ final class AgreementRuns {
             }
             try {
                 rows.get();
-            } catch (RuntimeException e) {
+            } catch (com.legend.error.DataError e) {
+                // the database's error reading the member (a statement's failure, its raise): held for its root;
+                // anything else is a defect and propagates (ErrorShapeGuardrailTest: no broad catch here)
                 Integer root = rootOfMember.get(verdict.id());
                 if (root == null) {
                     throw e;

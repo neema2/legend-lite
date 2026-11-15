@@ -277,19 +277,23 @@ final class TaggedLists {
                 enumerations.add(kind);
             }
         }
-        if (dates.size() > 1) {
-            // the orchestrator's ruling under the user's delegation of 2026-11-15
-            // (docs/records/pr1-rulings-2026-11-15.md, R3): a mixed list's extreme over two date kinds waits for the
-            // run-time carrier, as S341's run-time kind does
-            throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
-                    + String.join(" and ", dates) + ": an extreme across date kinds is refused until the run-time"
-                    + " kind carrier (O2 step 3) answers it as legend-pure does");
-        }
+        refuseDateKinds(dates, what);
         if (numbers.size() > 1 || enumerations.size() > 1) {
             throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
                     + (numbers.size() > 1 ? String.join(" and ", numbers) : String.join(" and ", enumerations))
                     + ": two of its elements of different kinds may compare equal, and the database orders such a tie"
                     + " as it likes (refused until the sort breaks a tie by the element's position)");
+        }
+    }
+
+    /** A mixed list's extreme over more than one date kind ({@code dates}), refused by name (R3, the orchestrator's
+     *  ruling under the user's delegation of 2026-11-15): it waits for the run-time kind carrier, as S341's run-time
+     *  kind does. */
+    static void refuseDateKinds(java.util.Set<String> dates, String what) {
+        if (dates.size() > 1) {
+            throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
+                    + String.join(" and ", dates) + ": an extreme across date kinds is refused until the run-time"
+                    + " kind carrier (O2 step 3) answers it as legend-pure does");
         }
     }
 
@@ -318,7 +322,7 @@ final class TaggedLists {
         }
     }
 
-    /** The literal {@code v} is, under any casts and groupings; else {@code v} itself. */
+    /** The literal {@code v} is, under any casts, groupings and negations; else {@code v} itself. */
     private static SqlExpr literalUnder(SqlExpr v) {
         SqlExpr at = v;
         while (true) {
@@ -326,6 +330,9 @@ final class TaggedLists {
                 at = c.value();
             } else if (at instanceof SqlExpr.Group g) {
                 at = g.inner();
+            } else if (at instanceof SqlExpr.Call c && c.fn() == SqlFn.NEGATE && c.args().size() == 1) {
+                // a negative literal ({@code -2.0}): its magnitude decides, and the double's range is symmetric
+                at = c.args().get(0);
             } else {
                 return at;
             }
@@ -342,21 +349,21 @@ final class TaggedLists {
         if (e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.DOUBLE) {
             SqlExpr v = c.value();
             SqlExpr lit = literalUnder(v);
+            // a literal is known at planning, whatever casts carry it (an Integer's rank may pass through a DECIMAL
+            // cast): it ranks exactly where the double holds its value (round 55f, 2026-11-15: an Integer literal under
+            // a DECIMAL cast read as "a Decimal" and refused testMixedSortNoComparator)
             if (lit instanceof SqlExpr.DecimalLit d) {
-                // a literal is known at planning: it ranks exactly where the double holds it exactly (round 55f,
-                // 2026-11-15: testMixedSortNoComparator's Decimal literal answered correctly, and was refused)
                 if (!exactInADouble(d.value())) {
                     return "the Decimal " + d.value().toPlainString() + " (not exact as a DOUBLE)";
                 }
-            } else if (v.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Decimal) {
+            } else if (lit instanceof SqlExpr.IntLit i) {
+                if (i.value() >= EXACT_IN_A_DOUBLE || i.value() <= -EXACT_IN_A_DOUBLE) {
+                    return "the integer " + i.value() + " (beyond 2^53)";
+                }
+            } else if (!(lit instanceof SqlExpr.FloatLit) && v.type() instanceof com.legend.sql.TypeFact.Typed t
+                    && t.type() instanceof SqlType.Decimal) {
+                // a Decimal computed at run time: not known at planning
                 return "a Decimal";
-            }
-            if (lit instanceof SqlExpr.IntLit i
-                    && (i.value() >= EXACT_IN_A_DOUBLE || i.value() <= -EXACT_IN_A_DOUBLE)) {
-                return "the integer " + i.value() + " (beyond 2^53)";
-            }
-            if (v instanceof SqlExpr.IntLit i && (i.value() >= EXACT_IN_A_DOUBLE || i.value() <= -EXACT_IN_A_DOUBLE)) {
-                return "the integer " + i.value() + " (beyond 2^53)";
             }
         }
         if (e instanceof SqlExpr.ScalarSubquery q && q.subquery() instanceof SqlSelect s) {
