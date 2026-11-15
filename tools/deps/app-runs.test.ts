@@ -30,6 +30,7 @@ import { describe, it } from 'node:test';
 import { posix } from 'node:path';
 
 import { runfileFromEnv, Sources } from '../js/runfiles.mts';
+import { computedDoors } from './computed-doors.mts';
 
 /** The apps' sources, by their paths from the repository. */
 const SOURCES = new Sources('SOURCES', '');
@@ -49,6 +50,27 @@ const PAGES = ['datacube/demo', 'query/demo', 'studio/demo'];
  *  :node_host (a genquery): they run by design, so the census reads none of them. */
 const LAYERED: ReadonlySet<string> = new Set(readFileSync(runfileFromEnv('LAYERED_SRCS'), 'utf8').split('\n')
   .map((l) => l.trim()).filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
+
+/** The planner layers' own files (a genquery): their computed loads are //tools/deps:layers_alone's to name. */
+const PLANNER: ReadonlySet<string> = new Set(readFileSync(runfileFromEnv('PLANNER_SRCS'), 'utf8').split('\n')
+  .map((l) => l.trim()).filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
+
+/**
+ * The computed loads of the apps' and their pages' own modules -- each an import door whose module is chosen at run time
+ * (tools/deps/computed-doors.mts) -- by module and door, with the reason each is allowed (2026-11-15, the C5-T review's
+ * B5: until then no rule read an app's or a page's). A layer's are //tools/deps:layers_alone's. Shrink-only; a list, as
+ * one module may open the same door twice.
+ */
+const COMPUTED_PAGES: readonly (readonly [string, string])[] = [
+  ['datacube/demo/widget-loader.ts import(url)',
+    "a notebook cube's own chunk, fetched over the widget's channel and imported from its blob URL (a module from a blob"
+      + ' URL resolves no import of its own): its own bundle, never a planner or the run side'],
+  ['datacube/demo/widget-loader.ts import(url)',
+    "a notebook cube's own module, widget.js, fetched over the widget's channel and imported from its blob URL"],
+  ["studio/src/app/app.ts new Worker(new URL('./editor.worker.js', globalThis.location.href), ...)",
+    "Monaco's editor worker, from the page's own site (Studio's ./editor.worker.js bundle): the editor's language"
+      + ' services, no database (PlannedSqlTest.WORKERS pins it too)'],
+];
 
 const DATACUBE_RUNNER = "a call of DataCube's runner, a DOOR (runner.ts, //datacube:doors: it asks the planner, then runs"
   + ' the answer in a run frame)';
@@ -222,6 +244,19 @@ describe("the apps' plan-and-run sites, outside every door and run target (shrin
   /** What the census reads: the apps, their pages, and engine-client's own modules outside its run side and doors. */
   const censused = [...appFiles, ...SOURCES.under(ENGINE_CLIENT, '.ts').filter((f) => !f.endsWith('.d.ts'))]
     .filter((f) => !LAYERED.has(f));
+
+  it("opens no import door whose module is chosen at run time but those named: an app's or a page's own module (B5)", () => {
+    // the apps' and the pages' own modules, a layer's aside (each layer's are //tools/deps:layers_alone's)
+    const own = appFiles.filter((f) => !LAYERED.has(f) && !PLANNER.has(f));
+    assert.ok(PLANNER.has('datacube/src/lite-planner.ts'), 'PLANNER_SRCS does not name the planner: the guard is not looking');
+    for (const [key, why] of COMPUTED_PAGES) {
+      assert.ok(own.includes(key.slice(0, key.indexOf(' '))), `${key} is not an app's or a page's own module`);
+      assert.ok(why.length > 20, `${key} is named without its reason`);
+    }
+    const found = own.flatMap((f) => computedDoors(SOURCES.read(f)).map((d) => `${f} ${d}`)).sort();
+    assert.deepEqual(found, COMPUTED_PAGES.map(([key]) => key).sort(), "an app's or a page's own module chooses a module"
+      + ' at run time: load it through a door, or name it with its reason in COMPUTED_PAGES');
+  });
 
   it('reads every app, and leaves out exactly the doors\' and the run targets\' own files', () => {
     for (const dir of APPS) {

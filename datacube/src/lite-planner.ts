@@ -73,8 +73,6 @@ export interface LitePlannerOptions {
    * because scrolling re-issues structurally identical queries.
    */
   readonly cache?: boolean;
-  /** Injectable for tests; defaults to a dynamic import of the URL. */
-  readonly loadRuntime?: (url: string) => Promise<TeavmRuntime>;
   /**
    * Run the module on a WORKER, loaded from this URL.
    *
@@ -342,15 +340,15 @@ export class LitePlanner implements Planner, TableModels, ModelWriter {
     const wasmUrl = base.startsWith('file:')
       ? fileUrlToPath(`${base}classes.wasm`, onWindows())
       : `${base}classes.wasm`;
-    const importRuntime = this.#options.loadRuntime
-      ?? ((url: string) => import(/* @vite-ignore */ url) as Promise<TeavmRuntime>);
 
     // a module of its own: none of the models held before are held by it
     this.#t.generation += 1;
     this.#t.module = (async () => {
       let runtime: TeavmRuntime;
       try {
-        runtime = await importRuntime(runtimeUrl);
+        // from its asset folder alone: no loader is handed in to choose the module (2026-11-15, the C5-T review's S1, as
+        // T3 took warehouse.ts's loader; tests serve a stand-in runtime from a folder of their own)
+        runtime = await (import(/* @vite-ignore */ runtimeUrl) as Promise<TeavmRuntime>);
       } catch (cause) {
         throw new PlannerUnavailableError(
           `could not load the planner runtime from ${runtimeUrl}`

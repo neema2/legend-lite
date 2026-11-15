@@ -898,7 +898,6 @@ _HEADLESS_TESTS = [
     "table-output",
     "json-shape",
     "lazily",
-    "lite-planner",
     # a grid over another grid's rows, and its live input (docs/DATACUBE_FLOW_MODE_2026_10_24.md §3.1): pure
     "live-inputs",
     "menu",
@@ -942,6 +941,10 @@ _HEADLESS_TESTS = [
 # headless_roster_test reads. A file that mixed them is split in two: its screen or Node half `<name>-dom` or
 # `<name>-node`, the rest in the lane under its own name.
 _HEADLESS_LEFT_OUT = {
+    # 2026-11-15 (the C5-T review's S1): LitePlanner loads its in-thread runtime from its asset folder alone, no loader
+    # handed in, so its test serves a stand-in runtime from a folder it writes (node:fs) and LitePlanner imports it: the
+    # host runs no import(). The headless product plans on its host's worker, which //datacube:headless_test drives
+    "lite-planner": "a stand-in runtime imported from a folder the test writes",
     # the demo's sample made by the tab's planner and DuckDB-WASM, and its file read in by the tab's reader (upload.ts
     # ingestFile): the tab's
     "sample-trades": "the tab's planner and file reader",

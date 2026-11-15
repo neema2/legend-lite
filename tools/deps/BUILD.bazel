@@ -1,5 +1,6 @@
 # Guards on the build graph itself: who may reach which jars (MODULE.bazel, THE JAR
 # POOLS). Bazel-only by nature — they check what Bazel resolves and links.
+load("@aspect_rules_js//js:defs.bzl", "js_library")
 load("@repo_inventory//:packages.bzl", "PACKAGES")
 load("//tools/junit:defs.bzl", "junit_test")
 load("//tools/js:defs.bzl", "node_test")
@@ -285,9 +286,15 @@ _LAYERS_ALONE = {
     scope = [label.strip() for label in (never + " + " + _APPS).split("+")],
 ) for name, (_, _, never, _, _, _, _) in _LAYERS_ALONE.items()]
 
-# the planner layers' own files: they start the planner's own worker from the page's URL, planning-side, so the
-# computed-specifier rule (a run or server layer none, a door the vendor loads named) reads every closure without them
-# (2026-11-15, the C5-T fold-in)
+# the computed-specifier scanner, one module that //tools/deps:layers_alone and //tools/deps:app_runs_test both read a
+# door with (2026-11-15, the C5-T review's S1 and B5)
+js_library(
+    name = "computed_doors",
+    srcs = ["computed-doors.mts"],
+)
+
+# the planner layers' and the doors' own files: a named computed load is a planner's or a door's by the target that
+# holds its module (2026-11-15, the C5-T review's S1 and B1), never by a path's prefix
 genquery(
     name = "planner_layer_srcs",
     expression = "labels(srcs, //engine-client:planner + //datacube:planner)",
@@ -297,12 +304,32 @@ genquery(
     ],
 )
 
+genquery(
+    name = "door_layer_srcs",
+    expression = "labels(srcs, //engine-client:doors + //datacube:doors)",
+    scope = [
+        "//datacube:doors",
+        "//engine-client:doors",
+    ],
+)
+
+# each layer's own files: a named computed load of one of them is read in that layer's closure, or the row is dead
+# (2026-11-15, the C5-T review's B2)
+[genquery(
+    name = name + "_own",
+    expression = "labels(srcs, %s)" % layer,
+    scope = [layer],
+) for name, (layer, _, _, _, _, _, _) in _LAYERS_ALONE.items()]
+
 [node_test(
     name = name + "_alone_test",
     size = "small",
     data = [
         layer,
         ":%s_never" % name,
+        ":%s_own" % name,
+        ":computed_doors",
+        ":door_layer_srcs",
         ":planner_layer_srcs",
         "//datacube:node_modules/@types/node",
         "//datacube:node_modules/typescript",
@@ -314,6 +341,8 @@ genquery(
         "LAYER": layer,
         "MIN_FILES": str(floor),
         "NOT_LAYER_SRCS": "$(rlocationpath :%s_never)" % name,
+        "DOOR_SRCS": "$(rlocationpath :door_layer_srcs)",
+        "OWN_SRCS": "$(rlocationpath :%s_own)" % name,
         "PLANNER_SRCS": "$(rlocationpath :planner_layer_srcs)",
         "PLANT_AT": plant,
         "PLANT_IMPORTS": " ".join(imports),
@@ -361,6 +390,8 @@ node_test(
     size = "small",
     data = [
         ":app_runs_layered",
+        ":computed_doors",
+        ":planner_layer_srcs",
         ":run_layer_srcs",
         "//datacube:pages",
         "//datacube:sources",
@@ -382,6 +413,7 @@ node_test(
     entry_point = "app-runs.test.ts",
     env = {
         "LAYERED_SRCS": "$(rlocationpath :app_runs_layered)",
+        "PLANNER_SRCS": "$(rlocationpath :planner_layer_srcs)",
         "RUN_SRCS": "$(rlocationpath :run_layer_srcs)",
         "SOURCES": "$(rlocationpaths //datacube:sources) $(rlocationpaths //engine-client:sources) $(rlocationpaths //query:src) $(rlocationpaths //studio:src) $(rlocationpaths //datacube:pages) $(rlocationpaths //query:pages) $(rlocationpaths //studio:pages) $(rlocationpaths //depot-client:depot_client) $(rlocationpaths //legend-art:legend_art) $(rlocationpaths //model-changes:model_changes) $(rlocationpaths //model-changes:records) $(rlocationpaths //pure-protocol:pure_protocol) $(rlocationpaths //query-store:query_store) $(rlocationpaths //sdlc-client:records) $(rlocationpaths //sdlc-client:sdlc_client)",
     },

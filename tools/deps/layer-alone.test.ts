@@ -11,13 +11,15 @@
 // - no module of the layers it must never hold is in it (NOT_LAYER_SRCS, a genquery of their files; for a run layer the
 //   planner's, the server's and the doors' -- the orchestrator's note 4, 2026-11-15 -- and no app's);
 // - a planted module of the layer that imports one of them (PLANT_AT, PLANT_IMPORTS) fails by name: the bite;
-// - on a RUN or SERVER layer, NO computed specifier (the orchestrator's note 2; 2026-11-15, the C5-T fold-in: no list):
-//   an `import()`, a `require()`, an `import.meta.resolve()`, an `importScripts()`, a worker's module or a `new URL(...,
+// - on a RUN layer, NO computed specifier (the orchestrator's note 2; 2026-11-15, the C5-T fold-in: no list): an
+//   `import()`, a `require()`, an `import.meta.resolve()`, an `importScripts()`, a worker's module or a `new URL(...,
 //   import.meta.url)` whose specifier is not a literal chooses its module at run time, where no compiler follows it.
-//   Loading the deployment's configured vendor binaries is a door's wiring: on a DOOR layer, the vendor loads named
-//   with their reason (COMPUTED_DOORS), each in a door module, and no other; the run side takes the loaded object,
-//   never a loader;
-// - on a RUN layer, each of those doors whose specifier IS a literal names no module of a layer it must never reach,
+//   Loading the deployment's configured vendor binaries is a door's wiring, and starting the planner's own worker and
+//   runtime from the page's URL a planner's: on a DOOR, PLANNER or SERVER layer, exactly the loads named in its closure
+//   with their reason (COMPUTED_DOORS, COMPUTED_PLANNER), each a door's or a planner's by the target that holds its
+//   module, and each read where its module is the layer's own (no dead row); the run side takes the loaded object,
+//   never a loader (the C5-T review's S1, B1, B2, 2026-11-15);
+// - on a RUN or PLANNER layer, each of those doors whose specifier IS a literal names no module of a layer it must never reach,
 //   nor any module outside its closure: the compiler resolves an `import()`, never a worker's module, a URL's, a
 //   `require()`'s or an `importScripts()`'s (the C5-T audit's item 6, 2026-11-15);
 // - on a RUN layer, no function, method, member or interface TAKES anything that answers a planner's statement, plan or
@@ -44,6 +46,7 @@ import { dirname, join, posix, relative, sep } from 'node:path';
 import { after, describe, it } from 'node:test';
 
 import { runfile, runfileFromEnv, runfilesFromEnv, runfilesRoot } from '../js/runfiles.mts';
+import { blankStrings, CHAIN, closing, computedDoors, RECEIVER, withoutComments } from './computed-doors.mts';
 
 /** The main repository's directory in the runfiles tree. */
 const MAIN = join(runfilesRoot(), '_main');
@@ -70,6 +73,28 @@ const COMPUTED_DOORS = new Map([
     "TeaVM's runtime for the warehouse's wire binding (vendor/warehouse/, //warehouse:sqlapi_page), loaded by its door:"
       + " the run side takes the loaded binding (2026-11-15, the C5-T fold-in)"],
 ]);
+
+/** The planner layers' computed specifiers, by module and door, with the reason each is allowed: the planner's own
+ *  worker and TeaVM runtime, from the page's URL (2026-11-15, the C5-T review's S1: until then the planner kind was not
+ *  read, and two of these were pinned nowhere). Shrink-only; each a planner module's. */
+const COMPUTED_PLANNER = new Map([
+  ['engine-client/src/legend/wasm-grammar.ts new Worker(workerUrl, ...)',
+    "the planner's worker (//engine-client:planner_worker), from the URL the page serves it at: it plans and holds no database"],
+  ['engine-client/src/legend/planner-worker.ts import(`${base}wasm-gc-module-runtime.js`)',
+    "the planner worker's TeaVM runtime, from the page's vendor folder (//wasm:planner): the planner's own module"],
+  ['datacube/src/lite-planner.ts new Worker(this.#options.workerUrl!, ...)',
+    "DataCube's planner on its worker (the same bundle), from the URL the page gives: it plans and holds no database"],
+  ['datacube/src/lite-planner.ts import(runtimeUrl)',
+    "DataCube's in-thread planner's TeaVM runtime, from its asset folder alone -- no loader handed in (its loadRuntime"
+      + " option deleted, the C5-T review's S1, as T3 took warehouse.ts's)"],
+]);
+
+/** A named load's module: the part of its key before the door. */
+const fileOf = (key: string): string => key.slice(0, key.indexOf(' '));
+
+/** A genquery's labels, by their paths from the repository. */
+const filesOf = (name: string): ReadonlySet<string> => new Set(readFileSync(runfileFromEnv(name), 'utf8').split('\n')
+  .map((l) => l.trim()).filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
 
 /** Every .ts file of the main repository in the runfiles, by its path from the repository (`/`-separated). */
 function runfilesSources(dir = MAIN): string[] {
@@ -174,30 +199,26 @@ describe(`${LAYER} alone: the layer with its deps and nothing else`, () => {
     }
   });
 
-  it('opens no import door whose module is chosen at run time: a run or server layer none, a door the vendor loads named (note 2)', (t) => {
-    if (env('KIND') === 'planner') {
-      t.skip("a planner layer: it starts the planner's own worker from the page's URL, planning-side");
-      return;
-    }
-    // each named load is a door module's (2026-11-15, the C5-T fold-in): a run layer can never be named, so never grow one
-    for (const d of COMPUTED_DOORS.keys()) assert.match(d, /^(?:engine-client|datacube)\/src\/doors\//, `${d} is not a door's`);
-    // the planner layers' own files aside (PLANNER_SRCS): a door's and the server's closures hold the planner, which
-    // starts its own worker from the page's URL, planning-side
-    const planners = new Set(readFileSync(runfileFromEnv('PLANNER_SRCS'), 'utf8').split('\n').map((l) => l.trim())
-      .filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
-    assert.ok(planners.size > 0, 'PLANNER_SRCS names no file');
-    const found = CLOSURE.filter((f) => !planners.has(f))
-      .flatMap((f) => computedDoors(readFileSync(join(MAIN, f), 'utf8')).map((d) => `${f} ${d}`)).sort();
-    // a run or server layer: none (its closure holds no door module, so no named load applies); a door layer: the named
-    // loads of the files in its closure, each exactly
-    assert.deepEqual(found, DOOR_LAYER
-      ? [...COMPUTED_DOORS.keys()].filter((d) => CLOSURE.includes(d.slice(0, d.indexOf(' ')))).sort()
-      : []);
+  it('opens no import door whose module is chosen at run time but those named: a run layer none (note 2; the review\'s S1)', () => {
+    // each named load is a door's or a planner's, by the target that holds its module (B1): a run layer can never be
+    // named, so never grow one
+    const doors = filesOf('DOOR_SRCS');
+    const planners = filesOf('PLANNER_SRCS');
+    assert.ok(doors.size > 0 && planners.size > 0, 'DOOR_SRCS or PLANNER_SRCS names no file: the guard is not looking');
+    for (const d of COMPUTED_DOORS.keys()) assert.ok(doors.has(fileOf(d)), `${d} is not a door's`);
+    for (const d of COMPUTED_PLANNER.keys()) assert.ok(planners.has(fileOf(d)), `${d} is not a planner's`);
+    const named = [...COMPUTED_DOORS.keys(), ...COMPUTED_PLANNER.keys()];
+    const found = CLOSURE.flatMap((f) => computedDoors(readFileSync(join(MAIN, f), 'utf8')).map((d) => `${f} ${d}`)).sort();
+    // no dead row (B2): each named load of a module this layer holds as its own is read here
+    const own = filesOf('OWN_SRCS');
+    for (const d of named.filter((k) => own.has(fileOf(k)))) assert.ok(found.includes(d), `${d} is named, and read nowhere`);
+    // a run layer: none; a door, planner or server layer: the named loads of the modules in its closure, each exactly
+    assert.deepEqual(found, RUN_LAYER ? [] : named.filter((d) => CLOSURE.includes(fileOf(d))).sort());
   });
 
-  it("names no module it may not reach by a literal worker's, URL's, require's or importScripts' specifier (a run layer)", (t) => {
-    if (!RUN_LAYER) {
-      t.skip('a planner layer: the run layers hold this rule');
+  it("names no module it may not reach by a literal worker's, URL's, require's or importScripts' specifier (a run or planner layer)", (t) => {
+    if (!RUN_LAYER && env('KIND') !== 'planner') {
+      t.skip('a door or server layer: the run and planner layers hold this rule');
       return;
     }
     const files = closureTexts();
@@ -349,91 +370,6 @@ ${exp} interface PlantedSession { readonly source: PlantedSource; run(sql: Sql):
     ]);
   });
 });
-
-// ---- the computed-specifier scanner (carried from the run wall's computedDoors, the final audit of 9af16fbe58's T4) ----
-
-/** `text` with its comments blanked (each kept as spaces, so offsets hold). */
-function withoutComments(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '))
-    .replace(/(^|[^:'"`\\])\/\/[^\n]*/g, (m, lead: string) => lead + ' '.repeat(m.length - lead.length));
-}
-
-/** `code` with each string literal's text blanked, its quotes and every offset kept (a template's substitutions too). */
-function blankStrings(code: string): string {
-  return code.replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g,
-    (m) => m[0] + ' '.repeat(m.length - 2) + m[m.length - 1]);
-}
-
-/** The offset just past the bracket that closes the one at `open`. */
-function closing(code: string, open: number): number {
-  const pairs: Record<string, string> = { '(': ')', '{': '}', '[': ']' };
-  const stack: string[] = [];
-  for (let i = open; i < code.length; i++) {
-    const c = code[i]!;
-    if (c === '(' || c === '{' || c === '[') stack.push(pairs[c]!);
-    else if (c === ')' || c === '}' || c === ']') {
-      stack.pop();
-      if (stack.length === 0) return i + 1;
-    } else if (c === "'" || c === '"' || c === '`') {
-      const end = code.indexOf(c, i + 1);
-      i = end < 0 ? code.length : end;
-    }
-  }
-  return code.length;
-}
-
-/** A chain of receivers before a door's name, any length (`self.`, `globalThis.`, `a.b?.`). */
-const CHAIN = '(?:[\\w$]+\\s*\\??\\.\\s*)*';
-
-/** A door's start: its receivers' chain from its first name, or its name alone. */
-const RECEIVER = `(?<![\\w$.])${CHAIN}`;
-
-/** A specifier read as a literal: a quoted one, or a template with no substitution. */
-const LITERAL_SPEC = /^\s*(?:'[^'\\\n]*'|"[^"\\\n]*"|`[^`\\$]*`)\s*$/;
-
-/** Each import door `text` opens whose specifier is NOT a literal: a dynamic `import()`, a `require()`, an
- *  `import.meta.resolve()`, an `importScripts()` (each argument), a worker's module, or a `new URL(...,
- *  import.meta.url)`, through any receiver -- its first argument a template with a substitution, a name, a call, or any
- *  other expression. A worker built from a literal `new URL('...', import.meta.url)` is read. */
-export function computedDoors(text: string): string[] {
-  const code = withoutComments(text);
-  const blank = blankStrings(code);
-  const out: string[] = [];
-  const doors = new RegExp(`${RECEIVER}(?:import|require|importScripts)\\s*\\(|\\bimport\\.meta\\.resolve\\s*\\(`
-    + `|\\bnew\\s+${CHAIN}(?:Shared)?Worker\\s*\\(|\\bnew\\s+${CHAIN}URL\\s*\\(`, 'g');
-  for (const m of blank.matchAll(doors)) {
-    const open = m.index + m[0].length - 1;
-    const close = closing(blank, open);
-    const args = code.slice(open + 1, close - 1);
-    // the arguments: split at each comma outside brackets (strings blanked, so theirs never count)
-    const blankArgs = blank.slice(open + 1, close - 1);
-    const each: string[] = [];
-    let depth = 0;
-    let start = 0;
-    for (let i = 0; i <= blankArgs.length; i++) {
-      const c = i < blankArgs.length ? blankArgs[i]! : ',';
-      if (c === '(' || c === '[' || c === '{') depth++;
-      else if (c === ')' || c === ']' || c === '}') depth--;
-      else if (c === ',' && depth === 0) {
-        each.push(args.slice(start, i));
-        start = i + 1;
-      }
-    }
-    const first = each[0] ?? '';
-    const door = m[0].replace(/\s+/g, ' ').replace(/\s*\.\s*/g, '.').replace(/\s*\($/, '(');
-    if (/URL\($/.test(door) && !/,\s*import\.meta\.url\s*$/.test(args)) continue; // a URL, not a module's
-    if (/importScripts\($/.test(door)) {
-      if (each.every((a) => LITERAL_SPEC.test(a))) continue;
-      out.push(`${door}${each.map((a) => a.replace(/\s+/g, ' ').trim()).join(', ')})`);
-      continue;
-    }
-    if (LITERAL_SPEC.test(first)) continue;
-    if (/(?:Shared)?Worker\($/.test(door)
-      && /^\s*new\s+URL\(\s*(?:'[^'\\\n]*'|"[^"\\\n]*"|`[^`\\$]*`)\s*,\s*import\.meta\.url\s*\)\s*$/.test(first)) continue;
-    out.push(`${door}${first.replace(/\s+/g, ' ').trim()}${each.length > 1 ? ', ...' : ''})`);
-  }
-  return out;
-}
 
 // ---- the closure as text, and the layers it may never reach ----
 
