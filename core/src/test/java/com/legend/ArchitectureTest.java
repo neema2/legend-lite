@@ -1969,6 +1969,10 @@ final class ArchitectureTest {
             .and().doNotHaveFullyQualifiedName("com.legend.ExecuteOptions")
             .and().doNotHaveFullyQualifiedName("com.legend.TypedQuery")
             .and().doNotHaveFullyQualifiedName("com.legend.Execution")
+            // 2026-11-15 (the D part 1 audit's M2): pure/v1's host plan halves (PureV1Api.arrowPlan, jsonPlan) take the
+            // style from the host's door (the Boundary hands the edge's) and hand it on; the product names no style but
+            // its own (G5), so it picks none
+            .and().doNotHaveFullyQualifiedName("com.legend.server.PureV1Api")
             .should().callMethodWhere(new com.tngtech.archunit.base.DescribedPredicate<
                     com.tngtech.archunit.core.domain.JavaMethodCall>("a door taking a PlanStyle") {
                 @Override
