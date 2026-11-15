@@ -11,7 +11,6 @@ import com.legend.parser.SpecParser;
 import com.legend.protocol.Protocol;
 import com.legend.protocol.spec.ValueSpecification;
 
-import java.util.Objects;
 
 /**
  * THE PARSE DOORS (C5-J item 1, 2026-11-15: a wider Java witness). The lexer (phase A) is JDK-only (invariant 7a) and
@@ -39,12 +38,6 @@ public final class Parse {
     public static String documentJson(String source, boolean sourceInformation) {
         com.legend.base.RunScope.planning("parse a model (phases A and B)");
         return PmcdParser.parseDocument(source, sourceInformation);
-    }
-
-    /** {@link #documentJson(String, boolean)} with the parser's default for its source information. */
-    public static String documentJson(String source) {
-        com.legend.base.RunScope.planning("parse a model (phases A and B)");
-        return PmcdParser.parseDocument(source);
     }
 
     /** A query's text as its value specification (phase C). */

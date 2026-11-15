@@ -779,6 +779,9 @@ final class ArchitectureTest {
         for (String door : PARSE_DOORS) {
             org.junit.jupiter.api.Assertions.assertTrue(classes.contain(door), "the import holds " + door);
         }
+        // the SDLC's door to the compiler, which parses a model's text, is read too (the C5-J audit's nit, 2026-11-15)
+        org.junit.jupiter.api.Assertions.assertTrue(classes.contain("com.legend.sdlc.grammar.CoreGrammar"),
+                "the import holds the SDLC's grammar");
         PARSE_BY_THE_DOORS.check(classes);
         org.junit.jupiter.api.Assertions.assertEquals(java.util.List.of(), parseDoorViolations(classes, PARSE_DOORS));
     }

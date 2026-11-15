@@ -106,7 +106,6 @@ class PhaseEntriesRefusedInsideARunTest {
         out.put("parse a model's import (phase B)", () -> com.legend.ide.DocumentParse.importOf(imported,
                 com.legend.parser.Dialect.LEGEND_LITE));
         out.put("parse a model (phases A and B) <- Parse.records", () -> com.legend.door.Parse.records(MODEL));
-        out.put("parse a model (phases A and B) <- Parse.documentJson", () -> com.legend.door.Parse.documentJson(MODEL));
         out.put("parse a model (phases A and B) <- Parse.documentJson, its source information named",
                 () -> com.legend.door.Parse.documentJson(MODEL, true));
         out.put("parse a query (phase C) <- Parse.query", () -> com.legend.door.Parse.query(QUERY,

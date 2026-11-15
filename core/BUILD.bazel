@@ -2316,6 +2316,9 @@ java_jars(
     transitive = False,
     deps = [
         "//native:entry",
+        # the SDLC's door to the compiler (2026-11-15, the C5-J audit's nit): it parses a model's text, so the parse
+        # rule reads it as it reads the hosts' doors
+        "//sdlc-server/grammar",
         "//wasm:boundary",
         "//wasm:tab",
     ],
