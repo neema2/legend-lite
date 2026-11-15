@@ -147,9 +147,10 @@ class MixedListConformanceTest {
     @Test
     void aComputedIntegerBeyond2To53InAMixedRankPlans_aKnownLimit() {
         String model = StorelessRuntime.with("", com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
-        // the computed value through a let: a list literal holds no arithmetic (SpecParser, round 55f)
+        // the computed value through a let: a list literal holds no arithmetic (SpecParser, round 55f); every literal
+        // below 2^53, so only the computed value is beyond it (round 55k)
         Compiler.query(Compiler.compileModel(model),
-                "|let n = 9007199254740992 + 1; ['b', $n, 9007199254740992]->sort();")
+                "|let n = 9007199254740990 + 3; ['b', $n, 9007199254740991]->sort();")
                 .executionPlan(StorelessRuntime.RUNTIME);
     }
 }

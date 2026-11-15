@@ -3898,12 +3898,60 @@ final class Scalars {
     private static void refuseDateKinds(List<TypedSpec> elements, String what) {
         java.util.Set<String> dates = new java.util.TreeSet<>();
         for (TypedSpec e : elements) {
-            Type t = e.info().type();
-            if (t == Type.Primitive.STRICT_DATE || t == Type.Primitive.DATE_TIME || t == Type.Primitive.DATE) {
-                dates.add(t == Type.Primitive.STRICT_DATE ? "StrictDate"
-                        : t == Type.Primitive.DATE_TIME ? "DateTime" : "Date");
+            String kind = dateKind(e);
+            if (kind != null) {
+                dates.add(kind);
             }
         }
-        TaggedLists.refuseDateKinds(dates, what);
+        if (dates.size() < 2) {
+            return;
+        }
+        // literals are known at planning: the answer can only go wrong on a TIE, two elements of different kinds at
+        // one instant (%2025-02-10 and %2025-02-10T00:00:00), which the extreme answers as either kind -- refused; a
+        // literal list with no such tie is answered (round 55f, 2026-11-15: three DuckDB tests of distinct instants
+        // answered right, and were refused). A computed date's instant is not known here: refused.
+        java.util.Map<java.util.List<Object>, java.util.Set<String>> atInstant = new java.util.HashMap<>();
+        for (TypedSpec e : elements) {
+            String kind = dateKind(e);
+            if (kind == null) {
+                continue;
+            }
+            if (!(e instanceof com.legend.compiler.spec.typed.TypedCDate lit)) {
+                TaggedLists.refuseDateKinds(dates, what);
+                return;
+            }
+            java.util.Set<String> kinds = atInstant.computeIfAbsent(instant(lit.value()),
+                    k -> new java.util.TreeSet<>());
+            kinds.add(kind);
+            if (kinds.size() > 1) {
+                TaggedLists.refuseDateKinds(kinds, what);
+            }
+        }
+    }
+
+    /** {@code e}'s date kind (StrictDate, DateTime, Date) by its static type; null for any other. */
+    private static @com.legend.base.Nullable String dateKind(TypedSpec e) {
+        Type t = e.info().type();
+        return t == Type.Primitive.STRICT_DATE ? "StrictDate" : t == Type.Primitive.DATE_TIME ? "DateTime"
+                : t == Type.Primitive.DATE ? "Date" : null;
+    }
+
+    /** The instant a date literal denotes, as a comparable key: its first moment, a missing part its least (a year's
+     *  January 1st, midnight), trailing zeros of the fraction dropped. */
+    private static java.util.List<Object> instant(com.legend.values.PureDateLiteral d) {
+        return switch (d) {
+            case com.legend.values.PureDateLiteral.Year y -> java.util.List.of(y.year(), 1, 1, 0, 0, 0, "");
+            case com.legend.values.PureDateLiteral.YearMonth m -> java.util.List.of(m.year(), m.month(), 1, 0, 0, 0, "");
+            case com.legend.values.PureDateLiteral.StrictDate sd ->
+                    java.util.List.of(sd.year(), sd.month(), sd.day(), 0, 0, 0, "");
+            case com.legend.values.PureDateLiteral.DateWithHour h ->
+                    java.util.List.of(h.year(), h.month(), h.day(), h.hour(), 0, 0, "");
+            case com.legend.values.PureDateLiteral.DateWithMinute mi ->
+                    java.util.List.of(mi.year(), mi.month(), mi.day(), mi.hour(), mi.minute(), 0, "");
+            case com.legend.values.PureDateLiteral.DateWithSecond se ->
+                    java.util.List.of(se.year(), se.month(), se.day(), se.hour(), se.minute(), se.second(), "");
+            case com.legend.values.PureDateLiteral.DateWithSubsecond ss -> java.util.List.of(ss.year(), ss.month(),
+                    ss.day(), ss.hour(), ss.minute(), ss.second(), ss.subsecond().replaceAll("0+$", ""));
+        };
     }
 }
