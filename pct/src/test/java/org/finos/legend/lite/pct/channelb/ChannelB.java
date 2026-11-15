@@ -79,6 +79,8 @@ public final class ChannelB {
      * roots and matches by the same prefixed name. */
     public static List<Outcome> run(List<Path> modelRoots,
             List<Path> scopeDirs, List<String> wallsOut) throws IOException {
+        JUDGE_SQL[0] = 0;
+        JUDGE_SQL[1] = 0;
         // LOUD, NOT SILENT (upstream boundary batch 2): every model root and
         // every scope directory is a hardcoded upstream path — ten across the
         // five suites — and a moved one must fail by name, never walk an empty
@@ -266,6 +268,9 @@ public final class ChannelB {
                     return new Outcome(fqn, Status.FAIL, "G10: " + differs);
                 }
             }
+            if (measuresJudgeSql()) {
+                judgeSql(ctx, resolved);
+            }
             TestExecution.runProgram(com.legend.Compiler.queryResolved(ctx, resolved),
                     com.legend.testbackend.StorelessRuntime.RUNTIME, com.legend.exec.SessionSource.given(com.legend.testbackend.TestSessions.over(conn)), null, null,
                     OPTIONS);
@@ -280,6 +285,72 @@ public final class ChannelB {
             return new Outcome(fqn, Status.ERROR,
                     e.getClass().getSimpleName() + ": " + first(e.getMessage()));
         }
+    }
+
+    /** E-5d, the PCT half (the design doc's §5.9; ruled with E-5, 2026-11-13): the suite's JUDGE statements -- each
+     *  body's verdict groups' fused statements and the sides that keep statements of their own -- and their characters,
+     *  summed from each body's plan (planning only) under the lane's judge. Pinned per suite in {@code ratchets.tsv}
+     *  ({@link PctRatchets}) and held by the product's rule on the reference lane under BOTH ({@link ChannelBLane}). */
+    private static final long[] JUDGE_SQL = new long[2];
+
+    /** The judge statements and characters the last {@link #run} summed (both zero where it measured none). */
+    static long[] judgeSql() {
+        return JUDGE_SQL.clone();
+    }
+
+    /** Whether this run sums its judge SQL: asked ({@code -Dpct.channelb.judgeSql}, the ratchet's generator), or the
+     *  reference lane under BOTH, the pin's own mode, outside the G10 twice lanes. */
+    static boolean measuresJudgeSql() {
+        return Boolean.getBoolean("pct.channelb.judgeSql") || ChannelBLane.isReference()
+                && OPTIONS.planning().judgeMode() == com.legend.testplan.PlanningOptions.JudgeMode.BOTH
+                && !Boolean.getBoolean("pct.channelb.twice");
+    }
+
+    /** {@code resolved}'s judge statements added to {@link #JUDGE_SQL}; a body that does not plan adds none (its run
+     *  fails as it does without the measure). */
+    private static void judgeSql(ModelContext ctx, ValueSpecification resolved) {
+        com.legend.testexecutionplan.TestPlan plan;
+        try {
+            plan = TestExecution.planBody(com.legend.Compiler.queryResolved(ctx, resolved),
+                    com.legend.testbackend.StorelessRuntime.RUNTIME, OPTIONS);
+        } catch (RuntimeException e) {
+            return;
+        }
+        judgeSql(plan.steps());
+    }
+
+    private static void judgeSql(List<com.legend.testexecutionplan.TestPlan.TestStep> steps) {
+        for (com.legend.testexecutionplan.TestPlan.TestStep step : steps) {
+            if (step instanceof com.legend.testexecutionplan.TestPlan.Branch b) {
+                judgeSql(b.then());
+                judgeSql(b.otherwise());
+            } else if (step instanceof com.legend.testexecutionplan.TestPlan.Verdicts v) {
+                if (v.fused() != null) {
+                    addJudge(v.fused().sql().statement());
+                }
+                for (com.legend.testexecutionplan.TestPlan.Verdict verdict : v.verdicts()) {
+                    for (com.legend.testexecutionplan.TestPlan.Side side : verdict.base()) {
+                        switch (side) {
+                            case com.legend.testexecutionplan.TestPlan.Side.Rows rows ->
+                                    addJudge(rows.result().sql().statement());
+                            case com.legend.testexecutionplan.TestPlan.Side.KeyedRows keyed -> {
+                                addJudge(keyed.keyed().keys().statement());
+                                addJudge(keyed.keyed().body().statement());
+                            }
+                            case com.legend.testexecutionplan.TestPlan.Side.Constant c -> {
+                            }
+                            case com.legend.testexecutionplan.TestPlan.Side.FusedCell f -> {
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private static void addJudge(String statement) {
+        JUDGE_SQL[0]++;
+        JUDGE_SQL[1] += statement.length();
     }
 
     /** Channel B's options: the corpus's runtime features, the judge {@code -Dpct.channelb.judge} names, compatibility

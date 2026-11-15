@@ -1,6 +1,16 @@
 # pct's measured ratchet values (PctRatchets) -- regenerate: bazel run //pct:update_ratchets
 channel_b.essential.discovered	345
+channel_b.essential.judge.statements	536
+channel_b.essential.judge.chars	2291553
 channel_b.grammar.discovered	137
+channel_b.grammar.judge.statements	291
+channel_b.grammar.judge.chars	1111748
 channel_b.relation.discovered	469
+channel_b.relation.judge.statements	639
+channel_b.relation.judge.chars	2791608
 channel_b.standard.discovered	205
+channel_b.standard.judge.statements	262
+channel_b.standard.judge.chars	2649925
 channel_b.unclassified.discovered	93
+channel_b.unclassified.judge.statements	100
+channel_b.unclassified.judge.chars	253439
