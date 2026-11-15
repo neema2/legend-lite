@@ -1053,6 +1053,8 @@ node_test(
     data = [
         ":src",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        # Node's host, which test/host/node.ts imports (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "test/catalog-builder.ts",
         "test/host/node.ts",
         "test/lite-compiler.ts",
@@ -1074,6 +1076,8 @@ node_test(
         ":markets_project",
         "demo/config.json",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
+        # Node's host, which test/host/node.ts imports (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "test/catalog-builder.ts",
         "test/host/node.ts",
         "test/lite-compiler.ts",
@@ -1575,6 +1579,9 @@ node_test(
     size = "medium",
     data = [
         "test/pivot-rows/pivot-rows.ts",
+        # Node's host (node-require.ts): :src reaches the run side through the doors alone (2026-11-15, the C5-T last
+        # round's T1), and a test starts DuckDB on Node itself
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "test/wasm-differential/cases.ts",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
@@ -1592,6 +1599,9 @@ node_test(
     size = "medium",
     data = [
         "test/json-read/json-read.ts",
+        # Node's host (node-require.ts): :src reaches the run side through the doors alone (2026-11-15, the C5-T last
+        # round's T1), and a test starts DuckDB on Node itself
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1608,6 +1618,9 @@ node_test(
     size = "medium",
     data = [
         "test/cube-open/cube-open.ts",
+        # Node's host (node-require.ts): :src reaches the run side through the doors alone (2026-11-15, the C5-T last
+        # round's T1), and a test starts DuckDB on Node itself
+        "//engine-client:node_host",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
         ":src",
@@ -1626,6 +1639,8 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        # Node's host (node-require.ts), as pivot_rows_test's (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1642,6 +1657,8 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        # Node's host (node-require.ts), as pivot_rows_test's (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -1658,6 +1675,8 @@ node_test(
     size = "medium",
     data = [
         "test/typed-values/typed-values.ts",
+        # Node's host (node-require.ts), as pivot_rows_test's (2026-11-15, the C5-T last round's T1)
+        "//engine-client:node_host",
         "//engine-client:unplanned",
         "//engine-client:node_modules/@duckdb/duckdb-wasm",
         ":node_modules/jsdom",
@@ -2452,6 +2471,9 @@ _HARNESS_HELPERS = [
     "demo/trades-h2.pure",
     "demo/typed-view.mjs",
     "demo/warehouse-source.mjs",
+    # Node's host (node-require.ts), which harnesses that start DuckDB on Node import: :src reaches the run side through
+    # the doors alone (2026-11-15, the C5-T last round's T1), so it no longer carries it
+    "//engine-client:node_host",
 ]
 
 _HARNESSES = [
