@@ -131,6 +131,13 @@ def _csv_cell(v) -> str:
     return s
 
 
+def open_version(c: Corpus, name: str, row: dict) -> list:
+    """A batch milestoned table's row as one open version (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): its three columns'
+    values (``_LAKE``) -- the digest of its own values' text, the first batch, the open batch id."""
+    text = ",".join(_csv_cell(row.get(col)) for col in c.tables[name].columns)
+    return [hashlib.sha256(_pure_str(text).encode("utf-8")).hexdigest(), 1, OPEN_BATCH_ID]
+
+
 def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
     """One ###Data element holding every seeded table.
 
@@ -147,11 +154,9 @@ def data_element(c: Corpus, tables: dict[str, list[dict]]) -> str:
         if name in c.milestoned:
             # each row one open version (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5): its own values, then the
             # digest of their text, the first batch, the open batch id
-            own = cols
             for r in rows:
-                text = ",".join(_csv_cell(r.get(col)) for col in own)
-                lines.append(text + "," + hashlib.sha256(_pure_str(text).encode("utf-8")).hexdigest()
-                             + ",1," + str(OPEN_BATCH_ID))
+                lines.append(",".join(_csv_cell(r.get(col)) for col in cols) + ","
+                             + ",".join(str(v) for v in open_version(c, name, r)))
         else:
             lines += [",".join(_csv_cell(r.get(col)) for col in cols) for r in rows]
         out.append(f"    {_ident(c.tables[name].schema)}.{_ident(name)}:")

@@ -141,6 +141,12 @@ LINKED_PROJECTS = list(_LAYOUT["linked_projects"])  # core/stress.bzl
 _SECTION_ORDER = {"model.pure": 0, "store.pure": 1, "mapping.pure": 2}
 
 
+def latest_filter(table: str) -> str:
+    """The latest-version filter 30-store.pure declares for a batch milestoned table: ``<Table>_Latest``, its rows'
+    open versions (``LAKE_OUT_ID = 999999999``; docs/DEPLOYMENT_DESIGN_2026_11_14.md §15.6a)."""
+    return "".join(w.capitalize() for w in table.split("_")) + "_Latest"
+
+
 def store_closure(c, root: str) -> set:
     """`root` and every database it includes, transitively."""
     seen, stack = {root}, [root]

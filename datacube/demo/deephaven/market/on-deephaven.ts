@@ -9,6 +9,7 @@
 // application this writes (`installed.app`, with `installed.env`). Node alone.
 
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 import { writeDeliveries } from '../../market-sim/door/deliveries.ts';
 import { startFeed, type Feed } from '../../market-sim/door/feed.ts';
@@ -56,7 +57,7 @@ export async function startDeskOnDeephaven(o: DeskOnDeephavenOptions): Promise<D
     ...(o.say ? { say: o.say } : {}) });
   try {
     const model = o.model.replaceAll(DESK_BROKERS, `bootstrapServers: '127.0.0.1:${feed.port}';`)
-      .replaceAll(DESK_DROP, `location: 'file://${join(o.dir, 'drop')}/';`);
+      .replaceAll(DESK_DROP, `location: '${pathToFileURL(join(o.dir, 'drop')).href}/';`);
     const plan = planOf(await o.planner.deephaven('plan', { model, deployment: DESK_ON_DEEPHAVEN }));
     // position keeping drops its files before the server starts: the start of the day, whole
     writeDeliveries(plan.tables.filter((t) => t.source.kind === 'file'), feed.kept);

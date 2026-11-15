@@ -155,6 +155,7 @@ _DIFFERENTIAL_MODULES = [
     "battery",
     "combos",
     "deepstack",
+    "emit",
     "emptiness",
     "exactmath",
     "expand",

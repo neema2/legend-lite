@@ -76,7 +76,12 @@ public final class PeRatchets {
             "own_corpus.matched 3211 -> 3246 (2026-11-13, main's #95 merged into the timeseries branch, 599d3c4c8, PR"
                     + " #81; the branch read 3126 alone at 27a35760b): the timeseries branch's tests' models (the #TS"
                     + " island's, the library's, the documents', the adversarial fixture's and the frame and as-of"
-                    + " tests')");
+                    + " tests')",
+            "own_corpus.matched 3246 -> 3272 (main merged into claude/deephaven-3-browser, 729e3e6d; recorded"
+                    + " 2026-11-15, the move landed without its line): the Deephaven branch's and main's tests' models",
+            "own_corpus.matched 3272 -> 3274 (2026-11-15, the deployment program's steps 3 and 5 on"
+                    + " claude/deephaven-3-browser): DeploymentPlannerTest's runtimes and its in-tab deployment's"
+                    + " model");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

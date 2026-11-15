@@ -92,7 +92,7 @@ def _operand(c: Corpus, node, binding: dict):
     if tag == "col":
         table, col = body
         row = binding.get(table)
-        return None if row is None else row.get(col)
+        return None if row is None else _cell(c, table, row, col)
     if tag == "call":
         fn, args = body
         if fn == "explodeSemiStructured":
@@ -104,6 +104,18 @@ def _operand(c: Corpus, node, binding: dict):
     if tag == "array":
         return [_operand(c, a, binding) for a in body]
     raise Unsupported(f"join operand {tag!r} has no evaluation rule")
+
+
+# A batch milestoned table's open version's batch ids (emit.data_element writes each test row so: the first batch,
+# upstream's infinite batch id), which its latest-version filter reads.
+_OPEN_VERSION = {"LAKE_IN_ID": 1, "LAKE_OUT_ID": 999999999}
+
+def _cell(c: Corpus, table: str, row: dict, col: str):
+    """`row`'s value of `col`: a batch milestoned table's batch ids, which its test rows do not hold, its open version's
+    -- every row of the test data is its key's open version (emit.data_element writes them so)."""
+    if col not in row and table in c.milestoned and col in _OPEN_VERSION:
+        return _OPEN_VERSION[col]
+    return row.get(col)
 
 
 # The binding key of the element an exploded join condition is tested for.
@@ -2813,11 +2825,11 @@ def _filter_holds(c: Corpus, name: str, row: dict | None) -> bool:
         # A predicate over a dynafunction (model._FILTER_HEAD; Phase 9): SQL's three-valued rule, as a join's.
         return _condition(c, val, {table: row})
     if op == "isnull":
-        return row.get(col) is None
+        return _cell(c, table, row, col) is None
     if op == "isnotnull":
-        return row.get(col) is not None
+        return _cell(c, table, row, col) is not None
     # A store Filter is SQL, like a join condition: SQL's three-valued `<>`.
-    return _sql_cmp({"=": "==", "<>": "!="}.get(op, op), row.get(col), val)
+    return _sql_cmp({"=": "==", "<>": "!="}.get(op, op), _cell(c, table, row, col), val)
 
 
 def _mapping_filtered(c: Corpus, root: str, rows: list[dict],

@@ -173,6 +173,10 @@ def build(c: model.Corpus, seeded: set[str]) -> str:
         setid = f"d{n}_{short.lower()}"
         lines.append(f"   *{cls}[{setid}]: Relational")
         lines.append("   {")
+        if tbl in c.milestoned:
+            # a batch milestoned table's class mappings read its open versions (docs/DEPLOYMENT_DESIGN_2026_11_14.md
+            # §15.6a: the latest-version filter 30-store.pure declares for it, before every other directive)
+            lines.append(f"      ~filter [{db}]{model.latest_filter(tbl)}")
         lines.append(f"      ~primaryKey ( [{db}]{tbl}.{table.pk[0]} )")
         lines.append(f"      ~mainTable [{db}]{tbl}")
         lines.append(f"      {ident}: [{db}]{tbl}.{cols[ident]},")

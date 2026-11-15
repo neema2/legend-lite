@@ -12,6 +12,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, describe, it } from 'node:test';
+import { pathToFileURL } from 'node:url';
 
 import { runfileFromEnv } from '../../../tools/js/runfiles.mts';
 import { installDeephaven, planOf } from '../../demo/deephaven/install.ts';
@@ -72,7 +73,7 @@ describe('the desk\'s stream tables on the pinned Deephaven, made by the loader 
     // the deployment's plan for the desk's Deephaven server, its brokers this test's door and its drop location this
     // test's directory (a test's copy of the environments): data, never code -- the loader beside it is lite's own
     const atDoor = DESK_MODEL(corpus, desk, environments.replaceAll(BROKERS, `bootstrapServers: '127.0.0.1:${port}';`)
-      .replaceAll(DROP, `location: 'file://${shared('drop')}/';`));
+      .replaceAll(DROP, `location: '${pathToFileURL(shared('drop')).href}/';`));
     const plan = planOf(await plannerFor(atDoor, ON_DEEPHAVEN.runtime).deephaven('plan', { model: atDoor, deployment: DESK_ON_DEEPHAVEN }));
     const files = plan.tables.filter((t) => t.source.kind === 'file');
     assert.deepEqual(plan.tables.filter((t) => t.source.kind === 'topic').map((t) => t.name).sort(),

@@ -32,6 +32,7 @@ import sys
 from pathlib import Path
 
 import battery
+import emit
 import flat
 import literals
 import model
@@ -89,11 +90,16 @@ def seed_json(c: model.Corpus, TABLES) -> str:
             # A semi-structured document (SURFACE_TYPES, SEMI_DOC; the improvement plan's Phase 9) has no kind the
             # seed's DDL spells, and no service here reads one: semi.py's services are not the differential's.
             continue
+        # a batch milestoned table's three columns after its own, each row its key's open version, as the stress
+        # test data holds them (emit.data_element): its latest-version filter reads them
+        lake = name in c.milestoned
         lines.append(json.dumps({
             "schema": None if table.schema == "default" else table.schema,
             "table": name,
-            "columns": [[n, _column_type(col)] for n, col in cols.items()],
-            "rows": [[_cell(r.get(n), col.kind) for n, col in cols.items()] for r in rows],
+            "columns": [[n, _column_type(col)] for n, col in cols.items()]
+            + ([["LAKE_DIGEST", "VARCHAR"], ["LAKE_IN_ID", "BIGINT"], ["LAKE_OUT_ID", "BIGINT"]] if lake else []),
+            "rows": [[_cell(r.get(n), col.kind) for n, col in cols.items()]
+                     + ([str(v) for v in emit.open_version(c, name, r)] if lake else []) for r in rows],
         }, ensure_ascii=False))
     return '{"tables": [\n' + ",\n".join(lines) + "\n]}\n"
 
