@@ -24,7 +24,8 @@ import java.util.TreeMap;
 
 /**
  * THE ONE PLACE a Cypher island becomes a Relation expression (docs/CYPHER_STUDY_2026_10_15.md §5.3,
- * docs/CYPHER_PLAN_2026_10_15.md): {@code #Cypher{...}#} read by the protocol layer's translator
+ * docs/CYPHER_PLAN_2026_10_15.md): {@code #Cypher{...}#} read through the parse door that asks the run's wall
+ * ({@code door.Parse.cypherIsland}, C5-J's last round, 2026-11-15) and translated by the protocol layer's translator
  * ({@link CypherToPure}) over the class model, which this seam presents as the graph the query sees (C2): a label is
  * a class, named by its simple name or its full path; a relationship type is the name of a property or association
  * end holding a class; a node's properties are its class's, own, inherited or association-injected. The result's
@@ -55,7 +56,7 @@ public final class CypherIslands {
     public static ValueSpecification translate(SqlIsland island, ModelContext model) {
         try {
             com.legend.protocol.cypher.CypherAst.Statement statement =
-                    com.legend.protocol.cypher.CypherParser.parse(island.sql());
+                    com.legend.door.Parse.cypherIsland(island.sql());
             return CypherToPure.translate(statement, new Graph(model, graphOf(statement, model)));
         } catch (SqlTranslationException e) {
             throw SqlIslands.refusal(island, e);
@@ -70,7 +71,7 @@ public final class CypherIslands {
             return false;
         }
         try {
-            return CypherToPure.updates(com.legend.protocol.cypher.CypherParser.parse(island.sql()));
+            return CypherToPure.updates(com.legend.door.Parse.cypherIsland(island.sql()));
         } catch (SqlTranslationException e) {
             return false;
         }
@@ -81,7 +82,7 @@ public final class CypherIslands {
     public static List<ValueSpecification> statements(SqlIsland island, ModelContext model) {
         try {
             com.legend.protocol.cypher.CypherAst.Statement statement =
-                    com.legend.protocol.cypher.CypherParser.parse(island.sql());
+                    com.legend.door.Parse.cypherIsland(island.sql());
             return CypherToPure.program(statement, new Graph(model, graphOf(statement, model))).stream()
                     .map(NameResolver::resolveQuery).toList();
         } catch (SqlTranslationException e) {

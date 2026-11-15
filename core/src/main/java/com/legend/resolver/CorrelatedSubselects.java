@@ -1856,15 +1856,16 @@ private static boolean readsVarOutsideSlot(TypedSpec n, String var,
 
     /** T1.7: the hand-kept AGG_FQNS name list (missing stdDev, variance,
      * mode, corr, ... — 15 gaps) is DELETED; membership is the reducer
-     * catalog itself ({@link com.legend.lowering.Aggregates#isReducer}). */
+     * catalog's membership itself ({@link com.legend.compiler.element.Reducers#isDemandReducer}: below the resolver and
+     * the lowering both since C5-J item 3, 2026-11-15; until then lowering.Aggregates.isReducer). */
     static boolean isAggregate(TypedFunction callee) {
-        return com.legend.lowering.Aggregates.isDemandReducer(callee);
+        return com.legend.compiler.element.Reducers.isDemandReducer(callee);
     }
 
     /** Node-level gate (§4AD decision 1): infix plus (a literal run) is
-     * row-wise over navigations — see Aggregates.isDemandReducer. */
+     * row-wise over navigations — see Reducers.isDemandReducer. */
     static boolean isAggregate(TypedNativeCall nc) {
-        return !nc.args().isEmpty() && com.legend.lowering.Aggregates.isDemandReducer(
+        return !nc.args().isEmpty() && com.legend.compiler.element.Reducers.isDemandReducer(
                 nc.callee(), nc.args().get(0));
     }
 

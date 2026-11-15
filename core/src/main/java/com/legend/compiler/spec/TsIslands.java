@@ -63,8 +63,10 @@ public final class TsIslands {
         SqlToPure.Sources sources = SqlIslands.sources(island, source -> typer.synth(source, env), model, env,
                 new java.util.TreeSet<>());
         try {
-            // the SQL a #TS statement holds: Postgres's but for / (TsSql: nothing where the divisor is 0, S151)
-            return TsToPure.translate(island.sql(), new Facts(new TypedOnce(sources, island, typer, env), model),
+            // the SQL a #TS statement holds: Postgres's but for / (TsSql: nothing where the divisor is 0, S151); the
+            // text read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
+            Facts facts = new Facts(new TypedOnce(sources, island, typer, env), model);
+            return TsToPure.translate(com.legend.door.Parse.tsIsland(island.sql()), facts,
                     com.legend.protocol.ts.TsSql.INSTANCE);
         } catch (SqlTranslationException e) {
             throw SqlIslands.refusal(island, e);

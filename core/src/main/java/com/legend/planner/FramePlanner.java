@@ -20,7 +20,6 @@ import com.legend.compiler.spec.typed.TypedGetAll;
 import com.legend.compiler.spec.typed.TypedNativeCall;
 import com.legend.compiler.spec.typed.TypedSpec;
 import com.legend.compiler.spec.typed.TypedUserCall;
-import com.legend.error.LegendCompileException;
 import com.legend.error.NotImplementedException;
 import com.legend.lowering.SqlPostProcessors;
 import com.legend.lowering.VerdictSql;
@@ -142,18 +141,15 @@ public final class FramePlanner {
                 // mapping and renders without one (the resolver and the root
                 // form both take none); a class-rooted chain needs its mapping
                 if (mappingFqn != null || lqChain.relationRooted()) {
-                    try {
-                        // S310 (RULED by the user 2026-11-14, DE2 (a)): the style picks (PlanAllocations)
-                        activitySql = PlanAllocations.activitySql(List.of(lqChain.chain()), mappingFqn, specs, env,
-                                false);
-                    } catch (LegendCompileException
-                            | NotImplementedException
-                            | IllegalStateException e) {
-                        // no engine-style render for this chain shape: the
-                        // activities array stays empty (a read of it is
-                        // then a loud missing member, never a fabrication)
-                        activitySql = null;
-                    }
+                    // the activity's rule is execute()'s, PlanAllocations.activityOrNone (the C5-J audit's nit,
+                    // 2026-11-15: one condition, one handling): a reduction its dialect cannot encode records no SQL,
+                    // anything else fails the body by name (C5-J item 4, G7). S310 (RULED by the user 2026-11-14, DE2
+                    // (a)): the style picks the SQL (PlanAllocations.activitySql). The render is not lazy, and cannot
+                    // be: the activity is part of the envelope's value (merged 2026-11-15, #106 into #104)
+                    String frameMapping = mappingFqn;
+                    PlanEnv frameEnv = env;
+                    activitySql = PlanAllocations.activityOrNone(() -> PlanAllocations.activitySql(
+                            List.of(lqChain.chain()), frameMapping, specs, frameEnv, false));
                 }
             }
             TypedSpec envelope = ExecuteChainAssembly

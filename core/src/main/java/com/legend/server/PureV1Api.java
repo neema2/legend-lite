@@ -192,8 +192,9 @@ public final class PureV1Api {
             ModelChanges.only(request, "a jsonToTs/lambda request", "model", "lambda");
             ModelInput model = ModelInput.of(request.getObj("model"));
             LambdaFunction lambda = ProtocolReader.lambda(request.getObj("lambda"));
+            // the island's text read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
             com.legend.protocol.ts.TsShow.Shown shown = model.with(models, ctx -> com.legend.protocol.ts.TsShow.of(
-                    lambda, tsTypes(ctx)));
+                    lambda, tsTypes(ctx), com.legend.door.Parse::tsIsland));
             return Json.toCompact(shown.statement() != null ? Map.of("statement", shown.statement())
                     : Map.of("refused", java.util.Objects.requireNonNull(shown.refused())));
         });
@@ -202,9 +203,9 @@ public final class PureV1Api {
     /**
      * {@code /api/lite/v1/grammar/tsItem} (A3 step 2, docs/TS_A3_ONE_READER_PLAN_2026_11_03.md; upstream has no #TS):
      * {@code {text}}, one #TS item as a formula box holds a series, read by core's parser -- the one reader
-     * ({@link com.legend.protocol.ts.TsParser#item}): {@code {"text": canonical, "item": {alias, expr}}}, the item's
-     * tree as data ({@link TsTree}), or {@code {"error": {message, line, column}}} where the text
-     * is no item. An error is the box's answer, never a failed request: 200 either way.
+     * ({@link com.legend.protocol.ts.TsParser#item}, through the parse door {@code door.Parse.tsItem}):
+     * {@code {"text": canonical, "item": {alias, expr}}}, the item's tree as data ({@link TsTree}), or
+     * {@code {"error": {message, line, column}}} where the text is no item. An error is the box's answer, never a failed request: 200 either way.
      */
     public static Answer tsItem(String body) {
         return answer(400, "COMPILATION", () -> {
@@ -214,7 +215,8 @@ public final class PureV1Api {
             String text = request.getString("text");
             Map<String, Object> out = new LinkedHashMap<>();
             try {
-                com.legend.protocol.ts.TsAst.Line line = com.legend.protocol.ts.TsParser.item(text);
+                // read through the parse door, which asks the run's wall (C5-J's last round, 2026-11-15)
+                com.legend.protocol.ts.TsAst.Line line = com.legend.door.Parse.tsItem(text);
                 // both made before either is answered: an item whose tree is refused (a parameter, $A) is an error alone,
                 // never a text with no tree (item 11b, 2026-11-07: the tile read the text and found no tree)
                 String printed = com.legend.protocol.ts.TsPrinter.print(line);

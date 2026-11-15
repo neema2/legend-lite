@@ -42,10 +42,10 @@ import static com.legend.server.PureV1Api.runtimeOf;
  * request, so it is tested without HTTP.
  *
  * <ul>
- *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON ({@link SpecParser#lambdaJson},
+ *   <li>E1 {@code grammar/grammarToJson/lambda}: Pure text to lambda JSON ({@link SpecParser#lambdaJson}, through the parse door {@code door.Parse.lambdaJson},
  *       byte-exact).</li>
  *   <li>E2 {@code grammar/grammarToJson/model}: model text to PMCD JSON
- *       ({@link PmcdParser#parseDocument(String, boolean)}, byte-exact).</li>
+ *       ({@link PmcdParser#parseDocument(String, boolean)}, byte-exact, through the parse door {@code door.Parse.documentJson}).</li>
  *   <li>E4 {@code grammar/jsonToGrammar/lambda} (and {@code /batch}): lambda JSON to Pure
  *       text ({@link PureComposer}, byte parity with upstream's printer).</li>
  *   <li>{@code grammar/jsonToGrammar/model}: model JSON to Pure text ({@link ModelComposer}, byte parity with
@@ -119,12 +119,14 @@ public final class PureV1Routes {
     /** E1: a lambda's text to its protocol JSON. Text without a leading {@code |} is
      *  wrapped in a parameterless lambda spanning the whole text, as the engine does. */
     public static Answer grammarToJsonLambda(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> SpecParser.lambdaJson(text, returnSourceInformation));
+        // through the parse door, which asks the run's wall (C5-J item 1, 2026-11-15; merged 2026-11-15, #106 into #104)
+        return answer(400, "PARSER", () -> com.legend.door.Parse.lambdaJson(text, returnSourceInformation));
     }
 
     /** E2: a model's text to its PMCD JSON. */
     public static Answer grammarToJsonModel(String text, boolean returnSourceInformation) {
-        return answer(400, "PARSER", () -> PmcdParser.parseDocument(text, returnSourceInformation));
+        // through the parse door (C5-J item 1, 2026-11-15)
+        return answer(400, "PARSER", () -> com.legend.door.Parse.documentJson(text, returnSourceInformation));
     }
 
     /**
