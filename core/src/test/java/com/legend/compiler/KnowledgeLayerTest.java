@@ -477,15 +477,14 @@ class KnowledgeLayerTest {
         assertEquals("L1:Float[0..1]", signature.get(17).text());
     }
 
-    /** The engine's type-inference cases (2026-11-14, the names batch:
-     * PHASE3_SHIM_DESIGN.md §10 rulings 34 and 35), one Database whose every view column is one case, every arm of each
+    /** The engine's type-inference cases (2026-11-14, the names batch), one Database whose every view column is one
+     * case, every arm of each
      * rule. Each answer below is legend-engine 4.145.0's for that column, ASKED of the engine, not read: the pinned
      * release's own generated {@code inferRelationalType} (failOnMatchFailure false) over this very text, compiled by
-     * its own compiler (port-scratch/namesbatch/engine: InferProbe, the engine runner's class path), and the same cases
+     * its own compiler (on the engine runner's class path), and the same cases
      * through the legend-lsp daemon (interpreted) answering alike. {@code -} is the engine's EMPTY or a throw (a toOne
      * over no type, an at() past the arguments, a match with no arm): no type here, as for every inference the engine
-     * fails where it is asked. One answer is lite's and differs, said where it stands. lite-names' tests.rs holds
-     * the same text and table. */
+     * fails where it is asked. One answer is lite's and differs, said where it stands. */
     static final String ENGINE_CASES = """
             ###Relational
             Database nb::Db (

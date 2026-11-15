@@ -240,7 +240,7 @@ public final class RelationalTypeInference {
                 // until then no rule, no type). Each is legend-engine
                 // 4.145.0's getDynaFunctionTypeInferenceMap entry (relationalExtension.pure, the lines cited), and every
                 // arm's answer was ASKED of the engine, not only read: the pinned release's own generated
-                // inferRelationalType over each case (port-scratch/namesbatch/engine, InferProbe and cases1.pure), the
+                // inferRelationalType over each case, the
                 // same 123 cases through the legend-lsp daemon too. Where the engine's inference fails (a toOne over no
                 // type, an at() past the arguments, a match with no arm), lite answers no type, as for every inference the
                 // engine fails where it is asked.
