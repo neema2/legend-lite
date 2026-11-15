@@ -52,10 +52,6 @@ const PAGE_BOOT = "a page's boot, not yet a door's: re-pointed to one with the d
 const PAGE_REACHES = new Map([
   ['datacube/demo/boot.ts imports engine-client/src/plan-runner.ts',
     `the demo sample: the planner's synthesize plan (S303) run by the hosts' runner on the tab's held connection; ${PAGE_BOOT}`],
-  ['query/demo/main.ts imports engine-client/src/plan-runner.ts',
-    `the warehouse demo's seed: the project's Data load (Boundary.projectData) run by the hosts' runner; ${PAGE_BOOT}`],
-  ['query/demo/main.ts imports engine-client/src/warehouse.ts',
-    `Query's sign-in to a warehouse by password: the binding loaded, the session made, its catalogs listed; ${PAGE_BOOT}`],
 ]);
 
 /** The run side's and the doors' own files -- DataCube's :run and :doors, engine-client's :run, :doors, :engine_api and
@@ -200,7 +196,6 @@ const CENSUS = new Map<string, { readonly calls: Readonly<Record<string, number>
     why: "the remote harness page's query: a plan its planner answered, executed on the engine the tab's door handed" }],
   ['datacube/demo/stress.ts', { calls: { 'engine.execute(': 2 },
     why: "the stress page's queries: plans its planner answered, executed on the engine the tab's door handed" }],
-  ['query/demo/main.ts', { calls: { 'runLoad(': 1, 'engine.run(': 1 }, why: `the warehouse demo's seed, run: ${PAGE_BOOT}` }],
 ]);
 
 /** A call of a run: the plan runner's, the frame's, or a run, an execute, a stream, a hold (`exclusive`) or a held

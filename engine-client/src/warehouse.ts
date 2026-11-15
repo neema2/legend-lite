@@ -105,20 +105,6 @@ export const BINDING_OPTIONS = {
   },
 };
 
-/**
- * The binding's module, from the directory holding its `classes.wasm` and TeaVM's runtime (`<vendor>warehouse/`): the
- * runtime imported from there, and nothing a caller hands in (the C5-T last round's T3, 2026-11-15: a loader callback
- * let a caller choose the module a run layer runs; Node's tests load the module themselves and make the binding of it).
- */
-export async function loadWarehouseBinding(base: string): Promise<WarehouseBinding> {
-  const dir = base.endsWith('/') ? base : `${base}/`;
-  const runtimeUrl = `${dir}wasm-gc-module-runtime.js`;
-  const runtime = (await import(/* @vite-ignore */ runtimeUrl)) as {
-    load(src: string, options?: unknown): Promise<SqlApiModule>;
-  };
-  return new WarehouseBinding(await runtime.load(`${dir}classes.wasm`, BINDING_OPTIONS));
-}
-
 /** A refusal: an error and no step (a statement's failed step carries its error too, and is an answer). */
 const refused = (said: unknown): said is Refusal => typeof said === 'object' && said !== null && 'error' in said
   && !('step' in said);

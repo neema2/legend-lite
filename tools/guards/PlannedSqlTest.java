@@ -231,7 +231,9 @@ class PlannedSqlTest {
             // THE raw connection, made once and handed to DuckDbEngine
             Map.entry("engine-client/src/duckdb-tab.ts", List.of("db.connect(")),
             Map.entry("engine-client/src/project-data.ts", List.of("this.#host.connect(")),
-            Map.entry("query/demo/main.ts", List.of("tab.connect(")),
+            // 2026-11-15 (the C5-T fold-in): Query's warehouse sign-in through its door (doors/warehouse.ts warehouseAt),
+            // `door.connect(`, as DataCube's browser.ts above, where the page signed in with the driver's own signIn
+            Map.entry("query/demo/main.ts", List.of("door.connect(", "tab.connect(")),
             Map.entry("studio/src/app/app.ts", List.of("tab.connect(")));
     static final Map<String, List<String>> SUBMITS = Map.ofEntries(
             // 2026-11-12 (the re-audit's S10, measured): by call site, the receiver and the member -- the warehouse's statement, a PlannedSql
@@ -1476,8 +1478,9 @@ class PlannedSqlTest {
             // (snapCopy)
             // a multi-step door: SnapManager (note 3)
             Map.entry("engine-client/src/snap.ts", List.of("runLoad(", "runPlan(")),
-            // a demo's door: its seed's plan asked, then loaded
-            Map.entry("query/demo/main.ts", List.of("runLoad(")),
+            // 2026-11-15 (the C5-T fold-in): a project's Data rows loaded where an engine runs (dataLoaded: projectData
+            // asked first) -- Query's warehouse seed, which the page ran itself until then
+            Map.entry("engine-client/src/doors/project-data.ts", List.of("runLoad(")),
             // 2026-11-15 (the C5-T audit's MUST 2): the playground's door, moved out of Studio's run.ts into
             // engine-client's doors (runAuthoredStatement: authored asked first)
             Map.entry("engine-client/src/doors/authored.ts", List.of("runAuthored(")));

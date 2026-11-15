@@ -61,9 +61,9 @@ const DOOR_LAYER = env('KIND') === 'doors';
 const COMPUTED_DOORS = new Map([
   ['engine-client/src/duckdb-tab.ts new Worker(bundle.mainWorker!)',
     "DuckDB's own worker, its bundle's duckdb-browser-eh.worker.js from the page's vendor directory: DuckDB runs there"],
-  ['engine-client/src/warehouse.ts import(runtimeUrl)',
-    "TeaVM's runtime for the warehouse's wire binding (vendor/warehouse/, //warehouse:sqlapi_page): it names the"
-      + " warehouse's calls and reads their answers, and plans nothing"],
+  ['engine-client/src/doors/warehouse.ts import(runtimeUrl)',
+    "TeaVM's runtime for the warehouse's wire binding (vendor/warehouse/, //warehouse:sqlapi_page), loaded by its door:"
+      + " the run side takes the loaded binding (2026-11-15, the C5-T fold-in)"],
 ]);
 
 /** Every .ts file of the main repository in the runfiles, by its path from the repository (`/`-separated). */

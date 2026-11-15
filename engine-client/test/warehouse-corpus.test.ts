@@ -15,13 +15,14 @@ import {
   WarehouseBinding,
   WarehouseEngine,
   listObjects,
-  loadWarehouseBinding,
   signIn,
   signInWithKey,
   type Clock,
   type SqlApiModule,
   type WarehouseSession,
 } from '../src/warehouse.ts';
+import * as driver from '../src/warehouse.ts';
+import { loadWarehouseBinding } from '../src/doors/warehouse.ts';
 import { unplanned } from './unplanned.ts';
 import { inRun } from '../src/run-frame.ts';
 
@@ -47,11 +48,16 @@ const binding = await (async (): Promise<WarehouseBinding> => {
   };
   return new WarehouseBinding(await runtime.load(fileURLToPath(new URL('classes.wasm', dir)), BINDING_OPTIONS));
 })();
-// the run layer's own load takes its directory alone: no caller hands it the module it runs (the C5-T last round's T3,
-// 2026-11-15; Node's tests, here, load the module themselves and make the binding of it)
-describe('the binding, loaded by the run layer', () => {
+// the binding is loaded by its door, from its directory alone: no caller hands it the module it runs (the C5-T last
+// round's T3, 2026-11-15), and the run side loads no module at all -- it takes the loaded binding (2026-11-15, the C5-T
+// fold-in: the run layers hold no computed specifier). Node's tests, here, load the module themselves and make the
+// binding of it
+describe('the binding, loaded by its door', () => {
   it('from its directory alone: it takes no loader', () => {
     assert.equal(loadWarehouseBinding.length, 1);
+  });
+  it('the run side has no load of its own', () => {
+    assert.equal('loadWarehouseBinding' in driver, false);
   });
 });
 

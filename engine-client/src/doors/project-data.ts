@@ -6,6 +6,7 @@
 // its Data rows: 1.9 MB for the markets project, docs/TS_SCALE_2026_11_07.md item 8).
 
 import type { QueryEngine } from '../engine.ts';
+import { runLoad } from '../plan-runner.ts';
 import type { ProjectDataSource } from '../planner-sources.ts';
 import { ProjectDatabases, ProjectRunner, type HeldEngine, type ProjectEngine, type ProjectHost } from '../project-data.ts';
 import type { PointedEngine } from '../query-engine.ts';
@@ -84,4 +85,21 @@ export class ProjectDoor {
  *  doors alone): the host's own connection, pointed at a project's database as one opens (ProjectRunner.use). */
 export function projectRunner(host: QueryEngine): PointedEngine {
   return new ProjectRunner(host);
+}
+
+/**
+ * A model's Data rows loaded where `engine` runs, a database it already is (a warehouse's catalog: Query's warehouse demo
+ * seed): the project's Data load as the planner makes it for the server's project plan and the tab's project database
+ * (Boundary.projectData, the ONCE load), asked outside any run, then run inside one by the hosts' plan runner -- the
+ * statements that make, point at and drop a database of the project's own are not run, the engine being that database.
+ * `what` names the rows for a refusal (2026-11-15, the C5-T fold-in: Query's page ran this load itself until then).
+ */
+export async function dataLoaded(engine: QueryEngine & { readonly databaseType: string }, planner: ProjectDataSource,
+  model: string, what: string): Promise<void> {
+  const { load } = await planner.projectData(model, engine.databaseType);
+  if (load === undefined) throw new Error(`${what} holds no Data rows to load`);
+  await inRun("a project's Data rows loaded", () => runLoad(load, (sql, params) => {
+    if (params.length > 0) throw new Error("a project's Data load binds no value");
+    return engine.run(sql, 0);
+  }));
 }

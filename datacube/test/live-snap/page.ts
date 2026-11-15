@@ -28,12 +28,12 @@ import { countQuery, SnapManager } from '../../../engine-client/src/snap.ts';
 import type { Receipt } from '../../../engine-client/src/receipt.ts';
 import {
   listObjects,
-  loadWarehouseBinding,
   SessionExpired,
   sessionExpired,
   signIn,
   WarehouseEngine,
 } from '../../../engine-client/src/warehouse.ts';
+import { loadWarehouseBinding } from '../../../engine-client/src/doors/warehouse.ts';
 import { accessor, from } from '../../../pure-protocol/src/index.ts';
 import { levelLambda } from '../../src/query.ts';
 import { PlanThenRun } from '../../src/runner.ts';
