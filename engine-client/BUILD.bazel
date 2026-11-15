@@ -93,7 +93,8 @@ _SERVER = [
     "src/pure-v1.ts",
 ]
 
-# the multi-step doors kept in place (the orchestrator's note 3: each made one keyed plan later, the C5 backlog's line)
+# the multi-step doors kept in place (the orchestrator's note 3: each made one keyed plan later, the backlog of
+# docs/records/c5-typescript-2026-11-15.md)
 _DOORS = glob(["src/doors/**/*.ts"]) + [
     "src/engine-remote.ts",
     "src/legend/browser-engine.ts",

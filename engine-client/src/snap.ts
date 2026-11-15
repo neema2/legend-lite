@@ -34,9 +34,9 @@
 // queries are planned is the app's (DataCube's SnapTarget adds its planner).
 //
 // SnapManager is A DOOR (C5-T, 2026-11-15: the TypeScript split of plan and run; a multi-step door, as the
-// orchestrator's note 3 accepts -- made one keyed plan later, the C5 backlog's line): it asks the planner -- the copy's
-// plan, a drop's statements -- outside any run, and runs each answer inside a run frame (run-frame.ts: a run plans
-// nothing), on the hosts' plan runner (plan-runner.ts) or the local store's connection.
+// orchestrator's note 3 accepts -- made one keyed plan later, docs/records/c5-typescript-2026-11-15.md's backlog): it
+// asks the planner -- the copy's plan, a drop's statements -- outside any run, and runs each answer inside a run frame
+// (run-frame.ts: a run plans nothing), on the hosts' plan runner (plan-runner.ts) or the local store's connection.
 
 import type { HostName, HostOperation, SnapPull } from './host-operations.ts';
 import type { HostStreams } from './plan-runner.ts';

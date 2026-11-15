@@ -45,8 +45,8 @@ const ENGINE_CLIENT = 'engine-client/src';
  *  the C5-T last round's T4 (2026-11-15). */
 const PAGES = ['datacube/demo', 'query/demo', 'studio/demo'];
 
-const PAGE_BOOT = "a page's boot, not yet a door's: re-pointed to one with the doors this round leaves (the start-here"
-  + " backlog's C5 list)";
+const PAGE_BOOT = "a page's boot, not yet a door's: re-pointed to one with the doors this round leaves (C5-T's backlog,"
+  + ' docs/records/c5-typescript-2026-11-15.md)';
 
 /** Each page module's reach of the run side that remains, with its reason. Shrink-only: a new one fails. */
 const PAGE_REACHES = new Map([

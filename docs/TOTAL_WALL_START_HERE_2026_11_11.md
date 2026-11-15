@@ -1015,44 +1015,9 @@ In order. Nothing here is in the A/B/C PR.
        merges). Its finish line: TypeScript's and Python's run code live in packages whose build deps exclude the
        planner, a run frame wraps every send, and the run walls (`datacube/test/run-wall.test.ts`,
        `python/tests/test_run_wall.py`) are deleted for a plain dependency rule, as `//core:exec`'s deps are pinned for
-       Java. TYPESCRIPT'S HALF IS DONE (C5-T, 2026-11-15, branch `claude/total-wall-b3`): its run code is the `run`
-       targets of `//engine-client` and `//datacube`, whose deps `tools/deps/ts-layers.txt` pins (records and npm only;
-       `//tools/deps:ts_layering_test`), each type-checked alone by a strict tsc that sees nothing else
-       (`//tools/deps:layers_alone`, with a planted violator's bite), every send on Node refused outside a run at its
-       choke point (`run-frame.ts` `sending`: DuckDB's connection, the warehouse's submit), and
-       `datacube/test/run-wall.test.ts` deleted. PYTHON'S HALF IS DONE (C5-P, 2026-11-15, PR #103, merged to `main` at
-       f4baf1d10): its run side is `//python:run` (`_runs.py`, `_reads.py`, the type facts), which reaches no planner
-       (`//python:run_closure_test`, by the build and by the sources both ways), every send framed, and
-       `python/tests/test_run_wall.py` deleted (docs/GATES.md's C5-P entry). The audit's fix round of the same day restored
-       what the deletion dropped: DataCube's doors a target of their own (`//datacube:doors`), the apps' own
-       plan-and-run sites a shrink-only census (`//tools/deps:app_runs_test`), and the wall's signature, suppression and
-       literal-specifier rules on each run layer (`//tools/deps:layers_alone`); docs/GATES.md says what it covers. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
+       Java. The walls are interim scaffolding until then, neither slimmed nor re-engineered (their headers say so, the
        final fix round's T4); their lists are this work's list: TypeScript's 17 `COMPOSER_MODULES`, 22
        `COMPOSER_SIGNATURES` and 2 `COMPUTED_DOORS`, Python's 12 `UNFRAMED_SENDERS`, each named there;
-     - each multi-step TS door made one keyed plan, as Java's Keyed pattern does (a step's rows fill the next statement),
-       so a door is one planning call and one run call (the orchestrator's note 3 on C5-T, 2026-11-15: the snap door,
-       `writeTable`, the upload and catalog flows, `TabTables`, accepted as multi-step doors until then) -- MOVED
-       (2026-11-15, the user: "Yes add multi step to datacube") to the DataCube stream's one-intent API
-       (`claude/datacube-engine`, its contract's R2), with its finish line: each intent is one planning step and one run,
-       a keyed plan where one step's rows shape the next; the truly two-phase intents (upload, describe) are named
-       exceptions; a test counts the planning and run calls of each intent;
-     - the C5-T audit's backlog (2026-11-15) -- `upload.ts`'s `?? 0` (:360), `tab-data.ts` `tables()`'s catch-all,
-       `PlannedSqlTest.UNPLANNED_IMPORT`'s quote style, `infer.ts`'s stale reference (:152), `warehouse.ts`
-       `loadWarehouseBinding`'s load callback -- FIXED in the C5-T last round's T3 (2026-11-15);
-     - the pages' boots re-pointed to doors (the C5-T last round's T4, 2026-11-15: the pages, `demo/`, are app code no
-       rule read until then): `datacube/demo/boot.ts`'s demo sample (`runLoad` of the synthesize plan), and
-       `query/demo/main.ts`'s warehouse seed (`runLoad`) and warehouse sign-in by password (`warehouse.ts`'s driver) --
-       pinned meanwhile, shrink-only, by `//tools/deps:app_runs_test` (`PAGE_REACHES`, and their sites in `CENSUS`);
-     - the C5-T final audit's backlog (2026-11-15; recorded, not fixed): the planner's server clients keep a protected
-       generic POST (`legend/planning-client.ts` `json()`, `pure-v1-planning.ts` `request()`), so "no execute" holds by
-       the method's name alone -- an adversarial route only; and the headless bridge's connection
-       (`datacube/src/headless/connection.ts`, reached by `hostConnection`) does not call `sending()` -- right in the V8,
-       which keeps no frame, but a Node test of `hostDatabase` would send outside a run;
-     - (C5-T's bundle-inputs round, 2026-11-15; recorded, not fixed) esbuild also searches upward for `tsconfig.json`
-       from each input's REAL path, so a bundle could read a tsconfig another action copied into bazel-bin, and its
-       compile settings would depend on build order: no such file is there today (engine-client has none; DataCube,
-       Query and Studio declare theirs in `:src`), but nothing guards it, and the metafile
-       (`//tools/deps:bundle_inputs_test`) does not list a tsconfig read;
      - the PCT runner's reads of `ProgramFacts` (`test.PureTestRunner`: `effects`, `seedsInlineCsv`, `shape`,
        `verdicts`) carried in the test plan instead;
      - the test road's catch-and-continue sites (G7): PlanAllocations' `registerPlanRows` (:251), `activitySql` (:292),
@@ -1065,7 +1030,7 @@ In order. Nothing here is in the A/B/C PR.
        terms are under "Moved to D's batch" below;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
        20 TS sites) -- Python's half DONE by C5-P (2026-11-15: `_planned.send` refuses outside a run, every send in
-       `:run`); TypeScript's DONE with the structural split's TypeScript half (C5-T, 2026-11-15);
+       `:run`); TypeScript's is C5-T's;
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
      - (C5-P's audit, 2026-11-15) the native library's loader split into keys, a run taking a planner by annotation,
        transactions and the warehouse's HTTP outside a frame, a stream's pulls on DuckDB's own threads: DONE in C5-P's
@@ -1081,9 +1046,7 @@ In order. Nothing here is in the A/B/C PR.
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses
-       lite's witness pays about 45 ns (DONE, C5-T, 2026-11-15: the flag, measured against Node 24 and preferred --
-       both remove the promise tax and a run costs less with the flag -- set for every `node_test` in
-       `tools/js/defs.bzl` and pinned by `//engine-client:run_frame_test`; docs/witness-cost-homework/README.md);
+       lite's witness pays about 45 ns;
      - the date-format end found as pure finds it, pure's exact words; the bare ISE on an unclosed %t{ and the
        quoted-brace gap closed (B3's option A; held out of C4 by its freeze of 2026-11-14, where the refusal stays as at
        4a8e448917, named, at planning; S342 was reserved for its register row):

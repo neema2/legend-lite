@@ -22125,69 +22125,21 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
 - **The gate** at e9e651b56: 520 pass and 1 skipped; the 11 Postgres-backed targets refused as root pass
   unprivileged. At edd5a0817 (the last list): census, guardrails, the host walls, //tools/guards and //:generated pass.
 - **Its limits, said plainly (the final fix round's T2):**
-  - the browser and the headless V8 keep no frame: there the run-time witness is blind, and the build holds the line
-    (2026-11-15, C5-T: TypeScript's wall was deleted for the layers' rule; what it covers is below);
+  - the browser and the headless V8 keep no frame: there the run-time witness is blind and the wall alone holds;
   - the lexer and the parser are unwitnessed at run time (phases A, the parser half of B, and C);
-  - Python's 12 `UNFRAMED_SENDERS` (`_headless.Headless._query` and `._statement`, `engine.Engine._execute`,
-    `._execute_json`, `._project_plan_and_run` and `._served_snap`, `frames.Table._load`, `frames.Frames.__init__`,
-    `.streaming_file` and `.reading`, `projects._stream`, `projects.ProjectDatabases._make`) went with its wall
-    (`python/tests/test_run_wall.py`, deleted by C5-P, 2026-11-15, every send of the run side framed: its entry below);
-  - TypeScript's lists (17 `COMPOSER_MODULES`, 22 `COMPOSER_SIGNATURES`, 2 `COMPUTED_DOORS`) went with its wall
-    (`datacube/test/run-wall.test.ts`, deleted by C5-T, 2026-11-15; the audit's fix round of the same day restored what
-    the deletion had dropped). TYPESCRIPT'S FINISH LINE NOW COVERS:
-    - the run layers, `//engine-client:run` and `//datacube:run`: they reach the records and two pinned npm packages
-      alone (`tools/deps/ts-layers.txt`, `//tools/deps:ts_layering_test`, which pins every label it trusts). Each is
-      typechecked alone by a strict tsc over its closure, with no `@ts-nocheck`, `@ts-ignore` or `@ts-expect-error`
-      (`//tools/deps:layers_alone`). They open no import door chosen at run time but the two vendor loads named, and
-      no literal worker, URL, require or importScripts specifier names a module they may not reach. No function,
-      member or interface of theirs takes anything that answers a planner's statement, plan or planned record. No module
-      of theirs, nor of the doors', writes an explicit `any` (the C5-T last round's T2, 2026-11-15);
-    - the engine's API, `//engine-client:engine_api` (2026-11-15, the C5-T final audit's MUST 1): the engines'
-      interfaces, whose methods send, and the run frame, which opens a run -- out of the records. The run layers, the
-      doors and the apps reach it; it reaches the records alone, and is typechecked alone. The planner's check of the
-      frame is a record (`plan-guard.ts`), which cannot open a run: it reads the run through the reader the frame
-      installs once;
-    - the planner layers, `//engine-client:planner` and `//datacube:planner`, and the server layer,
-      `//engine-client:server` (legend-engine's clients): they reach the records (the server, the planner and its npm
-      package too) and no engine's API, run layer or door, and each is typechecked alone;
-    - the doors, `//engine-client:doors` and `//datacube:doors`: each asks the planner, then runs its answer in a run
-      frame; their deps are pinned, and each is typechecked alone (the C5-T last round's T2);
-    - the apps (DataCube's app, Query, Studio; the C5-T last round's T1, 2026-11-15): their targets depend on no run
-      layer, nor do the libraries they depend on (`//tools/deps:ts_layering_test`: an app reaches the run side through
-      the doors alone). No app module, nor any page of theirs (`demo/`), imports a run module by any import -- a `.js`
-      spelling or none read as the module it loads -- or through a re-export of one it imports, followed through every
-      package an app imports (an import exported again too; a module the walk cannot read is named, never skipped)
-      (`//tools/deps:app_runs_test`), but three named page boots (DataCube's demo sample, Query's warehouse seed and
-      sign-in), shrink-only, C5's backlog line. Every plan-and-run site outside the doors and the run side -- in the
-      apps, their pages, and engine-client's records, planner and server, whose types are structural so no import
-      shows a run there -- is a shrink-only census: 38 sites in 19 files, the held connection's calls (`exclusive(`,
-      `.rows(`) and a database's receivers counted too. Each is a call of a door -- DataCube's runner (cube, plan,
-      treeview), its services' rows (a planner and the runner), an Engine's execute (a server's or BrowserEngine's;
-      legend-engine's own, passed on by the server layer), an engine a door handed (the stress and remote harness pages,
-      the headless grid's table output) -- or one of those page boots;
-    - the workspace's tables (Studio's Data panel, `tab-data.ts`): load, put, reset and tables run one at a time, so a
-      Reset never plans without a file whose put then lands (the C5-T final audit's MUST 2);
-    - every module a browser bundle reads is one it declares (`//tools/deps:bundle_inputs_test`, 2026-11-15): esbuild
-      looks for a sandboxed input's relative imports in the real output tree, so `//engine-client:planner_worker`,
-      three files named by hand, built only when another action had copied the fourth, `plan-guard.ts`; it now takes
-      the planner layer whole. Each bundle writes esbuild's metafile and the files it declares (tools/js/esbuild.bzl),
-      collected from every package (guards_package's `guard_bundles`), so a new bundle is checked with no list;
-    - every worker the product starts is pinned by call site, through any receiver (`new globalThis.Worker(`), as
-      each send, connect, fetch and submit is (`PlannedSqlTest.WORKERS`, the C5-T last round's T4 and the final
-      audit's item 7): the planner's, DuckDB's own, and Monaco's;
-    - on Node: every send is refused outside a run at the send primitives (DuckDB's #whole, #batches and #bound, the
-      held connection's sends, the warehouse's submit) -- the streaming path, Node's real one, tested by name (the final
-      audit's item 5) -- and every node_test runs with
-      `--experimental-async-context-frame`;
-  - IT DOES NOT COVER:
-    - a run-time witness in the browser or the headless V8 (none is kept there);
-    - a send on a receiver the census's pattern does not name: it reads names, so it catches drift, not an adversary;
-    - the multi-step doors (the snap door, `writeTable`, the upload and catalog flows, `TabTables`), which are not yet
-      one keyed plan each: moved to the DataCube stream's one-intent API (C5's backlog line, the user's word of
-      2026-11-15);
-    - the planner's server clients' protected generic POST ("no execute" by the method's name alone, an adversarial
-      route), and the headless bridge's connection, which calls no `sending()` (the V8 keeps no frame): C5's backlog;
-    - Python's half, which is C5-P's (its entry below, 2026-11-15: `//python:run_closure_test`).
+  - Python's 12 `UNFRAMED_SENDERS` send outside a run, each named in `python/tests/test_run_wall.py` for C5:
+    `_headless.Headless._query` and `._statement`, `engine.Engine._execute`, `._execute_json`,
+    `._project_plan_and_run` and `._served_snap`, `frames.Table._load`, `frames.Frames.__init__`, `.streaming_file`
+    and `.reading`, `projects._stream`, `projects.ProjectDatabases._make`;
+  - TypeScript's 17 `COMPOSER_MODULES` both run and plan, each named in `datacube/test/run-wall.test.ts` for C5:
+    datacube's `runner`, `app/services`, `app/sources`, `services/browser`, `headless/host`, `app/join-flow`, `cube`,
+    `plan` and `treeview`; engine-client's `legend/browser-engine` and `legend/engine`; Query's `app/cube`,
+    `app/probe`, `app/run` and `ui/results`; Studio's `app/app` and `backend/run`;
+  - TypeScript's 22 `COMPOSER_SIGNATURES` take a planner's type in a run signature, each named there for C5:
+    engine-client's `setUpSession`, `ownExtensions`, `startDuckDbInTab`, `runHostOperations`, `loadFileTable`, and
+    the constructors of `ProjectDatabases`, `SnapManager` and `TabTables`; datacube's `accessRemote`, `mountRemote`,
+    `runMount`, `TableWriteHost.models`, `writeTable`, and upload's `catalogColumns`, `catalogColumnsOf`,
+    `dropFileTable`, `forgetUpload`, `ingestFile`, `modelLanded`, `mountRemoteView`, `mountedView`, `readFileInto`.
 - **The heavy suite and the cloud probe:** `//gates:heavy` holds `//core:identifier_escaping_cloud_probe` (fd7dc25565).
   A heavy run needs `LEGENDLITE_PCT_CLOUD_PROPERTIES` and `LEGENDLITE_PROBE_CLOUD`, and covers ONE cloud a run, the one
   `LEGENDLITE_PROBE_CLOUD` names (`snowflake` or `databricks`); without them the probe fails by name.
