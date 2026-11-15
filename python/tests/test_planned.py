@@ -15,7 +15,7 @@ from legend_lite._planned import (Answered, Database, NotPlanned, PlannedSql, Un
 from legend_lite._planner import answer
 from legend_lite._runframe import current_run, in_run, planning, runs
 from legend_lite.compiler import LegendError
-from legend_lite.frames import execute_redacted
+from legend_lite._reads import fetched_redacted
 
 
 class _Recording:
@@ -97,10 +97,17 @@ class OneSendTest(unittest.TestCase):
         with self.assertRaises(NotPlanned):
             db.import_stream(None, None, 't; DROP TABLE x')
 
+    def test_the_send_only_redaction_is_gone(self):
+        # the C5 follow-up's check (2026-11-15): execute_redacted redacted the send alone, the gap fetched_redacted closed;
+        # it is gone, its re-export with it, so nothing redacts half
+        from legend_lite import _reads, frames
+        self.assertFalse(hasattr(_reads, 'execute_redacted'))
+        self.assertFalse(hasattr(frames, 'execute_redacted'))
+
     def test_a_reads_send_refuses_text_no_plan_carries(self):
         con = _Recording()
         with self.assertRaises(NotPlanned):
-            execute_redacted(Database(con), 'SELECT 1', ())
+            fetched_redacted(Database(con), 'SELECT 1', (), (), lambda result: result)
         self.assertEqual(con.sent, [])
 
     def test_a_loads_steps_are_the_plans(self):

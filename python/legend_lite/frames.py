@@ -47,8 +47,8 @@ from . import _host, compiler
 from ._planned import Database, connect
 # the run side (C5-P, 2026-11-15): what sends a plan's statements and reads their answer, frames.py's until then and
 # named here as they always were; frames.py plans, then hands the run its statements
-from ._reads import (TYPE_KEY, Reading, UntypedColumn, begin_read, end_read, execute_redacted,  # noqa: F401
-                     held_texts, redact_held, redacted, run_plan, to_pandas, typed_by_plan)
+from ._reads import (TYPE_KEY, Reading, UntypedColumn, begin_read, end_read, held_texts,  # noqa: F401
+                     redact_held, redacted, run_plan, to_pandas, typed_by_plan)
 from ._runs import LoadRefused, ask, run_host_load, run_statements
 
 # a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
@@ -66,6 +66,12 @@ _CATALOG_FIELDS = ('name', 'dataType', 'logicalType', 'precision', 'scale', 'not
 
 # how many models a page sent Python holds at once (Frames.model_for): a page's project, as its revisions move
 _ADMITTED = 8
+
+
+class ModelRefused(compiler.LegendError):
+    """A page's model the compiler refuses -- it does not parse, or does not compile -- as ``Frames.model_for`` raises
+    it: the compiler's own words and kind (the C5 follow-up, 2026-11-15). Its own class, so a caller answers it alone,
+    never a refusal of what it plans over the model."""
 
 
 def _arrow(frame: Any) -> pa.Table:
@@ -413,19 +419,21 @@ class Frames:
         return sorted(t for t in own if t not in served) + sorted(other)
 
     @staticmethod
-    def _declared(model: str) -> set[str] | None:
+    def _declared(model: str, surface: bool = False) -> set[str] | None:
         """The tables a model's Databases declare in the database's own schema, lower-cased -- or None: it does not read
         as a model, or declares a table of another schema (no table of this database)."""
-        declared = Frames._tables_of(model)
+        declared = Frames._tables_of(model, surface)
         return None if declared is None or declared[1] else declared[0]
 
     @staticmethod
-    def _tables_of(model: str) -> tuple[set[str], set[str]] | None:
+    def _tables_of(model: str, surface: bool = False) -> tuple[set[str], set[str]] | None:
         """The tables a model's Databases declare: those of the database's own schema, lower-cased, and those of another,
-        as ``SCHEMA.TABLE`` -- or None: it does not read as a model."""
+        as ``SCHEMA.TABLE`` -- or None: it does not read as a model (``surface``: the compiler's refusal raised)."""
         try:
             elements = compiler.model_elements(model)
         except compiler.LegendError:
+            if surface:
+                raise
             return None
         own: set[str] = set()
         other: set[str] = set()
@@ -443,10 +451,9 @@ class Frames:
         option (c)): one held for a frame or a page's file (``held_for``), or a model the page sent -- its project's, say
         -- every table of whose Databases is one Python serves, so the SQL planned over it reads only what Python showed
         the page, never another table of this database (a person's own, an attached database's). Held while recent;
-        None when it declares a table Python does not serve, or does not read as a model; one that reads as a model of
-        served tables but does not compile is refused by the compiler's own words (``compiler.LegendError``: the C5
-        follow-up's held item, 2026-11-15 -- until then None, and the page told this engine serves none of its
-        tables)."""
+        None when it declares a table Python does not serve; one that does not parse, or reads as a model of served
+        tables but does not compile, is refused by the compiler's own words (``ModelRefused``: the C5 follow-up's held
+        item and its check, 2026-11-15 -- until then None, and the page told this engine serves none of its tables)."""
         with self._lock:
             held = self.held_for(model)
             if held is not None:
@@ -456,13 +463,20 @@ class Frames:
                 held, tables = self._admitted.pop(model)
                 self._admitted[model] = (held, tables)
                 return held if tables <= served else None
-            tables = self._declared(model)
+            try:
+                tables = self._declared(model, surface=True)
+            except compiler.LegendError as refused:
+                # it does not read as a model: the compiler's words (the C5 follow-up's check, 2026-11-15)
+                raise ModelRefused(refused.message, refused.kind) from refused
             if tables is None:
                 return None
             if not tables <= served:
                 return None
             # it reads as a model of the tables served; one that does not compile raises the compiler's refusal
-            held = compiler.HeldModel(model)
+            try:
+                held = compiler.HeldModel(model)
+            except compiler.LegendError as refused:
+                raise ModelRefused(refused.message, refused.kind) from refused
             self._admitted[model] = (held, frozenset(tables))
             while len(self._admitted) > _ADMITTED:
                 self._admitted.pop(next(iter(self._admitted)))[0].close()
@@ -577,7 +591,7 @@ class Frames:
         """``plan`` against the model a page's query may be planned over (``model_for``), held while it plans -- a frame
         registered again meanwhile lets go of its model only after -- or None: no such model served. For a read's query
         (D15): the model of that text is of the tables the read sees as they were (the same text, the same columns). A
-        model that does not compile raises the compiler's refusal (``model_for``)."""
+        model that does not parse or compile raises the compiler's refusal (``ModelRefused``, ``model_for``)."""
         with self._lock:
             held = self.model_for(model)
             return None if held is None else plan(held)

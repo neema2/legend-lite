@@ -111,6 +111,34 @@ class UnexpectedFailures(Served):
     """The C5 follow-up's audit item 3 (2026-11-15): a failure no route answers is still an answer -- a 500 naming it,
     its words with every value the engine holds taken out -- never a socket closed with the error on stderr alone."""
 
+    def broken(self):
+        """A live frame that fails as it is read again, its words holding a value the engine holds (a bearer URL's)."""
+        calls = []
+
+        def frame():
+            calls.append(1)
+            if len(calls) > 1:
+                raise RuntimeError('the live frame could not be read: X-Amz-Signature=held-0123456789')
+            return trades()
+
+        table = self.frames.register('broken', frame)
+        original = self.frames.held_values
+        self.frames.held_values = lambda: (*original(), 'X-Amz-Signature=held-0123456789')
+        return table
+
+    def test_a_planner_calls_and_a_cubes_unexpected_failure_say_no_held_value(self):
+        # the C5 follow-up's check (2026-11-15): a page's planner call (plan-and-run reads the frames, a live one read
+        # again) and a cube (GET cube.json) answered a failure's raw words; the engine's one unexpected answer now
+        table = self.broken()
+        asked = {'lambda': json.dumps(ll.parse('|' + table.accessor + '->select(~[desk])')), 'model': table.model,
+                 'runtime': table.runtime}
+        for said in (self.server.engine.answer('POST', '/plan-and-run.json', '', json.dumps(asked)),
+                     self.server.engine.answer('GET', '/cube.json', 'table=broken', None)):
+            text = said.body.decode('utf-8')
+            self.assertEqual(said.status, 500, text)
+            self.assertIn('RuntimeError: the live frame could not be read', text)
+            self.assertNotIn('held-0123456789', text)
+
     def test_an_executes_unexpected_failure_says_no_held_value(self):
         calls = []
 
@@ -472,6 +500,36 @@ class ProjectQueries(Served):
             self.assertTrue(plan.startswith('ERR\nCOMPILATION\n'), plan)
             self.assertIn('trades::Nope', plan)
             self.assertNotIn('reads only the tables it serves', plan)
+
+    def test_a_page_model_that_does_not_parse_is_refused_by_the_compiler(self):
+        # the C5 follow-up's check (2026-11-15): a page's model that does not PARSE was still "reads only the tables it
+        # serves", naming none (Frames._tables_of read the parser's refusal as no model); the compiler's words now, as a
+        # project's model's are
+        broken = self.table.model + '\n###Pure\nClass trades::A {'
+        asked = {'lambda': json.dumps(self.query('->select(~[desk])')), 'model': broken, 'runtime': self.table.runtime}
+        for path in ('/plan-and-run.json', '/plan.json'):
+            status, _, body = self.post(path, json.dumps(asked))
+            self.assertEqual(status, 200, body)
+            plan = json.loads(body)['plan']
+            self.assertTrue(plan.startswith('ERR\nPARSER\n'), plan)
+            self.assertNotIn('reads only the tables it serves', plan)
+
+    def test_a_planning_failure_over_a_served_model_is_no_refusal_of_the_model(self):
+        # the C5 follow-up's check (2026-11-15): the catch around plan_over is the model's refusal alone (ModelRefused),
+        # never a failure of what is planned over it (a model compiling alone but not over DataCube's library): that one
+        # stays the unexpected failure it is, a 500, never answered as the model's own refusal
+        from legend_lite.compiler import LegendError
+
+        def failing(asked, held):
+            raise LegendError('the library could not be held over the model', 'COMPILATION')
+
+        asked = {'lambda': json.dumps(self.query('->select(~[desk])')), 'model': self.table.model,
+                 'runtime': self.table.runtime}
+        with mock.patch.object(self.server.engine, '_plan_with', failing):
+            for path in ('/plan-and-run.json', '/plan.json'):
+                status, _, body = self.post(path, json.dumps(asked))
+                self.assertEqual(status, 500, body)
+                self.assertIn('LegendError: the library could not be held over the model', body.decode())
 
     def test_kept_for_the_process_and_named_by_what_it_holds(self):
         for _ in range(2):

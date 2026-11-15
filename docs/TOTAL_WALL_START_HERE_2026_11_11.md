@@ -1055,6 +1055,9 @@ In order. Nothing here is in the A/B/C PR.
        KB an action): `_on_compiler_threads`;
      - (the C5 follow-up's audit, held out) a V8 engine stopped at its memory cap mid-write leaves the main connection in
        an open transaction (`_headless.py`);
+     - (the C5 follow-up's check, 2026-11-15, held out) a timeseries row's `refused` and a served snap's 422 carry the
+       compiler's LegendError message without its kind (`page.py`'s Tile.queries, `engine.py`'s `_served_snap`), as the
+       snap's existing planning 422 does;
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses

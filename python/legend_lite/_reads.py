@@ -1,6 +1,6 @@
 """A READ OF PYTHON'S DATABASE, the run side (C5-P, 2026-11-15: the plan/exec split on Python, as //core:exec is Java's):
 a plan's statement sent and its answer read -- its rows typed by the plan (``typed_by_plan``), a failure's words cleared
-of every value the host holds (``execute_redacted``), one read of the frames as it saw the database (``Reading``) -- and
+of every value the host holds (``fetched_redacted``), one read of the frames as it saw the database (``Reading``) -- and
 the runs Python's doors hand the planner's statements to (``run_plan``, ``run_arrow``, ``run_rows_json``, ``count_of``,
 ``begin_read``, the hosted DataCube's ``run_bridged_query`` and ``run_bridged_statement``). Each is a run (``@runs``):
 it is handed what the planner answered and plans nothing, and this module imports no planner module
@@ -127,29 +127,14 @@ def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | Non
     return redacted
 
 
-def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
-    """``sql`` run on ``connection``, its ``?``s bound to ``params`` (a plan's payloads: M3), a failure's words with every
-    held value taken out (``redacted``). A run of its own -- the caller's, named as it is, or one of its own outside any
-    (C5-P's audit M2, 2026-11-15: until then a sending helper, re-exported as frames.execute_redacted and framed by its
-    callers alone)."""
-    failure: BaseException | None = None
-    try:
-        with in_run(current_run() or 'a statement redacted'):
-            return send(connection, sql, params)
-    except duckdb.Error as e:
-        failure = redacted(e, held)
-        if failure is None:
-            raise
-    raise failure
-
-
 def fetched_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: Sequence[Any],
                      fetch: Callable[[Result], Any]) -> Any:
     """``sql`` run on ``connection`` AND its answer fetched (``fetch``), one failure's words for both with every held
     value taken out (``redacted``): DuckDB fails at the fetch as well as at the statement (a remote file read as its
     rows stream, a value that does not convert past the first rows), and a presigned link's expiry there repeats its
-    URL (the C5 follow-up's audit item 1, 2026-11-15: until then the fetch was outside the redaction). A run of its own,
-    as ``execute_redacted``."""
+    URL (the C5 follow-up's audit item 1, 2026-11-15: until then the fetch was outside the redaction; its check removed
+    execute_redacted, which redacted the send alone). A run of its own -- the caller's, named as it is, or one of its
+    own outside any."""
     failure: BaseException | None = None
     try:
         with in_run(current_run() or 'a statement redacted'):
@@ -287,7 +272,8 @@ class Reading:
 @runs('a plan')
 def run_plan(target: Database, plan: Plan, held: Iterable[str]) -> pa.Table:
     """PYTHON'S EXECUTOR: a plan's SQL run on ``target``, its rows typed by the plan (``typed_by_plan``), a failure's words
-    with every value in ``held`` taken out (``execute_redacted``). Only SQL a planner wrote for this database comes here."""
+    with every value in ``held`` taken out, at the statement and at its fetch (``fetched_redacted``). Only SQL a planner
+    wrote for this database comes here."""
     return typed_by_plan(fetched_redacted(target, plan.sql, held, plan.params, Result.to_arrow_table), plan)
 
 

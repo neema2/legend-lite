@@ -442,6 +442,10 @@ class ModelFor(unittest.TestCase):
         with self.assertRaisesRegex(ll.LegendError, 'proj0::Nope') as refused:
             self.frames.model_for(broken)
         self.assertEqual(refused.exception.kind, 'COMPILATION')
+        # and one that does not parse (the C5 follow-up's check, 2026-11-15: until then None, as "no model")
+        with self.assertRaises(ll.LegendError) as refused:
+            self.frames.model_for(self.project() + '\n###Pure\nClass proj0::A {')
+        self.assertEqual(refused.exception.kind, 'PARSER')
 
     def test_only_the_most_recent_are_held_each_let_go_of_as_it_is_evicted(self):
         first = self.frames.model_for(self.project(0))

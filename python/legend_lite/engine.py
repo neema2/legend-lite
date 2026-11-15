@@ -42,7 +42,7 @@ import socketserver
 import sys
 import threading
 import traceback
-from collections.abc import Callable, Container, Iterator, Mapping
+from collections.abc import Callable, Container, Iterable, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
 from pathlib import Path
@@ -62,7 +62,7 @@ from ._planned import PlannedSql, across_the_bridge, connect, from_plan
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, Reading, UntypedColumn, redact_held
+from .frames import Frames, ModelRefused, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
 from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from .keeper import PageKeeper, Refused
@@ -238,14 +238,13 @@ def _planned(said: dict[str, str], status: int = 200) -> Answer:
     return Answer(status, 'application/json', json.dumps(said).encode('utf-8'))
 
 
-def _answered(work: Callable[[str], Answer], body: str) -> Answer:
-    """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug, logged whole
-    and said (500), as the API's are (``Engine._api``)."""
-    try:
-        return work(body)
-    except Exception as failure:
-        traceback.print_exc()
-        return _said(500, f'{type(failure).__name__}: {failure}')
+def unexpected(failure: BaseException, held: Iterable[str]) -> Answer:
+    """A failure no route answered, as an answer: a bug, logged whole, and said (500, its class and words) with every
+    value the engine holds taken out (a presigned link's URL) -- THE one such answer, for the server's handler, a page's
+    planner calls, a cube's and the notebook's channel (the C5 follow-up's check, 2026-11-15: until then four, three of
+    them unredacted)."""
+    traceback.print_exc()
+    return _said(500, redact_held(f'{type(failure).__name__}: {failure}', held))
 
 
 def duckdb_extensions() -> Path | None:
@@ -577,14 +576,14 @@ class Engine:
                 table = self._warehouse_table_of(body or '')
                 if table is not None:
                     # a warehouse table's plan runs there: its HTTP on the caller's thread, holding no compiler thread
-                    return _answered(lambda b: self._warehouse_plan_and_run(table, b), body or '')
-                return _workers().submit(_answered, self._plan_and_run, body or '').result()
+                    return self._answered(lambda b: self._warehouse_plan_and_run(table, b), body or '')
+                return _workers().submit(self._answered, self._plan_and_run, body or '').result()
             if path == _PLAN:
-                return _workers().submit(_answered, self._plan, body or '').result()
+                return _workers().submit(self._answered, self._plan, body or '').result()
             if path == _WAREHOUSE:
                 # on the caller's thread: the warehouse's HTTP holds no compiler thread, and only the library's calls go
                 # to one; never a dropped call
-                return _answered(self._warehouse, body or '')
+                return self._answered(self._warehouse, body or '')
             if path == _SNAP:
                 return self._snap_said(body or '')
             if path == _OPENED:
@@ -615,6 +614,14 @@ class Engine:
             return Answer(200, 'application/json', json.dumps(kept).encode('utf-8'))
         return self._file(path)
 
+    def _answered(self, work: Callable[[str], Answer], body: str) -> Answer:
+        """A page's planner call answered, never a dropped call: what the call itself does not answer is a bug,
+        ``unexpected``'s 500, redacted (as the API's are, ``Engine._api``)."""
+        try:
+            return work(body)
+        except Exception as failure:
+            return unexpected(failure, self.frames.held_values())
+
     def answer_over(self, path: str, body: str, over: Reading) -> tuple[int, str, bytes]:
         """A call of DataCube's code run headless for a grid of a page in Python (headless calls.ts ``engine``), answered
         by this engine's own code over the read of the frames its call was made in (``over``: Frames.reading, D15), on
@@ -624,10 +631,10 @@ class Engine:
         engine holds: D13). Any other path refused. Its status, media type, body."""
         if path == _PLAN_AND_RUN:
             table = self._warehouse_table_of(body)
-            said = (_answered(lambda b: self._warehouse_plan_and_run(table, b), body) if table is not None
-                    else _answered(lambda b: self._plan_and_run(b, over), body))
+            said = (self._answered(lambda b: self._warehouse_plan_and_run(table, b), body) if table is not None
+                    else self._answered(lambda b: self._plan_and_run(b, over), body))
         elif path == _WAREHOUSE:
-            said = _answered(self._warehouse, body)
+            said = self._answered(self._warehouse, body)
         else:
             said = _said(404, f'DataCube asks the engine to plan and run ({_PLAN_AND_RUN}) or open a warehouse table '
                               f'({_WAREHOUSE}), not {path}')
@@ -1537,7 +1544,7 @@ class Engine:
             self._noted(models)
             try:
                 held = self.frames.model_for(asked['model'])
-            except LegendError as refused:
+            except ModelRefused as refused:
                 # a model of served tables that does not compile: the compiler's words (the C5 follow-up's held item)
                 return _said(422, f'the snap could not be planned: {refused}')
             if held is None:
@@ -1654,9 +1661,9 @@ class Engine:
         self._noted(self.frames.models())
         try:
             planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
-        except LegendError as no_model:
-            # the model's own refusal by the compiler (the C5 follow-up's held item: until then "reads only the tables
-            # it serves", naming none)
+        except ModelRefused as no_model:
+            # the model's own refusal by the compiler -- it does not parse or compile -- and that alone (the C5
+            # follow-up's held item: until then "reads only the tables it serves", naming none)
             return _planned({'plan': self.planner.refused_by(no_model)})
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
@@ -1779,9 +1786,9 @@ class Engine:
         self._noted(self.frames.models())
         try:
             planned = self.frames.plan_over(asked['model'], lambda held: self._plan_with(asked, held))
-        except LegendError as no_model:
-            # the model's own refusal by the compiler (the C5 follow-up's held item: until then "reads only the tables
-            # it serves", naming none)
+        except ModelRefused as no_model:
+            # the model's own refusal by the compiler -- it does not parse or compile -- and that alone (the C5
+            # follow-up's held item: until then "reads only the tables it serves", naming none)
             return _planned({'plan': self.planner.refused_by(no_model)})
         if planned is None:
             return _planned({'plan': self.planner.refused_plan(self._unserved(asked['model']))})
@@ -1855,9 +1862,8 @@ class Engine:
                         'version': self.version(name)}
             body = json.dumps(cube).encode('utf-8')
         except Exception as failure:
-            # a frame that could not be read: said, never a dropped call
-            traceback.print_exc()
-            return _said(500, f'{type(failure).__name__}: {failure}')
+            # a frame that could not be read: said, never a dropped call, redacted
+            return unexpected(failure, self.frames.held_values())
         return Answer(200, 'application/json', body)
 
     def _version(self, query: str) -> Answer:
@@ -2246,8 +2252,7 @@ class _Handler(http.server.BaseHTTPRequestHandler):
         try:
             return engine.answer(method, path, query, body)
         except Exception as failure:
-            traceback.print_exc()
-            return _said(500, redact_held(f'{type(failure).__name__}: {failure}', engine.frames.held_values()))
+            return unexpected(failure, engine.frames.held_values())
 
     def do_GET(self) -> None:  # noqa: N802
         """A frame's cube or version (with the token), or a file of the engine's site (DataCube's built pages), to a
