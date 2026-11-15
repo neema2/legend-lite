@@ -551,6 +551,27 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
   `verify_live_desk_test` green; the loader now checks each table against the plan before publishing it (step 3's
   check after installing), and `datacube/demo/deephaven/install.ts` writes a deployment's install (step 3).
 
+### 15.4 Step 4, the reference data, built (2026-11-15)
+
+- **The masters publish** (§11): the five pulls are reads of the masters' own topic stores now --
+  `secmaster::Topics` (`secmaster.instruments.v1`, `.equities.v1`, `.options.v1`), `refmaster::Topics` (exchanges,
+  sectors), `hr::Topics` (business units, desks, traders), `clientmaster::Topics` (counterparties) and
+  `riskdb::Topics` (`risk.limits.v1`) -- each ingest `Delta<JSON>`, `BatchMilestoned`, its columns and key the topic's
+  (`core/src/test/resources/stress/29-desk-sources.pure`). The desk holds no pull; a pull on a Deephaven target stays
+  refused by name, and decision P has nothing to decide.
+- **The deployment** lands them: `market::DeskOnDeephaven` deploys the five, `market::Kafka` feeds their stores, each
+  kept `current`.
+- **The world** publishes them through the door (the feed writes each table a topic is made of: nothing new).
+- **Measured** (`deephaven_door_test`): the loader made all nineteen tables from the plan, each typed as declared, every
+  key read once (instruments 254, options 216, equities 30, sectors 12, counterparties 20, traders 18, limits 10,
+  desks 6, exchanges 2, business units 1). `stress_suites`, the corpus gates, `verify_live_desk_test` and
+  `desk_model_test` green: the landing tables did not change.
+- **Left of step 4:** the positions files (`positions::StartOfDay`, `Snapshot<Parquet>`): upstream's nearest
+  connection read first (§13). Read 2026-11-15 at legend-engine `05a3d33`: no `ExternalFormatConnection` or
+  `UrlStreamExternalSource` remains in the tree; the nearest is the model-to-model `JsonModelConnection` /
+  `XmlModelConnection` (a class's instances at a URL), which lands no dataset. So a lite `Files` type, as ruled ("A
+  lite `Files` type only if nothing upstream fits").
+
 ## 16. Upstream, read
 
 Pinned: legend-studio `9775e7283cf2e768293db9982573cecbe8280c4b`, legend-engine

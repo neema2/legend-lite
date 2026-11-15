@@ -339,6 +339,17 @@ describe('the desk model\'s topics, as the planner answers them', () => {
       ['EXECUTION', 'oms.equities.fills.v4', 'last 50000'],
       ['ORDER_ROUTE', 'oms.equities.routes.v4', 'last 50000'],
       ['RFQ', 'oms.fx.rfqs.v2', 'keyed'],
+      // the masters' reference data, each change a record of its keyed topic (docs/DEPLOYMENT_DESIGN_2026_11_14.md §11)
+      ['INSTRUMENT', 'secmaster.instruments.v1', 'keyed'],
+      ['EQUITY', 'secmaster.equities.v1', 'keyed'],
+      ['OPTION', 'secmaster.options.v1', 'keyed'],
+      ['EXCHANGE', 'refmaster.exchanges.v1', 'keyed'],
+      ['SECTOR', 'refmaster.sectors.v1', 'keyed'],
+      ['BUSINESS_UNIT', 'hr.business-units.v1', 'keyed'],
+      ['DESK', 'hr.desks.v1', 'keyed'],
+      ['TRADER', 'hr.traders.v1', 'keyed'],
+      ['COUNTERPARTY', 'clientmaster.counterparties.v1', 'keyed'],
+      ['RISK_LIMIT', 'risk.limits.v1', 'keyed'],
     ]);
     const world = topicsOf(await planner.deephaven('topics', { model, database: 'market::World' }));
     assert.deepEqual(world.map((t) => [t.table, t.topic, t.key]), [['world', 'market.WorldStatus.world', ['item']]]);

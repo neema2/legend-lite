@@ -65,13 +65,16 @@ Runtime market::DeephavenRuntime
 
 ###Lakehouse
 // WHAT LANDS ON THE DEEPHAVEN SERVER, from where, keeping how much (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8): the
-// desk's streams and the world's status, each read from its topic on the door's brokers; an appended table its latest
+// desk's streams, the masters' reference data (each change a record of its keyed topic, §11) and the world's status,
+// each read from its topic on the door's brokers; an appended table its latest
 // rows, a milestoned one its current version a key. Rendered as data for lite's fixed loader (the planner's
 // DeploymentPlanner; core/src/main/deephaven/legend-loader.groovy), applied when the server starts
 Deployment market::DeskOnDeephaven
 {
-  deploys: [ marketdata::MarketDataFeed, marketdata::NewsFeed, trading::OrderFlowFeed, market::WorldStatus ];
-  sources: [ market::Kafka: [ tickerplant::Topics, newswire::Topics, oms::Topics, market::WorldStatus ] ];
+  deploys: [ marketdata::MarketDataFeed, marketdata::NewsFeed, trading::OrderFlowFeed, products::SecurityMasterLoad,
+    refdata::MarketsLoad, org::OrganisationLoad, counterparty::ClientMasterLoad, risk::LimitsLoad, market::WorldStatus ];
+  sources: [ market::Kafka: [ tickerplant::Topics, newswire::Topics, oms::Topics, secmaster::Topics, refmaster::Topics,
+    hr::Topics, clientmaster::Topics, riskdb::Topics, market::WorldStatus ] ];
   live: market::Deephaven keep [ appended: LastRows(50000), milestoned: current, MARKET_TRADE: LastRows(25000),
     NEWS_STORY: LastRows(5000) ];
 }
