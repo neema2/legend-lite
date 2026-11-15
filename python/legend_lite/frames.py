@@ -51,13 +51,6 @@ from ._reads import (TYPE_KEY, Reading, UntypedColumn, begin_read, execute_redac
                      redact_held, redacted, run_plan, to_pandas, typed_by_plan)
 from ._runs import LoadRefused, ask, run_host_load, run_statements
 
-# each still named as frames.py's, as it was before the move (its repr, a traceback's class, help()): no change seen
-for _moved in (TYPE_KEY, Reading, UntypedColumn, execute_redacted, held_texts, redact_held, redacted, to_pandas,
-               typed_by_plan):
-    if not isinstance(_moved, bytes):
-        _moved.__module__ = __name__
-del _moved
-
 # a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
 # of the compiler's rule, ModelChanges.isIdentifier (its regex and LITERAL_WORDS), kept here so a name is refused before
 # anything is made under it (the user's ruling, 2026-10-16: a copy, named, over moving the check into the model writer)

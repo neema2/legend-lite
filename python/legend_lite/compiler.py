@@ -17,11 +17,6 @@ from ._planned import PlannedSql, PlanText, all_from_plan, from_plan, plan_from_
 # the plan's records and its own data's readers, theirs since C5-P (2026-11-15): named here as they always were
 from ._plans import Column, Plan, PlanParamsRefused, host_rows, plan_params, statement_params  # noqa: F401
 
-# each still named as the compiler's, as it was before the move (its repr, a traceback's class, help()): no change seen
-for _moved in (Column, Plan, PlanParamsRefused, host_rows, plan_params, statement_params):
-    _moved.__module__ = __name__
-del _moved
-
 Tree = dict[str, Any]
 
 

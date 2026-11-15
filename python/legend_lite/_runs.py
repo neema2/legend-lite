@@ -274,7 +274,7 @@ def _stream(root: dict[str, Any], step: dict[str, Any], connection: Any, planes:
             close()
 
 
-def run_statements(target: Database, planned: Sequence[PlannedSql], what: str = "the planner's statements") -> None:
+def run_statements(target: Database, planned: Sequence[PlannedSql], what: str) -> None:
     """The planner's statements run on ``target``, in order -- a session's setup, a host's operations -- a run that
     ``what`` names."""
     with in_run(what):
@@ -282,7 +282,7 @@ def run_statements(target: Database, planned: Sequence[PlannedSql], what: str = 
             send(target, sql)
 
 
-def ask(target: Database, sql: PlannedSql, what: str = "the planner's question") -> list[tuple[Any, ...]]:
+def ask(target: Database, sql: PlannedSql, what: str) -> list[tuple[Any, ...]]:
     """A question's rows (a catalog's, a count): the planner's one statement run on ``target``, a run that ``what``
     names."""
     with in_run(what):

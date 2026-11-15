@@ -123,6 +123,16 @@ class OneSendTest(unittest.TestCase):
             next(engine.arrow_chunks('SELECT 1'))
         self.assertIn('the warehouse', str(refused.exception))
 
+    def test_the_warehouse_is_sent_a_plans_statement_only_inside_a_run(self):
+        # C5-P (the audit's item 2, 2026-11-15): a plane's send is framed by construction, as the one send is -- however
+        # the method is reached (a name bound to it, getattr), outside a run it is refused by name before anything is
+        # submitted; nothing may be called on this one, so a submit would fail otherwise
+        engine = warehouse.Warehouse.__new__(warehouse.Warehouse)
+        sends = (engine.arrow_chunks, getattr(engine, 'arrow_chunks'))
+        for reached in sends:
+            with self.assertRaisesRegex(Unframed, r"sent to the warehouse only inside a run"):
+                next(reached(from_plan('SELECT 1')))
+
 
 class TheReAuditsSendTest(unittest.TestCase):
     """The re-audit's M2 and S4 (2026-11-12): the Database's own send requires a plan's statement, as the one send does;
@@ -487,7 +497,8 @@ class RunFrameTest(unittest.TestCase):
 
     def test_each_python_run_sends_inside_its_own_run(self):
         # Reading.run, Frames.run, run_write and run_host_load (the C4 audit's M3, 2026-11-13: no test asserted these
-        # four, so a run taken off one passed; the run wall pins them by name too): each statement each sends is sent
+        # four, so a run taken off one passed; the run wall pinned them by name too, until C5-P deleted it for
+        # //python:run_closure_test, which holds every send of the run side framed): each statement each sends is sent
         # inside the run it names
         from unittest import mock
         import pyarrow as pa
@@ -909,8 +920,10 @@ class TheBridgeTest(unittest.TestCase):
         raw.execute('CREATE TABLE T_TREES (CITY VARCHAR, YR INTEGER, TREES INTEGER)')  # the test's own fixture
         raw.execute("INSERT INTO T_TREES VALUES ('NYC', 2000, 5), ('LDN', 2000, 3), ('NYC', 2011, 2)")
         con = Database(raw)
-        with in_run("a test's run"):  # the hosted runner's sends, each in its run (C5-P)
-            keys = send(con, across_the_bridge(keyed['keys']['statement'], "the hosted DataCube's query", answered)).fetchall()
+        # the hosted runner's sends, by the run side's own functions (C5-P: _headless's query and statement)
+        from legend_lite._reads import run_bridged_query, run_bridged_statement
+        keys = [tuple(r.values()) for r in run_bridged_query(
+            con, None, across_the_bridge(keyed['keys']['statement'], "the hosted DataCube's query", answered)).to_pylist()]
         self.assertEqual(len(keys), 2, keys)
         written = _keyed_text(body['statement'], tuple(body['regions']), len(keys))
         params = []
@@ -918,8 +931,8 @@ class TheBridgeTest(unittest.TestCase):
             for key in keys:
                 for s in range(r['firstSlot'], r['firstSlot'] + r['slotCount']):
                     params.append(key[body['slots'][s]['binding']['cell']])
-        with in_run("a test's run"):
-            rows = send(con, across_the_bridge(written, "the hosted DataCube's query", answered), params).fetchall()
+        rows = [tuple(r.values()) for r in run_bridged_statement(
+            con, across_the_bridge(written, "the hosted DataCube's query", answered), params).to_pylist()]
         # each year's total per city, the cities in the order the keys were read
         totals = {2000: {'NYC': 5, 'LDN': 3}, 2011: {'NYC': 2}}
         self.assertEqual(sorted(rows), [(yr, *[totals[yr].get(key[0]) for key in keys]) for yr in (2000, 2011)])

@@ -264,7 +264,7 @@ class Reading:
 
 
 @runs('a plan')
-def run_plan(target: Database, plan: Plan, held: Iterable[str] = ()) -> pa.Table:
+def run_plan(target: Database, plan: Plan, held: Iterable[str]) -> pa.Table:
     """PYTHON'S EXECUTOR: a plan's SQL run on ``target``, its rows typed by the plan (``typed_by_plan``), a failure's words
     with every value in ``held`` taken out (``execute_redacted``). Only SQL a planner wrote for this database comes here."""
     return typed_by_plan(execute_redacted(target, plan.sql, held, plan.params).to_arrow_table(), plan)

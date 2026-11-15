@@ -24,14 +24,16 @@ load(
 # THE RECORDS AND THE SEAM (C5-P, 2026-11-15; Java's records, which //core:exec and the planner both depend on): the one
 # text Python sends and its one send (_planned.py), the run frame (_runframe.py), the plan's own records and their readers
 # (_plans.py) and the exact JSON (_json.py). Python's standard library alone; it imports neither side
+_SEAM_SRCS = [
+    "legend_lite/_json.py",
+    "legend_lite/_planned.py",
+    "legend_lite/_plans.py",
+    "legend_lite/_runframe.py",
+]
+
 py_library(
     name = "seam",
-    srcs = [
-        "legend_lite/_json.py",
-        "legend_lite/_planned.py",
-        "legend_lite/_plans.py",
-        "legend_lite/_runframe.py",
-    ],
+    srcs = _SEAM_SRCS,
     imports = ["."],
 )
 
@@ -40,14 +42,16 @@ py_library(
 # Its deps hold NO PLANNER (no :compiler, no native library), and no package __init__: what it imports is in its own
 # srcs or :seam's, or it does not load -- //python:run_closure_test imports it with these deps alone, and reads every
 # import of the package's modules for the rule both ways
+_RUN_SRCS = [
+    "legend_lite/_reads.py",
+    "legend_lite/_runs.py",
+    "legend_lite/_type_facts.py",
+    "legend_lite/_types.py",
+]
+
 py_library(
     name = "run",
-    srcs = [
-        "legend_lite/_reads.py",
-        "legend_lite/_runs.py",
-        "legend_lite/_type_facts.py",
-        "legend_lite/_types.py",
-    ],
+    srcs = _RUN_SRCS,
     imports = ["."],
     deps = [
         ":seam",
@@ -58,33 +62,31 @@ py_library(
 
 # the compiler's bindings, and what reaches the native library beside them -- this user's legend-lite folder and its saved
 # pages and queries and its model home (_home.py), the compiler's threads (_pool.py): no package beyond Python's
-# own (the compiler-only install, //python:wheel_test). THE PLANNER: it sends nothing, and imports no run module (C5-P)
+# own (the compiler-only install, //python:wheel_test). THE PLANNER (C5-P): it imports no run module, and sends nothing
+# to Python's database -- the one exception the warehouse's client (warehouse.py), which sends a plan's statement to the
+# warehouse's SQL API, framed (it refuses outside a run), reached by the run side only through the plane handed in; it
+# moves to :run once the native library's loader is split into service and planner halves (a packaging change, the
+# start-here's backlog, the orchestrator's ruling of 2026-11-15)
+_COMPILER_SRCS = glob(
+    ["legend_lite/**/*.py"],
+    exclude = [
+        "legend_lite/_headless.py",
+        "legend_lite/datacube.py",
+        "legend_lite/engine.py",
+        "legend_lite/frames.py",
+        "legend_lite/keeper.py",
+        "legend_lite/notebook.py",
+        "legend_lite/page.py",
+        # the host's doors over both sides (:host) -- C5-P, 2026-11-15
+        "legend_lite/_host.py",
+        "legend_lite/projects.py",
+        # :seam's and :run's (C5-P, 2026-11-15)
+    ] + _SEAM_SRCS + _RUN_SRCS,
+)
+
 py_library(
     name = "compiler",
-    srcs = glob(
-        ["legend_lite/**/*.py"],
-        exclude = [
-            "legend_lite/_headless.py",
-            "legend_lite/datacube.py",
-            "legend_lite/engine.py",
-            "legend_lite/frames.py",
-            "legend_lite/keeper.py",
-            "legend_lite/notebook.py",
-            "legend_lite/page.py",
-            # the host's doors over both sides (:host) -- C5-P, 2026-11-15
-            "legend_lite/_host.py",
-            "legend_lite/projects.py",
-            # :seam's and :run's (C5-P, 2026-11-15)
-            "legend_lite/_json.py",
-            "legend_lite/_planned.py",
-            "legend_lite/_plans.py",
-            "legend_lite/_reads.py",
-            "legend_lite/_runframe.py",
-            "legend_lite/_runs.py",
-            "legend_lite/_type_facts.py",
-            "legend_lite/_types.py",
-        ],
-    ),
+    srcs = _COMPILER_SRCS,
     # the package is typed (PEP 561): an editor or a type checker reads its annotations
     data = ["legend_lite/py.typed"],
     imports = ["."],
@@ -458,7 +460,14 @@ py_test(
     size = "small",
     srcs = ["tests/test_run_closure.py"],
     data = [":run_closure_sources"],
-    env = {"PLANNED_PACKAGE": "$(rlocationpath :run_closure_sources)/__init__.py"},
+    # each library's modules, by name, as this file lists them (never as data: the planner's on the test's import path
+    # would load, as the run_closure_sources copy explains)
+    env = {
+        "COMPILER_SRCS": " ".join(_COMPILER_SRCS),
+        "PLANNED_PACKAGE": "$(rlocationpath :run_closure_sources)/__init__.py",
+        "RUN_SRCS": " ".join(_RUN_SRCS),
+        "SEAM_SRCS": " ".join(_SEAM_SRCS),
+    },
     main = "tests/test_run_closure.py",
     target_compatible_with = _PLATFORMS,
     deps = [

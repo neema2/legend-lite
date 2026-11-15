@@ -1717,7 +1717,8 @@ class Engine:
             except LegendError:
                 return _planned({'plan': planned})
             try:
-                rows = run_plan(project.cursor, plan)
+                # a project's database binds no value this engine holds: nothing to take out of a failure's words
+                rows = run_plan(project.cursor, plan, ())
             except (duckdb.Error, UntypedColumn) as failure:
                 return _planned({'plan': planned, 'error': f'{type(failure).__name__}: {failure}'}, 422)
         return _arrow_rows(rows, planned)

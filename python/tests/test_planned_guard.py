@@ -57,7 +57,8 @@ IMPORTS = {
     # 2026-11-12 (M1): the runners read only a plan the planner answered (read_plan)
     # 2026-11-15 (C5-P): projects.py's runners moved to _runs.py, which it names; the plan's type alone kept, named
     'projects.py': {'PlanText'},
-    'warehouse.py': {'PlannedSql', 'require'},
+    # 2026-11-15 (C5-P, the audit's item 2): Unframed -- the warehouse's send refuses outside a run, as the one send does
+    'warehouse.py': {'PlannedSql', 'Unframed', 'require'},
 }
 
 # Each send by module, method and receiver. 2026-11-12: the one send (_planned.Database's run), and a frame's read

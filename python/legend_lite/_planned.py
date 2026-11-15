@@ -3,7 +3,7 @@ proven structurally"), the twin of engine-client's planned-sql.ts: a statement a
 as its answer (a host operation's, a session's setup, a catalog's read, a project database's statements, a load's steps).
 
 ``PlannedSql`` is a ``str`` made in ONE place each, where a plan or a planner's answer is READ (``from_plan``'s callers:
-compiler.py's readers, projects.py's load runners, engine.py's execute plan); ``send`` -- every statement Python's host
+compiler.py's readers, the load runners -- _runs.py's, projects.py's until C5-P -- and engine.py's execute plan); ``send`` -- every statement Python's host
 runs on its database goes through it -- refuses any other text by name (``NotPlanned``). A ``str`` edited after it was
 read (concatenated, stripped, formatted) is a plain ``str`` again, so an edited plan statement is refused too.
 
@@ -41,7 +41,7 @@ class NotPlanned(TypeError):
 class PlanText(str):
     """A PLAN, AS THE PLANNER ANSWERED IT (PlanJson's text; the re-audit's M1, 2026-11-12: the runners took any dict, so a
     plan a host wrote ran, its statements typed as planned by the runner that read them). The hosts' runners
-    (projects.run_load, run_host_load) take this and no other; it is made where the compiler reads the planner's answer
+    (_runs.run_load, run_host_load, run_write -- projects.py's until C5-P) take this and no other; it is made where the compiler reads the planner's answer
     (:func:`plan_from_answer`, compiler.py), and it is text, so editing it makes a plain string again."""
 
     __slots__ = ()

@@ -22202,3 +22202,67 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
     quoted-brace gap closed (B3's option A, held out of C4 by its freeze; with it, DateFormats' unread backslash escape
     inside quotes and the zone-shifted pattern's quoted `Z`; the terms: start-here §6.1, C5's list);
   - the TypeScript wall on the type checker once its program API is available.
+
+## 2026-11-15 — C5-P: Python's plan/exec split; the run wall deleted for a plain dependency rule
+
+The total wall's C5, its Python third (`docs/TOTAL_WALL_START_HERE_2026_11_11.md` §6.1, C5's list, first item; the
+user: "let's finish all the other workarounds that make sense to fix in java and python/TS, let's lock this down").
+Python's half of C4 was fenced and frozen, not split: an interim wall read the code, and 12 `UNFRAMED_SENDERS` sent
+outside a run. It is now SPLIT, as Java's is. Branch `claude/c5-python` off cf865632c, PR #103.
+
+- **What it proves:**
+  - **The run side imports no planner, by the build:** `//python:run` (`_runs.py`, `_reads.py`, the type facts) has no
+    planner and no package `__init__` in its deps. `//python:run_closure_test` depends on it alone and imports every run
+    module, so one that imports the planner fails to load. It reads the package's sources from a copy outside its
+    import path (`:run_closure_sources`), and each library's modules by the BUILD's own lists (`_SEAM_SRCS`,
+    `_RUN_SRCS`, `_COMPILER_SRCS`, handed in by name).
+  - **And by the sources, both ways, every import read (a function's own too):** run modules import run and seam
+    modules alone, never the package itself (its `__init__` imports the compiler); seam modules seam modules alone;
+    every module of `:compiler` imports no run module and takes no sending name from `_planned` (the warehouse's client
+    excepted by name, below); the one send is imported by run modules alone; a remote plane's send (`arrow_chunks`)
+    and a sending helper are called by run modules alone. What the rule cannot read is refused: importlib under any
+    name but the `importlib.util.find_spec` chain, any reference to `__import__` or `import_module`.
+  - **A run is opened on the run side alone, spelled one way:** `runs`, `in_run` and `exempt` are imported from
+    `_runframe` by run modules alone, by their own names, and used only as `@runs(...)` on a function or `with
+    in_run(...)` -- so no door opens a run in which it could plan (`runs(...)(f)`, `ExitStack().enter_context(...)`
+    refused).
+  - **Every send of the run side is framed, read:** each call of the one send, a sending method (a read's `execute`, a
+    plane's `arrow_chunks`, a stream's `import_stream`) or a sending helper (`execute_redacted`, `_stream`, named) is in
+    an `@runs` function or a `with in_run(...)` block, or in a helper.
+  - **A frame wraps every send, at run time:** `_planned.send` refuses a plan's statement outside a run (`Unframed`), and
+    so does the warehouse's send (`Warehouse.arrow_chunks`, before anything is submitted, however it is reached).
+    Each of the 12 senders plans first in its door, then sends in a framed run function. The warehouse's two sends in
+    the engine are framed too (`_reads.read_plane`, `run_on_plane`).
+  - **The witness covers what the build cannot:** a planner entry reached through a plane handed into a run is refused
+    by name, on the caller's thread and through the compiler's pool. The warehouse binding's library calls are services
+    and see the frame across the pool. `EXEMPTIONS` stays empty.
+  - **No change to a name, an answer or an error text:** every moved name is re-exported where it was (`except
+    projects.LoadRefused` still catches). A moved class keeps its true module, so the module path a traceback prints for
+    it changes (`legend_lite._reads.UntypedColumn`, `legend_lite._runs.LoadRefused`); no answer, error text or wire
+    payload prints one (read 2026-11-15). The read's PIN is now planned once per Frames (the session setup already
+    was), so a planner failure planning it surfaces at `Frames()`, not at a read; a test pins that a read's setup and
+    pin are the same statements after a register and a change of the connection's settings.
+- **The libraries:** `:seam` (`_planned`, `_runframe`, `_plans`, `_json`: the records both sides depend on);
+  `:run`; `:compiler` (the planner, deps `:seam`); `:host` (`_host.py`, `projects.py`: doors); `:headless`,
+  `:legend_lite`, `:notebook` (doors).
+- **Red on revert, each measured under Bazel:**
+
+  | Reverted | Red |
+  |---|---|
+  | the send's frame check | `//python:planned_test`, `//python:run_closure_test` |
+  | a function-level `from . import compiler` in `_runs.py` | `run_closure_test` (the static rule) |
+  | a top-level import of compiler in `_runs.py` | `run_closure_test` (fails to load, and the static rule) |
+  | the warehouse count sent from `engine.py` again | `run_closure_test` (`PLANE_SENDS`) |
+  | `@runs` off `_reads.read_plane` | `planned_test` (both plane tests) |
+  | `@runs` off `_reads.count_of` | `run_closure_test` (every send framed, read) |
+  | the warehouse send's own frame check | `planned_test` (`test_the_warehouse_is_sent_a_plans_statement_only_inside_a_run`) |
+  | each rule of the closure test (the package import, the BUILD's planner set, the framed sends, importlib's name, `__import__`, the openers' import, their spelling) | `run_closure_test`'s planted cases, each |
+
+- **What ran, green under Bazel in the worker's session:** run_closure 4, planned 48, planned_guard 7, frames 41,
+  headless 73, notebook 31, engine 345, model 19 (1 skipped), bindings 29, ts_builder 7, markets 3, host_sql 3.
+  `//gates:local` did not fit that session's disk allowance (453 targets failed to build, "No space left on device");
+  PR #103's CI runs the gate. jupyterlab_test and marimo_test not attempted there.
+- **Held out, backlogged (start-here §6.1):** the native library's loader split into service and planner halves, so the
+  warehouse client can live in `:run` (a packaging change); a run taking a planner by annotation (the wall's L2);
+  `Database.begin/commit/rollback` outside a frame; the warehouse's metadata HTTP; `_stream`'s chunks pulled on
+  DuckDB's Arrow threads (predating C5-P).

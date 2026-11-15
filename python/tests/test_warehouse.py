@@ -13,6 +13,7 @@ from unittest import mock
 
 from legend_lite import warehouse
 from legend_lite._planned import PlannedSql  # the corpus's statements, the test's own: typed by name (_planned.py)
+from legend_lite._runframe import in_run
 
 CORPUS = os.environ.get('LEGEND_LITE_SQLAPI_CORPUS')
 BASE = 'https://wh.example'
@@ -62,13 +63,16 @@ def act(scenario: dict) -> dict:
             return {'objects': warehouse.list_objects(session(a['token']))}
         if a['kind'] == 'run':
             receipt: dict = {}
-            chunks = [base64.b64encode(c).decode() for c in engine().arrow_chunks(PlannedSql(a['sql']), receipt.update)]
+            # the test plays the run side, which sends a plane's statement in a run (C5-P, 2026-11-15)
+            with in_run("a test's run"):
+                chunks = [base64.b64encode(c).decode() for c in engine().arrow_chunks(PlannedSql(a['sql']), receipt.update)]
             return {'chunks': chunks, 'statementId': receipt.get('statementId'), 'rowCount': receipt.get('serverRows')}
         if a['kind'] == 'firstChunk':
             # the read stops after its first chunk: the driver closes what it leaves
-            read = engine().arrow_chunks(PlannedSql(a['sql']))
-            first = next(read)
-            read.close()
+            with in_run("a test's run"):
+                read = engine().arrow_chunks(PlannedSql(a['sql']))
+                first = next(read)
+                read.close()
             return {'chunks': [base64.b64encode(first).decode()]}
         if a['kind'] == 'refreshThenCheck':
             # the new token is what the next call carries: the replay holds that call to the recorded one

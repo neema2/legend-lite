@@ -25,11 +25,6 @@ from ._planned import PlanText  # noqa: F401
 from ._runs import (HostLoad, Landed, LoadRefused, PLAN_VERSION, open_project, run_host_load,  # noqa: F401
                     run_load, run_write)
 
-# each still named as projects.py's, as it was before the move (its repr, a traceback's class, help()): no change seen
-for _moved in (HostLoad, Landed, LoadRefused):
-    _moved.__module__ = __name__
-del _moved
-
 # the kinds the compiler names a model's failure to read as a model by (planner.Folded, PureV1Api.refusal): such a
 # model is no project's, and is refused where a model is; any other refusal of a project's database (a Data element
 # filling a table no Database declares) is said as it is

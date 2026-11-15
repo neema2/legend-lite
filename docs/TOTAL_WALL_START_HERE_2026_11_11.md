@@ -1029,10 +1029,17 @@ In order. Nothing here is in the A/B/C PR.
      - cross-listed so it is not lost (stream D's, not C5's): lineage rebuilt upstream's way, for everything -- its
        terms are under "Moved to D's batch" below;
      - run frames around every send site on both hosts (B2/B3 wide: Python's pure/v1 execute, the headless road, about
-       20 TS sites);
+       20 TS sites) -- Python's half DONE by C5-P (2026-11-15: `_planned.send` refuses outside a run, every send in
+       `:run`); TypeScript's is C5-T's;
      - typed identifiers (no quote syntax in a plan's names; invariant 3a);
      - (C5-P, 2026-11-15) the native library's loader split into service and planner halves, so the warehouse client
        can live in `:run` (a packaging change);
+     - (C5-P's audit, 2026-11-15, held out) a run TAKING a planner by annotation (the run wall's L2: run modules cannot
+       name a planner type now, and the witness covers a value handed in);
+     - (C5-P's audit, 2026-11-15, held out) `Database.begin/commit/rollback`, acts on Python's database outside a frame;
+     - (C5-P's audit, 2026-11-15, held out) the warehouse's metadata HTTP (sign-in, objects, history), outside a frame;
+     - (C5-P's audit, 2026-11-15, held out; it predates C5-P) `_runs._stream`'s chunks may be pulled on DuckDB's Arrow
+       threads (its import), where the run's frame is not set;
      - a wider Java witness (phase C, `ModelFromProtocol`, direct parser calls);
      - wider fuzzing (store-declared names, mappings, each database's quoting checked live);
      - Node's `--experimental-async-context-frame` (or Node 24): today every promise in a Node process that uses

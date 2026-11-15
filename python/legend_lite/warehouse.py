@@ -24,7 +24,8 @@ from typing import Any
 from urllib.parse import urlsplit
 
 from ._library import library
-from ._planned import PlannedSql, require
+from ._planned import PlannedSql, Unframed, require
+from ._runframe import current_run
 
 # how long one call may take on the wire: a poll waits up to 10 s on the server (the binding's), a chunk is read whole
 _WIRE_TIMEOUT_S = 120
@@ -248,8 +249,15 @@ class Warehouse:
     def arrow_chunks(self, sql: PlannedSql, on_receipt: Callable[[dict[str, Any]], None] | None = None) -> Iterator[bytes]:
         """The result of ``sql`` as the server wrote it: one Arrow IPC stream per chunk, in order. The statement is
         closed once every chunk is read, so the server frees it; ``on_receipt`` hears what the server issued for it
-        (its id and its count) before the first chunk. Only a plan's statement is sent (_planned.py)."""
-        step = self._call('submit', {'sql': require(sql, 'the warehouse'), 'catalog': self._catalog})
+        (its id and its count) before the first chunk. Only a plan's statement is sent (_planned.py), and only inside a run
+        (C5-P)."""
+        planned = require(sql, 'the warehouse')
+        # a plane's send is a run's, as the one send is (C5-P, 2026-11-15: the audit's item 2 -- framed by construction,
+        # whatever name the method is reached by): sent in no run, refused by name before anything is submitted
+        if current_run() is None:
+            raise Unframed("a plan's statement is sent to the warehouse only inside a run (_runframe.runs, in_run): the"
+                           ' run side sends it, handed what the planner answered (G4)')
+        step = self._call('submit', {'sql': planned, 'catalog': self._catalog})
         statement = step.get('statementId')
         # where a read that ends early leaves its statement (the caller stops, or a call fails): still running,
         # cancelled; done, its result closed; read to the end (or failed there), nothing -- the tab's rule
