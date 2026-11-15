@@ -521,7 +521,7 @@ class BodyRouterParityTest {
             for (String body : List.of(
                     "{| assertSize(" + EXECUTE + ".activities, 1);}",
                     "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                            + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));}",
+                            + "RelationalActivity).comment->toOne()->length() == 36);}",
                     "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2);}",
                     // two executions (the execution id as upstream, 2026-11-12): their stamps in the plan, no id
                     "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; assert($a.activities->at(0)" + COMMENT
@@ -541,11 +541,12 @@ class BodyRouterParityTest {
     /** An activity's comment, read by the body: its execution's trace comment. */
     private static final String COMMENT = "->cast(@meta::relational::mapping::RelationalActivity).comment->toOne()";
 
-    /** Every execution-trace comment an answer holds, in order. */
+    /** Every execution id an answer holds, in order (an activity's comment is the run's id itself on the product road;
+     *  legend-engine's comment around it, the edge's: D1.4, 2026-11-15). */
     private static List<String> traceIds(String answer) {
         List<String> out = new ArrayList<>();
         java.util.regex.Matcher m = java.util.regex.Pattern.compile(
-                "executionTraceID\\\\?\" : \\\\?\"([0-9a-f-]{36})").matcher(answer);
+                "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})").matcher(answer);
         while (m.find()) {
             out.add(m.group(1));
         }
@@ -660,7 +661,7 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE + "; assertEquals(1, x::TFirm.all(%2020-06-01)->from(x::M, x::RT)->size());"
                         + " assertSize($r.values.rows, 2);}",
                 "{| let r = " + EXECUTE + "; let cm = $r.activities->at(0)->cast(@meta::relational::mapping::"
-                        + "RelationalActivity).comment->toOne(); assert($cm->startsWith('-- \"executionTraceID\"'));}",
+                        + "RelationalActivity).comment->toOne(); assert($cm->length() == 36);}",
                 // M9d: a frame over a business-temporal class, read by the asserts
                 "{| let r = " + EXECUTE_TEMPORAL + "; assertSize($r.values.rows, 1); assertEquals(['New'],"
                         + " $r.values.rows.values);}",
@@ -1299,8 +1300,8 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE + "; assertSize($r.activities, 1); assert($r.activities->at(0)->cast("
                         + "@meta::relational::mapping::RelationalActivity).sql->toOne()->startsWith('select'));}",
                 "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                        + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
-                        + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                        + "RelationalActivity).comment->toOne()->length() == 36);"
+                        + " assertEquals(36, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                         + ".comment->toOne()->length());}",
                 "{| let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name], ['name']),"
                         + " x::M, x::RT.runtimeValue, []); assertNotEmpty($p.rootExecutionNode.executionNodes);}",
@@ -1846,9 +1847,11 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void theActivityCommentIsTheRunsStamp(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        // the comment is the run's id itself, 36 characters (D1.4, 2026-11-15: legend-engine's comment around it,
+        // 62, is the edge's)
         String body = "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
-                + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                + "RelationalActivity).comment->toOne()->contains('-'));"
+                + " assertEquals(36, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                 + ".comment->toOne()->length());}";
         Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                 com.legend.testplan.PlanningOptions.JudgeMode.HOST);
@@ -1946,7 +1949,9 @@ class BodyRouterParityTest {
      *  registered after the run): the program binds the stamp as a parameter the run's check step binds (R17 C4; M9c)
      *  and never spells it. */
     private static final java.util.regex.Pattern STAMP_LITERAL =
-            java.util.regex.Pattern.compile("'-- \"executionTraceID\" : \"[0-9a-f-]{36}\"'");
+            // the run's id as a literal, bare (the product's comment since D1.4, 2026-11-15) or in legend-engine's comment
+            java.util.regex.Pattern.compile("'(-- \"executionTraceID\" : \")?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}"
+                    + "-[0-9a-f]{12}\"?'");
 
     /** @param statements the statements sent on the body's own connection, recorded there
      *  @param sent       every statement the run sent on any session, counted by exec by origin: {@link #allRecorded}
