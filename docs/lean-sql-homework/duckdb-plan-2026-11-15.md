@@ -127,3 +127,39 @@ names them: a compound `erf` argument is refused by name on most databases "unti
    - It also ends #107's `erf` expansion repeating its argument 70 times on H2, Trino, Snowflake, Databricks and
      MongoDB, which lifts S308's refusals.
    - The laziness rule holds: a value that can raise is bound only where every read is evaluated.
+
+## Step 7's second half, on paper: a repeat that reads a row (2026-11-15)
+
+The first half (the `rowlets` branch) binds a closed repeat at the root's one row. The second binds a repeat that
+reads a row's columns, within a FROM select's own terms. It is the repeat the census calls "row" and "lambda", and
+the swaption PV and `erf` once their inputs are columns.
+
+**The rule.** A repeat `E` of a select `S` (two or more copies among S's terms, worth binding by P1a's node count) is
+bound when:
+- it reads only S's own row (S's sources' columns), never an outer row;
+- it holds no aggregate, window or subquery, and is not tagged or checked;
+- it can raise only where one copy is always evaluated, by the narrow set: S's terms (its WHERE alone where it has
+  one, its projections evaluated only for the rows the WHERE keeps), a CASE's first condition, arithmetic and
+  comparison operands, a cast's value.
+
+**The forms, by database**, each measured against the inline form on its lane (characters, time) before it lands:
+
+| database | form | why |
+|---|---|---|
+| DuckDB | the same SELECT names the alias: `SELECT f(x) AS __r0, g(__r0), h(__r0) FROM t` | DuckDB reads a select-list alias in the same list: no subselect at all |
+| Snowflake | the same: a select-list alias reused (lateral column alias) | Snowflake supports it |
+| Databricks | the same (Spark's lateral column alias, 3.4+) | no subselect |
+| BigQuery | no lateral alias: `FROM t, UNNEST([STRUCT(f(x) AS r0)]) AS __r` | one row per row, read as `__r.r0` |
+| Postgres | `FROM t CROSS JOIN LATERAL (SELECT f(t.x) AS r0) AS __r` | Postgres reads no select-list alias |
+| Trino | `CROSS JOIN LATERAL (SELECT f(t.x) AS r0)` | the same |
+| ClickHouse | `WITH f(x) AS r0 SELECT g(r0)` (an expression alias) | ClickHouse aliases any expression in place |
+| SQLite, MariaDB, MySQL, H2 | inline until measured. H2 gained no time from P1a. A derived table over the source (`FROM (SELECT t.*, f(x) AS r0 FROM t) t`) is the candidate where measured no slower | no LATERAL alias reuse on MariaDB and SQLite |
+
+**The MIR.** A select-level binding, not an expression one: `SqlSelect` gains its row-bound values, named, and
+each dialect writes them in its form above. It is one new field and every dialect's arm, so it lands with the plan
+format's tag, the way P1b's `SqlExpr.Let` was planned. An expression-level `Let` is needed only where the binding
+is inside a lambda (a `map` over a list), which the census puts at 9% of the tree's repeats on DuckDB.
+
+**Order of landing.** DuckDB, Snowflake and Databricks first (alias reuse, no subselect), then Postgres and Trino
+(LATERAL), then BigQuery (UNNEST of one struct), then ClickHouse, each with its lane's measure. The four inline
+databases last, only where a derived table measures no slower.
