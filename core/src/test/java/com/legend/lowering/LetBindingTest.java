@@ -85,12 +85,29 @@ class LetBindingTest {
         assertEquals(List.of(List.of(6L)), rows(q));
     }
 
+    /** A value that can raise, read four times where every read is evaluated, is computed once (step 7's first half,
+     *  2026-11-15): it raises there already, so computing it eagerly raises nothing the statement did not -- a
+     *  formula's division is no reason to repeat it. */
+    @Test
+    void aRaisingValueEvaluatedAtEveryReadIsBoundOnce() throws Exception {
+        String q = "|let r = (2.0 + 3.0) / (1.0 + 1.0); $r + $r + $r + $r;";
+        String sql = sql(q);
+        assertTrue(sql.contains(LetBinding.ALIAS), sql);
+        assertEquals(1, count(sql, "/"), sql);
+        assertEquals(List.of(List.of(10.0)), rows(q));
+    }
+
     /** A let whose value can raise stays at its reads (the laziness rule, P1a's conservative half: eager lets are
      *  P1a.2), and a let read once is never bound. */
     @Test
     void aRaisingLetOrALetReadOnceStaysInline() throws Exception {
         String raising = "|let x = 1 / 0; if(false, |$x, |2.0);";
         assertFalse(sql(raising).contains(LetBinding.ALIAS), sql(raising));
+        // read three times under an untaken branch: repeated enough to bind, so only the laziness rule keeps it in
+        // place (PR1's review, item 9)
+        String repeatedRaise = "|let n = 0; if($n == 0, |0.0, |(10 / $n) + (10 / $n) + (10 / $n));";
+        assertFalse(sql(repeatedRaise).contains(LetBinding.ALIAS), sql(repeatedRaise));
+        assertEquals(List.of(List.of(0.0)), rows(repeatedRaise));
         String once = "|let xs = [3, 1, 2]->meta::pure::functions::collection::sort(); $xs->meta::pure::functions::collection::size();";
         assertFalse(sql(once).contains(LetBinding.ALIAS), sql(once));
         assertEquals(List.of(List.of(3L)), rows(once));

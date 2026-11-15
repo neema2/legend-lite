@@ -137,12 +137,22 @@ final class LetBinding {
         List<Bound> bound = new ArrayList<>();
         SqlSelect at = s;
         while (true) {
-            java.util.Map<SqlExpr, Integer> counts = new java.util.HashMap<>();
+            // insertion-ordered: one binding choice on every JVM (G10; PR1's review item 9, the same change)
+            java.util.Map<SqlExpr, Integer> counts = new java.util.LinkedHashMap<>();
+            java.util.Set<SqlExpr> always = new java.util.HashSet<>();
             for (SqlExpr t : terms(at)) {
                 count(t, counts);
             }
+            // what the row evaluates whatever its values: its filter, where it has one (a row the filter drops
+            // evaluates none of its projections), else every term
+            if (at.where() != null) {
+                alwaysEvaluated(at.where(), always);
+            } else if (at.having() == null && at.qualify() == null) {
+                terms(at).forEach(t -> alwaysEvaluated(t, always));
+            }
             for (Bound b : bound) {
                 count(b.value(), counts);
+                alwaysEvaluated(b.value(), always);
             }
             SqlExpr best = null;
             long saving = 0;
@@ -158,7 +168,7 @@ final class LetBinding {
                 if (save <= 0 && readsClock(e.getKey())) {
                     save = 1;   // the statement's clock read once, as Pure's let reads it (the design's §5.1)
                 }
-                if (save > saving && eligible(e.getKey())) {
+                if (save > saving && eligible(e.getKey(), always)) {
                     best = e.getKey();
                     saving = save;
                 }
@@ -260,6 +270,44 @@ final class LetBinding {
             w += weight(c);
         }
         return w;
+    }
+
+    /**
+     * Whether {@code e} may be computed once under the root where {@code always} holds the expressions the root's row
+     * evaluates whatever its values (step 7's first half, 2026-11-15): as {@link #eligible(SqlExpr)}, and a value that
+     * can raise too where one of its copies is always evaluated -- it raises there already, so computing it once,
+     * eagerly, raises nothing the statement did not (the laziness rule: a raise is never moved out of a branch that
+     * guards it). Pure's formulas divide, take roots and logarithms: a repeat holding one was never bound before.
+     */
+    static boolean eligible(SqlExpr e, java.util.Set<SqlExpr> always) {
+        if (!worthBinding(e) || e instanceof SqlExpr.Lambda
+                || !(e.type() instanceof com.legend.sql.TypeFact.Typed)) {
+            return false;
+        }
+        return closedAndPlain(e, java.util.Set.of()) && (!canRaise(e) || always.contains(e));
+    }
+
+    /** Every expression {@code e} evaluates whatever its values, into {@code into}: itself, then the children every
+     *  evaluation reads -- a CASE's first condition (never a branch, nor a later condition), the first argument of an
+     *  AND, an OR or a COALESCE (the rest may be skipped), never a lambda's body. */
+    static void alwaysEvaluated(SqlExpr e, java.util.Set<SqlExpr> into) {
+        into.add(e);
+        switch (e) {
+            case SqlExpr.Case c -> {
+                if (!c.whens().isEmpty()) {
+                    alwaysEvaluated(c.whens().get(0).condition(), into);
+                }
+            }
+            case SqlExpr.Lambda l -> {
+            }
+            case SqlExpr.Call c when (c.fn() == SqlFn.AND || c.fn() == SqlFn.OR || c.fn() == SqlFn.COALESCE)
+                    && !c.args().isEmpty() -> alwaysEvaluated(c.args().get(0), into);
+            default -> {
+                for (SqlExpr child : e.children()) {
+                    alwaysEvaluated(child, into);
+                }
+            }
+        }
     }
 
     /** Whether {@code e} may be computed once under the root: worth a binding, typed by a plain SQL type, closed, and
