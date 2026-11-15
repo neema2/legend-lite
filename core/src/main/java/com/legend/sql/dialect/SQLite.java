@@ -949,6 +949,11 @@ public class SQLite extends AnsiSqlRenderer {
      *  the lane, where DuckDB's list_transform writes it once in 4.7K). A nested binding shadows this one only inside
      *  its own subquery, which reads its own list. */
     private SqlWriter.Piece unlessNull(SqlExpr xs, java.util.function.Function<SqlExpr, SqlWriter.Piece> body) {
+        // a list that cannot be NULL needs no test, so no binding either: the body reads it where it is written
+        // (the lean program, 2026-11-15; SqlTyping.mayBeNull)
+        if (!com.legend.sql.SqlTyping.mayBeNull(xs)) {
+            return body.apply(xs);
+        }
         SqlExpr bound = xs.type() instanceof com.legend.sql.TypeFact.Typed t
                 ? SqlExpr.Column.of(BOUND_LIST, BOUND_VALUE, t.type(), t.nullable(),
                         com.legend.sql.OutputCol.Origin.DERIVED)
@@ -1129,9 +1134,9 @@ public class SQLite extends AnsiSqlRenderer {
         SqlWriter.Piece needle = nested(el) ? w -> w.append("json(").expr(m.needle(), 0).append(")")
                 : w -> w.expr(m.needle(), 5);
         // the collection bound once (unlessNull), NULL for a NULL collection or needle
-        return writer.piece(unlessNull(m.collection(), b -> w -> w.append("(CASE WHEN ").expr(m.needle(), 4)
-                .append(" IS NULL THEN NULL ELSE EXISTS(SELECT 1 FROM ").piece(elements(b, "__e", "__eo", null))
-                .append(" WHERE " + (nested(el) ? "json(" + e + ")" : e) + " = ").piece(needle).append(") END)")));
+        return writer.piece(unlessNull(m.collection(), b -> nullIfNull(m.needle(), w -> w.append("EXISTS(SELECT 1 FROM ")
+                .piece(elements(b, "__e", "__eo", null))
+                .append(" WHERE " + (nested(el) ? "json(" + e + ")" : e) + " = ").piece(needle).append(")"))));
     }
 
     @Override
@@ -1601,9 +1606,8 @@ public class SQLite extends AnsiSqlRenderer {
             case LIST_LENGTH, JSON_ARRAY_LENGTH -> writer.function("json_array_length", c.args());
             case IN -> in(writer, c, parentPrec);
             // DuckDB's ascii('') is 0 (unicode('') is NULL here, measured)
-            case ASCII_CODE -> writer.append("(CASE WHEN ").expr(a.get(0), 4)
-                    .append(" IS NULL THEN NULL ELSE coalesce(")
-                    .append("unicode(").expr(a.get(0), 0).append("), 0) END)");
+            case ASCII_CODE -> writer.piece(nullIfNull(a.get(0), w -> w.append("coalesce(unicode(").expr(a.get(0), 0)
+                    .append("), 0)")));
             // outside [-1, 1] SQLite answers NULL (measured), DuckDB raises
             case ACOS -> domainGuarded(writer, c, "acos");
             case ASIN -> domainGuarded(writer, c, "asin");
@@ -1646,10 +1650,10 @@ public class SQLite extends AnsiSqlRenderer {
                     .append(") - length(").expr(a.get(1), 0).append(") + 1) = ").expr(a.get(1), 5).append(")");
             case SPLIT -> writer.piece(split(a.get(0), a.get(1)));
             // DuckDB's split_part: 1-based, negative from the end, out of range ''
-            case SPLIT_PART -> writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL OR ").expr(a.get(1), 4)
-                    .append(" IS NULL THEN NULL ELSE coalesce(json_extract(").piece(split(a.get(0), a.get(1)))
+            case SPLIT_PART -> writer.piece(nullIfAnyNull(List.of(a.get(0), a.get(1)), w -> w.append("coalesce(json_extract(")
+                    .piece(split(a.get(0), a.get(1)))
                     .append(", CASE WHEN ").expr(a.get(2), 4).append(" < 0 THEN '$[#' || ").expr(a.get(2), 6)
-                    .append(" || ']' ELSE '$[' || (").expr(a.get(2), 6).append(" - 1) || ']' END), '') END)");
+                    .append(" || ']' ELSE '$[' || (").expr(a.get(2), 6).append(" - 1) || ']' END), '')")));
             // SQLite has no regular-expression function: a literal pattern's NFA is walked by the database
             // (SqliteRegex); a full match anchors both ends, MATCHES searches
             case MATCHES, REGEXP_FULL_MATCH -> matchesArm(writer, c);
@@ -1685,11 +1689,10 @@ public class SQLite extends AnsiSqlRenderer {
             case MAKE_DATE -> writer.append("printf('%04d-%02d-%02d', ").list(a).append(")");
             case MAKE_TIMESTAMP -> makeTimestamp(writer, a, c);
             // past SQLite's years 0000-9999 a date function answers NULL (measured): raised, never a NULL value
-            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.append("(CASE WHEN ").expr(a.get(1), 4)
-                    .append(" IS NULL OR ").expr(a.get(2), 4).append(" IS NULL THEN NULL ELSE coalesce(")
-                    .piece(addInterval(a, c)).append(", ").piece(raise(raiseArgs(new SqlExpr.RaiseText(
-                            com.legend.sql.RaiseKind.VALUE_NOT_HELD, List.of(new SqlExpr.StringLit(
-                            "a date past the years 0000-9999 has no SQLite value")))))).append(") END)");
+            case ADD_INTERVAL, ADD_INTERVAL_TEMPORAL -> writer.piece(nullIfAnyNull(List.of(a.get(1), a.get(2)),
+                    w -> w.append("coalesce(").piece(addInterval(a, c)).append(", ").piece(raise(raiseArgs(
+                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD, List.of(new SqlExpr.StringLit(
+                            "a date past the years 0000-9999 has no SQLite value")))))).append(")")));
             case DATE_DIFF -> writer.piece(dateDiff(a));
             case TIME_BUCKET -> writer.piece(timeBucket(a));
             // a zoned date-time is held as its naive UTC text: UTC's wall time is the instant's, either way
@@ -1733,14 +1736,14 @@ public class SQLite extends AnsiSqlRenderer {
     /** The {@code ACOS} and {@code ASIN} arms of {@link #calls}: undefined outside [-1, 1], raised. */
     private SqlWriter domainGuarded(SqlWriter writer, SqlExpr.Call c, String fn) {
         List<SqlExpr> a = c.args();
-        return writer.append("(CASE WHEN ").expr(a.get(0), 4).append(" IS NULL THEN NULL ELSE coalesce(").append(fn)
+        return writer.piece(nullIfNull(a.get(0), w -> w.append("coalesce(").append(fn)
                 .append("(").expr(a.get(0), 0).append("), ")
                 // register S138 (the user's ruling, 2026-11-05): the guard exists because the database cannot hold NaN (the
                 // engine's answer), and says so -- not DuckDB's words
                 .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
                         List.of(new SqlExpr.StringLit(c.fn().name().toLowerCase(java.util.Locale.ROOT)
                         + " of a value outside [-1, 1] is NaN, which this database cannot hold"))))))
-                .append(") END)");
+                .append(")")));
     }
 
     /** The {@code EQUAL}, {@code NOT_EQUAL} arm of {@link #calls}. */
