@@ -432,17 +432,20 @@ class InjectionFuzzTest {
             // 11 (a quoted Z is text, and its zone is UTC), "a date format's text" plans one more and refuses one (a
             // quoted \" escapes the quote), and "a date format's zone" refuses its 4 payloads holding a " on the eight
             // (the quote opens text that never closes, refused as pure refuses it)
-            Map.entry("BigQuery", 298),
-            Map.entry("ClickHouse", 298),
-            Map.entry("Databricks", 298),
-            Map.entry("DuckDB", 298),
-            Map.entry("H2", 298),
+            // 298 -> 297 on the eight (2026-11-15, C5-J's zone fix, S342: a zone read as pure's parseTimeZone reads it):
+            // "a date format's zone" refuses the payload ending in a backslash, which escapes the zone's ']' so no
+            // bracket closes it, with pure's words; the three that refuse a zone-shifted pattern refuse it so too, first
+            Map.entry("BigQuery", 297),
+            Map.entry("ClickHouse", 297),
+            Map.entry("Databricks", 297),
+            Map.entry("DuckDB", 297),
+            Map.entry("H2", 297),
             Map.entry("MariaDB", 278),
             Map.entry("MySQL", 278),
-            Map.entry("Postgres", 298),
+            Map.entry("Postgres", 297),
             Map.entry("SQLite", 278),
-            Map.entry("Snowflake", 298),
-            Map.entry("Trino", 298));
+            Map.entry("Snowflake", 297),
+            Map.entry("Trino", 297));
 
     /** The payloads each place plans, on every database (measured 2026-11-13, the C4 audit's M3). */
     static final Map<String, Integer> PLANNED_BY_PLACE = java.util.Map.ofEntries(
@@ -458,7 +461,10 @@ class InjectionFuzzTest {
             // holds the marker's Z, which a zone-shifted pattern takes only as its suffix, refused by name
             // 192 -> 160 (2026-11-15, C5-J item 5, S342): a zone holding a " opens quoted text that never closes, so the
             // pattern never ends -- 4 payloads on the eight, refused at planning with pure's words, as pure refuses them
-            Map.entry("a date format's zone", 160),
+            // 160 -> 152 (2026-11-15, C5-J's zone fix, S342): the zone read as pure reads it -- a backslash escapes the
+            // character after it, so the payload ending in one leaves the zone without its bracket, refused on the eight
+            // with pure's words; six more plan with the name pure reads (their quotes and backslashes not part of it)
+            Map.entry("a date format's zone", 152),
             // 0 -> 209 (2026-11-15, C5-J item 5, S342): the marker's Z inside the quotes is text, as in pure, so a
             // zone-shifted pattern plans the payloads its quotes close over (19 of 24, on all 11: the zone is UTC)
             Map.entry("a zone-shifted date format's text", 209),

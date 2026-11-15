@@ -224,7 +224,7 @@ class AuditRound3Test {
         // FormatTools.findEndOfDateFormatString does, quotes read, and refuses a literal format string's unended pattern
         // when it compiles it (FormatValidator; its TestFormat.testPatternWithNoEnd pins `%t{yyyy "abc}`). Until then
         // lite said "unterminated quote in date pattern" (b915e2940) and threw a bare IllegalStateException without a
-        // brace; pure's pattern parser's "Missing closing quote" is never reached through %t
+        // brace; pure's pattern parser's "Missing closing quote" is reached through %t after a zone alone (below)
         var unterminated = assertThrows(com.legend.error.ModelException.class,
                 () -> scalar("|format('%t{yyyy\"P}', [%2014-03-05])"));
         assertEquals("Could not find end of date format starting at index 2 of: %t{yyyy\"P}",
@@ -251,6 +251,37 @@ class AuditRound3Test {
         assertEquals("2014a\"b", scalar("|format('%t{yyyy\"a\\\\\"b\"}', [%2014-03-05])"));
         // a quoted Z in a zone-shifted pattern is text, not the offset: until 2026-11-15 refused as a Z not at the end
         assertEquals("2014Z", scalar("|format('%t{[UTC]yyyy\"Z\"}', [%2014-03-05T01:02:03])"));
+    }
+
+    @Test
+    @DisplayName("C5-J zone fix: a date pattern's zone is read as legend-pure reads it")
+    void aDatePatternsZoneIsReadAsPureReadsIt() throws Exception {
+        // the zone runs to the first ']' outside quoted text, a quote is not part of its name, and a backslash makes
+        // part of the name of the character after it (DateFormatPattern.parseTimeZone, legend-pure 5.99.0; register
+        // S342). In %t{["EST]yyyy"} the quoted run holds the bracket, so no bracket closes the zone: pure's words, naming
+        // the whole pattern. Until 2026-11-15 lite cut the zone at its first ']' and refused the rest's open quote
+        // instead ("Missing closing quote in format string: yyyy\"")
+        var unbracketed = assertThrows(com.legend.error.ModelException.class,
+                () -> scalar("|format('%t{[\"EST]yyyy\"}', [%2014-03-05T01:02:03])"));
+        assertEquals("Missing closing bracket in format string: [\"EST]yyyy\"", unbracketed.getMessage());
+        // no bracket at all, pure's own case ("[EST", its TestDateFormat): until then read as naming no zone
+        var unclosed = assertThrows(com.legend.error.ModelException.class,
+                () -> scalar("|format('%t{[UTC}', [%2014-03-05T01:02:03])"));
+        assertEquals("Missing closing bracket in format string: [UTC", unclosed.getMessage());
+        // a quote the zone leaves open: the end scan reads a backslash outside quotes as text, the zone's reading as an
+        // escape, so in %t{[\""]} the second quote opens a run the bracket cannot close
+        var openQuote = assertThrows(com.legend.error.ModelException.class,
+                () -> scalar("|format('%t{[\\\\\"\"]}', [%2014-03-05T01:02:03])"));
+        assertEquals("Missing closing quotes in time zone definition: [\\\"\"]", openQuote.getMessage());
+        // after the zone, pure's parser's words name the whole pattern, as its text() does: in %t{[\"]yyyy"} the zone is
+        // a quote, and the text after it opens one it never closes
+        var afterZone = assertThrows(com.legend.error.ModelException.class,
+                () -> scalar("|format('%t{[\\\\\"]yyyy\"}', [%2014-03-05T01:02:03])"));
+        assertEquals("Missing closing quote in format string: [\\\"]yyyy\"", afterZone.getMessage());
+        // a quoted name and an escaped letter name the zone as pure names them (its TestDateFormatPattern: ["EST"] and
+        // [E\ST] are [EST]): until then the quotes and the backslash were part of the name the database was sent
+        assertEquals("2014", scalar("|format('%t{[\"UTC\"]yyyy}', [%2014-03-05T01:02:03])"));
+        assertEquals("2014", scalar("|format('%t{[U\\\\TC]yyyy}', [%2014-03-05T01:02:03])"));
     }
 
     @Test

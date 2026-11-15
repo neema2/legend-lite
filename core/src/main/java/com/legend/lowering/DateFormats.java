@@ -21,6 +21,12 @@ final class DateFormats {
      * +0000 offset, X the ISO 'Z'.
      */
     static List<DateFmt> javaDateToParts(String pattern) {
+        return javaDateToParts(pattern, pattern);
+    }
+
+    /** {@link #javaDateToParts(String)} over the part of {@code whole} after its zone ({@link #zone}): an error in pure's
+     *  words names the whole pattern, as pure's parser names it (its {@code text()}). */
+    static List<DateFmt> javaDateToParts(String pattern, String whole) {
         List<DateFmt> out = new ArrayList<>();
         StringBuilder text = new StringBuilder();
         int i = 0;
@@ -43,13 +49,15 @@ final class DateFormats {
                     }
                 }
                 if (!closed) {
-                    // pure's pattern parser's words for it. Through %t a quote left open usually swallows the brace
-                    // that would end the pattern, which endOfPattern refuses first, as pure's scan does; but a
-                    // zone-shifted pattern reaches this (the C5-J audit's nit, 2026-11-15): Scalars.dateWithPattern reads
-                    // the zone up to its first ']', blind to quotes, so in %t{["EST]yyyy"} the text after the zone
-                    // opens a quote it never closes (pure reads the zone by its own rule; start-here's C5-J backlog)
+                    // pure's pattern parser's words for it, naming the whole pattern as pure's does. Through %t a quote
+                    // left open swallows the brace that would end the pattern, which endOfPattern refuses first, as
+                    // pure's scan does; it is reached after a zone alone, where the zone's reading and the end scan read
+                    // a backslash differently: in %t{[\"]yyyy"} the zone's backslash escapes the first quote, so the
+                    // text after the zone opens a quote it never closes (C5-J's zone fix, 2026-11-15: until then the
+                    // zone ran to its first ']', blind to quotes, and %t{["EST]yyyy"} reached this too, where pure
+                    // says its zone has no closing bracket)
                     throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
-                            "Missing closing quote in format string: " + pattern);
+                            "Missing closing quote in format string: " + whole);
                 }
                 i = j;
                 continue;
@@ -137,6 +145,54 @@ final class DateFormats {
         }
         throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
                 "Could not find end of date format starting at index " + open + " of: " + format);
+    }
+
+    /** A zone-shifted date pattern: the zone it names, and the pattern after the zone's closing bracket. */
+    record Zoned(String zone, String rest) {
+    }
+
+    /**
+     * The zone a date pattern names, read as legend-pure reads it ({@code DateFormatPattern.parseTimeZone}, legend-pure
+     * 5.99.0; C5-J's zone fix, 2026-11-15: until then the zone ran to the first {@code ]}, blind to quotes and
+     * backslashes, and a pattern opening {@code [} with no {@code ]} was read as naming none): a pattern that opens with
+     * {@code [} names a zone, and its name runs to the first {@code ]} outside quoted text; a {@code "} opens or closes
+     * quoted text and is not part of the name, and a backslash makes part of the name of the character after it,
+     * inside quotes or out. A zone whose quote is left open, or that no bracket closes, is refused at planning with
+     * pure's words, naming the whole pattern (register S342). Null where the pattern names no zone.
+     */
+    static @com.legend.base.Nullable Zoned zone(String pattern) {
+        if (!pattern.startsWith("[")) {
+            return null;
+        }
+        StringBuilder name = new StringBuilder();
+        boolean done = false;
+        boolean escaped = false;
+        boolean inQuotes = false;
+        int i = 1;
+        while (!done && i < pattern.length()) {
+            char next = pattern.charAt(i++);
+            if (escaped) {
+                name.append(next);
+                escaped = false;
+            } else if (next == '"') {
+                inQuotes = !inQuotes;
+            } else if (next == ']' && !inQuotes) {
+                done = true;
+            } else if (next == '\\') {
+                escaped = true;
+            } else {
+                name.append(next);
+            }
+        }
+        if (inQuotes) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
+                    "Missing closing quotes in time zone definition: " + pattern);
+        }
+        if (!done) {
+            throw new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.LOWER,
+                    "Missing closing bracket in format string: " + pattern);
+        }
+        return new Zoned(name.toString(), pattern.substring(i));
     }
 
     /** The places {@code letter} stands in {@code pattern} outside its quoted text, quotes read as

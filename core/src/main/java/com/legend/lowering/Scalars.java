@@ -3441,13 +3441,15 @@ final class Scalars {
      * renders the literal +0000 (via the token table).
      */
     private static SqlExpr dateWithPattern(String pattern, SqlExpr arg) {
-        if (!pattern.startsWith("[") || pattern.indexOf(']') < 0) {
+        // the zone read as pure reads it, its malformed ones refused with pure's words (C5-J's zone fix, 2026-11-15: until
+        // then up to the first ']', blind to quotes, and a '[' with no ']' read as no zone)
+        DateFormats.Zoned zoned = DateFormats.zone(pattern);
+        if (zoned == null) {
             return SqlExpr.Call.of(SqlFn.STRFTIME, arg,
                     new SqlExpr.FormatLit(DateFormats.javaDateToParts(pattern)));
         }
-        int zb = pattern.indexOf(']');
-        String zone = pattern.substring(1, zb);
-        String pat = pattern.substring(zb + 1);
+        String zone = zoned.zone();
+        String pat = zoned.rest();
         // the offset is an UNQUOTED Z: a quoted one is text, as in pure (C5-J item 5, 2026-11-15)
         boolean offsetSuffix = pat.endsWith("Z") && DateFormats.unquoted(pat, 'Z').contains(pat.length() - 1);
         if (offsetSuffix) {
@@ -3462,7 +3464,7 @@ final class Scalars {
         SqlExpr wall = SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit(zone),
                 SqlExpr.Call.of(SqlFn.TIMEZONE, new SqlExpr.StringLit("UTC"), arg));
         SqlExpr shifted = SqlExpr.Call.of(SqlFn.STRFTIME, wall,
-                new SqlExpr.FormatLit(DateFormats.javaDateToParts(pat)));
+                new SqlExpr.FormatLit(DateFormats.javaDateToParts(pat, pattern)));
         if (!offsetSuffix) {
             return shifted;
         }
