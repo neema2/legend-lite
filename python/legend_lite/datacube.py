@@ -17,6 +17,7 @@ it is open waits there, saying so, until Ctrl-C (or an IDE's Stop).
 from __future__ import annotations
 
 import atexit
+import collections
 import os
 import sys
 import threading
@@ -164,6 +165,10 @@ class _Session:
         self._hooked = False
         # a cube was opened in a browser: a person is looking, so a plain script's end keeps the engine for them
         self.opened = False
+        # a marimo session's runtime context (weakly: the session is let go when marimo lets it go) and the finalizer
+        # that queues the session then (_current); None for the process's own
+        self.context: weakref.ref[Any] | None = None
+        self.finalizer: weakref.finalize | None = None
         # the one copy of each Python page, versioned (docs/DATACUBE_PAGE_KEEPER_2026_10_20.md): each new version told
         # where its page is shown; each write's edits applied by DataCube's rule (_combine)
         self.keeper = PageKeeper(on_write=self._page_written, combine=self._combine)
@@ -472,6 +477,10 @@ _session = _Session()
 # thread of the server's under `marimo run`)
 _marimo_sessions: dict[int, _Session] = {}
 _marimo_lock = threading.Lock()
+# the marimo sessions gone, each queued with the key it was held under by its finalizer (_release), and let go by
+# _let_go_gone, outside any run: a deque's append and popleft are each atomic, so the finalizer takes no lock and
+# touches no dict
+_gone: collections.deque[tuple[int, _Session]] = collections.deque()
 
 
 def _current() -> _Session:
@@ -480,6 +489,7 @@ def _current() -> _Session:
     viewer's cube never shows another's frame, and they are let go with the viewer's session (marimo's runtime context,
     collected when marimo lets the session go). marimo has no public name for a session: its runtime context is the
     one its own widgets live by."""
+    _let_go_gone()
     if not _marimo():
         return _session
     try:
@@ -490,18 +500,89 @@ def _current() -> _Session:
     key = id(context)
     with _marimo_lock:
         session = _marimo_sessions.get(key)
-        if session is None:
-            session = _marimo_sessions[key] = _Session()
-            weakref.finalize(context, _release, key)
+        # a session is this context's only by IDENTITY: a key is an id, which a new context may take from a collected
+        # one whose session is queued or being let go on another thread -- that session is never handed to the new
+        # context; a session of its own replaces it under the key (the C4 second small round's item 2a, 2026-11-14)
+        if session is None or session.context is None or session.context() is not context:
+            session = _Session()
+            session.context = weakref.ref(context)
+            session.finalizer = weakref.finalize(context, _release, key, session)
+            _marimo_sessions[key] = session
         return session
 
 
-def _release(key: int) -> None:
-    """A marimo session gone: its cubes closed, its frames out of their database."""
-    with _marimo_lock:
-        session = _marimo_sessions.pop(key, None)
-    if session is None:
+def _release(key: int, session: _Session) -> None:
+    """A marimo session gone (its runtime context's finalizer, weakref.finalize): the session queued, with the key it was
+    held under, and nothing else. Garbage collection runs a finalizer wherever the collector fires -- inside a run's
+    flow, on a thread that holds _marimo_lock, mid-iteration of a dict -- so it sends nothing, plans nothing, takes no
+    lock and mutates no dict; the session is let go by _let_go_gone, outside any run (the user's ruling (b) of
+    2026-11-14, the C4 final fix round's D2: until then the finalizer let the session go itself, stepping out of the run
+    it landed in by a named crossing, _runframe's GONE_SESSION)."""
+    _gone.append((key, session))
+
+
+def _let_go_gone() -> None:
+    """Every queued gone marimo session let go (_release_now): its cubes closed, its frames out of their database.
+    Called by _current, the call every public entry (show, query, studio, a page's and a notebook's) makes to find its
+    session: a person's call, which no run makes -- a run sends a plan's statements and calls no session's entry -- so
+    the drops are planned and sent outside any run; and it is made before the session is looked up, so a new marimo
+    context that takes a collected one's id never finds the gone session. A call inside a run leaves the queue for the
+    next: the drain is the queue's only way out, and a run plans nothing (G4)."""
+    from ._runframe import current_run
+    if current_run() is not None:
         return
+    while True:
+        try:
+            key, session = _gone.popleft()
+        except IndexError:
+            return
+        _release_now(key, session)
+
+
+@atexit.register
+def _let_go_at_exit() -> None:
+    """At the interpreter's exit, every marimo session let go, as weakref.finalize's own exit pass let them go until the
+    finalizer only queued (the C4 second small round's item 2c, 2026-11-14): each live session's finalizer called (it
+    queues its session, once: a finalizer called is dead, so finalize's own exit pass, before this or after it, calls it
+    no more), then the queue drained -- an exit handler runs outside any run."""
+    with _marimo_lock:
+        live = list(_marimo_sessions.values())
+    for session in live:
+        if session.finalizer is not None:
+            session.finalizer()
+    _let_go_gone()
+
+
+class _Unraisable:
+    """An error raised where no caller may receive it, reported as Python reports one it cannot raise: through
+    sys.unraisablehook, which CPython calls with an error raised in __del__ -- as it called it with an error raised in a
+    weakref.finalize callback, when a gone session was let go by its finalizer."""
+
+    __slots__ = ('error',)
+
+    def __init__(self, error: BaseException) -> None:
+        self.error = error
+
+    def __del__(self) -> None:
+        raise self.error
+
+
+def _report(what: str, error: Exception) -> None:
+    """``error``, raised letting a gone session's ``what`` go, reported through sys.unraisablehook and not raised: a gone
+    session's cleanup is no caller's failure (the C4 second small round's item 2b, 2026-11-14: until then it rose out of
+    _current into another viewer's show or query, the session half closed and the queue stuck)."""
+    reported = RuntimeError(f"a gone marimo session's {what} was not let go: {error}")
+    reported.__cause__ = error
+    _Unraisable(reported)
+
+
+def _release_now(key: int, session: _Session) -> None:
+    """``session``, gone, let go: out of the sessions if it is still the one held under ``key`` (a new context that took
+    the gone one's id holds a session of its own there, never this one), its cubes closed, its DataCube code and its
+    frames let go -- each step's error reported (``_report``), the rest let go all the same."""
+    with _marimo_lock:
+        if _marimo_sessions.get(key) is session:
+            del _marimo_sessions[key]
     for cube in list(session.cubes.values()):
         try:
             cube.close()
@@ -509,8 +590,14 @@ def _release(key: int) -> None:
             # its channel may have gone with the session: the frame is still let go below
             pass
     if session._headless is not None:
-        session._headless.close()
-    session.frames.close()
+        try:
+            session._headless.close()
+        except Exception as e:
+            _report('DataCube code', e)
+    try:
+        session.frames.close()
+    except Exception as e:
+        _report('frames', e)
 
 
 def show(frame: Any, name: str | None = None, *, browser: bool = True,

@@ -1362,8 +1362,7 @@ public class Postgres extends AnsiSqlRenderer {
      * spelling. A STORE's name is spelled by {@link #physicalName}. */
     @Override
     protected String ident(String name) {
-        if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
-                && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"")) {
+        if (quotedIdentifier(name, '"')) {
             return name;
         }
         return delimited(name);
@@ -1381,8 +1380,7 @@ public class Postgres extends AnsiSqlRenderer {
      */
     @Override
     public String physicalName(String name) {
-        if (name.length() > 1 && name.charAt(0) == '"' && name.endsWith("\"")
-                && !name.substring(1, name.length() - 1).replace("\"\"", "").contains("\"")) {
+        if (quotedIdentifier(name, '"')) {
             return name;
         }
         String folded = name.toLowerCase(java.util.Locale.ROOT);

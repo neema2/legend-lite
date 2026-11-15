@@ -1,0 +1,5 @@
+// preload: counts every promise the process creates (async_hooks PROMISE inits), printed at exit
+import { createHook } from 'node:async_hooks';
+let promises = 0;
+createHook({ init(id, type) { if (type === 'PROMISE') promises++; } }).enable();
+process.on('exit', () => { process.stdout.write(`[count] promises=${promises}\n`); });

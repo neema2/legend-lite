@@ -20,6 +20,8 @@ import threading
 from pathlib import Path
 from typing import Any
 
+from ._runframe import planning
+
 _NAMES = {'darwin': 'libcompiler.dylib', 'linux': 'libcompiler.so', 'win32': 'libcompiler.dll'}
 
 # each entry point and how many C strings it takes after its isolate thread
@@ -46,6 +48,15 @@ _ARITY = {
     # Python's model home (native/.../ModelHome.java): a repository's folder, then a request's method, target and body
     'lite_sdlc_handle': 4, 'lite_depot_handle': 4, 'lite_saved_queries': 6, 'lite_saved_cubes': 6,
 }
+
+
+# The library's entries that plan nothing: its services (the site's types, the warehouse's binding, the model home's
+# stores) and a held model let go -- which a finalizer may do at any point, a run's included. Every other entry is the
+# planner's, refused inside a run of its flow (_runframe.py, the witness, 2026-11-13).
+_NOT_PLANNING = frozenset({
+    'lite_site_types', 'lite_warehouse_call', 'lite_warehouse_read', 'lite_sdlc_handle', 'lite_depot_handle',
+    'lite_saved_queries', 'lite_saved_cubes', 'lite_release_model',
+})
 
 
 def _find() -> Path:
@@ -94,7 +105,10 @@ class Library:
         return t
 
     def call(self, name: str, *args: str) -> str:
-        """One entry point; its answer text (``OK\\n...`` or ``ERR\\n...``), the native string freed."""
+        """One entry point; its answer text (``OK\\n...`` or ``ERR\\n...``), the native string freed. A planner's entry
+        is refused inside a run of its flow (``_runframe.planning``)."""
+        if name not in _NOT_PLANNING:
+            planning(name)
         for a in args:
             if '\0' in a:
                 # a C string ends at its first NUL: the compiler would silently read less than was given

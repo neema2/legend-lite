@@ -91,9 +91,19 @@ public final class CatalogModel {
         return List.copyOf(conversions);
     }
 
-    /** One table's part of a Database: its declaration, where it sits, and what reading it takes. */
-    private record Part(@com.legend.base.Nullable String schema, String block, String accessor, List<Conversion> conversions,
-            List<String> excluded) {
+    /** One table's part of a Database: its name and its columns' declarations, where it sits, and what reading it
+     *  takes. */
+    private record Part(@com.legend.base.Nullable String schema, String table, List<String> lines, String accessor,
+            List<Conversion> conversions, List<String> excluded) {
+
+        /** The table's declaration, written at {@code indent} as it is built: each line given its indent here, never a
+         *  finished text indented again, whose quoted names may hold a line break of their own (the request-field fuzz's
+         *  finding, the user's ruling (a) of 2026-11-13: until then a schema's blocks were indented by replacing each
+         *  line break of their text, and a column named {@code a\nb} was declared {@code "a\n    b"}). */
+        String block(String indent) {
+            return "Table " + table + "\n" + indent + "(\n" + indent + "    "
+                    + String.join(",\n" + indent + "    ", lines) + "\n" + indent + ")";
+        }
     }
 
     /**
@@ -149,13 +159,13 @@ public final class CatalogModel {
         List<String> blocks = new ArrayList<>();
         for (Part p : parts) {
             if (p.schema() == null) {
-                blocks.add("    " + p.block());
+                blocks.add("    " + p.block("    "));
             }
         }
         java.util.Map<String, List<String>> bySchema = new java.util.LinkedHashMap<>();
         for (Part p : parts) {
             if (p.schema() != null) {
-                bySchema.computeIfAbsent(p.schema(), s -> new ArrayList<>()).add(p.block().replace("\n", "\n    "));
+                bySchema.computeIfAbsent(p.schema(), s -> new ArrayList<>()).add(p.block("        "));
             }
         }
         for (java.util.Map.Entry<String, List<String>> s : bySchema.entrySet()) {
@@ -208,11 +218,10 @@ public final class CatalogModel {
             throw new IllegalArgumentException("no column of '" + table
                     + "' can be read from its source: " + String.join(", ", excluded));
         }
-        String tableBlock = "Table " + ident(table, dialect) + "\n    (\n        "
-                + String.join(",\n        ", lines) + "\n    )";
         String accessor = "#>{" + path + "." + (schema == null ? "" : ident(schema, dialect) + ".")
                 + ident(table, dialect) + "}#";
-        return new Part(schema, tableBlock, accessor, List.copyOf(conversions), List.copyOf(excluded));
+        return new Part(schema, ident(table, dialect), List.copyOf(lines), accessor, List.copyOf(conversions),
+                List.copyOf(excluded));
     }
 
     /**

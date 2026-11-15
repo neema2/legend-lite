@@ -272,8 +272,10 @@ class PlannedSqlTest {
             Map.entry("engine-client/src/legend/planner-answer.ts", 3),
             // Python's page refuses it by name, unasked (python-host.ts NOT_ASKED)
             Map.entry("datacube/src/services/python-host.ts", 1),
-            // the tests of it: the runner's (plan-runner.test.ts) and the tab planner's fake module
-            Map.entry("engine-client/test/plan-runner.test.ts", 17),
+            // the tests of it: the runner's (plan-runner.test.ts) and the tab planner's fake module. 17 -> 19
+            // (2026-11-13, the next PR's item 2, the standing witness: plan-runner.test.ts's roads test runs runAuthored
+            // as one of the runner's six roads, its plan the planner's answer of the kind -- one call, one kind)
+            Map.entry("engine-client/test/plan-runner.test.ts", 19),
             Map.entry("datacube/test/lite-planner.test.ts", 1));
 
     /**
@@ -313,9 +315,15 @@ class PlannedSqlTest {
      *  below reads, or the guard fails. */
     private static final Pattern PLANNED_PATH = Pattern.compile("(['\"`])((?:[^'\"`\\s]*/)?planned-sql(?:\\.[cm]?[jt]s)?)\\1");
     /** An import or export statement's clause up to its quoted module path ({@code from}), or a side-effect import, or
-     *  a dynamic import. */
+     *  a dynamic import.
+     *  2026-11-14 (merging main 3a217086a, #81: its generated datacube/src/generated/ts-builder-words.ts, 51 KB, overflowed
+     *  the stack -- java.util.regex recursed once per character the clause's lazy loop took): the clause's loop is
+     *  possessive over RUNS -- a run of characters that are no ';', quote, '(' or 'f'; an 'f' inside a word; an 'f' that
+     *  begins no `from` followed by a quoted path; a parenthesised part -- so it iterates without recursing and stops at
+     *  the first `from <path>`, as the lazy loop did. Measured equal to the lazy form, every match and group, over the
+     *  product's 765 TypeScript and JavaScript files; stack-safe at the default stack over a 2 MB clause. */
     private static final Pattern MODULE_STATEMENT = Pattern.compile(
-            "\\b(import|export)\\b((?:[^;'\"`(]|\\([^)]*\\))*?)\\bfrom\\s*(['\"`])([^'\"`]+)\\3"
+            "\\b(import|export)\\b((?:[^;'\"`(f]++|\\Bf|f(?!rom\\b\\s*['\"`])|\\([^)]*+\\))*+)\\bfrom\\s*(['\"`])([^'\"`]+)\\3"
                     + "|\\bimport\\s*(['\"`])([^'\"`]+)\\5"
                     + "|\\bimport\\s*\\(\\s*(['\"`])([^'\"`]+)\\7");
     // 2026-11-12 (the re-audit's M1): PlanText, the plan the planner answered, as the statement is

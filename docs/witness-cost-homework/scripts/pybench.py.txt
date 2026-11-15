@@ -1,0 +1,99 @@
+"""Witness cost, Python (2026-11-13; throwaway, never committed): the Library.call check and the run frame, per call.
+Run with the product's Python (Bazel's 3.12) and its duckdb wheel; LEGEND_LITE_LIBRARY names the native library."""
+import ctypes, json, statistics, sys, time, timeit
+from pathlib import Path
+
+import duckdb
+import legend_lite as ll
+from legend_lite import _library
+from legend_lite._library import library, _NOT_PLANNING
+from legend_lite._runframe import in_run, runs, planning
+
+R = 9  # repeats; the median and the min are reported
+
+def per_call(stmt, setup='pass', number=1_000_000, g=None):
+    t = timeit.Timer(stmt, setup, globals=g).repeat(R, number)
+    ns = sorted(x / number * 1e9 for x in t)
+    return statistics.median(ns), ns[0]
+
+g = dict(globals())
+empty_med, empty_min = per_call('pass', g=g)
+print(f'empty statement: median {empty_med:.1f} ns, min {empty_min:.1f} ns (the loop itself)')
+def nothing(): pass
+g['nothing'] = nothing
+for label, stmt in [
+    ('a plain function call (reference)', 'nothing()'),
+    ("planning('lite_plan_json_held') outside a run", "planning('lite_plan_json_held')"),
+    ("Library.call's whole check: if name not in _NOT_PLANNING: planning(name)",
+     "if 'lite_plan_json_held' not in _NOT_PLANNING: planning('lite_plan_json_held')"),
+]:
+    m, mn = per_call(stmt, g=g)
+    print(f'{label}: median {m:.1f} ns, min {mn:.1f} ns per call (loop included)')
+
+@runs('a read')
+def framed(): pass
+g['framed'] = framed
+for label, stmt in [
+    ("with in_run('a read'): pass", "with in_run('a read'): pass"),
+    ("@runs('a read') on an empty function, per call", 'framed()'),
+]:
+    m, mn = per_call(stmt, number=300_000, g=g)
+    print(f'{label}: median {m:.1f} ns, min {mn:.1f} ns per call (loop included)')
+
+# --- the real call: a held model planned through the native library, the check ON vs OFF, interleaved batches ---
+lib = library()
+def call_off(self, name, *args):
+    # Library.call with its two check lines taken out (the "before"); the rest verbatim
+    for a in args:
+        if '\0' in a:
+            raise ValueError(f'{name}: an argument contains a NUL character')
+    t = self._thread()
+    p = self._function(name)(t, *[a.encode('utf-8') for a in args])
+    if not p:
+        raise OSError(f'{name} returned no answer (the library could not allocate one)')
+    try:
+        return ctypes.string_at(p).decode('utf-8')
+    finally:
+        self._lib.lite_free(t, p)
+on = _library.Library.call
+model = Path(sys.argv[1]).read_text()
+held = ll.HeldModel(model)
+tree = json.dumps(ll.parse("|#>{trades::DB.TRADES}#->groupBy(~[desk], ~[q: x|$x.notional : y|$y->sum()])->sort(~desk->ascending())"))
+for f in (on, call_off):
+    for _ in range(300):  # warm the library's JIT-less paths and the held model's caches
+        assert f(lib, 'lite_plan_json_held', held.handle, tree, 'trades::RT').startswith('OK')
+batches = {'on': [], 'off': []}
+N = 300
+for b in range(20):
+    for name, f in (('on', on), ('off', call_off)) if b % 2 == 0 else (('off', call_off), ('on', on)):
+        t0 = time.perf_counter_ns()
+        for _ in range(N):
+            f(lib, 'lite_plan_json_held', held.handle, tree, 'trades::RT')
+        batches[name].append((time.perf_counter_ns() - t0) / N)
+for name in ('on', 'off'):
+    xs = sorted(batches[name])
+    print(f"real Library.call('lite_plan_json_held') check {name.upper()}: median {statistics.median(xs)/1000:.1f} us,"
+          f" min {xs[0]/1000:.1f} us, max {xs[-1]/1000:.1f} us per call (20 batches of {N})")
+d = statistics.median(batches['on']) - statistics.median(batches['off'])
+print(f'difference of medians: {d:.0f} ns per call ({100*d/statistics.median(batches["off"]):.3f}%)')
+
+# --- the run frame against a real run's statement: DuckDB in-process, the floor (SELECT 1) and a small aggregate ---
+con = duckdb.connect()
+con.execute('create table t as select i % 10 as k, i as v from range(100000) t(i)')
+for label, sql in [('SELECT 1', 'select 1'), ('an aggregate over 100k rows', 'select k, sum(v) from t group by k order by k')]:
+    def bare(): return con.execute(sql).fetchall()
+    @runs('a read')
+    def inframe(): return con.execute(sql).fetchall()
+    for _ in range(200): bare(); inframe()
+    res = {'bare': [], 'framed': []}
+    n = 200
+    for b in range(20):
+        for name, f in (('bare', bare), ('framed', inframe)) if b % 2 == 0 else (('framed', inframe), ('bare', bare)):
+            t0 = time.perf_counter_ns()
+            for _ in range(n):
+                f()
+            res[name].append((time.perf_counter_ns() - t0) / n)
+    mb, mf = statistics.median(res['bare']), statistics.median(res['framed'])
+    print(f'DuckDB {label}: bare median {mb/1000:.1f} us, in a run frame median {mf/1000:.1f} us per run'
+          f' (difference {mf-mb:.0f} ns, {100*(mf-mb)/mb:.2f}%)')
+held.close()

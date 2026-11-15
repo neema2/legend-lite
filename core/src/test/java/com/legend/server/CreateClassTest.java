@@ -91,6 +91,11 @@ class CreateClassTest {
                 "rows": [["1", "10", "EMEA", "first, of two", "150.50"], ["2", null, "APAC", "say \\"hi\\"", "20"],
                          ["3", "11", "AMER", null, "300"]]}}}""";
 
+    /** The place with no sample (2026-11-13: until then WHERE with its samples key renamed, which the route passed
+     *  over; its bodies are closed now, an unknown key refused by name). */
+    private static final String UNSAMPLED = """
+            "where": {"from": "local::DB", "runtime": "local::RT", "as": "Browser"}""";
+
     private static final String KEYED = "\"columns\": {\"customer_id\": {\"as\": \"key\"}}";
 
     /** A createClass request: the project's files (`project`), and the class over the grid's own model (`source`). */
@@ -329,7 +334,7 @@ class CreateClassTest {
         String model = TAB.replace("region VARCHAR(10),", "region VARCHAR(10),\n    \"trade id\" INTEGER,\n"
                 + "    \"function\" INTEGER,\n    \"Class\" INTEGER,\n    \"TRUE\" INTEGER,");
         Map<String, Object> a = make("", model, "|#>{local::DB.trades_2}#", "Trade",
-                WHERE.replace("\"samples\"", "\"none\""));
+                UNSAMPLED);
         String cls = file(a, "trades::domain::Trade");
         assertTrue(cls.contains("  tradeId: Integer[1];") && cls.contains("  tradeId2: Integer[0..1];"), cls);
         // a word the grammar reads in another sense is a name in a class; one Pure reads as a literal is not
@@ -449,7 +454,7 @@ class CreateClassTest {
         // a column Pure reads as a word of its own: its files would not read back
         for (String word : List.of("let", "true")) {
             String model = TAB.replace("region VARCHAR(10),", "region VARCHAR(10),\n    \"" + word + "\" INTEGER,");
-            refused(body("", model, "|#>{local::DB.trades_2}#", "Trade", WHERE.replace("\"samples\"", "\"none\"")),
+            refused(body("", model, "|#>{local::DB.trades_2}#", "Trade", UNSAMPLED),
                     "would not read back");
         }
         refused(body("", TAB, QUERY, "Trade", "\"columns\": {\"region\": {\"name\": \"tradeId\"}, \"trade_id\": "
@@ -462,10 +467,10 @@ class CreateClassTest {
                 "declares the table default.trades_2 otherwise");
         // a relation reading a store the class's place does not write: its file would read what the project lacks
         String two = TAB + "###Relational\nDatabase other::DB ( Table desks ( desk VARCHAR(10) ) )\n";
-        refused(body("", two, "|#>{other::DB.desks}#", "Desk", WHERE.replace("\"samples\"", "\"none\"")),
+        refused(body("", two, "|#>{other::DB.desks}#", "Desk", UNSAMPLED),
                 "the relation reads the store 'other::DB'");
         // a class's name taken by a class of another table: not written over
-        refused(body(project(first), CUSTOMERS, "|#>{local::DB.customers}#", "Trade", WHERE.replace("\"samples\"", "\"none\"")),
+        refused(body(project(first), CUSTOMERS, "|#>{local::DB.customers}#", "Trade", UNSAMPLED),
                 "'trades::domain::Trade' is already the class of trades::store::Browser.default.trades_2");
         // a sample's name taken by another table's sample: `a_b` and `A_b` are both A_bSample
         String sample = """

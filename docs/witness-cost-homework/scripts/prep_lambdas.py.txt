@@ -1,0 +1,14 @@
+"""The trades corpus's queries (wasm/corpus/queries.tsv) as lambda JSON, by Python's parser (the native library), for the
+TS whole-path bench: lambdas.json. Run with LEGEND_LITE_LIBRARY set and python/ on PYTHONPATH."""
+import json, legend_lite as ll
+from legend_lite import _json
+out, bad = [], 0
+for line in open('wasm/corpus/queries.tsv'):
+    if not line.strip() or line.startswith('#') or '\t' not in line: continue
+    name, q = line.rstrip('\n').split('\t', 1)
+    try:
+        out.append({'name': name, 'lambda': _json.dumps(ll.parse('|' + q))})
+    except Exception:
+        bad += 1
+json.dump(out, open('lambdas.json', 'w'))
+print(len(out), 'parsed,', bad, 'refused at parse')

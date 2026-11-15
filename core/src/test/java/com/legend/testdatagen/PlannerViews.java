@@ -15,9 +15,8 @@ final class PlannerViews {
     /** The user's query lowered as the test planner lowers it for a seed ({@code GeneratedTestData.queries}): planned as a
      *  product query on {@code runtime}, read through {@code mapping} ({@link TestDataPlanner#underMapping}). */
     static TestDataPlanner.Queries queries(ModelContext ctx, String mapping, String runtime) {
-        return q -> com.legend.Compiler.query(ctx, TestDataPlanner.underMapping(q, mapping, runtime,
-                    com.legend.Compiler::parseQuery))
-                .lower(runtime, false).plan();
+        return q -> com.legend.planner.ProductStatements.lowerTestDataSeed(com.legend.Compiler.query(ctx,
+                TestDataPlanner.underMapping(q, mapping, runtime, com.legend.Compiler::parseQuery)), runtime);
     }
 
     /** No view to fetch: a model whose queries read none. */

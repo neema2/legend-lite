@@ -12,6 +12,7 @@ import static com.legend.server.ModelChanges.identifier;
 import static com.legend.server.ModelChanges.isIdentifier;
 import static com.legend.server.ModelChanges.literal;
 import static com.legend.server.ModelChanges.objOf;
+import static com.legend.server.ModelChanges.only;
 import static com.legend.server.ModelChanges.quoted;
 import static com.legend.server.ModelChanges.quotedIfNeeded;
 import static com.legend.server.ModelChanges.refused;
@@ -89,11 +90,13 @@ final class CreateClass {
      * {@code where.as} is the place's name ({@code Browser}).
      */
     static Made apply(ModelChanges m, String pkg, Json.Obj spec, String source) {
+        only(spec, "a class to make", "lambda", "source", "name", "documentation", "columns", "where");
         String name = spec.getString("name");
         if (!isIdentifier(name)) {
             throw refused("a class's name is a Pure name (letters, digits and _, not led by a digit): '" + name + "'");
         }
         Json.Obj where = spec.getObj("where");
+        only(where, "a class's place", "from", "as", "samples", "runtime");
         String from = where.getString("from");
         String as = where.getString("as");
         if (!isIdentifier(as)) {
@@ -171,6 +174,13 @@ final class CreateClass {
             m.put(mm);
         }
         Json.Obj samples = objOf(where, "samples");
+        // each sample a table's the relation reads, by its name (2026-11-13, with the closure of these routes' bodies:
+        // until then a sample naming another table was passed over, its rows read by nothing)
+        for (String sampled : samples.fields().keySet()) {
+            if (read.stream().noneMatch(t -> t[1].equals(sampled))) {
+                throw refused("a sample of the table '" + sampled + "', which the relation does not read");
+            }
+        }
         for (AddedTable table : addedTables) {
             Json.Obj sample = samples.getObjOr(table.name(), null);
             if (sample != null) {
@@ -183,7 +193,10 @@ final class CreateClass {
                     throw refused("the sample '" + data + "' holds the rows of " + String.join(", ", sampleTables(existing))
                             + ", not of " + table.name() + ": name the source's table otherwise");
                 }
-                m.put(element("###Data\n" + dataText(data, table, sample, m.notes)));
+                String text = dataText(data, table, sample, m.notes);
+                if (text != null) {
+                    m.put(element("###Data\n" + text));
+                }
             }
         }
 
@@ -244,6 +257,8 @@ final class CreateClass {
             if (!names.contains(k)) {
                 throw refused("the relation has no column '" + k + "'");
             }
+            Json.Obj choice = objOf(asked, k);
+            only(choice, "a column's choice", "as", "name", "documentation");
         }
         // the properties the caller names first, so a name made by the rule never takes one of theirs
         Set<String> taken = new HashSet<>();
@@ -263,6 +278,15 @@ final class CreateClass {
         for (Type.Column c : typed) {
             Json.Obj a = objOf(asked, c.name());
             String as = asOf(c.name(), a);
+            // a documentation is written on a property alone: a key is the mapping's local property and an omitted
+            // column is in no file, neither carrying one -- refused by name, never dropped unsaid (F1, the user's ruling
+            // of 2026-11-13: the model-text fuzz's finding; until then read and written nowhere)
+            String documentation = a.getStringOr("documentation", null);
+            if (!"property".equals(as) && documentation != null && !documentation.strip().isEmpty()) {
+                throw refused("the column '" + c.name() + "' is taken as " + ("key".equals(as) ? "a key only"
+                        : "left out") + ", and a documentation is written on a property alone: take it off, or take the"
+                        + " column as a property");
+            }
             String property = a.getStringOr("name", null);
             if (property == null && !"omit".equals(as)) {
                 String base = identifier(camelCase(c.name().replaceAll("[ /@~<>.]", "_").replace("\"", ""), false));
@@ -381,11 +405,23 @@ final class CreateClass {
 
     /** The sample rows as relational CSV: a header of the table's columns, a line per row; a value holding a line
      *  break cannot be a CSV line here, and its row is left out, said in {@code notes}. */
-    private static String dataText(String data, AddedTable table, Json.Obj sample, List<String> notes) {
+    private static @com.legend.base.Nullable String dataText(String data, AddedTable table, Json.Obj sample,
+            List<String> notes) {
+        only(sample, "a table's sample", "columns", "rows");
         List<String> columns = sample.getStringArray("columns");
         if (!columns.equals(table.columns())) {
             throw new IllegalArgumentException("the sample of " + table.name() + " has the columns " + columns
                     + ", the table " + table.columns());
+        }
+        // a column whose name holds a line break cannot head a CSV line here, so the whole sample is left out and said,
+        // as a row holding one is (F2, the user's ruling of 2026-11-13: the model-text fuzz's finding; until then the
+        // header split, a header the table has not and a row of one cell)
+        for (String c : columns) {
+            if (c.indexOf('\n') >= 0 || c.indexOf('\r') >= 0) {
+                notes.add("the sample of " + table.name() + " left out: its column '" + c + "' holds a line break,"
+                        + " which relational test data cannot");
+                return null;
+            }
         }
         List<String> lines = new ArrayList<>();
         List<String> header = new ArrayList<>();
@@ -687,14 +723,15 @@ final class CreateClass {
         return out;
     }
 
-    /** A table's columns' names, in order, as the database names them: a quoted name ({@code "Trade Note"}, its quotes
-     *  kept in the protocol, as upstream's are) without its quotes. */
+    /** A table's columns by the names they denote, read as the compiled model reads the protocol's
+     *  ({@link com.legend.model.RelationalIdentifier#bare}: quotes off, the lexer's backslash escape decoded). The
+     *  protocol keeps a quoted name as written, as upstream's does (RelationalParseTreeWalker: the token's text); until
+     *  2026-11-13 (F3, the user's ruling) this took the quotes off and kept the escapes, so a column named with a quote
+     *  or a backslash matched no sample's column. */
     private static List<String> columnNames(Json.Obj table) {
         List<String> names = new ArrayList<>();
         for (Json.Node c : table.getArr("columns").items()) {
-            String name = ((Json.Obj) c).getString("name");
-            names.add(name.length() > 1 && name.startsWith("\"") && name.endsWith("\"")
-                    ? name.substring(1, name.length() - 1) : name);
+            names.add(com.legend.model.RelationalIdentifier.bare(((Json.Obj) c).getString("name")));
         }
         return names;
     }

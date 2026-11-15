@@ -1,0 +1,76 @@
+S307 -- what legend-engine's own seed and test-data generation answer for a query holding an executeInDb read
+(asked of the engine runner, 2026-11-13, for the user's ruling of that day: the test road keeps a body's own
+executeInDb reads; its seed generation refuses them).
+
+Provenance: legend-engine 4.145.0, the engine runner's jars (//tools/engine-runner:testable, @maven_runner), a scratch
+main compiled against them (docs/result-boundary-homework/README.md section 7's recipe): the model parsed by
+PureGrammarParser.parseModel and compiled by Compiler.compile(pmcd, DeploymentMode.TEST, null); each lambda built by
+HelperValueSpecificationBuilder.buildLambda(PureGrammarParser.parseLambda(query), pureModel.getContext()), as the
+engine's test-data generation API builds its function; then
+core_relational_relational_testDataGeneration_testDataGeneration's compiled
+meta::relational::testDataGeneration::generateSeedDataString(func, mapping, runtime, exeCtx, [], extensions) and
+generateTestDataWithDefaultPKs(func, mapping, runtime, exeCtx, extensions).
+
+The query (TestDataRoutesTest.anExecuteInDbsReadIsRefusedByNameOnEveryRoute's, its connection on H2 and on DuckDB):
+
+  {|let n = meta::relational::metamodel::execute::executeInDb('select 7 as A',
+       ^meta::external::store::relational::runtime::TestDatabaseConnection(type=meta::relational::runtime::DatabaseType.H2)).columnNames;
+    model::Person.all()->project([p|$p.name, p|$p.firm.legalName], ['name', 'firm']);}
+
+Answered, on either connection type, by both generateSeedDataString and generateTestDataWithDefaultPKs -- refused
+when the function is built, before any generation is planned or run:
+
+  org.finos.legend.engine.shared.core.operational.errorManagement.EngineException:
+  Function does not exist 'meta::relational::metamodel::execute::executeInDb(String[1],TestDatabaseConnection[1])'
+
+Read from the pinned source (+http_archive+legend_engine_src, 4.145.0): no Java of legend-engine registers
+executeInDb (the only Java naming it is a Pure test runner, Test_Pure_Relational.java), so its protocol compiler has
+no such function, and every request carrying one is refused at compilation.
+
+Limit, said plainly: the same query WITHOUT the read did not run in this harness either (compiled execute over a
+RelationalDatabaseConnection outside the engine's executor: "is not supported for execution!!"), so the harness answers
+the compilation, where upstream refuses; it does not show a seed text.
+
+The model:
+
+###Pure
+Class model::Firm { legalName: String[1]; }
+Class model::Person { name: String[1]; firm: model::Firm[0..1]; }
+
+###Relational
+Database store::DB (
+    Table PERSON ( ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER )
+    Table FIRM ( ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100) )
+    Join PersonFirm(PERSON.FIRM_ID = FIRM.ID)
+)
+
+###Mapping
+Mapping model::M (
+    model::Person: Relational {
+        ~mainTable [store::DB] PERSON
+        name: [store::DB] PERSON.NAME,
+        firm: [store::DB] @PersonFirm
+    }
+    model::Firm: Relational {
+        ~mainTable [store::DB] FIRM
+        legalName: [store::DB] FIRM.LEGAL_NAME
+    }
+)
+
+###Connection
+RelationalDatabaseConnection store::Conn {
+    type: H2;
+    specification: LocalH2 {
+        testDataSetupSqls: [
+            'DROP TABLE IF EXISTS PERSON; CREATE TABLE PERSON (ID INTEGER PRIMARY KEY, NAME VARCHAR(100), FIRM_ID INTEGER); INSERT INTO PERSON VALUES (1, \'Ann\', 10), (2, \'Bob\', 20);',
+            'DROP TABLE IF EXISTS FIRM; CREATE TABLE FIRM (ID INTEGER PRIMARY KEY, LEGAL_NAME VARCHAR(100)); INSERT INTO FIRM VALUES (10, \'Acme\'), (20, \'Bolt\');'
+        ];
+    };
+    auth: DefaultH2;
+}
+
+###Runtime
+Runtime model::RT {
+    mappings: [ model::M ];
+    connections: [ store::DB: [ c: store::Conn ] ];
+}
