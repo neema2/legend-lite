@@ -387,7 +387,10 @@ class PlannedSqlTest {
             + "|\\.\\s*sendBeacon\\s*\\(");
     /** A worker started (2026-11-15, the C5-T last round's T4: the one transport no census pinned -- a worker speaks to
      *  its page by message, so a worker of DuckDB's own, started by hand, is a database no send census reads). */
-    private static final Pattern WORKER_START = Pattern.compile("(?<![\\w$.])new\\s+(?:Shared)?Worker\\s*\\(");
+    // 2026-11-15 (the C5-T final audit's item 7): through any receiver -- `new globalThis.Worker(`, `new self.Worker(`,
+    // `new window.Worker(` -- the receivers' chain tools/deps/layer-alone.test.ts reads a door's through (CHAIN)
+    private static final Pattern WORKER_START = Pattern.compile(
+            "(?<![\\w$.])new\\s+(?:[\\w$]+\\s*\\??\\.\\s*)*(?:Shared)?Worker\\s*\\(");
     private static final Pattern SUBMIT_CALL = Pattern.compile("\\bcall\\s*(?:<[^>()]*>)?\\s*\\(\\s*(['\"`])submit\\1");
     /** S6 (the re-audit, 2026-11-12): `any`, cast or not, satisfies every type -- the brand's among them. */
     private static final Pattern ANY = Pattern.compile("(?<![\\w$.])any(?![\\w$])(?!\\s*[:(?])");
@@ -584,6 +587,10 @@ class PlannedSqlTest {
                 "export const sent = await fetch('https://warehouse.example/api/2.0/sql/statements', { method: 'POST' });");
         bites("the worker census", PlannedSqlTest::everyTransportHasOneChokePoint,
                 "export const db = new Worker(new URL('./vendor/duckdb-browser-eh.worker.js', location.href));");
+        for (String receiver : List.of("globalThis", "self", "window", "globalThis.self")) {
+            bites("the worker census", PlannedSqlTest::everyTransportHasOneChokePoint,
+                    "export const db = new " + receiver + ".Worker('./vendor/duckdb-browser-eh.worker.js');");
+        }
         bites("the submit census", PlannedSqlTest::everyTransportHasOneChokePoint,
                 "export const sent = await this.call('submit', { statement: text });");
         bites("the runner census", PlannedSqlTest::thePlanRunnersAreCalledWhereAPlanTheyAreHandedWasAnswered,
