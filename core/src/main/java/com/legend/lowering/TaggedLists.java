@@ -248,6 +248,36 @@ final class TaggedLists {
      * comparable's channels are the cells' scalar columns ({@code __cmp}, or {@code __cmp_g/n/d/s} for a rank across
      * kinds), compared field by field as the rank's struct compares them, a missing field after a present one.
      */
+    /** The primitive kinds a mixed list's channels name; any other kind is an enumeration's path. */
+    private static final java.util.Set<String> PRIMITIVE_KINDS = java.util.Set.of("Integer", "Float", "Decimal",
+            "String", "Boolean", "StrictDate", "DateTime", "Date");
+
+    /**
+     * A mixed list's extreme (min, max, greatest, least: an end of its sort) refused by name where two of its
+     * elements of DIFFERENT kinds may compare equal -- an Integer and a Float of one value (1 and 1.0), or two
+     * enumerations' values of one name -- since the sort orders such a tie as the database likes and the end it
+     * answers would then be either kind (2026-11-15, PR1's review, D2: a G10 hole). Refused until the ordered aggregate
+     * takes the element's position as its second key; a tie of one kind is one value, whichever end answers.
+     */
+    static void refuseKindTies(SqlExpr.TaggedList tl, String what) {
+        java.util.Set<String> numbers = new java.util.TreeSet<>();
+        java.util.Set<String> enumerations = new java.util.TreeSet<>();
+        for (SqlExpr.TaggedList.Channel ch : tl.channels()) {
+            String kind = ch.kind();
+            if (kind.equals("Integer") || kind.equals("Float") || kind.equals("Decimal")) {
+                numbers.add(kind);
+            } else if (!PRIMITIVE_KINDS.contains(kind) && !kind.startsWith("DateTime(")) {
+                enumerations.add(kind);
+            }
+        }
+        if (numbers.size() > 1 || enumerations.size() > 1) {
+            throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
+                    + (numbers.size() > 1 ? String.join(" and ", numbers) : String.join(" and ", enumerations))
+                    + ": two of its elements of different kinds may compare equal, and the database orders such a tie"
+                    + " as it likes (refused until the sort breaks a tie by the element's position)");
+        }
+    }
+
     /** 2^53: the largest magnitude below which every integer is a double. */
     private static final long EXACT_IN_A_DOUBLE = 1L << 53;
 

@@ -1257,6 +1257,7 @@ final class Scalars {
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
                 if (mixedList != null && !isToOne(n.args().get(0))) {
+                    TaggedLists.refuseKindTies(mixedList, "least element");
                     return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
@@ -1291,6 +1292,7 @@ final class Scalars {
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
                 if (mixedList != null && !isToOne(n.args().get(0))) {
+                    TaggedLists.refuseKindTies(mixedList, "greatest element");
                     return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
@@ -1346,6 +1348,7 @@ final class Scalars {
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
                 if (mixedList != null && !isToOne(n.args().get(0))) {
+                    TaggedLists.refuseKindTies(mixedList, "greatest element");
                     return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 return isToOne(n.args().get(0))
@@ -1362,6 +1365,7 @@ final class Scalars {
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
                 if (mixedList != null && !isToOne(n.args().get(0))) {
+                    TaggedLists.refuseKindTies(mixedList, "least element");
                     return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 return isToOne(n.args().get(0))
