@@ -950,7 +950,7 @@ async function flowParts(types: SourceTypes): Promise<Parts> {
 
 // ---------------------------------------------------------------- the crypto desk
 
-/** The coin a crypto screen opens on: the largest, always among the world's coins (market.groovy COINS). */
+/** The coin a crypto screen opens on: the largest, always among the world's coins (market-sim/names.ts COINS). */
 const FIRST_COIN = 'BTC-USD';
 
 async function cryptoParts(types: SourceTypes): Promise<Parts> {

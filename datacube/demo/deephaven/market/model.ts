@@ -1,7 +1,7 @@
 // THE TRADING DESK'S MODEL (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K2, DH34; docs/ONE_CONNECTION_DESK_2026_10_28.md
 // D2): three files, in order --
 //   1. the ONE TRADING MODEL: the stress corpus's classes, store and mappings (//scripts/corpus:trading_model, `corpus`
-//      here), which the market world publishes on its Deephaven server (market.groovy: every column the store declares);
+//      here), whose tables the desk's deployment lands on a Deephaven server (environments.pure, on-deephaven.ts);
 //   2. the DESK'S OWN MODEL (market.pure): the world's status table, the options' and the screens' functions -- what
 //      every screen of the desk shows;
 //   3. its ENVIRONMENTS (environments.pure): a pair of connections and a runtime for the tab's DuckDB and for a Deephaven

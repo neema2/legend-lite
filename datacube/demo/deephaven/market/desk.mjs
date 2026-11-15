@@ -2,12 +2,14 @@
 //
 //   bazel run //datacube:deephaven_desk            then open the URL it prints
 //
-// It starts the pinned Deephaven running the market world (market.groovy: equities simulated, crypto from Coinbase's
-// public feed where the server reaches it, simulated where it does not) and serves DataCube's own page -- the one
+// It starts the market world behind lite's Kafka door (equities simulated, crypto from Coinbase's public feed where this
+// machine reaches it, simulated where it does not), installs the desk's deployment for the pinned Deephaven -- its plan
+// beside lite's loader, which makes every table from the plan (docs/DEPLOYMENT_DESIGN_2026_11_14.md step 6) -- starts
+// the server on it, and serves DataCube's own page -- the one
 // //datacube:serve serves -- with its config.json naming that server: the page opens on the trading desk, one saved
 // page of ten tabs, and Open…'s Examples list it first, above the chart pages. Every query is planned in the tab and
 // run on the Deephaven server, ticking. The world's size is the process's own environment (MARKET_NAMES, MARKET_QUOTES,
-// MARKET_TRADES, MARKET_FEED: market.groovy says each). The server's update cycle is 250 ms -- four updates a second, a
+// MARKET_TRADES; MARKET_FEED=off for no Coinbase feed). The server's update cycle is 250 ms -- four updates a second, a
 // trading screen's pace (the tests' 100 ms ran each tile ten times a second, which kept a 4-core machine's page busy:
 // 2026-10-26) -- or DESK_CYCLE_MS; its heap half the machine's memory, 4g to 16g, or DESK_HEAP (below: a long show
 // needs it);
@@ -17,22 +19,44 @@
 // nothing (../mkcert.mjs); without mkcert it is the test server's own, and the browser asks once to accept it (open the
 // Deephaven URL it prints first).
 
-import { totalmem } from 'node:os';
+import { readFileSync } from 'node:fs';
+import { tmpdir, totalmem } from 'node:os';
+import { join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { runfileDirUrl, runfileFromEnv } from '../../../../tools/js/runfiles.mts';
+import { LitePlanner } from '../../../src/lite-planner.ts';
 import { mkcertIdentity } from '../mkcert.mjs';
 import { startDeephaven } from '../site.mjs';
 import { serveDesk } from './desk-site.mjs';
+import { DESK_MODEL, ON_DEEPHAVEN } from './model.ts';
+import { startDeskOnDeephaven } from './on-deephaven.ts';
 
-// THE HEAP A SHOW NEEDS (docs/DEEPHAVEN_START_HERE.md, the desk under load, 1 and 8; measured on a Mac 2026-10-27/28):
-// the server keeps a row of every trade, about 39 MB a minute at the world's defaults, and its collector slows once the
-// live heap nears two thirds of the heap, about 1 GB of it the world's own -- the 4g this tool had lasted ~40 minutes,
-// 12g hours. Half the machine's memory, 4g to 16g, unless DESK_HEAP says; said at start with the show it buys.
-const heap = process.env.DESK_HEAP ?? `${Math.max(4, Math.min(16, Math.floor(totalmem() / 2 ** 31)))}g`;
-const heapGb = ((m) => (m === null ? null : Number(m[1]) / (/[mM]/.test(m[2]) ? 1024 : 1)))(/^(\d+)([gGmM])$/.exec(heap));
-const showMinutes = heapGb === null ? null : Math.max(0, Math.round((heapGb * 2 / 3 - 1) * 1024 / 39));
+/** The desk's model and its one planner, the in-thread WebAssembly module (the planner is chosen here, from no setting:
+ *  datacube's guardrail, one place a planner is chosen). */
+function deskPlanner() {
+  const model = DESK_MODEL(readFileSync(runfileFromEnv('TRADING_MODEL'), 'utf8'),
+    readFileSync(runfileFromEnv('MARKET_PURE'), 'utf8'), readFileSync(runfileFromEnv('ENVIRONMENTS_PURE'), 'utf8'));
+  return { model, planner: new LitePlanner({ model, runtime: ON_DEEPHAVEN.runtime, assetBaseUrl: runfileDirUrl('WASM_PLANNER') }) };
+}
+
+/** The world's size and pace, from the environment: each optional (the world's own defaults). */
+function worldSettings() {
+  const env = process.env;
+  const sized = { names: env.MARKET_NAMES, quotes: env.MARKET_QUOTES, trades: env.MARKET_TRADES };
+  return {
+    ...Object.fromEntries(Object.entries(sized).filter(([, v]) => v !== undefined).map(([k, v]) => [k, Number(v)])),
+    ...(env.MARKET_FEED === 'off' ? { feed: 'off' } : {}),
+  };
+}
 
 const identity = mkcertIdentity();
-const deephaven = startDeephaven({ quiet: true, fixture: 'MARKET_FIXTURE', args: [...identity.args,
+const { model, planner } = deskPlanner();
+const desk = await startDeskOnDeephaven({ model, planner, dir: join(tmpdir(), 'legend-desk'),
+  loader: runfileFromEnv('DESK_LOADER'), settings: worldSettings() });
+console.log(`The market world publishes behind the door on 127.0.0.1:${desk.feed.port}: ${desk.plan.tables.length} tables`
+  + ' in the deployment\'s plan.');
+const deephaven = startDeephaven({ quiet: true, fixture: 'MARKET_FIXTURE', env: desk.installed.env, args: [
+  `--jvm_flag=-Dembedded.deephaven.application=${desk.installed.app}`, ...identity.args,
   `--jvm_flag=-Dembedded.deephaven.cycleMs=${process.env.DESK_CYCLE_MS ?? 250}`,
   `--jvm_flag=-Dembedded.deephaven.heap=${heap}`,
   ...(process.env.DH_SERVER_FLAGS ? [`--jvm_flag=-Dembedded.deephaven.serverFlags=${process.env.DH_SERVER_FLAGS}`] : [])] });
@@ -57,7 +81,7 @@ input.on('line', (line) => {
 });
 const stop = () => {
   site.close();
-  void deephaven.stop().then(() => process.exit(0));
+  void deephaven.stop().then(() => desk.feed.close()).then(() => process.exit(0));
 };
 process.on('SIGINT', stop);
 process.on('SIGTERM', stop);

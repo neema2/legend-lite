@@ -42,14 +42,11 @@ export function durationMs(iso: string): number {
   return ((Number(d) * 24 + Number(h)) * 60 + Number(min)) * 60_000 + Number(s) * 1000;
 }
 
-/** The door's topics, as the model's topics say each is kept. */
+/** The door's topics: a keyed one compacted (each key's latest record), every other one whole for the session. A topic's
+ *  retention is its cluster's, never a landing's: what a target keeps of it is its deployment's `keep`
+ *  (docs/DEPLOYMENT_DESIGN_2026_11_14.md §8), and a server that reads the topic from its beginning lands it whole. */
 export function doorTopics(topics: readonly StreamTopic[]): DoorTopic[] {
-  return topics.map((t) => ({
-    topic: t.topic,
-    compacted: t.key.length > 0,
-    keepRows: t.keepRows,
-    keepForMs: t.keepFor === null ? null : durationMs(t.keepFor),
-  }));
+  return topics.map((t) => ({ topic: t.topic, compacted: t.key.length > 0, keepRows: null, keepForMs: null }));
 }
 
 /** What the feed has written: each topic's records, and a compacted one's keys. */

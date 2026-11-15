@@ -1,6 +1,6 @@
 // THE MARKET WORLD, CHECKED (//datacube:deephaven_market_test; docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K2, DH28), run
-// in the pinned Chromium. Node here only drives: it starts the pinned Deephaven with the market world as its
-// application (demo/deephaven/market/), a small world and a feed address that refuses, serves the check page from an
+// in the pinned Chromium. Node here only drives: it starts the market world behind lite's Kafka door (a small world, a
+// feed address that refuses) and the pinned Deephaven on the desk's deployment (test/deephaven/desk-server.ts), serves the check page from an
 // origin that is not the server's, and reports what the page found (test/deephaven/market-page.ts).
 
 // first: points Playwright at the Chromium Bazel fetched
@@ -10,6 +10,7 @@ import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { runfileFromEnv, runfileNamed } from '../../../tools/js/runfiles.mts';
 import { startDeephaven } from '../../demo/deephaven/site.mjs';
+import { startDeskServer } from './desk-server.ts';
 import { environmentsAt } from '../../demo/deephaven/market/environments.mjs';
 
 // a small world, quick to check: 50 names, 2,000 quotes and 400 trades a second, half an hour of morning on a tape of
@@ -17,20 +18,17 @@ import { environmentsAt } from '../../demo/deephaven/market/environments.mjs';
 const NAMES = 50;
 const TRADES = 400;
 const MORNING = 1800;
-const deephaven = startDeephaven({
-  quiet: true,
-  fixture: 'MARKET_FIXTURE',
-  env: {
-    MARKET_NAMES: String(NAMES),
-    MARKET_QUOTES: '2000',
-    MARKET_TRADES: String(TRADES),
-    MARKET_MORNING: String(MORNING),
-    MARKET_MORNING_PRINTS: '100000',
-    MARKET_FEED: 'coinbase',
-    MARKET_FEED_URL: 'wss://127.0.0.1:9/',
-    // jumps forty times as often as the demo's, so a morning of fifty names has enough of them to check (K15)
-    MARKET_JUMPS: '20',
-  },
+// the world behind the door and the desk's deployment installed: the server's tables the loader's, from the plan
+const deephaven = await startDeskServer(startDeephaven, {
+  names: NAMES,
+  quotes: 2000,
+  trades: TRADES,
+  morning: MORNING,
+  morningPrints: 100000,
+  feed: 'coinbase',
+  feedUrl: 'wss://127.0.0.1:9/',
+  // jumps forty times as often as the demo's, so a morning of fifty names has enough of them to check (K15)
+  jumps: 20,
 });
 const config = await deephaven.next('starting');
 

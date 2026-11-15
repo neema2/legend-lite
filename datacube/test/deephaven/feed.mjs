@@ -1,7 +1,7 @@
 // THE MARKET WORLD'S FEED, MISBEHAVING (//datacube:deephaven_feed_test; docs/DEEPHAVEN_START_HERE.md, the desk under
 // load, 5), run in the pinned Chromium. Node drives: a fake feed on the loopback (fake-feed.mjs) that sends each message
-// in parts, a message that is not JSON, and a price that is not a number; the pinned Deephaven running the market world
-// with its feed pointed there; and the market lane's way of reading the world (feed-page.ts). The world reads the feed
+// in parts, a message that is not JSON, and a price that is not a number; the market world behind lite's Kafka door with
+// its feed pointed there, and the pinned Deephaven on the desk's deployment (desk-server.ts); and the market lane's way of reading the world (feed-page.ts). The world reads the feed
 // live, skipping and counting what it cannot read or place, its equities ticking through it. Then the feed goes quiet in
 // the middle of a message, as a laptop's sleep leaves it: the world asks again on a new socket -- the quiet one let go
 // first, one socket at a time -- and reads it whole, nothing spliced.
@@ -13,23 +13,20 @@ import { createServer } from 'node:http';
 import { chromium } from 'playwright';
 import { runfileFromEnv, runfileNamed } from '../../../tools/js/runfiles.mts';
 import { startDeephaven } from '../../demo/deephaven/site.mjs';
+import { startDeskServer } from './desk-server.ts';
 import { environmentsAt } from '../../demo/deephaven/market/environments.mjs';
 import { fakeFeed } from './fake-feed.mjs';
 
 const feed = await fakeFeed();
-const deephaven = startDeephaven({
-  quiet: true,
-  fixture: 'MARKET_FIXTURE',
-  env: {
-    // a small world, its morning short
-    MARKET_NAMES: '20',
-    MARKET_QUOTES: '400',
-    MARKET_TRADES: '80',
-    MARKET_MORNING: '60',
-    MARKET_MORNING_PRINTS: '2000',
-    MARKET_FEED: 'coinbase',
-    MARKET_FEED_URL: feed.url,
-  },
+// a small world, its morning short, its crypto feed the fake one; the server on the desk's deployment
+const deephaven = await startDeskServer(startDeephaven, {
+  names: 20,
+  quotes: 400,
+  trades: 80,
+  morning: 60,
+  morningPrints: 2000,
+  feed: 'coinbase',
+  feedUrl: feed.url,
 });
 const config = await deephaven.next('starting');
 

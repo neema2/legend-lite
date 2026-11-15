@@ -1,8 +1,9 @@
-// THE MARKET WORLD IN THE TAB (docs/DUCKDB_LIVE_2026_10_25.md L2): market.groovy's world -- an equity market simulated
-// always, crypto from Coinbase's public feed where the tab reaches it and simulated where it does not, the newswire, the
-// bank's own day -- run by the page itself, no server, its rows the ONE TRADING MODEL's tables (tables.ts) written into
-// whatever the page gives it (a MarketSink: the tab's live DuckDB, engine-client/src/duckdb-live.ts). The same world as
-// the server's: the same draws from the same seed, its names, prices and stories (random.ts); its clock the page's.
+// THE MARKET WORLD (docs/DUCKDB_LIVE_2026_10_25.md L2): the world the bespoke market.groovy was (deleted 2026-11-15:
+// docs/DEPLOYMENT_DESIGN_2026_11_14.md step 6) -- an equity market simulated always, crypto from Coinbase's public feed
+// where it reaches it and simulated where it does not, the newswire, the bank's own day -- run by the page itself or
+// behind lite's Kafka door for a Deephaven server (door/feed.ts), no server of its own, its rows the ONE TRADING MODEL's tables (tables.ts) written into
+// whatever the page gives it (a MarketSink: the tab's live DuckDB, engine-client/src/duckdb-live.ts). The same draws from
+// the same seed as the deleted Groovy world's, its names, prices and stories (random.ts); its clock its host's.
 //
 // Its start: the coins' prior closes the feed's (asked for a few seconds), the reference written, then THE MORNING (the
 // session opened `morning` seconds ago, each equity's morning on the tape and the wire's, so a chart has a day to draw),
@@ -281,19 +282,31 @@ export class MarketWorld {
       const n = this.#bySym.get(m.product_id);
       if (n === undefined) continue;
       const at = m.time !== undefined ? Math.floor(Date.parse(m.time)) : now;
+      // every field read before the name takes any, so a message the world cannot place (a field missing or not a
+      // number) changes nothing: skipped and counted, never the beat lost
+      const num = (v: string | undefined): number => (v === undefined ? Number.NaN : Number(v));
       if (m.type === 'ticker') {
         if (m.best_bid === undefined || m.best_ask === undefined) continue;
-        n.bid = Number.parseFloat(m.best_bid);
-        n.ask = Number.parseFloat(m.best_ask);
-        n.bidSize = Number.parseFloat(m.best_bid_size ?? '0');
-        n.askSize = Number.parseFloat(m.best_ask_size ?? '0');
+        const [bid, ask, bidSize, askSize] = [num(m.best_bid), num(m.best_ask), num(m.best_bid_size), num(m.best_ask_size)];
+        if (![bid, ask, bidSize, askSize, at].every(Number.isFinite)) {
+          this.feed!.skip();
+          continue;
+        }
+        n.bid = bid;
+        n.ask = ask;
+        n.bidSize = bidSize;
+        n.askSize = askSize;
         n.mid = (n.bid + n.ask) / 2;
         n.quoted = true;
         quoteRow(this.#market, n, at, 'CBX');
-      } else if (m.price !== undefined && m.size !== undefined) {
-        const px = Number.parseFloat(m.price);
+      } else {
+        const [px, size] = [num(m.price), num(m.size)];
+        if (![px, size, at].every(Number.isFinite)) {
+          this.feed!.skip();
+          continue;
+        }
         // the side the feed names is the maker's: the aggressor took the other
-        tradeRow(this.#market, ++this.simulator.seq, at, n, px, Number.parseFloat(m.size), m.side === 'sell' ? 'B' : 'S', 'CBX', false);
+        tradeRow(this.#market, ++this.simulator.seq, at, n, px, size, m.side === 'sell' ? 'B' : 'S', 'CBX', false);
         n.mid = px;
       }
     }
@@ -303,10 +316,12 @@ export class MarketWorld {
   #say(live: boolean): void {
     const feed = this.feed;
     const crypto = feed === null ? 'simulated|the feed is off'
-      : live ? `live|${feed.detail}`
+      : live ? `live|${feed.detail}${feed.skipped === 0 ? '' : ` (${feed.skipped} messages skipped)`}`
         : feed.state === 'connecting' ? `simulated|connecting to ${feed.detail}`
           : `simulated|the feed was refused: ${feed.detail}`;
-    const filed = 'simulated|EDGAR answers no page (no CORS; the User-Agent it asks for a page cannot set): the newsroom files its names\' own';
+    // true wherever the world runs: in a tab EDGAR answers no page (no CORS; the User-Agent it asks for a page cannot
+    // set), and behind the door (Node) this world reads none either
+    const filed = 'simulated|this world reads no EDGAR filings (a page cannot: no CORS, and the User-Agent EDGAR asks for a page cannot set): the newsroom files its names\' own';
     const text = `${crypto}\n${filed}`;
     if (text === this.#said) return;
     this.#said = text;

@@ -1,8 +1,8 @@
 // THE MARKET WORLD, CHECKED (//datacube:deephaven_market_test; docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K2, DH28,
 // DH34): the page holds the one trading model (the stress corpus's, served beside it) with the WebAssembly planner, plans
 // each question as a query over the corpus's own classes through stress::AllMapping on the desk's Deephaven runtime, sends it
-// straight to the pinned Deephaven running the market world (demo/deephaven/market/market.groovy, which publishes the
-// corpus's tables), and reads the rows as DataCube's engine reads them (followedTable). Its feed points at an address
+// straight to the pinned Deephaven on the desk's deployment (the market world behind lite's Kafka door, every table
+// landed by lite's loader from the plan: desk-server.ts), and reads the rows as DataCube's engine reads them (followedTable). Its feed points at an address
 // that refuses it, so the world must say so and simulate crypto in its place. Every check runs here; the driver
 // (market.mjs) reports what the page found.
 
@@ -113,14 +113,14 @@ try {
   await sleep(1500);
 
   await check('the world says what it is: equities simulated, crypto simulated because its feed was refused, the news'
-    + ' simulated, filings simulated for want of a contact EDGAR asks for', async () => {
+    + ' simulated, filings simulated (this world reads no EDGAR)', async () => {
     const got = await rows(`${W}->sort(~item->ascending())`);
     const [crypto, eq, filings, news] = got;
     if (got.length !== 4 || crypto?.[0] !== 'crypto' || eq?.[0] !== 'equities' || filings?.[0] !== 'filings'
       || news?.[0] !== 'news') return `the world: ${JSON.stringify(got)}`;
     if (eq[1] !== 'simulated' || !String(eq[2]).startsWith(`${equities} names`)) return `equities: ${JSON.stringify(eq)}`;
     if (news[1] !== 'simulated' || !String(news[2]).startsWith(`${config.news} stories a minute`)) return `news: ${JSON.stringify(news)}`;
-    if (filings[1] !== 'simulated' || !String(filings[2]).startsWith('EDGAR asks for a contact')) return `filings: ${JSON.stringify(filings)}`;
+    if (filings[1] !== 'simulated' || !String(filings[2]).startsWith('this world reads no EDGAR filings')) return `filings: ${JSON.stringify(filings)}`;
     return crypto[1] === 'simulated' && String(crypto[2]).startsWith('the feed was refused') ? null
       : `crypto: ${JSON.stringify(crypto)}`;
   });
@@ -283,7 +283,19 @@ try {
   });
 
   await check('orders are worked into fills: each fill its order\'s, an order\'s fills its filled quantity', async () => {
-    await sleep(3000);
+    // the orders and their fills are two topics, read each at its own pace: a moment can catch a fill in flight between
+    // them, so the two are asked until they agree, a few seconds at most -- a world that disagrees never agrees
+    let said = '';
+    for (let tries = 0; tries < 10; tries++) {
+      await sleep(3000);
+      said = await ordersAgainstFills();
+      if (said === '') return null;
+    }
+    return said;
+  });
+
+  /** Each order against its fills: '' when every one agrees, else how many do not. */
+  async function ordersAgainstFills(): Promise<string> {
     const [counted] = await rows('trading::Order.all()->project(~[o:x|$x.orderId, q:x|$x.quantity, f:x|$x.filledQuantity,'
       + ' s:x|$x.status, sym:x|$x.instrument.ticker, b:x|$x.book.bookId, t:x|$x.trader.traderId])'
       + '->join(trading::Execution.all()->project(~[eo:x|$x.order.orderId, eq:x|$x.filledQuantity])'
@@ -294,8 +306,8 @@ try {
       + '->groupBy(~[], ~[all:x|$x.o:y|$y->count(), bad:x|if($x.bad, |1, |[]):y|$y->count(),'
       + ' filled:x|if($x.s == \'FILLED\', |1, |[]):y|$y->count()])');
     const [all, bad, filled] = [Number(counted?.[0]), Number(counted?.[1]), Number(counted?.[2])];
-    return all > 0 && bad === 0 ? null : `${bad} of ${all} orders disagree with their fills (${filled} filled)`;
-  });
+    return all > 0 && bad === 0 ? '' : `${bad} of ${all} orders disagree with their fills (${filled} filled)`;
+  }
 
   await check('FX: ten pairs priced, each bid under its ask', async () => {
     const [counted] = await rows('marketdata::FxRate.all()->project(~[p:x|$x.currencyPair, b:x|$x.bidRate, a:x|$x.askRate])'

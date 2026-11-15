@@ -25,6 +25,8 @@ export class CoinbaseFeed {
   readonly messages: CoinbaseMessage[] = [];
   state: 'connecting' | 'live' | 'refused' = 'connecting';
   detail = '';
+  /** the messages skipped: unreadable, or not placed in the world (each counted, the feed read on) */
+  skipped = 0;
   lastMessageMs = 0;
   #socket: WebSocket | null = null;
 
@@ -64,8 +66,9 @@ export class CoinbaseFeed {
         } else if (m.type === 'error') {
           this.refused(`the feed said: ${m.message ?? ''} ${m.reason ?? ''}`);
         }
-      } catch (e) {
-        this.refused(`unreadable: ${String(e)}`);
+      } catch {
+        // a message that is not JSON: skipped and counted, the feed read on (never the feed refused for one)
+        this.skip();
       }
     };
     socket.onerror = () => {
@@ -74,6 +77,11 @@ export class CoinbaseFeed {
     socket.onclose = (event: CloseEvent) => {
       if (this.#socket === socket) this.refused(`closed ${event.code} ${event.reason}`);
     };
+  }
+
+  /** One message skipped (unreadable, or not placed in the world): counted, the feed read on. */
+  skip(): void {
+    this.skipped++;
   }
 
   refused(why: string): void {

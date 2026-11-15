@@ -1,6 +1,6 @@
 // THE TRADING DESK, CHECKED (//datacube:deephaven_desk_test; docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md, the trading
-// desk), in the pinned Chromium. Node only drives: it starts the pinned Deephaven running the market world (a small one,
-// its crypto feed refused so the world simulates it) and serves DataCube's own site with its config.json naming that
+// desk), in the pinned Chromium. Node only drives: it starts the market world behind lite's Kafka door (a small one, its
+// crypto feed refused so the world simulates it) and the pinned Deephaven on the desk's deployment (desk-server.ts) and serves DataCube's own site with its config.json naming that
 // server (demo/deephaven/market/desk-site.mjs). DataCube's page opens on the trading desk (`#example=trading-desk`), as
 // Open…'s Examples open it: its ten tabs, each a screen; on each, every grid shows rows and every chart draws, and the
 // tab ticks (what it shows changes as the market does). Open…'s Examples list the desk first. A screenshot of each tab
@@ -11,24 +11,22 @@ import '../../../tools/browser/pinned-chromium.mjs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
 import { startDeephaven } from '../../demo/deephaven/site.mjs';
+import { startDeskServer } from './desk-server.ts';
 import { serveDesk } from '../../demo/deephaven/market/desk-site.mjs';
 import { TABS, appStatus, checkDeskTabs, shownTiles } from '../../demo/desk-tabs.mjs';
 
 const outputs = process.env.TEST_UNDECLARED_OUTPUTS_DIR ?? process.env.TEST_TMPDIR ?? '.';
-const server = startDeephaven({
-  quiet: true,
-  fixture: 'MARKET_FIXTURE',
-  env: {
-    MARKET_NAMES: '100',
-    MARKET_QUOTES: '2000',
-    MARKET_TRADES: '400',
-    // half an hour of the session before the world starts, on a bounded tape: a stock's chart has a morning to draw
-    MARKET_MORNING: '1800',
-    MARKET_MORNING_PRINTS: '120000',
-    MARKET_FEED: 'coinbase',
-    MARKET_FEED_URL: 'wss://127.0.0.1:9/',
-    MARKET_NEWS: '90',
-  },
+// the world behind the door and the server on the desk's deployment (desk-server.ts)
+const server = await startDeskServer(startDeephaven, {
+  names: 100,
+  quotes: 2000,
+  trades: 400,
+  // half an hour of the session before the world starts, on a bounded tape: a stock's chart has a morning to draw
+  morning: 1800,
+  morningPrints: 120000,
+  feed: 'coinbase',
+  feedUrl: 'wss://127.0.0.1:9/',
+  news: 90,
 });
 const config = await server.next('on starting');
 const site = await serveDesk(config);

@@ -584,6 +584,28 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
   `stress_suites`, `core_tests_integration`, `verify_live_desk_test` and `deephaven_desk_test` green.
 - **Not yet:** a new delivery while the server runs (a drop location watched); the next start reads it.
 
+### 15.5 Step 6, built (2026-11-15): `market.groovy` deleted
+
+- **One path.** No world runs inside the Deephaven server any more. The market world (the TS world, `demo/market-sim/`)
+  publishes every topic behind lite's Kafka door and drops the positions files; the desk's deployment is installed for
+  the pinned server -- its plan beside lite's loader -- and the loader makes all 21 tables from it when the server
+  starts (`demo/deephaven/market/on-deephaven.ts`; for the lanes, `test/deephaven/desk-server.ts`).
+  `bazel run //datacube:deephaven_desk` and the lanes `deephaven_desk_test`, `deephaven_market_test`,
+  `deephaven_feed_test` and `deephaven_door_test` all start the desk's server this way. `market.groovy` and `market.app`
+  are deleted; the fixture `deephaven_market_fixture` is the plain server, its application the install.
+- **What changed to get there:**
+  - The deployment keeps every row of an appended table on Deephaven (`appended: all`), as the bespoke world did (the
+    server kept every trade); the ingests' `retention=` stays the tab's.
+  - The door keeps each topic whole for the session (a keyed one compacted): a topic's retention is its cluster's, not a
+    landing's (§8); it had applied the ingest's landing retention, which cut the tape a server reads from the beginning.
+  - The TS world's crypto feed skips and counts what it cannot read or place, as the Groovy world did (`(n messages
+    skipped)`), never taking one bad message as a refusal; its filings status is true wherever it runs.
+  - The market lane's orders-against-fills check asks again for a few seconds: orders and fills are two topics, read
+    each at its own pace, so a moment can catch a fill in flight between them (the Groovy world wrote both in one
+    update cycle).
+- **Not yet:** the door holds a session's records in the feed's memory (a long show grows it, as the server's own
+  tables grow); a restart of the server re-reads every topic from the door.
+
 ## 16. Upstream, read
 
 Pinned: legend-studio `9775e7283cf2e768293db9982573cecbe8280c4b`, legend-engine

@@ -1,5 +1,5 @@
 // A FAKE COINBASE FEED (//datacube:deephaven_feed_test): a WebSocket server on the loopback, written by hand -- the few
-// frames of RFC 6455 the market world's feed (demo/deephaven/market/market.groovy `CoinbaseFeed`) reads -- that answers
+// frames of RFC 6455 the market world's feed (demo/market-sim/coinbase.ts `CoinbaseFeed`) reads -- that answers
 // its subscription as Coinbase Exchange does, and misbehaves as a feed can: each message in parts, a message no feed
 // sends whole, a price that is not a number, and a socket that goes quiet in the middle of a message.
 

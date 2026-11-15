@@ -3,8 +3,9 @@
 
 // THE FEED (docs/DESK_DATA_ROADMAP_2026_10_29.md B1): the market world behind the door -- the desk model's topics as the
 // planner answers them (the `deephaven` request, op `topics`, for each database whose streams the desk reads), the door
-// holding each as its dataset lands, and the world writing every table a stream reads through it. Deephaven reads the
-// topics with its own Kafka reader; the rows never pass through anything else. Node alone (the door's node:net).
+// holding each for the session (a keyed one compacted), and the world writing every table a stream reads through it.
+// Deephaven reads the topics with its own Kafka reader; the rows never pass through anything else. Node alone (the
+// door's node:net).
 
 import type { MarketSettings } from '../market.ts';
 import { MarketWorld } from '../market.ts';

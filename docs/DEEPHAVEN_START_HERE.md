@@ -333,7 +333,9 @@ its §13). It replaces B2's generated Groovy program with a plan of data and a f
 1: the `Deployment` element, `planner/DeploymentPlanner`, `sql/dialect/DeephavenLoad`,
 `core/src/main/deephaven/legend-loader.groovy`; `DeephavenProgram` and `DeephavenStartup` deleted), B3's pulls and
 decision P with the masters publishing to Kafka, and the ingest words `Stream`, `Pull`, `LatestByKey` with upstream's
-Lakehouse words (its step 0). Read it before working on B2 to B4: its §15 is the order now.
+Lakehouse words (its step 0). Read it before working on B2 to B4: its §15 is the order now. **Built 2026-11-15
+through its step 6:** the deployment (steps 1-2), the masters' topics and the positions files (step 4), and
+`market.groovy` deleted -- every Deephaven lane runs on the world behind the door and the deployment's plan (§15.5).
 
 **docs/DESK_DATA_ROADMAP_2026_10_29.md**: every desk table declared by an ingest and made by the platform; on Deephaven
 a generated startup program fed through our own Kafka door, `market.groovy` deleted; the tab written directly; the desk

@@ -2727,26 +2727,38 @@ browser_test(
     },
 )
 
-# THE MARKET WORLD (docs/DEEPHAVEN_TRADER_DEMOS_2026_10_24.md K2, DH28): the trader screens' Deephaven, its equities
-# simulated and its crypto from a public feed where the server reaches one, simulated where it does not -- bespoke, the
-# server's start-up script (demo/deephaven/market/market.groovy; the plan's ledger, §3). Its own application, so the
-# risk demo's tests never run its clock. `:deephaven_market_test` checks the world with its feed refused.
+# THE DESK'S DEEPHAVEN (docs/DEPLOYMENT_DESIGN_2026_11_14.md step 6): the pinned server, its application the desk's
+# deployment installed beside lite's loader (demo/deephaven/market/on-deephaven.ts writes it; the caller names it with
+# --jvm_flag=-Dembedded.deephaven.application=...). No world runs in it: the market world publishes behind lite's Kafka
+# door (demo/market-sim/door/) and the loader makes every table from the plan. Until 2026-11-15 its application was a
+# bespoke start-up script (market.groovy), deleted.
 legend_java_binary(
     name = "deephaven_market_fixture",
     testonly = True,
     data = [
-        "demo/deephaven/market/market.app",
-        "demo/deephaven/market/market.groovy",
         "@embedded_deephaven//:deephaven",
         "@embedded_deephaven//:deephaven/DEEPHAVEN_ROOT",
     ],
     jvm_flags = [
         "-Dembedded.deephaven.root=$(rlocationpath @embedded_deephaven//:deephaven/DEEPHAVEN_ROOT)",
-        "-Dembedded.deephaven.application=$(rlocationpath demo/deephaven/market/market.app)",
     ],
     main_class = "com.legend.testing.EmbeddedDeephaven",
     runtime_deps = ["//testing"],
 )
+
+# what a test's driver needs to start the desk's Deephaven (test/deephaven/desk-server.ts): the world, the door, the
+# install, the planner in Node, lite's loader
+_DESK_SERVER_DATA = glob([
+    "demo/market-sim/**/*.ts",
+    "demo/deephaven/market/*.ts",
+]) + [
+    "demo/deephaven/install.ts",
+    "test/deephaven/desk-server.ts",
+    ":src",
+    "//core:deephaven_loader",
+    "//engine-client:engine_client",
+    "//pure-protocol:typescript_sources",
+]
 
 executable_of(
     name = "deephaven_market_fixture_executable",
@@ -2779,7 +2791,7 @@ browser_test(
     name = "deephaven_market_test",
     size = "medium",
     tags = ["manual"],
-    data = [
+    data = _DESK_SERVER_DATA + [
         "demo/deephaven/market/environments.mjs",
         "demo/deephaven/market/environments.pure",
         "demo/deephaven/market/market.pure",
@@ -2793,7 +2805,9 @@ browser_test(
         "//wasm:planner",
     ],
     entry_point = "test/deephaven/market.mjs",
+    wasm = True,
     env = {
+        "DESK_LOADER": "$(rlocationpath //core:deephaven_loader)",
         "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
         "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
         "MARKET_PAGE": "$(rlocationpath :deephaven_market_page)",
@@ -2924,7 +2938,7 @@ browser_test(
     name = "deephaven_feed_test",
     size = "medium",
     tags = ["manual"],
-    data = [
+    data = _DESK_SERVER_DATA + [
         "demo/deephaven/market/environments.mjs",
         "demo/deephaven/market/environments.pure",
         "demo/deephaven/market/market.pure",
@@ -2939,7 +2953,9 @@ browser_test(
         "//wasm:planner",
     ],
     entry_point = "test/deephaven/feed.mjs",
+    wasm = True,
     env = {
+        "DESK_LOADER": "$(rlocationpath //core:deephaven_loader)",
         "ENVIRONMENTS_PURE": "$(rlocationpath demo/deephaven/market/environments.pure)",
         "FEED_PAGE": "$(rlocationpath :deephaven_feed_page)",
         "MARKET_FIXTURE": "$(rlocationpath :deephaven_market_fixture_executable)",
@@ -3081,17 +3097,22 @@ _DEEPHAVEN_DESK_ENV = _SITE_ENV | {
 js_binary(
     name = "deephaven_desk",
     testonly = True,
-    data = _DEEPHAVEN_DESK_DATA + [
+    data = _DEEPHAVEN_DESK_DATA + _DESK_SERVER_DATA + [
         "demo/deephaven/market/desk.mjs",
         # its certificate mkcert's, where mkcert is installed (the user, 2026-10-26)
         "demo/deephaven/mkcert.mjs",
         # a node_test has it already
         "//tools/js:runfiles",
+        "//wasm:planner_dir",
     ],
     entry_point = "demo/deephaven/market/desk.mjs",
-    env = _DEEPHAVEN_DESK_ENV,
+    env = _DEEPHAVEN_DESK_ENV | {
+        "DESK_LOADER": "$(rlocationpath //core:deephaven_loader)",
+        "WASM_PLANNER": "$(rlocationpath //wasm:planner_dir)",
+    },
     node_options = [
         "--experimental-strip-types",
+        "--experimental-wasm-exnref",
         "--disable-warning=ExperimentalWarning",
     ],
     tags = ["manual"],
@@ -3104,12 +3125,13 @@ browser_test(
     name = "deephaven_desk_test",
     size = "large",
     tags = ["manual"],
-    data = _DEEPHAVEN_DESK_DATA + [
+    data = _DEEPHAVEN_DESK_DATA + _DESK_SERVER_DATA + [
         "test/deephaven/desk.mjs",
         ":node_modules/playwright",
     ],
     entry_point = "test/deephaven/desk.mjs",
-    env = _DEEPHAVEN_DESK_ENV,
+    env = _DEEPHAVEN_DESK_ENV | {"DESK_LOADER": "$(rlocationpath //core:deephaven_loader)"},
+    wasm = True,
 )
 
 # THE LIVE DUCKDB MEASURED (docs/DUCKDB_LIVE_2026_10_25.md §2, stage A): the measuring page -- the market world in the
