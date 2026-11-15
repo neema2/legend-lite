@@ -102,17 +102,17 @@ public final class PureText {
 
     /** DuckDB, spelled as upstream spells it. */
     public static final class DuckDb extends com.legend.sql.dialect.DuckDb {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -124,17 +124,17 @@ public final class PureText {
 
     /** H2, spelled as upstream spells it. */
     public static final class H2 extends com.legend.sql.dialect.H2 {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -146,17 +146,17 @@ public final class PureText {
 
     /** Postgres, spelled as upstream spells it. */
     public static final class Postgres extends com.legend.sql.dialect.Postgres {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -168,17 +168,17 @@ public final class PureText {
 
     /** Databricks, spelled as upstream spells it. */
     public static final class Databricks extends com.legend.sql.dialect.Databricks {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -190,17 +190,17 @@ public final class PureText {
 
     /** Snowflake, spelled as upstream spells it. */
     public static final class Snowflake extends com.legend.sql.dialect.Snowflake {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -212,17 +212,17 @@ public final class PureText {
 
     /** BigQuery, spelled as upstream spells it. */
     public static final class BigQuery extends com.legend.sql.dialect.BigQuery {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -234,17 +234,17 @@ public final class PureText {
 
     /** SQLite, spelled as upstream spells it. */
     public static final class SQLite extends com.legend.sql.dialect.SQLite {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -256,17 +256,17 @@ public final class PureText {
 
     /** MariaDB, spelled as upstream spells it. */
     public static final class MariaDb extends com.legend.sql.dialect.MariaDb {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -278,17 +278,17 @@ public final class PureText {
 
     /** MySQL, spelled as upstream spells it. */
     public static final class MySql extends com.legend.sql.dialect.MySql {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -300,17 +300,17 @@ public final class PureText {
 
     /** Trino, spelled as upstream spells it. */
     public static final class Trino extends com.legend.sql.dialect.Trino {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -322,17 +322,17 @@ public final class PureText {
 
     /** ClickHouse, spelled as upstream spells it. */
     public static final class ClickHouse extends com.legend.sql.dialect.ClickHouse {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */
@@ -344,17 +344,17 @@ public final class PureText {
 
     /** MongoDB, spelled as upstream spells it. */
     public static final class MongoDb extends com.legend.sql.dialect.MongoDb {
-        /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; D1.2). */
+        /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; D1.2). */
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-            return FloatToPrint.passes();
+            return PurePrintForms.passes();
         }
 
-        /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+        /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
         @Override
         protected com.legend.sql.dialect.SqlWriter floatToText(com.legend.sql.dialect.SqlWriter writer,
                 com.legend.sql.SqlExpr x) {
-            return writer.expr(FloatToPrint.of(x), 0);
+            return writer.expr(PurePrintForms.floatOf(x), 0);
         }
 
         /** legend-pure's sentence of a raise ({@link PureMessages}). */

@@ -2146,6 +2146,7 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_PRINT -> throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case LIST_FILTER, LIST_TRANSFORM, LIST_CONCAT, LIST_GET, LIST_AT, LIST_POSITION, LIST_ZIP, LIST_DISTINCT,
                  LIST_APPEND, LIST_SUM, LIST_MIN, LIST_MAX, LIST_AVG, LIST_MEDIAN, LIST_MODE, LIST_SORT,
@@ -2464,16 +2465,16 @@ public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect 
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached the engine text");
     }
 
-    /** legend-pure's print form of a Float for the product's text of one ({@link FloatToPrint}; phase D's D1.2,
+    /** legend-pure's print forms (a Float's, a DateTime's) for the product's text of each ({@link PurePrintForms}; phase D's D1.2,
      *  2026-11-15). */
     @Override
     protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
-        return FloatToPrint.passes();
+        return PurePrintForms.passes();
     }
 
-    /** legend-pure's print form of a Float ({@link FloatToPrint}; D1.2): a node no pass reached. */
+    /** legend-pure's print form of a Float ({@link PurePrintForms}; D1.2): a node no pass reached. */
     @Override
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        return writer.expr(FloatToPrint.of(x), 0);
+        return writer.expr(PurePrintForms.floatOf(x), 0);
     }
 }

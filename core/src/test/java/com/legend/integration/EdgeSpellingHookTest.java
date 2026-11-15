@@ -141,7 +141,7 @@ class EdgeSpellingHookTest {
     private static final Set<String> D1_1 = Set.of("raiseMessage");
 
     /** D1.1's arm, and D1.2's (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of
-     *  a Float ({@code FLOAT_PRINT}, edge.FloatToPrint) where the product writes its six decimals. */
+     *  a Float ({@code FLOAT_PRINT}, edge.PurePrintForms) where the product writes its six decimals. */
     private static final Set<String> D1_2 = Set.of("raiseMessage", "spellingPasses", "floatToText");
 
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(

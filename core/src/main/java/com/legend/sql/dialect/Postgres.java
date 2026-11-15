@@ -759,11 +759,11 @@ public class Postgres extends AnsiSqlRenderer {
         };
     }
 
+    // the empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
+    // itself, NULL, as DuckDB answers over NULL (Postgres types every array: a reduction over an untyped NULL is
+    // refused, "could not determine polymorphic type", measured); a concatenation is its other lists (listConcat)
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        // the empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
-        // itself, NULL, as DuckDB answers over NULL (Postgres types every array: a reduction over an untyped NULL is
-        // refused, "could not determine polymorphic type", measured); a concatenation is its other lists (listConcat)
         if (emptyCollection(c)) {
             return writer.append("NULL");
         }
@@ -807,6 +807,7 @@ public class Postgres extends AnsiSqlRenderer {
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
             case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_PRINT -> throw expandedFirst(c);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());

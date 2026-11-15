@@ -1762,6 +1762,9 @@ class JavaEvalLedgerTest {
                             "EffectTexts.java", "PureMessages.java",
                             // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
                             "EngineStyleH2.java", "EngineStyleDB2.java", "EngineStyleComposite.java", "PureText.java",
+                            // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,
+                            // 2026-11-15): a node for a node, no value met
+                            "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
                             // the referee's load of a fixture's rows, planned (the edge's appeals, G6)

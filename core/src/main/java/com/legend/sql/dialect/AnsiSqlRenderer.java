@@ -227,6 +227,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         // the compatibility edge's spellings, expanded before every other pass (legend-pure's print form of a Float:
         // phase D's D1.2, 2026-11-15); the product's dialects add none
         ps.addAll(spellingPasses());
+        // a DateTime's texts (phase D's D1.2, 2026-11-15): the product's, a STRFTIME (the edge's spelling passes wrote
+        // legend-pure's node for it first, if any); legend-pure's, the judges' and the edge's, its composition
+        ps.add(new DateTimeText.Expansion());
+        ps.add(new DateTimePrintText.Expansion());
         // a Float's print forms (the judges' %r; the edge's text of a Float), expanded before every other pass unless
         // this dialect spells them itself
         if (!spellsFloatPrint()) {
@@ -1328,6 +1332,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         return writer.expr(FloatPrintText.of(c.args().get(0)), parentPrec);
+    }
+
+    /** A call the base renderer's first passes expand ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
+     *  {@link com.legend.sql.SqlFn#DATETIME_PRINT}: {@link DateTimeText}, {@link DateTimePrintText}): one reaching a
+     *  dialect's arm is a renderer bug, refused by name. */
+    protected static IllegalStateException expandedFirst(SqlExpr.Call c) {
+        return new IllegalStateException("renderer bug: " + c.fn() + " is expanded before any dialect reads it");
     }
 
     /**

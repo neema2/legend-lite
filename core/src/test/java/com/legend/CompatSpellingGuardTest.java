@@ -122,22 +122,29 @@ class CompatSpellingGuardTest {
             "executionplan/ExecutionPlan.java | executionTraceID | 1 | D1.4",
             "executionplan/ExecutionPlan.java | traceComment | 1 | D1.4",
             "lowering/DateFormats.java | +0000 | 1 | STAYS",
-            "lowering/LiteralSpelling.java | +0000 | 8 | D1.2",
+            // 8 -> 7 (2026-11-15, D1.2: dateTimeText's composition moved to sql/dialect/DateTimePrintText, the judges' and
+            // the edge's node DATETIME_PRINT; the product's DateTime text is DATETIME_TO_TEXT, ISO with Z). What stays:
+            // the judges' canon (temporalCanon, dateTimeLiteralAt: D1.9) and the TDS text's (Render's: D1.3)
+            "lowering/LiteralSpelling.java | +0000 | 7 | D1.3",
             "lowering/LiteralSpelling.java | FLOAT_CANON | 1 | JUDGE",
             // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
             // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
             // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge
             // prints a value as the host judge does, judge parity G2) -- the edge writes it for FLOAT_TO_TEXT
-            // (edge/FloatToPrint). LiteralSpelling's row went (it writes FLOAT_TO_TEXT); Repr's added (the judges' arm)
+            // (edge/PurePrintForms). LiteralSpelling's row went (it writes FLOAT_TO_TEXT); Repr's added (the judges' arm)
             "lowering/Lowerer.java | TDS_NULL_CELL | 1 | D1.3",
             "lowering/Lowerer.java | withEngineText | 1 | D1.7",
             "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
             "lowering/Repr.java | Repr | 2 | D1.3",
-            "lowering/Scalars.java | +0000 | 2 | D1.2",
+            // 2 -> 1 (2026-11-15, D1.2: a DateTime literal's text is a node carrying its written text, the edge's +0000).
+            // What stays reads a TDS cell's zone suffix as INPUT (a PCT fixture's +0000 or Z dropped), no spelling
+            // written: D2 reviews it
+            "lowering/Scalars.java | +0000 | 1 | STAYS",
             "lowering/Scalars.java | @_ | 1 | D1.3",
             "lowering/Scalars.java | Repr | 2 | D1.3",
             "lowering/Scalars.java | TDS_NULL_CELL | 2 | D1.3",
-            "lowering/Scalars.java | dateLiteralPrint | 3 | D1.2",
+            // lowering/Scalars.java | dateLiteralPrint: gone 2026-11-15 (D1.2: dateLiteralText, a literal that is no
+            // DateTime; a DateTime literal's text the DATETIME_TO_TEXT node, its written text the edge's)
             "lowering/Scalars.java | signedZeroPad | 2 | D1.3",
             "lowering/VerdictSql.java | Repr | 3 | JUDGE",
             "lowering/VerdictSql.java | TDS_NULL_CELL | 1 | JUDGE",
@@ -209,6 +216,9 @@ class CompatSpellingGuardTest {
             "sql/dialect/FloatCanonText.java | FLOAT_CANON | 1 | JUDGE",
             // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
             // engine's list once more to derive H2's own keywords; the same D1.5 move takes it)
+            // 2026-11-15 (D1.2): legend-pure's DateTime text, moved here from lowering/LiteralSpelling (dateTimeText) as the
+            // node DATETIME_PRINT the judges' %r and canon read, and the edge writes for DATETIME_TO_TEXT; D1.9 moves it
+            "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
             "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/H2.java | ENGINE_LEXICON | 3 | D1.5",
             "sql/dialect/H2.java | FLOAT_CANON | 1 | JUDGE",

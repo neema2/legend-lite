@@ -256,10 +256,12 @@ class PostgresDialectTest {
                 "#>{pg::DB.trades}#->pivot(~[ok], ~[t: r|$r.qty : y|$y->sum()])").plan("pg::RT");
         assertTrue(pivot.plan().root() instanceof com.legend.executionplan.ExecutionPlan.Keyed, pivot.sql());
         assertFalse(pivot.textAlone(), pivot.sql());
-        // a DateTime's text (the one owner, 2026-10-18): the fraction read at nine digits -- to_char's US, six, and
-        // three written zeros -- and trimmed of its trailing zeros by the database
+        // a DateTime's text, the product's (D1.2, 2026-11-15; the user's ruling of 2026-11-10): to_char's six fraction
+        // digits and Z, one call (legend-pure's trimmed form, to_char's US and three written zeros, is the edge's and
+        // the judges')
         String toString = plan("->extend(~[s: r|$r.ts->toOne()->toString()])->select(~[id, s])");
-        assertTrue(toString.contains("rtrim(to_char(") && toString.contains("'US\"000\"'), '0')"), toString);
+        assertTrue(toString.contains("to_char(\"t0\".ts, 'YYYY\"-\"MM\"-\"DD\"T\"HH24\":\"MI\":\"SS\".\"US\"Z\"')"),
+                toString);
     }
 
     @Test

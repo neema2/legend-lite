@@ -601,19 +601,9 @@ public final class LiteralSpelling {
      * typer knows them. The fraction is read at nine digits, which every SQL dialect spells.
      */
     public static SqlExpr dateTimeText(SqlExpr x) {
-        SqlExpr digits = SqlExpr.Call.of(SqlFn.RTRIM,
-                SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                        new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO))),
-                new SqlExpr.StringLit("0"));
-        SqlExpr fraction = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, digits, new SqlExpr.StringLit("")), new SqlExpr.StringLit(""))),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), digits));
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
-                        fraction),
-                new SqlExpr.StringLit("+0000"));
+        // phase D's D1.2 (2026-11-15): legend-pure's form is a node, the judges' and the edge's, its composition the
+        // renderer's (dialect.DateTimePrintText, moved there unchanged); the product's own text is DATETIME_TO_TEXT
+        return SqlExpr.Call.of(SqlFn.DATETIME_PRINT, x);
     }
 
     /**

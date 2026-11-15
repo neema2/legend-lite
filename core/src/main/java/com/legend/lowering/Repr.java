@@ -79,7 +79,7 @@ final class Repr {
      * form; strings quote with backslash-escapes. */
     static SqlExpr of(@com.legend.base.Nullable TypedSpec typed, SqlExpr e) {
         if (typed != null) {
-            SqlExpr dp = Scalars.datePrintOf(typed, e);
+            SqlExpr dp = Scalars.dateReprOf(typed, e);
             if (dp != null) {
                 return Scalars.cat(new SqlExpr.StringLit("%"), dp);
             }

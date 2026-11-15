@@ -19,7 +19,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  * A FLOAT'S TEXT ON THE PRODUCT ROAD (phase D's D1.2, 2026-11-15; register S311, the user's ruling of 2026-11-10: "let's
  * go back to 6 ... and use decimal where need"): {@code toString} of a Float is six decimals with the trailing zeros and
  * a trailing point trimmed, the same text on each lane's database (DuckDB, H2, SQLite) -- a column's value and a
- * computed one. legend-pure's print form is the compatibility edge's ({@code edge.FloatToPrint}), pinned beside it.
+ * computed one. legend-pure's print form is the compatibility edge's ({@code edge.PurePrintForms}), pinned beside it.
  */
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
 class FloatTextTest {

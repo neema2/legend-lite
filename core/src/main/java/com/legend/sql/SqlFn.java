@@ -138,8 +138,20 @@ public enum SqlFn {
     /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
      *  zeros and a trailing point trimmed, NaN and the infinities by name (the user's ruling of 2026-11-10, D_BRIEF
      *  §1; phase D's D1.2, 2026-11-15) -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
-     *  compatibility edge writes {@link #FLOAT_PRINT} for it, legend-pure's print form (edge/FloatToPrint). */
+     *  compatibility edge writes {@link #FLOAT_PRINT} for it, legend-pure's print form (edge/PurePrintForms). */
     FLOAT_TO_TEXT,
+    /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
+     *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
+     *  base renderer expands it to ({@code dialect.DateTimeText}). A literal's call carries, second, the text the
+     *  literal was written in -- the compatibility edge's (legend-pure prints a literal at its written precision); the
+     *  product reads the value alone. The compatibility edge writes {@link #DATETIME_PRINT} for it. */
+    DATETIME_TO_TEXT,
+    /** A DateTime's text as legend-pure prints it: the fraction's digits with their trailing zeros trimmed, then
+     *  {@code +0000}; a literal's (a second operand, its written text) that text and {@code +0000}. The JUDGES' form
+     *  (their {@code %r} and canon, judge parity G2) and the compatibility edge's text of {@link #DATETIME_TO_TEXT};
+     *  never the product's (phase D's D1.2, 2026-11-15: until then the lowering composed it in place,
+     *  LiteralSpelling.dateTimeText). Expanded before every other pass ({@code dialect.DateTimePrintText}). */
+    DATETIME_PRINT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */
