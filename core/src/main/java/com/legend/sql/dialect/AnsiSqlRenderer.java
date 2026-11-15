@@ -771,9 +771,8 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                     java.util.List.of(new SqlExpr.Case.When(
                             SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NULL,
                                     co.list()),
-                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
-                                    com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                                    java.util.List.of(new SqlExpr.StringLit(bound)))))),
+                            SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                                    com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, bound)))),
                     co.list()), parentPrec);
         }
         SqlExpr len = SqlExpr.Call.of(com.legend.sql.SqlFn.LIST_LENGTH,
@@ -1106,8 +1105,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
             // the kind's text as data in an answer (a checked graph's defect): the product's words, worded at planning
             return new SqlExpr.StringLit(r.asData());
         }
+        // the kind behind its mark, then its where (a fixed text known at planning): a user's text is never a kind
         return r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? r.operands().get(0)
-                : new SqlExpr.StringLit(r.kind().name());
+                : new SqlExpr.StringLit(com.legend.sql.RaiseKind.MARK + r.kind().name()
+                        + (r.where() == null ? "" : com.legend.sql.RaiseKind.MARK + r.where()));
     }
 
     /**
@@ -1889,10 +1890,11 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         int past = 9 - kept;
         String kind = declared == com.legend.sql.DeclaredKind.DATE ? "Date" : "DateTime";
         // FRACTION_NOT_KEPT: lite's own sentence the operand, written by the edge alone (D1.1)
-        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
-                com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, List.of(new SqlExpr.StringLit("the " + kind
+        // its where the parameter's name and the digits this database keeps: planning text (the D part 1 audit's S4)
+        SqlExpr raise = SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, "the " + kind
                 + " parameter '" + p.name() + "' has more fraction digits than " + getClass().getSimpleName()
-                + " keeps (" + kept + "): refused, never cut (S181)"))));
+                + " keeps (" + kept + "): refused, never cut (S181)"));
         java.util.function.UnaryOperator<SqlWriter> value = w -> w.append("CAST(").bind(textBind(p, asText))
                 .append(" AS " + text + ")");
         java.util.function.UnaryOperator<SqlWriter> length = w -> value.apply(w.append("LENGTH(")).append(")");
@@ -2290,9 +2292,9 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected String csvRecordCheck(int width) {
         SqlExpr check = new SqlExpr.Case(List.of(new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.IS_NOT_NULL,
                 SqlExpr.Column.of(null, new com.legend.sql.OutputCol("C" + width, com.legend.sql.SqlType.Scalar.VARCHAR,
-                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
-                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, List.of(new SqlExpr.StringLit("a record of the CSV"
-                + " file has more cells than its table's " + width + " column(s)")))))), new SqlExpr.BoolLit(true));
+                        true))), SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                                com.legend.sql.RaiseKind.CSV_TOO_WIDE, "a record of the CSV"
+                + " file has more cells than its table's " + width + " column(s)")))), new SqlExpr.BoolLit(true));
         SqlWriter where = newWriter().expr(check, 0);
         if (where.bound() != 0) {
             throw new IllegalStateException("a CSV load's record check binds no value");

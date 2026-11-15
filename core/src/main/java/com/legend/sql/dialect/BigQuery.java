@@ -2340,7 +2340,9 @@ public class BigQuery extends AnsiSqlRenderer {
     /** A map's raise of {@code kind}, inside the platform's envelope (phase D's D1.1; until then these three raised a
      *  bare ERROR('...') outside it, which exec could not tell for a raise: the brief's defect). */
     private SqlWriter.Piece mapRaise(com.legend.sql.RaiseKind kind) {
-        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of())), "ERROR");
+        // its where the map's construction, a fixed text (the D part 1 audit's S4, 2026-11-15)
+        return w -> raiseEnvelope(w, raiseArgs(new SqlExpr.RaiseText(kind, List.of(), null,
+                "a map built from its key and value lists")), "ERROR");
     }
 
     /** A map cast to another map's key and value types, entry by entry; the empty map {@code MAP_EMPTY} typed. */

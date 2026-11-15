@@ -218,10 +218,11 @@ final class CastPolicy {
         if (contract) {
             return null;
         }
-        // the two types' names, the edge's sentence's operands (D1.1)
+        // the two types' names, the edge's sentence's operands (D1.1), and the product's where: planning text (the D
+        // part 1 audit's S4, 2026-11-15)
         return SqlExpr.Call.of(com.legend.sql.SqlFn.ERROR, new SqlExpr.RaiseText(
                 com.legend.sql.RaiseKind.CAST_IMPOSSIBLE, java.util.List.of(new SqlExpr.StringLit(src.typeName()),
-                        new SqlExpr.StringLit(target.typeName()))));
+                        new SqlExpr.StringLit(target.typeName())), null, src.typeName() + " to " + target.typeName()));
     }
 
     private static Type.Primitive.@com.legend.base.Nullable Family familyOf(Type t) {

@@ -2046,7 +2046,7 @@ public class ClickHouse extends AnsiSqlRenderer {
 
     /** A raise of {@code kind} whose sentence, lite's own, the edge writes ({@code message}, D1.1). */
     private static SqlExpr.Call raised(com.legend.sql.RaiseKind kind, String message) {
-        return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(kind, List.of(new SqlExpr.StringLit(message))));
+        return SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(kind, message));
     }
 
     /** Whether {@code date} moved by {@code n} of {@code unit} leaves ClickHouse's dates, 1900-01-01 to the last

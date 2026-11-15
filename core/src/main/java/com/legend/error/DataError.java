@@ -30,7 +30,14 @@ public final class DataError extends RuntimeException {
     /** A product raise of {@code kind}: its message the kind's sentence, spelled here, the error layer's
      *  ({@link ErrorKind#sentence}). */
     public DataError(ErrorKind kind, Throwable cause) {
-        super(kind.sentence(), cause);
+        this(kind, null, cause);
+    }
+
+    /** A product raise of {@code kind} placed by {@code where}, a fixed text known at planning (a parameter's name, the
+     *  digits a database keeps): its message the kind's sentence, then the where (the D part 1 audit's S4,
+     *  2026-11-15: the user's "its kind and where it happened"). */
+    public DataError(ErrorKind kind, @com.legend.base.Nullable String where, Throwable cause) {
+        super(where == null ? kind.sentence() : kind.sentence() + ": " + where, cause);
         this.kind = kind;
     }
 

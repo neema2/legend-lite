@@ -270,7 +270,7 @@ public sealed interface SqlExpr
             case FormatLit ignored -> this;
             case DatePartLit ignored -> this;
             case JsonKindLit ignored -> this;
-            case RaiseText r -> new RaiseText(r.kind(), cs, r.asData());
+            case RaiseText r -> new RaiseText(r.kind(), cs, r.asData(), r.where());
             case TypeNameLit ignored -> this;
             case PlanParam ignored -> this;
             case KeyCell ignored -> this;
@@ -1165,18 +1165,31 @@ public sealed interface SqlExpr
      * operand, the user's own message, is the product's to write. The message argument of {@code Call(ERROR, ...)}.
      * {@code asData}: where the kind's text is DATA in an answer rather than raised -- a checked graph's defect row --
      * the product's words for it, a fixed text known at planning (the error layer's {@code ErrorKind} sentence and
-     * where, worded by the lowering: the D part 1 audit's S3, 2026-11-15); null for a raise, which exec words. Its
+     * where, worded by the lowering: the D part 1 audit's S3, 2026-11-15); null for a raise, which exec words.
+     * {@code where}: the fixed text placing the raise ({@link #placed}), or null. Its
      * type is a text's (its record field went that day: the audit's nit, a type the constructor discarded).
      */
-    record RaiseText(RaiseKind kind, List<SqlExpr> operands, @com.legend.base.Nullable String asData)
-            implements SqlExpr {
+    record RaiseText(RaiseKind kind, List<SqlExpr> operands, @com.legend.base.Nullable String asData,
+            @com.legend.base.Nullable String where) implements SqlExpr {
         public RaiseText {
             java.util.Objects.requireNonNull(kind, "a raise's kind");
             operands = List.copyOf(operands);
         }
 
         public RaiseText(RaiseKind kind, List<SqlExpr> operands) {
-            this(kind, operands, null);
+            this(kind, operands, null, null);
+        }
+
+        public RaiseText(RaiseKind kind, List<SqlExpr> operands, @com.legend.base.Nullable String asData) {
+            this(kind, operands, asData, null);
+        }
+
+        /** A raise of {@code kind} placed by {@code where}, a fixed text composed at planning -- a parameter's name, the
+         *  digits a database keeps, a table's width; never a value (the D part 1 audit's S4, 2026-11-15: the user's
+         *  ruling, "its kind and where it happened in the query, a fixed text known at planning"). The product writes
+         *  it after the kind; the edge reads it as the one operand, as before. */
+        public static RaiseText placed(RaiseKind kind, String where) {
+            return new RaiseText(kind, List.of(new StringLit(where)), null, where);
         }
 
         @Override

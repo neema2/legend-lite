@@ -91,7 +91,7 @@ class RaiseTextTest {
     void aRaisesMessageIsOnlyItsKindAndOperands() {
         // its kind, its operands, and its product words where it is data, a fixed text worded at planning -- never a
         // value (the D part 1 audit's S3 and its nit, 2026-11-15: the type the constructor discarded went)
-        assertEquals(List.of("kind", "operands", "asData"), Arrays.stream(SqlExpr.RaiseText.class.getRecordComponents())
+        assertEquals(List.of("kind", "operands", "asData", "where"), Arrays.stream(SqlExpr.RaiseText.class.getRecordComponents())
                 .map(java.lang.reflect.RecordComponent::getName).toList());
     }
 

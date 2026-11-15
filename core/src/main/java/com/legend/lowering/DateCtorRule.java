@@ -165,7 +165,8 @@ final class DateCtorRule {
                 new SqlExpr.RaiseText(com.legend.sql.RaiseKind.FRACTION_NOT_KEPT, List.of(
                         new SqlExpr.StringLit("the second "), second, new SqlExpr.StringLit(" has more than "
                                 + CARRIED_DIGITS + " fraction digits, which a date()'s fractional second keeps: refused,"
-                                + " never cut (S181)"))),
+                                + " never cut (S181)")), null, "a date()'s second keeps " + CARRIED_DIGITS
+                        + " fraction digits"),
                 second, n.pos());
     }
 

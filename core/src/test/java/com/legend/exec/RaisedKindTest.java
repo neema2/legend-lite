@@ -25,15 +25,28 @@ class RaisedKindTest {
     @Test
     void aProductRaiseIsItsKind() {
         var r = assertInstanceOf(RaisedErrors.Positioned.class,
-                RaisedErrors.unwrapped(failure("3:7" + RaisedErrors.POSITION_SEP + "DIVIDE_BY_ZERO")));
+                RaisedErrors.unwrapped(failure("3:7" + RaisedErrors.POSITION_SEP + RaiseKind.MARK + "DIVIDE_BY_ZERO")));
         assertEquals(RaiseKind.DIVIDE_BY_ZERO, r.kind());
         assertEquals(3, r.line());
         assertEquals(7, r.column());
-        var error = RaisedErrors.dataError(failure("INDEX_OUT_OF_BOUNDS"));
+        var error = RaisedErrors.dataError(failure(RaiseKind.MARK + "INDEX_OUT_OF_BOUNDS"));
         assertEquals(ErrorKind.INDEX_OUT_OF_BOUNDS, error.kind());
         assertEquals("index out of bounds", error.getMessage());
-        assertEquals(ErrorKind.DIVIDE_BY_ZERO, RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + "DIVIDE_BY_ZERO"
-                + RaisedErrors.SENTINEL, new RuntimeException()).kind());
+        assertEquals(ErrorKind.DIVIDE_BY_ZERO, RaisedErrors.dataError("x" + RaisedErrors.SENTINEL + RaiseKind.MARK
+                + "DIVIDE_BY_ZERO" + RaisedErrors.SENTINEL, new RuntimeException()).kind());
+    }
+
+    /** A product raise's where, a fixed text known at planning, follows its kind's sentence (the D part 1 audit's S4,
+     *  2026-11-15); a user's fail text spelled as a kind's name is the user's text, never that kind (its nit). */
+    @Test
+    void aRaisesWhereIsWorded_andAUsersTextIsNeverAKind() {
+        var placed = RaisedErrors.dataError(failure(RaiseKind.MARK + "FRACTION_NOT_KEPT" + RaiseKind.MARK
+                + "the DateTime parameter 't'"));
+        assertEquals(ErrorKind.FRACTION_NOT_KEPT, placed.kind());
+        assertEquals("more fraction digits than this database keeps: the DateTime parameter 't'", placed.getMessage());
+        var users = RaisedErrors.dataError(failure("DIVIDE_BY_ZERO"));
+        assertEquals(null, users.kind());
+        assertEquals("DIVIDE_BY_ZERO", users.getMessage());
     }
 
     @Test

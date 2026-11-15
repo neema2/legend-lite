@@ -71,18 +71,31 @@ public final class RaisedErrors {
     }
 
     /**
-     * The kind a product raise names (phase D's D1.1): its text IS a {@link com.legend.sql.RaiseKind}'s name, the
-     * product's dialects writing nothing else ({@code AnsiSqlRenderer.raiseMessage}); null for any other text -- the
-     * edge's sentence, a user's {@code fail} message. A user's message spelled exactly as a kind's name reads as that
-     * kind (a named limit: the envelope carries the text alone).
+     * The kind a product raise names (phase D's D1.1): its text opens with {@link com.legend.sql.RaiseKind#MARK} and a
+     * {@link com.legend.sql.RaiseKind}'s name, its where after a second mark ({@code AnsiSqlRenderer.raiseMessage});
+     * null for any other text -- the edge's sentence, a user's {@code fail} message, which no mark opens (the D part 1
+     * audit's nit, 2026-11-15: until then a user's message spelled as a kind's name read as that kind).
      */
     static com.legend.sql.@com.legend.base.Nullable RaiseKind kindOf(String text) {
+        if (text.isEmpty() || text.charAt(0) != com.legend.sql.RaiseKind.MARK) {
+            return null;
+        }
+        int end = text.indexOf(com.legend.sql.RaiseKind.MARK, 1);
+        String name = text.substring(1, end < 0 ? text.length() : end);
         for (com.legend.sql.RaiseKind k : com.legend.sql.RaiseKind.values()) {
-            if (k.name().equals(text)) {
+            if (k.name().equals(name)) {
                 return k;
             }
         }
         return null;
+    }
+
+    /** The where of a product raise's text, a fixed text known at planning, after its kind's ({@link #kindOf}); null
+     *  where none was written. */
+    static @com.legend.base.Nullable String whereOf(String text) {
+        int end = text.isEmpty() || text.charAt(0) != com.legend.sql.RaiseKind.MARK ? -1
+                : text.indexOf(com.legend.sql.RaiseKind.MARK, 1);
+        return end < 0 ? null : text.substring(end + 1);
     }
 
 
@@ -92,9 +105,17 @@ public final class RaisedErrors {
     public static class Raised extends java.sql.SQLException {
         private final com.legend.sql.@com.legend.base.Nullable RaiseKind kind;
 
+        private final @com.legend.base.Nullable String where;
+
         Raised(String message, @com.legend.base.Nullable String sqlState, java.sql.SQLException cause) {
             super(message, sqlState, cause);
             this.kind = kindOf(message);
+            this.where = kind == null ? null : whereOf(message);
+        }
+
+        /** Where the product raise happened, a fixed text known at planning; null where none was written. */
+        public @com.legend.base.Nullable String where() {
+            return where;
         }
 
         /** The kind a product raise names ({@link #kindOf}); null for the edge's sentence or a user's message. */
@@ -186,7 +207,8 @@ public final class RaisedErrors {
     public static com.legend.error.DataError dataError(String message, Throwable cause) {
         String text = unwrap(message);
         com.legend.sql.RaiseKind kind = text == null ? null : kindOf(text);
-        return kind != null ? new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(kind.name()), cause)
+        return kind != null && text != null ? new com.legend.error.DataError(
+                        com.legend.error.ErrorKind.valueOf(kind.name()), whereOf(text), cause)
                 : new com.legend.error.DataError(text == null ? String.valueOf(message) : text, cause);
     }
 
@@ -194,7 +216,7 @@ public final class RaisedErrors {
      *  {@code error.ErrorKind}; phase D's D1.1), any other failure by its text. */
     static com.legend.error.DataError dataErrorOf(java.sql.SQLException un) {
         if (un instanceof Raised r && r.kind() != null) {
-            return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(r.kind().name()), un);
+            return new com.legend.error.DataError(com.legend.error.ErrorKind.valueOf(r.kind().name()), r.where(), un);
         }
         return new com.legend.error.DataError(String.valueOf(un.getMessage()), un);
     }

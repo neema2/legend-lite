@@ -34,7 +34,8 @@ class RaiseTextGuardTest {
     /** A raise built: an ERROR call's message, a dialect helper's raise of a list, MongoDB's raise of a text. */
     static final Pattern RAISE = Pattern.compile(
             "(?:Call\\.of|new\\s+(?:SqlExpr\\.)?Call)\\(\\s*(?:com\\.legend\\.sql\\.)?SqlFn\\.ERROR\\s*,\\s*+"
-            + "(?!new\\s+(?:SqlExpr\\.)?RaiseText\\b)"
+            // a RaiseText made new, or placed by its where (RaiseText.placed: the D part 1 audit's S4, 2026-11-15)
+            + "(?!new\\s+(?:SqlExpr\\.)?RaiseText\\b|(?:SqlExpr\\.)?RaiseText\\.placed\\()"
             + "|\\braise(?:Envelope)?\\((?:\\w+,\\s*)?List\\.of\\("
             + "|\\braiseText\\(\"");
 
@@ -79,6 +80,7 @@ class RaiseTextGuardTest {
                 SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(RaiseKind.DIVIDE_BY_ZERO, List.of()));
                 """));
         assertTrue(count("SqlExpr.Call.of(SqlFn.ERROR,\n        new RaiseText(k, ops))") == 0);
+        assertTrue(count("SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(k, \"a where\"))") == 0);
     }
 
     /** {@code source}'s raises of free text, its comments dropped. */

@@ -62,9 +62,8 @@ final class Coercions {
                         .multiplicity().requireBounded("toOne operand");
                 // STATICALLY empty ([] literal): pure raises — size 0
                 if (m.upper() != null && m.upper() == 0) {
-                    return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
-                            com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                            List.of(new SqlExpr.StringLit("[1]"))));
+                    return SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                            com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1]"));
                 }
                 // VALUE-LANE collections raise pure's size error in the
                 // database. Lane from the TYPED OPERAND (CollectionLanes
@@ -132,9 +131,8 @@ final class Coercions {
                 Multiplicity.Bounded m = n.args().get(0).info()
                         .multiplicity().requireBounded("toOneMany operand");
                 if (m.upper() != null && m.upper() == 0) {
-                    return SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
-                            com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                            List.of(new SqlExpr.StringLit("[1..*]"))));
+                    return SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                            com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1..*]"));
                 }
                 // TYPED-operand lane — exactly as toOne above
                 if (m.isMany() && CollectionLanes.valueLane(n.args().get(0))

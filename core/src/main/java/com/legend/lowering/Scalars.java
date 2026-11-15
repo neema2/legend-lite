@@ -2072,9 +2072,8 @@ final class Scalars {
                             SqlExpr.Call.of(SqlFn.NOT_EQUAL,
                                     SqlExpr.Call.of(SqlFn.LIST_LENGTH, xs),
                                     SqlExpr.Call.of(SqlFn.LIST_LENGTH, ys)),
-                            SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(
-                                    com.legend.sql.RaiseKind.LIST_LENGTHS_DIFFER,
-                                    List.of(new SqlExpr.StringLit(String.valueOf(e.getKey()))))))),
+                            SqlExpr.Call.of(SqlFn.ERROR, SqlExpr.RaiseText.placed(
+                                    com.legend.sql.RaiseKind.LIST_LENGTHS_DIFFER, String.valueOf(e.getKey()))))),
                             new SqlExpr.ScalarSubquery(outer));
                 });
             }

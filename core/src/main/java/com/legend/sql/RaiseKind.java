@@ -38,5 +38,10 @@ public enum RaiseKind {
      *  2026-11-14). */
     WINDOW_FRAME_OFFSET_INVALID,
     /** {@code fail(message)}: the user's own message, the one operand the product writes. */
-    USER_FAIL
+    USER_FAIL;
+
+    /** U+001C (file separator): the mark a product raise's text opens with, before its kind's name -- and again before
+     *  its where, a fixed text known at planning -- so a user's {@code fail} text spelled as a kind's name is never read
+     *  as that kind (the D part 1 audit's nit and S4, 2026-11-15). exec reads it ({@code exec.RaisedErrors}). */
+    public static final char MARK = '\u001c';
 }
