@@ -146,6 +146,38 @@ With `Snapshot`, keys that vanish from a pull vanish: what decision P's runner w
 persistence component's open batch id. The read database declares a filter per keyed table and each keyed class
 mapping uses it (`~filter`): the latest rows on every target, every version on the history tier by leaving it out.
 
+**How a keyed dataset lands, on each tier** (ruled 2026-11-15, the user: "Agreed, record it in the design"). History
+keeps upstream's batch milestoning exactly, as legend-engine's persistence component plans it (`UnitemporalDeltaPlanner`,
+`05a3d33c`): a version is closed by `batch_id_out = {TABLE_BATCH_ID} - 1` when a staged row of its key has another
+digest or is marked deleted; a new version is inserted only where no open version of its key has the same digest and
+the row is not marked deleted; a delete closes and inserts nothing; a snapshot closes every open key it does not hold.
+A live engine keeps only the open versions, so it lands for speed (the user: "I would optimize for speed instead of
+space for live/streaming and maybe for space on historical"): what upstream closes it replaces or removes. Both tiers
+hold the same current rows -- every `LAKE_OUT_ID = 999999999` row live is the open version history holds for its key
+-- which a test proves by landing the same deliveries on both and comparing them.
+
+| | Live (`keep: current`) | History (`keep: versions`) |
+|---|---|---|
+| An update | the key's row replaced | its open version closed at batch - 1, the new one inserted |
+| A delete | the row removed | its open version closed at batch - 1, nothing inserted |
+| An unchanged row | replaced, no comparison | a new version by default; skipped by the digest as the target's option (upstream's space saving) |
+| A snapshot | the whole table replaced | every open row closed, the whole snapshot inserted as a new batch at 999999999; upstream's diff (close only what changed) as an option |
+| `LAKE_IN_ID` | the record's partition-prefixed offset (`partition × 10^12 + offset`; the tab: its landing counter) | a per-table counter of landed micro-batches; a batch-metadata table holds each batch's time and the partition/offset range it covered (as-of reads; exactly-once replay) |
+| `LAKE_OUT_ID` | always 999999999 | 999999999 while open, else the closing batch - 1 |
+| `LAKE_DIGEST` | computed, never compared | MD5 of a canonical text of every own column in declared order, a fixed null marker and separator, each type written alike on every engine (a conformance test digests a battery of values on each); compared when the option is on |
+
+The rulings behind it, 2026-11-15: a version closes at batch - 1, as upstream ("1 confirmed"); an unchanged row is no
+new version, as upstream, on history ("2 confirmed"); a live engine deletes for real ("maybe milestoning on live engine
+should actually be real delete? For speed and space"); a stream's batch -- the user's ideas, a partition prefix and an
+offset or a timestamp -- is the partition-prefixed offset live and a micro-batch counter with its time and offsets
+in history; the digest is "something fast like md5 and all columns and nulls normalized to match across engines",
+and the space savings optional, history's alone ("I would actually not implement any space optimization in
+live/stream implementation or at least make it all optional"); a snapshot makes the active rows the latest snapshot,
+history by closing every open row and inserting all ("the speed optimization is to simply soft delete all current
+active rows and simply insert all new records with new batch and 99999999"); delete values compared as text and
+business temporal refused ("7, 8 okay"). What step 0 built is the live column; the history column is the history
+tier's, after the filter fix.
+
 **What stays lite's** (S402 shrinks to these): a function source may read stores, not only datasets; a pull's
 schedule; a delivered ingest's records on a topic, not only as files; the deployment (§8).
 
@@ -358,6 +390,12 @@ publish themselves"):
 - The history tier's connection at the history step.
 - `Simulated` as the tab's source, `TabLog` dropped.
 - No sandbox stage now.
+- How a keyed dataset lands on each tier, the table in §5: history upstream's batch milestoning exactly (a version
+  closed at batch - 1, an unchanged row no new version, a delete a close), a live engine replacing and removing for
+  speed; a stream's batch the partition-prefixed offset live and a micro-batch counter with a metadata table in
+  history; the digest an MD5 of a canonical text, compared only on history, as its option; a snapshot replacing the
+  live table and, in history, closing every open row and inserting all (upstream's diff an option); delete values
+  compared as text; business temporal refused ("Agreed, record it in the design").
 - Standing from before: "if DeepHaven cannot do something refuse and keep going" (2026-11-14); "door for sure, no need
   for tansu just use door" (2026-10-29); no push to main and no PR without the user's word.
 
@@ -934,3 +972,7 @@ So a later session does not walk them again:
 14. **`LatestByKey` onto `batch_milestoned`:** first mapped as a rename, then found to add milestoning columns to
     every reader, then (the user: "there is a deterministic way to get latest which is lake out = 99999999") read
     through an ordinary filter on the open batch id, 999999999 (§5, §13).
+15. **A delete:** step 0 removed a deleted key's row; the user: "Delete should never delete/remove rows for batch
+    milestone - it should soft delete by updating the lake out". Upstream's persistence component read: a close at
+    batch - 1, the digest deciding a new version. Then, for speed: a live engine replaces and removes, history closes
+    and keeps, both holding the same current rows (§5's table).
