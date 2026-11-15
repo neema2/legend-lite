@@ -353,10 +353,11 @@ final class StoreSubstitutionRewrite {
      * trio): a mapping spelling {@code [db]} under
      * {@code import a::b::*} means {@code a::b::db} — global
      * unique-simple-name resolution silently picks a SAME-NAMED shared
-     * store instead (the corpus's {@code tests::db}). Unqualified refs
-     * whose scope-qualified candidate is a REGISTERED database rewrite to
-     * the FQN; everything else is untouched (the lenient simple-name
-     * fallback still serves scope-less models).
+     * store instead (the corpus's {@code tests::db}). An unqualified ref
+     * whose scope-qualified candidate is a REGISTERED database is refused
+     * (step D qualifies a mapping's store refs; since 2026-11-14 that is the
+     * model's error, no longer a rewrite to the FQN, as no text
+     * reached it); everything else is untouched.
      */
     static LegacyMappingDefinition qualifyStoreRefs(LegacyMappingDefinition md,
             com.legend.compiler.ModelBuilder model) {
@@ -366,7 +367,6 @@ final class StoreSubstitutionRewrite {
         }
         java.util.Set<String> raws = new java.util.LinkedHashSet<>();
         collectDatabases(md, raws);
-        Map<String, String> q = new java.util.LinkedHashMap<>();
         for (String r : raws) {
             if (r == null || r.contains("::") || model.hasDatabaseExact(r)) {
                 continue;
@@ -384,21 +384,21 @@ final class StoreSubstitutionRewrite {
                 String cand = w + "::" + r;
                 if (model.hasDatabaseExact(cand)) {
                     if (!cand.equals(current)) {
-                        q.put(r, cand);
+                        // a store spelling step D left unqualified that an import of the mapping's section names: the
+                        // model's error, in the words of the store lookups beside this one (XStore's, ModelJoin's).
+                        // Until 2026-11-14 this rewrote the spelling to the import's database, a Phase-D fallback no
+                        // text reached -- 0 rewrites over the 74,292 front-oracle asks and the slice's cases, strict
+                        // and tolerant (the normalizer slice's measuring run; invariant 4)
+                        throw new com.legend.error.ModelException(
+                                com.legend.error.LegendCompileException.Phase.NORMALIZE,
+                                "Mapping references unknown database '" + r + "' (name resolution left it"
+                                        + " unqualified; the import '" + w + "::*' names '" + cand + "'); mapping="
+                                        + md.qualifiedName());
                     }
                     break;
                 }
             }
         }
-        if (q.isEmpty()) {
-            return md;
-        }
-        LegacyMappingDefinition out = md.withClassMappings(
-                md.classMappings().stream().map(cm -> applyWith(cm, q)).toList());
-        return new LegacyMappingDefinition(out.qualifiedName(), out.includes(),
-                out.classMappings(),
-                out.associationMappings().stream()
-                        .map(am -> applyAssoc(am, q)).toList(),
-                out.enumerationMappings());
+        return md;
     }
 }

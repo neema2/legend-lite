@@ -435,10 +435,16 @@ public final class MappingNormalizer {
             }
             if (fn != null) {
                 lifted.add(fn);
+                // the binding is keyed by the association synthesis found; an association it did not find is the
+                // model's error, in MappingClosures' words for the same lookup. Until 2026-11-14 the raw spelling
+                // (`.orElse(am.associationName())`), a Phase-D fallback no text reached -- 0 of the 74,292 front-oracle
+                // asks and the slice's cases, strict and tolerant (the normalizer slice's measuring run)
                 assocBindings.add(new MappingDefinition.AssociationBinding(
                         AssociationSynthesis.resolveAssociation(model, md, am)
                                 .map(a -> a.qualifiedName())
-                                .orElse(am.associationName()), fn.qualifiedName()));
+                                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.MAPPING,
+                                        "Can't find association '" + am.associationName() + "'")),
+                        fn.qualifiedName()));
             }
         }
         // includes survive the rewrite unchanged — one shared MappingInclude type.
