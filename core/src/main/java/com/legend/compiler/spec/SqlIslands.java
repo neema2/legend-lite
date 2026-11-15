@@ -24,8 +24,9 @@ import java.util.function.Function;
  * THE ONE PLACE a SQL island becomes a Relation expression (docs/LEGEND_SQL_STUDY_2026_10_11.md §3,
  * docs/IQ_SQL_STUDY_2026_10_13.md §5): {@code #SQL{...}#} read as Postgres
  * ({@link com.legend.protocol.sql.PostgresDialect}), {@code #IQ{...}#} as SAP IQ under its profile
- * ({@link IqDialect}). The protocol layer's translator ({@link SqlToPure}) reads the SQL through the island's dialect
- * and builds the Pure a person would write; this seam answers its one question, what a FROM source's columns are
+ * ({@link IqDialect}). The island's dialect reads the SQL, through the parse door that asks the run's wall
+ * ({@code door.Parse.sqlIsland}), and the protocol layer's translator ({@link SqlToPure}) builds the Pure a person
+ * would write from what it read; this seam answers its one question, what a FROM source's columns are
  * (each column's declared store type too, when the source is a table), by typing the source;
  * it resolves the result's names as the resolver resolves any query, and the Typer then types it once, like any query.
  * A refusal becomes the compile error its kind says, placed in the enclosing source.
@@ -56,7 +57,8 @@ final class SqlIslands {
         java.util.Set<String> read = new java.util.TreeSet<>();
         SqlToPure.Sources sources = sources(island, typeSource, model, env, read);
         try {
-            ValueSpecification pure = SqlToPure.translate(island.sql(), sources, dialect(island));
+            InputDialect dialect = dialect(island);
+            ValueSpecification pure = SqlToPure.translate(read(island, dialect), sources, dialect);
             String hidden = read.isEmpty() ? null : hidden(pure, read);
             if (hidden != null) {
                 throw new com.legend.error.NotImplementedException(island.opening() + "...}# at "
@@ -73,8 +75,15 @@ final class SqlIslands {
      *  with RETURNING, the writes design's leg 4, 2026-10-20; an ON CONFLICT DO UPDATE, PR #67's second review,
      *  2026-10-24): a program of statements ({@link #statements}), as a Cypher statement that updates the graph is. */
     static boolean isProgram(SqlIsland island) {
-        return island.language() == IslandLanguage.SQL
-                && SqlToPure.isProgram(island.sql(), dialect(island));
+        if (island.language() != IslandLanguage.SQL) {
+            return false;
+        }
+        // a text that does not read is none: its error is the expression's reading's
+        try {
+            return SqlToPure.isProgram(com.legend.door.Parse.sqlIsland(island.sql(), dialect(island)));
+        } catch (com.legend.protocol.sql.SqlSyntaxException e) {
+            return false;
+        }
     }
 
     /** The statements a {@code #SQL{...}#} statement that returns the rows it writes means (the staged rows' let, the
@@ -84,10 +93,22 @@ final class SqlIslands {
             Function<ValueSpecification, TypedSpec> typeSource, ModelContext model) {
         SqlToPure.Sources sources = sources(island, typeSource, model, Env.empty(), new java.util.TreeSet<>());
         try {
-            return SqlToPure.program(island.sql(), sources, dialect(island)).stream().map(NameResolver::resolveQuery)
+            InputDialect dialect = dialect(island);
+            return SqlToPure.program(read(island, dialect), sources, dialect).stream().map(NameResolver::resolveQuery)
                     .toList();
         } catch (SqlTranslationException e) {
             throw refusal(island, e);
+        }
+    }
+
+    /** {@code island}'s text read by {@code dialect}, through the parse door that asks the run's wall
+     *  ({@code door.Parse.sqlIsland}, C5-J's last round, 2026-11-15); a text the dialect does not read is the
+     *  translation's refusal of its kind ({@link SqlToPure#refusal}). */
+    private static com.legend.protocol.sql.SqlAst.Statement read(SqlIsland island, InputDialect dialect) {
+        try {
+            return com.legend.door.Parse.sqlIsland(island.sql(), dialect);
+        } catch (com.legend.protocol.sql.SqlSyntaxException e) {
+            throw SqlToPure.refusal(e);
         }
     }
 

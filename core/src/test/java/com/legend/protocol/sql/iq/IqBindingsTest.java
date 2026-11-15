@@ -84,7 +84,7 @@ class IqBindingsTest {
     }
 
     private static String pure(String sql, List<SqlToPure.CatalogTable> catalog, IqSettings profile) {
-        ValueSpecification vs = SqlToPure.translate(sql, sources(catalog), IqDialect.of(profile));
+        ValueSpecification vs = com.legend.testcases.SqlText.translate(sql, sources(catalog), IqDialect.of(profile));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 

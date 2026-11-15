@@ -9,7 +9,13 @@ import com.legend.parser.Dialect;
 import com.legend.parser.PmcdParser;
 import com.legend.parser.SpecParser;
 import com.legend.protocol.Protocol;
+import com.legend.protocol.cypher.CypherAst;
+import com.legend.protocol.cypher.CypherParser;
 import com.legend.protocol.spec.ValueSpecification;
+import com.legend.protocol.sql.InputDialect;
+import com.legend.protocol.sql.SqlAst;
+import com.legend.protocol.ts.TsAst;
+import com.legend.protocol.ts.TsParser;
 
 
 /**
@@ -22,6 +28,12 @@ import com.legend.protocol.spec.ValueSpecification;
  * no state, so its question is asked when the parse runs, never when a callback is made
  * ({@code ArchitectureTest.everyParseIsReachedThroughADoorThatAsks}); the rule that keeps every other class away is
  * {@code ArchitectureTest.PARSE_BY_THE_DOORS}, and {@code PhaseEntriesRefusedInsideARunTest} pins each door's refusal.
+ *
+ * <p>The embedded languages' readers come here too (C5-J's last round, A1, 2026-11-15): an island's text -- a
+ * {@code #SQL} or {@code #IQ} statement read by its dialect, a {@code #TS} query or item, a {@code #Cypher} statement --
+ * is read by a reader in the protocol layer ({@code protocol.sql}, {@code protocol.ts}, {@code protocol.cypher}), which
+ * depends on nothing but values and the JSON module (invariant 7b) and so cannot ask. Its translators take the tree,
+ * never the text: the compiler's island seams and the server's routes read the text here.
  */
 public final class Parse {
 
@@ -57,5 +69,33 @@ public final class Parse {
     public static ParsedModel model(Protocol.PureModelContextData records) {
         com.legend.base.RunScope.planning("read a model's records (phase B)");
         return ModelFromProtocol.of(records);
+    }
+
+    /** An island's SQL as its statement (an island's text, phase C), read by the island's dialect -- Postgres's for
+     *  {@code #SQL}, SAP IQ's under its profile for {@code #IQ}: what its translator ({@code SqlToPure}) reads, by the
+     *  same dialect, which keeps what the reading found about the statement. */
+    public static SqlAst.Statement sqlIsland(String sql, InputDialect dialect) {
+        com.legend.base.RunScope.planning("parse a SQL island (phase C)");
+        return dialect.parse(sql);
+    }
+
+    /** A {@code #TS} island's query as its tree (an island's text, phase C): what {@code TsToPure} translates and the
+     *  server's {@code jsonToTs} shows. */
+    public static TsAst.Query tsIsland(String text) {
+        com.legend.base.RunScope.planning("parse a timeseries island (phase C)");
+        return TsParser.parse(text);
+    }
+
+    /** One {@code #TS} item as a formula box holds a series, as its tree (phase C): the server's {@code tsItem}. */
+    public static TsAst.Line tsItem(String text) {
+        com.legend.base.RunScope.planning("parse a timeseries item (phase C)");
+        return TsParser.item(text);
+    }
+
+    /** A {@code #Cypher} island's statement as its tree (an island's text, phase C): what {@code CypherToPure}
+     *  translates. */
+    public static CypherAst.Statement cypherIsland(String text) {
+        com.legend.base.RunScope.planning("parse a Cypher island (phase C)");
+        return CypherParser.parse(text);
     }
 }

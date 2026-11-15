@@ -162,7 +162,9 @@ legend_java_library(
     name = "compiler",
     visibility = ["//datacube:__pkg__"],
     srcs = glob(["src/main/java/com/legend/compiler/**/*.java"], exclude = ["src/main/java/com/legend/compiler/element/type/*.java"]),
-    deps = ["//base", ":builtin", ":compiler_element_type", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
+    # :door since 2026-11-15 (C5-J's last round, A1): an island's text (#SQL, #IQ, #TS, #Cypher) is read through the
+    # parse doors, which ask the run's wall; its readers sit in the protocol layer, which cannot ask (invariant 7b)
+    deps = ["//base", ":builtin", ":compiler_element_type", ":door", ":error", ":model", ":platform", ":protocol", ":sql", ":values"],
 )
 legend_java_library(
     name = "normalizer",

@@ -40,6 +40,11 @@ import org.junit.jupiter.api.Test;
  * model, no element, no import, no query and no lambda, and reads no model's records, each refused by its phase's name:
  * the doors below, and the product's callers of them (the compiler's query parse, the IDE's document).
  *
+ * <p>Since C5-J's last round (A1, 2026-11-15) the embedded languages' readers ask too, through the same door: an
+ * island's SQL by its dialect ({@code #SQL}'s Postgres, {@code #IQ}'s SAP IQ), a {@code #TS} query or item, a
+ * {@code #Cypher} statement -- each reader in the protocol layer, which cannot ask (invariant 7b), its translator taking
+ * the tree; the compiler's island seams and the server's {@code #TS} routes read the text through {@code door.Parse}.
+ *
  * <p>A correction to 02e111ef0's message, which called {@code ModelFromText.parse} "the text door every model's parse
  * goes through": it is the door the compiler's model texts go through ({@code Compiler.parseModel}, {@code compileModel},
  * the platform's built-ins), but a quoted spec's model text ({@code QuotedSpecParser}: the parser's own
@@ -112,6 +117,23 @@ class PhaseEntriesRefusedInsideARunTest {
                 com.legend.parser.Dialect.LEGEND_LITE));
         out.put("parse a lambda (phase C)", () -> com.legend.door.Parse.lambdaJson(QUERY, false));
         out.put("read a model's records (phase B) <- Parse.model", () -> com.legend.door.Parse.model(records));
+        // C5-J's last round (A1, 2026-11-15): the embedded languages' readers, each through its door -- an island's
+        // SQL by each dialect (Postgres's for #SQL, SAP IQ's for #IQ), a #TS query and item, a #Cypher statement
+        out.put("parse a SQL island (phase C) <- Parse.sqlIsland, #SQL's reader", () -> com.legend.door.Parse
+                .sqlIsland("SELECT 1 AS a", java.util.Objects.requireNonNull(com.legend.protocol.sql.InputLanguages.of(
+                        com.legend.protocol.spec.IslandLanguage.SQL, null))));
+        out.put("parse a SQL island (phase C) <- Parse.sqlIsland, #IQ's reader", () -> com.legend.door.Parse
+                .sqlIsland("SELECT 1 AS a", java.util.Objects.requireNonNull(com.legend.protocol.sql.InputLanguages.of(
+                        com.legend.protocol.spec.IslandLanguage.IQ, null))));
+        out.put("parse a timeseries island (phase C)", () -> com.legend.door.Parse.tsIsland(
+                "SELECT avg(CLOSE, 3) AS m FROM $px ON DAY BY SYMBOL"));
+        out.put("parse a timeseries item (phase C)", () -> com.legend.door.Parse.tsItem("avg(CLOSE, 3) AS m"));
+        out.put("parse a Cypher island (phase C)", () -> com.legend.door.Parse.cypherIsland(
+                "MATCH (p:Person) RETURN p.name AS name"));
+        // and a product caller of them, the server's #TS item route (the compiler's island seams read their text while
+        // typing, phase G, whose own question is asked first: "type a spec")
+        out.put("parse a timeseries item (phase C) <- the server's tsItem", () -> com.legend.server.PureV1Api.tsItem(
+                "{\"text\": \"avg(CLOSE, 3) AS m\"}"));
         // a test body's facts (the C5-J audit's nit, 2026-11-15): planning that asks on its own, never by the typing it
         // starts -- the body typed outside the run, so only the facts planner's own question can refuse it
         TypedQuery body = Compiler.query(ctx, QUERY);

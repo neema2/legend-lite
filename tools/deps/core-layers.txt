@@ -87,7 +87,10 @@ platform	base builtin error model
 compiler_element_type	base builtin model platform protocol sql
 sql_dialect	base sql
 database	base error model sql_dialect
-compiler	base builtin compiler_element_type error model platform protocol sql values
+# 2026-11-15 (C5-J's last round, A1, the embedded languages' readers): `compiler` reaches `door` -- an island's text
+# (#SQL, #IQ, #TS, #Cypher) is read through the parse doors (door.Parse), each asking the run's wall first; the readers
+# sit in `protocol`, which cannot ask (invariant 7b). `compiler` reached `door` through `builtin` already.
+compiler	base builtin compiler_element_type door error model platform protocol sql values
 normalizer	base builtin compiler compiler_element_type error model platform protocol
 lineage	base builtin compiler compiler_element_type error model platform protocol sql
 validation	base builtin compiler compiler_element_type error model protocol

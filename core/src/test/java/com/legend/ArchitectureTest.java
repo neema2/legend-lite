@@ -769,7 +769,12 @@ final class ArchitectureTest {
      * for one asked when it RUNS. A parse entry ({@link #isParseEntry}) is a constructor or a method of a lexer or
      * parser class that is not data the parse made or names (an exception, an enum, a record, the token stream), and
      * {@code ModelFromProtocol}'s {@code of} and {@code element}; the IDE's indexer reads a lexed document's tokens with
-     * two of the parser's token helpers ({@link #TOKEN_READERS}), named. Invariant 6i's sanctioned users of the grammar
+     * two of the parser's token helpers ({@link #TOKEN_READERS}), named. The embedded languages' readers are entries
+     * too (C5-J's last round, A1, 2026-11-15): every method of an island's reader but a word's test it names
+     * ({@link #ISLAND_READERS}, {@link #ISLAND_READER_HELPERS}), and a dialect's parse ({@code InputDialect#parse}); they
+     * sit in the protocol layer, which cannot ask (7b), so their callers are the readers and dialects themselves
+     * ({@link #ISLAND_DIALECTS}) and the door ({@code door.Parse}: {@code sqlIsland}, {@code tsIsland},
+     * {@code tsItem}, {@code cypherIsland}), and the translators take the tree. Invariant 6i's sanctioned users of the grammar
      * parsers became the doors with it ({@link #parseMachineryIsUsedOnlyWhereSanctioned}). {@code PhaseEntriesRefusedInsideARunTest} pins
      * each door's refusal by its phase; {@link #theParseRulesBiteAPlantedCaller} shows both halves bite.
      */
@@ -788,7 +793,9 @@ final class ArchitectureTest {
 
     /** {@link #everyParseIsReachedThroughADoorThatAsks} fails on a class that parses past the doors -- by a call, by a
      *  reference, a token stream's range lexed again ({@code lexRange}), and a model's records read
-     *  ({@code server.PlantedParse}, {@code server.PlantedModelRead}) -- and on a
+     *  ({@code server.PlantedParse}, {@code server.PlantedModelRead}); an island's text read by each embedded
+     *  language's reader, by a dialect, through the dialects' interface and by a reference
+     *  ({@code compiler.spec.PlantedIslandParse}, C5-J's last round) -- and on a
      *  door that parses without asking, asks after it parses, or parses in a lambda ({@code door.PlantedUnaskedDoor},
      *  {@code PlantedLateDoor}, {@code PlantedLambdaDoor}): test classes planted for this alone. */
     @Test
@@ -797,6 +804,13 @@ final class ArchitectureTest {
         bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.ByReference.class);
         bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.LexesARange.class);
         bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedModelRead.class);
+        // the embedded languages' readers (C5-J's last round, A1, 2026-11-15): one per reader, through a dialect, the
+        // dialects' interface and a reference
+        for (Class<?> island : com.legend.compiler.spec.PlantedIslandParse.class.getDeclaredClasses()) {
+            bites(PARSE_BY_THE_DOORS, island);
+        }
+        org.junit.jupiter.api.Assertions.assertEquals(8,
+                com.legend.compiler.spec.PlantedIslandParse.class.getDeclaredClasses().length);
         java.util.Map<Class<?>, String> doors = java.util.Map.of(
                 com.legend.door.PlantedUnaskedDoor.class, "parses without asking the run's wall",
                 com.legend.door.PlantedLateDoor.class, "parses before it asks the run's wall",
@@ -834,6 +848,16 @@ final class ArchitectureTest {
             return a.getName().equals("of") || a.getName().equals("element");
         }
         String p = owner.getPackageName();
+        // the embedded languages' readers (C5-J's last round, A1, 2026-11-15): every method and constructor of a reader
+        // class is an entry, default-deny, but a word's test it names (ISLAND_READER_HELPERS); a dialect's parse
+        // (InputDialect#parse, Postgres's and IQ's) is one too -- a nested class of a reader is the data its parse made
+        if (ISLAND_READERS.contains(owner.getName())) {
+            return !ISLAND_READER_HELPERS.contains(owner.getName() + "#" + a.getName());
+        }
+        if (a.getName().equals("parse") && p.startsWith("com.legend.protocol.")
+                && com.legend.protocol.sql.InputDialect.class.isAssignableFrom(owner.reflect())) {
+            return true;
+        }
         if (!(p.equals("com.legend.lexer") || p.startsWith("com.legend.lexer.") || p.equals("com.legend.parser")
                 || p.startsWith("com.legend.parser."))) {
             return false;
@@ -852,17 +876,49 @@ final class ArchitectureTest {
                 && topLevel(a.getOriginOwner()).equals("com.legend.ide.ModelIndexer"));
     }
 
+    /** The embedded languages' readers (C5-J's last round, A1, 2026-11-15), by class: each reads an island's text --
+     *  {@code #SQL}'s Postgres, {@code #IQ}'s SAP IQ (its SET prefix too), {@code #TS} (whose per-point SQL is
+     *  Postgres's, read by the SQL reader), {@code #Cypher} -- in the protocol layer, which depends on values and the
+     *  JSON module alone (invariant 7b) and so cannot ask the run's wall. Each reaches the others it composes. */
+    static final java.util.Set<String> ISLAND_READERS = java.util.Set.of(
+            "com.legend.protocol.sql.SqlLexer", "com.legend.protocol.sql.SqlParser",
+            "com.legend.protocol.sql.iq.IqLexer", "com.legend.protocol.sql.iq.IqParser",
+            "com.legend.protocol.sql.iq.IqSetPrefix",
+            "com.legend.protocol.ts.TsParser",
+            "com.legend.protocol.cypher.CypherLexer", "com.legend.protocol.cypher.CypherParser");
+
+    /** What the island readers hold that reads no text, by owner and name: a word's test (is it reserved, its lower
+     *  case) and a test of a tree the parse made -- the translators' and the printers' to ask. A new method of a reader
+     *  is an entry until it is named here. */
+    static final java.util.Set<String> ISLAND_READER_HELPERS = java.util.Set.of(
+            "com.legend.protocol.sql.SqlParser#reservedWord",
+            "com.legend.protocol.sql.iq.IqLexer#reserved", "com.legend.protocol.sql.iq.IqLexer#lower",
+            "com.legend.protocol.sql.iq.IqParser#nullValue", "com.legend.protocol.sql.iq.IqParser#cannotRaise");
+
+    /** The island dialects that read with the readers, by class (C5-J's last round, A1, 2026-11-15): Postgres's and
+     *  SAP IQ's parse ({@code InputDialect#parse}, the reading the parse door {@code door.Parse.sqlIsland} calls), and
+     *  the IQ dialect's own re-reading of a select item's text, which it keeps as written, for the name SQL Anywhere
+     *  gives the item by how it was written ({@code IqDialect}'s bare column, {@code IqNames.name}): inside the
+     *  translation of a statement the door read, never a text of its own. */
+    static final java.util.Set<String> ISLAND_DIALECTS = java.util.Set.of(
+            "com.legend.protocol.sql.PostgresDialect", "com.legend.protocol.sql.iq.IqDialect",
+            "com.legend.protocol.sql.iq.IqNames");
+
     /** The rule of {@link #everyParseIsReachedThroughADoorThatAsks}: no class but the lexer's, the parser's, the model
-     *  package's and the parse doors reaches a parse entry. */
+     *  package's, the island readers and dialects ({@link #ISLAND_READERS}, {@link #ISLAND_DIALECTS}) and the parse
+     *  doors reaches a parse entry. */
     static final com.tngtech.archunit.lang.ArchRule PARSE_BY_THE_DOORS = noClasses()
             .that().resideOutsideOfPackages("com.legend.lexer..", "com.legend.parser..", "com.legend.model")
             .and().doNotHaveFullyQualifiedName("com.legend.door.Parse")
             .and().doNotHaveFullyQualifiedName("com.legend.door.ModelFromText")
             .and().doNotHaveFullyQualifiedName("com.legend.ide.DocumentParse")
-            .should().accessTargetWhere(reachesCodeUnitWhere("a parse entry (the lexer's, the parser's, or the model's"
-                    + " records door)", ArchitectureTest::isParseEntry))
+            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are no island's reader or dialect",
+                    c -> !ISLAND_READERS.contains(topLevel(c)) && !ISLAND_DIALECTS.contains(topLevel(c))))
+            .should().accessTargetWhere(reachesCodeUnitWhere("a parse entry (the lexer's, the parser's, the model's"
+                    + " records door, or an island's reader)", ArchitectureTest::isParseEntry))
             .as("C5-J item 1 (2026-11-15): the lexer, the parser and the model's records door are reached through the"
-                    + " parse doors alone, each asking the run's wall first");
+                    + " parse doors alone, each asking the run's wall first; and since its last round (A1, 2026-11-15)"
+                    + " the embedded languages' readers too");
 
     /** What a parse door does past asking, then parsing ({@link #everyParseIsReachedThroughADoorThatAsks}): a nested
      *  class, a lambda (read through reflection: ArchUnit folds a lambda's body into its enclosing method), a reference,
