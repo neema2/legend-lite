@@ -670,7 +670,7 @@ describe('a planner worker that stops', () => {
   class FakeWorker {
     static made: FakeWorker[] = [];
     onmessage: ((e: unknown) => void) | null = null;
-    onerror: ((e: { message: string; preventDefault(): void }) => void) | null = null;
+    onerror: ((e: { message?: string; filename?: string; lineno?: number; preventDefault(): void }) => void) | null = null;
     onmessageerror: ((e: unknown) => void) | null = null;
     readonly posted: { kind: string }[] = [];
     terminated = 0;
@@ -683,9 +683,12 @@ describe('a planner worker that stops', () => {
     terminate(): void {
       this.terminated++;
     }
-    /** An uncaught error in the worker, dispatched as a browser does: to the handler if one is set, else to no one. */
-    fail(message: string, preventDefault: () => void = () => {}): void {
-      this.onerror?.({ message, preventDefault });
+    /**
+     * The worker failing, dispatched as a browser does: to the handler if one is set, else to no one. An uncaught error
+     * carries its message, file and line; a script that fails to load fires a plain Event, with none of them.
+     */
+    fail(error: { message?: string; filename?: string; lineno?: number } = {}, preventDefault: () => void = () => {}): void {
+      this.onerror?.({ ...error, preventDefault });
     }
     /** An answer the worker could not hand back, dispatched as a browser does. */
     garble(): void {
@@ -697,7 +700,7 @@ describe('a planner worker that stops', () => {
     const g = globalThis as unknown as { Worker?: unknown };
     g.Worker = FakeWorker;
     try {
-      const port = new WorkerPort('worker.js', 'http://planner.invalid/');
+      const port = new WorkerPort('http://planner.invalid/planner-worker.js', 'http://planner.invalid/');
       return { port, worker: FakeWorker.made.at(-1)! };
     } finally {
       delete g.Worker;
@@ -720,15 +723,17 @@ describe('a planner worker that stops', () => {
   const warm = { kind: 'warm', model: '' } as const;
 
   it('refuses every waiting request by name, and every later one, the worker ended', async () => {
+    const STOPPED = /^Error: the planner worker stopped: Uncaught RangeError: out of memory \(http:\/\/planner\.invalid\/planner-worker\.js:12\)$/;
     const { port, worker } = portOverAFake();
     const first = port.ask(warm);
     const second = port.ask(warm);
     assert.equal(worker.posted.length, 2);
     let prevented = 0;
-    worker.fail('the module threw', () => { prevented++; });
-    await within(assert.rejects(first, /^Error: the planner worker stopped: the module threw$/));
-    await within(assert.rejects(second, /^Error: the planner worker stopped: the module threw$/));
-    await within(assert.rejects(port.ask(warm), /^Error: the planner worker stopped: the module threw$/));
+    worker.fail({ message: 'Uncaught RangeError: out of memory', filename: 'http://planner.invalid/planner-worker.js', lineno: 12 },
+      () => { prevented++; });
+    await within(assert.rejects(first, STOPPED));
+    await within(assert.rejects(second, STOPPED));
+    await within(assert.rejects(port.ask(warm), STOPPED));
     assert.equal(worker.posted.length, 2, 'nothing posted to a worker that stopped');
     assert.equal(worker.terminated, 1, 'the worker ended');
     assert.equal(prevented, 1, 'the error is answered here, not left to the page');
@@ -739,6 +744,15 @@ describe('a planner worker that stops', () => {
     other.worker.garble();
     await within(assert.rejects(waiting, /^Error: the planner worker stopped: an answer it could not hand back$/));
     await within(assert.rejects(other.port.ask(warm), /the planner worker stopped: an answer it could not hand back/));
+
+    // a script that fails to load (a bad deploy, a wrong or blocked URL) fires a plain Event, with no message: the worker
+    // is named, never "an error it did not name"
+    const unloaded = portOverAFake();
+    const asked = unloaded.port.ask(warm);
+    unloaded.worker.fail();
+    const NOT_LOADED = /^Error: the planner worker stopped: the worker at http:\/\/planner\.invalid\/planner-worker\.js failed to load or run$/;
+    await within(assert.rejects(asked, NOT_LOADED));
+    await within(assert.rejects(unloaded.port.ask(warm), NOT_LOADED));
   });
 
   it("refuses the workspace's waiting step and the next, and the steps after them run", async () => {
@@ -761,7 +775,7 @@ describe('a planner worker that stops', () => {
     const after = tabs.load(v1);          // behind both, asking the worker nothing
     await until(() => worker.posted.length === 1, 'the counts asked of the worker');
     assert.equal(worker.posted[0]!.kind, 'hostOperations');
-    worker.fail('out of memory');
+    worker.fail({ message: 'out of memory' });
     await within(assert.rejects(waiting, /^Error: the planner worker stopped: out of memory$/));
     await within(assert.rejects(next, /^Error: the planner worker stopped: out of memory$/));
     await within(after);

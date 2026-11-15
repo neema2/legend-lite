@@ -25,13 +25,16 @@ export interface PlannerPort {
 }
 
 /**
- * A worker running planner-worker.ts; `base` is where classes.wasm and its runtime live. A worker that fails -- an
- * uncaught error, or an answer it cannot hand back -- stops: every request waiting on it is refused by name, and so is
- * every later one, so nothing waits forever on a worker that will not answer (2026-11-15, the C5-T fold-in review: since
- * the workspace's tables take one step at a time, one unanswered ask held every later step behind it).
+ * A worker running planner-worker.ts; `base` is where classes.wasm and its runtime live. A worker that fails -- its
+ * script not loaded, an uncaught error, or an answer it cannot hand back -- stops: every request waiting on it is refused
+ * by name, and so is every later one, so nothing waits forever on a worker that will not answer (2026-11-15, the C5-T
+ * fold-in review: since the workspace's tables take one step at a time, one unanswered ask held every later step behind
+ * it).
  */
 export class WorkerPort implements PlannerPort {
   readonly #worker: Worker;
+  /** The worker's script, as the page named it: said when the worker fails without a message. */
+  readonly #url: string;
   readonly #base: string;
   readonly #pending = new Map<number, { resolve(a: string): void; reject(e: Error): void }>();
   #next = 1;
@@ -40,6 +43,7 @@ export class WorkerPort implements PlannerPort {
 
   constructor(workerUrl: string | URL, base: string) {
     this.#worker = new Worker(workerUrl, { type: 'module' });
+    this.#url = String(workerUrl);
     this.#base = new URL(base, globalThis.location?.href).href;
     this.#worker.onmessage = (e: MessageEvent<PlannerResponse>) => {
       const p = this.#pending.get(e.data.id);
@@ -50,7 +54,11 @@ export class WorkerPort implements PlannerPort {
     };
     this.#worker.onerror = (e: ErrorEvent) => {
       e.preventDefault();
-      this.#stop(e.message || 'an error it did not name');
+      // a script that fails to load -- a bad deploy, a wrong or blocked URL, a module that will not link -- fires a plain
+      // Event, with no message: then the worker is named (the orchestrator's check of the fix, 2026-11-15)
+      this.#stop(e.message
+        ? `${e.message}${e.filename ? ` (${e.filename}:${e.lineno})` : ''}`
+        : `the worker at ${this.#url} failed to load or run`);
     };
     this.#worker.onmessageerror = () => this.#stop('an answer it could not hand back');
   }
