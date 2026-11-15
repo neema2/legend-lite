@@ -364,8 +364,12 @@ version and gives every reader three more columns -- `LAKE_DIGEST` (a string), `
 (batch ids), plus `LAKE_FROM` and `LAKE_THRU` for business temporal (legend-studio `V1_CubeIngestDefinition.ts`,
 `milestoningColumns`). The user, 2026-11-15: "Batch milestone is all versions but there is a deterministic way to
 get latest which is lake out = 99999999". Upstream's persistence component writes the open version's batch id as
-`999999999` (`InfiniteBatchIdValueVisitor.INFINITE_BATCH_ID`, legend-engine `05a3d33c`, overridable); the
-lakehouse's own value is not visible.
+`999999999` (`InfiniteBatchIdValueVisitor.INFINITE_BATCH_ID`, legend-engine `05a3d33c`; the component's README:
+`infiniteBatchIdValue`, "Value to be used for Infinite batch id", default `999999999`). The lakehouse uses the same:
+legend-studio's Cube round trip over a lakehouse ingest (`legend-cube-builder/src/__tests__/
+CubeIngest.engine-roundtrip-test.ts`) reads current rows by a filter `LAKE_OUT_ID = 999999999` ("The LAKE_OUT_ID of
+the rows no later batch replaced"), with each row's own values first, then `LAKE_DIGEST`, `LAKE_IN_ID` and
+`LAKE_OUT_ID`, the two ids `BIGINT NOT NULL`. Nine nines; the user's "99999999" read as this value.
 - **(A), recommended since the user's point:** keyed datasets are `batch_milestoned` now. Their tables carry the
   three columns on every target; the latest rows are `LAKE_OUT_ID = 999999999`, read through upstream's ordinary
   relational filter (`Filter Instrument_Latest(INSTRUMENT.LAKE_OUT_ID = 999999999)` in `store::DB`, `~filter
