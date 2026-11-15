@@ -892,16 +892,11 @@ public final class Compiler {
     public static boolean hasStatementEffects(
             com.legend.protocol.spec.ValueSpecification resolved,
             ModelContext ctx) {
-        return programFacts(resolved, ctx).effects();
-    }
-
-    /** The platform's facts about a resolved program ({@link ProgramFacts}),
-     * in one typing pass. */
-    public static ProgramFacts programFacts(
-            com.legend.protocol.spec.ValueSpecification resolved,
-            ModelContext ctx) {
+        // the platform's facts about the program ({@link ProgramFacts}), in one typing pass; programFacts, the public
+        // door that answered them all, went 2026-11-15 (C5-J's last round, A3): the PCT runner reads them off its test
+        // plan, and no caller was left
         SpecCompiler specs = new SpecCompiler(ctx);
-        return ProgramFacts.of(specs.typeQueryBody(resolved), specs);
+        return ProgramFacts.of(specs.typeQueryBody(resolved), specs).effects();
     }
 
 

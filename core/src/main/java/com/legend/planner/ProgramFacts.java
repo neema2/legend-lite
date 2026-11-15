@@ -11,9 +11,11 @@ package com.legend.planner;
  * contexts seed inline CSV test data (a session-isolation fact), and
  * whether it calls a verdict function (an assert the statement channel
  * adjudicates). Computed by {@link #of} in ONE typing pass, for the
- * compiler's door ({@link Compiler#programFacts}) and the test planner
- * ({@code testplan.TestPlanner.facts}, whose record the test plan carries:
- * C5-J item 2, 2026-11-15).
+ * compiler's effect question ({@link Compiler#hasStatementEffects}) and the
+ * test planner ({@code testplan.TestPlanner.facts}, whose record the test
+ * plan carries: C5-J item 2, 2026-11-15; the compiler's public door to them
+ * all, {@code Compiler.programFacts}, went with C5-J's last round, A3, once
+ * no caller was left).
  */
 public record ProgramFacts(boolean effects, boolean seedsInlineCsv, boolean verdicts,
         java.util.Set<String> seedsStores, String shape) {
@@ -33,8 +35,8 @@ public record ProgramFacts(boolean effects, boolean seedsInlineCsv, boolean verd
     }
 
     /** The platform's facts about a program, in one typing pass: {@code body} its statements as {@code specs} typed them
-     *  (moved here from {@code Compiler.programFacts}, C5-J item 2, 2026-11-15: the compiler's door and the test
-     *  planner's state them alike). */
+     *  (moved here from {@code Compiler.programFacts}, C5-J item 2, 2026-11-15: the compiler and the test planner
+     *  state them alike). */
     public static ProgramFacts of(java.util.List<com.legend.compiler.spec.typed.TypedSpec> body,
             com.legend.compiler.spec.SpecCompiler specs) {
         java.util.Map<com.legend.model.FunctionId, Boolean> memo = new java.util.HashMap<>();

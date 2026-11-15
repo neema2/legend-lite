@@ -541,7 +541,8 @@ class PlannerSurfaceTest {
                     List.of(LAMBDA, NAME, MODEL)),
             Map.entry("Compiler#executesOn(ModelContext, String)", List.of(MODEL, NAME)),
             Map.entry("Compiler#hasStatementEffects(ValueSpecification, ModelContext)", List.of(LAMBDA, MODEL)),
-            Map.entry("Compiler#programFacts(ValueSpecification, ModelContext)", List.of(LAMBDA, MODEL)),
+            // Compiler#programFacts(ValueSpecification, ModelContext) went 2026-11-15 (C5-J's last round, A3): no
+            // caller was left once the PCT runner read a body's facts off its test plan (TestExecution#facts)
             Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
                     List.of(LAMBDA, MODEL, NAME, OPTION)),
             Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean, String)",
@@ -657,7 +658,7 @@ class PlannerSurfaceTest {
             Map.entry("Compiler#resolveNames(List<ValueSpecification>, ImportScope, ModelContext)",
                     QueryRoad.PLANS_NOTHING),
             Map.entry("Compiler#hasStatementEffects(ValueSpecification, ModelContext)", QueryRoad.PLANS_NOTHING),
-            Map.entry("Compiler#programFacts(ValueSpecification, ModelContext)", QueryRoad.PLANS_NOTHING),
+            // Compiler#programFacts went 2026-11-15 (C5-J's last round, A3): no caller was left
             // it types, resolves and lowers on its own: it refuses inside itself (G1)
             Map.entry("Compiler#lowerResolved(ValueSpecification, ModelContext, String, boolean)",
                     QueryRoad.REFUSES_RAW_SQL),
