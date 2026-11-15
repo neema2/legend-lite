@@ -385,12 +385,15 @@ public final class PureV1Api {
      * 4.145.0, 2026-10-08): {@code legend.builder}, the TDS builder as the JSON answer's; {@code legend.activities},
      * the activities WITHOUT their {@code _type}; {@code legend.columns}, the column names. The host writes the rows
      * as upstream does: an Arrow IPC stream with this metadata, compressed as one zstd frame. {@code models} are the
-     * only models the host runs: a request over any other is refused.
+     * only models the host runs: a request over any other is refused. {@code style}: the plan's, pure/v1's the
+     * compatibility edge's ({@code com.legend.edge.PureText.UPSTREAM}, Pure's sentence for a raise: the user's ruling of
+     * 2026-11-10; the D part 1 audit's M2, 2026-11-15), handed by the host's door, which the product never names (G5).
      */
-    public static Answer arrowPlan(String body, java.util.Collection<String> models) {
+    public static Answer arrowPlan(String body, java.util.Collection<String> models,
+            com.legend.database.PlanStyle style) {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
-            QueryPlan plan = hosted.query().plan(hosted.runtime());
+            QueryPlan plan = hosted.query().plan(hosted.runtime(), style);
             String refused = plan.beyondItsText();
             if (refused != null) {
                 throw new com.legend.error.NotImplementedException("a host runs a plan's statement itself, and this"
@@ -430,12 +433,14 @@ public final class PureV1Api {
      * builder, the activities and the columns' names as the JSON answer writes them), or a graph fetch's builder
      * {@code {"_type": "json"}}. {@code models} are the only models the host runs, as {@link #arrowPlan}'s. A plan
      * the host cannot run as one statement of text -- a pivot whose columns the data names (its keys are read first),
-     * a program that writes, a statement that binds values -- is refused by name: legend-lite's server runs it.
+     * a program that writes, a statement that binds values -- is refused by name: legend-lite's server runs it. {@code style}: the plan's, as {@link #arrowPlan}'s.
      */
-    public static Answer jsonPlan(String body, java.util.Collection<String> models) {
+    public static Answer jsonPlan(String body, java.util.Collection<String> models,
+            com.legend.database.PlanStyle style) {
         return answer(500, "COMPILATION", () -> {
             Hosted hosted = hosted(body, models);
-            com.legend.executionplan.ExecutionPlan plan = hosted.query().executionPlan(hosted.runtime());
+            com.legend.executionplan.ExecutionPlan plan = hosted.query().executionPlan(hosted.runtime(),
+                    java.util.Set.of(), style);
             if (plan.answerShape() == com.legend.executionplan.ExecutionPlan.TdsResult.Shape.VALUE) {
                 // as the server's execute refuses it (Output.Engine): a value's answer is not one the engine was
                 // measured on
