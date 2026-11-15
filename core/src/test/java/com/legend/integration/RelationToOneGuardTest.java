@@ -44,8 +44,10 @@ class RelationToOneGuardTest {
 
     private static void assertSizeError(String model, Connection c, String query, int size) {
         Exception e = assertThrows(Exception.class, () -> Lean.run(model, query, StorelessRuntime.RUNTIME, c), query);
-        // the product's kind, in lite's words (D1.1): the size is legend-pure's sentence's, the edge's
-        assertTrue(String.valueOf(e.getMessage()).contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()), query + " (size " + size + "): "
+        // the product's kind, in lite's words (D1.1), and its where, the bound (2026-11-15: a relation's row count
+        // carried none until //core:product_raise_probe found it); the size is legend-pure's sentence's, the edge's
+        assertTrue(String.valueOf(e.getMessage()).contains(com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()
+                + ": [1]"), query + " (size " + size + "): "
                 + e.getMessage());
         // the size the database counted, a value, is pinned at the edge, whose sentence carries it (the D part 1 audit's S5, 2026-11-15)
         Exception edge = assertThrows(Exception.class, () -> com.legend.testing.Program.last(model, query,

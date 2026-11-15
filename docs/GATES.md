@@ -22147,8 +22147,14 @@ beyond query names is stream S (`claude/injection-safety`), which lands after it
   `//core:product_raise_probe`, ONE database a run, the backend `LEGENDLITE_PROBE_DATABASE` names (`mariadb`, `mysql`,
   `clickhouse`, `trino`, `mongodb` on the embedded servers; `snowflake`, `databricks`, `bigquery` with
   `LEGENDLITE_PCT_CLOUD_PROPERTIES`): a guarded statement that does not raise, a division by zero, a `toOne()` over two
-  rows, each in the product's style, each statement printed. Measured in the worker's session: the five embedded
-  servers 3 of 3 each.
+  rows, each in the product's style, each statement printed with what came back. At 4dc37a375 all eight external
+  databases 3 of 3: MariaDB, MySQL, ClickHouse, Trino and MongoDB in the worker's session; Databricks, BigQuery
+  (U+001C written `\x1c` and read back) and Snowflake (written raw, accepted) on the orchestrator's lanes. Its first
+  run found a collection's and a relation's `toOne()` raising SIZE_NOT_MULTIPLICITY with no where: placed by the bound
+  since (S308, 2026-11-15), and the probe asserts `[1]`.
+- **Round 51 at ab1cb5fc5 (the orchestrator's lanes, 2026-11-15):** every lane equal to round 50, every outcome and
+  error text: Postgres, SQLite, MongoDB 36/36; MariaDB, MySQL, ClickHouse 45/45; Trino, H2 18/18; Databricks 15/15;
+  Snowflake 15/15; BigQuery 15/15. No U+001C in any log.
 - **The final fix round (the orchestrator's list of 2026-11-14 at 6e68a11e5c, CI 51/51):** each item a commit with a
   test red on revert -- B1 a Python read's end never replaced by a file not there (IOException) nor named by a refused
   file access (PermissionException); B2 a model's `"serializer": null` is none; B4 a zone-shifted `Z` refused by name,

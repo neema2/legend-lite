@@ -28,10 +28,9 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *   <li>a guarded division that does NOT raise must answer its rows (the literal is parsed and planned by the
  *       database even where its branch is never taken);</li>
  *   <li>a division by zero must surface as {@code DIVIDE_BY_ZERO}, as {@code RaisedErrors} reads it;</li>
- *   <li>{@code toOne()} over two rows must surface as {@code SIZE_NOT_MULTIPLICITY}; its where is PRINTED, not asserted:
- *       the product places a where at its fixed-text sites alone ({@code RaiseText.placed}), and a collection's
- *       {@code toOne()} raises with the bound and the size as the edge's operands, no where (measured on MariaDB,
- *       2026-11-15: the sentence alone), a question put to the orchestrator.</li>
+ *   <li>{@code toOne()} over two rows must surface as {@code SIZE_NOT_MULTIPLICITY} with its where, {@code [1]} (a
+ *       collection's count carried none until this probe found it on the five embedded servers, 2026-11-15; the
+ *       orchestrator, under the user's ruling of 2026-11-10: placed by its bound, register S308).</li>
  * </ol>
  *
  * <p>A manual probe in {@code //gates:heavy}, beside {@code :identifier_escaping_cloud_probe}: {@code bazel test
@@ -96,11 +95,14 @@ class ProductRaiseProbeTest {
         Object zero = run(backend, "divide by zero", "|" + ROWS.replace("4, 2", "4, 0")
                 + "->extend(~r: r|$r.x / $r.y)->select(~r)->from(" + StorelessRuntime.RUNTIME + ")");
         expectKind(wrong, "divide by zero", zero, com.legend.error.ErrorKind.DIVIDE_BY_ZERO, null);
-        // 3. toOne() over two rows: the kind and its where, the multiplicity
+        // 3. toOne() over two rows: the kind and its where, the bound
         Object two = run(backend, "toOne over two rows", "|" + ROWS + "->map(r|$r.x)->toOne()->from("
                 + StorelessRuntime.RUNTIME + ")");
-        expectKind(wrong, "toOne over two rows", two, com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY, null);
-        System.out.println("[product raise probe] " + backend.name() + " toOne over two rows, as raised: " + describe(two));
+        expectKind(wrong, "toOne over two rows", two, com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY, "[1]");
+        // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
+        System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
+        System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
+        System.out.println("[product raise probe] " + backend.name() + " toOne over two rows, raised: " + describe(two));
         System.out.println("[product raise probe] " + backend.name() + ": " + (3 - wrong.size()) + " of 3 as expected");
         assertEquals(List.of(), wrong, backend.name());
     }

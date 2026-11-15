@@ -100,8 +100,7 @@ final class Coercions {
                     return Scalars.guarded(
                             new SqlExpr.Call(SqlFn.IS_NULL,
                                     List.of(args.get(0))),
-                            new SqlExpr.RaiseText(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY,
-                                    List.of(new SqlExpr.StringLit("[1]"))),
+                            SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.SIZE_NOT_MULTIPLICITY, "[1]"),
                             args.get(0));
                 }
                 // Everything else — ROW-LANE [0..1] scalar reads AND

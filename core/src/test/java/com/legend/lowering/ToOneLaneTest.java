@@ -52,9 +52,10 @@ class ToOneLaneTest {
 
     private static void assertSizeError(String query, int size) {
         var ex = assertThrows(Exception.class, () -> run(query));
-        // the product's kind, in lite's words (D1.1)
+        // the product's kind, in lite's words (D1.1), and its where, the bound (2026-11-15: a collection's count
+        // carried none until //core:product_raise_probe found it)
         assertTrue(ex.getMessage().contains(
-                        com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence()),
+                        com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY.sentence() + ": [1]"),
                 "expected pure's size-" + size + " cast error for "
                         + query + ", got: " + ex.getMessage());
         // the size itself, a value, is legend-pure's sentence's: the same query in the edge's style raises it, so the
