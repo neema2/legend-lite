@@ -47,6 +47,23 @@ const PARTY = 'org.finos.lite.demo:party';
 
 async function loop(browser, name, query) {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  // a stand-in, the harness's alone (as model-data.test.ts's planners are): while `__countMissing` names a table
+  // (schema.table), the planner is asked to count a table of that schema that the database lacks, so that table's count
+  // fails when it runs. Every other message to a worker goes as it was (2026-11-15, the C5-T fold-in review: the
+  // count-failed cell was new in PR #105 and nothing drove it in the page).
+  await page.addInitScript(() => {
+    const post = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (message, ...rest) {
+      const missing = globalThis.__countMissing;
+      if (missing !== undefined && message?.kind === 'hostOperations') {
+        const ops = JSON.parse(message.operations).map((o) => (o.op === 'count'
+          && `${o.from.relation.schema}.${o.from.relation.name}` === missing
+          ? { ...o, from: { relation: { ...o.from.relation, name: 'NO_SUCH_TABLE' } } } : o));
+        return post.call(this, { ...message, operations: JSON.stringify(ops) }, ...rest);
+      }
+      return post.call(this, message, ...rest);
+    };
+  });
   // generous waits: under a full gate run the machine is loaded, and the in-tab compile and the page's SDLC take
   // longer than Playwright's 30 s default (//studio:verify_test failed only then, 2026-10-05)
   page.setDefaultTimeout(120_000);
@@ -297,6 +314,19 @@ async function loop(browser, name, query) {
     await notesTable.locator('input[type=file]').setInputFiles({ name: 'notes.csv', mimeType: 'text/csv', buffer: Buffer.from('ID\n1\n2\n') });
     await notesTable.locator('[data-source=file]').waitFor({ timeout: 60_000 });
     assert.equal((await notesTable.locator('.data-tables__rows').textContent())?.trim(), '2');
+    // a count that fails is said on its own row, the database's words in its tip, and the other table is still counted
+    // (the C5-T final audit's item 3): NOTES.NOTE's count asked of a table the database lacks (the stand-in above)
+    await page.evaluate(() => { globalThis.__countMissing = 'NOTES.NOTE'; });
+    await page.locator('[data-panel-tab=data]').click();
+    const countFailed = notesTable.locator('[data-count-failed="NOTES.NOTE"]');
+    await countFailed.waitFor({ timeout: 60_000 });
+    assert.equal((await countFailed.textContent())?.trim(), 'count failed');
+    assert.match(await countFailed.getAttribute('title'), /NO_SUCH_TABLE/, "why, in the database's words");
+    assert.equal((await partyTable.locator('.data-tables__rows').textContent())?.trim(), '5', 'the other table still counted');
+    await page.evaluate(() => { delete globalThis.__countMissing; });
+    await page.locator('[data-panel-tab=data]').click();
+    await page.waitForFunction(() => document.querySelector('[data-testid=data-tables] tr[data-table="NOTES.NOTE"] .data-tables__rows')
+      ?.textContent?.trim() === '2', undefined, { timeout: 60_000 });
     await page.locator('.monaco-editor .view-lines').click();
     await page.keyboard.press('ControlOrMeta+A');
     await page.keyboard.insertText(notesDb('ID INTEGER PRIMARY KEY,\nBODY VARCHAR(64)'));

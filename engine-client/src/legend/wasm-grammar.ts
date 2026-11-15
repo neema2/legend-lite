@@ -24,12 +24,19 @@ export interface PlannerPort {
   ask(request: RequestBody): Promise<string>;
 }
 
-/** A worker running planner-worker.ts; `base` is where classes.wasm and its runtime live. */
+/**
+ * A worker running planner-worker.ts; `base` is where classes.wasm and its runtime live. A worker that fails -- an
+ * uncaught error, or an answer it cannot hand back -- stops: every request waiting on it is refused by name, and so is
+ * every later one, so nothing waits forever on a worker that will not answer (2026-11-15, the C5-T fold-in review: since
+ * the workspace's tables take one step at a time, one unanswered ask held every later step behind it).
+ */
 export class WorkerPort implements PlannerPort {
   readonly #worker: Worker;
   readonly #base: string;
   readonly #pending = new Map<number, { resolve(a: string): void; reject(e: Error): void }>();
   #next = 1;
+  /** Why the worker stopped, once it has. */
+  #stopped: Error | undefined;
 
   constructor(workerUrl: string | URL, base: string) {
     this.#worker = new Worker(workerUrl, { type: 'module' });
@@ -41,12 +48,26 @@ export class WorkerPort implements PlannerPort {
       if (e.data.ok) p.resolve(e.data.answer);
       else p.reject(new Error(`the planner could not load: ${e.data.error}`));
     };
+    this.#worker.onerror = (e: ErrorEvent) => {
+      e.preventDefault();
+      this.#stop(e.message || 'an error it did not name');
+    };
+    this.#worker.onmessageerror = () => this.#stop('an answer it could not hand back');
+  }
+
+  /** The worker stopped: each request waiting on it refused by `why`, every later one too, the worker ended. */
+  #stop(why: string): void {
+    this.#stopped ??= new Error(`the planner worker stopped: ${why}`);
+    for (const p of this.#pending.values()) p.reject(this.#stopped);
+    this.#pending.clear();
+    this.#worker.terminate();
   }
 
   async ask(request: RequestBody): Promise<string> {
     // a worker's call is asked here, on the caller's flow: refused inside a run of it (run-frame.ts, the witness), by a
     // rejected promise (async; the C4 final fix round's nit, 2026-11-14)
     planning(request.kind);
+    if (this.#stopped) throw this.#stopped;
     const id = this.#next++;
     return new Promise((resolve, reject) => {
       this.#pending.set(id, { resolve, reject });
