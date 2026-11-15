@@ -770,9 +770,9 @@ public final class Lowerer {
             SqlUnion u = union(c);
             // a LIST's concatenation keeps its order, the left's elements before the right's, each in its own: SQL
             // promises no order for a UNION ALL (2026-11-15, the lean program's order probe: BigQuery answered a
-            // sorted list ++ another 3;1;2;3;1;2) -- its rows numbered by branch and within it, as a side's are
-            // (SideOrdinal). A relation's concatenation is upstream's UNION ALL, its order the database's.
-            return outputsOf(c.info()).isEmpty() ? SideOrdinal.inBranchOrder(u) : u;
+            // sorted list ++ another 3;1;2;3;1;2) -- each branch's index and its rows' ordinal, ONE order outside
+            // (SideOrdinal.listInOrder). A relation's concatenation is upstream's UNION ALL, its order the database's.
+            return outputsOf(c.info()).isEmpty() ? SideOrdinal.listInOrder(u) : u;
         }
         // ANY relation-ish root — a table, the .rows collection, or ONE
         // ROW (an at()-pick: a one-row TABULAR, matching ResultShape) —

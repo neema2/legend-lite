@@ -224,6 +224,69 @@ final class SideOrdinal {
                 List.of(), null, null, outs);
     }
 
+    /**
+     * A LIST's concatenation in its order, at the product's root (2026-11-15, the lean program's order fix, redone on
+     * round 55a): SQL promises no order for a UNION ALL, nor that a branch's ORDER BY survives it (H2 refuses one
+     * unparenthesized, MariaDB and MySQL ignore it without a LIMIT). Each branch projects its index ({@code __ob}) and,
+     * where it is sorted, its rows' ordinal by its own keys ({@code ROW_NUMBER() OVER (ORDER BY ...) AS __ord}, its
+     * ORDER BY then dropped unless a LIMIT or an OFFSET needs it); ONE outer ORDER BY reads them. A branch with no order
+     * carries no ordinal (its rows' order is the source's, which SQL does not define either), and where no branch is
+     * sorted the outer order is by branch alone. {@code u} itself where a branch cannot carry its index (not a select,
+     * or a sorted DISTINCT one).
+     */
+    static SqlQuery listInOrder(com.legend.sql.SqlUnion u) {
+        boolean anySorted = u.branches().stream().anyMatch(b -> b instanceof SqlSelect s && !s.orderBy().isEmpty());
+        OutputCol branchOut = new OutputCol(BRANCH, SqlType.Scalar.BIGINT, false);
+        List<SqlQuery> branches = new ArrayList<>(u.branches().size());
+        for (int i = 0; i < u.branches().size(); i++) {
+            if (!(u.branches().get(i) instanceof SqlSelect b) || b.projections().isEmpty()
+                    || b.distinct() && !b.orderBy().isEmpty()) {
+                return u;
+            }
+            List<SqlSelect.Projection> ps = new ArrayList<>(b.projections());
+            ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(i), BRANCH, branchOut));
+            SqlSelect placed = b;
+            if (anySorted) {
+                if (b.orderBy().isEmpty()) {
+                    ps.add(new SqlSelect.Projection(new SqlExpr.IntLit(0), ORD, ORD_OUT));
+                } else {
+                    List<SqlSelect.SortKey> keys = new ArrayList<>(b.orderBy().size());
+                    for (SqlSelect.SortKey k : b.orderBy()) {
+                        keys.add(new SqlSelect.SortKey(windowKey(b, k), k.ascending(), k.nullOrder(), null));
+                    }
+                    ps.add(new SqlSelect.Projection(new SqlExpr.WindowCall(
+                            new SqlAgg.RankingFn(SqlAgg.Fn.ROW_NUMBER, List.of()), List.of(), keys, null), ORD,
+                            ORD_OUT));
+                    if (b.limit() == null && b.offset() == null) {
+                        placed = b.withOrderBy(List.of());
+                    }
+                }
+            }
+            List<OutputCol> outs = new ArrayList<>(b.outputs());
+            outs.add(branchOut);
+            if (anySorted) {
+                outs.add(ORD_OUT);
+            }
+            branches.add(placed.withProjections(ps, outs));
+        }
+        List<OutputCol> inner = new ArrayList<>(u.outputs());
+        inner.add(branchOut);
+        if (anySorted) {
+            inner.add(ORD_OUT);
+        }
+        List<SqlSelect.Projection> ps = new ArrayList<>(u.outputs().size());
+        for (OutputCol o : u.outputs()) {
+            ps.add(new SqlSelect.Projection(SqlExpr.Column.of("__lo", o), o.name(), o));
+        }
+        List<SqlSelect.SortKey> order = new ArrayList<>();
+        order.add(new SqlSelect.SortKey(SqlExpr.Column.of("__lo", branchOut), true, null, null));
+        if (anySorted) {
+            order.add(new SqlSelect.SortKey(SqlExpr.Column.of("__lo", ORD_OUT), true, null, null));
+        }
+        return new SqlSelect(ps, false, new SqlSource.Subselect(new com.legend.sql.SqlUnion(branches, true, inner),
+                "__lo", null), null, List.of(), null, null, order, null, null, u.outputs());
+    }
+
     /** A literal's rows, each with its index. */
     private static SqlSource.Values indexed(SqlSource.Values v) {
         List<List<SqlExpr>> rows = new ArrayList<>(v.rows().size());
