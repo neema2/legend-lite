@@ -1204,6 +1204,13 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return writer.expr(a.get(0), 4).append(" IN (").list(a.subList(1, a.size())).append(")");
     }
 
+    /** Whether a list position is a literal at or past zero: the branch that counts a negative one from the list's
+     *  end can never be taken, so it is not written, nor the list it reads (P4, 2026-11-15: MySQL's maxBy wrote its
+     *  list 52 times in such branches). Read from the literal's spelling, as {@link #nullIfNull} reads a NULL's. */
+    protected static boolean fromTheStart(SqlExpr position) {
+        return position instanceof SqlExpr.IntLit l && l.value() >= 0;
+    }
+
     /**
      * {@code body}, NULL where {@code operand} is: {@code (CASE WHEN operand IS NULL THEN NULL ELSE body END)} -- but
      * {@code body} alone where the operand cannot be NULL ({@link com.legend.sql.SqlTyping#mayBeNull}: a literal list,

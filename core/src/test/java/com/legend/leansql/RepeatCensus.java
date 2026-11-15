@@ -67,6 +67,7 @@ public final class RepeatCensus {
             }
             Map<String, List<String[]>> examples = new TreeMap<>();
             Map<String, long[]> heads = new java.util.HashMap<>();
+            Map<String, String> headExample = new java.util.HashMap<>();
             long statements = 0;
             long chars = 0;
             long repeatedChars = 0;
@@ -93,9 +94,14 @@ public final class RepeatCensus {
                 chars += text.length();
                 repeatedChars += LeanSqlBaseline.shape(text)[1];
                 for (int[] g : LeanSqlBaseline.repeatedCopies(text)) {
-                    long[] h = heads.computeIfAbsent(head(text, g[0]), x -> new long[2]);
+                    String hk = head(text, g[0]);
+                    long[] h = heads.computeIfAbsent(hk, x -> new long[3]);
                     h[0]++;
                     h[1] += g[1] - g[0];
+                    if (g[1] - g[0] > h[2]) {
+                        h[2] = g[1] - g[0];
+                        headExample.put(hk, expression.replace('\n', ' '));
+                    }
                 }
                 Map<SqlExpr, Integer> counts = new java.util.HashMap<>();
                 Set<SqlExpr> rootTerms = rootTerms(passed);
@@ -130,7 +136,8 @@ public final class RepeatCensus {
             hl.sort((a, b) -> Long.compare(b.getValue()[1], a.getValue()[1]));
             for (int i = 0; i < Math.min(12, hl.size()); i++) {
                 renderHeads.append(type.name()).append('\t').append(hl.get(i).getValue()[1]).append('\t')
-                        .append(hl.get(i).getValue()[0]).append('\t').append(hl.get(i).getKey()).append('\n');
+                        .append(hl.get(i).getValue()[0]).append('\t').append(hl.get(i).getKey()).append("\t e.g. ")
+                        .append(headExample.get(hl.get(i).getKey())).append('\n');
             }
             rendered.append(type.name()).append('\t').append(statements).append('\t').append(chars).append('\t')
                     .append(repeatedChars).append('\n');

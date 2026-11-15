@@ -600,6 +600,22 @@ _CHANNEL_B_LANES = {
 ) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items()
     if lane != "mongodb"]
 
+# The lean program's form probe (measure only, 2026-11-15): a candidate SQL form's size, rows and time on the lane's
+# database beside lite's planned one (LeanFormProbeTest; the file in --test_env=LEAN_PROBE_FILE); always passes.
+[junit_test(
+    name = "pct_lean_form_probe_%s" % lane,
+    memory_mb = 1024,
+    data = data,
+    env = {"LEGENDLITE_PCT_BACKEND": lane},
+    env_inherit = inherit + ["LEAN_PROBE_FILE"],
+    jvm_flags = flags,
+    select = ["--select-class=org.finos.legend.lite.pct.probe.LeanFormProbeTest"],
+    tags = ["manual", "external"] + tags,
+    target_compatible_with = compat,
+    runtime_deps = [":pct_tests_lib"] + deps,
+) for lane, (cls, suites, db, data, flags, deps, tags, inherit, compat) in _CHANNEL_B_LANES.items()
+    if lane != "mongodb"]
+
 _LANE_LEDGER = "src/test/java/org/finos/legend/lite/pct/Test_LegendLite_%s_%sFunctions_PCT.java"
 
 [junit_test(

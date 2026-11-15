@@ -2236,6 +2236,9 @@ public class SQLite extends AnsiSqlRenderer {
 
     /** A slice bound, 1-based: a negative one counts from the end. */
     private static SqlWriter.Piece sliceEnd(SqlExpr xs, SqlExpr i) {
+        if (fromTheStart(i)) {
+            return w -> w.expr(i, 0);
+        }
         return w -> w.append("(CASE WHEN ").expr(i, 4).append(" < 0 THEN json_array_length(").expr(xs, 0)
                 .append(") + ").expr(i, 6).append(" + 1 ELSE ").expr(i, 0).append(" END)");
     }

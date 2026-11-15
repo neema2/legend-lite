@@ -1352,6 +1352,9 @@ public class BigQuery extends AnsiSqlRenderer {
         if (isText(key)) {
             return writer.append("(").expr(args.get(0), 0).append(")[").expr(key, 0).append("]");
         }
+        if (fromTheStart(key)) {
+            return writer.append("(").expr(args.get(0), 0).append(")[CAST(").expr(key, 0).append(" AS INT64)]");
+        }
         return writer.append("(").expr(args.get(0), 0).append(")[CASE WHEN ").expr(key, 4)
                 .append(" < 0 THEN ARRAY_LENGTH(JSON_QUERY_ARRAY(").expr(args.get(0), 0).append(")) + CAST(")
                 .expr(key, 0).append(" AS INT64) ELSE CAST(").expr(key, 0).append(" AS INT64) END]");
@@ -1816,6 +1819,10 @@ public class BigQuery extends AnsiSqlRenderer {
         if (nullList(a.get(0))) {
             return writer.append(nullOf(typeOf(c)));
         }
+        if (fromTheStart(a.get(1))) {
+            return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CAST(").expr(a.get(1), 0)
+                    .append(" AS INT64) - 1)]");
+        }
         return writer.append("(").expr(a.get(0), 0).append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(1), 4)
                 .append(" < 0 THEN ARRAY_LENGTH(").expr(a.get(0), 0).append(") + CAST(").expr(a.get(1), 0)
                 .append(" AS INT64) ELSE CAST(").expr(a.get(1), 0).append(" AS INT64) - 1 END)]");
@@ -2045,6 +2052,10 @@ public class BigQuery extends AnsiSqlRenderer {
     private SqlWriter splitPart(SqlWriter writer, List<SqlExpr> a) {
         SqlWriter.Piece parts = w -> w.append("SPLIT(").expr(a.get(0), 0).append(", ").expr(a.get(1), 0)
                 .append(")");
+        if (fromTheStart(a.get(2))) {
+            return writer.piece(nullIfAnyNull(a.subList(0, 2), w -> w.append("COALESCE((").piece(parts)
+                    .append(")[SAFE_OFFSET(CAST(").expr(a.get(2), 0).append(" AS INT64) - 1)], '')")));
+        }
         return writer.piece(nullIfAnyNull(a.subList(0, 2), w -> w.append("COALESCE((").piece(parts)
                 .append(")[SAFE_OFFSET(CASE WHEN ").expr(a.get(2), 4).append(" < 0 THEN ARRAY_LENGTH(")
                 .piece(parts).append(") + CAST(").expr(a.get(2), 0).append(" AS INT64) ELSE CAST(")
@@ -2122,6 +2133,9 @@ public class BigQuery extends AnsiSqlRenderer {
 
     /** A slice bound, 1-based: a negative one counts from the end. */
     private static SqlWriter.Piece sliceEnd(SqlExpr xs, SqlExpr i) {
+        if (fromTheStart(i)) {
+            return w -> w.expr(i, 0);
+        }
         return w -> w.append("(CASE WHEN ").expr(i, 4).append(" < 0 THEN ARRAY_LENGTH(").expr(xs, 0).append(") + ")
                 .expr(i, 6).append(" + 1 ELSE ").expr(i, 0).append(" END)");
     }
