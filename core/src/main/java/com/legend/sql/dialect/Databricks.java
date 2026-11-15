@@ -673,6 +673,15 @@ public class Databricks extends AnsiSqlRenderer {
                 .append(" AS `__l`) AS `__hof`)");
     }
 
+    /** Whether a higher-order function's list {@code xs} must be hoisted: it holds a subquery NESTED in an expression
+     *  ({@code filter(concat(coalesce((SELECT ...), array()), ...), ...)}, refused by Spark on the order probe). A list
+     *  that IS a scalar subquery is read by the function as it stands ({@code filter((SELECT ...), ...)} ran on the
+     *  lane: testRemoveDuplicatesPrimitiveStandardFunctionMixedTypes, round 54; its plan compared at 05052daae and
+     *  c7647cba95, round 55h, 2026-11-15). */
+    private static boolean hoistable(SqlExpr xs) {
+        return !(xs instanceof SqlExpr.ScalarSubquery) && holdsSubquery(xs);
+    }
+
     /** Whether {@code e} holds a subquery. */
     private static boolean holdsSubquery(SqlExpr e) {
         if (e instanceof SqlExpr.ScalarSubquery || e instanceof SqlExpr.Exists || e instanceof SqlExpr.InSubquery
@@ -701,7 +710,7 @@ public class Databricks extends AnsiSqlRenderer {
                             + " it (UNSUPPORTED_SUBQUERY_EXPRESSION_CATEGORY.HIGHER_ORDER_FUNCTION)");
                 }
             }
-            if (holdsSubquery(xs)) {
+            if (hoistable(xs)) {
                 return hoisted(writer, xs, l -> {
                     List<SqlExpr> read = new java.util.ArrayList<>(args);
                     read.set(0, l);
@@ -793,7 +802,7 @@ public class Databricks extends AnsiSqlRenderer {
         // joinStrings over a list holding a subquery: measured refused by Spark under its NULL-dropping filter (the order
         // probe's map(toString)->joinStrings cases, 2026-11-15); the other reductions' hoist went with round 55c's
         // narrowing, unmeasured
-        if (rc.reducer() == SqlAgg.Fn.STRING_AGG && rc.extras().size() == 1 && holdsSubquery(rc.collection())) {
+        if (rc.reducer() == SqlAgg.Fn.STRING_AGG && rc.extras().size() == 1 && hoistable(rc.collection())) {
             return hoisted(writer, rc.collection(), l -> w -> reduceCollection(w,
                     new SqlExpr.ReduceCollection(rc.reducer(), l, rc.extras(), rc.type())));
         }
