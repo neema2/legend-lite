@@ -243,7 +243,7 @@ class UpstreamProtocolFieldsTest {
     private static Function<String, Outcome> route(String path) {
         return body -> {
             List<String> ran = new ArrayList<>();
-            PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/" + path, null, body, (query, runtime, output) ->
+            PureV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/" + path, null, body, (query, runtime, output) ->
                     ran.addAll(InjectionFuzzTest.statements(com.legend.executionplan.PlanJson.write(
                             query.executionPlan(runtime)))));
             List<String> all = new ArrayList<>(statements(a.json()));

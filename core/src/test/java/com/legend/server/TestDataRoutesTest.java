@@ -372,7 +372,7 @@ class TestDataRoutesTest {
         String body = "{\"query\":" + com.legend.edge.PureV1Routes.grammarToJsonLambda(q, false).json() + ",\"model\":"
                 + com.legend.json.Json.toCompact(Map.of("_type", "text", "code", model))
                 + ",\"mapping\":\"model::M\",\"runtime\":\"model::RT\"}";
-        PureV1Api.Answer a = PureV1Api.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
+        PureV1Api.Answer a = com.legend.edge.PureV1Routes.route("/api/pure/v1/testData/generation/DONOTUSE_generateTestData", null, body,
                 (query, runtime, output) -> {
                     throw new AssertionError("the census runs nothing");
                 });
