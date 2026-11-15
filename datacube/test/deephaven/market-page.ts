@@ -10,7 +10,8 @@ import { DeephavenSession, type DeephavenServer } from '../../../engine-client/s
 import { LiveClient, type Followed, type FollowedRows } from '../../../engine-client/src/deephaven-live.ts';
 import { followedTable } from '../../../engine-client/src/deephaven-rows.ts';
 import { relationColumns, type Plan } from '../../../engine-client/src/relation-type.ts';
-import { DESK_MODEL, ON_DEEPHAVEN } from '../../demo/deephaven/market/model.ts';
+import { checkHeld, DeephavenNotHeld, heldTablesOf } from '../../../engine-client/src/deephaven-held.ts';
+import { DESK_MODEL, DESK_ON_DEEPHAVEN, ON_DEEPHAVEN } from '../../demo/deephaven/market/model.ts';
 // @ts-ignore the module's runtime, served beside the page from //wasm:planner
 import { load } from './wasm-gc-module-runtime.js';
 import { unplanned } from '../../../engine-client/test/unplanned.ts';
@@ -34,6 +35,40 @@ const RM = 'meta::pure::functions::math::mathUtility::rowMapper';
 /** A print's columns: its sequence, its name's ticker and id, its time, price and size. */
 const PRINTS = `${TRADE}->project(~[seq:x|$x.sequenceNumber, sym:x|$x.instrument.ticker, inst:x|$x.instrument.instrumentId,`
   + ' at:x|$x.printTime, px:x|$x.price, sz:x|$x.quantity])';
+
+/** A deployment to the desk's server of a table the server's install did not land, and a runtime that reads it. */
+const NOT_LANDED = `
+###Relational
+Database check::Topics
+(
+  Table "check.absent.v1" (ID VARCHAR(20) PRIMARY KEY)
+)
+
+###Lakehouse
+Ingest check::Feed Delta<JSON>
+[
+  NOT_LANDED( |#>{check::Topics."check.absent.v1"}# ) pk=[ ID ] writeMode=AppendOnly;
+]
+Deployment check::Lands
+{
+  deploys: [ check::Feed ];
+  sources: [ market::Kafka: [ check::Topics ] ];
+  live: market::Deephaven keep [ appended: all ];
+}
+
+###Relational
+Database check::Store
+(
+  include Ingest check::Feed
+)
+
+###Runtime
+Runtime check::Absent
+{
+  mappings: [ ];
+  connections: [ check::Store: [ live: market::Deephaven ] ];
+}
+`;
 
 async function check(name: string, run: () => Promise<string | null>): Promise<void> {
   try {
@@ -111,6 +146,29 @@ try {
   const equities = config.names;
   // the world's first beat quotes every name; a second for its trades to start
   await sleep(1500);
+
+  await check('on connect (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): the server holds every table the desk\'s deployment'
+    + ' lands, each as its store declares it, and a table no deployment landed is refused by name', async () => {
+    const tables = heldTablesOf(exports.deephavenOrError('holds', JSON.stringify({ model, runtime: ON_DEEPHAVEN.runtime })));
+    // the deployment's plan (install.ts planOf, which this page cannot bundle: it writes files)
+    const planned = exports.deephavenOrError('plan', JSON.stringify({ model, deployment: DESK_ON_DEEPHAVEN }));
+    if (!planned.startsWith('OK\n')) return `the planner refused the deployment: ${planned}`;
+    const landed = (JSON.parse(planned.slice(3)) as { plan: { tables: { name: string }[] } }).plan.tables.map((t) => t.name);
+    if (JSON.stringify(tables.map((t) => t.table)) !== JSON.stringify(landed)) {
+      return `the runtime's server must hold ${tables.map((t) => t.table).join(', ')}; the deployment lands ${landed.join(', ')}`;
+    }
+    await checkHeld(tables, (sql) => session.keepAlive(sql));
+    // a deployment to this server of a table its start never landed (the server was installed with the desk's alone),
+    // and a runtime that reads it: the server's refusal of it named
+    const absent = heldTablesOf(exports.deephavenOrError('holds', JSON.stringify({ model: model + NOT_LANDED,
+      runtime: 'check::Absent' })));
+    if (JSON.stringify(absent.map((t) => [t.deployment, t.table])) !== '[["check::Lands","NOT_LANDED"]]') {
+      return `a runtime reading a table no install landed must hold it: ${JSON.stringify(absent)}`;
+    }
+    const refused = await checkHeld(absent, (sql) => session.keepAlive(sql)).then(() => null, (e: unknown) => e);
+    return refused instanceof DeephavenNotHeld && refused.missing[0]?.table === 'NOT_LANDED'
+      && refused.message.includes('NOT_LANDED (check::Lands)') ? null : `a table no install landed: ${String(refused)}`;
+  });
 
   await check('the world says what it is: equities simulated, crypto simulated because its feed was refused, the news'
     + ' simulated, filings simulated (this world reads no EDGAR)', async () => {

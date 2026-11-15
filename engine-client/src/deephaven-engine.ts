@@ -16,6 +16,7 @@ import type {
   DeephavenColumn, DeephavenPlanner, DeephavenServer, DeephavenSessionOptions, KeptResult,
 } from './deephaven.ts';
 import { DeephavenSession } from './deephaven.ts';
+import { checkHeld, type HeldTable } from './deephaven-held.ts';
 import { LiveClient, type DhModule, type Followed } from './deephaven-live.ts';
 import { byPosition, deephavenRows, followedTable } from './deephaven-rows.ts';
 import { QueryError, type QueryEngine, type RawTable, type ResultWindow, type WindowedResult } from './engine.ts';
@@ -321,6 +322,16 @@ export class DeephavenEngine implements QueryEngine {
       this.#bases.set(stored.name, kept);
     }
     return { name: stored.name, columns: stored.columns, held: kept.columns };
+  }
+
+  /**
+   * Each of `tables` read on the server once (deephaven-held.ts: what a runtime's server must hold when it connects,
+   * docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): each made and let go, its columns checked against its store (DH16); any
+   * missing or held otherwise refuses the whole, naming each (`DeephavenNotHeld`).
+   */
+  async holds(tables: readonly HeldTable[]): Promise<void> {
+    const session = this.#session;
+    await checkHeld(tables, (sql) => session.keepAlive(sql, this.#supplied()));
   }
 
   /** Whether the base named `name` is kept now: a reconnect lets every one go. */

@@ -288,6 +288,36 @@ class DeploymentPlannerTest {
                 "t::Missing"));
     }
 
+    private static final String RUNTIMES = """
+            ###Runtime
+            Runtime t::OnServer
+            {
+              mappings: [ ];
+              connections: [ t::DB: [ live: t::Server ] ];
+            }
+            Runtime t::OnTab
+            {
+              mappings: [ ];
+              connections: [ t::DB: [ live: t::InTab ] ];
+            }
+            """;
+
+    @Test
+    void onConnectAServerMustHoldWhatItsDeploymentLands() {
+        com.legend.compiler.element.ModelContext ctx = Compiler.compileModel(STORES + DEPLOYMENT + RUNTIMES);
+        List<DeploymentPlanner.Held> held = DeploymentPlanner.onConnect(ctx, "t::OnServer");
+        assertEquals(List.of("TRADES", "QUOTES", "BOOKS", "NEWS"), held.stream().map(DeploymentPlanner.Held::table)
+                .toList(), "every table the deployment lands on the runtime's server, read through its store");
+        assertEquals(new DeploymentPlanner.Held("t::Server", "t::OnDeephaven", "t::DB", "TRADES"), held.get(0));
+        assertEquals("|#>{t::DB.TRADES}#", held.get(0).query());
+        // each one's plan reads the table on the server, its columns checked against the store (DH16)
+        String sql = Compiler.query(ctx, held.get(0).query()).plan("t::OnServer").sql();
+        assertTrue(sql.contains("\"declared\"") && sql.contains("TRADES"), sql);
+        // a tab makes its own tables: nothing to ask of a server
+        assertEquals(List.of(), DeploymentPlanner.onConnect(ctx, "t::OnTab"));
+        assertThrows(IllegalArgumentException.class, () -> DeploymentPlanner.onConnect(ctx, "t::Nowhere"));
+    }
+
     private static final String IN_TAB = """
             ###Connection
             RelationalDatabaseConnection t::World

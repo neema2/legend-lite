@@ -587,6 +587,11 @@ public final class PureModelContext implements ModelContext {
         return model.dataElements();
     }
 
+    @Override
+    public java.util.stream.Stream<com.legend.model.DeploymentDefinition> deployments() {
+        return model.deployments();
+    }
+
     /** Overlay view: SHARES the base context wholesale (model, compilers,
      * memo caches) and adds the driver-supplied runtime + connection. */
     private PureModelContext(PureModelContext base,

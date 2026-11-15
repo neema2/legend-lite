@@ -60,7 +60,8 @@ const site = createServer((req, res) => {
 });
 const sitePort = await new Promise((done) => site.listen(0, '127.0.0.1', () => done(site.address().port)));
 
-const CHECKS = 24;
+// the page's checks: 25 since the check on connect (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9, step 3, 2026-11-15)
+const CHECKS = 25;
 let failed = false;
 let browser;
 try {

@@ -446,7 +446,8 @@ Each becomes a docs/SEMANTICS_REGISTER.md row, ruled by the user, when it is bui
    (`DeephavenProgram`, `DeephavenStartup`'s program) deleted; `deephaven_door_test` runs the loader and the plan.
 2. **The desk's data products** (if ruled at this step): one per domain and `desk::Desk` over them; `mappingProvider`
    resolved.
-3. **`install`**, with the check after it and on connect.
+3. **`install`**, with the check after it and on connect. (Built as §15.4a; the check on connect covers what the
+   deployments land, not every table the mapping reads.)
 4. **Reference data as published topics; positions as files.**
 5. **The tab on the same path:** the world publishes to the tab's log, the tab lands with the same plans. (Built as
    §15.5a: the tab's own deployment and keep, its source a `Simulated` world; no log in the tab.)
@@ -606,6 +607,28 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
     update cycle).
 - **Not yet:** the door holds a session's records in the feed's memory (a long show grows it, as the server's own
   tables grow); a restart of the server re-reads every topic from the door.
+
+### 15.4a Step 3, built (2026-11-15): `install` and the check on connect
+
+- **`install`** (`datacube/demo/deephaven/install.ts`) writes the deployment's plan beside lite's loader and the
+  server's application file; the loader checks each table it makes against the plan before publishing it, so a table
+  not as declared fails the server's start, naming it (built with step 2).
+- **On connect.** Before a desk reads anything on a Deephaven server, its host asks the planner what the server must
+  hold (`deephaven` op `holds`; `DeploymentPlanner.onConnect`) and reads each table once on the server by the plan the
+  planner wrote for it (`|#>{store.table}#`, its columns checked against the store's declaration, DH16). Every table is
+  tried; any missing or held otherwise refuses every grid of that model, naming each and why
+  (`engine-client/src/deephaven-held.ts` `DeephavenNotHeld`; DataCube's `deephaven-grids.ts` gates the engine each grid
+  reads through on it). Measured on the desk: 21 tables, read at once.
+- **Narrowed from §9's words, posted to the user.** §9 says the server must hold "every table and view its mapping
+  reads". The desk's runtime maps the whole stress corpus (`stress::AllMapping`: 405 tables across its stores, measured
+  2026-11-15), and its server holds the desk's 21, so that rule would refuse the desk on every connect. What is checked:
+  every table a deployment whose live target the runtime connects to lands there, read through a store of the
+  runtime's that offers it. A table the runtime reads that no deployment lands is refused where a query reads it
+  (DH16), naming it. Checking the mapping's tables needs the tables a desk's queries read (its saved queries), not its
+  mapping's: later, if wanted.
+- **Proven on the pinned server** (`//datacube:deephaven_market_test`): the tables listed are exactly the deployment's,
+  the server holds each as declared, and a deployment of a table the server's install never landed is refused, naming
+  it. `//datacube:deephaven_desk_test` opens the desk through the check.
 
 ### 15.5a Step 5, built (2026-11-15): the tab lands by a deployment
 

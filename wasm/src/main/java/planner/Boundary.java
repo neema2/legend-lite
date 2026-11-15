@@ -631,6 +631,21 @@ public final class Boundary {
     }
 
     /** The topics as JSON: each one's landing table, name, columns (name and Deephaven type), key, retention. */
+    /** {@code runtime}'s held tables ({@code DeploymentPlanner.onConnect}), each with the plan that reads it on its server:
+     *  {@code {"tables": [{"connection", "deployment", "table", "sql"}]}}. */
+    private static String holds(com.legend.compiler.element.ModelContext ctx, String runtime) {
+        java.util.List<Object> out = new java.util.ArrayList<>();
+        for (com.legend.planner.DeploymentPlanner.Held h : com.legend.planner.DeploymentPlanner.onConnect(ctx, runtime)) {
+            java.util.Map<String, Object> t = new java.util.LinkedHashMap<>();
+            t.put("connection", h.connection());
+            t.put("deployment", h.deployment());
+            t.put("table", h.table());
+            t.put("sql", com.legend.Compiler.query(ctx, h.query()).plan(runtime).sql());
+            out.add(t);
+        }
+        return com.legend.json.Json.toCompact(java.util.Map.of("tables", out));
+    }
+
     private static String topics(java.util.List<com.legend.planner.IngestTopics.Topic> topics) {
         java.util.List<Object> out = new java.util.ArrayList<>();
         for (com.legend.planner.IngestTopics.Topic t : topics) {
@@ -891,6 +906,9 @@ public final class Boundary {
             // lite's fixed loader (core/src/main/deephaven/legend-loader.groovy); never code
             case "plan" -> MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(java.util.Map.of(
                     "plan", com.legend.planner.DeploymentPlanner.deephaven(ctx, a.getString("deployment")).data())));
+            // what a runtime's servers must hold when it connects (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9): each table a
+            // deployment lands there, with the plan that reads it whole (its columns checked against the store, DH16)
+            case "holds" -> MODELS.withText(a.getString("model"), ctx -> holds(ctx, a.getString("runtime")));
             // every reason a deployment cannot be landed (its validate), empty when it can
             case "validate" -> MODELS.withText(a.getString("model"), ctx -> com.legend.json.Json.toCompact(java.util.Map.of(
                     "problems", com.legend.planner.DeploymentPlanner.validate(ctx, a.getString("deployment")))));

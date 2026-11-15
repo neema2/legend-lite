@@ -114,6 +114,60 @@ public final class DeploymentPlanner {
         return rule instanceof Protocol.PKeepRows r ? r.rows() : null;
     }
 
+    /**
+     * A table a runtime's server must hold when the runtime connects (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9, step 3):
+     * the server's connection, the deployment that lands the table there, the store of the runtime's that offers it,
+     * and the table. Its {@link #query} reads it whole, so its plan checks each declared column against the server's
+     * (DH16).
+     */
+    public record Held(String connection, String deployment, String store, String table) {
+        /** The query that reads the table whole: {@code |#>{store.table}#}. */
+        public String query() {
+            String name = table.matches("[A-Za-z_][A-Za-z0-9_]*") ? table : "\"" + table + "\"";
+            return "|#>{" + store + "." + name + "}#";
+        }
+    }
+
+    /**
+     * What {@code runtime}'s servers must hold when it connects: for each connection it binds that is a server whose
+     * tables a plan makes at its start (Deephaven's), every table a deployment whose live target is that connection
+     * lands there, each read through a store the runtime binds to such a server that offers it. A server's tables are
+     * the deployment's, not the runtime's: no runtime knows what is on a server, so its host reads each before the
+     * desk opens and refuses the desk naming every one missing or held otherwise. A table no store of the runtime's
+     * offers is no table it reads, and is not asked for; a table the runtime reads that no deployment lands is refused
+     * where a query reads it (DH16), naming it.
+     */
+    public static List<Held> onConnect(ModelContext ctx, String runtime) {
+        com.legend.model.RuntimeDefinition rt = ctx.findRuntime(runtime).orElseThrow(() -> new IllegalArgumentException(
+                "the model declares no Runtime " + runtime));
+        // the runtime's stores bound to a server whose tables a plan makes, and those servers' connections
+        List<String> stores = new ArrayList<>();
+        java.util.Set<String> servers = new java.util.LinkedHashSet<>();
+        rt.connectionBindings().forEach((store, connections) -> {
+            for (String c : connections) {
+                Optional<ConnectionDefinition> conn = ctx.findConnection(c);
+                if (conn.isPresent() && targetOf(conn.get()) == Target.DEEPHAVEN) {
+                    servers.add(c);
+                    if (!stores.contains(store)) {
+                        stores.add(store);
+                    }
+                }
+            }
+        });
+        List<Held> held = new ArrayList<>();
+        for (DeploymentDefinition dp : ctx.deployments().toList()) {
+            Protocol.PDeploymentTarget live = dp.deployment().live();
+            if (live == null || !servers.contains(live.connection())) {
+                continue;
+            }
+            for (DeephavenLoad.Table t : deephaven(ctx, dp.qualifiedName()).tables()) {
+                stores.stream().filter(s -> ctx.findTableDefinition(s, t.name()).isPresent()).findFirst()
+                        .ifPresent(s -> held.add(new Held(live.connection(), dp.qualifiedName(), s, t.name())));
+            }
+        }
+        return held;
+    }
+
     private static DeploymentDefinition find(ModelContext ctx, String deployment) {
         return ctx.findDeployment(deployment).orElseThrow(() -> new IllegalArgumentException("the model declares no"
                 + " Deployment " + deployment));

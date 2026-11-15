@@ -204,6 +204,15 @@ node_test(
     env = {"DOGET_ANSWER": "$(rlocationpath test/deephaven/doget-answer.hex)"},
 )
 
+# what a runtime's Deephaven server must hold when it connects (deephaven-held.ts, docs/DEPLOYMENT_DESIGN_2026_11_14.md
+# §9 step 3): every table tried, any refused refusing the whole by name -- no server here
+node_test(
+    name = "deephaven_held_test",
+    size = "small",
+    data = [":engine_client"],
+    entry_point = "test/deephaven-held.test.ts",
+)
+
 # DuckDB in a Node test (src/node-require.ts startNodeDuckDb): the pinned extensions only, none fetched (node_test gives
 # a test that takes DuckDB-WASM the pinned files)
 node_test(
@@ -362,6 +371,7 @@ test_suite(
     name = "tests",
     tests = [
         ":arrow_ipc_test",
+        ":deephaven_held_test",
         ":duckdb_live_test",
         ":model_data_test",
         ":node_duckdb_test",

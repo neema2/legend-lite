@@ -557,7 +557,12 @@ final class StressOnDeephaven {
             case "Decimal" -> new BigDecimal(text);
             case "Boolean" -> Boolean.parseBoolean(text);
             case "StrictDate" -> PureDateLiteral.fromLocalDate(java.time.LocalDate.parse(text.substring(0, 10))).toEngineJson();
-            case "DateTime", "Date" -> PureDateLiteral.fromDatabaseTimestamp(instant(text)).toEngineJson();
+            case "DateTime" -> PureDateLiteral.fromDatabaseTimestamp(instant(text)).toEngineJson();
+            // a Date is a day or a date-time: the value's own form says which, as a DATE column's JDBC answer (a
+            // LocalDate) is a StrictDate on the reference
+            case "Date" -> text.length() == 10
+                    ? PureDateLiteral.fromLocalDate(java.time.LocalDate.parse(text)).toEngineJson()
+                    : PureDateLiteral.fromDatabaseTimestamp(instant(text)).toEngineJson();
             default -> text;
         };
     }

@@ -10,6 +10,7 @@
 
 import type { PlannedSql } from '../../engine-client/src/planned-sql.ts';
 import { DeephavenEngine } from '../../engine-client/src/deephaven-engine.ts';
+import { heldTablesOf } from '../../engine-client/src/deephaven-held.ts';
 import type { QueryEngine, RawTable, ResultWindow, WindowedResult } from '../../engine-client/src/engine.ts';
 import type { Plan } from '../../engine-client/src/relation-type.ts';
 import type { ResultTable } from '../../engine-client/src/result.ts';
@@ -76,9 +77,11 @@ export class DeephavenGrids {
   }
 }
 
-/** A project's model held on a server: the planner holding it, and the bases its grids read. */
+/** A project's model held on a server: the planner holding it, the engine once the server is found to hold what the
+ *  runtime's deployments land there (`checked`), and the bases its grids read. */
 interface Held {
   readonly planner: LitePlanner;
+  readonly checked: Promise<DeephavenEngine>;
   readonly bases: Promise<ServerBases>;
 }
 
@@ -133,7 +136,7 @@ class Server {
   /** A source's rows on the server: typed by the model's planner; each grid made over them (a copy too) its own. */
   rows(model: string, runtime: string, stores: readonly string[]): GridRows {
     const held = this.#hold(model, runtime, stores);
-    return { runner: new PlanThenRun(held.planner, new OnReader(() => this.engine())), live: () => this.#grid(held) };
+    return { runner: new PlanThenRun(held.planner, new OnReader(() => held.checked)), live: () => this.#grid(held) };
   }
 
   /** `model` held for `runtime`'s grids: a planner of the module's over it, and the bases its grids read. */
@@ -149,13 +152,23 @@ class Server {
       // the model held now, beside the sign-in: every question of it after -- a source's columns typed (pure/v1, which
       // answers from a model held and compiles one it does not hold for each call: 2.3 MB, the trading desk's), a query
       // planned -- asks of it compiled once (as the market's host held it at the page's start, before step 5)
-      planner.warmUp().catch(() => { /* said by the first question of it */ });
-      const bases = this.engine().then((engine) => new ServerBases(planner, engine, {
+      const warmed = planner.warmUp().catch(() => { /* said by the first question of it */ });
+      // ON CONNECT (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9, step 3): the server holds every table the deployments
+      // whose live target the runtime connects to land there, each read once as its store declares it -- or every
+      // grid of the model is refused, naming each table missing or held otherwise (DeephavenNotHeld)
+      // -- asked once the model is held, so the question finds it compiled
+      const checked = Promise.all([this.engine(), warmed]).then(async ([engine]) => {
+        await engine.holds(heldTablesOf(await planner.deephaven('holds', { model, runtime })));
+        return engine;
+      });
+      // a refusal is said by each grid that reads; the model is held afresh for the next (below)
+      checked.catch(() => undefined);
+      const bases = checked.then((engine) => new ServerBases(planner, engine, {
         model, connection: 'bases::Deephaven', stores, connectionOf: basesConnection(this.#at), baseOf: this.#o.baseOf,
       }));
       // a sign-in refused is said by the grid that reads; tried again for the next model held
       bases.catch(() => { if (models!.get(model) === held) models!.delete(model); });
-      held = { planner, bases };
+      held = { planner, checked, bases };
       models.set(model, held);
     }
     return held;
@@ -204,7 +217,7 @@ class Server {
 
   /** One grid's rows on the server: its own reader, its queries read from its bases, its views followed. */
   #grid(held: Held): LiveGrid {
-    const reader = this.engine().then((engine) => engine.reader());
+    const reader = held.checked.then((engine) => engine.reader());
     const based = Promise.all([held.bases, reader]).then(([bases, r]) => bases.runner(r));
     // a sign-in refused is said by the grid's first run
     based.catch(() => undefined);

@@ -157,6 +157,12 @@ public interface ModelContext extends StoreLookups {
         return Optional.empty();
     }
 
+    /** Every {@code ###Lakehouse} deployment, in ingest order &mdash; those whose live target a runtime connects to are
+     *  what its server must hold ({@code planner.DeploymentPlanner.onConnect}). */
+    default java.util.stream.Stream<com.legend.model.DeploymentDefinition> deployments() {
+        return java.util.stream.Stream.empty();
+    }
+
     /** The {@code ###DataProduct} data product for {@code fqn}, if present &mdash; what a deployment deploys and a data
      *  space's {@code mappingProvider} names. */
     default Optional<com.legend.model.DataProductDefinition> findDataProduct(String fqn) {
