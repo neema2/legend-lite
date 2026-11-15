@@ -1,0 +1,428 @@
+database	reason	repeats	excess_nodes
+H2	raises	26	467	28%
+H2	row	9	39	2%
+H2	lambda	0	0	0%
+H2	aggregate	0	0	0%
+H2	subquery	0	0	0%
+H2	tagged-checked	0	0	0%
+H2	closed-not-root	16	528	32%
+H2	closed-eligible	78	621	38%
+Postgres	raises	35	584	12%
+Postgres	row	12	51	1%
+Postgres	lambda	11	157	3%
+Postgres	aggregate	0	0	0%
+Postgres	subquery	0	0	0%
+Postgres	tagged-checked	11	429	9%
+Postgres	closed-not-root	25	673	14%
+Postgres	closed-eligible	197	3038	62%
+Snowflake	raises	27	344	13%
+Snowflake	row	12	51	2%
+Snowflake	lambda	16	282	11%
+Snowflake	aggregate	0	0	0%
+Snowflake	subquery	0	0	0%
+Snowflake	tagged-checked	11	429	17%
+Snowflake	closed-not-root	5	35	1%
+Snowflake	closed-eligible	171	1410	55%
+Trino	raises	35	584	19%
+Trino	row	11	47	2%
+Trino	lambda	16	282	9%
+Trino	aggregate	0	0	0%
+Trino	subquery	0	0	0%
+Trino	tagged-checked	11	429	14%
+Trino	closed-not-root	5	35	1%
+Trino	closed-eligible	195	1666	55%
+BigQuery	raises	30	564	12%
+BigQuery	row	17	161	4%
+BigQuery	lambda	2	19	0%
+BigQuery	aggregate	0	0	0%
+BigQuery	subquery	0	0	0%
+BigQuery	tagged-checked	11	429	9%
+BigQuery	closed-not-root	36	772	17%
+BigQuery	closed-eligible	171	2618	57%
+Databricks	raises	35	584	19%
+Databricks	row	12	51	2%
+Databricks	lambda	16	282	9%
+Databricks	aggregate	0	0	0%
+Databricks	subquery	0	0	0%
+Databricks	tagged-checked	11	429	14%
+Databricks	closed-not-root	5	35	1%
+Databricks	closed-eligible	195	1666	55%
+DuckDB	raises	35	584	19%
+DuckDB	row	16	105	3%
+DuckDB	lambda	17	287	9%
+DuckDB	aggregate	0	0	0%
+DuckDB	subquery	0	0	0%
+DuckDB	tagged-checked	11	429	14%
+DuckDB	closed-not-root	5	35	1%
+DuckDB	closed-eligible	195	1666	54%
+ClickHouse	raises	35	584	19%
+ClickHouse	row	12	51	2%
+ClickHouse	lambda	16	282	9%
+ClickHouse	aggregate	0	0	0%
+ClickHouse	subquery	0	0	0%
+ClickHouse	tagged-checked	11	429	14%
+ClickHouse	closed-not-root	5	35	1%
+ClickHouse	closed-eligible	195	1666	55%
+SQLite	raises	30	564	12%
+SQLite	row	12	51	1%
+SQLite	lambda	11	157	3%
+SQLite	aggregate	0	0	0%
+SQLite	subquery	0	0	0%
+SQLite	tagged-checked	11	429	9%
+SQLite	closed-not-root	25	673	14%
+SQLite	closed-eligible	191	2994	62%
+MariaDB	raises	35	584	12%
+MariaDB	row	23	115	2%
+MariaDB	lambda	11	157	3%
+MariaDB	aggregate	0	0	0%
+MariaDB	subquery	0	0	0%
+MariaDB	tagged-checked	11	429	9%
+MariaDB	closed-not-root	25	673	14%
+MariaDB	closed-eligible	191	2994	60%
+MySQL	raises	35	584	12%
+MySQL	row	23	115	2%
+MySQL	lambda	11	157	3%
+MySQL	aggregate	0	0	0%
+MySQL	subquery	0	0	0%
+MySQL	tagged-checked	11	429	9%
+MySQL	closed-not-root	25	673	14%
+MySQL	closed-eligible	191	2994	60%
+
+database	statements	chars	rendered_repeated_chars
+H2	1877	488914	50854
+Postgres	2356	786507	134977
+Snowflake	2432	835900	164829
+Trino	2432	926021	180131
+BigQuery	2347	1007824	217067
+Databricks	2359	658320	79646
+DuckDB	2442	544720	58866
+ClickHouse	2424	1837484	218143
+SQLite	2428	1530480	377459
+MariaDB	2356	1367634	413360
+MySQL	2357	1709487	569231
+
+database	repeated_chars	copies	written after
+H2	5096	104	T00:32:34.000000', 10), |(200, TIMESTAMP 
+H2	2937	11	_l0" IS NULL THEN SIGNAL|('45000', CHAR(3
+H2	2696	8	"_tds0" LEFT OUTER JOIN |(VALUES (2, TIME
+H2	2548	52	T00:32:34.000000', 20), |(100, TIMESTAMP 
+H2	2548	52	T00:32:34.000000', 30), |(100, TIMESTAMP 
+H2	2548	52	T00:32:34.000000', 30), |(200, TIMESTAMP 
+H2	2444	52	T00:32:34.000000', 10), |(0, TIMESTAMP '2
+H2	1869	7	_id" IS NULL THEN SIGNAL|('45000', CHAR(3
+H2	1785	11	VARCHAR), 2, LENGTH(CAST|((JSON_OBJECT('i
+H2	1785	11	) - 2)) ELSE NULLIF(CAST|((JSON_OBJECT('i
+H2	1785	11	INGDECODE(SUBSTRING(CAST|((JSON_OBJECT('i
+H2	1695	12	§4)') || CHAR(31)) ELSE |(JSON_OBJECT('in
+Postgres	6422	26	END FROM unnest((SELECT |(CASE WHEN ("__l
+Postgres	5236	11	L ELSE json_build_object|('_type', 'meta:
+Postgres	5096	104	T00:32:34.000000', 10), |(200, TIMESTAMP 
+Postgres	4864	18	 e -> 'key') FROM unnest|((SELECT ARRAY(S
+Postgres	4576	18	) AS JSONB[]) ELSE ARRAY|(SELECT jsonb_bu
+Postgres	4312	2	2, 6] AS BIGINT[]) ELSE |(WITH RECURSIVE 
+Postgres	4267	18	'-' ELSE '' END || CAST(|(SELECT round(CA
+Postgres	4116	84	 ELSE 0 END + CASE WHEN |(CAST(ARRAY[1, 1
+Postgres	3734	21	'', replace(replace(CAST|(((jsonb_build_o
+Postgres	3370	1	0"."id" NULLS LAST, CAST|((CASE WHEN 0 >=
+Postgres	3355	11	"__l0" IS NULL THEN CAST|(CAST(CAST(chr(3
+Postgres	2836	15	R) AS VARCHAR) ELSE CAST|(((jsonb_build_o
+Snowflake	7555	10	TAINS(TO_VARIANT(TO_JSON|(CASE WHEN OBJEC
+Snowflake	7176	14	), 2) AS DOUBLE) / (CAST|(GET(REDUCE(ARRA
+Snowflake	5278	26	 ELSE REDUCE(ARRAY_SLICE|(TRANSFORM(ARRAY
+Snowflake	5096	104	T00:32:34.000000', 10), |(200, TIMESTAMP 
+Snowflake	4972	11	JECT_CONSTRUCT_KEEP_NULL|('_type', 'meta:
+Snowflake	4684	4	ARRAY_SIZE(ARRAY_COMPACT|(TRANSFORM(FILTE
+Snowflake	3623	28	ARRAY_SIZE(ARRAY_COMPACT|(ARRAY_CONSTRUCT
+Snowflake	3512	8	VARCHAR) END), TRANSFORM|(ARRAY_CONSTRUCT
+Snowflake	3162	6	", 1) AS INTEGER)), IFF(|(IFF((CAST(GET("
+Snowflake	3124	11	"__l0" IS NULL THEN CAST|(CAST(CHR(31) ||
+Snowflake	2910	6	)), 2) AS DOUBLE) / CAST|(GET(REDUCE(ARRA
+Snowflake	2910	6	 0) AS DOUBLE) WHEN CAST|(GET(REDUCE(ARRA
+Trino	16100	52	GINT)) - (0)) - mod(mod(|((date_diff('sec
+Trino	6968	104	.000000', BIGINT '10'), |(BIGINT '200', T
+Trino	5867	19	59200000000)) - mod(mod(|((date_diff('sec
+Trino	4730	11	NULL THEN NULL ELSE CAST|(MAP(ARRAY['_typ
+Trino	4200	60	odel::SideClass') AS ROW|("intId" BIGINT,
+Trino	3484	52	.000000', BIGINT '30'), |(BIGINT '200', T
+Trino	3484	52	.000000', BIGINT '20'), |(BIGINT '100', T
+Trino	3484	52	.000000', BIGINT '30'), |(BIGINT '100', T
+Trino	3380	52	.000000', BIGINT '10'), |(BIGINT '0', TIM
+Trino	3342	2	), lpad(CAST(MOD(MOD(abs|(CAST(((((date_d
+Trino	3159	81	GINT '1', BIGINT '10'), |(BIGINT '200', B
+Trino	3003	11	"__l0" IS NULL THEN CAST|(fail(chr(31) ||
+BigQuery	35022	51	FNULL(ARRAY_LENGTH(ARRAY|(SELECT `x` FROM
+BigQuery	8690	10	E `__e` = TO_JSON_STRING|(CASE WHEN STRUC
+BigQuery	8204	8	'0') END WHEN NOT STRPOS|(LOWER((SELECT C
+BigQuery	8204	8	L('.0', '')) WHEN STRPOS|(LOWER((SELECT C
+BigQuery	8108	8	EN 'Infinity' WHEN LOWER|((SELECT CASE WH
+BigQuery	8108	8	') THEN 'NaN' WHEN LOWER|((SELECT CASE WH
+BigQuery	8092	8	 IFNULL('.0', '')) ELSE |(SELECT CASE WHE
+BigQuery	8092	8	THEN CONCAT(IFNULL(CAST(|(SELECT CASE WHE
+BigQuery	6039	11	ULL THEN NULL ELSE ARRAY|(SELECT CASE WHE
+BigQuery	5075	35	AS INT64) - 1)] = 1 AND |(ARRAY(SELECT CA
+BigQuery	4992	104	:34.000000', 10), STRUCT|(200, DATETIME '
+BigQuery	3976	5	 1 < 0 THEN ARRAY_LENGTH|(ARRAY(SELECT `_
+Databricks	7991	64	N EXISTS (SELECT 1 FROM |(SELECT `_tds1`.
+Databricks	5304	104	00:32:34.000000', 10L), |(200L, TIMESTAMP
+Databricks	4158	11	L ELSE to_variant_object|(named_struct('_
+Databricks	2652	52	00:32:34.000000', 30L), |(200L, TIMESTAMP
+Databricks	2652	52	00:32:34.000000', 30L), |(100L, TIMESTAMP
+Databricks	2652	52	00:32:34.000000', 20L), |(100L, TIMESTAMP
+Databricks	2548	52	00:32:34.000000', 10L), |(0L, TIMESTAMP '
+Databricks	2336	1	ay_join(transform(filter|(transform(array
+Databricks	1973	63	) AS `__q`(`__c`) WHERE |(`_tds0`.`price`
+Databricks	1585	10	(CASE WHEN (named_struct|('legalName', 'f
+Databricks	1576	11	ULL THEN NULL ELSE CAST(|(named_struct('i
+Databricks	1576	11	Id', coalesce(CASE WHEN |(named_struct('i
+DuckDB	5096	104	T00:32:34.000000', 10), |(200, TIMESTAMP 
+DuckDB	4466	11	EN NULL ELSE json_object|('_type', 'meta:
+DuckDB	2816	11	.__l0 IS NULL THEN error|(chr(31) || ('an
+DuckDB	2726	6	but got ''' || json_type|(CAST((CASE WHEN
+DuckDB	2726	6	ON) IS NULL OR json_type|(CAST((CASE WHEN
+DuckDB	2690	6	]') AS JSON[]) WHEN CAST|((CASE WHEN json
+DuckDB	2548	52	T00:32:34.000000', 20), |(100, TIMESTAMP 
+DuckDB	2548	52	T00:32:34.000000', 30), |(100, TIMESTAMP 
+DuckDB	2548	52	T00:32:34.000000', 30), |(200, TIMESTAMP 
+DuckDB	2444	52	T00:32:34.000000', 10), |(0, TIMESTAMP '2
+DuckDB	1851	12	31)) ELSE struct_extract|({'intId': CAST(
+DuckDB	1792	7	_id') IS NULL THEN error|(chr(31) || ('an
+ClickHouse	34470	26	LL THEN NULL ELSE concat|('{', coalesce(t
+ClickHouse	8424	104	, 'UTC'), toInt64(10)), |(toInt64(200), t
+ClickHouse	6360	60	el::SideClass') AS Tuple|("intId" Nullabl
+ClickHouse	5727	23	31), replaceAll(toString|('an object\'s i
+ClickHouse	5496	52	, 6, 'UTC')) - (0)) - ((|(toUnixTimestamp
+ClickHouse	4446	13	ring("__x"), arrayFilter|("__x" -> isNotN
+ClickHouse	4212	52	, 'UTC'), toInt64(30)), |(toInt64(200), t
+ClickHouse	4212	52	, 'UTC'), toInt64(20)), |(toInt64(100), t
+ClickHouse	4212	52	, 'UTC'), toInt64(30)), |(toInt64(100), t
+ClickHouse	4162	8	ing('0'), '')) ELSE trim|(TRAILING '0' FR
+ClickHouse	4162	8	t(coalesce(toString(trim|(TRAILING '0' FR
+ClickHouse	4108	52	, 'UTC'), toInt64(10)), |(toInt64(0), toD
+SQLite	48955	44	AS value FROM json_each(|(SELECT json_gro
+SQLite	46794	71	|| rtrim(printf('%06d', |(((((((unixepoch
+SQLite	23019	81	|| rtrim(printf('%06d', |(((((unixepoch(s
+SQLite	13746	129	 ELSE SUM(_tds0.i) OVER |(PARTITION BY _t
+SQLite	13746	129	07 OR SUM(_tds0.i) OVER |(PARTITION BY _t
+SQLite	13418	6	1, 3, NULL, 2), '$[' || |(json_extract(CA
+SQLite	13418	6	LL, '3', NULL), '$[' || |(json_extract(CA
+SQLite	7890	19	 IS NULL THEN NULL ELSE |(SELECT json_gro
+SQLite	7340	2	, d, a0, b0, c0, d0) AS |(SELECT 0, 0, 17
+SQLite	6962	1	tds0.id NULLS LAST, CAST|((CASE WHEN 0 >=
+SQLite	6601	23	S NULL THEN json_extract|('{}', char(31) 
+SQLite	6238	7	AS value FROM json_each(|(SELECT CASE WHE
+MariaDB	50027	52	FROM JSON_TABLE(coalesce|((SELECT JSON_AR
+MariaDB	39916	7	S SIGNED) IS NULL), CAST|(JSON_VALUE(CASE
+MariaDB	25850	1	LL), "_tds0"."id", (CAST|(JSON_VALUE(CASE
+MariaDB	14192	6	, 1, 3, NULL, 2), CONCAT|('$[', CAST(JSON
+MariaDB	14192	6	NULL, '3', NULL), CONCAT|('$[', CAST(JSON
+MariaDB	12990	8	, '') END WHEN NOT INSTR|(lower((SELECT C
+MariaDB	12990	8	 CHAR), '.0') WHEN INSTR|(lower((SELECT C
+MariaDB	12894	8	') THEN 'NaN' WHEN lower|((SELECT CASE WH
+MariaDB	12894	8	EN 'Infinity' WHEN lower|((SELECT CASE WH
+MariaDB	12878	8	 = 0 THEN CONCAT_WS('', |(SELECT CASE WHE
+MariaDB	12878	8	')) AS __f), '.0') ELSE |(SELECT CASE WHE
+MariaDB	8748	3	"value" FROM JSON_TABLE(|(CASE WHEN CASE 
+MySQL	75992	52	LATERAL (SELECT coalesce|((SELECT JSON_EX
+MySQL	64796	19	S SIGNED) IS NULL), CAST|(JSON_UNQUOTE(NU
+MySQL	39032	2	LL), "_tds0"."id", (CAST|(JSON_UNQUOTE(NU
+MySQL	21980	6	, 1, 3, NULL, 2), CONCAT|('$[', CAST(JSON
+MySQL	21980	6	NULL, '3', NULL), CONCAT|('$[', CAST(JSON
+MySQL	13950	8	, '') END WHEN NOT INSTR|(lower((SELECT C
+MySQL	13950	8	 CHAR), '.0') WHEN INSTR|(lower((SELECT C
+MySQL	13854	8	') THEN 'NaN' WHEN lower|((SELECT CASE WH
+MySQL	13854	8	EN 'Infinity' WHEN lower|((SELECT CASE WH
+MySQL	13838	8	 = 0 THEN CONCAT_WS('', |(SELECT CASE WHE
+MySQL	13838	8	)) AS __f)), '.0') ELSE |(SELECT CASE WHE
+MySQL	13126	3	" FROM (LATERAL (SELECT |(CASE WHEN CASE 
+
+H2 closed-eligible excess 14: 3x7 Call(GREATER) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+H2 closed-eligible excess 14: 3x7 Call(GREATER) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', -1.5])
+H2 closed-eligible excess 14: 3x7 Call(GREATER) in |17.0->meta::pure::functions::string::toString()
+H2 closed-not-root excess 33: 2x33 Case in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+H2 closed-not-root excess 33: 2x33 Case in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+H2 closed-not-root excess 33: 2x33 Case in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+H2 raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+H2 raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+H2 raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', -1.5])
+H2 row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+H2 row excess 4: 2x4 Call(CONCAT) in |#TDS val, str                   1, a                   3, ewe                   4, qw                   5, wwe                   6, weq #->meta::pure::functions::relation::extend(~newCol:x: (val:Integer[0..1], str:String[0..1])[1]|$x.str->...
+H2 row excess 4: 2x4 WindowCall in |#TDS id, grp, rank                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                   8, A, 2               ...
+Postgres closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(1)
+Postgres closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(2)
+Postgres closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(5)
+Postgres closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Postgres closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Postgres closed-not-root excess 80: 9x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Postgres lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+Postgres lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::equal_Any_MANY__Any_MANY__Boolean_1_)
+Postgres lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates()
+Postgres raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+Postgres raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+Postgres raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+Postgres row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+Postgres row excess 4: 2x4 Call(CONCAT) in |#TDS val, str                   1, a                   3, ewe                   4, qw                   5, wwe                   6, weq #->meta::pure::functions::relation::extend(~newCol:x: (val:Integer[0..1], str:String[0..1])[1]|$x.str->...
+Postgres row excess 4: 2x4 Call(CONCAT) in |#TDS id, firstName, lastName, age                   1, aaa, ttt, 25                   2, bbb, uuu, 30                   3, ccc, vvv, 35                   4, ddd, xxx, 40                   5, eee, yyy, 45 #->meta::pure::functions::relation:...
+Postgres tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+Postgres tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+Postgres tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+Snowflake closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+Snowflake closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+Snowflake closed-eligible excess 20: 3x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::stri...
+Snowflake closed-not-root excess 11: 2x11 ArrayLit in |[342, 5.0, -2.0, 171, 1]->meta::pure::functions::collection::sort()
+Snowflake closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$x->meta::pure::functions::string::length() - $y->meta::pure::functions::string::length()})
+Snowflake closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$y->meta::pure::functions::string::length() - $x->meta::pure::functions::string::length()})
+Snowflake lambda excess 53: 2x53 Case in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Snowflake lambda excess 53: 2x53 Case in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Snowflake lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+Snowflake raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+Snowflake raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+Snowflake raises excess 22: 2x22 Case in |let instance = ^meta::pure::functions::boolean::tests::equalitymodel::BottomClass(left=1,name='bottom',right=1); $instance->meta::pure::functions::boolean::eq($instance);
+Snowflake row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+Snowflake row excess 4: 2x4 Call(CONCAT) in |#TDS val, str                   1, a                   3, ewe                   4, qw                   5, wwe                   6, weq #->meta::pure::functions::relation::extend(~newCol:x: (val:Integer[0..1], str:String[0..1])[1]|$x.str->...
+Snowflake row excess 4: 2x4 WindowCall in |#TDS id, grp, rank                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                   8, A, 2               ...
+Snowflake tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+Snowflake tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+Snowflake tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+Trino closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+Trino closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+Trino closed-eligible excess 20: 3x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::stri...
+Trino closed-not-root excess 11: 2x11 ArrayLit in |[342, 5.0, -2.0, 171, 1]->meta::pure::functions::collection::sort()
+Trino closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$x->meta::pure::functions::string::length() - $y->meta::pure::functions::string::length()})
+Trino closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$y->meta::pure::functions::string::length() - $x->meta::pure::functions::string::length()})
+Trino lambda excess 53: 2x53 Case in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Trino lambda excess 53: 2x53 Case in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Trino lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+Trino raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+Trino raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+Trino raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+Trino row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+Trino row excess 4: 2x4 Call(CONCAT) in |#TDS val, str                   1, a                   3, ewe                   4, qw                   5, wwe                   6, weq #->meta::pure::functions::relation::extend(~newCol:x: (val:Integer[0..1], str:String[0..1])[1]|$x.str->...
+Trino row excess 4: 2x4 Call(CONCAT) in |#TDS id, firstName, lastName, age                   1, aaa, ttt, 25                   2, bbb, uuu, 30                   3, ccc, vvv, 35                   4, ddd, xxx, 40                   5, eee, yyy, 45 #->meta::pure::functions::relation:...
+Trino tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+Trino tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+Trino tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+BigQuery closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(1)
+BigQuery closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(2)
+BigQuery closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(5)
+BigQuery closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+BigQuery closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+BigQuery closed-not-root excess 80: 9x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+BigQuery lambda excess 13: 2x13 Case in |['Doe', 'Smith', 'Branche']->meta::pure::functions::collection::sort(s: String[1]|$s->meta::pure::functions::string::substring(1, 2), {x: String[1], y: String[1]|$x->meta::pure::functions::lang::compare($y)})
+BigQuery lambda excess 6: 2x6 Call(LIST_AT) in |[10, '10', 10]->meta::pure::functions::hash::hashCode()
+BigQuery raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+BigQuery raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+BigQuery raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+BigQuery row excess 48: 3x24 StructGet in |let people = [^meta::pure::functions::collection::tests::fold::FO_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::fold::FO_Person(firstName='Pierre',lastName='Doe'), ^meta::pure::functions::collection...
+BigQuery row excess 24: 2x24 StructGet in |let people = [^meta::pure::functions::collection::tests::fold::FO_Person(firstName='Fabrice',lastName='Smith'), ^meta::pure::functions::collection::tests::fold::FO_Person(firstName='Pierre',lastName='Doe'), ^meta::pure::functions::collection...
+BigQuery row excess 23: 2x23 Call(LIST_TRANSFORM) in |let people = [^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Pierre',lastName='Doe'), ^meta::pure::functions::string::tests::plus::model::P_Person(firstName='Kevin',lastName='RoeDoe'), ^meta::pure::functio...
+BigQuery tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+BigQuery tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+BigQuery tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+Databricks closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+Databricks closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+Databricks closed-eligible excess 20: 3x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::stri...
+Databricks closed-not-root excess 11: 2x11 ArrayLit in |[342, 5.0, -2.0, 171, 1]->meta::pure::functions::collection::sort()
+Databricks closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$x->meta::pure::functions::string::length() - $y->meta::pure::functions::string::length()})
+Databricks closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$y->meta::pure::functions::string::length() - $x->meta::pure::functions::string::length()})
+Databricks lambda excess 53: 2x53 Case in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Databricks lambda excess 53: 2x53 Case in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+Databricks lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+Databricks raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+Databricks raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+Databricks raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+Databricks row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+Databricks row excess 4: 2x4 Call(CONCAT) in |#TDS val, str                   1, a                   3, ewe                   4, qw                   5, wwe                   6, weq #->meta::pure::functions::relation::extend(~newCol:x: (val:Integer[0..1], str:String[0..1])[1]|$x.str->...
+Databricks row excess 4: 2x4 WindowCall in |#TDS id, grp, rank                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                   8, A, 2               ...
+Databricks tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+Databricks tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+Databricks tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+DuckDB closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+DuckDB closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+DuckDB closed-eligible excess 20: 3x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::stri...
+DuckDB closed-not-root excess 11: 2x11 ArrayLit in |[342, 5.0, -2.0, 171, 1]->meta::pure::functions::collection::sort()
+DuckDB closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$x->meta::pure::functions::string::length() - $y->meta::pure::functions::string::length()})
+DuckDB closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$y->meta::pure::functions::string::length() - $x->meta::pure::functions::string::length()})
+DuckDB lambda excess 53: 2x53 Case in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+DuckDB lambda excess 53: 2x53 Case in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+DuckDB lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+DuckDB raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+DuckDB raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+DuckDB raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+DuckDB row excess 20: 2x20 Call(LIST_GET) in |#TDS id, val                 1, 1.0                 1, 2.0                 1, 3                 2, 1.5                 2, 2.5                 2, 3.5                 3, 1                 3, 1.5                 3, 2.0 #->meta::pure::funct...
+DuckDB row excess 18: 3x9 Call(TIMES) in |#TDS id, val                 1, 1.0                 1, 2.0                 1, 3                 2, 1.5                 2, 2.5                 2, 3.5                 3, 1                 3, 1.5                 3, 2.0 #->meta::pure::functions...
+DuckDB row excess 10: 2x10 Call(FLOOR) in |#TDS id, val                 1, 1.0                 1, 2.0                 1, 3                 2, 1.5                 2, 2.5                 2, 3.5                 3, 1                 3, 1.5                 3, 2.0 #->meta::pure::function...
+DuckDB tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+DuckDB tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+DuckDB tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+ClickHouse closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+ClickHouse closed-eligible excess 20: 3x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::string...
+ClickHouse closed-eligible excess 20: 3x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates({x: meta::pure::metamodel::type::Any[1], y: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString() == $y->meta::pure::functions::stri...
+ClickHouse closed-not-root excess 11: 2x11 ArrayLit in |[342, 5.0, -2.0, 171, 1]->meta::pure::functions::collection::sort()
+ClickHouse closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$x->meta::pure::functions::string::length() - $y->meta::pure::functions::string::length()})
+ClickHouse closed-not-root excess 6: 2x6 ArrayLit in |['a', 'b', 'abc', 'ab', 'def']->meta::pure::functions::collection::max({x: String[1], y: String[1]|$y->meta::pure::functions::string::length() - $x->meta::pure::functions::string::length()})
+ClickHouse lambda excess 53: 2x53 Case in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+ClickHouse lambda excess 53: 2x53 Case in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+ClickHouse lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+ClickHouse raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+ClickHouse raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+ClickHouse raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+ClickHouse row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+ClickHouse row excess 4: 2x4 Call(CONCAT) in |#TDS val, str                   1, a                   3, ewe                   4, qw                   5, wwe                   6, weq #->meta::pure::functions::relation::extend(~newCol:x: (val:Integer[0..1], str:String[0..1])[1]|$x.str->...
+ClickHouse row excess 4: 2x4 WindowCall in |#TDS id, grp, rank                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                   8, A, 2               ...
+ClickHouse tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+ClickHouse tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+ClickHouse tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+SQLite closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(1)
+SQLite closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(2)
+SQLite closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(5)
+SQLite closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+SQLite closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+SQLite closed-not-root excess 80: 9x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+SQLite lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+SQLite lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::equal_Any_MANY__Any_MANY__Boolean_1_)
+SQLite lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates()
+SQLite raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+SQLite raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+SQLite raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+SQLite row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+SQLite row excess 4: 2x4 Call(CONCAT) in |#TDS val, str                   1, a                   3, ewe                   4, qw                   5, wwe                   6, weq #->meta::pure::functions::relation::extend(~newCol:x: (val:Integer[0..1], str:String[0..1])[1]|$x.str->...
+SQLite row excess 4: 2x4 Call(CONCAT) in |#TDS id, firstName, lastName, age                   1, aaa, ttt, 25                   2, bbb, uuu, 30                   3, ccc, vvv, 35                   4, ddd, xxx, 40                   5, eee, yyy, 45 #->meta::pure::functions::relation:...
+SQLite tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+SQLite tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+SQLite tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+MariaDB closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(1)
+MariaDB closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(2)
+MariaDB closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(5)
+MariaDB closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+MariaDB closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+MariaDB closed-not-root excess 80: 9x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+MariaDB lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+MariaDB lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::equal_Any_MANY__Any_MANY__Boolean_1_)
+MariaDB lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates()
+MariaDB raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+MariaDB raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+MariaDB raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+MariaDB row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+MariaDB row excess 6: 2x6 WindowCall in |#TDS id, grp, name                   1, 2, A                   2, 1, B                   3, 3, C                   4, 4, D                   5, 2, E                   6, 1, F                   7, 3, G                   8, 1, H               ...
+MariaDB row excess 6: 2x6 WindowCall in |#TDS id, grp, name                   1, 2, A                   2, 1, B                   3, 3, C                   4, 4, D                   5, 2, E                   6, 1, F                   7, 3, G                   8, 1, H               ...
+MariaDB tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+MariaDB tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+MariaDB tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...
+MySQL closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(1)
+MySQL closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(2)
+MySQL closed-eligible excess 70: 8x10 Cast in |[1, 2, 5, 2, 'a', true, %2014-02-01, 'c']->meta::pure::functions::collection::contains(5)
+MySQL closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+MySQL closed-not-root excess 80: 9x10 Cast in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+MySQL closed-not-root excess 80: 9x10 Cast in |['1', 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicatesBy(x: meta::pure::metamodel::type::Any[1]|$x->meta::pure::functions::string::toString())
+MySQL lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::eq_Any_1__Any_1__Boolean_1_)
+MySQL lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates(meta::pure::functions::boolean::equal_Any_MANY__Any_MANY__Boolean_1_)
+MySQL lambda excess 22: 3x11 Call(LIST_AT) in |[1, 2, '1', '3', 1, 3, '3', 2]->meta::pure::functions::collection::removeDuplicates()
+MySQL raises excess 55: 2x55 Cast in |#TDS id, payload      1, '[{"key":[ {"innerKey": [-2, -1, 0]}, {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [4, 5, 6]}]}, {"key":[ {"innerKey": [7, 8, 9]}]}]'      2, '[{"key":[ {"innerKey": [1, 2, 3]}]},  {"key":[ {"innerKey": [10, 11, 12]}...
+MySQL raises excess 42: 4x14 Call(PLUS) in |%2014->meta::pure::functions::lang::compare(%2014) == 0
+MySQL raises excess 30: 3x15 Call(RTRIM) in |'the quick brown %s jumps over the lazy %f'->meta::pure::functions::string::format(['fox', 1.5])
+MySQL row excess 7: 2x7 Call(CONCAT) in |#TDS colOneNum, _Col_two_letter, col_3Mix                   1, A, 1                   2, A, 1                   3, B, 2                   4, D, 3                   5, B, 2                   6, A, 1                   7, C, 4                ...
+MySQL row excess 6: 2x6 WindowCall in |#TDS id, grp, name                   1, 2, A                   2, 1, B                   3, 3, C                   4, 4, D                   5, 2, E                   6, 1, F                   7, 3, G                   8, 1, H               ...
+MySQL row excess 6: 2x6 WindowCall in |#TDS id, grp, name                   1, 2, A                   2, 1, B                   3, 3, C                   4, 4, D                   5, 2, E                   6, 1, F                   7, 3, G                   8, 1, H               ...
+MySQL tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+MySQL tagged-checked excess 39: 2x39 Lambda in |let left12 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=1,name='left',sides=[^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1),^meta::pure::functions::boolean::tests::equal...
+MySQL tagged-checked excess 39: 2x39 Lambda in |let left21 = ^meta::pure::functions::boolean::tests::equalitymodel::LeftClass(left=2,name='left',sides=^meta::pure::functions::boolean::tests::equalitymodel::SideClass(stringId='firstSide',intId=1)); let left11 = ^meta::pure::functions::boolean...

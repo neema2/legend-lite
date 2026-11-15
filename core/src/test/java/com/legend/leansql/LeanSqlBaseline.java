@@ -148,6 +148,15 @@ public final class LeanSqlBaseline {
         // outermost first: a repeated group's own groups are not counted again
         groups.sort((a, b) -> a[0] != b[0] ? Integer.compare(a[0], b[0]) : Integer.compare(b[1], a[1]));
         long repeated = 0;
+        for (int[] g : repeats(statement, groups, copies)) {
+            repeated += g[1] - g[0];
+        }
+        return new long[] {subselects, repeated};
+    }
+
+    /** The outermost repeated groups' copies past the first, each as [start, end) in {@code statement}. */
+    private static List<int[]> repeats(String statement, List<int[]> groups, Map<String, Integer> copies) {
+        List<int[]> out = new ArrayList<>();
         java.util.Set<String> seen = new java.util.HashSet<>();
         int coveredTo = -1;
         for (int[] g : groups) {
@@ -157,12 +166,42 @@ public final class LeanSqlBaseline {
             String text = statement.substring(g[0], g[1]);
             if (copies.get(text) > 1) {
                 if (!seen.add(text)) {
-                    repeated += text.length();
+                    out.add(g);
                 }
                 coveredTo = g[1];
             }
         }
-        return new long[] {subselects, repeated};
+        return out;
+    }
+
+    /** {@code statement}'s repeated copies past the first (the ones {@link #shape} counts), each as [start, end). */
+    public static List<int[]> repeatedCopies(String statement) {
+        List<int[]> groups = new ArrayList<>();
+        java.util.ArrayDeque<Integer> open = new java.util.ArrayDeque<>();
+        char quote = 0;
+        for (int i = 0; i < statement.length(); i++) {
+            char ch = statement.charAt(i);
+            if (quote != 0) {
+                if (ch == quote) {
+                    quote = 0;
+                }
+            } else if (ch == '\'' || ch == '"') {
+                quote = ch;
+            } else if (ch == '(') {
+                open.push(i);
+            } else if (ch == ')' && !open.isEmpty()) {
+                int start = open.pop();
+                if (i + 1 - start >= REPEAT_MIN) {
+                    groups.add(new int[] {start, i + 1});
+                }
+            }
+        }
+        Map<String, Integer> copies = new java.util.HashMap<>();
+        for (int[] g : groups) {
+            copies.merge(statement.substring(g[0], g[1]), 1, Integer::sum);
+        }
+        groups.sort((a, b) -> a[0] != b[0] ? Integer.compare(a[0], b[0]) : Integer.compare(b[1], a[1]));
+        return repeats(statement, groups, copies);
     }
 
     private static final java.util.regex.Pattern SUBSELECT = java.util.regex.Pattern.compile(

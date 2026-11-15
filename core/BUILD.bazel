@@ -2511,6 +2511,9 @@ legend_java_library(
     srcs = [
         "src/test/java/com/legend/leansql/CastCaseCensus.java",
         "src/test/java/com/legend/leansql/LeanSqlBaseline.java",
+        # P1b's census of the repeats left, by origin (2026-11-15), and its reader of P1a's binding rules
+        "src/test/java/com/legend/leansql/RepeatCensus.java",
+        "src/test/java/com/legend/lowering/LetBindingFacts.java",
         # the census's reader of a dialect's tree after its passes (E-4, 2026-11-12)
         "src/test/java/com/legend/sql/dialect/PassedTrees.java",
         # the test-side lowering, TypedQuery.lower's replacement (main's 795a7b8af5; merged with cf865632c, 2026-11-15)
@@ -2648,6 +2651,17 @@ legend_java_binary(
         "-Dlegend.lean_sql.channel_a=$(rlocationpath src/test/resources/lean-sql/channel_a.jsonl)",
     ],
     main_class = "com.legend.leansql.CastCaseCensus",
+    tags = ["manual"],
+    runtime_deps = [":lean_sql_baseline_lib"],
+)
+
+# P1b's census (measure only, 2026-11-15): channel A's repeats by the reason P1a leaves them; prints, optionally writes
+# the table to the file named by its one argument
+legend_java_binary(
+    name = "repeat_census",
+    testonly = True,
+    jvm_flags = ["-Xmx3g"],
+    main_class = "com.legend.leansql.RepeatCensus",
     tags = ["manual"],
     runtime_deps = [":lean_sql_baseline_lib"],
 )
