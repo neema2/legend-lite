@@ -14,7 +14,16 @@
 // - on a RUN layer, DEFAULT-DENY on computed specifiers (the orchestrator's note 2): an `import()`, a `require()`, an
 //   `import.meta.resolve()`, an `importScripts()`, a worker's module or a `new URL(..., import.meta.url)` whose
 //   specifier is not a literal chooses its module at run time, where no compiler follows it -- each refused but the two
-//   vendor loads named with their reason (COMPUTED_DOORS).
+//   vendor loads named with their reason (COMPUTED_DOORS);
+// - on a RUN layer, each of those doors whose specifier IS a literal names no module of a layer it must never reach,
+//   nor any module outside its closure: the compiler resolves an `import()`, never a worker's module, a URL's, a
+//   `require()`'s or an `importScripts()`'s (the C5-T audit's item 6, 2026-11-15);
+// - on a RUN layer, no function, method, member or interface TAKES anything that answers a planner's statement, plan or
+//   planned record -- a source of the planner's answers, an inline object type's method, an alias, a re-export or an
+//   import's rename followed (carried from the run wall's signature rule: the C5-T audit's item 4, 2026-11-15, the
+//   proof of step 2's split, that a run function takes the planner's answer and never its source);
+// - on every layer, no `@ts-nocheck`, `@ts-ignore` or `@ts-expect-error`: each would hush the compiler's TS2307 on an
+//   import of a layer the layer may not reach, while a bundler still followed it (the C5-T audit's item 5).
 //
 // It reads the runfiles tree because that tree IS the layer's closure: what this test's BUILD target declares.
 
@@ -22,7 +31,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join, relative, sep } from 'node:path';
+import { dirname, join, posix, relative, sep } from 'node:path';
 import { after, describe, it } from 'node:test';
 
 import { runfile, runfileFromEnv, runfilesFromEnv, runfilesRoot } from '../js/runfiles.mts';
@@ -161,6 +170,100 @@ describe(`${LAYER} alone: the layer with its deps and nothing else`, () => {
     assert.deepEqual(found, [...COMPUTED_DOORS.keys()].sort());
   });
 
+  it("names no module it may not reach by a literal worker's, URL's, require's or importScripts' specifier (a run layer)", (t) => {
+    if (!RUN_LAYER) {
+      t.skip('a planner layer: the run layers hold this rule');
+      return;
+    }
+    const files = closureTexts();
+    const found = CLOSURE.flatMap((f) => literalDoorBreaches(f, files.get(f)!, files, NEVER));
+    assert.deepEqual(found, []);
+  });
+
+  it("names a planted literal specifier of a module the layer may not reach, by its door", () => {
+    const [imp, req, meta] = [['im', 'port'].join(''), ['re', 'quire'].join(''), ['im', 'port.meta'].join('')];
+    const [first, second, third] = env('PLANT_IMPORTS').split(' ');
+    const planted = [
+      `export const a = () => new Worker('${first}', { type: 'module' });`,
+      `export const b = () => new Worker(new URL('${second}', ${meta}.url));`,
+      `export const c = () => ${meta}.resolve('${third}');`,
+      `export const d = () => self.importScripts('${first}');`,
+      `export const e = () => ${req}('${second}');`,
+      `export const f = () => ${imp}('./nowhere-at-all.ts');`,
+      // read, and let be: a URL that is no module's, a package's specifier
+      `export const g = () => new URL('https://example.com/x.ts');`,
+      `export const h = () => ${req}('node:fs');`,
+    ].join('\n');
+    const at = env('PLANT_AT');
+    const found = literalDoorBreaches(at, planted, closureTexts(), NEVER).map((b) => b.slice(at.length + 1));
+    assert.deepEqual(found, [
+      `new Worker('${first}'): ${resolved(at, first!)}, a module of a layer it may not reach`,
+      `new URL('${second}', import.meta.url): ${resolved(at, second!)}, a module of a layer it may not reach`,
+      `import.meta.resolve('${third}'): ${resolved(at, third!)}, a module of a layer it may not reach`,
+      `importScripts('${first}'): ${resolved(at, first!)}, a module of a layer it may not reach`,
+      `require('${second}'): ${resolved(at, second!)}, a module of a layer it may not reach`,
+      `import('./nowhere-at-all.ts'): ${resolved(at, './nowhere-at-all.ts')}, a module outside its closure`,
+    ]);
+  });
+
+  it("no run signature takes anything that answers a planner's statement, plan or planned record (a run layer)", (t) => {
+    if (!RUN_LAYER) {
+      t.skip('a planner layer: the run layers hold this rule');
+      return;
+    }
+    const files = closureTexts();
+    // looking: the closure's records name the planned records the rule reads (relation-type.ts's Plan)
+    assert.ok(plannedRecords(files).has('Plan'), `no planned record read: ${[...plannedRecords(files)].join(', ')}`);
+    assert.deepEqual(signatureBreaches(files, CLOSURE), []);
+  });
+
+  it("names a planted run signature that takes a source of the planner's answers, however spelled", () => {
+    const files = closureTexts();
+    const [at, again] = ['engine-client/src/planted-signatures.ts', 'engine-client/src/planted-renamed.ts'];
+    const [imp, exp, from] = [['im', 'port'].join(''), ['ex', 'port'].join(''), ['fr', 'om'].join('')];
+    files.set(again, `${exp} type { PlannedSql as Statement } ${from} './planned-sql.ts';\n`);
+    files.set(at, `${imp} type { PlannedSql as Sql, PlanText } ${from} './planned-sql.ts';
+${imp} type { Statement } ${from} './planted-renamed.ts';
+${imp} type { Plan } ${from} './relation-type.ts';
+interface PlantedSource { plan(query: string): Promise<readonly Sql[]> }
+type PlantedMaker = () => Promise<Statement>;
+interface PlantedHolder { readonly plan: Plan; readonly at: number }
+${exp} function plantedSource(source: PlantedSource): void { void source; }
+${exp} function plantedInline(source: { load(): Promise<PlanText> }): void { void source; }
+${exp} function plantedAlias(make: PlantedMaker): void { void make; }
+${exp} function plantedRenamed(make: () => AsyncIterable<Statement>): void { void make; }
+${exp} function plantedHeld(make: () => Promise<readonly PlantedHolder[]>): void { void make; }
+const plantedArrow = (make: (q: string) => Promise<Plan>): void => { void make; };
+${exp} { plantedArrow as plantedPlan };
+${exp} class PlantedRunner {
+  ask(source: { plan(): Sql }): void { void source; }
+  run(sql: Sql, plan: PlanText, held: PlantedHolder, all: readonly Plan[]): void { void sql; void plan; void held; void all; }
+  private hidden(source: PlantedSource): void { void source; }
+}
+${exp} interface PlantedSession { readonly source: PlantedSource; run(sql: Sql): Promise<void> }
+`);
+    // a statement, a plan or a record holding one TAKEN is the run's own work (PlantedRunner.run): not named
+    assert.deepEqual(signatureBreaches(files, [at]), [
+      `${at} PlantedRunner.ask: takes something that answers a planner's statement or plan`,
+      `${at} PlantedSession.source: takes PlantedSource, which answers a planner's statement or plan`,
+      `${at} plantedAlias: takes PlantedMaker, which answers a planner's statement or plan`,
+      `${at} plantedArrow: takes something that answers a planner's statement or plan`,
+      `${at} plantedHeld: takes something that answers a planner's statement or plan`,
+      `${at} plantedInline: takes something that answers a planner's statement or plan`,
+      `${at} plantedRenamed: takes something that answers a planner's statement or plan`,
+      `${at} plantedSource: takes PlantedSource, which answers a planner's statement or plan`,
+    ]);
+  });
+
+  it('no module of the layer hushes the compiler: no @ts-nocheck, @ts-ignore or @ts-expect-error', () => {
+    const files = closureTexts();
+    assert.deepEqual(CLOSURE.flatMap((f) => suppressions(f, files.get(f)!)), []);
+    const [nocheck, ignore, expect] = ['@ts-' + 'nocheck', '@ts-' + 'ignore', '@ts-' + 'expect-error'];
+    assert.deepEqual(suppressions('planted.ts', `// ${nocheck}\nconst a = 1;\n/* ${ignore} */ const b = 2;\n// ${expect} why\n`), [
+      `planted.ts:1: // ${nocheck}`, `planted.ts:3: /* ${ignore} */ const b = 2;`, `planted.ts:4: // ${expect} why`,
+    ]);
+  });
+
   it('names a planted door whose module is chosen at run time, and reads a literal as no door', () => {
     const [imp, req, meta] = [['im', 'port'].join(''), ['re', 'quire'].join(''), ['im', 'port.meta'].join('')];
     const planted = [
@@ -275,4 +378,304 @@ export function computedDoors(text: string): string[] {
     out.push(`${door}${first.replace(/\s+/g, ' ').trim()}${each.length > 1 ? ', ...' : ''})`);
   }
   return out;
+}
+
+// ---- the closure as text, and the layers it may never reach ----
+
+/** Each closure file's text, by its path. */
+function closureTexts(): Map<string, string> {
+  return new Map(CLOSURE.map((f) => [f, readFileSync(join(MAIN, f), 'utf8')]));
+}
+
+/** The files of the layers this one must never reach (NOT_LAYER_SRCS), by their paths. */
+const NEVER: ReadonlySet<string> = new Set(readFileSync(runfileFromEnv('NOT_LAYER_SRCS'), 'utf8').split('\n')
+  .map((l) => l.trim()).filter((l) => l).map((label) => label.replace(/^\/\/([^:]+):/, '$1/')));
+
+/** `spec`, read in `file`, as a path from the repository. */
+function resolved(file: string, spec: string): string {
+  return posix.normalize(posix.join(posix.dirname(file), spec));
+}
+
+// ---- literal specifiers outside an import statement (the C5-T audit's item 6) ----
+
+/** Each door `text` opens by a LITERAL specifier that names a module the layer may not reach: a worker's module, a
+ *  `new URL(..., import.meta.url)`'s, an `import.meta.resolve()`'s, an `importScripts()`'s (each argument), a
+ *  `require()`'s or an `import()`'s -- a relative one resolved, and refused when it is a module of a layer it must never
+ *  reach, or a module (.ts, .mts, .js, .mjs, .cjs) outside its closure. A package's specifier, or a URL no module's, is
+ *  let be: the compiler and the deps' pins hold those. */
+function literalDoorBreaches(file: string, text: string, files: ReadonlyMap<string, string>, never: ReadonlySet<string>): string[] {
+  const code = withoutComments(text);
+  const blank = blankStrings(code);
+  const lit = /^\s*(['"`])([^'"`$\n]+)\1\s*$/;
+  const out: string[] = [];
+  const doors = new RegExp(`${RECEIVER}(?:import|require|importScripts)\\s*\\(|\\bimport\\.meta\\.resolve\\s*\\(`
+    + `|\\bnew\\s+${CHAIN}(?:Shared)?Worker\\s*\\(|\\bnew\\s+${CHAIN}URL\\s*\\(`, 'g');
+  for (const m of blank.matchAll(doors)) {
+    const open = m.index + m[0].length - 1;
+    const args = code.slice(open + 1, closing(blank, open) - 1);
+    const called = m[0].replace(/\s+/g, '');
+    const door = /SharedWorker\($/.test(called) ? 'new SharedWorker' : /Worker\($/.test(called) ? 'new Worker'
+      : /URL\($/.test(called) ? 'new URL' : /importScripts\($/.test(called) ? 'importScripts'
+        : /resolve\($/.test(called) ? 'import.meta.resolve' : /require\($/.test(called) ? 'require' : 'import';
+    // the doors' specifiers: an importScripts' every argument, a URL's first when it is a module's, the others' first
+    // (a worker built from a URL read at the URL)
+    const parts = splitArgs(args, blank.slice(open + 1, closing(blank, open) - 1));
+    const specs = door === 'importScripts' ? parts
+      : door === 'new URL' ? (/,\s*import\.meta\.url\s*$/.test(args) ? [parts[0] ?? ''] : [])
+      : /Worker$/.test(door) && /^\s*new\s+URL\s*\(/.test(parts[0] ?? '') ? []
+      : [parts[0] ?? ''];
+    for (const arg of specs) {
+      const spec = lit.exec(arg)?.[2];
+      if (spec === undefined || !spec.startsWith('.')) continue;
+      const path = resolved(file, spec);
+      const shown = door === 'new URL' ? `new URL('${spec}', import.meta.url)` : `${door}('${spec}')`;
+      if (never.has(path)) out.push(`${file} ${shown}: ${path}, a module of a layer it may not reach`);
+      else if (/\.(?:ts|mts|js|mjs|cjs)$/.test(path) && !files.has(path)) out.push(`${file} ${shown}: ${path}, a module outside its closure`);
+    }
+  }
+  return out;
+}
+
+/** A call's arguments, split at each comma outside brackets (`blank`: the same text with its strings blanked). */
+function splitArgs(args: string, blank: string): string[] {
+  const each: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (let i = 0; i <= blank.length; i++) {
+    const c = i < blank.length ? blank[i]! : ',';
+    if (c === '(' || c === '[' || c === '{') depth++;
+    else if (c === ')' || c === ']' || c === '}') depth--;
+    else if (c === ',' && depth === 0) {
+      each.push(args.slice(start, i));
+      start = i + 1;
+    }
+  }
+  return each;
+}
+
+// ---- the compiler hushed (the C5-T audit's item 5) ----
+
+/** Each line of `text` that hushes the compiler: a `@ts-nocheck`, a `@ts-ignore` or a `@ts-expect-error`. */
+function suppressions(file: string, text: string): string[] {
+  return text.split('\n').flatMap((line, i) => (/@ts-(?:nocheck|ignore|expect-error)\b/.test(line) ? [`${file}:${i + 1}: ${line.trim()}`] : []));
+}
+
+// ---- the run signatures (carried from the run wall's signature rule: the C5-T audit's item 4) ----
+
+/** Whether `text` names a planner's answer: a statement (PlannedSql), a plan (PlanText), or a planned record. */
+function namesPlanned(text: string, records: ReadonlySet<string>): boolean {
+  return [...text.matchAll(/[\w$]+/g)].some((w) => w[0] === 'PlannedSql' || w[0] === 'PlanText' || records.has(w[0]));
+}
+
+/** One name a module's import or export clause names: `[type] A [as B]`, from a module (`from '...'`) or its own. */
+interface Named { readonly kind: 'import' | 'export'; readonly from: string | null; readonly name: string; readonly as: string }
+
+/** Each name `file`'s import and export clauses name, each from the module it reads (its path), or its own. */
+function namedIn(file: string, files: ReadonlyMap<string, string>): Named[] {
+  const out: Named[] = [];
+  const clauses = /\b(import|export)\s+(?:type\s+)?(?:[\w$]+\s*,\s*)?\{([^}]*)\}(?:\s*from\s*(['"])([^'"\n]+)\3)?/g;
+  for (const m of withoutComments(files.get(file) ?? '').matchAll(clauses)) {
+    const spec = m[4];
+    const from = spec === undefined ? null : spec.startsWith('.') ? resolved(file, spec) : `package:${spec}`;
+    for (const item of m[2]!.split(',')) {
+      const r = /^\s*(?:type\s+)?([\w$]+)(?:\s+as\s+([\w$]+))?\s*$/.exec(item);
+      if (r !== null) out.push({ kind: m[1] as 'import' | 'export', from, name: r[1]!, as: r[2] ?? r[1]! });
+    }
+  }
+  return out;
+}
+
+/** What `name`, read in `file`, first named: through the module's re-exports, its own export renames and its imports,
+ *  to a fixed point. A name no clause binds is its own. */
+function origin(file: string, name: string, files: ReadonlyMap<string, string>, seen: ReadonlySet<string> = new Set()): string {
+  const key = `${file}#${name}`;
+  if (!files.has(file) || seen.has(key)) return name;
+  const next = new Set([...seen, key]);
+  for (const n of namedIn(file, files)) {
+    if (n.as !== name) continue;
+    if (n.kind === 'export' && n.from === null && n.name === name) continue;
+    if (n.from === null) return origin(file, n.name, files, next);
+    return n.from.startsWith('package:') ? n.name : origin(n.from, n.name, files, next);
+  }
+  return name;
+}
+
+/** `file`'s text with each name its imports bind read as the name it first named. */
+function unaliased(file: string, files: ReadonlyMap<string, string>): string {
+  const renames = new Map<string, string>();
+  for (const n of namedIn(file, files)) {
+    if (n.kind !== 'import' || n.from === null) continue;
+    const first = n.from.startsWith('package:') ? n.name : origin(n.from, n.name, files);
+    if (first !== n.as) renames.set(n.as, first);
+  }
+  const text = files.get(file) ?? '';
+  return renames.size === 0 ? text : text.replace(/[\w$]+/g, (w) => renames.get(w) ?? w);
+}
+
+/** `code` with each string literal blanked (a template's text too). */
+function withoutStrings(code: string): string {
+  return code.replace(/'(?:[^'\\\n]|\\.)*'|"(?:[^"\\\n]|\\.)*"|`(?:[^`\\]|\\.)*`/g, '""');
+}
+
+/** Each signature a module declares, exported or not, by name: a function's parameters and result, an arrow const's,
+ *  a class's non-private methods', constructor's and fields', an interface's members. */
+function declaredSignatures(text: string): Map<string, string> {
+  const code = withoutStrings(withoutComments(text));
+  const out = new Map<string, string>();
+  for (const m of code.matchAll(/\b(?:async\s+)?function\s*\*?\s*([\w$]+)\s*(?:<[^(]*>)?\s*\(/g)) {
+    const paren = m.index + m[0].length - 1;
+    const end = code.indexOf('{', closing(code, paren));
+    out.set(m[1]!, code.slice(paren, end < 0 ? code.length : end));
+  }
+  for (const m of code.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*(?::[^=;]+)?=\s*(?:async\s*)?(?:<[^(=]*>\s*)?\(/g)) {
+    const paren = m.index + m[0].length - 1;
+    const close = closing(code, paren);
+    const arrow = /^\s*(?::[^=;{]+)?=>/.exec(code.slice(close));
+    if (arrow !== null) out.set(m[1]!, code.slice(paren, close) + arrow[0].replace(/=>$/, ''));
+  }
+  for (const m of code.matchAll(/\b(?:const|let|var)\s+([\w$]+)\s*:\s*([^=;]+?=>[^=;]+?)\s*=[^=>]/g)) {
+    if (!out.has(m[1]!)) out.set(m[1]!, `: ${m[2]!}`);
+  }
+  for (const m of code.matchAll(/\b(?:abstract\s+)?(class|interface)\s+([\w$]+)[^{]*\{/g)) {
+    const open = m.index + m[0].length - 1;
+    const isClass = m[1] === 'class';
+    const body = code.slice(open + 1, closing(code, open) - 1);
+    const add = (member: string): void => {
+      const text = member.trim();
+      const name = /^(?:(?:public|static|readonly|async|get|set|override|declare)\s+)*([\w$]+)\??\s*[(<:]/.exec(text)?.[1];
+      if (text === '' || name === undefined || /^(?:private|protected)\b|^#/.test(text)) return;
+      out.set(`${m[2]}.${name}`, (out.get(`${m[2]}.${name}`) ?? '') + text);
+    };
+    let depth = 0;
+    let start = 0;
+    for (let i = 0; i <= body.length; i++) {
+      const c = i < body.length ? body[i]! : ';';
+      if (c === '{' && isClass && depth === 0) {
+        add(body.slice(start, i));
+        i = closing(body, i) - 1;
+        start = i + 1;
+        continue;
+      }
+      if (c === '(' || c === '[' || c === '<' || c === '{') depth++;
+      else if (c === ')' || c === ']' || c === '}' || (c === '>' && body[i - 1] !== '=')) depth--;
+      if (depth === 0 && (c === ';' || (c === '\n' && !isClass))) {
+        add(body.slice(start, i));
+        start = i + 1;
+      }
+    }
+  }
+  return out;
+}
+
+/** Whether `text` ANSWERS a planner's statement, plan or planned record: one named in a result -- after an arrow's `=>`
+ *  or a method's `):`, to that result's end. One TAKEN is the run's own work, and no answer. */
+function answersPlanned(text: string, records: ReadonlySet<string>): boolean {
+  for (const m of text.matchAll(/=>|\)\s*:/g)) {
+    const from = m.index + m[0].length;
+    let depth = 0;
+    let i = from;
+    for (; i < text.length; i++) {
+      const c = text[i]!;
+      if (c === '(' || c === '[' || c === '{' || c === '<') depth++;
+      else if (c === ')' || c === ']' || c === '}' || (c === '>' && text[i - 1] !== '=')) {
+        if (--depth < 0) break;
+      } else if (depth === 0 && (c === ',' || c === ';' || (c === '=' && text[i + 1] !== '>'))) break;
+    }
+    if (namesPlanned(text.slice(from, i), records)) return true;
+  }
+  return false;
+}
+
+/** Each type alias's and interface's body the modules declare (their imports' renames read), by name. */
+function declaredTypes(files: ReadonlyMap<string, string>): Map<string, string> {
+  const declared = new Map<string, string>();
+  const add = (name: string, body: string): void => { declared.set(name, `${declared.get(name) ?? ''}\n${body}`); };
+  for (const file of files.keys()) {
+    const code = withoutStrings(withoutComments(unaliased(file, files)));
+    for (const m of code.matchAll(/\btype\s+([\w$]+)\s*(?:<[^=]*>)?\s*=\s*([^;]+);/g)) add(m[1]!, m[2]!);
+    for (const m of code.matchAll(/\binterface\s+([\w$]+)[^{]*\{/g)) {
+      const open = m.index + m[0].length - 1;
+      add(m[1]!, code.slice(open, closing(code, open)));
+    }
+  }
+  return declared;
+}
+
+/** `text` with each parameter list blanked: what remains of a type is its fields and its results. */
+function withoutParameters(text: string): string {
+  let out = '';
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === '(') {
+      const close = closing(text, i);
+      if (/^\s*(?:=>|:)/.test(text.slice(close))) {
+        out += '()';
+        i = close - 1;
+        continue;
+      }
+    }
+    out += text[i]!;
+  }
+  return out;
+}
+
+/** The planned records: each type whose text outside its parameter lists names a statement, a plan or another planned
+ *  record, to a fixed point (relation-type.ts's Plan: a statement with its columns). */
+function plannedRecords(files: ReadonlyMap<string, string>): Set<string> {
+  const declared = declaredTypes(files);
+  const out = new Set<string>();
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [name, body] of declared) {
+      if (!out.has(name) && namesPlanned(withoutParameters(body), out)) {
+        out.add(name);
+        grew = true;
+      }
+    }
+  }
+  return out;
+}
+
+/** The sources of the planner's answers: each declared type that answers a statement, a plan or a planned record, or
+ *  names such a type, to a fixed point (a planner under another name). */
+function answeringTypes(files: ReadonlyMap<string, string>): Set<string> {
+  const declared = declaredTypes(files);
+  const records = plannedRecords(files);
+  const out = new Set<string>();
+  for (let grew = true; grew;) {
+    grew = false;
+    for (const [name, body] of declared) {
+      if (out.has(name)) continue;
+      if (answersPlanned(body, records) || [...body.matchAll(/\b([A-Z][\w$]*)\b/g)].some((t) => out.has(t[1]!))) {
+        out.add(name);
+        grew = true;
+      }
+    }
+  }
+  return out;
+}
+
+/** What a signature TAKES: a function's or a method's parameter list, a property's type -- never its own result. */
+function takes(signature: string): string {
+  const s = signature.trim();
+  const paren = s.indexOf('(');
+  const colon = s.indexOf(':');
+  if (paren >= 0 && (colon < 0 || paren < colon)) return s.slice(paren, closing(s, paren));
+  return colon >= 0 ? s.slice(colon + 1) : '';
+}
+
+/** Each signature of `run`'s modules that takes a source of the planner's answers: a type that answers one, by name,
+ *  or anything else -- an inline type, a function -- that answers a statement, a plan or a planned record. */
+function signatureBreaches(files: ReadonlyMap<string, string>, run: readonly string[]): string[] {
+  const records = plannedRecords(files);
+  const types = answeringTypes(files);
+  const out: string[] = [];
+  for (const file of run) {
+    for (const [name, signature] of declaredSignatures(unaliased(file, files))) {
+      const taken = takes(signature);
+      const typed = [...taken.matchAll(/\b([A-Z][\w$]*)\b/g)].map((m) => m[1]!).find((t) => types.has(t));
+      if (typed !== undefined) out.push(`${file} ${name}: takes ${typed}, which answers a planner's statement or plan`);
+      else if (answersPlanned(taken, records)) out.push(`${file} ${name}: takes something that answers a planner's statement or plan`);
+    }
+  }
+  return out.sort();
 }
