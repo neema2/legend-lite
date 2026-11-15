@@ -37,6 +37,11 @@ RUN = frozenset({'_runs', '_reads', '_types', '_type_facts'})
 # send nothing themselves (the one send imported by run modules alone).
 PLANNER = frozenset({'_library', '_planner', 'compiler', '_home', '_pool'})
 
+# A remote plane's send (the warehouse's SQL API: Warehouse.arrow_chunks, its client door-side, reached by the run side
+# only through the plane handed in -- the orchestrator's ruling of 2026-11-15): called by run modules alone, so it is
+# sent in a run. 2026-11-15 (C5-P).
+PLANE_SENDS = frozenset({'arrow_chunks'})
+
 # What of _planned sends, or holds a way to: never a planner module's. 2026-11-15 (C5-P).
 SENDING_NAMES = frozenset({'send', 'connect', 'Database', 'Result', 'require'})
 
@@ -110,6 +115,11 @@ def broken(sources: dict[str, str]) -> list[str]:
                        ' nothing')
         if name not in RUN and 'send' in planned:
             out.append(f'{name} imports the one send: only the run side sends (each door hands it its statements)')
+        if name not in RUN:
+            for node in ast.walk(ast.parse(source)):
+                if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr in PLANE_SENDS:
+                    out.append(f'{name}: line {node.lineno}: {ast.unparse(node.func)}: a plane\'s send is the run'
+                               ' side\'s (_reads.read_plane, run_on_plane; _runs\'s stream)')
     return out
 
 
@@ -147,6 +157,7 @@ class RunClosureTest(unittest.TestCase):
             ('_reads', 'import importlib.util as u'): 'importlib',
             ('_reads', '__import__("legend_lite.compiler")'): '__import__',
             ('_runs', 'from . import *'): 'a star of the package',
+            ('engine', 'rows = table.warehouse.arrow_chunks(plan.sql)'): "a plane's send is the run side's",
         }
         for (name, source), said in cases.items():
             with self.subTest(module=name, source=source):

@@ -444,12 +444,21 @@ py_test(
 # through it), so a run module that imports a planner does not load here -- as //core:exec's deps are pinned for Java --
 # and every module's imports are read both ways; the one send refuses a statement outside a run, each run function
 # framed (tests/test_run_closure.py)
+# the package's sources the closure test reads, copied OUT of the importable tree: as data beside the test, the planner's
+# modules would be on its import path, and a run module importing one would load (red on revert, 2026-11-15)
+copy_to_directory(
+    name = "run_closure_sources",
+    srcs = glob(["legend_lite/*.py"]),
+    out = "run_closure_sources",
+    root_paths = ["python/legend_lite"],
+)
+
 py_test(
     name = "run_closure_test",
     size = "small",
     srcs = ["tests/test_run_closure.py"],
-    data = glob(["legend_lite/*.py"]),
-    env = {"PLANNED_PACKAGE": "$(rlocationpath legend_lite/__init__.py)"},
+    data = [":run_closure_sources"],
+    env = {"PLANNED_PACKAGE": "$(rlocationpath :run_closure_sources)/__init__.py"},
     main = "tests/test_run_closure.py",
     target_compatible_with = _PLATFORMS,
     deps = [
