@@ -60,19 +60,31 @@ public final class LeanSqlBaseline {
      *  subselects} and their {@code repeated} characters ({@link #shape}; the lean program, the user's definition of
      *  done of 2026-11-15: "subselects only when need, repetition only when need"; -1 where a pin predates them); the
      *  worst case. */
-    public record Measure(long statements, long chars, long plan, long subselects, long repeated, String worst) {
+    public record Measure(long statements, long chars, long plan, long subselects, long repeated, long refused,
+            String worst) {
         public Measure(long statements, long chars, long plan, String worst) {
-            this(statements, chars, plan, 0, 0, worst);
+            this(statements, chars, plan, 0, 0, 0, worst);
+        }
+
+        public Measure(long statements, long chars, long plan, long subselects, long repeated, String worst) {
+            this(statements, chars, plan, subselects, repeated, 0, worst);
         }
 
         Measure plus(long s, long c, long p, long[] shape, String caseText, long caseChars, long worstChars) {
             return new Measure(statements + s, chars + c, plan + p, subselects + shape[0], repeated + shape[1],
-                    caseChars > worstChars ? caseText : worst);
+                    refused, caseChars > worstChars ? caseText : worst);
+        }
+
+        /** This measure with one more query refused at planning (the lean program, 2026-11-15: a refused query sends
+         *  nothing, so without its count it would read as a family's SQL shrinking). */
+        Measure refusedOne(String caseText) {
+            return new Measure(statements, chars, plan, subselects, repeated, refused + 1,
+                    worst.isEmpty() ? caseText : worst);
         }
 
         /** This measure under another worst case (a read pin carries none). */
         public Measure withWorst(String w) {
-            return new Measure(statements, chars, plan, subselects, repeated, w);
+            return new Measure(statements, chars, plan, subselects, repeated, refused, w);
         }
 
         /** This measure with {@code statements}' own added (the corpus's: no plan JSON of its own). */
@@ -86,7 +98,7 @@ public final class LeanSqlBaseline {
                 sh[1] += one[1];
             }
             return new Measure(this.statements + statements.size(), chars + c, this.plan + plan,
-                    subselects + sh[0], repeated + sh[1], worst.isEmpty() ? test : worst);
+                    subselects + sh[0], repeated + sh[1], refused, worst.isEmpty() ? test : worst);
         }
     }
 
@@ -180,11 +192,12 @@ public final class LeanSqlBaseline {
                     Json.Obj c = Json.parseObject(line);
                     String model = ((Json.Str) c.get("model")).value();
                     String expression = ((Json.Str) c.get("expression")).value();
-                    String family;
+                    String family = "refused";
                     long s = 0;
                     long ch = 0;
                     long p = 0;
                     long[] sh = new long[2];
+                    boolean refused = false;
                     try {
                         TypedQuery q = Compiler.query(Compiler.compileModel(withRuntime(model, type)),
                                 expression);
@@ -200,12 +213,14 @@ public final class LeanSqlBaseline {
                         }
                         p = PlanJson.write(plan).length();
                     } catch (RuntimeException | StackOverflowError e) {
-                        family = "refused";
+                        // refused at planning: counted under its family where it has one (a query refused by the
+                        // compiler itself has none: "refused")
+                        refused = true;
                     }
                     Key k = new Key(set.getKey(), type.name(), family);
                     long prior = worst.getOrDefault(k, -1L);
-                    out.put(k, out.getOrDefault(k, new Measure(0, 0, 0, "")).plus(s, ch, p, sh, expression, ch,
-                            prior));
+                    Measure was = out.getOrDefault(k, new Measure(0, 0, 0, ""));
+                    out.put(k, refused ? was.refusedOne(expression) : was.plus(s, ch, p, sh, expression, ch, prior));
                     if (ch > prior) {
                         worst.put(k, ch);
                     }
@@ -263,12 +278,14 @@ public final class LeanSqlBaseline {
                 database = plan.answers() && plan.sendsTheAnswer()
                         ? plan.answerSql().target().database().type().name() : "constant";
             } catch (RuntimeException | StackOverflowError e) {
+                // the database a plan targets is the plan's: a refused query has none, so it counts under "refused"
                 family = "refused";
                 database = "refused";
             }
             Key k = new Key(set, database, family);
             long prior = worst.getOrDefault(k, -1L);
-            out.put(k, out.getOrDefault(k, new Measure(0, 0, 0, "")).plus(s, ch, p, sh, query, ch, prior));
+            Measure was = out.getOrDefault(k, new Measure(0, 0, 0, ""));
+            out.put(k, family.equals("refused") ? was.refusedOne(query) : was.plus(s, ch, p, sh, query, ch, prior));
             if (ch > prior) {
                 worst.put(k, ch);
             }
@@ -359,6 +376,9 @@ public final class LeanSqlBaseline {
             if (pin.repeated() >= 0) {
                 check(out, e.getKey(), "repeated chars", pin.repeated(), now.repeated(), now.worst());
             }
+            if (pin.refused() >= 0) {
+                check(out, e.getKey(), "queries refused", pin.refused(), now.refused(), now.worst());
+            }
         }
         for (Key k : pinned.keySet()) {
             if (!measured.containsKey(k)) {
@@ -378,7 +398,7 @@ public final class LeanSqlBaseline {
         }
     }
 
-    private static final String HEADER = "set\tdatabase\tfamily\tstatements\tchars\tplan\tsubselects\trepeated";
+    private static final String HEADER = "set\tdatabase\tfamily\tstatements\tchars\tplan\tsubselects\trepeated\trefused";
 
     /** The pins as written: {@code set, database, family, statements, chars, plan}, sorted. */
     public static String write(Map<Key, Measure> pins) {
@@ -390,7 +410,8 @@ public final class LeanSqlBaseline {
             Measure m = e.getValue();
             b.append(k.set()).append('\t').append(k.database()).append('\t').append(k.family()).append('\t')
                     .append(m.statements()).append('\t').append(m.chars()).append('\t').append(m.plan()).append('\t')
-                    .append(m.subselects()).append('\t').append(m.repeated()).append('\n');
+                    .append(m.subselects()).append('\t').append(m.repeated()).append('\t').append(m.refused())
+                    .append('\n');
         }
         return b.toString();
     }
@@ -404,13 +425,14 @@ public final class LeanSqlBaseline {
                 continue;
             }
             String[] f = line.split("\t", -1);
-            if (f.length != 6 && f.length != 8) {
+            if (f.length != 6 && f.length != 8 && f.length != 9) {
                 throw new IllegalArgumentException("lean-sql/baseline.tsv: a line is set, database, family,"
-                        + " statements, chars, plan[, subselects, repeated]: '" + line + "'");
+                        + " statements, chars, plan[, subselects, repeated[, refused]]: '" + line + "'");
             }
             out.put(new Key(f[0], f[1], f[2]),
                     new Measure(Long.parseLong(f[3]), Long.parseLong(f[4]), Long.parseLong(f[5]),
-                            f.length > 6 ? Long.parseLong(f[6]) : -1, f.length > 7 ? Long.parseLong(f[7]) : -1, ""));
+                            f.length > 6 ? Long.parseLong(f[6]) : -1, f.length > 7 ? Long.parseLong(f[7]) : -1,
+                            f.length > 8 ? Long.parseLong(f[8]) : -1, ""));
         }
         return out;
     }

@@ -104,5 +104,11 @@ class LeanSqlBaselineTest {
                 .get(0).startsWith(A + ": subselects GREW 2 -> 3"));
         assertTrue(LeanSqlBaseline.drift(pins, Map.of(A, new LeanSqlBaseline.Measure(1, 100, 100, 2, 41, "a")))
                 .get(0).startsWith(A + ": repeated chars GREW 40 -> 41"));
+        // a query refused at planning sends nothing: it counts, so a refusal never reads as a family shrinking
+        Map<LeanSqlBaseline.Key, LeanSqlBaseline.Measure> withRefusals = new TreeMap<>(Map.of(A,
+                new LeanSqlBaseline.Measure(1, 100, 100, 2, 40, 1, "a")));
+        assertEquals(withRefusals.get(A), LeanSqlBaseline.read(LeanSqlBaseline.write(withRefusals)).get(A).withWorst("a"));
+        assertTrue(LeanSqlBaseline.drift(withRefusals, Map.of(A, new LeanSqlBaseline.Measure(1, 100, 100, 2, 40, 2,
+                "a"))).get(0).startsWith(A + ": queries refused GREW 1 -> 2"));
     }
 }
