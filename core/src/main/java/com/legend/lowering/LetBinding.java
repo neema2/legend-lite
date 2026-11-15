@@ -146,11 +146,20 @@ final class LetBinding {
         while (true) {
             // insertion-ordered: the same binding chosen on every JVM when two repeats save alike (G10)
             java.util.Map<SqlExpr, Integer> counts = new java.util.LinkedHashMap<>();
+            java.util.Set<SqlExpr> always = new java.util.HashSet<>();
             for (SqlExpr t : terms(at)) {
                 count(t, counts);
             }
+            // what the row evaluates whatever its values: its filter, where it has one (a row the filter drops
+            // evaluates none of its projections), else every term
+            if (at.where() != null) {
+                alwaysEvaluated(at.where(), always);
+            } else if (at.having() == null && at.qualify() == null) {
+                terms(at).forEach(t -> alwaysEvaluated(t, always));
+            }
             for (Bound b : bound) {
                 count(b.value(), counts);
+                alwaysEvaluated(b.value(), always);
             }
             SqlExpr best = null;
             long saving = 0;
@@ -166,7 +175,7 @@ final class LetBinding {
                 if (save <= 0 && readsClock(e.getKey())) {
                     save = 1;   // the statement's clock read once, as Pure's let reads it (the design's §5.1)
                 }
-                if (save > saving && eligible(e.getKey())) {
+                if (save > saving && eligible(e.getKey(), always)) {
                     best = e.getKey();
                     saving = save;
                 }
@@ -289,6 +298,47 @@ final class LetBinding {
             w += weight(c);
         }
         return w;
+    }
+
+    /**
+     * Whether {@code e} may be computed once under the root where {@code always} holds the expressions the root's row
+     * evaluates whatever its values (step 7's first half, 2026-11-15, brought into PR1 by round 55f: item 9 put
+     * MAKE_TIMESTAMP in {@link #RAISING}, and the date family's repeats went unbound on every database): as
+     * {@link #eligible(SqlExpr)}, and a value that can raise too where one of its copies is always evaluated -- it
+     * raises there already, so computing it once, eagerly, raises nothing the statement did not (the laziness rule: a
+     * raise is never moved out of a branch that guards it).
+     */
+    static boolean eligible(SqlExpr e, java.util.Set<SqlExpr> always) {
+        if (!worthBinding(e) || e instanceof SqlExpr.Lambda
+                || !(e.type() instanceof com.legend.sql.TypeFact.Typed)) {
+            return false;
+        }
+        return closedAndPlain(e, java.util.Set.of()) && (!canRaise(e) || always.contains(e));
+    }
+
+    /** The operators every database evaluates both of whose operands, whatever their values: arithmetic and a
+     *  comparison (no database short-circuits them; AND, OR and COALESCE promise no order of evaluation in SQL, and a
+     *  CASE's later conditions and branches may be skipped, so none of those counts). */
+    private static final java.util.Set<SqlFn> STRICT = java.util.EnumSet.of(SqlFn.PLUS, SqlFn.MINUS, SqlFn.TIMES,
+            SqlFn.DIVIDE, SqlFn.NEGATE, SqlFn.EQUAL, SqlFn.NOT_EQUAL, SqlFn.LESS, SqlFn.LESS_EQUAL, SqlFn.GREATER,
+            SqlFn.GREATER_EQUAL);
+
+    /** Every expression {@code e} evaluates whatever its values, into {@code into} (the narrow set every one of the
+     *  thirteen databases guarantees, the orchestrator's check of 2026-11-15): itself; a CASE's first condition; the
+     *  operands of a {@link #STRICT} operator; a cast's value. Nothing else is assumed evaluated. */
+    static void alwaysEvaluated(SqlExpr e, java.util.Set<SqlExpr> into) {
+        into.add(e);
+        switch (e) {
+            case SqlExpr.Case c -> {
+                if (!c.whens().isEmpty()) {
+                    alwaysEvaluated(c.whens().get(0).condition(), into);
+                }
+            }
+            case SqlExpr.Cast c -> alwaysEvaluated(c.value(), into);
+            case SqlExpr.Call c when STRICT.contains(c.fn()) -> c.args().forEach(a -> alwaysEvaluated(a, into));
+            default -> {
+            }
+        }
     }
 
     /** Whether {@code e} may be computed once under the root: worth a binding, typed by a plain SQL type, closed, and

@@ -85,6 +85,18 @@ class LetBindingTest {
         assertEquals(List.of(List.of(6L)), rows(q));
     }
 
+    /** A value that can raise, read four times where every read is evaluated, is computed once (step 7's first half,
+     *  2026-11-15, in PR1 since round 55f): it raises there already, so computing it eagerly raises nothing the
+     *  statement did not -- a formula's division, or a date's MAKE_TIMESTAMP, is no reason to repeat it. */
+    @Test
+    void aRaisingValueEvaluatedAtEveryReadIsBoundOnce() throws Exception {
+        String q = "|let r = (2.0 + 3.0) / (1.0 + 1.0); $r + $r + $r + $r;";
+        String sql = sql(q);
+        assertTrue(sql.contains(LetBinding.ALIAS), sql);
+        assertEquals(1, count(sql, "/"), sql);
+        assertEquals(List.of(List.of(10.0)), rows(q));
+    }
+
     /** A let whose value can raise stays at its reads (the laziness rule, P1a's conservative half: eager lets are
      *  P1a.2), and a let read once is never bound. */
     @Test

@@ -101,19 +101,16 @@ class MixedListConformanceTest {
             String model = StorelessRuntime.with("", backend.type());
             for (String fn : new String[] {"min", "max", "least", "greatest"}) {
                 String query = "|[%2025-02-10, %2025-02-10T00:00:00, %2024-01-01]->" + fn + "()";
-                try {
-                    String message = assertThrows(com.legend.error.NotImplementedException.class,
-                            () -> Compiler.query(Compiler.compileModel(model), query)
-                                    .executionPlan(StorelessRuntime.RUNTIME), backend.type() + ": " + query)
-                            .getMessage();
-                    assertTrue(message.contains("of a mixed list holding DateTime and StrictDate: an extreme across"
-                            + " date kinds is refused until the run-time kind carrier"), message);
-                    refused++;
-                } catch (org.opentest4j.AssertionFailedError e) {
-                    if (!(e.getCause() instanceof com.legend.sql.DialectCapability)) {
-                        throw e;
-                    }
+                RuntimeException e = assertThrows(RuntimeException.class,
+                        () -> Compiler.query(Compiler.compileModel(model), query)
+                                .executionPlan(StorelessRuntime.RUNTIME), backend.type() + ": " + query);
+                if (e instanceof com.legend.sql.DialectCapability) {
+                    continue;
                 }
+                assertTrue(e instanceof com.legend.error.NotImplementedException, backend.type() + ": " + e);
+                assertTrue(e.getMessage().contains("of a mixed list holding DateTime and StrictDate: an extreme across"
+                        + " date kinds is refused until the run-time kind carrier"), e.getMessage());
+                refused++;
             }
         }
         assertTrue(refused >= 2 * 4, "refused " + refused);
