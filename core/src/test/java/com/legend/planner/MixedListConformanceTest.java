@@ -115,4 +115,23 @@ class MixedListConformanceTest {
         }
         assertTrue(refused >= 2 * 4, "refused " + refused);
     }
+
+    /**
+     * A mixed list's numbers rank as DOUBLE: a literal the double holds exactly ranks exactly and plans (round 55f,
+     * 2026-11-15: PCT's testMixedSortNoComparator, a Decimal literal, had been refused); a Decimal literal it does not
+     * hold (0.1D), or an integer beyond 2^53, is refused by name.
+     */
+    @Test
+    void aMixedListRanksAnExactLiteralAndRefusesAnInexactOne() {
+        String model = StorelessRuntime.with("", com.legend.model.ConnectionDefinition.DatabaseType.DuckDB);
+        Compiler.query(Compiler.compileModel(model), "|['b', 1, 2.5D, 'a']->sort()")
+                .executionPlan(StorelessRuntime.RUNTIME);
+        for (String[] c : new String[][] {{"|['b', 1, 0.1D]->sort()", "the Decimal 0.1 (not exact as a DOUBLE)"},
+                {"|['b', 9007199254740993, 9007199254740992]->sort()", "the integer 9007199254740993 (beyond 2^53)"}}) {
+            com.legend.error.NotImplementedException e = assertThrows(com.legend.error.NotImplementedException.class,
+                    () -> Compiler.query(Compiler.compileModel(model), c[0]).executionPlan(StorelessRuntime.RUNTIME),
+                    c[0]);
+            assertTrue(e.getMessage().contains(c[1]), e.getMessage());
+        }
+    }
 }

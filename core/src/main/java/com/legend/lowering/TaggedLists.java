@@ -318,12 +318,42 @@ final class TaggedLists {
         }
     }
 
+    /** The literal {@code v} is, under any casts and groupings; else {@code v} itself. */
+    private static SqlExpr literalUnder(SqlExpr v) {
+        SqlExpr at = v;
+        while (true) {
+            if (at instanceof SqlExpr.Cast c) {
+                at = c.value();
+            } else if (at instanceof SqlExpr.Group g) {
+                at = g.inner();
+            } else {
+                return at;
+            }
+        }
+    }
+
+    /** Whether the double nearest {@code d} is {@code d} itself (it round-trips). */
+    private static boolean exactInADouble(java.math.BigDecimal d) {
+        double x = d.doubleValue();
+        return Double.isFinite(x) && new java.math.BigDecimal(x).compareTo(d) == 0;
+    }
+
     private static @com.legend.base.Nullable String inexact(SqlExpr e) {
         if (e instanceof SqlExpr.Cast c && c.target() == SqlType.Scalar.DOUBLE) {
             SqlExpr v = c.value();
-            if (v instanceof SqlExpr.DecimalLit || v.type() instanceof com.legend.sql.TypeFact.Typed t
-                    && t.type() instanceof SqlType.Decimal) {
+            SqlExpr lit = literalUnder(v);
+            if (lit instanceof SqlExpr.DecimalLit d) {
+                // a literal is known at planning: it ranks exactly where the double holds it exactly (round 55f,
+                // 2026-11-15: testMixedSortNoComparator's Decimal literal answered correctly, and was refused)
+                if (!exactInADouble(d.value())) {
+                    return "the Decimal " + d.value().toPlainString() + " (not exact as a DOUBLE)";
+                }
+            } else if (v.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Decimal) {
                 return "a Decimal";
+            }
+            if (lit instanceof SqlExpr.IntLit i
+                    && (i.value() >= EXACT_IN_A_DOUBLE || i.value() <= -EXACT_IN_A_DOUBLE)) {
+                return "the integer " + i.value() + " (beyond 2^53)";
             }
             if (v instanceof SqlExpr.IntLit i && (i.value() >= EXACT_IN_A_DOUBLE || i.value() <= -EXACT_IN_A_DOUBLE)) {
                 return "the integer " + i.value() + " (beyond 2^53)";
