@@ -10,12 +10,13 @@ frames.py's, which names them still, and its runs were sent where they were plan
 from __future__ import annotations
 
 import copy
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from typing import Any
 from urllib.parse import unquote_plus
 
 import duckdb
 import pyarrow as pa
+import pyarrow.ipc
 
 from ._planned import Database, PlannedSql, Result, send
 from ._plans import Plan, host_rows
@@ -327,3 +328,28 @@ def run_bridged_statement(db: Database, statement: PlannedSql, params: Sequence[
     read of the frames -- its rows as Arrow (none: an empty table)."""
     result = send(db, statement, params)
     return pa.table({}) if result.description is None else result.to_arrow_table()
+
+
+def arrow_of(chunks: Iterable[bytes]) -> pa.Table:
+    """A result's Arrow IPC streams, one per chunk, as one table: the first chunk's schema (every chunk carries it;
+    the warehouse's DuckDB writes one at least, its schema alone for no rows). engine.py's ``_arrow_of`` until C5-P."""
+    tables = [pyarrow.ipc.open_stream(c).read_all() for c in chunks]
+    if not tables:
+        raise pa.ArrowInvalid('the warehouse answered no chunk, not even its columns')
+    return pa.concat_tables(tables) if len(tables) > 1 else tables[0]
+
+
+@runs("a remote plane's read")
+def read_plane(plane: Any, sql: PlannedSql) -> pa.Table:
+    """A plan's statement sent to a remote plane (the warehouse's SQL API: ``plane.arrow_chunks``, which takes a
+    PlannedSql alone), its answer read as one Arrow table (C5-P, 2026-11-15: until then sent in no run). The plane is
+    handed in: this module imports no plane's client. Its binding's calls are the native library's services, framed
+    here on whatever thread the binding runs them (the compiler's pool copies the caller's context)."""
+    return arrow_of(plane.arrow_chunks(sql))
+
+
+@runs("a remote plane's read")
+def run_on_plane(plane: Any, plan: Plan, on_receipt: Callable[[dict[str, Any]], None] | None = None) -> pa.Table:
+    """A plan run on a remote plane (``read_plane``), its rows typed by the plan; ``on_receipt`` hears what the plane
+    issued for it (its statement and its count)."""
+    return typed_by_plan(arrow_of(plane.arrow_chunks(plan.sql, on_receipt)), plan)

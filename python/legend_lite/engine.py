@@ -42,7 +42,7 @@ import socketserver
 import sys
 import threading
 import traceback
-from collections.abc import Callable, Container, Iterable, Iterator, Mapping
+from collections.abc import Callable, Container, Iterator, Mapping
 from types import MappingProxyType
 from typing import Any, NamedTuple
 from pathlib import Path
@@ -62,9 +62,9 @@ from ._planned import PlannedSql, across_the_bridge, connect, from_plan
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
-from .frames import Frames, Reading, UntypedColumn, redact_held, typed_by_plan
+from .frames import Frames, Reading, UntypedColumn, redact_held
 # the runs this engine's routes hand the planner's statements to (C5-P, 2026-11-15): each route plans, then runs
-from ._reads import count_of, run_arrow, run_plan, run_rows_json
+from ._reads import count_of, read_plane, run_arrow, run_on_plane, run_plan, run_rows_json
 from .keeper import PageKeeper, Refused
 from .projects import ProjectDatabases, run_host_load, run_write
 from ._home import THIS_USER, Settings, home, model_home_folder, pages_folder, queries_folder, store_call
@@ -212,15 +212,6 @@ def _snap_refused(headless: Any, rows: int) -> Answer:
     """A copy of ``rows`` rows past this machine's limit (N3: each host its own), refused in the tab's own sentence
     (headless snapRefused: snap.ts snapRefusal)."""
     return _said(422, headless.call('snapRefused', str(rows), str(_MAX_SNAP_ROWS)))
-
-
-def _arrow_of(chunks: Iterable[bytes]) -> pa.Table:
-    """A result's Arrow IPC streams, one per chunk, as one table: the first chunk's schema (every chunk carries it;
-    the warehouse's DuckDB writes one at least, its schema alone for no rows)."""
-    tables = [pyarrow.ipc.open_stream(c).read_all() for c in chunks]
-    if not tables:
-        raise pa.ArrowInvalid('the warehouse answered no chunk, not even its columns')
-    return pa.concat_tables(tables) if len(tables) > 1 else tables[0]
 
 
 def _on_planner_threads() -> Callable[..., Any]:
@@ -1494,7 +1485,7 @@ class Engine:
             return _said(422, f'{type(failure).__name__}: {failure}')
         try:
             # counted where the rows are, before anything is copied (the tab's preflight)
-            counted = _arrow_of(table.warehouse.arrow_chunks(plan.sql))
+            counted = read_plane(table.warehouse, plan.sql)
             # the count is the warehouse's one value: none is refused by name, never read as no rows (G7; the final
             # audit, 2026-11-12)
             if counted.num_rows != 1 or counted.num_columns != 1 or counted.column(0)[0].as_py() is None:
@@ -1603,7 +1594,7 @@ class Engine:
             return _planned({'plan': planned, 'error': _WAREHOUSE_BINDS_NONE}, 422)
         try:
             said: dict[str, Any] = {}
-            rows = typed_by_plan(_arrow_of(table.warehouse.arrow_chunks(plan.sql, said.update)), plan)
+            rows = run_on_plane(table.warehouse, plan, said.update)
             # the warehouse's own receipt: where, as whom, its statement and its count (the tab's live reads carry it)
             receipt = {'plane': 'warehouse', 'where': said.get('where', ''), 'as': said.get('as', ''),
                        **({'statementId': said['statementId']} if 'statementId' in said else {}),

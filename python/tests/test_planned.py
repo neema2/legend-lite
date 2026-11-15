@@ -663,6 +663,85 @@ class RunFrameTest(unittest.TestCase):
             projects.run_load(project['load'], lambda statement: compiler.session_setup('DuckDB'))
 
 
+class C5SplitTest(unittest.TestCase):
+    """C5-P (2026-11-15): Python's plan/exec split -- the warehouse's sends framed, and what a read's run sends planned
+    once per Frames, depending on nothing that changes after it is made."""
+
+    def test_a_remote_planes_read_is_a_run_and_its_bindings_calls_see_it_across_the_pool(self):
+        # the warehouse's statement is sent, and its answer read, inside a run (engine.py sent it in none until C5-P);
+        # the binding's library calls run on the compiler's pool (warehouse.set_library_thread, as the engine sets it),
+        # which copies the caller's context: the frame reaches them, and they are services, which the witness passes
+        import pyarrow as pa
+        import pyarrow.ipc
+        from legend_lite import _reads
+        from legend_lite._pool import _on_compiler_threads
+
+        rows = pa.table({'n': pa.array([7], pa.int64())})
+        sink = pa.BufferOutputStream()
+        with pyarrow.ipc.new_stream(sink, rows.schema) as w:
+            w.write_table(rows)
+        seen = []
+
+        class Plane:
+            def arrow_chunks(self, sql, on_receipt=None):
+                self.sql = sql
+                seen.append(current_run())
+                seen.append(warehouse._on_library(current_run))
+                said = warehouse._on_library(lambda: library().call('lite_warehouse_call', 'submit', '{}'))
+                seen.append(said.split('\n', 1)[0])
+                if on_receipt is not None:
+                    on_receipt({'statementId': 's'})
+                yield sink.getvalue().to_pybytes()
+
+        before = warehouse._on_library
+        warehouse.set_library_thread(_on_compiler_threads)
+        self.addCleanup(warehouse.set_library_thread, before)
+        plane = Plane()
+        self.assertEqual(_reads.read_plane(plane, from_plan('SELECT 7 AS n')).column('n').to_pylist(), [7])
+        self.assertEqual(seen[:2], ["a remote plane's read"] * 2)
+        self.assertIn(seen[2], ('OK', 'ERR'))
+        seen.clear()
+        heard = []
+        typed = _reads.run_on_plane(plane, compiler.Plan(from_plan('SELECT 7 AS n'), (compiler.Column('n', 'Integer', {}),)),
+                                    heard.append)
+        self.assertEqual(typed.column('n').to_pylist(), [7])
+        self.assertEqual(heard, [{'statementId': 's'}])
+        self.assertEqual(seen[:2], ["a remote plane's read"] * 2)
+        self.assertIsNone(current_run())
+
+    def test_a_reads_setup_and_pin_are_the_same_after_a_register_and_a_settings_change(self):
+        # the session's setup and the pin are planned once, when the Frames is made: they depend on the database's type
+        # and a constant name alone -- a read after a frame registered and the connection's own settings changed sends
+        # exactly the statements a read sent before (its frames' attachments are data, attached, never statements)
+        from unittest import mock
+        import pyarrow as pa
+        from legend_lite import _reads
+        from legend_lite.frames import Frames
+
+        con = duckdb.connect()
+        frames = Frames(con)
+        sent = []
+        real = _reads.send
+
+        def recording(target, statement, params=None):
+            if current_run() == 'a read begun':
+                sent.append((str(statement), params))
+            return real(target, statement, params)
+
+        with mock.patch.object(_reads, 'send', recording):
+            with frames.reading():
+                pass
+            before = list(sent)
+            sent.clear()
+            frames.register('later', pa.table({'x': [1, 2]}))
+            con.execute("SET TimeZone = 'America/New_York'")  # the person's own connection, theirs to set
+            con.execute("SET threads = 2")
+            with frames.reading():
+                pass
+        self.assertTrue(before, 'a read sends its setup and its pin')
+        self.assertEqual(sent, before)
+
+
 class TheBridgeTest(unittest.TestCase):
     """THE V8 BRIDGE (the orchestrator's ruling of 2026-11-12): what DataCube's hosted code hands Python's database crosses
     as text, and is sent only if this session's planner answered it -- every text its answers carried, a plan's steps
