@@ -784,13 +784,15 @@ final class ArchitectureTest {
     }
 
     /** {@link #everyParseIsReachedThroughADoorThatAsks} fails on a class that parses past the doors -- by a call, by a
-     *  reference, and a model's records read ({@code server.PlantedParse}, {@code server.PlantedModelRead}) -- and on a
+     *  reference, a token stream's range lexed again ({@code lexRange}), and a model's records read
+     *  ({@code server.PlantedParse}, {@code server.PlantedModelRead}) -- and on a
      *  door that parses without asking, asks after it parses, or parses in a lambda ({@code door.PlantedUnaskedDoor},
      *  {@code PlantedLateDoor}, {@code PlantedLambdaDoor}): test classes planted for this alone. */
     @Test
     void theParseRulesBiteAPlantedCaller() {
         bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.class);
         bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.ByReference.class);
+        bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedParse.LexesARange.class);
         bites(PARSE_BY_THE_DOORS, com.legend.server.PlantedModelRead.class);
         java.util.Map<Class<?>, String> doors = java.util.Map.of(
                 com.legend.door.PlantedUnaskedDoor.class, "parses without asking the run's wall",
@@ -808,9 +810,17 @@ final class ArchitectureTest {
     static final java.util.Set<String> PARSE_DOORS = java.util.Set.of("com.legend.door.Parse",
             "com.legend.door.ModelFromText", "com.legend.ide.DocumentParse");
 
+    /** The token stream's readers (C5-J audit's SHOULD 2, 2026-11-15), by name, default-deny: each reads the tokens a
+     *  lex made -- a count, a token's type, text, offsets or position, a slice of them, the source, the sections --
+     *  and lexes nothing. {@code lexRange} lexes again, so it is a parse entry; a new method is one until it is named
+     *  here. */
+    static final java.util.Set<String> TOKEN_STREAM_READERS = java.util.Set.of("count", "source", "type", "start", "end",
+            "text", "lineOf", "columnOf", "startLine", "startColumn", "endLine", "endColumn", "at", "asList", "slice",
+            "sectionHeaders", "skippedSections", "sectionContentLine");
+
     /** The parser's token helpers the IDE's indexer ({@code ide.ModelIndexer}) reads a lexed document with, by owner and
      *  name (C5-J item 1, 2026-11-15): a lookahead and an error at a token, over tokens the door lexed (its caller,
-     *  {@code ide.ModelOrchestrator}, lexes through {@code door.Parse.tokens}) -- reads, never a parse. */
+     *  {@code ide.ModelOrchestrator}, lexes through {@code ide.DocumentParse.tokens}) -- reads, never a parse. */
     static final java.util.Set<String> TOKEN_READERS = java.util.Set.of(
             "com.legend.parser.ElementParser#looksLikeTaggedValueBlock", "com.legend.parser.TokenStreamCursor#throwAt");
 
@@ -825,11 +835,15 @@ final class ArchitectureTest {
                 || p.startsWith("com.legend.parser."))) {
             return false;
         }
-        // data the parse made or names: its error, an enum, a record, the token stream -- read off the class itself,
-        // since an import of the product's jars holds no JDK supertype to read a Throwable by
+        // data the parse made or names: its error, an enum, a record -- read off the class itself, since an import of
+        // the product's jars holds no JDK supertype to read a Throwable by -- and the token stream's READERS by name
+        // (the C5-J audit's SHOULD 2, 2026-11-15: the whole stream was exempt, its lexRange, which lexes, with it)
         Class<?> k = owner.reflect();
-        if (Throwable.class.isAssignableFrom(k) || k.isEnum() || k.isRecord() || k == com.legend.lexer.TokenStream.class) {
+        if (Throwable.class.isAssignableFrom(k) || k.isEnum() || k.isRecord()) {
             return false;
+        }
+        if (k == com.legend.lexer.TokenStream.class) {
+            return !TOKEN_STREAM_READERS.contains(a.getName());
         }
         return !(TOKEN_READERS.contains(owner.getName() + "#" + a.getName())
                 && topLevel(a.getOriginOwner()).equals("com.legend.ide.ModelIndexer"));

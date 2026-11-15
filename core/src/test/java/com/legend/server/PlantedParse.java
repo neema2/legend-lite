@@ -22,6 +22,17 @@ public final class PlantedParse {
         return SpecParser.lambdaJson(lambda, false);
     }
 
+    /** A range of a lexed text lexed again outside the doors (the C5-J audit's SHOULD 2, 2026-11-15:
+     *  {@code TokenStream.lexRange} lexes, so it is no reader). */
+    public static final class LexesARange {
+        private LexesARange() {
+        }
+
+        public static TokenStream island(TokenStream tokens) {
+            return tokens.lexRange(0, 1);
+        }
+    }
+
     /** A text lexed outside the doors, by the method's reference, never called. */
     public static final class ByReference {
         private ByReference() {
