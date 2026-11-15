@@ -8,7 +8,7 @@ import { afterEach, before, describe, it } from 'node:test';
 
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { runLoad } from '../src/plan-runner.ts';
-import type { WasmGrammar } from '../src/legend/wasm-grammar.ts';
+import { WasmGrammar, WorkerPort } from '../src/legend/wasm-grammar.ts';
 import type { HostOperation } from '../src/host-operations.ts';
 import { loadPlanner } from './planner.ts';
 import { dataTables } from '../src/model-data.ts';
@@ -658,5 +658,114 @@ describe("a project's own database (C5), the planner's statements run in DuckDB-
 
   it('is refused by name on a database without it', async () => {
     await assert.rejects(planner.projectData(partyText(V1), 'Postgres'), /a project's own database on Postgres is not built/);
+  });
+});
+
+// A PLANNER WORKER THAT STOPS (2026-11-15, the C5-T fold-in review: a regression of this PR's). Studio's planner answers
+// in a worker (WorkerPort). The workspace's tables take one step at a time (TabTables, the final audit's MUST 2), so a
+// worker that died with a request unanswered held every later load, put, reset and table list behind it. A failing
+// worker now refuses every waiting request by name, and every later one, and the chain moves on.
+describe('a planner worker that stops', () => {
+  /** A stand-in for the browser's Worker: what was posted to it, whether it was ended, and its handlers to call. */
+  class FakeWorker {
+    static made: FakeWorker[] = [];
+    onmessage: ((e: unknown) => void) | null = null;
+    onerror: ((e: { message: string; preventDefault(): void }) => void) | null = null;
+    onmessageerror: ((e: unknown) => void) | null = null;
+    readonly posted: { kind: string }[] = [];
+    terminated = 0;
+    constructor() {
+      FakeWorker.made.push(this);
+    }
+    postMessage(m: { kind: string }): void {
+      this.posted.push(m);
+    }
+    terminate(): void {
+      this.terminated++;
+    }
+    /** An uncaught error in the worker, dispatched as a browser does: to the handler if one is set, else to no one. */
+    fail(message: string, preventDefault: () => void = () => {}): void {
+      this.onerror?.({ message, preventDefault });
+    }
+    /** An answer the worker could not hand back, dispatched as a browser does. */
+    garble(): void {
+      this.onmessageerror?.({});
+    }
+  }
+  /** A port over a fake worker, and the worker. */
+  const portOverAFake = (): { port: WorkerPort; worker: FakeWorker } => {
+    const g = globalThis as unknown as { Worker?: unknown };
+    g.Worker = FakeWorker;
+    try {
+      const port = new WorkerPort('worker.js', 'http://planner.invalid/');
+      return { port, worker: FakeWorker.made.at(-1)! };
+    } finally {
+      delete g.Worker;
+    }
+  };
+  /** `p`, or a failure after `ms`: the test's bound alone, so a request left waiting fails the test, never hangs it. */
+  const within = <T>(p: Promise<T>, ms = 5000): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<never>((_, no) => { timer = setTimeout(() => no(new Error(`still waiting after ${ms} ms`)), ms); });
+    return Promise.race([p, late]).finally(() => clearTimeout(timer));
+  };
+  /** Once `ok` holds, polled; a failure after `ms`. */
+  const until = async (ok: () => boolean, what: string, ms = 5000): Promise<void> => {
+    const end = Date.now() + ms;
+    while (!ok()) {
+      if (Date.now() > end) throw new Error(`${what}: not after ${ms} ms`);
+      await new Promise((done) => setTimeout(done, 5));
+    }
+  };
+  const warm = { kind: 'warm', model: '' } as const;
+
+  it('refuses every waiting request by name, and every later one, the worker ended', async () => {
+    const { port, worker } = portOverAFake();
+    const first = port.ask(warm);
+    const second = port.ask(warm);
+    assert.equal(worker.posted.length, 2);
+    let prevented = 0;
+    worker.fail('the module threw', () => { prevented++; });
+    await within(assert.rejects(first, /^Error: the planner worker stopped: the module threw$/));
+    await within(assert.rejects(second, /^Error: the planner worker stopped: the module threw$/));
+    await within(assert.rejects(port.ask(warm), /^Error: the planner worker stopped: the module threw$/));
+    assert.equal(worker.posted.length, 2, 'nothing posted to a worker that stopped');
+    assert.equal(worker.terminated, 1, 'the worker ended');
+    assert.equal(prevented, 1, 'the error is answered here, not left to the page');
+
+    // an answer the worker could not hand back stops it the same way
+    const other = portOverAFake();
+    const waiting = other.port.ask(warm);
+    other.worker.garble();
+    await within(assert.rejects(waiting, /^Error: the planner worker stopped: an answer it could not hand back$/));
+    await within(assert.rejects(other.port.ask(warm), /the planner worker stopped: an answer it could not hand back/));
+  });
+
+  it("refuses the workspace's waiting step and the next, and the steps after them run", async () => {
+    const v1 = await version(V1);
+    const { port, worker } = portOverAFake();
+    // the tables' counts asked of the worker; everything else of the in-thread planner
+    const inWorker = new WasmGrammar(port);
+    const viaWorker = new Proxy(planner, {
+      get(target, key) {
+        if (key === 'hostOperations') return inWorker.hostOperations.bind(inWorker);
+        const value: unknown = Reflect.get(target, key, target);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    });
+    const own = new ProjectRunner(engine);
+    const tabs = new TabTables(projectsOf(), own, engine, asTheBrowserTakesThem, viaWorker);
+    await tabs.load(v1);
+    const waiting = tabs.tables(v1);      // its counts asked of the worker, which does not answer
+    const next = tabs.tables(v1);         // behind it
+    const after = tabs.load(v1);          // behind both, asking the worker nothing
+    await until(() => worker.posted.length === 1, 'the counts asked of the worker');
+    assert.equal(worker.posted[0]!.kind, 'hostOperations');
+    worker.fail('out of memory');
+    await within(assert.rejects(waiting, /^Error: the planner worker stopped: out of memory$/));
+    await within(assert.rejects(next, /^Error: the planner worker stopped: out of memory$/));
+    await within(after);
+    assert.equal(worker.posted.length, 1, 'the next step refused without a post');
+    assert.deepEqual(await rowsOf('PARTY', own), [[1, 'Meridian Capital', 'US'], [2, 'Halberd Securities', 'GB']]);
   });
 });
