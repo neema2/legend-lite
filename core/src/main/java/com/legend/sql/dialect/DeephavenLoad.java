@@ -13,7 +13,8 @@ import java.util.regex.Pattern;
 
 /**
  * A DEPLOYMENT'S PLAN FOR A DEEPHAVEN SERVER, AS DATA (docs/DEPLOYMENT_DESIGN_2026_11_14.md §9; G4: the plan is data,
- * never code): each table the server lands -- its topic, the topic's brokers and format, its columns with the Java
+ * never code): each table the server lands -- its source (a topic on its brokers, or a delivered file at its URL) and
+ * format, its columns with the Java
  * types a Deephaven column holds them as (DH16's), and how it keeps its rows -- for lite's one fixed, versioned loader
  * ({@code core/src/main/deephaven/legend-loader.groovy}, {@link #VERSION}), which reads it and makes each table. It
  * replaced the generated Groovy startup program (the user, 2026-11-15: "putting groovy code in the plan which does not
@@ -65,9 +66,22 @@ public final class DeephavenLoad {
         }
     }
 
-    /** One table the server lands: its name, its topic, the brokers and format the topic is read with, its columns, how it
-     *  keeps its rows. */
-    public record Table(String name, String topic, String brokers, String format, List<Column> columns, Keep keep) {
+    /** Where a table's rows come from: a topic on its brokers, or a delivered file at its URL. */
+    public sealed interface Source permits Topic, File {
+    }
+
+    /** A topic, read from its beginning on {@code brokers}. */
+    public record Topic(String topic, String brokers) implements Source {
+    }
+
+    /** A delivered file (docs/DEPLOYMENT_DESIGN_2026_11_14.md §11), read whole at the server's start: its rows the
+     *  server's first landing of that delivery. */
+    public record File(String url) implements Source {
+    }
+
+    /** One table the server lands: its name, where its rows come from and in what format, its columns, how it keeps its
+     *  rows. */
+    public record Table(String name, Source source, String format, List<Column> columns, Keep keep) {
         public Table {
             columns = List.copyOf(columns);
         }
@@ -96,8 +110,10 @@ public final class DeephavenLoad {
         private static Map<String, Object> table(Table t) {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("name", t.name());
-            m.put("topic", t.topic());
-            m.put("brokers", t.brokers());
+            m.put("source", switch (t.source()) {
+                case Topic tp -> Map.of("kind", "topic", "topic", tp.topic(), "brokers", tp.brokers());
+                case File f -> Map.of("kind", "file", "url", f.url());
+            });
             m.put("format", t.format());
             List<Object> cs = new ArrayList<>();
             for (Column c : t.columns()) {
@@ -120,7 +136,12 @@ public final class DeephavenLoad {
                     mm.put("batchIn", ms.batchIn());
                     mm.put("batchOut", ms.batchOut());
                     mm.put("openBatch", ms.openBatch());
-                    mm.put("partitionPrefix", PARTITION_PREFIX);
+                    // a record's batch its partition-prefixed offset; a delivered file's, its delivery (the first)
+                    if (t.source() instanceof Topic) {
+                        mm.put("partitionPrefix", PARTITION_PREFIX);
+                    } else {
+                        mm.put("delivery", 1);
+                    }
                     keep.put("milestones", mm);
                     HostOperation.DeleteWhen d = c.delete();
                     if (d != null) {
@@ -136,6 +157,7 @@ public final class DeephavenLoad {
     private static final Pattern IDENTIFIER = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
     private static final Pattern TOPIC = Pattern.compile("[A-Za-z0-9._-]{1,249}");
     private static final Pattern SERVERS = Pattern.compile("[A-Za-z0-9._:,-]+");
+    private static final Pattern FILE_URL = Pattern.compile("file:/[A-Za-z0-9._/~-]+");
 
     /** The Java types a topic's JSON is read as (the loader's {@code READ}): a day read as text, made a date there. */
     private static final java.util.Set<String> READ = java.util.Set.of("java.lang.String", "java.time.LocalDate",
@@ -154,17 +176,34 @@ public final class DeephavenLoad {
     }
 
     private static void check(Table t) {
-        String where = "the table " + t.name() + " (topic " + t.topic() + ")";
+        String where = switch (t.source()) {
+            case Topic tp -> "the table " + t.name() + " (topic " + tp.topic() + ")";
+            case File f -> "the table " + t.name() + " (file " + f.url() + ")";
+        };
         name(t.name(), where);
-        if (!TOPIC.matcher(t.topic()).matches()) {
-            throw new DialectCapability(where + ": '" + t.topic() + "' is no Kafka topic's name");
-        }
-        if (!SERVERS.matcher(t.brokers()).matches()) {
-            throw new DialectCapability(where + ": '" + t.brokers() + "' is no list of brokers (host:port, ...)");
-        }
-        if (!"JSON".equals(t.format())) {
-            throw new DialectCapability(where + " is read from the " + t.format() + " topic: only a JSON topic is"
-                    + " landed on Deephaven yet");
+        switch (t.source()) {
+            case Topic tp -> {
+                if (!TOPIC.matcher(tp.topic()).matches()) {
+                    throw new DialectCapability(where + ": '" + tp.topic() + "' is no Kafka topic's name");
+                }
+                if (!SERVERS.matcher(tp.brokers()).matches()) {
+                    throw new DialectCapability(where + ": '" + tp.brokers() + "' is no list of brokers (host:port, ...)");
+                }
+                if (!"JSON".equals(t.format())) {
+                    throw new DialectCapability(where + " is read from the " + t.format() + " topic: only a JSON topic"
+                            + " is landed on Deephaven yet");
+                }
+            }
+            case File f -> {
+                if (!FILE_URL.matcher(f.url()).matches()) {
+                    throw new DialectCapability(where + ": '" + f.url() + "' is no file URL a server reads here"
+                            + " (file:/..., letters, digits, '.', '_', '-', '~' and '/')");
+                }
+                if (!"CSV".equals(t.format())) {
+                    throw new DialectCapability(where + " is a " + t.format() + " file: only a CSV file is landed on"
+                            + " Deephaven yet");
+                }
+            }
         }
         for (Column c : t.columns()) {
             name(c.name(), where + "'s column");

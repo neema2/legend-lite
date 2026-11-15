@@ -16,11 +16,13 @@ import { after, describe, it } from 'node:test';
 import { runfileFromEnv } from '../../../tools/js/runfiles.mts';
 import { installDeephaven, planOf } from '../../demo/deephaven/install.ts';
 import { DESK_MODEL, DESK_ON_DEEPHAVEN, ON_DEEPHAVEN } from '../../demo/deephaven/market/model.ts';
+import { writeDeliveries } from '../../demo/market-sim/door/deliveries.ts';
 import { startFeed } from '../../demo/market-sim/door/feed.ts';
 import { plannerFor } from '../catalog-builder.ts';
 
 const SECONDS = Number(process.env['DOOR_SECONDS'] ?? 15);
 const BROKERS = "bootstrapServers: '127.0.0.1:19092';";
+const DROP = "location: 'file:///tmp/legend-desk/positions/';";
 
 /** A file the test and the server share, in the test's own directory. */
 const shared = (name: string): string => join(process.env['TEST_TMPDIR'] ?? tmpdir(), name);
@@ -59,25 +61,43 @@ describe('the desk\'s stream tables on the pinned Deephaven, made by the loader 
     const desk = readFileSync(runfileFromEnv('MARKET_PURE'), 'utf8');
     const environments = readFileSync(runfileFromEnv('ENVIRONMENTS_PURE'), 'utf8');
     assert.ok(environments.includes(BROKERS), 'the desk\'s environments name the topics\' brokers');
+    assert.ok(environments.includes(DROP), 'the desk\'s environments name the positions\' drop location');
     const model = DESK_MODEL(corpus, desk, environments);
     const planner = plannerFor(model, ON_DEEPHAVEN.runtime);
     // a small world, no crypto feed (nothing asked of the network), a short morning: under every retention
     const feed = await startFeed({ model, planner, settings: { names: 30, feed: 'off', morning: 600, morningPrints: 2000 } });
     stop = async () => { await feed.close(); };
-    const { port, topics, counts } = feed;
+    const { port, topics, counts, kept } = feed;
 
-    // the deployment's plan for the desk's Deephaven server, its brokers this test's door (a test's copy of the
-    // environments): data, never code -- the loader beside it is lite's own, the same for every deployment
-    const atDoor = DESK_MODEL(corpus, desk, environments.replaceAll(BROKERS, `bootstrapServers: '127.0.0.1:${port}';`));
+    // the deployment's plan for the desk's Deephaven server, its brokers this test's door and its drop location this
+    // test's directory (a test's copy of the environments): data, never code -- the loader beside it is lite's own
+    const atDoor = DESK_MODEL(corpus, desk, environments.replaceAll(BROKERS, `bootstrapServers: '127.0.0.1:${port}';`)
+      .replaceAll(DROP, `location: 'file://${shared('drop')}/';`));
     const plan = planOf(await plannerFor(atDoor, ON_DEEPHAVEN.runtime).deephaven('plan', { model: atDoor, deployment: DESK_ON_DEEPHAVEN }));
-    assert.deepEqual(plan.tables.map((t) => t.name).sort(), topics.map((t) => t.table).sort(), 'a table a stream');
+    const files = plan.tables.filter((t) => t.source.kind === 'file');
+    assert.deepEqual(plan.tables.filter((t) => t.source.kind === 'topic').map((t) => t.name).sort(),
+      topics.map((t) => t.table).sort(), 'a table a stream');
+    assert.deepEqual(files.map((t) => t.name), ['POSITION', 'BOOK'], 'a table a delivered file');
+    // position keeping drops its files before the server starts: the start of the day, whole
+    const dropped = writeDeliveries(files, kept);
     const installed = installDeephaven(shared('door-app'), plan, runfileFromEnv('DOOR_LOADER'), [runfileFromEnv('DOOR_CHECK')]);
+    // what each table should hold: a topic's records written and keys, a file's rows and keys
+    const landed = [
+      ...topics.map((t) => ({ table: t.table, from: t.topic, key: t.key, columns: t.columns,
+        written: () => counts.records[t.topic] ?? 0, keys: () => counts.keys[t.topic] ?? 0 })),
+      ...files.map((t) => {
+        const key = t.keep.key ?? [];
+        const rows = kept.get(t.name) ?? [];
+        return { table: t.name, from: 'a delivered file', key, columns: t.columns, written: () => dropped[t.name] ?? 0,
+          keys: () => new Set(rows.map((r) => JSON.stringify(key.map((k) => r[k] ?? null)))).size };
+      }),
+    ];
     // the tables the check reads: each one's id (its key, else its first column, every desk dataset's own key) and its
     // columns with the types the store declares -- a keyed (batch milestoned) table's record columns, then the three
     // its landing adds (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5: LAKE_DIGEST a string, the two batch ids longs)
     const MILESTONES = ['LAKE_DIGEST:java.lang.String', 'LAKE_IN_ID:long', 'LAKE_OUT_ID:long'];
     const tablesFile = shared('door-tables.tsv');
-    writeFileSync(tablesFile, topics.map((t) => [t.table, (t.key.length > 0 ? t.key : [t.columns[0]!.name]).join(','),
+    writeFileSync(tablesFile, landed.map((t) => [t.table, (t.key.length > 0 ? t.key : [t.columns[0]!.name]).join(','),
       [...t.columns.map((c) => `${c.name}:${c.type}`), ...(t.key.length > 0 ? MILESTONES : [])].join(',')].join('\t'))
       .join('\n') + '\n');
     const doneFile = shared('door-done.tsv');
@@ -91,8 +111,8 @@ describe('the desk\'s stream tables on the pinned Deephaven, made by the loader 
 
     await new Promise((r) => setTimeout(r, SECONDS * 1000));
     await feed.stopWorld();
-    writeFileSync(doneFile, topics.map((t) => [t.table, counts.records[t.topic] ?? 0,
-      t.key.length > 0 ? counts.keys[t.topic] ?? 0 : ''].join('\t')).join('\n') + '\n');
+    writeFileSync(doneFile, landed.map((t) => [t.table, t.written(), t.key.length > 0 ? t.keys() : ''].join('\t'))
+      .join('\n') + '\n');
 
     let out = '';
     for (let i = 0; i < 1200 && !out.includes('done\n'); i++) {
@@ -106,16 +126,16 @@ describe('the desk\'s stream tables on the pinned Deephaven, made by the loader 
       return [t!, { rows: Number(rows), distinct: Number(distinct), typed: typed! }];
     }));
     const report: string[] = [];
-    for (const t of topics) {
-      const written = counts.records[t.topic] ?? 0;
+    for (const t of landed) {
+      const written = t.written();
       const got = read.get(t.table);
-      report.push(`${t.table} (${t.topic}): wrote ${written}${t.key.length > 0 ? ` (${counts.keys[t.topic] ?? 0} keys)` : ''},`
+      report.push(`${t.table} (${t.from}): wrote ${written}${t.key.length > 0 ? ` (${t.keys()} keys)` : ''},`
         + ` read ${got?.rows} (${got?.distinct} distinct), ${got?.typed}`);
-      assert.ok(written > 0, `the world wrote ${t.topic}`);
+      assert.ok(written > 0, `the world wrote ${t.from}`);
       assert.ok(got !== undefined, `the loader made ${t.table}`);
       assert.equal(got.typed, 'typed', `${t.table}: each column as its store declares it`);
       if (t.key.length > 0) {
-        assert.equal(got.distinct, counts.keys[t.topic], `${t.table}: every key read`);
+        assert.equal(got.distinct, t.keys(), `${t.table}: every key read`);
         assert.equal(got.rows, got.distinct, `${t.table}: one row a key`);
       } else {
         assert.equal(got.rows, written, `${t.table}: every row read`);

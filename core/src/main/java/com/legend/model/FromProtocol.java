@@ -799,6 +799,7 @@ public final class FromProtocol {
                             s.database() == null ? "" : s.database());
             case Protocol.PDeephavenSpec s -> new ConnectionSpecification
                     .Deephaven(s.host(), deephavenPort(s.port()), s.useTls());
+            case Protocol.PFilesSpec s -> new ConnectionSpecification.Files(s.location());
             case Protocol.PKafkaSpec s -> new ConnectionSpecification.Kafka(s.bootstrapServers(), s.schemaRegistry());
         };
         AuthenticationSpec auth = switch (r.authenticationStrategy()) {

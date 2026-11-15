@@ -214,6 +214,14 @@ final class ConnectionEmitters {
             }
             // lite's own (docs/DEEPHAVEN_PLAN_2026_10_22.md §4; DEEPHAVEN_TABLES_AND_SOURCES §4.6; ONE_CONNECTION_DESK D1)
             case Protocol.PKafkaSpec k -> kafkaSpec(b, k);
+            case Protocol.PFilesSpec f -> {
+                // a Files datasource spec's JSON: lite's own, as Kafka's
+                b.append("{\"_type\":\"files\",\"location\":");
+                str(b, f.location());
+                b.append(",\"sourceInformation\":");
+                srcInfo(b, f.sourceInformation());
+                b.append('}');
+            }
             case Protocol.PDeephavenSpec dh -> deephavenSpec(b, dh);
             case Protocol.PH2EmbeddedSpec eh -> {
                 b.append("{\"_type\":\"h2Embedded\",\"autoServerMode\":")

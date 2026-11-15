@@ -31,7 +31,8 @@ import java.util.Optional;
  * connection; a dataset with no {@code keep} on a live target, or one that does not fit its write mode (an appended
  * dataset keeps rows, a span or all of them; a milestoned one its {@code current} version a key, or its
  * {@code versions}) -- the compiler assumes no default (AGENTS.md invariant 4); and what is not landed yet, each by
- * name (the history tier; a pull, a file, a view; a live target other than Deephaven, the tab's step 5).
+ * name (the history tier; a pull, a view; a live target other than Deephaven, the tab's step 5). A delivered ingest's
+ * files are read at its source's drop location (a Files connection), one a dataset.
  * {@link #deephaven} renders a Deephaven live target's plan: data, for lite's fixed loader ({@link DeephavenLoad}),
  * never code. Nothing is applied here: installing is step 3's.
  */
@@ -59,8 +60,10 @@ public final class DeploymentPlanner {
         Map<String, Protocol.PKeepRule> keep = keepByScope(live);
         List<DeephavenLoad.Table> tables = new ArrayList<>();
         for (Deployed deployed : deployed(ctx, d, new ArrayList<>())) {
-            for (IngestTopics.Topic t : deployed.topics(ctx)) {
-                ConnectionSpecification.Kafka kafka = kafka(ctx, d, t.store()).orElseThrow();
+            for (Landing t : deployed.landings(ctx)) {
+                DeephavenLoad.Source source = t.topic() != null
+                        ? new DeephavenLoad.Topic(t.topic(), kafka(ctx, d, t.store()).orElseThrow().bootstrapServers())
+                        : new DeephavenLoad.File(fileUrl(files(ctx, d, t.store()).get(0), t));
                 Protocol.PKeepRule rule = ruleOf(keep, t.table(), !t.key().isEmpty());
                 DeephavenLoad.Keep k = switch (java.util.Objects.requireNonNull(rule)) {
                     case Protocol.PKeepRows r -> new DeephavenLoad.Rows(r.rows());
@@ -73,7 +76,7 @@ public final class DeploymentPlanner {
                     case Protocol.PKeepFor f -> throw new IllegalStateException("validated: " + f);
                     case Protocol.PKeepVersions v -> throw new IllegalStateException("validated: " + v);
                 };
-                tables.add(new DeephavenLoad.Table(t.table(), t.topic(), kafka.bootstrapServers(), t.format(),
+                tables.add(new DeephavenLoad.Table(t.table(), source, t.format(),
                         t.columns().stream().map(c -> new DeephavenLoad.Column(c.name(), c.type())).toList(), k));
             }
         }
@@ -85,13 +88,38 @@ public final class DeploymentPlanner {
                 + " Deployment " + deployment));
     }
 
+    /** One dataset a deployment lands: its table, the store its source binds ({@code store}: a topic store, or the
+     *  ingest its files are delivered to), its topic (null: a delivered file), its format, columns, key and delete
+     *  indicator. */
+    private record Landing(String table, String store, @com.legend.base.Nullable String topic, String format,
+            List<IngestTopics.Column> columns, List<String> key,
+            @com.legend.base.Nullable Protocol.PIngestDeleteIndicator delete) {
+        /** Where its rows come from, said in a problem. */
+        String from() {
+            return topic != null ? "reads the topic " + topic + " of " + store : "is delivered to " + store + " as files";
+        }
+    }
+
+    /** A delivered file's URL: its source's drop location, then the dataset and the format's extension
+     *  ({@code file:///var/desk/positions/POSITION.csv}). */
+    private static String fileUrl(ConnectionSpecification.Files drop, Landing t) {
+        String at = drop.location();
+        return at + (at.endsWith("/") ? "" : "/") + t.table() + "." + t.format().toLowerCase(java.util.Locale.ROOT);
+    }
+
     /** An ingest a deployment lands, and which of its datasets: all of them ({@code datasets} null) when it is deployed
      *  itself, those a deployed data product reads otherwise. */
     private record Deployed(IngestDefinition ingest, java.util.@com.legend.base.Nullable Set<String> datasets) {
-        /** Its datasets' topics, those it lands alone. */
-        List<IngestTopics.Topic> topics(ModelContext ctx) {
-            return IngestTopics.ofIngest(ctx, ingest).stream()
-                    .filter(t -> datasets == null || datasets.contains(t.table())).toList();
+        /** Its datasets, those it lands: each a topic's records or a delivered file. */
+        List<Landing> landings(ModelContext ctx) {
+            List<Landing> out = new ArrayList<>();
+            for (IngestTopics.Topic t : IngestTopics.ofIngest(ctx, ingest)) {
+                out.add(new Landing(t.table(), t.store(), t.topic(), t.format(), t.columns(), t.key(), t.delete()));
+            }
+            for (IngestTopics.DeliveredFile f : IngestTopics.filesOf(ctx, ingest)) {
+                out.add(new Landing(f.table(), f.store(), null, f.format(), f.columns(), f.key(), f.delete()));
+            }
+            return out.stream().filter(t -> datasets == null || datasets.contains(t.table())).toList();
         }
 
         List<String> datasetNames() {
@@ -155,6 +183,21 @@ public final class DeploymentPlanner {
     private static Optional<ConnectionSpecification.Kafka> kafka(ModelContext ctx, Protocol.PDeployment d, String store) {
         List<ConnectionSpecification.Kafka> found = kafkas(ctx, d, store);
         return found.size() == 1 ? Optional.of(found.get(0)) : Optional.empty();
+    }
+
+    /** The Files connections {@code d}'s sources bind {@code store} to: its drop locations. */
+    private static List<ConnectionSpecification.Files> files(ModelContext ctx, Protocol.PDeployment d, String store) {
+        List<ConnectionSpecification.Files> found = new ArrayList<>();
+        for (Protocol.PDeploymentSource s : d.sources()) {
+            if (s.stores().contains(store)) {
+                ctx.findConnection(s.connection()).ifPresent(c -> {
+                    if (c.specification() instanceof ConnectionSpecification.Files f) {
+                        found.add(f);
+                    }
+                });
+            }
+        }
+        return found;
     }
 
     private static List<ConnectionSpecification.Kafka> kafkas(ModelContext ctx, Protocol.PDeployment d, String store) {
@@ -242,32 +285,36 @@ public final class DeploymentPlanner {
         }
 
         /** An ingest's datasets on the live Deephaven target: arriving on topics, each topic's store bound to one Kafka
-         *  connection, each dataset kept by a rule that fits its write mode. */
+         *  connection, or delivered as files, the ingest bound to one drop location (a Files connection); each dataset
+         *  kept by a rule that fits its write mode. */
         private void landed(Deployed deployed, Protocol.PDeploymentTarget live) {
             IngestDefinition ingest = deployed.ingest();
             String of = where + "'s ingest " + ingest.qualifiedName();
-            if (!IngestTopics.readsTopics(ingest)) {
+            if (!IngestTopics.readsTopics(ingest) && !IngestTopics.receivesFiles(ingest)) {
                 Protocol.PIngestReadMode read = ingest.ingest().readMode();
                 problems.add(of + " lands " + (read == null ? "views alone" : "by " + read.kind()
-                        + (read.format() == null ? "" : "<" + read.format() + ">")) + ", which a Deephaven server does"
-                        + " not land yet (a topic's records do: Delta<JSON>; pulls, files and views are the design's"
-                        + " steps 4 and later)");
+                        + (read.format() == null ? "" : "<" + read.format() + ">")
+                        + (ingest.ingest().schedule() == null ? "" : " on a schedule")) + ", which a Deephaven server"
+                        + " does not land yet (a topic's records do, Delta<JSON>, and delivered files, Snapshot<CSV>;"
+                        + " pulls and views are later steps)");
                 return;
             }
-            List<IngestTopics.Topic> topics;
+            List<Landing> landings;
             try {
-                topics = deployed.topics(ctx);
+                landings = deployed.landings(ctx);
             } catch (IllegalArgumentException | IllegalStateException e) {
                 problems.add(of + ": " + e.getMessage());
                 return;
             }
             Map<String, Protocol.PKeepRule> keep = keepByScope(live);
-            for (IngestTopics.Topic t : topics) {
-                int bound = kafkas(ctx, d, t.store()).size();
+            for (Landing t : landings) {
+                int bound = t.topic() != null ? kafkas(ctx, d, t.store()).size() : files(ctx, d, t.store()).size();
+                String kind = t.topic() != null ? "Kafka" : "Files";
                 if (bound != 1) {
-                    problems.add(of + "'s dataset " + t.table() + " reads the topic " + t.topic() + " of " + t.store()
-                            + ", which the deployment's sources bind to " + (bound == 0 ? "no Kafka connection"
-                                    : bound + " Kafka connections") + ": a topic's brokers are one Kafka connection");
+                    problems.add(of + "'s dataset " + t.table() + " " + t.from() + ", which the deployment's sources"
+                            + " bind to " + (bound == 0 ? "no " + kind + " connection" : bound + " " + kind
+                                    + " connections") + ": " + (t.topic() != null ? "a topic's brokers are one Kafka"
+                                    + " connection" : "a delivered ingest's files arrive at one drop location"));
                 }
                 boolean milestoned = !t.key().isEmpty();
                 Protocol.PKeepRule rule = ruleOf(keep, t.table(), milestoned);

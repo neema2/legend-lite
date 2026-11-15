@@ -118,7 +118,8 @@ class DeploymentPlannerTest {
         assertEquals("legend.deephaven.load", data.get("kind"));
         assertEquals(DeephavenLoad.VERSION, data.get("version"));
         assertEquals("t::OnDeephaven", data.get("deployment"));
-        assertEquals(Map.of("name", "TRADES", "topic", "tp.trades.v1", "brokers", "127.0.0.1:19092", "format", "JSON",
+        assertEquals(Map.of("name", "TRADES", "source", Map.of("kind", "topic", "topic", "tp.trades.v1",
+                "brokers", "127.0.0.1:19092"), "format", "JSON",
                 "columns", List.of(Map.of("name", "ID", "type", "java.lang.String"),
                         Map.of("name", "AT", "type", "java.time.Instant"), Map.of("name", "PX", "type", "double"),
                         Map.of("name", "DAY", "type", "java.time.LocalDate")),
@@ -192,6 +193,50 @@ class DeploymentPlannerTest {
                 + " which no ingest makes")), found.toString());
     }
 
+    /** A delivered ingest's files: read at its source's drop location, one a dataset, its rows the first delivery. */
+    @Test
+    void aDeliveredIngestsFilesAreReadAtItsDropLocation() {
+        String drops = """
+                ###Lakehouse
+                Ingest t::Drops Snapshot<CSV> writeMode=BatchMilestoned
+                [
+                  POS( ID: Varchar(20)[1], QTY: Double ) pk=[ ID ];
+                ]
+
+                ###Connection
+                RelationalDatabaseConnection t::Drop
+                {
+                  type: Files;
+                  specification: Files { location: 'file:///tmp/t/drop/'; };
+                  auth: Test;
+                }
+                """;
+        String deployment = """
+                ###Lakehouse
+                Deployment t::OnDeephaven
+                {
+                  deploys: [ t::Drops ];
+                  sources: [ t::Drop: [ t::Drops ] ];
+                  live: t::Server keep [ milestoned: current ];
+                }
+                """;
+        Map<String, Object> pos = table(DeploymentPlanner.deephaven(Compiler.compileModel(STORES + drops + deployment),
+                "t::OnDeephaven").data(), "POS");
+        assertEquals(Map.of("kind", "file", "url", "file:///tmp/t/drop/POS.csv"), pos.get("source"));
+        assertEquals("CSV", pos.get("format"));
+        assertEquals(Map.of("kind", "current", "key", List.of("ID"), "milestones", Map.of("digest", "LAKE_DIGEST",
+                "batchIn", "LAKE_IN_ID", "batchOut", "LAKE_OUT_ID", "openBatch", 999_999_999L, "delivery", 1)),
+                pos.get("keep"));
+        List<String> found = DeploymentPlanner.validate(Compiler.compileModel(STORES + drops
+                + deployment.replace("sources: [ t::Drop: [ t::Drops ] ];", "")), "t::OnDeephaven");
+        assertTrue(found.stream().anyMatch(p -> p.contains("POS is delivered to t::Drops as files, which the"
+                + " deployment's sources bind to no Files connection")), found.toString());
+        RuntimeException parquet = assertThrows(RuntimeException.class, () -> DeploymentPlanner
+                .deephaven(Compiler.compileModel(STORES + drops.replace("Snapshot<CSV>", "Snapshot<Parquet>")
+                        + deployment), "t::OnDeephaven"));
+        assertTrue(parquet.getMessage().contains("only a CSV file is landed on Deephaven yet"), parquet.getMessage());
+    }
+
     private static List<String> problems(String deployment) {
         return DeploymentPlanner.validate(Compiler.compileModel(STORES + deployment), "t::OnDeephaven");
     }
@@ -237,7 +282,7 @@ class DeploymentPlannerTest {
         refused("deploys: [ t::Feed ]; " + sources + " live: t::InTab keep [ appended: all, milestoned: current ];",
                 "is a DuckDB connection: only a Deephaven server is rendered");
         refused("deploys: [ t::RefLoad ]; sources: [ t::Brokers: [ t::Ref ] ]; " + keep,
-                "lands by Snapshot, which a Deephaven server does not land yet");
+                "lands by Snapshot on a schedule, which a Deephaven server does not land yet");
         assertThrows(IllegalArgumentException.class, () -> DeploymentPlanner.validate(Compiler.compileModel(STORES),
                 "t::Missing"));
     }

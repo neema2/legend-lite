@@ -169,6 +169,8 @@ final class RelationalConnectionComposer {
                     + " specification (lite's own)");
             case Protocol.PKafkaSpec s -> throw Composing.refused("no composer rule for the Kafka datasource"
                     + " specification (lite's own)");
+            case Protocol.PFilesSpec s -> throw Composing.refused("no composer rule for the Files datasource"
+                    + " specification (lite's own)");
         };
     }
 

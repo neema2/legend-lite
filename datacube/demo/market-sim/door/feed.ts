@@ -8,7 +8,7 @@
 
 import type { MarketSettings } from '../market.ts';
 import { MarketWorld } from '../market.ts';
-import { doorSink, doorTopics, topicsOf, type FeedCounts, type StreamTopic } from './door-feed.ts';
+import { doorSink, doorTopics, topicsOf, type FeedCounts, type KeptRow, type StreamTopic } from './door-feed.ts';
 import { KafkaDoor } from './kafka-door.ts';
 
 /** The databases whose streams the desk reads: the corpus's store and the world's own status. */
@@ -34,6 +34,8 @@ export interface Feed {
   readonly world: MarketWorld;
   /** The records written, by topic, and a compacted topic's keys. */
   readonly counts: FeedCounts;
+  /** The rows of each table no topic is made of (a delivered file's: deliveries.ts writes them). */
+  readonly kept: ReadonlyMap<string, readonly KeptRow[]>;
   /** The world stopped, its last rows written: the door stays open, for its readers to finish. */
   stopWorld(): Promise<void>;
   /** The world stopped and the door closed. */
@@ -47,7 +49,7 @@ export async function startFeed(o: FeedOptions): Promise<Feed> {
   }
   const door = new KafkaDoor(doorTopics(topics), o.say);
   const port = await door.listen(o.port ?? 0);
-  const { sink, counts } = doorSink(door, topics);
+  const { sink, counts, kept } = doorSink(door, topics);
   const world = await MarketWorld.open(o.settings ?? {}, sink);
   let stopped: Promise<void> | null = null;
   const stopWorld = (): Promise<void> => (stopped ??= (async () => {
@@ -55,7 +57,7 @@ export async function startFeed(o: FeedOptions): Promise<Feed> {
     await world.flush();
   })());
   return {
-    port, topics, door, world, counts, stopWorld,
+    port, topics, door, world, counts, kept, stopWorld,
     close: async () => {
       await stopWorld();
       await door.close();

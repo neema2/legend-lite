@@ -81,6 +81,39 @@ public final class IngestTopics {
         return topics;
     }
 
+    /** A delivered dataset's file (docs/DEPLOYMENT_DESIGN_2026_11_14.md §11): its landing table, the ingest it is
+     *  delivered to (the store a deployment's sources bind to a drop location), its format, its columns as the topics'
+     *  are, the key its milestoned versions are kept by (empty: appended), and its ingest's delete indicator. */
+    public record DeliveredFile(String table, String store, String format, List<Column> columns, List<String> key,
+            @com.legend.base.Nullable Protocol.PIngestDeleteIndicator delete) {
+        public DeliveredFile {
+            columns = List.copyOf(columns);
+            key = List.copyOf(key);
+        }
+    }
+
+    /** Whether {@code ingest}'s datasets are files delivered to it: a {@code Snapshot} in a file format, no schedule
+     *  (a pull's), each dataset's columns written out (the ingest is the contract, §4). */
+    public static boolean receivesFiles(IngestDefinition ingest) {
+        Protocol.PIngestReadMode read = ingest.ingest().readMode();
+        return read != null && read.kind().equals("Snapshot") && read.format() != null && ingest.ingest().schedule() == null
+                && ingest.ingest().datasets().stream().allMatch(d -> d.source() instanceof Protocol.PIngestColumns);
+    }
+
+    /** The files {@code ingest}'s datasets are delivered as, in its order: none when it receives none. */
+    public static List<DeliveredFile> filesOf(ModelContext ctx, IngestDefinition ingest) {
+        List<DeliveredFile> out = new ArrayList<>();
+        if (receivesFiles(ingest)) {
+            Protocol.PIngestReadMode read = java.util.Objects.requireNonNull(ingest.ingest().readMode());
+            for (Protocol.PIngestDataset d : ingest.ingest().datasets()) {
+                Topic t = topic(ctx, ingest, d);
+                out.add(new DeliveredFile(d.name(), ingest.qualifiedName(), java.util.Objects.requireNonNull(read.format()),
+                        t.columns(), t.key(), read.deleteIndicator()));
+            }
+        }
+        return out;
+    }
+
     /** Whether {@code ingest}'s datasets arrive as records on topics: a {@code Delta} in a message format. */
     public static boolean readsTopics(IngestDefinition ingest) {
         Protocol.PIngestReadMode read = ingest.ingest().readMode();

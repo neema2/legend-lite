@@ -116,8 +116,9 @@ Ingest risk::LimitsLoad Delta<JSON> writeMode=BatchMilestoned
 [
   RISK_LIMIT( |#>{riskdb::Topics."risk.limits.v1"}# ) pk=[ LIMIT_ID ];
 ]
-// POSITIONS at the start of the day: position keeping drops its files
-Ingest positions::StartOfDay Snapshot<Parquet> writeMode=BatchMilestoned
+// POSITIONS at the start of the day: position keeping drops its files, whole as of one moment (a deployment's source
+// names the drop location: docs/DEPLOYMENT_DESIGN_2026_11_14.md §11)
+Ingest positions::StartOfDay Snapshot<CSV> writeMode=BatchMilestoned
 [
   POSITION( POSITION_ID: Varchar(200)[1], QUANTITY: Double, AVERAGE_COST: Double, MARKET_VALUE: Double, UNREALIZED_PN_L: Double, REALIZED_PN_L: Double, CURRENCY: Varchar(200), POSITION_DATE: StrictDate, DIRECTION: Varchar(200), COST_BASIS: Double, ACCRUED_INTEREST: Double, LAST_UPDATED: Timestamp, IS_OPEN: Boolean, SETTLEMENT_DATE: StrictDate, BOOK_ID: Varchar(200), PORTFOLIO_ID: Varchar(200), INSTRUMENT_ID: Varchar(200) ) pk=[ POSITION_ID ];
   BOOK( BOOK_ID: Varchar(200)[1], NAME: Varchar(200)[1], BOOK_TYPE: Varchar(200), CURRENCY: Varchar(200)[1], IS_ACTIVE: Boolean, OPEN_DATE: StrictDate, CLOSE_DATE: StrictDate, LEGAL_ENTITY: Varchar(200), STRATEGY: Varchar(200), PNL_YTD: Double, POSITION_COUNT: Int, RISK_LIMIT: Double, DESCRIPTION: Varchar(200), DESK_ID: Varchar(200) ) pk=[ BOOK_ID ];

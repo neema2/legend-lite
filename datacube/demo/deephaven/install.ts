@@ -15,7 +15,15 @@ export interface DeephavenPlan {
   readonly kind: 'legend.deephaven.load';
   readonly version: number;
   readonly deployment: string;
-  readonly tables: readonly { readonly name: string; readonly topic: string; readonly keep: { readonly kind: string } }[];
+  readonly tables: readonly {
+    readonly name: string;
+    /** A topic on its brokers, or a delivered file at its URL. */
+    readonly source: { readonly kind: 'topic'; readonly topic: string; readonly brokers: string }
+      | { readonly kind: 'file'; readonly url: string };
+    readonly format: string;
+    readonly columns: readonly { readonly name: string; readonly type: string }[];
+    readonly keep: { readonly kind: string; readonly key?: readonly string[] };
+  }[];
 }
 
 /** The plan the planner answered (its `deephaven` request, op `plan`: `OK` and the JSON, or `ERR` and why). */

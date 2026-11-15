@@ -2855,7 +2855,7 @@ public final class Protocol {
             permits PH2Local, PStaticSpec, PH2EmbeddedSpec, PDuckDBSpec,
             PSQLiteSpec, PSnowflakeSpec, PSpannerSpec, PDatabricksSpec,
             PBigQuerySpec, PRedshiftSpec, PTrinoSpec, PAthenaSpec, PAuroraSpec,
-            PGlobalAuroraSpec, PMemSqlSpec, POracleSpec, PDeephavenSpec, PKafkaSpec {
+            PGlobalAuroraSpec, PMemSqlSpec, POracleSpec, PDeephavenSpec, PKafkaSpec, PFilesSpec {
     }
 
     /** {@code _type:"athena"} — AthenaParserGrammar: {@code region} required,
@@ -2949,6 +2949,12 @@ public final class Protocol {
      *  shape, as {@link PDeephavenSpec}. */
     public record PKafkaSpec(String bootstrapServers, @com.legend.base.Nullable String schemaRegistry,
                              @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
+            implements PDatasourceSpec {
+    }
+
+    /** {@code Files { location: 'file:///...'; }} -- a DECLARED lite extension (docs/DEPLOYMENT_DESIGN_2026_11_14.md
+     *  §11): the drop location a delivered ingest's files arrive at, a URL. No query runs on it. */
+    public record PFilesSpec(String location, @com.legend.base.Nullable com.legend.protocol.SourceInfo sourceInformation)
             implements PDatasourceSpec {
     }
 

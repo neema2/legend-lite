@@ -58,19 +58,33 @@ export interface FeedCounts {
   readonly keys: Record<string, number>;
 }
 
+/** A row of a table no topic is made of, as the world wrote it: each column's value by name (a delivered file's rows,
+ *  docs/DEPLOYMENT_DESIGN_2026_11_14.md §11). */
+export type KeptRow = Readonly<Record<string, string | number | boolean | null>>;
+
 /**
  * The world's sink writing into `door`: each table a topic is made of, its rows that topic's records; any other table
  * written by no one here (its rows are B3's). `clock` the records' time (ms). The records the sink has written are
  * counted by topic, and a compacted topic's keys.
  */
 export function doorSink(door: KafkaDoor, topics: readonly StreamTopic[], clock: () => number = Date.now)
-  : { readonly sink: MarketSink; readonly counts: FeedCounts } {
+  : { readonly sink: MarketSink; readonly counts: FeedCounts; readonly kept: ReadonlyMap<string, readonly KeptRow[]> } {
   const byTable = new Map(topics.map((t) => [t.table, t]));
   const records: Record<string, number> = {};
   const keys = new Map<string, Set<string>>();
+  const kept = new Map<string, KeptRow[]>();
   const sink: MarketSink = (table, count, rows) => {
     const t = byTable.get(table.name);
-    if (t === undefined) return Promise.resolve(0);
+    if (t === undefined) {
+      // a table no topic is made of: its rows kept, for the files its owner drops (deliveries.ts)
+      const out = kept.get(table.name) ?? kept.set(table.name, []).get(table.name)!;
+      for (let i = 0; i < count; i++) {
+        const row: Record<string, string | number | boolean | null> = {};
+        for (const name of Object.keys(rows)) row[name] = valueOf(rows[name], i);
+        out.push(row);
+      }
+      return Promise.resolve(count);
+    }
     const ts = clock();
     const seen = t.key.length > 0 ? (keys.get(t.topic) ?? keys.set(t.topic, new Set()).get(t.topic)!) : undefined;
     for (let i = 0; i < count; i++) {
@@ -86,6 +100,7 @@ export function doorSink(door: KafkaDoor, topics: readonly StreamTopic[], clock:
   };
   return {
     sink,
+    kept,
     counts: {
       records,
       get keys(): Record<string, number> {

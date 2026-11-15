@@ -2,7 +2,8 @@
 // legend-lite, never generated. A Deephaven server runs it at start; it reads one deployment's plan -- data the planner
 // rendered (com.legend.sql.dialect.DeephavenLoad), named by the environment's LEGEND_DEEPHAVEN_PLAN -- and makes each
 // table the plan lists: read from its topic's beginning by Deephaven's own reader (KafkaTools.consumeToTable), its
-// records' JSON by the table's columns (a day read as its text and made a LocalDate here: 42.7's JSON reader takes none,
+// records' JSON by the table's columns, or from its delivered file, read whole (CsvTools, each column parsed as the type
+// it is held as) (a day read as its text and made a LocalDate here: 42.7's JSON reader takes none,
 // measured 2026-10-30), then kept as the plan says -- an appended table its latest n rows (a ring) or all of them; a
 // milestoned table each key's latest record (a blink table, lastBy its key), the delete indicator's keys dropped, its
 // milestoning columns filled: the record's partition-prefixed offset its batch, the open batch id, a hash of its own
@@ -10,6 +11,8 @@
 // checked against the plan before it is published (a table not as declared fails the install, naming it). The planner
 // checked every name and value this reads (the dialect's part), so the loader checks only that the plan is one.
 import groovy.json.JsonSlurper
+import io.deephaven.csv.CsvTools
+import io.deephaven.csv.parsers.Parsers
 import io.deephaven.engine.table.ColumnDefinition
 import io.deephaven.kafka.KafkaTools
 
@@ -35,23 +38,44 @@ def read = [
     'java.lang.Boolean': { String n -> ColumnDefinition.ofBoolean(n) },
     'java.time.Instant': { String n -> ColumnDefinition.ofTime(n) },
 ]
+// a delivered CSV file's columns, by the Java type each is held as (a day read as text, made a date below)
+def csv = [
+    'java.lang.String': Parsers.STRING, 'java.time.LocalDate': Parsers.STRING, 'double': Parsers.DOUBLE,
+    'float': Parsers.FLOAT_FAST, 'int': Parsers.INT, 'long': Parsers.LONG, 'short': Parsers.SHORT, 'byte': Parsers.BYTE,
+    'java.lang.Boolean': Parsers.BOOLEAN, 'java.time.Instant': Parsers.DATETIME,
+]
 plan.tables.each { t ->
-    def kafka = new Properties()
-    kafka.put('bootstrap.servers', t.brokers)
-    def columns = t.columns.collect { c ->
-        def of = read[c.type]
-        if (of == null) throw new IllegalStateException('the Legend loader: ' + t.name + '.' + c.name + ' is held as ' + c.type)
-        of(c.name as String)
-    } as ColumnDefinition[]
     def keep = t.keep
-    def type = keep.kind == 'rows' ? KafkaTools.TableType.ring(keep.rows as int)
-            : keep.kind == 'all' ? KafkaTools.TableType.append()
-            : keep.kind == 'current' ? KafkaTools.TableType.blink()
-            : null
-    if (type == null) throw new IllegalStateException('the Legend loader: ' + t.name + ' keeps ' + keep.kind)
-    def table = KafkaTools.consumeToTable(kafka, t.topic as String, KafkaTools.ALL_PARTITIONS,
-            KafkaTools.ALL_PARTITIONS_SEEK_TO_BEGINNING, KafkaTools.Consume.IGNORE, KafkaTools.Consume.jsonSpec(columns),
-            type)
+    def table
+    if (t.source.kind == 'topic') {
+        def kafka = new Properties()
+        kafka.put('bootstrap.servers', t.source.brokers)
+        def columns = t.columns.collect { c ->
+            def of = read[c.type]
+            if (of == null) throw new IllegalStateException('the Legend loader: ' + t.name + '.' + c.name + ' is held as ' + c.type)
+            of(c.name as String)
+        } as ColumnDefinition[]
+        def type = keep.kind == 'rows' ? KafkaTools.TableType.ring(keep.rows as int)
+                : keep.kind == 'all' ? KafkaTools.TableType.append()
+                : keep.kind == 'current' ? KafkaTools.TableType.blink()
+                : null
+        if (type == null) throw new IllegalStateException('the Legend loader: ' + t.name + ' keeps ' + keep.kind)
+        table = KafkaTools.consumeToTable(kafka, t.source.topic as String, KafkaTools.ALL_PARTITIONS,
+                KafkaTools.ALL_PARTITIONS_SEEK_TO_BEGINNING, KafkaTools.Consume.IGNORE,
+                KafkaTools.Consume.jsonSpec(columns), type)
+    } else if (t.source.kind == 'file') {
+        // a delivered file, read whole: its header the declared columns, each parsed as the type it is held as
+        def specs = CsvTools.builder()
+        t.columns.each { c ->
+            def parser = csv[c.type]
+            if (parser == null) throw new IllegalStateException('the Legend loader: ' + t.name + '.' + c.name + ' is held as ' + c.type)
+            specs.putParserForName(c.name as String, parser)
+        }
+        table = CsvTools.readCsv(new File(new URI(t.source.url as String)).toPath(), specs.build())
+        if (keep.kind == 'rows') table = table.tail(keep.rows as long)
+    } else {
+        throw new IllegalStateException('the Legend loader: ' + t.name + ' comes from a ' + t.source.kind)
+    }
     def days = t.columns.findAll { it.type == 'java.time.LocalDate' }.collect { c ->
         c.name + ' = isNull(' + c.name + ') ? (java.time.LocalDate) null : java.time.LocalDate.parse(' + c.name + ')'
     }
@@ -64,8 +88,10 @@ plan.tables.each { t ->
             table = table.where('!(' + marked.join(' || ') + ')')
         }
         def m = keep.milestones
+        // a record's batch its partition-prefixed offset; a delivered file's, its delivery
         table = table.update(
-                m.batchIn + ' = KafkaPartition * ' + m.partitionPrefix + 'L + KafkaOffset',
+                m.partitionPrefix != null ? m.batchIn + ' = KafkaPartition * ' + m.partitionPrefix + 'L + KafkaOffset'
+                        : m.batchIn + ' = ' + m.delivery + 'L',
                 m.batchOut + ' = ' + m.openBatch + 'L',
                 m.digest + ' = Integer.toHexString(java.util.Objects.hash(' + view.join(', ') + '))')
         view += [m.digest as String, m.batchIn as String, m.batchOut as String]

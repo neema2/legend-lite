@@ -97,6 +97,9 @@ public record ConnectionDefinition(
         // lite's own as Deephaven is (2026-11-14, docs/DEEPHAVEN_TABLES_AND_SOURCES_2026_10_29.md §4.6, the desk
         // roadmap's B2): a topic store's brokers, whose topics an ordinary ###Relational store declares as tables; no
         // query runs on it -- a stream's ingest reads its topics
-        Kafka
+        Kafka,
+        // lite's own (2026-11-15, docs/DEPLOYMENT_DESIGN_2026_11_14.md §11, step 4): a drop location, where a delivered
+        // ingest's files arrive; no query runs on it -- a deployment lands its files
+        Files
     }
 }

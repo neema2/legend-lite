@@ -19,7 +19,8 @@ public sealed interface ConnectionSpecification
                 ConnectionSpecification.Databricks,
                 ConnectionSpecification.BigQuery,
                 ConnectionSpecification.Deephaven,
-                ConnectionSpecification.Kafka {
+                ConnectionSpecification.Kafka,
+                ConnectionSpecification.Files {
 
     /** The Pure class of the datasource specification that carries a connection's test data ({@link #testData}) where a
      *  Pure body builds the connection ({@code ^RelationalDatabaseConnection(datasourceSpecification = ^...)}):
@@ -145,4 +146,8 @@ public sealed interface ConnectionSpecification
      *  (docs/DEPLOYMENT_DESIGN_2026_11_14.md §5). No query runs on it; an ingest reads its topics. */
     record Kafka(String bootstrapServers, @com.legend.base.Nullable String schemaRegistry)
             implements ConnectionSpecification {}
+
+    /** A drop location (lite's own, docs/DEPLOYMENT_DESIGN_2026_11_14.md §11): where a delivered ingest's files
+     *  arrive, a URL. No query runs on it; a deployment lands its files. */
+    record Files(String location) implements ConnectionSpecification {}
 }

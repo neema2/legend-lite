@@ -566,11 +566,23 @@ configuration (Avro with Legend's schemas published to a registry, reading less 
   key read once (instruments 254, options 216, equities 30, sectors 12, counterparties 20, traders 18, limits 10,
   desks 6, exchanges 2, business units 1). `stress_suites`, the corpus gates, `verify_live_desk_test` and
   `desk_model_test` green: the landing tables did not change.
-- **Left of step 4:** the positions files (`positions::StartOfDay`, `Snapshot<Parquet>`): upstream's nearest
-  connection read first (§13). Read 2026-11-15 at legend-engine `05a3d33`: no `ExternalFormatConnection` or
-  `UrlStreamExternalSource` remains in the tree; the nearest is the model-to-model `JsonModelConnection` /
-  `XmlModelConnection` (a class's instances at a URL), which lands no dataset. So a lite `Files` type, as ruled ("A
-  lite `Files` type only if nothing upstream fits").
+- **The positions files.** Upstream's nearest connection read first (§13), at legend-engine `05a3d33`: no
+  `ExternalFormatConnection` or `UrlStreamExternalSource` remains in the tree; the nearest is the model-to-model
+  `JsonModelConnection` / `XmlModelConnection` (a class's instances at a URL), which lands no dataset. So a lite `Files`
+  type, as ruled ("A lite `Files` type only if nothing upstream fits"): `type: Files; specification: Files { location:
+  'file:///...'; };`, no store, no query (as Kafka; register S409). A delivered ingest (a `Snapshot` in a file format,
+  no schedule, its columns written out) is bound to one drop location in the deployment's `sources`
+  (`market::PositionsDrop: [ positions::StartOfDay ]`); each dataset is a file there, `<location><DATASET>.<format>`.
+  The Deephaven plan's table names its source, a topic or a file; the loader reads a file whole at start
+  (`CsvTools.readCsv`, each column parsed as the type it is held as), its rows the server's first landing of that
+  delivery (`LAKE_IN_ID` 1). **The format changed to CSV** (`positions::StartOfDay Snapshot<CSV>`, from Parquet): the
+  world, standing in for position keeping, writes its files in Node with no Parquet writer (one would need DuckDB, and
+  SQL, in the feed), and CSV is upstream's own example format (`Snapshot<CSV>`); a Parquet file on Deephaven is refused
+  by name. This is the user's to overrule.
+- **Measured** (`deephaven_door_test`): all 21 desk tables land from the plan -- the nineteen topics and the two files
+  (positions 148 rows, books 10), each typed as declared (an instant, a day, a truth among them), every key once.
+  `stress_suites`, `core_tests_integration`, `verify_live_desk_test` and `deephaven_desk_test` green.
+- **Not yet:** a new delivery while the server runs (a drop location watched); the next start reads it.
 
 ## 16. Upstream, read
 

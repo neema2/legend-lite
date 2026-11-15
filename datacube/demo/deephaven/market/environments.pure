@@ -50,6 +50,15 @@ RelationalDatabaseConnection market::Kafka
   auth: Test;
 }
 
+// THE POSITIONS' DROP LOCATION, on this machine: where position keeping drops its start-of-day files, a dataset a file
+// (docs/DEPLOYMENT_DESIGN_2026_11_14.md §11); no query runs on it
+RelationalDatabaseConnection market::PositionsDrop
+{
+  type: Files;
+  specification: Files { location: 'file:///tmp/legend-desk/positions/'; };
+  auth: Test;
+}
+
 ###Runtime
 Runtime market::InTabRuntime
 {
@@ -72,9 +81,11 @@ Runtime market::DeephavenRuntime
 Deployment market::DeskOnDeephaven
 {
   deploys: [ marketdata::MarketDataFeed, marketdata::NewsFeed, trading::OrderFlowFeed, products::SecurityMasterLoad,
-    refdata::MarketsLoad, org::OrganisationLoad, counterparty::ClientMasterLoad, risk::LimitsLoad, market::WorldStatus ];
+    refdata::MarketsLoad, org::OrganisationLoad, counterparty::ClientMasterLoad, risk::LimitsLoad, positions::StartOfDay,
+    market::WorldStatus ];
   sources: [ market::Kafka: [ tickerplant::Topics, newswire::Topics, oms::Topics, secmaster::Topics, refmaster::Topics,
-    hr::Topics, clientmaster::Topics, riskdb::Topics, market::WorldStatus ] ];
+    hr::Topics, clientmaster::Topics, riskdb::Topics, market::WorldStatus ],
+    market::PositionsDrop: [ positions::StartOfDay ] ];
   live: market::Deephaven keep [ appended: LastRows(50000), milestoned: current, MARKET_TRADE: LastRows(25000),
     NEWS_STORY: LastRows(5000) ];
 }

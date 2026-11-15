@@ -29,6 +29,7 @@ final class DatasourceReader {
                     w.span())),
             Map.entry("kafka", w -> new Protocol.PKafkaSpec(w.str("bootstrapServers"), w.optStr("schemaRegistry"),
                     w.span())),
+            Map.entry("files", w -> new Protocol.PFilesSpec(w.str("location"), w.span())),
             Map.entry("h2Embedded", w -> new Protocol.PH2EmbeddedSpec(w.str("databaseName"), w.str("directory"),
                     w.bool("autoServerMode"), w.span())),
             Map.entry("static", w -> new Protocol.PStaticSpec(w.str("databaseName"), w.str("host"), w.lng("port"),

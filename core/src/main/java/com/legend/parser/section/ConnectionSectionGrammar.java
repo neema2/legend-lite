@@ -50,7 +50,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
     /** The database types legend-lite adds to the referee's (docs/CLOUD_BACKENDS_PCT_2026_10_11.md §12-13): declared
      *  lite extensions, refused on the drop-in surface. */
     private static final java.util.Set<String> LITE_DATABASE_TYPES = java.util.Set.of("SQLite", "MariaDB", "MySQL",
-            "Deephaven", "Kafka");
+            "Deephaven", "Kafka", "Files");
 
     private ConnectionSectionGrammar() {
     }
@@ -903,6 +903,7 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             }
             case "Deephaven" -> parseDeephavenSpec(c, keywordTok);
             case "Kafka" -> parseKafkaSpec(c, keywordTok);
+            case "Files" -> parseFilesSpec(c, keywordTok);
             case "Snowflake" -> parseSnowflakeSpec(c, keywordTok);
             case "Redshift" -> parseRedshiftSpec(c, keywordTok);
             case "Trino" -> parseTrinoSpec(c, keywordTok);
@@ -1197,6 +1198,34 @@ public final class ConnectionSectionGrammar implements LexableSectionGrammar {
             throw TokenStreamCursor.throwAt(c.tokens(), keywordTok, "Kafka needs bootstrapServers");
         }
         return new Protocol.PKafkaSpec(servers, registry, c.spanOf(keywordTok, c.pos() - 1));
+    }
+
+    /** The Files datasource spec -- a DECLARED lite extension (docs/DEPLOYMENT_DESIGN_2026_11_14.md §11, step 4: no
+     *  upstream connection fits, legend-engine {@code 05a3d33} read): {@code Files { location: 'file:///...'; }}, the drop
+     *  location a delivered ingest's files arrive at, required (AGENTS invariant 4). No query runs on it. */
+    private static Protocol.PDatasourceSpec parseFilesSpec(TokenStreamCursor c, int keywordTok) {
+        if (c.dialect().refusesLiteExtensions()) {
+            throw c.error("unsupported datasource specification: Files");
+        }
+        c.expect(TokenType.BRACE_OPEN);
+        String location = null;
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        while (!c.atEnd() && c.peek() != TokenType.BRACE_CLOSE) {
+            String key = c.parseIdentifier();
+            TokenStreamCursor.once(seen, key, c);
+            c.expect(TokenType.COLON);
+            if (!key.equals("location")) {
+                throw c.error("unknown Files key: " + key);
+            }
+            location = SectionParse.stringValue(c);
+            c.expect(TokenType.SEMI_COLON);
+        }
+        c.expect(TokenType.BRACE_CLOSE);
+        c.expect(TokenType.SEMI_COLON);
+        if (location == null) {
+            throw TokenStreamCursor.throwAt(c.tokens(), keywordTok, "Files needs a location");
+        }
+        return new Protocol.PFilesSpec(location, c.spanOf(keywordTok, c.pos() - 1));
     }
 
     /** {@code PreSharedKey { keyVaultReference: '...'; }} -- a DECLARED lite
