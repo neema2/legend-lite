@@ -314,15 +314,56 @@ gets the same columns.
 | PR1 | `claude/total-wall-e` @ `26717de291` (frozen) | Lands first in Phase 9. |
 | CI | draft PR #112 closed | Linux-only throwaway CI from D's next push. |
 
-## 9. Parked (outside this plan)
-- The cross-language fix batch (resumes after D lands).
-- PR #102 (waiting on its author).
-- Deephaven.
-- D3 (engine plans in and out).
-- The Decimal print form.
-- The layered edge.
-- The date-format fidelity PR.
-- Lineage rebuilt upstream's way.
+## 9. Follow-ups: the real list, written down so nothing is lost (the user, 2026-11-16)
+
+Each follow-up is real, deliberately not done in this program, and has a home. When one starts, it moves into a phase
+or its own plan; when it's done, it's struck through here with its commit.
+
+### Product correctness and features
+| # | Follow-up | Why later | Home |
+|---|---|---|---|
+| F1 | **Lists done properly everywhere.** One list design across databases, H2 included (H2 has arrays), so every list operation works on every database: `toOne` over a list, membership, a collection's reduction, and the rest. | §10 item 7: refused by name on H2 today. The general fix is its own design. | its own plan, after E-SQL's E-v5 |
+| F2 | **`toOne` by counting, no list.** Exactly one value is a count plus the value, so it needs no list at all. It's leaner on every database and works on H2 at once. | a narrow, cheap step toward F1 | E-SQL, lean SQL (Phase 10) |
+| F3 | **`type()` at run time, and mixed lists keeping each element's kind** (the "kinds kept" carrier, O2 step 3). It replaces S341's, R3's and R4's refusals with legend-pure's answers. | §10 item 1: refusals for now | E-SQL, Phase 10 (E-v3's "floor's real fix") |
+| F4 | **The product's own `toRepresentation`**, if product users ask for it: one simple form per type, no legend-pure logic. | §10 item 8 | on demand |
+| F5 | **legend-engine's answer for an unused derived column that can raise:** ask the engine runner. The edge follows it. | §10 item 2 | D, during Phase 5 |
+| F6 | **The Decimal print form** (lite prints `1.100000000000000000` for `1.1->toDecimal()`, legend-pure `1.1`): a proposal with per-database spellings and costs. | outside "everything at the edge" | after D |
+
+### Lean SQL
+| # | Follow-up | Home |
+|---|---|---|
+| F7 | Narrow the may-skip set by per-dialect proof: the size it took from PR1, and more. | E-SQL, E-v3 |
+| F8 | Classify the casts and CASEs the renderers write themselves, and make the cast-of-cast elision one lowering pass. | E-SQL, E-v4 |
+| F9 | Measure MongoDB's product SQL for the first time. | E-SQL, E-v5 |
+| F10 | The FULL OUTER emulation's repeated left side, after the cross-language batch. | E-SQL |
+
+### Edge fidelity, existing differences that the golden net won't flag because they predate D
+| # | Follow-up | Home |
+|---|---|---|
+| F11 | "Missing external parameter(s)": the edge joins with `", "`, upstream with `","`. | D, Phase 5 or after |
+| F12 | The edge's main-table sentence isn't upstream's exact text (`RelationalCompilerExtension:350`). | D, Phase 5 or after |
+| F13 | H2's product session's `NON_KEYWORDS` includes `SET`, so an `UPDATE T SET` with no alias fails. Latent: lite writes aliases. | with §10 item 9's row |
+
+### Judges and Java (E-Java's v2 and v3, Phase 10)
+| # | Follow-up | Home |
+|---|---|---|
+| F14 | No judge class over 1,000 lines (item 8, parked on `claude/total-wall-e-v3`), plus one page on how a verdict is made. | E-Java v2 |
+| F15 | The judges' characters (grammar −20%, essential −10%). The rest comes with Phase 4b. | E-Java v2 |
+| F16 | Retire the DATABASE-alone CI pass once it differs from BOTH nowhere. | E-Java v2 |
+| F17 | Java's evaluation of values shrunk in E-Java's files (4,448 → ≤ 3,800). | E-Java v3 |
+
+### Other programs and PRs waiting (status to confirm when each resumes)
+| # | Follow-up | Home |
+|---|---|---|
+| F18 | The cross-language fix batch (Java, Python, TS; its scope is fixed). | after D lands |
+| F19 | Landing A's two items that #111 introduced. | with F18 |
+| F20 | PR #102 (Rust-port Java fixes): waiting on its author. | its author |
+| F21 | Compiler performance: the ranked fixes await the user's choice. | the user |
+| F22 | Stream S (injection safety): its session stopped failed; to be re-checked. | after D |
+| F23 | DataCube's one engine contract: its session is ready for review. | after D |
+| F24 | C5-P's follow-up (`queryTimeOutInSeconds: 0` means no limit), pushed at `6771f366` with no PR. | with F18 |
+| F25 | Lineage rebuilt upstream's way. | after D |
+| F26 | D3 (engine plans in and out); the layered edge design; the date-format fidelity PR; Deephaven. | after D |
 
 ## 10. Rulings for the user
 
@@ -343,12 +384,7 @@ gets the same columns.
    precision.
 5. **A value finer than a microsecond: its text is cut to six digits.** The value itself is carried exactly.
 6. *(rule later)* The B-row PCT moves (Phase 5), listed when measured.
-7. *(with the user, after an explanation)* H2 `toOne` over a list, refused by name today. Options:
-   - (a) refuse, as today;
-   - (b) give H2 a list encoding;
-   - (c) `toOne` by counting, no list: lean on every database.
-
-   The recommendation is (a) now plus (c) in E-SQL's lean SQL.
+7. **H2 `toOne` over a list: refused by name now** (RULED by the user, 2026-11-16: "refuse now or do narrow fix for h2 but then have follow up to do lists properly for everything"). The narrow fix is F2, and lists done properly is F1.
 8. *(with the user, after an explanation)* The product's `toRepresentation` and `format('%r')`. Options:
    - (a) refuse by name (S314 extended);
    - (b) a simple product form;
@@ -381,6 +417,7 @@ About four working days to D's landing, with the three workers in parallel.
 
 | When (UTC) | Entry |
 |---|---|
+| 2026-11-16 15:30 | **The user ruled §10 item 7:** H2 `toOne` over a list stays refused by name now. Follow-ups F2 (`toOne` by counting, lean SQL) and F1 (lists properly everywhere). **§9 is now the written follow-up list (F1 to F26), at the user's word:** "We should have a written down list of real follow ups we want either way so we don't forget". |
 | 2026-11-16 15:20 | **Phase 4b design: on-failure side reads** (E-Java's option 1, approved by the orchestrator). A database verdict's fused row keeps only `holds`. The test plan carries each verdict's two typed side reads as data (`Verdict.failureSides`), which the runner sends only after a false `holds`; the message is then formatted in Java by the host judge's formatter. This is a planned branch (charter A3(b): the database decides, the runner follows the plan's named side). It adds a test-plan format bump, numbered at landing, and no extra statement under BOTH. The alternative, a JSON carrier of each side built in SQL for every verdict, was rejected: it is print and carrier text in SQL. SideShapes' raise sentence becomes a kind plus operands, using D's Phase 2 marker. *(For the user's phase report.)* |
 | 2026-11-16 15:15 | **Phase 4a done** (E-Java, `42b38e44aa` on `claude/total-wall-d-judges`). The engine-text arm is at the edge behind one facade, with one architecture row; the `EngineTestText#arm` allowance is gone. `AssertVerdicts` is at 1,520, and `SqlTextVerdicts` has left the product (1,152 lines, now in the edge). Channel B DuckDB is unchanged under HOST, DATABASE and BOTH; core testplan (every judge), integration, root, both corpus verdicts, guardrails and census are green. D merges it. E-Java has started 4b (step a: messages in Java). |
 | 2026-11-16 15:15 | **The user ruled §10 items 1-5 and 9** ("I agree with all"). Items 7 and 8 were explained, and await the user's choice. D's Phase 1: A-M1 restored (`9c28a1a7e`, H2's text byte-identical to before W6, one guard row); `stage-linux.yml` committed (`2ed80afe6`); `//core:lean_sql_baseline_test`'s plan-JSON growth approved for one re-pin, on condition that one case confirms it is the per-statement raises field (SQL characters only shrank). |
