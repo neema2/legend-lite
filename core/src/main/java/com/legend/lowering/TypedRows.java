@@ -58,16 +58,28 @@ public final class TypedRows {
     }
 
     /** The typed rows' statement (the judges', the plan path program's step 7, 2026-10-18): the statement itself, its
-     *  outputs unchanged, but for a sort key that is no output, carried as a hidden column of the inner select and
-     *  ordered by outside ({@link Render#typedRows}); a WITH keeps its CTEs at the head. */
+     *  outputs unchanged; over a FULL join a sort key that is no output is carried as a hidden column of the inner
+     *  select and ordered by outside ({@link Render#typedRows}); a WITH keeps its CTEs at the head. */
     public static SqlQuery statement(SqlQuery plan) {
         if (plan instanceof com.legend.sql.SqlWith w) {
             return w.with(w.ctes(), statement(w.body()));
         }
-        if (plan instanceof SqlSelect s && !s.orderBy().isEmpty()) {
+        // a sort key that is no output is ordered by where it stands (standard SQL orders a select by an expression it
+        // does not project; the DuckDB plan's step 2, 2026-11-16) -- but over a FULL join, which a dialect may emulate
+        // by a union that orders by its outputs alone (H2's), it is carried as a hidden column and ordered outside
+        if (plan instanceof SqlSelect s && !s.orderBy().isEmpty() && fullJoin(s.from())) {
             return Render.typedRows(s, "_rows1");
         }
         return plan;
+    }
+
+    private static boolean fullJoin(com.legend.sql.SqlSource src) {
+        return switch (src) {
+            case com.legend.sql.SqlSource.Join j -> j.kind() == com.legend.sql.SqlSource.Join.Kind.FULL
+                    || fullJoin(j.left()) || fullJoin(j.right());
+            case com.legend.sql.SqlSource.RowValues rv -> fullJoin(rv.rows());
+            default -> false;
+        };
     }
 
     /** Does {@code plan} answer a dynamic pivot's columns UNNAMED: a pivot whose columns the database names (no
