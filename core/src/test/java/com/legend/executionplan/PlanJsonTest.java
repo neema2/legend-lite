@@ -292,9 +292,10 @@ class PlanJsonTest {
         assertTrue(json.contains("create table T(ID INT)"), json);
         assertEquals(plan, PlanJson.read(json));
         // the section naming one identity twice
-        String section = json.substring(json.indexOf("\"loads\":[{"));
+        // the section runs to the plan's raises (v53), which follow it
+        String section = json.substring(json.indexOf("\"loads\":[{"), json.indexOf(",\"raises\":"));
         String twice = json.replace("\"loads\":[{", "\"loads\":[" + section.substring("\"loads\":[".length(),
-                section.length() - 2) + ",{");
+                section.length() - 1) + ",{");
         IllegalArgumentException dup = assertThrows(IllegalArgumentException.class, () -> PlanJson.read(twice));
         assertTrue(dup.getMessage().contains("names a load twice"), dup.getMessage());
         // a target naming a load the section lacks
