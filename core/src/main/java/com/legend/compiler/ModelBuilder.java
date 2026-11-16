@@ -166,6 +166,9 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
             modelConnections = new HashMap<>();
     private final Map<String, com.legend.model.ModelChainConnectionDefinition>
             modelChainConnections = new HashMap<>();
+    /** ExternalFormat Bindings by path (a relational Binding transformer reads their model unit). */
+    private final Map<String, com.legend.model.GenericSectionElementDefinition>
+            externalFormatBindings = new HashMap<>();
     /** Foreign-flavor connections (ServiceStore/Deephaven/Mongo) — defined,
      *  carrying no database type; dialect selection skips them. */
     private final java.util.Set<String> foreignConnections =
@@ -361,6 +364,9 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
                         modelChainConnections.put(mcc.qualifiedName(), mcc);
                 case FunctionDefinition fd -> appendFunction(fd);
                 case NativeFunctionDefinition nfd -> appendFunction(nfd);
+                // an ExternalFormat Binding: a relational Binding transformer's decode reads its model unit
+                case com.legend.model.GenericSectionElementDefinition ge
+                        when "Binding".equals(ge.kind()) -> externalFormatBindings.put(ge.qualifiedName(), ge);
                 default -> { /* phase 2 or phase 3b */ }
             }
         }
@@ -912,6 +918,12 @@ public final class ModelBuilder implements com.legend.compiler.StoreLookups {
         elementOrder.add(id);
         putAtId(legacyMappings, id, md);
         legacySetsById = null;
+    }
+
+    /** O(1). Returns the {@code ###ExternalFormat} Binding {@code fqn}, if any (its fields: contentType,
+     *  modelIncludes, modelExcludes; a model unit's paths comma-joined). */
+    public Optional<com.legend.model.GenericSectionElementDefinition> findBinding(String fqn) {
+        return Optional.ofNullable(externalFormatBindings.get(fqn));
     }
 
     /** O(1). Returns {@link ServiceDefinition} for {@code fqn}, if any. */

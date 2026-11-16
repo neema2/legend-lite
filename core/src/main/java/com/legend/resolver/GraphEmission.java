@@ -284,6 +284,12 @@ final class GraphEmission {
             }
             TypedSpec binding = cs.bindings().get(node.property());
             if (binding == null) {
+                // a binding whose M2M composition walled PER KEY (ledger
+                // cluster 21) throws its own wall when a tree demands it --
+                // never "not mapped", never the optional property's null
+                // below (2026-11-14: a walled [0..1] binding serialized as
+                // null, a silent wrong answer; AGENTS.md invariant 4)
+                cs.throwIfDeferred(node.property());
                 // DERIVED (qualified) leaf: the class's parameterless
                 // derived property inlines through its lifted body
                 // function ($this reads substitute to the row bindings) —

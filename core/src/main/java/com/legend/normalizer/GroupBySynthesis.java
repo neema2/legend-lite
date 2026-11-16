@@ -269,6 +269,15 @@ final class GroupBySynthesis {
     }
 
     static @com.legend.base.Nullable RelationalOperation pmAsRelationalOp(PropertyMapping pm) {
+        if (pm instanceof PropertyMapping.Column c && c.binding() != null
+                || pm instanceof PropertyMapping.JoinTerminalColumn j && j.binding() != null
+                || pm instanceof PropertyMapping.Expression e && e.binding() != null) {
+            // a Binding transformer's decode under ~groupBy is not built:
+            // refused by name, never read as the raw column (2026-11-14)
+            throw new com.legend.error.NotImplementedException(
+                    "property '" + pm.propertyName() + "' is bound by a Binding transformer"
+                    + " under a ~groupBy mapping: not supported yet");
+        }
         if (pm instanceof PropertyMapping.Column col) {
             return new RelationalOperation.ColumnRef(col.database(), col.table(), col.column());
         }

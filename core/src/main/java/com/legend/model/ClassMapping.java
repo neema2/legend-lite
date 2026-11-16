@@ -484,9 +484,20 @@ public sealed interface ClassMapping permits ClassMapping.Relational,
         public record Col(String property, @com.legend.base.Nullable String column, boolean local,
                 @com.legend.base.Nullable String enumMappingId, List<Col> embedded,
                 @com.legend.base.Nullable String inlineSetId,
-                @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr) {
+                @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr,
+                @com.legend.base.Nullable String binding) {
             public Col {
                 embedded = embedded == null ? List.of() : List.copyOf(embedded);
+            }
+
+            /** No {@code Binding} transformer ({@code binding}: the element path a
+             *  bound column's semi-structured value is decoded by, engine
+             *  {@code RelationFunctionPropertyMapping.bindingTransformer}). */
+            public Col(String property, @com.legend.base.Nullable String column, boolean local,
+                    @com.legend.base.Nullable String enumMappingId, List<Col> embedded,
+                    @com.legend.base.Nullable String inlineSetId,
+                    @com.legend.base.Nullable com.legend.protocol.spec.ValueSpecification expr) {
+                this(property, column, local, enumMappingId, embedded, inlineSetId, expr, null);
             }
 
             /** Column-name form (no row expression). */

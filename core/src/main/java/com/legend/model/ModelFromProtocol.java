@@ -213,7 +213,13 @@ public final class ModelFromProtocol {
             case Protocol.PDataQualityRelationComparison v ->
                     carried("DataQualityValidation", "DataQualityRelationComparison", v.qualifiedName());
             case Protocol.PSchemaSet s -> carried("ExternalFormat", "SchemaSet", s.qualifiedName());
-            case Protocol.PBinding b -> carried("ExternalFormat", "Binding", b.qualifiedName());
+            // a Binding keeps its content type and model unit (2026-11-14): a relational property's Binding
+            // transformer decodes into a class its model unit must include (engine HelperRelationalBuilder
+            // buildSemiStructuredPropertyMapping)
+            case Protocol.PBinding b -> new GenericSectionElementDefinition("ExternalFormat", "Binding",
+                    b.qualifiedName(), Map.of("contentType", b.contentType(),
+                            "modelIncludes", String.join(",", b.modelIncludes()),
+                            "modelExcludes", String.join(",", b.modelExcludes())), null);
             case Protocol.PServiceStoreDefinition s -> carried("ServiceStore", "ServiceStore", s.qualifiedName());
             case Protocol.PRelationalMapper m -> carried("QueryPostProcessor", "RelationalMapper", m.qualifiedName());
             // legend-lite's own records (no wire carries them; only its parser makes them)

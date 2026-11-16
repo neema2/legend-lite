@@ -138,10 +138,14 @@ class LegendLiteGapTest {
     }
 
     @Test
-    @DisplayName("an M2M enumeration transform is refused by the mapping normalizer")
+    @DisplayName("an M2M enumeration transform over a to-one source compiles; over a to-many source it is refused")
     void m2mEnumerationTransform() {
-        // 8115-m2m-gaps.pure's (2026-10-30, the improvement plan's Phase 5): the engine translates the source's code
-        rejectsWith("an M2M enumeration transform", "M2M enum transformer", """
+        // 8115-m2m-gaps.pure's (2026-10-30, the improvement plan's Phase 5): the engine translates the source's code.
+        // CLOSED for a to-one $src property path 2026-11-14 (the Studio roundtrip's normalizer session: the decode
+        // executes as the engine's in-memory M2M, an unmapped code raising; M2MEnumTransformTest holds the answers);
+        // 8115 stays excluded for m2mComplexPropertyPassthrough's TradeLink. The to-many source's per-element decode
+        // is the gap that remains.
+        accepts("an M2M enumeration transform over a to-one source", """
                 Enum demo::Side { BUY, SELL }
                 Class demo::Src { k: String[1]; code: String[0..1]; }
                 Class demo::Tgt { k: String[1]; side: demo::Side[0..1]; }
@@ -150,6 +154,17 @@ class LegendLiteGapTest {
                 (
                   demo::Side: EnumerationMapping Codes { BUY: ['B'], SELL: ['S'] }
                   demo::Tgt: Pure { ~src demo::Src k: $src.k, side: EnumerationMapping Codes: $src.code }
+                )
+                """);
+        rejectsWith("an M2M enumeration transform over a to-many source", "decodes a to-many source", """
+                Enum demo::Side { BUY, SELL }
+                Class demo::Src { k: String[1]; codes: String[*]; }
+                Class demo::Tgt { k: String[1]; sides: demo::Side[*]; }
+                ###Mapping
+                Mapping demo::M
+                (
+                  demo::Side: EnumerationMapping Codes { BUY: ['B'], SELL: ['S'] }
+                  demo::Tgt: Pure { ~src demo::Src k: $src.k, sides: EnumerationMapping Codes: $src.codes }
                 )
                 """);
     }

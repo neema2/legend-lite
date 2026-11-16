@@ -423,7 +423,8 @@ final class ViewRelation {
                 RelationalOperation.ColumnRef r = (RelationalOperation.ColumnRef) frameRewrite(
                         new RelationalOperation.ColumnRef(col.database(), col.table(), col.column()),
                         view, viewName, md);
-                yield new PropertyMapping.Column(col.propertyName(), col.database(), r.table(), r.column());
+                yield new PropertyMapping.Column(col.propertyName(), col.database(), r.table(), r.column(),
+                        col.binding());
             }
             case PropertyMapping.EnumeratedColumn ec -> {
                 RelationalOperation.ColumnRef r = (RelationalOperation.ColumnRef) frameRewrite(
@@ -433,7 +434,7 @@ final class ViewRelation {
                         ec.database(), r.table(), r.column());
             }
             case PropertyMapping.Expression ex -> new PropertyMapping.Expression(ex.propertyName(),
-                    frameRewrite(ex.expression(), view, viewName, md));
+                    frameRewrite(ex.expression(), view, viewName, md), ex.binding());
             case PropertyMapping.LocalProperty lp -> new PropertyMapping.LocalProperty(
                     lp.propertyName(), lp.type(), lp.multiplicity(),
                     pmThroughFrame(lp.body(), view, viewName, md));
