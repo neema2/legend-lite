@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 concurrency:
   group: stage-linux-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 jobs:
   linux:
     uses: ./.github/workflows/gates-run.yml
