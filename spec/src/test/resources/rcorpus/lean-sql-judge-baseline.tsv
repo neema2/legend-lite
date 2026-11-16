@@ -16,7 +16,7 @@ corpus-judge	DuckDB	meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilest
 corpus-judge	DuckDB	meta::pure::lineage::scanColumns::test	5	32867	2443668	65	1075	0
 corpus-judge	DuckDB	meta::pure::lineage::scanRelations::test	49	314491	23187401	702	36118	0
 corpus-judge	DuckDB	meta::pure::router::preeval::tests	0	0	0	0	0	1
-corpus-judge	DuckDB	meta::pure::tds::tests::extensions	12	282269	1839941	242	136619	0
+corpus-judge	DuckDB	meta::pure::tds::tests::extensions	12	282561	1839015	246	136383	0
 corpus-judge	DuckDB	meta::pure::tds::toRelation	0	0	0	0	0	2
 corpus-judge	DuckDB	meta::relational::functions::sqlQueryToString::debugPrint	9	286182	4041744	72	80861	0
 corpus-judge	DuckDB	meta::relational::functions::sqlQueryToString::default	0	0	0	0	0	1
@@ -65,7 +65,7 @@ corpus-judge	DuckDB	meta::relational::tests::functions::pureToSqlQuery	3	375153	
 corpus-judge	DuckDB	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations	92	358879	5246407	1022	31218	0
 corpus-judge	DuckDB	meta::relational::tests::functions::sqlstring	61	75812	1421465	247	18964	0
 corpus-judge	DuckDB	meta::relational::tests::getter	2	9421	171832	29	2096	0
-corpus-judge	DuckDB	meta::relational::tests::groupBy	43	365535	4957365	1241	37845	4
+corpus-judge	DuckDB	meta::relational::tests::groupBy	43	365583	4970541	1241	37869	4
 corpus-judge	DuckDB	meta::relational::tests::groupBy::datePeriods	2	15317	203469	40	4583	0
 corpus-judge	DuckDB	meta::relational::tests::injection	3	14881	279756	55	1401	0
 corpus-judge	DuckDB	meta::relational::tests::json	0	0	0	0	0	1
@@ -329,7 +329,7 @@ corpus-judge	H2	meta::pure::graphFetch::tests::m2m2r::milestoning::nonMilestoned
 corpus-judge	H2	meta::pure::lineage::scanColumns::test	5	39055	2459197	65	1175	0
 corpus-judge	H2	meta::pure::lineage::scanRelations::test	49	373433	23332841	771	42479	0
 corpus-judge	H2	meta::pure::router::preeval::tests	0	0	0	0	0	1
-corpus-judge	H2	meta::pure::tds::tests::extensions	9	334703	1733992	202	164265	0
+corpus-judge	H2	meta::pure::tds::tests::extensions	9	335171	1733338	206	164005	0
 corpus-judge	H2	meta::pure::tds::toRelation	0	0	0	0	0	2
 corpus-judge	H2	meta::relational::functions::sqlQueryToString::debugPrint	0	0	5049	0	0	0
 corpus-judge	H2	meta::relational::functions::sqlQueryToString::default	0	0	0	0	0	1
@@ -378,7 +378,7 @@ corpus-judge	H2	meta::relational::tests::functions::pureToSqlQuery	3	394583	5437
 corpus-judge	H2	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations	46	208168	2525322	424	27015	0
 corpus-judge	H2	meta::relational::tests::functions::sqlstring	61	81946	1467741	247	20445	0
 corpus-judge	H2	meta::relational::tests::getter	2	10852	175373	30	2318	0
-corpus-judge	H2	meta::relational::tests::groupBy	43	652490	5307906	1047	236138	4
+corpus-judge	H2	meta::relational::tests::groupBy	43	652502	5321046	1047	236138	4
 corpus-judge	H2	meta::relational::tests::groupBy::datePeriods	2	16178	205928	40	4885	0
 corpus-judge	H2	meta::relational::tests::injection	3	17533	285930	58	1575	0
 corpus-judge	H2	meta::relational::tests::json	0	0	0	0	0	1
