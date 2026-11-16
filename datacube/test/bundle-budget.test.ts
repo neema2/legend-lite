@@ -562,8 +562,12 @@ function startup(bundle = join(DEMO, 'bundle.js'), outputs: ReadonlyMap<string, 
  *  batch's measure: the tab's DuckDB start refused by name when its worker or WebAssembly does not load (T-B, +60), a
  *  warehouse Snap's copy on a connection of its own and stoppable (T-C, about +182: snap.ts's own connection and
  *  signal, DataCube's wiring), and a share link with no token in the page's own address, DuckDB's worker printing no
- *  link's query string (T-F, T-G, +32); docs/records/ts-batch-2026-11-16.md). Measured 437,506 on Linux. */
-const BUDGET = 437_800;
+ *  link's query string (T-F, T-G, +32); docs/records/ts-batch-2026-11-16.md). Measured 437,506 on Linux.
+ *  437,800 -> 438,000 (2026-11-16, the user's second raise of that date, ruling option (a) over the shared error-text
+ *  helper: T-H's timed send -- a connection's declared statement timeout read beside the plan's values and honoured by
+ *  the tab's DuckDB, the statement stopped by cancelSent, or refused by name (duckdb.ts, plan-params.ts, DataCube's text
+ *  plan; +455); docs/records/ts-batch-2026-11-16.md). Measured 437,961 on Linux. */
+const BUDGET = 438_000;
 
 /** The engine page's (demo/engine.html: DataCube on Python's engine, which runs its queries) startup download,
  *  gzipped: no DuckDB-WASM and no compiler. Set 2026-10-08 at its first measure (288,876 bytes) and the app's headroom
@@ -1323,8 +1327,11 @@ const EXAMPLE_BUDGET = 4_000;
  *  ruled. The run layers' split left the module at the line: Linux 453,806 after T1, 453,807 after T4 (this test's
  *  own measure; T2-T4 move no product byte but the page modules' types), and CI's Windows 18 bytes over Linux in run
  *  43692166249 (453,809 there, at 8e4648d02e). Grid 437,261 and engine 425,448 at the same head, under their pins).
- *  Measured 453,807. */
-const WIDGET_BUDGET = 454_100;
+ *  Measured 453,807.
+ *  454,100 -> 454,300 (2026-11-16, the user's second raise of that date, ruling option (a) -- the grid-only page's note
+ *  of the same date: T-H's timed send; the batch's T-B, T-C, T-F and T-G before it, +228, left the module at 454,060).
+ *  Measured 454,278. */
+const WIDGET_BUDGET = 454_300;
 const LOADER_BUDGET = 10_000;
 
 describe('the page loads ECharts only when a chart draws', () => {
