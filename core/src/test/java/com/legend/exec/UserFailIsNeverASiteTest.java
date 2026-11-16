@@ -21,14 +21,14 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * A USER'S FAIL IS NEVER A SITE (phase D's Phase 2, raises as SITES, 2026-11-16; the D part 1 audit's S4): a site's
  * token opens with the kind mark ({@code RaiseKind.TOKEN}), so a user's {@code fail('LG#1')} -- the token's digits
- * spelled without it -- comes back as the user's own message on a real database, never read as the statement's site 1,
+ * spelled without it -- comes back as the user's own message on the platform database, never read as the statement's site 1,
  * even where the statement declares one.
  */
 class UserFailIsNeverASiteTest {
 
     @Test
-    void aFailSpelledAsATokenIsTheUsersMessageOnDuckDb() throws Exception {
-        var backend = TestBackends.named("duckdb");
+    void aFailSpelledAsATokenIsTheUsersMessageOnThePlatformDatabase() throws Exception {
+        var backend = TestBackends.platform();
         // a statement with a site of its own (the division's guard) beside the user's fail
         String query = "|#TDS\n  x:Integer, y:Integer\n  4, 2\n#->extend(~q: r|$r.x / $r.y)->extend(~r: r|fail('LG#1'))"
                 + "->select(~[q, r])->from(" + StorelessRuntime.RUNTIME + ")";
