@@ -544,6 +544,31 @@ class Engine:
         self._with_library: dict[str, compiler.HeldModel] = {}
         self._with_library_lock = threading.Lock()
 
+    def close(self) -> None:
+        """What this engine holds let go (its session gone: the C5 batch's Q1, 2026-11-15): the models it holds with
+        DataCube's library and its warehouse tables' (the compiler's memory), its project databases, and the page files
+        coming in a part at a time. The frames are its session's, closed by it. Each is let go whatever another's close
+        raised, and the first error raised after."""
+        with self._with_library_lock:
+            held = list(self._with_library.values())
+            self._with_library.clear()
+        with self._warehouse_lock:
+            held += [table.held for table in self._warehouse_tables.values()]
+            self._warehouse_tables.clear()
+        with self._uploads_lock:
+            uploads = list(self._uploads.values())
+            self._uploads.clear()
+        failure: Exception | None = None
+        steps: list[Callable[[], Any]] = [h.close for h in held] + [self.projects.close]
+        steps += [lambda path=path: path.unlink(missing_ok=True) for path in uploads]
+        for step in steps:
+            try:
+                step()
+            except Exception as e:
+                failure = failure or e
+        if failure is not None:
+            raise failure
+
     def answer(self, method: str, path: str, query: str, body: str | None) -> Answer:
         """One call: ``POST`` to the API, or ``GET`` of a frame's cube (``cube.json``), its version (``version.json``) or
         a file of the site. It waits for its answer, which the compiler's threads compute when it needs the compiler,

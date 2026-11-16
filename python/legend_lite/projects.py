@@ -66,6 +66,21 @@ class ProjectDatabases:
         self._open: dict[str, _Open] = {}
         self._lock = threading.RLock()
 
+    def close(self) -> None:
+        """Every project database's cursor closed and its model let go (its engine closed: the C5 batch's Q1,
+        2026-11-15); each is let go whatever another's close raised, and the first error raised after."""
+        with self._lock:
+            opened, self._open = list(self._open.values()), {}
+        failure: Exception | None = None
+        for project in opened:
+            for close in (project.cursor.close, project.held.close):
+                try:
+                    close()
+                except Exception as e:
+                    failure = failure or e
+        if failure is not None:
+            raise failure
+
     @property
     def names(self) -> list[str]:
         """The project databases this process holds."""

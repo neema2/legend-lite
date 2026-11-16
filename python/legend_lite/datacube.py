@@ -442,7 +442,9 @@ class _Session:
         shell = ipython.get_ipython() if ipython is not None else None
         if shell is not None:
             shell.events.register('post_run_cell', self.after_cell)
-        atexit.register(self._at_exit)
+        # weakly: an exit handler of the session itself would pin it, a gone marimo viewer's with its engine, for the
+        # process's life (the C5 batch's Q1, 2026-11-15)
+        atexit.register(_at_exit_of, weakref.ref(self))
 
     def waits(self) -> bool:
         """Whether a plain script's end waits while a cube is open: when one was opened in a browser -- a person is
@@ -473,6 +475,14 @@ class _Session:
                 time.sleep(1)
         except KeyboardInterrupt:
             pass
+
+
+def _at_exit_of(session: weakref.ref[_Session]) -> None:
+    """A hooked session's end of a plain script (``_Session._at_exit``), when the session is still there: one let go
+    meanwhile (a gone marimo viewer's) has nothing open to wait for."""
+    held = session()
+    if held is not None:
+        held._at_exit()
 
 
 def _close_web(web: WebServer | None) -> None:
@@ -589,22 +599,35 @@ def _report(what: str, error: Exception) -> None:
 
 def _release_now(key: int, session: _Session) -> None:
     """``session``, gone, let go: out of the sessions if it is still the one held under ``key`` (a new context that took
-    the gone one's id holds a session of its own there, never this one), its cubes closed, its DataCube code and its
-    frames let go -- each step's error reported (``_report``), the rest let go all the same."""
+    the gone one's id holds a session of its own there, never this one), its cubes closed, its web server, its DataCube
+    code, its engine and its frames let go -- each step's error reported (``_report``), the rest let go all the same."""
     with _marimo_lock:
         if _marimo_sessions.get(key) is session:
             del _marimo_sessions[key]
-    for cube in list(session.cubes.values()):
+    for name, cube in list(session.cubes.items()):
         try:
             cube.close()
-        except Exception:
-            # its channel may have gone with the session: the frame is still let go below
-            pass
+        except Exception as e:
+            # said, never passed over (the C5 batch's Q1): the rest is let go all the same
+            _report(f'cube {name!r}', e)
+    with session._lock:
+        web, session._web = session._web, None
+    try:
+        _close_web(web)
+    except Exception as e:
+        _report('web server', e)
     if session._headless is not None:
         try:
             session._headless.close()
         except Exception as e:
             _report('DataCube code', e)
+    if session._engine is not None:
+        # its models held by the compiler, its project databases' and its uploads (the C5 batch's Q1: until then a gone
+        # viewer's engine was never closed)
+        try:
+            session._engine.close()
+        except Exception as e:
+            _report('engine', e)
     try:
         session.frames.close()
     except Exception as e:

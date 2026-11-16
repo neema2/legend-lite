@@ -470,6 +470,39 @@ class InMarimo(Widget):
         self.assertNotIn(first, datacube._marimo_sessions, 'the first session let go')
         self.assertTrue(cube._closed)
 
+    def test_a_gone_session_is_collected_its_engine_closed_and_a_cubes_close_failure_said(self):
+        # the C5 batch's Q1 (2026-11-15): under marimo run each viewer's session is let go when its context goes -- but
+        # an exit handler of the session itself (its plain script's wait) pinned it for the process's life, its engine
+        # (the compiler's models it holds) was never closed, and a cube's close that failed was passed over unsaid
+        import weakref
+        cube = ll.show(trades())
+        session = datacube._current()
+        engine = session.engine()
+        closed = []
+        engine._with_library['a model'] = types.SimpleNamespace(close=lambda: closed.append('held'), over=None)
+
+        real = [cube.close]
+
+        def failing():
+            # closed, then failing as a channel gone with the session fails (its real close let go once called)
+            real.pop()()
+            raise RuntimeError('its channel went with the session')
+        cube.close = failing
+        reported = []
+        gone = weakref.ref(session)
+        del session, engine, cube
+        self.context = self.Context(self)
+        self.items.clear()
+        gc.collect()
+        with mock.patch('sys.unraisablehook', lambda raised: reported.append(str(raised.exc_value))):
+            datacube._current()
+        self.assertEqual(closed, ['held'], "the gone session's engine let its models go")
+        self.assertEqual(len(reported), 1, reported)
+        self.assertIn("cube 'frame'", reported[0])
+        self.assertIn('its channel went with the session', reported[0])
+        gc.collect()
+        self.assertIsNone(gone(), 'the gone session is collected: nothing pins it')
+
     def test_a_new_context_that_takes_a_gone_ones_id_never_gets_its_session(self):
         # the C4 second small round's item 2a, 2026-11-14: a session is a context's by identity. Thread A pops a gone
         # session's entry and is held before it takes the lock; a new context that took the gone one's id finds the
