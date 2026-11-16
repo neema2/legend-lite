@@ -102,7 +102,10 @@ final class SelectMerge extends SqlRewriter {
         // the filter is evaluated on the same groups as before
         boolean havingFold = grouped && s.where() != null && s.groupBy().isEmpty() && s.having() == null
                 && s.qualify() == null && in.qualify() == null && !reads.levelled && !reads.grouping
-                && !reads.ordersBy(s, byName) && in.projections().stream().noneMatch(p -> windowOrUnnest(p.expr()));
+                && !reads.ordersBy(s, byName) && in.projections().stream().noneMatch(p -> windowOrUnnest(p.expr()))
+                // ANDed onto an inner HAVING, the filter may be evaluated on groups that HAVING drops: it must raise
+                // nothing there (E-v2's review, A-M1: CAST(k AS INTEGER) > 990 raised on a group of count 1)
+                && (in.having() == null || SqlExpr.raisesNothing(s.where()));
         if (grouped && !havingFold && (filters || reads.levelled || reads.ordersBy(s, byName))) {
             return null;
         }
@@ -115,7 +118,7 @@ final class SelectMerge extends SqlRewriter {
             int n = reads.count.getOrDefault(name, 0);
             // an aggregate read again under a HAVING is the same aggregate, which the database computes once per group
             if (n > 1 && !(p.expr() instanceof SqlExpr.Column)
-                    && !(havingFold && SqlAgg.aggregatesSelect(p.expr()) && SqlExpr.raisesNothing(p.expr()))) {
+                    && !(havingFold && aggregateOfRaiseFree(p.expr()))) {
                 return null;
             }
             if (!SqlExpr.raisesNothing(p.expr())
@@ -198,6 +201,13 @@ final class SelectMerge extends SqlRewriter {
             }
         }
         return true;
+    }
+
+    /** Whether {@code e} is one aggregate whose arguments raise nothing: computed once per group however often it is
+     *  read (E-v2's review: raisesNothing is false for any aggregate, so the HAVING fold's exemption read none). */
+    private static boolean aggregateOfRaiseFree(SqlExpr e) {
+        return e instanceof SqlAgg.Reducer r && r.args().stream().allMatch(SqlExpr::raisesNothing)
+                && r.orderBy().stream().allMatch(k -> SqlExpr.raisesNothing(k.expr()));
     }
 
     /** Whether {@code e} holds a window or an UNNEST: a value computed after a select's HAVING, or its rows' count. */

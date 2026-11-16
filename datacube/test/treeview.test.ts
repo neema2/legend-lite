@@ -21,7 +21,7 @@ import {
   } from '../src/query.ts';
 import { element } from '../../pure-protocol/src/index.ts';
 import { printLevel } from './lite-compiler.ts';
-import { unplanned } from '../../engine-client/test/unplanned.ts';
+import { unplanned, asTest } from '../../engine-client/test/unplanned.ts';
 
 const SNAPSHOT: QuerySnapshot = {
   source: { query: element('trades') },
@@ -321,7 +321,7 @@ let engine: DuckDbEngine;
 before(async () => {
   const db = await openDatabase();
   engine = new DuckDbEngine(db.connection);
-  await engine.run(
+  await asTest(engine).run(
     unplanned(`CREATE TABLE trades AS
        SELECT ((i * 7) % 3) AS r, ((i * 11) % 4) AS d,
               2020 + (i % 3) AS year,
@@ -340,12 +340,12 @@ describe('the global row cap', () => {
     // 40 groups against a cap of 10: asking for 11 is what makes
     // "there is more" a fact rather than a guess, and it costs no
     // second counting query.
-    await engine.run(
+    await asTest(engine).run(
       unplanned(`CREATE OR REPLACE TABLE many AS
          SELECT (i % 40) AS g, i * 1.0 AS v FROM range(400) t(i)`),
       1,
     );
-    const capped = await engine.run(
+    const capped = await asTest(engine).run(
       unplanned('SELECT g, sum(v) AS total FROM many GROUP BY g ORDER BY g LIMIT 11'),
       1,
     );
@@ -354,7 +354,7 @@ describe('the global row cap', () => {
   });
 
   it('reports no truncation when the level fits', async () => {
-    const fits = await engine.run(
+    const fits = await asTest(engine).run(
       unplanned('SELECT r, sum(notional) AS total FROM trades GROUP BY r ' +
         'ORDER BY r LIMIT 11'),
       1,
@@ -379,11 +379,11 @@ describe('subtotals against a real engine', () => {
     // column dropped. If these ever disagree, the design is wrong --
     // not the rounding.
     return (async () => {
-      const level1 = await engine.run(
+      const level1 = await asTest(engine).run(
         unplanned('SELECT r, sum(notional) AS total FROM trades GROUP BY r ORDER BY r'),
         1,
       );
-      const level2 = await engine.run(
+      const level2 = await asTest(engine).run(
         unplanned('SELECT r, d, sum(notional) AS total FROM trades ' +
           'GROUP BY r, d ORDER BY r, d'),
         1,
@@ -407,11 +407,11 @@ describe('subtotals against a real engine', () => {
   });
 
   it('the grand total equals the aggregate of the top level', async () => {
-    const grand = await engine.run(
+    const grand = await asTest(engine).run(
       unplanned('SELECT sum(notional) AS total FROM trades'),
       1,
     );
-    const level1 = await engine.run(
+    const level1 = await asTest(engine).run(
       unplanned('SELECT r, sum(notional) AS total FROM trades GROUP BY r'),
       1,
     );
@@ -426,11 +426,11 @@ describe('subtotals against a real engine', () => {
     // count is the aggregate most likely to be re-derived wrongly,
     // because summing child counts is only correct when the grouping
     // is a true partition.
-    const grand = await engine.run(
+    const grand = await asTest(engine).run(
       unplanned('SELECT count(*) AS n FROM trades'),
       1,
     );
-    const level1 = await engine.run(
+    const level1 = await asTest(engine).run(
       unplanned('SELECT r, count(*) AS n FROM trades GROUP BY r'),
       1,
     );

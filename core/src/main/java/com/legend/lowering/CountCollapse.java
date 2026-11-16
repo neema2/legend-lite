@@ -23,7 +23,7 @@ import java.util.List;
  *
  * <p>The derived table keeps its source's rows when it has no DISTINCT, GROUP BY, HAVING, QUALIFY, LIMIT or OFFSET, no
  * aggregate (one row over all) and no set-returning projection; its WHERE stays, its projections and ORDER BY go (a
- * count reads neither). A projection that can raise keeps the wrapper: the database may evaluate it, and a raise is
+ * count reads neither). A projection or a sort key that can raise keeps the wrapper: the database may evaluate it, and a raise is
  * never dropped (the laziness rule's other side). The same query, smaller, on every database.
  */
 final class CountCollapse {
@@ -75,6 +75,13 @@ final class CountCollapse {
         }
         for (SqlSelect.Projection p : rows.projections()) {
             if (aggregates(p.expr()) || LetBinding.canRaise(p.expr())) {
+                return false;
+            }
+        }
+        // the ORDER BY goes too: a key that can raise keeps the wrapper (E-v2's review, A-M2: a sort key's cast of a
+        // non-number raised on DuckDB and H2, and the count without it answered)
+        for (SqlSelect.SortKey k : rows.orderBy()) {
+            if (LetBinding.canRaise(k.expr())) {
                 return false;
             }
         }

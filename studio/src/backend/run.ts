@@ -4,12 +4,12 @@
 // each run, plan A2); on a legend server, its pure/v1 execute (the server has its own data).
 
 import { element, fn, type Lambda, type Variable } from '../../../pure-protocol/src/index.ts';
-import type { QueryEngine, RawTable } from '../../../engine-client/src/engine.ts';
+import type { QueryEngine, RawTable } from '../../../engine-client/src/query-engine.ts';
 import type { Engine } from '../../../engine-client/src/legend/engine.ts';
 import type { PFunction, PService, PureModelContextData } from '../../../engine-client/src/legend/pmcd.ts';
 import type { ExecutionResult, ParameterValue } from '../../../engine-client/src/legend/wire.ts';
 import type { TableState, TabTables } from '../../../engine-client/src/tab-data.ts';
-import { runAuthored } from '../../../engine-client/src/plan-runner.ts';
+import { runAuthoredStatement } from '../../../engine-client/src/doors/authored.ts';
 import type { PlanText } from '../../../engine-client/src/planned-sql.ts';
 
 export type { TableState };
@@ -105,11 +105,12 @@ export function playground(session: RunSession): Playground {
     async sql(statement, modelText) {
       if (!session.sqlEngine) throw new Error('the SQL playground runs on DuckDB in this tab; this session runs on a server');
       if (!session.authored) throw new Error('the SQL playground plans the person\'s statement in this tab: this session has no planner of its own');
-      const { engine, databaseType } = await session.sqlEngine();
+      const database = await session.sqlEngine();
       if (session.loadData) await session.loadData(await session.modelJson(modelText), modelText);
-      // the person's own SQL, carried by the planner as written: the plan's one statement, run as the plan says
-      const plan = await session.authored(statement);
-      return runAuthored(plan, { databaseType, run: (sql) => engine.run(sql, 0) });
+      // the person's own SQL, carried by the planner as written: the plan's one statement, run as the plan says -- the
+      // playground's door (engine-client's doors/authored.ts)
+      const authored = session.authored.bind(session);
+      return runAuthoredStatement(statement, { authored }, database);
     },
   };
 }

@@ -650,7 +650,18 @@ public final class CanonicalRenderSql {
      *  name rather than answer by a shared or absent id. */
     static SqlExpr trackedId(SqlExpr object) {
         // an object built here, a literal, carries its id as a field: read as the field's value (StructGet.of)
-        return tracked(SqlExpr.StructGet.of(object, com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
+        return tracked(fieldOf(object, com.legend.compiler.element.ClassLayouts.SYNTHETIC_ID));
+    }
+
+    /** {@code object}'s field {@code name}: the literal's own value where {@code object} is a literal none of whose
+     *  fields can raise (StructGet.of); else read through the struct, which evaluates every field, a raising one
+     *  included (E-v2's review, A-S1: a field that raises at construction, as Pure's does, was never evaluated). */
+    static SqlExpr fieldOf(SqlExpr object, String name) {
+        if (object instanceof SqlExpr.StructLit lit
+                && lit.fields().stream().anyMatch(f -> LetBinding.canRaise(f.value()))) {
+            return new SqlExpr.StructGet(object, name);
+        }
+        return SqlExpr.StructGet.of(object, name);
     }
 
     private static SqlExpr tracked(SqlExpr id) {
@@ -763,7 +774,7 @@ public final class CanonicalRenderSql {
             // a literal instance's scalar field is the literal's value (StructGet.of), never the struct written again per
             // field, and so is a to-many field holding a literal list of elements; an empty literal list is read through
             // the struct, which types its elements (it is typed Bottom[], which Postgres cannot transform, 2026-11-16)
-            SqlExpr folded = SqlExpr.StructGet.of(v, k.name());
+            SqlExpr folded = fieldOf(v, k.name());
             SqlExpr field = k.many() && !(folded instanceof SqlExpr.ArrayLit al && !al.elements().isEmpty())
                     ? new SqlExpr.StructGet(v, k.name()) : folded;
             SqlExpr c;

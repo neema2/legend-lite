@@ -111,4 +111,18 @@ class LeanSqlBaselineTest {
         assertTrue(LeanSqlBaseline.drift(withRefusals, Map.of(A, new LeanSqlBaseline.Measure(1, 100, 100, 2, 40, 2,
                 "a"))).get(0).startsWith(A + ": queries refused GREW 1 -> 2"));
     }
+
+    /** The PR1 re-review's B7 (2026-11-16): an UnsupportedOperationException counts as a planning refusal only where a
+     *  dialect's render arm threw it; an immutable collection's (a planning defect) is never counted as refused. */
+    @org.junit.jupiter.api.Test
+    void anUnsupportedOperationIsARefusalOnlyFromARenderArm() {
+        UnsupportedOperationException mutation = org.junit.jupiter.api.Assertions.assertThrows(
+                UnsupportedOperationException.class, () -> java.util.List.of(1).add(2));
+        org.junit.jupiter.api.Assertions.assertFalse(LeanSqlBaseline.isRefusal(mutation),
+                "a List.of mutation read as a refusal");
+        UnsupportedOperationException arm = new UnsupportedOperationException("no such variant here");
+        arm.setStackTrace(new StackTraceElement[] {
+                new StackTraceElement("com.legend.sql.dialect.H2", "render", "H2.java", 1)});
+        org.junit.jupiter.api.Assertions.assertTrue(LeanSqlBaseline.isRefusal(arm));
+    }
 }

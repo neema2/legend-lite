@@ -477,7 +477,7 @@ class CypherToPureTest {
     };
 
     private static String edges(String cypher) {
-        return PureComposer.valueSpecification(CypherToPure.translate(cypher, EDGES), PureComposer.Style.STANDARD);
+        return PureComposer.valueSpecification(CypherToPure.translate(CypherParser.parse(cypher), EDGES), PureComposer.Style.STANDARD);
     }
 
     private static SqlTranslationException edgeRefusal(String cypher) {
@@ -606,19 +606,19 @@ class CypherToPureTest {
     private static final int SHARED_CAP = 50_000;
 
     private static String pure(String cypher) {
-        ValueSpecification vs = CypherToPure.translate(cypher, MODEL);
+        ValueSpecification vs = CypherToPure.translate(CypherParser.parse(cypher), MODEL);
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
     /** {@code cypher} over the model read as an open graph (the study's §12.45). */
     private static String open(String cypher) {
-        ValueSpecification vs = CypherToPure.translate(cypher, new Open(MODEL));
+        ValueSpecification vs = CypherToPure.translate(CypherParser.parse(cypher), new Open(MODEL));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
     /** {@code cypher} over the model with a subclass and an anonymous label-set class (the study's §12.61). */
     private static String sub(String cypher) {
-        ValueSpecification vs = CypherToPure.translate(cypher, new Subclassing(MODEL));
+        ValueSpecification vs = CypherToPure.translate(CypherParser.parse(cypher), new Subclassing(MODEL));
         return PureComposer.valueSpecification(vs, PureComposer.Style.STANDARD);
     }
 
@@ -864,10 +864,10 @@ class CypherToPureTest {
         // a model declaring none: refused by name, with the declaration to add
         CypherToPure.Model without = new Hiding(MODEL, "demo::values::Duration");
         SqlTranslationException e = assertThrows(SqlTranslationException.class,
-                () -> CypherToPure.translate("RETURN duration({days: 1}) AS d", without));
+                () -> CypherToPure.translate(CypherParser.parse("RETURN duration({days: 1}) AS d"), without));
         assertTrue(e.getMessage().contains("a duration needs one class named Duration in the model"), e.getMessage());
-        e = assertThrows(SqlTranslationException.class, () -> CypherToPure.translate(
-                "RETURN duration.between(date('1984-10-11'), date('2015-06-24')) AS d", without));
+        e = assertThrows(SqlTranslationException.class, () -> CypherToPure.translate(CypherParser.parse(
+                "RETURN duration.between(date('1984-10-11'), date('2015-06-24')) AS d"), without));
         assertTrue(e.getMessage().contains("a duration needs one class named Duration in the model"), e.getMessage());
     }
 

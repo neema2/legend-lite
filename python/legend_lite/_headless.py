@@ -38,7 +38,7 @@ from pathlib import Path
 from typing import Any
 
 from . import _host
-from ._planned import Answered, Database, across_the_bridge, connect, send
+from ._planned import Answered, Database, across_the_bridge, connect
 from ._library import Library, library
 from ._pool import library_thread
 
@@ -252,12 +252,14 @@ class Headless:
     async def _query(self, sql: str) -> str:
         import pyarrow as pa
 
+        # the run side, loaded as pyarrow is: when the hosted code first asks (DuckDB's and Arrow's, the datacube extra's)
+        from ._reads import run_bridged_query
+
         # a call made in a read of the frames queries through it: the database as it was when the read began
         statement = across_the_bridge(sql, "the hosted DataCube's query", self._answered)
-        # in a read, the read's own send (frames.Reading.execute: its cursor, its failures' words redacted)
-        result = send(self._db, statement) if self._over is None else self._over.execute(statement)
-        table = pa.table({}) if result.description is None else (
-            result.to_arrow_table() if self._over is None else self._over.fetched(result))
+        # its run (C5-P, 2026-11-15): in a read, the read's own send (frames.Reading.execute: its cursor, its failures'
+        # words redacted)
+        table = run_bridged_query(self._db, self._over, statement)
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
             writer.write_table(table)
@@ -268,13 +270,14 @@ class Headless:
         never in a read of the frames, which sees the database as it was: refused there, in words."""
         import pyarrow as pa
 
+        from ._reads import run_bridged_statement
+
         if self._over is not None:
             raise RuntimeError('a write runs in no read of the frames (Frames.reading): its changes are the database\'s own')
-        result = send(self._db, across_the_bridge(sql, "the hosted DataCube's statement", self._answered),
-                      json.loads(params))
         # never in a read (refused above), so its rows are fetched as they are (the final audit of 9af16fbe58's P8: a
-        # read's own fetch here was dead code)
-        table = pa.table({}) if result.description is None else result.to_arrow_table()
+        # read's own fetch here was dead code); its run, C5-P's (2026-11-15)
+        table = run_bridged_statement(self._db, across_the_bridge(sql, "the hosted DataCube's statement", self._answered),
+                                      json.loads(params))
         sink = io.BytesIO()
         with pa.ipc.new_stream(sink, table.schema) as writer:
             writer.write_table(table)

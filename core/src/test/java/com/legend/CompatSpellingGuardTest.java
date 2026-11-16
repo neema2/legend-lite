@@ -173,8 +173,10 @@ class CompatSpellingGuardTest {
             "server/PureV1Api.java | Missing external parameter(s) | 1 | D1.6",
             "server/PureV1Api.java | PureV1Writer | 17 | D1.8",
             "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.3",
-            "sql/SqlFn.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/SqlFn.java | FLOAT_PRINT | 1 | D1.2",
+            // 1 -> 2 each (2026-11-16, the PR1 re-review's A6): both named again in SqlFn.MAY_SKIP_AN_ARGUMENT, a set of
+            // functions, not a spelling
+            "sql/SqlFn.java | FLOAT_CANON | 2 | JUDGE",
+            "sql/SqlFn.java | FLOAT_PRINT | 2 | D1.2",
             "sql/SqlTyping.java | FLOAT_CANON | 1 | JUDGE",
             "sql/SqlTyping.java | FLOAT_PRINT | 1 | D1.2",
             "sql/dialect/AnsiSqlRenderer.java | RawSqlBoundary | 1 | D1.7",

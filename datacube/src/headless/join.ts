@@ -4,7 +4,6 @@
 // compiler -- so a host's page adds a join's grid by the page command every grid is added by (addGrid with the cube
 // document this gives), and asks what a join will do before it makes it, with no screen. Nothing is held between calls.
 
-import { DuckDbEngine } from '../../../engine-client/src/duckdb.ts';
 import { fromJson, toJson } from '../../../pure-protocol/src/index.ts';
 import { openedState } from '../cube-state.ts';
 import { cubeToJson, gridCapped, newGridTree, rebuilt, writeCube, type JoinInput, type JoinSource, type RowsSource } from '../cube-document.ts';
@@ -22,7 +21,8 @@ import { CubeRefusal } from '../snapshot.ts';
 import { LitePlanner } from '../lite-planner.ts';
 import { catalogColumns } from '../upload.ts';
 import { pythonRunner } from '../services/python-host.ts';
-import { hostCalls, hostDatabase, hostEngine, hostWorker } from './host.ts';
+import { hostCalls, hostEngine, hostWorker } from './host.ts';
+import { hostQueries } from './host-database.ts';
 import { leafTables, type HostTables } from './host-tables.ts';
 
 /** What a host hands in: its page, the two grids joined, how they join, and the table of its database each one reads. */
@@ -83,7 +83,7 @@ async function using<T>(use: (o: JoinOpening & { readonly planners: LitePlanner[
   const calls = hostCalls();
   // the model writer needs no model of its own: it writes one (the worker's tableModel)
   const models = new LitePlanner({ model: '', runtime: '', worker: () => hostWorker(calls) });
-  const engine = new DuckDbEngine(hostDatabase(calls).connection);
+  const engine = hostQueries(calls);
   const planners: LitePlanner[] = [];
   try {
     return await use({

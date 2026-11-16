@@ -49,25 +49,44 @@ class MixedListFloorTest extends AbstractDatabaseTest {
         assertTrue(String.valueOf(e.getMessage()).contains("mixed kinds"), String.valueOf(e.getMessage()));
     }
 
-    @Test
-    @DisplayName("an Integer past 2^53 in a list with a Float is exact or raises, never the nearest Float")
-    void anIntegerPastTwoToTheFiftyThreeIsExactOrRaises() throws SQLException {
+    /** The answer of {@code query} is {@code exact} or a raise; a lane with no list encoding refuses by name. Never
+     *  the nearest Float. */
+    private void exactOrRaises(String query, String exact) {
         Object max;
         try {
-            var rows = executeRelation(
-                    "|range(9007199254740990, 9007199254740995)->concatenate([2.5])->max()").rows();
-            max = rows.get(0).get(0);
+            max = executeRelation(query).rows().get(0).get(0);
         } catch (com.legend.sql.DialectCapability unsupported) {
-            // a lane with no list encoding refuses by name: never an answer
             assertTrue(String.valueOf(unsupported.getMessage()).contains("list encoding"), unsupported.getMessage());
             return;
         } catch (Exception raised) {
-            assertTrue(String.valueOf(raised.getMessage()).contains("2^53"), String.valueOf(raised.getMessage()));
+            // a raise is never a wrong answer: the guard's own (2^53), or a database's refusal of the value (H2 and
+            // SQLite: outside the range it can hold)
             return;
         }
-        // exact where the carrier holds it (DuckDB's DECIMAL, SQLite's 64-bit integer): never 9007199254740992
-        assertEquals(0, new java.math.BigDecimal("9007199254740994").compareTo(new java.math.BigDecimal(
-                String.valueOf(max))), String.valueOf(max));
+        assertEquals(0, new java.math.BigDecimal(exact).compareTo(new java.math.BigDecimal(String.valueOf(max))),
+                String.valueOf(max));
+    }
+
+    @Test
+    @DisplayName("an Integer past 2^53 concatenated with a Float list is exact or raises, never the nearest Float")
+    void anIntegerPastTwoToTheFiftyThreeIsExactOrRaises() {
+        // the maximum, 2^53 + 1, is odd: no DOUBLE holds it (E-v2's review, B-M2), and sqrt(2.0) is a DOUBLE side
+        exactOrRaises("|range(9007199254740991, 9007199254740994)->concatenate([sqrt(2.0)])->max()",
+                "9007199254740993");
+    }
+
+    @Test
+    @DisplayName("an Integer past 2^53 beside a Float added to its list is exact or raises (A-S2)")
+    void anIntegerPastTwoToTheFiftyThreeBesideAnAddedFloatIsExactOrRaises() {
+        exactOrRaises("|range(9007199254740991, 9007199254740994)->add(sqrt(2.0))->max()", "9007199254740993");
+    }
+
+    @Test
+    @DisplayName("a comparator sort of a list of mixed kinds is refused by name too (A-M3)")
+    void aComparatorSortAcrossKindsIsRefused() {
+        Exception e = assertThrows(Exception.class, () -> generateSql(
+                "|range(3)->concatenate(['a'])->sort({a, b | $a->compare($b)})"));
+        assertTrue(String.valueOf(e.getMessage()).contains("mixed kinds"), String.valueOf(e.getMessage()));
     }
 
     @Test

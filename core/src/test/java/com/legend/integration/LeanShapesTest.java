@@ -82,6 +82,7 @@ class LeanShapesTest extends AbstractDatabaseTest {
         assertEquals(1, rows.size(), sql);
         assertEquals("Smith", rows.get(0).get(0), sql);
         assertEquals(58L, ((Number) rows.get(0).get(1)).longValue(), sql);
-        assertTrue(count(sql, "(?i)\\bHAVING\\b") == 1 || count(sql, "(?i)\\bSELECT\\b") == 2, sql);
+        // every in-process lane merges a select over groups (SelectMerge): the filter is its HAVING (E-v2's review)
+        assertEquals(1, count(sql, "(?i)\\bHAVING\\b"), sql);
     }
 }

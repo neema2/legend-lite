@@ -61,7 +61,8 @@ public final class Claims {
     public enum Kind {
         /** a key in {@code Scalars.RULES} — a SQL expression rule */
         SCALAR_RULE,
-        /** a key in {@code Aggregates.REDUCERS} — a SQL aggregate */
+        /** a key in {@code Aggregates.REDUCERS} — a SQL aggregate (its membership {@code compiler.element.Reducers}',
+         *  below the resolver and the lowering: C5-J, 2026-11-15) */
         REDUCER,
         /** a key in {@code Windows.FNS} — a window function */
         WINDOW_FN,

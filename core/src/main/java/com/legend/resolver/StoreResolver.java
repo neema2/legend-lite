@@ -359,29 +359,38 @@ public final class StoreResolver {
      *  side effect a later sibling reads, the serialize envelope's state ({@link #serializeTypeCfg},
      *  {@link #checkedEnvelope}), is replayed on a hit where the first visit set it; the temporal frame is restored by
      *  every chain on exit, and the fresh-name counter only keeps names apart (one shared tree is one set of names). */
-    private final java.util.IdentityHashMap<TypedSpec, Map<Context, Resolved>> resolvedOnce =
+    private final java.util.IdentityHashMap<TypedSpec,
+            java.util.IdentityHashMap<TemporalFrame, Map<Context, Resolved>>> resolvedOnce =
             new java.util.IdentityHashMap<>();
 
-    /** A memoized resolution and the envelope state it left, where it changed it. */
+    /** How many times a serialize chain has set the envelope state: a visit that set it, even to the value already
+     *  held, replays it on a hit (E-v2's review, A-S4). */
+    private int envelopeWrites;
+
+    /** A memoized resolution and the envelope state it left, where it set it. */
     private record Resolved(TypedSpec tree, boolean setsEnvelope,
             GraphEmission.@com.legend.base.Nullable SerializeTypeConfig cfg, boolean checked) {}
 
+    /** The memo is keyed by the node, the temporal frame (by identity: a node resolved inside a chain may read its
+     *  frame, and every chain restores its caller's frame on exit, so reads at one level share one frame) and the
+     *  context (E-v2's review: the frame was outside the key). */
     private TypedSpec resolveNode(TypedSpec n, Context context) {
-        Map<Context, Resolved> byContext = resolvedOnce.get(n);
-        Resolved hit = byContext == null ? null : byContext.get(context);
+        var byFrame = resolvedOnce.computeIfAbsent(n, k -> new java.util.IdentityHashMap<>());
+        Map<Context, Resolved> byContext = byFrame.computeIfAbsent(temporal, k -> new java.util.HashMap<>());
+        Resolved hit = byContext.get(context);
         if (hit != null) {
             if (hit.setsEnvelope()) {
                 serializeTypeCfg = hit.cfg();
                 checkedEnvelope = hit.checked();
+                envelopeWrites++;
             }
             return hit.tree();
         }
-        var cfg0 = serializeTypeCfg;
-        boolean checked0 = checkedEnvelope;
+        TemporalFrame frame = temporal;
+        int writes0 = envelopeWrites;
         TypedSpec r = resolveNodeOnce(n, context);
-        boolean sets = serializeTypeCfg != cfg0 || checkedEnvelope != checked0;
-        resolvedOnce.computeIfAbsent(n, k -> new java.util.HashMap<>())
-                .put(context, new Resolved(r, sets, serializeTypeCfg, checkedEnvelope));
+        resolvedOnce.get(n).computeIfAbsent(frame, k -> new java.util.HashMap<>())
+                .put(context, new Resolved(r, envelopeWrites != writes0, serializeTypeCfg, checkedEnvelope));
         return r;
     }
 
@@ -2831,6 +2840,7 @@ public final class StoreResolver {
             serializeTypeCfg = sz.config()
                     .map(GraphEmission::serializeTypeConfig).orElse(null);
             checkedEnvelope = sz.source() instanceof TypedGraphFetch g2 && g2.checked();
+            envelopeWrites++;
             tree = sz.tree();
             cur = sz.source() instanceof TypedGraphFetch gf ? gf.source() : sz.source();
         } else if (top instanceof TypedProject t) {

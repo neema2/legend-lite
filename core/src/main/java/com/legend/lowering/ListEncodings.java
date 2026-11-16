@@ -179,27 +179,60 @@ final class ListEncodings {
         if (!anyDouble) {
             return sides;
         }
+        // a side whose element type the lowering cannot see may hold Integers the DOUBLE side would round: refused by
+        // name (E-v2's review, A-S2)
+        if (sides.stream().anyMatch(a -> element(a) == null)) {
+            throw new com.legend.error.NotImplementedException("a list of Numbers promoted to Float beside a list of"
+                    + " unknown element type: an Integer past 2^53 could not be kept exactly");
+        }
         List<SqlExpr> out = new java.util.ArrayList<>(sides.size());
         for (SqlExpr side : sides) {
             SqlType e = element(side);
-            if (e != SqlType.Scalar.BIGINT && e != SqlType.Scalar.INTEGER) {
-                out.add(side);
-                continue;
-            }
-            // the list's extremes, through the collection's own semantic node (the carrier purity ratchet: no
-            // direct list function before the dialect)
-            SqlExpr anyPast = SqlExpr.Call.of(SqlFn.OR,
-                    SqlExpr.Call.of(SqlFn.GREATER, new SqlExpr.ReduceCollection(SqlAgg.Fn.MAX, side, List.of()),
-                            new SqlExpr.IntLit(EXACT_DOUBLE)),
-                    SqlExpr.Call.of(SqlFn.LESS, new SqlExpr.ReduceCollection(SqlAgg.Fn.MIN, side, List.of()),
-                            new SqlExpr.IntLit(-EXACT_DOUBLE)));
-            out.add(new SqlExpr.Case(List.of(new SqlExpr.Case.When(anyPast,
-                    SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
-                            List.of(new SqlExpr.StringLit("an Integer past 2^53 in a list of Numbers promoted to"
-                                    + " Float: no Float holds it exactly")))))),
-                    side, SqlExpr.Reason.RAISE));
+            out.add(e == SqlType.Scalar.BIGINT || e == SqlType.Scalar.INTEGER ? exactListOfIntegers(side) : side);
         }
         return out;
+    }
+
+    /** An integer list guarded by its extremes (the collection's own semantic node, ReduceCollection: the carrier
+     *  purity ratchet allows no direct list function before the dialect): an element past 2^53 raises. */
+    private static SqlExpr exactListOfIntegers(SqlExpr side) {
+        SqlExpr anyPast = SqlExpr.Call.of(SqlFn.OR,
+                SqlExpr.Call.of(SqlFn.GREATER, new SqlExpr.ReduceCollection(SqlAgg.Fn.MAX, side, List.of()),
+                        new SqlExpr.IntLit(EXACT_DOUBLE)),
+                SqlExpr.Call.of(SqlFn.LESS, new SqlExpr.ReduceCollection(SqlAgg.Fn.MIN, side, List.of()),
+                        new SqlExpr.IntLit(-EXACT_DOUBLE)));
+        return notHeld(anyPast, side);
+    }
+
+    /** {@code value}, or a raise of VALUE_NOT_HELD where {@code past}. */
+    private static SqlExpr notHeld(SqlExpr past, SqlExpr value) {
+        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(past,
+                SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                        List.of(new SqlExpr.StringLit("an Integer past 2^53 in a list of Numbers promoted to"
+                                + " Float: no Float holds it exactly")))))), value, SqlExpr.Reason.RAISE);
+    }
+
+    /** {@code list} and the one {@code value} added to it ({@code add}, appended or inserted), guarded as two sides of
+     *  a concatenation ({@link #exactIntegers}): an Integer meeting a DOUBLE raises past 2^53 (E-v2's review, A-S2:
+     *  list_append(range(..), sqrt(2.0)) answered 9007199254740992.0). */
+    static SqlExpr[] exactAdd(SqlExpr list, SqlExpr value) {
+        SqlType v = value.type() instanceof com.legend.sql.TypeFact.Typed t ? t.type() : null;
+        SqlType l = element(list);
+        boolean mixes = l == SqlType.Scalar.DOUBLE && (v == SqlType.Scalar.BIGINT || v == SqlType.Scalar.INTEGER)
+                || v == SqlType.Scalar.DOUBLE && (l == SqlType.Scalar.BIGINT || l == SqlType.Scalar.INTEGER);
+        if ((l == null || v == null) && (l == SqlType.Scalar.DOUBLE || v == SqlType.Scalar.DOUBLE)) {
+            throw new com.legend.error.NotImplementedException("a Number added to a list beside a value of unknown"
+                    + " type: an Integer past 2^53 could not be kept exactly");
+        }
+        if (!mixes) {
+            return new SqlExpr[] {list, value};
+        }
+        if (v == SqlType.Scalar.DOUBLE) {
+            return new SqlExpr[] {exactListOfIntegers(list), value};
+        }
+        SqlExpr past = SqlExpr.Call.of(SqlFn.GREATER, SqlExpr.Call.of(SqlFn.ABS, value),
+                new SqlExpr.IntLit(EXACT_DOUBLE));
+        return new SqlExpr[] {list, notHeld(past, value)};
     }
 
     private static @com.legend.base.Nullable SqlType element(SqlExpr list) {

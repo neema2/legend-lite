@@ -29,13 +29,11 @@ Integer or a Boolean with nulls stays an integer or a boolean (pandas' nullable 
 from __future__ import annotations
 
 import contextlib
-import copy
 import re
 import sys
 import threading
 from dataclasses import dataclass
-from typing import Any, Callable, Iterable, Iterator, Mapping
-from urllib.parse import unquote_plus
+from typing import Any, Callable, Iterator, Mapping
 
 from ._extra import require_datacube
 
@@ -46,10 +44,12 @@ import duckdb
 import pyarrow as pa
 
 from . import _host, compiler
-from ._planned import Database, PlannedSql, Result, connect, send
-from ._runframe import runs
-from .projects import LoadRefused, run_host_load
-from ._types import UnknownType, is_integer
+from ._planned import Database, connect
+# the run side (C5-P, 2026-11-15): what sends a plan's statements and reads their answer, frames.py's until then and
+# named here as they always were; frames.py plans, then hands the run its statements
+from ._reads import (TYPE_KEY, Reading, UntypedColumn, begin_read, end_read, held_texts,  # noqa: F401
+                     redact_held, redacted, run_plan, to_pandas, typed_by_plan)
+from ._runs import LoadRefused, ask, run_host_load, run_statements
 
 # a frame's name is its DuckDB table and its Legend package (its model's `name::DB`): a name Pure holds unquoted. A copy
 # of the compiler's rule, ModelChanges.isIdentifier (its regex and LITERAL_WORDS), kept here so a name is refused before
@@ -64,62 +64,24 @@ _OWN = '__legend_lite_'
 # the catalog question's columns, in its order, as the model writer names them (compiler.catalog_columns_sql)
 _CATALOG_FIELDS = ('name', 'dataType', 'logicalType', 'precision', 'scale', 'notNull')
 
-# the field metadata that carries a result column's type, as the compiler typed it
-TYPE_KEY = b'legend.type'
-
 # how many models a page sent Python holds at once (Frames.model_for): a page's project, as its revisions move
 _ADMITTED = 8
 
 
-class UntypedColumn(RuntimeError):
-    """A result column its plan does not type -- the plan and the database disagree about the query's shape -- or types
-    by a name legend-lite does not read (``_types``)."""
+class ModelRefused(compiler.LegendError):
+    """A page's model the compiler refuses -- it does not parse, or does not compile -- as ``Frames.model_for`` raises
+    it: the compiler's own words and kind (the C5 follow-up, 2026-11-15). Its own class, so a caller answers it alone,
+    never a refusal of what it plans over the model."""
 
 
-def _integer(column: pa.ChunkedArray) -> pa.ChunkedArray:
-    """An Integer column as int64, from any integer the database answers with (a SUM's exact decimal(38, 0)
-    included); one with a value past 64 bits as the database stored it, exact."""
-    kind = column.type
-    if pa.types.is_int64(kind):
-        return column
-    if pa.types.is_integer(kind) or pa.types.is_null(kind) or (pa.types.is_decimal(kind) and kind.scale == 0):
-        try:
-            # a safe cast: one past 64 bits refuses it, never wrapped, and the exact value is kept
-            return column.cast(pa.int64())
-        except pa.ArrowInvalid:
-            return column
-    return column
+# the kinds the compiler refuses a model by (projects._NOT_A_MODEL's): it does not parse, or does not compile -- any
+# other kind is a failure of the compiler's own, never the model's refusal (the C5 follow-up's staging check, 2026-11-15)
+_MODEL_REFUSALS = frozenset({'PARSER', 'COMPILATION'})
 
 
-def typed_by_plan(rows: pa.Table, plan: compiler.Plan) -> pa.Table:
-    """A planned query's rows, typed by its plan: each column the compiler's type (``TYPE_KEY``), its values exact (an
-    Integer an int64, by either compiler's name for one: a server's ``precisePrimitives::BigInt`` too). A result column
-    the plan does not type is refused: the two disagree about the query's shape, a bug to surface, never a gap to fill
-    (engine-client's ``typedByPlan``); so is one typed by a name legend-lite's lattice does not know (``_types``)."""
-    types = {c.name: c.type for c in plan.columns}
-    fields, columns = [], []
-    for field, column in zip(rows.schema, rows.columns):
-        typed = types.get(field.name)
-        if typed is None:
-            raise UntypedColumn(f"the plan does not type the result column '{field.name}': {plan.sql}")
-        try:
-            integer = is_integer(typed)
-        except UnknownType as unknown:
-            raise UntypedColumn(f'{unknown}: {plan.sql}') from None
-        if integer:
-            column = _integer(column)
-        fields.append(pa.field(field.name, column.type, field.nullable, {**(field.metadata or {}), TYPE_KEY: typed}))
-        columns.append(column)
-    return pa.Table.from_arrays(columns, schema=pa.schema(fields, rows.schema.metadata))
-
-
-def to_pandas(rows: pa.Table) -> Any:
-    """Typed rows as a pandas DataFrame, each value kept as it is: an integer an integer and a boolean a boolean, nulls
-    and all (pandas' nullable ``Int64`` and ``boolean``, where its own would make them floats and objects), a Decimal
-    a ``Decimal``, a StrictDate a ``date``."""
-    import pandas as pd
-    nullable = {pa.int64(): pd.Int64Dtype(), pa.bool_(): pd.BooleanDtype()}
-    return rows.to_pandas(types_mapper=nullable.get)
+def _refusal(refused: compiler.LegendError) -> compiler.LegendError:
+    """``refused`` as the model's refusal (``ModelRefused``) when the compiler refused the model, else as it is."""
+    return ModelRefused(refused.message, refused.kind) if refused.kind in _MODEL_REFUSALS else refused
 
 
 def _arrow(frame: Any) -> pa.Table:
@@ -172,14 +134,22 @@ class Table:
         """The value this table holds under ``held`` -- the frame as it was last read, under its name -- or None."""
         return self._arrow if held == self.name else None
 
-    def _attach(self, target: Any) -> None:
-        """Each value its load attached for the connection, attached on ``target`` -- the frames' connection again, the
-        frame as it is now, or a read's own cursor (``Frames.reading``) -- by the name the plan holds it under; one this
-        table no longer holds refused by name."""
+    def _attachments(self) -> list[tuple[str, Any]]:
+        """Each value its load attached for the connection, by the name the plan holds it under, ``(as, value)``: what
+        is attached on the frames' connection again (``_attach``) and on a read's own cursor (``Frames.reading``, its run
+        handed them as data); one this table no longer holds refused by name."""
+        out = []
         for held, as_ in self._attached:
             value = self._value(held)
             if value is None:
                 raise LoadRefused(f"'{held}' is not a value this host holds: nothing is attached as {as_}")
+            out.append((as_, value))
+        return out
+
+    def _attach(self, target: Any) -> None:
+        """Each value its load attached for the connection, attached on ``target`` -- the frames' connection again, the
+        frame as it is now -- by the name the plan holds it under (``_attachments``)."""
+        for as_, value in self._attachments():
             target.register(as_, value)
 
     def _load(self, arrow: pa.Table) -> None:
@@ -201,7 +171,7 @@ class Table:
             # a frame read once is the database's from now on: its rows are let go
             if not self.live:
                 self._arrow = None
-        rows = send(con, compiler.catalog_columns_sql('main', self.name)).fetchall()
+        rows = ask(con, compiler.catalog_columns_sql('main', self.name), "a catalog's question")
         columns = [dict(zip(_CATALOG_FIELDS, row)) for row in rows]
         written = compiler.table_model({
             'table': self.name,
@@ -288,68 +258,6 @@ class Table:
             return self._frames.run(self._model().plan(self._tree(query), self.runtime))
 
 
-# the shortest query-string parameter value redacted on its own (engine-client connection-settings.ts, the same rule): a
-# shorter one (``X-Amz-Expires=3600``'s) is no token, and taking it out would take out the message's own words
-_SHORTEST_HELD_PARAMETER = 8
-
-
-def held_texts(value: str) -> list[str]:
-    """THE TEXTS A HELD VALUE MAY COME BACK AS (the B checkpoint's tenets audit, M2, 2026-11-11; engine-client
-    connection-settings.ts ``heldTexts``): a database repeats a value it was bound in its own error -- an expired
-    presigned link's read names the whole URL -- and may quote its query string, or one parameter, alone, encoded or
-    not. So a held URL is taken out as itself, its query string and each parameter's value (raw and decoded), the
-    longest first."""
-    out = {value}
-    query = value.find('?')
-    if query >= 0:
-        fragment = value.find('#', query)
-        string = value[query + 1:] if fragment < 0 else value[query + 1:fragment]
-        out.add(string)
-        for part in string.split('&'):
-            raw = part.partition('=')[2] if '=' in part else part
-            for v in (raw, unquote_plus(raw)):
-                if len(v) >= _SHORTEST_HELD_PARAMETER:
-                    out.add(v)
-    return sorted((t for t in out if t), key=len, reverse=True)
-
-
-def redact_held(text: str, values: Iterable[str]) -> str:
-    """``text`` with every held value in ``values`` (each as ``held_texts`` takes it apart) written ``***``."""
-    for value in values:
-        for t in held_texts(value):
-            text = text.replace(t, '***')
-    return text
-
-
-def redacted(failure: BaseException, held: Iterable[str]) -> BaseException | None:
-    """``failure`` again, of its type, its words with every held value taken out -- or None where none was in them. The
-    caller raises it outside its ``except``, so the database's own error, which still holds the value, is not chained
-    to it."""
-    said = str(failure)
-    out = redact_held(said, held)
-    if out == said:
-        return None
-    # of its type, as raised, by a copy: no traceback, cause or context of the original's, its attributes cleared, its
-    # words the redacted ones (2026-11-12, the re-audit's S4: no value's own type is called outside _planned.py)
-    redacted = copy.copy(failure)
-    redacted.__dict__.clear()
-    redacted.args = (out,)
-    return redacted
-
-
-def execute_redacted(connection: Any, sql: PlannedSql, held: Iterable[str], params: tuple[str, ...] = ()) -> Any:
-    """``sql`` run on ``connection``, its ``?``s bound to ``params`` (a plan's payloads: M3), a failure's words with every
-    held value taken out (``redacted``)."""
-    failure: BaseException | None = None
-    try:
-        return send(connection, sql, params)
-    except duckdb.Error as e:
-        failure = redacted(e, held)
-        if failure is None:
-            raise
-    raise failure
-
-
 @dataclass
 class _File:
     """A table a page's file was read into, the view a remote file is read through (``view``) or a snap's copy, as
@@ -376,134 +284,6 @@ class _File:
         return {'model': self.model, 'runtime': self.runtime, 'source': self.source, 'table': self.name, 'leaf': self.leaf}
 
 
-# the failures DuckDB raises BEFORE a statement runs -- a table not there, a name not bound, text that does not parse, a
-# file the database may not touch: they leave the transaction standing, so they never end a read, and DuckDB still
-# raises them after a read has ended (measured on the pinned DuckDB, 2026-11-14: after an abort a ParserException, a
-# CatalogException, a BinderException and a PermissionException are each raised as themselves -- a PermissionException
-# first leaves the transaction standing, its next statement runs -- as are an invalid input and a file that cannot be
-# read, which Reading._failed reads apart; a statement that runs says the transaction is aborted)
-_REFUSED_BEFORE_RUNNING = (duckdb.ParserException, duckdb.CatalogException, duckdb.BinderException,
-                           duckdb.PermissionException)
-
-# the failures that abort a standing transaction, yet that DuckDB still raises as themselves after an abort (measured on
-# the pinned DuckDB, 2026-11-14): an invalid input (a statement given fewer values than its `?`s) and a file that cannot
-# be read (an IOException at bind -- a local or remote file not there, read_parquet's or read_csv's or a view's over
-# one; an HTTPException is one): each is kept only where nothing is kept yet -- the read's end when it came first, and
-# never a replacement for the failure that ended the read (the final audit of 9af16fbe58's P7; the C4 final fix round's
-# B1, 2026-11-14)
-_ABORTS_UNLESS_ABORTED = (duckdb.InvalidInputException, duckdb.IOException)
-
-
-def _words(said: str, kind: str) -> str:
-    """A failure's words: its first line that says something, or its class where none does (an empty message, or one
-    that is only space and line breaks)."""
-    for line in said.splitlines():
-        if line.strip():
-            return line.strip()
-    return kind
-
-
-class Reading:
-    """WHAT ONE READ SEES (docs/DATACUBE_ONE_API_PLAN_2026_10_21.md D15): the frames' database as it was when the read
-    began -- a cursor of its own, its session set as the planner's SQL expects, each frame read at each query registered
-    on it as the frame was then, in a transaction pinned as it began -- and what was served then (``hosted``, the frames'
-    and files' ``models``). Whatever is registered, read in, snapped or dropped meanwhile, on any thread, a query on it
-    reads the same rows, and no lock is held while it is used: DataCube's code, asked a call by Python, reads through it
-    and asks what it asks of Python's engine over it, on its own thread, waiting on no thread. One thread uses it at a
-    time (its read's: the caller, then DataCube's thread while the call runs)."""
-
-    def __init__(self, cursor: Database, hosted: dict[str, Any], models: dict[str, str],
-                 held: tuple[str, ...] = ()) -> None:
-        self.cursor = cursor
-        self.hosted = hosted
-        self.models = models
-        # the values the remote files' settings bind (a bearer URL), taken out of a failure's words (M2)
-        self.held_values = held
-        # the failure that aborted this read's transaction, in its words (``execute``): the read's end
-        self.ended_by: str | None = None
-        # the read's latest failure that RAN -- at a statement or at its fetch -- in its words: the one that aborted the
-        # transaction, when DuckDB next says it is aborted (one refused before it ran never replaces it)
-        self._last_failure: str | None = None
-
-    def execute(self, sql: PlannedSql, params: tuple[str, ...] = ()) -> Result:
-        """A statement run as this read sees the database. One that fails at run time (a value that does not convert, an
-        overflow) aborts DuckDB's transaction, and the read ENDS there: the call shows that failure, and its later
-        queries do not run -- DuckDB refuses each, said in words naming the failure that ended the read -- and the next
-        call opens a fresh read (the user's ruling of 2026-11-13, (1b)). Until then the read began and pinned another
-        transaction (F36), which planned the pin's statement inside the read's run (G4: a run plans nothing) and moved
-        the read, unsaid, to the database as it was then (G7: no silent snapshot switch). One refused before it ran (a
-        table not there) leaves the read as it was: DuckDB's transaction stands. A failure's words name no value the
-        engine holds (an expired presigned link's read repeats its URL: M2)."""
-        failure: BaseException | None = None
-        try:
-            # a plan's own values (its data: payloads: compiler.plan_params, M3) bound to its `?`s
-            return send(self.cursor, sql, params)
-        except duckdb.TransactionException as e:
-            # DuckDB says the read's transaction is aborted: by the read's latest failure that ran -- at a statement or
-            # at its fetch -- never one refused before it ran (a table not there, text that does not parse), which left
-            # the transaction standing, before the abort or after it (the C4 audit's M4, 2026-11-13; the follow-up
-            # audit's G3, 2026-11-14: until then a refusal after the abort replaced the failure that ended the read)
-            if self.ended_by is None:
-                self.ended_by = self._last_failure
-            if self.ended_by is None:
-                failure = redacted(e, self.held_values)
-                if failure is None:
-                    raise
-            else:
-                # the database's own error class, so a caller that answers a database's refusal answers this one (the
-                # plan-and-run's 422, never a 500)
-                failure = duckdb.TransactionException(
-                    f"this read ended at the failure that aborted its transaction ({self.ended_by}): DuckDB aborts"
-                    " the read's transaction there, so the call's later queries do not run; the next call reads the"
-                    ' database afresh')
-        except duckdb.Error as e:
-            failure = self._failed(e)
-            if failure is None:
-                raise
-        raise failure
-
-    def _failed(self, e: duckdb.Error) -> BaseException | None:
-        """``e`` kept as the read's latest failure where it RAN (one refused before it ran leaves the transaction
-        standing, and never replaces the one that aborted it); the failure to raise, its held values taken out (None:
-        ``e`` names none)."""
-        failure = redacted(e, self.held_values)
-        # an invalid input or a file that cannot be read aborts a standing transaction, yet DuckDB raises it as itself
-        # after an abort too: it is kept only where nothing is kept yet (_ABORTS_UNLESS_ABORTED)
-        if not isinstance(e, _REFUSED_BEFORE_RUNNING) and not (
-                isinstance(e, _ABORTS_UNLESS_ABORTED) and self._last_failure is not None):
-            self._last_failure = _words(str(failure) if failure is not None else str(e), type(e).__name__)
-        return failure
-
-    def fetched(self, result: Result) -> pa.Table:
-        """``result``'s rows as this read fetches them: a failure AT THE FETCH (DuckDB converts as it streams, so a
-        value that does not convert past the first rows it hands over fails here, not at the statement: measured at
-        3M rows, 2026-11-14) is the read's failure as one at the statement is -- it aborts the transaction, and the
-        read ends there, named by it (the follow-up audit's G3: until then a fetch's failure went unrecorded). Named by
-        what DuckDB raises: DuckDB 1.5.5 now and then answers a worker's conversion failure as its interrupt, a race of
-        its own threads (measured 2026-11-14 with no legend-lite code: about 1 in 20 on a cursor or in a transaction),
-        and the read is named by that."""
-        try:
-            return result.to_arrow_table()
-        except duckdb.TransactionException:
-            raise
-        except duckdb.Error as e:
-            failure = self._failed(e)
-            if failure is None:
-                raise
-            raise failure from None
-
-    @runs('a read')
-    def run(self, plan: compiler.Plan) -> pa.Table:
-        """A plan's SQL run as this read sees the database, its rows typed by the plan (``typed_by_plan``)."""
-        return typed_by_plan(self.fetched(self.execute(plan.sql, plan.params)), plan)
-
-
-def _pin(cursor: Database) -> None:
-    """The transaction just begun on ``cursor`` pinned: DuckDB begins one on a database when it is first read, so this
-    database's catalog is read now (one of Frames' own names asked for: never a table)."""
-    _host.count(cursor, {'op': 'relationExists', 'name': _host.name(f'{_OWN}pinned', schema='main')})
-
-
 class Frames:
     """Frames in one duckdb-python database, each a Legend table the compiler plans queries over.
 
@@ -523,8 +303,11 @@ class Frames:
         # the session the planner's SQL expects, set on the connection and on each read's own cursor (Frames.reading):
         # a cursor is a session of its own, which a connection's settings do not reach
         self._setup = compiler.session_setup('DuckDB')
-        for statement in self._setup:
-            send(self.connection, statement)
+        # what pins a read's transaction just begun (``reading``): DuckDB begins one on a database when it is first
+        # read, so this database's catalog is read then -- one of Frames' own names asked for, never a table. Planned
+        # here once, so a read's run plans nothing (C5-P, 2026-11-15: until then planned at each read, beside its run)
+        (self._pin,) = _host.statements({'op': 'relationExists', 'name': _host.name(f'{_OWN}pinned', schema='main')})
+        run_statements(self.connection, self._setup, "a session's setup")
         self._lock = threading.RLock()
         # each thread's read in progress (``reading``): what DataCube's code, asked a call by it, reads through
         self._local = threading.local()
@@ -584,14 +367,12 @@ class Frames:
             self._tables[key] = table
             return table
 
-    @runs('a plan')
     def run(self, plan: compiler.Plan) -> pa.Table:
         """PYTHON'S EXECUTOR: a plan's SQL run on this database, its rows typed by the plan (``typed_by_plan``) --
         a table's query, a grid's rows, and a page's grid planned and run in Python (the engine's plan-and-run.json).
-        Only SQL a planner wrote for this database comes here."""
+        Only SQL a planner wrote for this database comes here (the run: ``_reads.run_plan``)."""
         with self._lock:
-            return typed_by_plan(execute_redacted(self.connection, plan.sql, self.held_values(), plan.params).to_arrow_table(),
-                                 plan)
+            return run_plan(self.connection, plan, self.held_values())
 
     def held_values(self) -> tuple[str, ...]:
         """Every value the kept remote files' settings bind that the engine holds (a bearer URL): what a failure's words
@@ -648,19 +429,21 @@ class Frames:
         return sorted(t for t in own if t not in served) + sorted(other)
 
     @staticmethod
-    def _declared(model: str) -> set[str] | None:
+    def _declared(model: str, surface: bool = False) -> set[str] | None:
         """The tables a model's Databases declare in the database's own schema, lower-cased -- or None: it does not read
         as a model, or declares a table of another schema (no table of this database)."""
-        declared = Frames._tables_of(model)
+        declared = Frames._tables_of(model, surface)
         return None if declared is None or declared[1] else declared[0]
 
     @staticmethod
-    def _tables_of(model: str) -> tuple[set[str], set[str]] | None:
+    def _tables_of(model: str, surface: bool = False) -> tuple[set[str], set[str]] | None:
         """The tables a model's Databases declare: those of the database's own schema, lower-cased, and those of another,
-        as ``SCHEMA.TABLE`` -- or None: it does not read as a model."""
+        as ``SCHEMA.TABLE`` -- or None: it does not read as a model (``surface``: the compiler's refusal raised)."""
         try:
             elements = compiler.model_elements(model)
         except compiler.LegendError:
+            if surface:
+                raise
             return None
         own: set[str] = set()
         other: set[str] = set()
@@ -678,7 +461,9 @@ class Frames:
         option (c)): one held for a frame or a page's file (``held_for``), or a model the page sent -- its project's, say
         -- every table of whose Databases is one Python serves, so the SQL planned over it reads only what Python showed
         the page, never another table of this database (a person's own, an attached database's). Held while recent;
-        None when it declares a table Python does not serve, or does not read as a model."""
+        None when it declares a table Python does not serve; one that does not parse, or reads as a model of served
+        tables but does not compile, is refused by the compiler's own words (``ModelRefused``: the C5 follow-up's held
+        item and its check, 2026-11-15 -- until then None, and the page told this engine serves none of its tables)."""
         with self._lock:
             held = self.held_for(model)
             if held is not None:
@@ -688,16 +473,21 @@ class Frames:
                 held, tables = self._admitted.pop(model)
                 self._admitted[model] = (held, tables)
                 return held if tables <= served else None
-            tables = self._declared(model)
+            try:
+                tables = self._declared(model, surface=True)
+            except compiler.LegendError as refused:
+                # it does not read as a model: the compiler's words (the C5 follow-up's check, 2026-11-15); a failure of
+                # the compiler's own (no refusal) raised as it is
+                raise _refusal(refused) from refused
             if tables is None:
                 return None
             if not tables <= served:
                 return None
+            # it reads as a model of the tables served; one that does not compile raises the compiler's refusal
             try:
                 held = compiler.HeldModel(model)
-            except compiler.LegendError:
-                # it reads as a model, but does not compile: no model to plan over
-                return None
+            except compiler.LegendError as refused:
+                raise _refusal(refused) from refused
             self._admitted[model] = (held, frozenset(tables))
             while len(self._admitted) > _ADMITTED:
                 self._admitted.pop(next(iter(self._admitted)))[0].close()
@@ -753,8 +543,7 @@ class Frames:
         cursor: Database | None = None
         try:
             cursor = self.connection.cursor()
-            for statement in self._setup:
-                send(cursor, statement)
+            run_statements(cursor, self._setup, "a session's setup")
             yield name, cursor
         except BaseException:
             with self._lock:
@@ -812,7 +601,8 @@ class Frames:
     def plan_over(self, model: str, plan: Callable[[compiler.HeldModel], Any]) -> Any:
         """``plan`` against the model a page's query may be planned over (``model_for``), held while it plans -- a frame
         registered again meanwhile lets go of its model only after -- or None: no such model served. For a read's query
-        (D15): the model of that text is of the tables the read sees as they were (the same text, the same columns)."""
+        (D15): the model of that text is of the tables the read sees as they were (the same text, the same columns). A
+        model that does not parse or compile raises the compiler's refusal (``ModelRefused``, ``model_for``)."""
         with self._lock:
             held = self.model_for(model)
             return None if held is None else plan(held)
@@ -884,22 +674,17 @@ class Frames:
             for table in self._tables.values():
                 if table.live:
                     table._ready()
+            # each frame's attachment of the connection, by the name its plan holds it under (a cursor is a connection
+            # of its own): every query reads the frame as it was when this read began
+            attachments = [a for table in self._tables.values() for a in table._attachments()]
             cursor = self.connection.cursor()
             try:
-                for statement in self._setup:
-                    send(cursor, statement)
-                # each remote file's settings of the connection, its bound values with it (B3's Q3: a bearer URL's
-                # session variable, which a view of it reads, is one connection's)
-                for kept in self._files.values():
-                    for statement, params in kept.settings:
-                        send(cursor, statement, params)
-                # each frame's attachment of the connection, by the name its plan holds it under (a cursor is a
-                # connection of its own): every query reads the frame as it was when this read began
-                for table in self._tables.values():
-                    table._attach(cursor)
-                cursor.begin()
-                # pinned while the lock is held: this read sees the database as it is now
-                _pin(cursor)
+                # the read begun by its run (``_reads.begin_read``): the session's setup, each remote file's settings of
+                # the connection with its bound values (B3's Q3: a bearer URL's session variable, which a view of it
+                # reads, is one connection's), the attachments, and the transaction begun and pinned while the lock is
+                # held -- this read sees the database as it is now
+                begin_read(cursor, self._setup, [s for kept in self._files.values() for s in kept.settings],
+                           attachments, self._pin)
             except BaseException:
                 cursor.close()
                 raise
@@ -909,11 +694,14 @@ class Frames:
         self._local.reading = read
         try:
             yield read
-        finally:
+        except BaseException as failing:
             self._local.reading = None
-            with contextlib.suppress(duckdb.Error):
-                cursor.rollback()
-            cursor.close()
+            # the read's transaction let go by its run (C5-P, A3: a transaction's bounds are run acts), its cursor
+            # closed; the read's own failure stays the one raised (a rollback's noted on it: the C5 follow-up)
+            end_read(cursor, failing)
+            raise
+        self._local.reading = None
+        end_read(cursor, None)
 
     def reading_now(self) -> Reading | None:
         """The read this thread is in (``reading``), or None."""

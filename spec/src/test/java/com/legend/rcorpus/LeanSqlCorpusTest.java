@@ -53,9 +53,7 @@ class LeanSqlCorpusTest {
         // the corpus's resource store, as its run has (MinimalCorpus's options): a body that loads a CSV plans its
         // load against the file's digest. Only the store: the measure keeps lite's own rules and spelling (round 55f,
         // 2026-11-15: a DataError, "this run was given no store for it", had been counted as a refusal)
-        com.legend.ExecuteOptions options = new com.legend.ExecuteOptions(null,
-                com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()),
-                java.util.Set.of()).withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
+        com.legend.ExecuteOptions options = options(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
         for (com.legend.test.PureTests.TestCase t : corpus.tests()) {
             String family = t.pkg();
             List<String> productSql = new ArrayList<>();
@@ -127,6 +125,15 @@ class LeanSqlCorpusTest {
                 }
             }
         }
+    }
+
+    /** The measure's options under {@code mode}: the corpus's resource store, as its run has (MinimalCorpus's options), so
+     *  a body that loads a CSV plans its load against the file's digest; lite's own rules and spelling (round 55f,
+     *  2026-11-15: a DataError, "this run was given no store for it", had been counted as a refusal). */
+    private static com.legend.ExecuteOptions options(com.legend.testplan.PlanningOptions.JudgeMode mode) {
+        return new com.legend.ExecuteOptions(null,
+                com.legend.executionplan.DataStores.resources(Corpus.RELATIONAL.getParent().getParent()),
+                java.util.Set.of()).withJudgeMode(mode);
     }
 
     /** {@code step}'s judge statements and plan JSON, added. */
@@ -224,7 +231,7 @@ class LeanSqlCorpusTest {
         try {
             var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
             com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved), MinimalCorpus.RUNTIME,
-                    com.legend.ExecuteOptions.NONE.withJudgeMode(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
+                    options(com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
             return "planned";
         } catch (RuntimeException | StackOverflowError e) {
             String m = String.valueOf(e.getMessage());
@@ -297,7 +304,7 @@ class LeanSqlCorpusTest {
         try {
             var resolved = Compiler.resolveQuery(List.copyOf(t.fn().body()), t.imports(), corpus.context());
             return com.legend.TestExecution.planBody(Compiler.queryResolved(corpus.context(), resolved),
-                    MinimalCorpus.RUNTIME, com.legend.ExecuteOptions.NONE.withJudgeMode(mode));
+                    MinimalCorpus.RUNTIME, options(mode));
         } catch (RuntimeException e) {
             if (!com.legend.leansql.LeanSqlBaseline.isRefusal(e)) {
                 throw e;

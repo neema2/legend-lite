@@ -372,6 +372,9 @@ class CodeShapeGuardrailTest {
             // serialize arm, consumed at the envelope build — same
             // per-resolution frame lifecycle
             "StoreResolver.checkedEnvelope",
+            // the envelope state's write count (2026-11-16, E-v2's review A-S4): read by the resolveNode memo to know a
+            // visit set the envelope state, even to the value it held -- the same per-resolution frame as the two above
+            "StoreResolver.envelopeWrites",
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",
             "UserCallInliner.fresh", "Bindings.contravariantDepth",
             // walk-scoped mode flag: inside a postprocessor-CONFIG

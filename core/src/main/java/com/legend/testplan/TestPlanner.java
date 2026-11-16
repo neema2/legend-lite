@@ -33,6 +33,11 @@ public final class TestPlanner {
      *  runtime's dialect chosen, an unread let made the statement it binds (the user's ruling, 2026-11-02), then
      *  {@link #plan(TypedQuery, String, SqlDialect, PlanningOptions)}. */
     public static TestPlan plan(TypedQuery typed, @Nullable String given, PlanningOptions options) {
+        // the body's facts over the body as given, BEFORE any rewrite below (the generator's planning, the unread lets
+        // made statements, the lift): the record the test door's facts state, carried by the plan (the C5-J audit's
+        // SHOULD 1, 2026-11-15: until then stated over the rewritten body, so an unread let or a generator's effect
+        // read differently at the door and in the plan)
+        com.legend.testexecutionplan.BodyFacts facts = facts(typed);
         // none given: the one runtime the body's from()s name (A5, PlanMaker.runtimeOf)
         String runtimeFqn = com.legend.planner.PlanMaker.runtimeOf(typed, given);
         SqlDialect dialect = options.spelling().dialect(com.legend.Compiler.executesOn(typed.context(),
@@ -46,7 +51,7 @@ public final class TestPlanner {
                 ? com.legend.testdatagen.TestDataPlanner.Printing.COMPAT
                 : com.legend.testdatagen.TestDataPlanner.Printing.CLEAN;
         return plan(withUnreadLets(GeneratedTestData.planned(typed, dialect, runtimeFqn, printing)), runtimeFqn,
-                dialect, options);
+                dialect, options, facts);
     }
 
     /** {@code typed} with each unread let the statement it binds: it runs at its turn, on every road. */
@@ -64,7 +69,7 @@ public final class TestPlanner {
      * plan's data, at its turn in the run). A body the program road does not plan is refused by name.
      */
     static TestPlan plan(TypedQuery given, @Nullable String runtimeFqn, SqlDialect dialect,
-            PlanningOptions options) {
+            PlanningOptions options, com.legend.testexecutionplan.BodyFacts facts) {
         PlanningOptions.JudgeMode mode = options.judgeMode();
         TypedQuery typed;
         BodyClass bodyClass;
@@ -122,22 +127,14 @@ public final class TestPlanner {
                 switch (judgesNothing ? PlanningOptions.JudgeMode.HOST : mode) {
                     case HOST -> host = HostAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
                     case DATABASE -> database = DatabaseAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null);
-                    // both judges over the DATABASE judge's real program (E-5c, the user's ruling O5 of 2026-11-13):
-                    // its fused statements, the host reading each single-value side as a typed column of them. Where
-                    // the database judge plans no program for the body -- DE4's three groups (an outcome decided at
-                    // planning, a keyed member, the split rung) and DE5's 13 corpus bodies, each declined by name at
-                    // planning (judge-declines) -- the body keeps today's path, pending those rulings (the
-                    // orchestrator, 2026-11-15): each assert's step carrying the host's sides and its own database
-                    // statement (AgreementAsserts.plan, planEach). A planning decline, never a retry: nothing is sent
-                    // before the plan is whole.
-                    case BOTH -> {
-                        agreement = AgreementAsserts.planFused(typed, runtime, on, systemRouted ? bodyEnv : null,
-                                systemRouted);
-                        if (agreement == null) {
-                            agreement = AgreementAsserts.plan(typed, runtime, on, systemRouted ? bodyEnv : null,
-                                    systemRouted);
-                        }
-                    }
+                    // both judges over the DATABASE judge's real program, ONE road (E-5c, the user's ruling O5 of
+                    // 2026-11-13; DE4, the orchestrator's ruling under the user's delegation of 2026-11-15): its fused
+                    // statements, the host reading each single-value side as a typed column of them, and a root no
+                    // fused row carries (decided at planning, keyed, the split rung) judged by the host on its own
+                    // sides. A body the database judge plans no program for is refused by name below, as under the
+                    // database judge: there is no second road.
+                    case BOTH -> agreement = AgreementAsserts.planFused(typed, runtime, on,
+                            systemRouted ? bodyEnv : null, systemRouted);
                 }
             }
         }
@@ -158,7 +155,7 @@ public final class TestPlanner {
         try (var p = com.legend.base.RunScope.plans("a test body's program")) {
             plan = TestDoor.planned(typed, runtimeFqn, options.features(),
                     asserts == null ? TestDoor.Asserts.NONE : asserts, systemRouted, options.stores(),
-                    options.edge(), options.spelling());
+                    options.edge(), options.spelling(), facts);
         }
         // the caller's sink for an answer a statement sends is asked for before anything is sent, as the walk asks
         // for it before its last statement runs (M5f's audit S1: a caller may refuse the shape); a constant's when the
@@ -183,6 +180,19 @@ public final class TestPlanner {
             System.out.println("[plan-json] " + com.legend.testexecutionplan.TestPlanJson.write(plan));
         }
         return plan;
+    }
+
+    /** The body's facts as data (C5-J item 2, 2026-11-15): the planner's {@link com.legend.planner.ProgramFacts}
+     *  over the body as its caller gave it, before any rewrite -- a test-data generator's planning, an unread let made
+     *  the statement it binds, an assert lifted -- what a test runner reads of a body. {@link #plan(TypedQuery,
+     *  String, PlanningOptions)} states them first and the test plan carries that record
+     *  ({@link com.legend.testexecutionplan.TestPlan#facts}), so a runner choosing the body's session before it is
+     *  planned reads the same record here (the C5-J audit's SHOULD 1, 2026-11-15). */
+    public static com.legend.testexecutionplan.BodyFacts facts(TypedQuery given) {
+        // planning, refused inside a run on its own -- never by the typing it happens to start (the C5-J audit's nit)
+        com.legend.base.RunScope.planning("state a test body's facts");
+        com.legend.planner.ProgramFacts f = com.legend.planner.ProgramFacts.of(given.body(), given.specs());
+        return new com.legend.testexecutionplan.BodyFacts(f.effects(), f.seedsInlineCsv(), f.verdicts(), f.shape());
     }
 
     /** {@code given} as every road sees it: the lift (the asserts-as-plan-nodes program, step 4: an assert in a value's
