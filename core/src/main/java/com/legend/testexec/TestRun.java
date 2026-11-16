@@ -197,9 +197,13 @@ final class TestRun {
             }
             for (int i = 0; i < group.verdicts().size(); i++) {
                 TestPlan.Verdict each = group.verdicts().get(i);
-                if (each.base().isEmpty()) {
+                if (each.base().isEmpty() && each.host() == null) {
+                    // a database member with nothing to read for the host
                     continue;
                 }
+                // a host verdict with no base (DE4 (a): its outcome decided at planning) is still handed its (empty)
+                // sides, so its host half is judged and held (the PR1 re-review's B3: skipped, it was never judged,
+                // and the agreement's decision found no host half)
                 List<Object> row = java.util.Objects.requireNonNull(full.get(i));
                 List<PlanRunner.Rows> sides = open.guarded(null, () -> {
                     List<PlanRunner.Rows> out = new ArrayList<>(each.base().size());

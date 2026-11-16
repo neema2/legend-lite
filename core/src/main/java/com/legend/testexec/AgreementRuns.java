@@ -169,6 +169,14 @@ final class AgreementRuns {
                 TestPlan.JudgingRules rules) {
             Run r = byHost.get(verdict.id());
             if (r != null) {
+                TestPlan.Host h = verdict.host();
+                com.legend.testexecutionplan.Failure before = h == null ? null : h.assertion().beforeTheArm();
+                if (before != null) {
+                    // raised before its arm (a let's held model error): at its root's turn, after the earlier roots
+                    // decided and reported, as the host judge raises it (the PR1 re-review's B1, G2) -- never ahead
+                    heldErrors.putIfAbsent(r.pairing.root(), com.legend.testexecutionplan.Failures.raised(before));
+                    return;
+                }
                 r.hostSides(verdict, rows, message, listener, rules);
                 return;
             }

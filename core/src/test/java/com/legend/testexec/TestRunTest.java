@@ -356,6 +356,35 @@ final class TestRunTest {
     }
 
     @Test
+    @DisplayName("B3: a host verdict with NO base in a fused-cell group is still handed its (empty) sides, never skipped")
+    void aHostVerdictWithNoBaseInAFusedGroupIsHandedItsSides() throws IOException {
+        List<ExecutionPlan.Column> columns = new ArrayList<>();
+        columns.add(col("ix", "Integer", "INTEGER"));
+        columns.addAll(List.of(col("verdict", "Boolean", "BOOLEAN"), col("expected", "String", "VARCHAR"),
+                col("actual", "String", "VARCHAR"), optional("unjudged", "String", "VARCHAR"),
+                col("lenient", "Boolean", "BOOLEAN"), col("holds", "Boolean", "BOOLEAN"),
+                optional("message", "String", "VARCHAR")));
+        ExecutionPlan.Column h0 = optional("__h0_0", "Integer", "INTEGER");
+        columns.add(h0);
+        ExecutionPlan.TdsResult fused = relation("SELECT 0 AS ix, TRUE AS verdict, 'x' AS expected, 'x' AS actual,"
+                + " CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient, TRUE AS holds, CAST(NULL AS VARCHAR) AS message,"
+                + " 40 + 2 AS __h0_0 UNION ALL SELECT 1, TRUE, 'a', 'a', CAST(NULL AS VARCHAR), FALSE, TRUE,"
+                + " CAST(NULL AS VARCHAR), CAST(NULL AS INTEGER)", columns);
+        TestPlan.Verdict first = new TestPlan.Verdict(nextVerdictId(), "assertEquals@2", "assertEquals",
+                List.of(new TestPlan.Side.FusedCell(List.of(h0))), null);
+        // its outcome decided at planning (DE4 (a)): a host half, no side to read
+        TestPlan.Verdict decided = new TestPlan.Verdict(nextVerdictId(), "assert@3", "assert", List.of(), null, null,
+                false, new TestPlan.Host(new com.legend.testexecutionplan.Assertion("assert@3", "assert", true, null),
+                        new com.legend.testexecutionplan.HostJudgment.Condition("assert", true), List.of()));
+        Recording sink = new Recording();
+        run(plan(TestPlan.Judge.AGREEMENT, new TestPlan.Verdicts(List.of(first, decided), fused,
+                TestPlan.JudgingRules.LITE)), sessions(), sink);
+        assertEquals(List.of("fused", "sides assertEquals@2", "sides assert@3", "verdict assertEquals@2",
+                "verdict assert@3"), sink.events);
+        assertEquals(List.of(), sink.sides.get(1), "the decided verdict's sides: none, but handed");
+    }
+
+    @Test
     @DisplayName("a program with an answer: the verdicts, then the result step's rows after the steps")
     void aProgramsAnswerFollowsItsVerdicts() throws IOException {
         Recording sink = new Recording();

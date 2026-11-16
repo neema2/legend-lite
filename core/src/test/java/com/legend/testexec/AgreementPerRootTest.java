@@ -196,4 +196,64 @@ final class AgreementPerRootTest {
                 () -> group.withAgreements(List.of(group.agreements().get(0))));
         assertTrue(one.getMessage().contains("one per root"), one.getMessage());
     }
+
+    /**
+     * The PR1 re-review's A4 (the root-order raise fix, abc8f6b1a and 47da0b398, had no pin): root 0's assert fails
+     * by both judges, and root 1's database member reads a side that raises a DataError. The first failure in ROOT
+     * order is reported -- root 0's AssertFailed -- and root 1's error is never raised ahead of it.
+     */
+    @Test
+    @DisplayName("root 0 fails and root 1's member side raises: root 0's failure is the one reported")
+    void anEarlierRootsFailureIsReportedBeforeALaterRootsSideError() {
+        List<ExecutionPlan.Column> columns = new ArrayList<>();
+        columns.add(col("ix", "Integer", "INTEGER"));
+        columns.addAll(List.of(col("verdict", "Boolean", "BOOLEAN"), col("expected", "String", "VARCHAR"),
+                col("actual", "String", "VARCHAR"), optional("unjudged", "String", "VARCHAR"),
+                col("lenient", "Boolean", "BOOLEAN"), col("holds", "Boolean", "BOOLEAN"),
+                optional("message", "String", "VARCHAR")));
+        columns.add(optional("__h0_0", "Boolean", "BOOLEAN"));
+        columns.add(optional("__h2_0", "Boolean", "BOOLEAN"));
+        String cells = " 'x' AS expected, 'y' AS actual, CAST(NULL AS VARCHAR) AS unjudged, FALSE AS lenient, ";
+        String fusedSql = "SELECT 0 AS ix, FALSE AS verdict," + cells + "FALSE AS holds, 'db says no' AS message,"
+                + " FALSE AS __h0_0, CAST(NULL AS BOOLEAN) AS __h2_0"
+                + " UNION ALL SELECT 1, TRUE," + cells + "TRUE, CAST(NULL AS VARCHAR), CAST(NULL AS BOOLEAN),"
+                + " CAST(NULL AS BOOLEAN)"
+                + " UNION ALL SELECT 2, TRUE," + cells + "TRUE, CAST(NULL AS VARCHAR), CAST(NULL AS BOOLEAN), TRUE";
+        ExecutionPlan.TdsResult fused = new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION, columns,
+                ExecutionPlan.Sql.of(fusedSql, target));
+        SideShape oneBoolean = new SideShape(SideShape.Kind.VALUES, "Boolean", List.of(), List.of(), false, true, 1,
+                "[1]", false, false, false);
+        int a0 = VERDICT_IDS.incrementAndGet();
+        int m1 = VERDICT_IDS.incrementAndGet();
+        int a1 = VERDICT_IDS.incrementAndGet();
+        TestPlan.Verdict first = new TestPlan.Verdict(a0, "assert@2", "assert",
+                List.of(new TestPlan.Side.FusedCell(List.of(optional("__h0_0", "Boolean", "BOOLEAN")))), null, null,
+                false, new TestPlan.Host(new Assertion("assert@2", "assert", true, null),
+                        new HostJudgment.Condition("assert", true), List.of(oneBoolean)));
+        // root 1's database member: its side its own statement, which raises when read
+        TestPlan.Verdict member = new TestPlan.Verdict(m1, "member@3", "assert", List.of(new TestPlan.Side.Rows(
+                new ExecutionPlan.TdsResult(ExecutionPlan.TdsResult.Shape.RELATION,
+                        List.of(col("value", "Boolean", "BOOLEAN")),
+                        ExecutionPlan.Sql.of("SELECT CAST(error('boom') AS BOOLEAN) AS value", target)))), null);
+        TestPlan.Verdict second = new TestPlan.Verdict(a1, "assert@3", "assert",
+                List.of(new TestPlan.Side.FusedCell(List.of(optional("__h2_0", "Boolean", "BOOLEAN")))), null, null,
+                false, new TestPlan.Host(new Assertion("assert@3", "assert", true, null),
+                        new HostJudgment.Condition("assert", true), List.of(oneBoolean)));
+        RootLoop loop = new RootLoop(List.of(
+                new RootLoop.Root("assert@2", List.of(new RootLoop.Row("assert@2", a0, null, null, RootLoop.NO_APPEAL,
+                        null)), null),
+                new RootLoop.Root("assert@3", List.of(new RootLoop.Row("member@3", m1, null, null, RootLoop.NO_APPEAL,
+                        null), new RootLoop.Row("assert@3", a1, null, null, RootLoop.NO_APPEAL, null)), null)),
+                Map.of());
+        TestPlan.Verdicts group = new TestPlan.Verdicts(List.of(first, member, second), fused, null,
+                TestPlan.JudgingRules.LITE, loop, List.of(new Agreement(0, a0, RootLoop.NO_VERDICT),
+                        new Agreement(1, a1, RootLoop.NO_VERDICT)));
+        TestPlan plan = new TestPlan(List.of(), List.of(group), TestPlan.Judge.AGREEMENT, Map.of(), Map.of(), false,
+                target, new com.legend.testexecutionplan.BodyFacts(false, false, true, "FLAXEO"));
+        Told told = new Told();
+        AssertFailed failed = assertThrows(AssertFailed.class, () -> run(plan, told));
+        assertTrue(told.verdicts.get(0).startsWith("assert@2 fail"), told.verdicts.toString());
+        assertEquals(1, told.verdicts.size(), "root 1 never told: " + told.verdicts);
+        assertTrue(!failed.getMessage().contains("boom"), failed.getMessage());
+    }
 }

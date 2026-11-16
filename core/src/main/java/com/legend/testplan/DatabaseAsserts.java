@@ -169,42 +169,50 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         // surfaces: nothing after runs or counts. The segment closes at the wall's assert; every later assert is
         // absorbed unplanned (the test door needs a non-null answer), every later let untouched (the M7 audit's F5)
         boolean walled = false;
+        // a let's model error, held for the next assert's root (B1)
+        com.legend.error.@Nullable LegendCompileException pendingLet = null;
         for (int i = 0; i < body.size(); i++) {
             TypedSpec statement = body.get(i);
             boolean last = i == body.size() - 1;
             EnumSet<QueryDoor.TestOnly> kinds = scan.kinds(statement);
             if (statement instanceof TypedLet let && !last) {
-                if (walled) {
+                if (walled || pendingLet != null) {
                     continue;
                 }
-                java.util.function.Predicate<String> relationFrame =
-                        n -> frames.containsKey(n) && frames.get(n).relationRooted();
-                LetPlanner.Kind kind = LetPlanner.kind(let, body, i, specs, effectMemo, relationFrame);
-                if (kind == LetPlanner.Kind.FRAME) {
-                    // the frame as the walk builds it under the batch: not run, its CTE defined when a reader splices
-                    // it; its activity comment its own execution's stamp, bound when the plan runs (the execution id as
-                    // upstream, 2026-11-12: until then the segment's fused statement's, shared by its frames)
-                    // -- with the host's half attached, the host's stamp: both halves read one execution (E-5c step 6)
-                    String stamp = attach == null ? stampOfFrameLet(place, i) : java.util.Objects.requireNonNull(
-                            attach.host().frameStamp(i), "the host half minted no stamp for the frame let");
-                    frameStamps.put(i, stamp);
-                    frames.put(let.name(), BodyDriver.plannedFrame((TypedNativeCall) LetPlanner.rhs(let), letPrefix,
-                            specs, benv, stamp));
-                    fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
-                } else if (kind == LetPlanner.Kind.ALIAS) {
-                    frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(
-                            java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame)))));
-                } else if (kind == LetPlanner.Kind.STAGED_GRID) {
-                    // a raw grid staged across a later effect: read from the table the test door stages it
-                    // into at its turn (PlanMaker.stagedGridLet; the walk deletion, 2026-11-06)
-                    letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
-                            com.legend.planner.PlanMaker.gridRead(
-                                    com.legend.resolver.StagedRows.gridTable(let.name(), i), benv.dialect()),
-                            (com.legend.compiler.spec.typed.TypedRawSqlRelation) LetPlanner.rhs(let),
-                            let.info()));
-                } else {
-                    PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs, benv.plan());
-                    letPrefix.add(let);
+                try {
+                    java.util.function.Predicate<String> relationFrame =
+                            n -> frames.containsKey(n) && frames.get(n).relationRooted();
+                    LetPlanner.Kind kind = LetPlanner.kind(let, body, i, specs, effectMemo, relationFrame);
+                    if (kind == LetPlanner.Kind.FRAME) {
+                        // the frame as the walk builds it under the batch: not run, its CTE defined when a reader splices
+                        // it; its activity comment its own execution's stamp, bound when the plan runs (the execution id as
+                        // upstream, 2026-11-12: until then the segment's fused statement's, shared by its frames)
+                        // -- with the host's half attached, the host's stamp: both halves read one execution (E-5c step 6)
+                        String stamp = attach == null ? stampOfFrameLet(place, i) : java.util.Objects.requireNonNull(
+                                attach.host().frameStamp(i), "the host half minted no stamp for the frame let");
+                        frameStamps.put(i, stamp);
+                        frames.put(let.name(), BodyDriver.plannedFrame((TypedNativeCall) LetPlanner.rhs(let), letPrefix,
+                                specs, benv, stamp));
+                        fragments.put("frame_" + let.name(), "let " + let.name() + " (statement " + (i + 1) + ")");
+                    } else if (kind == LetPlanner.Kind.ALIAS) {
+                        frames.put(let.name(), java.util.Objects.requireNonNull(frames.get(
+                                java.util.Objects.requireNonNull(LetPlanner.aliasOf(let.value(), relationFrame)))));
+                    } else if (kind == LetPlanner.Kind.STAGED_GRID) {
+                        // a raw grid staged across a later effect: read from the table the test door stages it
+                        // into at its turn (PlanMaker.stagedGridLet; the walk deletion, 2026-11-06)
+                        letPrefix.add(com.legend.resolver.StagedRows.gridBoundTo(let.name(),
+                                com.legend.planner.PlanMaker.gridRead(
+                                        com.legend.resolver.StagedRows.gridTable(let.name(), i), benv.dialect()),
+                                (com.legend.compiler.spec.typed.TypedRawSqlRelation) LetPlanner.rhs(let),
+                                let.info()));
+                    } else {
+                        PlanAllocations.registerHandlesIn(let.name(), LetPlanner.rhs(let), letPrefix, specs, benv.plan());
+                        letPrefix.add(let);
+                    }
+                } catch (com.legend.error.LegendCompileException e) {
+                    // the let's model error, held for the next assert's root as the host holds it (the PR1 re-review's
+                    // B1; the static pass let the body through only where an assert follows)
+                    pendingLet = e;
                 }
                 continue;
             }
@@ -238,6 +246,12 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                     // a side reading a frame would compose the frame's CTE into its own fused statement, its activity
                     // comment that statement's stamp: not designed for a side yet -- refused by name
                     com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "a branch after a frame let");
+                    return null;
+                }
+                if (pendingLet != null) {
+                    // a let's held model error before a branch: the host's planner refuses the shape (a pending let's
+                    // raise is the next assert's, which no side may be), and so does this one (B1)
+                    com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "a branch after a let's error");
                     return null;
                 }
                 batch.fragments(fragments);
@@ -282,6 +296,13 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 if (walled) {
                     byStatement.put(i, List.of());
                     continue;
+                }
+                if (pendingLet != null) {
+                    // a let's held model error raised at an assertError's turn: not planned here yet, refused by name
+                    // (B1 covers an assert's root; the host raises it before the assertError's arm)
+                    com.legend.diagnostics.Diagnostics.judgeDecline("unplanned", "", "an assertError after a let's"
+                            + " error");
+                    return null;
                 }
                 batch.fragments(fragments);
                 if (!close(batch, place, segment, lastAssert, env, byStatement, hostRoots)) {
@@ -335,6 +356,25 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                 continue;
             }
             TypedSpec bare = Lets.bare(statement);
+            if (pendingLet != null) {
+                // the held let's error raised at this root's turn, after the roots before it reported (B1)
+                int before = batch.rootCount();
+                batch.open(AssertVerdicts.listenerName(bare));
+                batch.wall(com.legend.testexecutionplan.Failures.of(pendingLet, "DatabaseAsserts.plan: a let's model"
+                        + " error"));
+                batch.close();
+                if (attach != null) {
+                    attachHost(attach, i, batch, before, env, java.util.Objects.requireNonNull(hostRoots));
+                }
+                byStatement.put(i, List.of());
+                lastAssert = i;
+                batch.fragments(fragments);
+                if (!close(batch, place, segment, lastAssert, env, byStatement, hostRoots)) {
+                    return null;
+                }
+                walled = true;
+                continue;
+            }
             BodyDriver.ExecEnv at = BodyDriver.frameReplaceEnv(statement, frames, benv, letPrefix, specs);
             AssertVerdicts.SpliceHook hook = BodyDriver.spliceHook(frames, letPrefix, specs, benv)::apply;
             AssertVerdicts.DatabasePlan outcome;
@@ -548,10 +588,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
                         letPrefix.add(let);
                     }
                 } catch (com.legend.error.LegendCompileException e) {
-                    // the let's model error at planning (a class its mapping does not map): the host judge's planner
-                    // raises the same error for the body, so the database half does too -- the body fails with it
-                    // under every judge, never refused for it (DE5's second group, 2026-11-16: testModelConnectionJoin's
-                    // `let res`, which BOTH had answered through the deleted second road)
+                    // the let's model error at planning (a class its mapping does not map), as the host judge's planner
+                    // holds it (HostAsserts' pendingLet): raised at the next assert's turn, after the asserts before it
+                    // ran and reported -- the main pass plans it as that root's wall; with no assert after it, raised
+                    // here, for the body (DE5's second group, 2026-11-16; the PR1 re-review's B1: an assert before the
+                    // let reports first under every judge, G2)
+                    if (anAssertFollows(body, i, scan)) {
+                        return true;
+                    }
                     throw e;
                 } catch (RuntimeException e) {
                     // the let raises: the walk raises it at the let's turn, after the earlier segments ran and
@@ -682,7 +726,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
     private static boolean close(VerdictBatch batch, String place, int segment, int lastAssert,
             BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.Verdicts>> byStatement,
             @Nullable List<HostRoot> hostRoots) {
-        VerdictBatch.Planned planned = batch.plan();
+        return closePlanned(batch.plan(), place, segment, lastAssert, env, byStatement, hostRoots);
+    }
+
+    /** {@link #close} over the batch's plan ({@code planned}; null where the segment planned no verdict): package-
+     *  private so a test plants a plan close must refuse (the PR1 re-review's B8: DE4 (d)'s refusal by name). */
+    static boolean closePlanned(VerdictBatch.@Nullable Planned planned, String place, int segment, int lastAssert,
+            BodyDriver.ExecEnv env, Map<Integer, List<TestPlan.Verdicts>> byStatement,
+            @Nullable List<HostRoot> hostRoots) {
         List<HostRoot> roots = hostRoots == null ? null : List.copyOf(hostRoots);
         if (hostRoots != null) {
             hostRoots.clear();
@@ -895,4 +946,14 @@ final class DatabaseAsserts implements TestDoor.Asserts {
         return TestPlan.Judge.DATABASE;
     }
 
+
+    /** Whether an assert statement follows statement {@code i} of {@code body}. */
+    private static boolean anAssertFollows(List<TypedSpec> body, int i, QueryDoor.Scan scan) {
+        for (int j = i + 1; j < body.size(); j++) {
+            if (scan.kinds(body.get(j)).contains(QueryDoor.TestOnly.ASSERT)) {
+                return true;
+            }
+        }
+        return false;
+    }
 }

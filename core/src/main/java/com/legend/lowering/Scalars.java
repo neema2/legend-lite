@@ -1251,13 +1251,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
-                    refuseDateKinds(n.args().get(0), "least element");
+                    refuseRealTies(n.args().get(0), "least element", true);
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
                 if (mixedList != null && !isToOne(n.args().get(0))) {
-                    TaggedLists.refuseKindTies(mixedList, "least element");
+                    refuseRealTies(n.args().get(0), "least element");
                     return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
@@ -1271,7 +1271,7 @@ final class Scalars {
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
                     if (ma != null) {
-                        refuseDateKinds(n.args(), "least element");
+                        refuseRealTies(n.args(), "least element", true);
                     }
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, ma.valList()))
@@ -1290,13 +1290,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = args.size() == 1 ? MixedEncoding.mixedElems(n.args().get(0), args.get(0)) : null;
                 if (mx != null) {
-                    refuseDateKinds(n.args().get(0), "greatest element");
+                    refuseRealTies(n.args().get(0), "greatest element", true);
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = args.size() == 1 ? asTaggedList(n.args().get(0), args.get(0)) : null;
                 if (mixedList != null && !isToOne(n.args().get(0))) {
-                    TaggedLists.refuseKindTies(mixedList, "greatest element");
+                    refuseRealTies(n.args().get(0), "greatest element");
                     return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 if (args.size() == 2 && args.get(1) instanceof SqlExpr.Lambda cmp) {
@@ -1308,7 +1308,7 @@ final class Scalars {
                 if (args.size() > 1) {
                     MixedEncoding.MixedElems ma = MixedEncoding.mixedArgs(n.args(), args);
                     if (ma != null) {
-                        refuseDateKinds(n.args(), "greatest element");
+                        refuseRealTies(n.args(), "greatest element", true);
                     }
                     return ma != null
                             ? ma.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, ma.valList()))
@@ -1350,13 +1350,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
-                    refuseDateKinds(n.args().get(0), "greatest element");
+                    refuseRealTies(n.args().get(0), "greatest element", true);
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MAX, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
                 if (mixedList != null && !isToOne(n.args().get(0))) {
-                    TaggedLists.refuseKindTies(mixedList, "greatest element");
+                    refuseRealTies(n.args().get(0), "greatest element");
                     return TaggedLists.last(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 return isToOne(n.args().get(0))
@@ -1368,13 +1368,13 @@ final class Scalars {
             RULES.put(f, (n, args) -> {
                 MixedEncoding.MixedElems mx = MixedEncoding.mixedElems(n.args().get(0), args.get(0));
                 if (mx != null) {
-                    refuseDateKinds(n.args().get(0), "least element");
+                    refuseRealTies(n.args().get(0), "least element", true);
                     return mx.tagged(SqlExpr.Call.of(SqlFn.LIST_MIN, mx.valList()));
                 }
                 // a MIXED list's extreme: an end of its sort, by kind, then value (E-R4; O2's D2, 2026-11-13)
                 SqlExpr.TaggedList mixedList = asTaggedList(n.args().get(0), args.get(0));
                 if (mixedList != null && !isToOne(n.args().get(0))) {
-                    TaggedLists.refuseKindTies(mixedList, "least element");
+                    refuseRealTies(n.args().get(0), "least element");
                     return TaggedLists.first(TaggedLists.sort(mixedList, "_tlx"));
                 }
                 return isToOne(n.args().get(0))
@@ -3893,48 +3893,122 @@ final class Scalars {
         RULES.seal();
     }
 
-    /** A mixed list's extreme over two DATE kinds, refused by name (docs/records/pr1-rulings-2026-11-15.md, R3: the
-     *  orchestrator's ruling under the user's delegation of 2026-11-15), on the mixed-elements route as on the tagged
-     *  list's (TaggedLists.refuseKindTies): round 55f found [%2025-02-10, %2025-02-10T00:00:00, %2024-01-01]->min()
-     *  answered here, never reaching the tagged list. */
-    private static void refuseDateKinds(TypedSpec arg, String what) {
+    /** A mixed list's extreme, refused by name where two of its elements of different kinds may compare EQUAL (a
+     *  tie the database orders as it likes, so the extreme could answer either kind): ONE rule for numbers, dates and
+     *  enumerations on both routes (the PR1 re-review's B4, 2026-11-16; docs/records/pr1-rulings-2026-11-15.md, R3).
+     *  Within a family holding two kinds, literal elements are known at planning: refused only on a real tie (1 and
+     *  1.0; %2025-02-10 and %2025-02-10T00:00:00; two enumerations' values of one name). A computed element of such a
+     *  family is not known here: answered, a tie it makes at run time a known limit until the run-time kind carrier
+     *  (O2 step 3) answers it as legend-pure does.
+     *  Two literal numbers the DOUBLE rank holds as one value are refused too (B2: the rank would order them wrongly). */
+    private static void refuseRealTies(TypedSpec arg, String what) {
+        refuseRealTies(arg, what, false);
+    }
+
+    /** {@code firstOfATie}: the route picks the FIRST element of the winning rank (the mixed-elements route's
+     *  LIST_POSITION), which is Pure's own rule for a tie of numbers ({@code [3.0, 3]->max()} is the Float), so a number
+     *  tie answers right there and is not refused; dates still are (Pure orders a StrictDate before a DateTime at one
+     *  instant, the rank holds them equal). */
+    private static void refuseRealTies(TypedSpec arg, String what, boolean firstOfATie) {
         if (arg instanceof TypedCollection c) {
-            refuseDateKinds(c.elements(), what);
+            refuseRealTies(c.elements(), what, firstOfATie);
         }
     }
 
-    private static void refuseDateKinds(List<TypedSpec> elements, String what) {
-        java.util.Set<String> dates = new java.util.TreeSet<>();
+
+    private static void refuseRealTies(List<TypedSpec> elements, String what) {
+        refuseRealTies(elements, what, false);
+    }
+
+    private static void refuseRealTies(List<TypedSpec> elements, String what, boolean firstOfATie) {
+        // family -> (kind -> the literal values of that kind); a computed element is a null value
+        java.util.Map<String, java.util.Map<String, List<Object>>> families = new java.util.TreeMap<>();
+        java.util.Map<Double, java.math.BigDecimal> byDouble = new java.util.HashMap<>();
         for (TypedSpec e : elements) {
-            String kind = dateKind(e);
-            if (kind != null) {
-                dates.add(kind);
+            String kind = numberKind(e);
+            String family = "number";
+            if (kind == null) {
+                kind = dateKind(e);
+                family = "date";
             }
-        }
-        if (dates.size() < 2) {
-            return;
-        }
-        // literals are known at planning: the answer can only go wrong on a TIE, two elements of different kinds at
-        // one instant (%2025-02-10 and %2025-02-10T00:00:00), which the extreme answers as either kind -- refused; a
-        // literal list with no such tie is answered (round 55f, 2026-11-15: three DuckDB tests of distinct instants
-        // answered right, and were refused). A computed date's instant is not known here: refused.
-        java.util.Map<java.util.List<Object>, java.util.Set<String>> atInstant = new java.util.HashMap<>();
-        for (TypedSpec e : elements) {
-            String kind = dateKind(e);
+            if (kind == null && e.info().type() instanceof Type.EnumType en) {
+                kind = en.fqn();
+                family = "enumeration";
+            }
             if (kind == null) {
                 continue;
             }
-            if (!(e instanceof com.legend.compiler.spec.typed.TypedCDate lit)) {
-                TaggedLists.refuseDateKinds(dates, what);
-                return;
+            Object value = tieKey(e);
+            if (family.equals("number") && value instanceof java.math.BigDecimal bd) {
+                // the DOUBLE rank keeps the order of distinct values unless two of them round to one double (B2: 2^53
+                // and 2^53+1; two Decimals one double apart from neither): refused only on that collision, never for
+                // a value the double merely does not hold (1.23D orders right)
+                java.math.BigDecimal other = byDouble.putIfAbsent(bd.doubleValue(), bd);
+                if (other != null && other.compareTo(bd) != 0) {
+                    throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
+                            + other.toPlainString() + " and " + bd.toPlainString() + ": its numbers are ranked as"
+                            + " DOUBLE, which holds both as one value (refused until the kinds-kept carrier ranks"
+                            + " numbers exactly)");
+                }
             }
-            java.util.Set<String> kinds = atInstant.computeIfAbsent(instant(lit.value()),
-                    k -> new java.util.TreeSet<>());
-            kinds.add(kind);
-            if (kinds.size() > 1) {
-                TaggedLists.refuseDateKinds(kinds, what);
+            java.util.List<Object> values = families.computeIfAbsent(family, k -> new java.util.TreeMap<>())
+                    .computeIfAbsent(kind, k -> new java.util.ArrayList<>());
+            values.add(value);
+        }
+        for (var family : families.entrySet()) {
+            java.util.Map<String, List<Object>> kinds = family.getValue();
+            if (kinds.size() < 2 || firstOfATie && family.getKey().equals("number")) {
+                continue;
+            }
+            java.util.Map<Object, String> seen = new java.util.HashMap<>();
+            for (var kind : kinds.entrySet()) {
+                for (Object v : kind.getValue()) {
+                    if (v == null) {
+                        // a computed element: its value is not known here, and a tie it makes at run time is a known
+                        // limit (R3 as revised by B4: refused only on a real literal tie)
+                        continue;
+                    }
+                    String other = seen.putIfAbsent(v, kind.getKey());
+                    if (other != null && !other.equals(kind.getKey())) {
+                        refuse(family.getKey(), java.util.List.of(other, kind.getKey()), what, "two of its elements"
+                                + " of different kinds compare equal");
+                    }
+                }
             }
         }
+    }
+
+    private static void refuse(String family, java.util.Collection<String> kinds, String what, String why) {
+        throw new com.legend.error.NotImplementedException("the " + what + " of a mixed list holding "
+                + String.join(" and ", new java.util.TreeSet<>(kinds)) + ": " + why + ", and the extreme of a tie "
+                + "across " + family + " kinds is refused until the run-time kind carrier (O2 step 3) answers it as "
+                + "legend-pure does");
+    }
+
+    /** {@code e}'s number kind (Integer, Float, Decimal) by its static type; null for any other. */
+    private static @com.legend.base.Nullable String numberKind(TypedSpec e) {
+        Type t = e.info().type();
+        return t == Type.Primitive.INTEGER ? "Integer" : t == Type.Primitive.FLOAT ? "Float"
+                : t == Type.Primitive.DECIMAL || t instanceof Type.PrecisionDecimal ? "Decimal" : null;
+    }
+
+    /** The value a literal element compares by (a number as an exact decimal, a date as its instant, an enumeration's
+     *  value by its name); null for a computed element. */
+    private static @com.legend.base.Nullable Object tieKey(TypedSpec e) {
+        return switch (e) {
+            case com.legend.compiler.spec.typed.TypedCInteger i -> new java.math.BigDecimal(i.value().toString());
+            case com.legend.compiler.spec.typed.TypedCFloat f -> f.exact() != null ? f.exact().stripTrailingZeros()
+                    : new java.math.BigDecimal(f.value()).stripTrailingZeros();
+            case com.legend.compiler.spec.typed.TypedCDecimal d -> d.value().stripTrailingZeros();
+            case com.legend.compiler.spec.typed.TypedCDate d -> instant(d.value());
+            case com.legend.compiler.spec.typed.TypedEnumValue v -> v.value();
+            // a negative literal is minus over one literal ({@code -1}): its value negated
+            default -> {
+                com.legend.model.FunctionId id = com.legend.compiler.spec.typed.Calls.calleeIdOf(e);
+                yield id != null && Pure.AT_MATH_MINUS.contains(id) && e.children().size() == 1
+                        && tieKey(e.children().get(0)) instanceof java.math.BigDecimal b ? b.negate() : null;
+            }
+        };
     }
 
     /** {@code e}'s date kind (StrictDate, DateTime, Date) by its static type; null for any other. */

@@ -149,8 +149,16 @@ class AgreementFusedPlanTest {
         // the message 'x' is not the inner assert's: it fails, under both plans alike
         Told fusedTold = new Told();
         AssertFailed fusedFailed = assertThrows(AssertFailed.class, () -> run(plan, fusedTold));
-        // (until DE4, 2026-11-15, compared with the second road's plan, deleted: one road)
-        assertNotNull(fusedFailed.getMessage());
+        // parity with the HOST judge's own run of the body (G2; the PR1 re-review's A5, 2026-11-16: until DE4 this
+        // compared with the second road's plan, deleted -- the host judge's plan is the reference now): the same
+        // failure text and the same verdicts told, in order
+        TestPlan hostPlan = com.legend.TestExecution.planBody(typed(AN_ASSERT_ERROR), StorelessRuntime.RUNTIME,
+                ExecuteOptions.NONE.withJudgeMode(PlanningOptions.JudgeMode.HOST));
+        assertEquals(TestPlan.Judge.HOST, hostPlan.judge());
+        Told hostTold = new Told();
+        AssertFailed hostFailed = assertThrows(AssertFailed.class, () -> run(hostPlan, hostTold));
+        assertEquals(hostFailed.getMessage(), fusedFailed.getMessage(), "the failure in the host's words");
+        assertEquals(hostTold.verdicts, fusedTold.verdicts, "the verdicts told");
         assertEquals("assertEquals pass", fusedTold.verdicts.get(0));
     }
 
@@ -221,6 +229,18 @@ class AgreementFusedPlanTest {
         String why = DatabaseAsserts.uncarried(elsewhere, roots, env);
         assertNotNull(why, "a store-bound root on another session");
         assertTrue(why.contains("(DE4 d)") && why.contains("another session"), why);
+        // and the segment's close refuses it by that name, at planning (the PR1 re-review's B8): one root in its loop,
+        // as the host's half attaches one
+        com.legend.testexecutionplan.RootLoop oneRoot = new com.legend.testexecutionplan.RootLoop(List.of(
+                new com.legend.testexecutionplan.RootLoop.Root(hp.verdict().name(), List.of(
+                        new com.legend.testexecutionplan.RootLoop.Row(hp.verdict().name(), carrier, null, null,
+                                com.legend.testexecutionplan.RootLoop.NO_APPEAL, null)), null)), Map.of());
+        VerdictBatch.Planned elsewhereOneRoot = new VerdictBatch.Planned(List.of(new VerdictBatch.Group(step, other,
+                false)), oneRoot, Map.of(0, carrier), java.util.Set.of());
+        com.legend.error.NotImplementedException refused = assertThrows(com.legend.error.NotImplementedException.class,
+                () -> DatabaseAsserts.closePlanned(elsewhereOneRoot, "b8.", 0, 0, env, new java.util.HashMap<>(),
+                        new ArrayList<>(roots)));
+        assertEquals(why, refused.getMessage());
         VerdictBatch.Planned here = new VerdictBatch.Planned(List.of(new VerdictBatch.Group(step, body0, false)),
                 loop, Map.of(0, carrier), java.util.Set.of());
         assertNull(DatabaseAsserts.uncarried(here, roots, env), "on the body's own session it is carried");
