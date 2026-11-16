@@ -99,10 +99,22 @@ final class PctCaseRecorder {
         StringBuilder text = new StringBuilder("type=").append(answer.resultType()).append(" values=");
         for (java.util.List<Object> row : answer.rows().rows()) {
             for (Object v : row) {
-                text.append(v == null ? "null" : v.getClass().getSimpleName() + ":" + v).append(";");
+                text.append(v == null ? "null" : v.getClass().getSimpleName() + ":" + cell(v)).append(";");
             }
         }
         edge(expression, answer.shape().name(), text.toString());
+    }
+
+    /** A value cell's text: a date as legend-pure prints it (edge/EngineCells.LEGEND_PURE's value rule: the
+     *  precision it was written at, {@code +0000} from a minute on), not Java's toString of the typed value, which
+     *  is the harness's own (2026-11-16: W8 made it zone-free, and 318 lines moved with no answer moving); anything
+     *  else its own text. */
+    private static String cell(Object v) {
+        if (v instanceof com.legend.values.PureDateLiteral d) {
+            return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.MINUTE)
+                    ? d.toEngineString() + "+0000" : d.toEngineString();
+        }
+        return String.valueOf(v);
     }
 
     /** A case that raised, for the edge golden net: its message as the test sees it. */
