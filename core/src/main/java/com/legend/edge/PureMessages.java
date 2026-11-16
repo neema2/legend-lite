@@ -214,6 +214,14 @@ public final class PureMessages {
             // legend-pure's collection at()
             case ELEMENT_AT_OFFSET -> "The system is trying to get an element at offset " + o.get(0)
                     + " where the collection is of size " + o.get(1);
+            // legend-pure's rows()/_range() assert (the P2 checkpoint audit's M4, 2026-11-16)
+            case WINDOW_FRAME_INVERTED -> "Invalid window frame boundary - lower bound of window frame cannot be greater"
+                    + " than the upper bound!";
+            // lite's own refusal (register S170), as the edge has spelled it
+            case WINDOW_FRAME_COMPUTED_INVERTED -> "Invalid window frame boundary - a computed bound's direction is read"
+                    + " from how it is written (-(n) is n before the current row, any other n after it), and this frame"
+                    + " then starts after where it ends: write the bound before the current row as -(n)"
+                    + " (docs/SEMANTICS_REGISTER.md S170)";
         };
         return c.position() == null ? upstream : c.position() + " " + upstream;
     }

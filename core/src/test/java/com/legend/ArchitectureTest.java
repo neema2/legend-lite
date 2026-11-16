@@ -2372,14 +2372,19 @@ final class ArchitectureTest {
 
     /** The hosts' doors (the boundary, the tab's adapter, the native entry) reach no edge class either, but for the
      *  boundary's pure/v1 halves, which hand the planner the edge's style until D-1 moves the clients to lite's own
-     *  routes ({@code planner.Boundary}: the D-1 exception, named and dated 2026-11-15, the D part 1 audit's nit). */
+     *  routes ({@code planner.Boundary}: the D-1 exception, named and dated 2026-11-15, the D part 1 audit's nit), and
+     *  the native library's query store, which serves upstream's {@code /api/pure/v1/query} and so words its refusals
+     *  in legend-engine's sentences ({@code edge.StoreWords}; 2026-11-16, stage (a)'s red, as the page and the server's
+     *  mount do). */
     @Test
     void theHostsDoorsReachNoEdgeButTheBoundarysD1Exception() {
         noClasses()
             .that().resideOutsideOfPackage("com.legend.edge..")
-            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are not the boundary (D-1's exception)",
+            .and(com.tngtech.archunit.base.DescribedPredicate.describe("are not the boundary (D-1's exception) or the"
+                    + " native query store (upstream's query API)",
                     (com.tngtech.archunit.core.domain.JavaClass c) -> !c.getName().equals("planner.Boundary")
-                            && !c.getName().startsWith("planner.Boundary$")))
+                            && !c.getName().startsWith("planner.Boundary$")
+                            && !c.getName().equals("com.legend.nativelib.SavedQueriesHome")))
             .should().dependOnClassesThat().resideInAPackage("com.legend.edge..")
             .as("G5 at the hosts' doors: the edge's to call, the boundary's pure/v1 halves alone until D-1")
             .check(coreAndTheHostsDoors());

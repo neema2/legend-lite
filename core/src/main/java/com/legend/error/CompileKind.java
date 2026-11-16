@@ -27,7 +27,14 @@ public enum CompileKind {
     /** A type given another number of type variables than it declares: the number given, the type as declared. */
     TYPE_VARIABLES_COUNT("%2$s takes another number of type variables than the %1$s given"),
     /** A row's cell read at an offset the row does not have: the offset, the row's size. */
-    ELEMENT_AT_OFFSET("offset %1$s is outside a row of %2$s cells");
+    ELEMENT_AT_OFFSET("offset %1$s is outside a row of %2$s cells"),
+    /** A window frame whose literal start is after its end (the P2 checkpoint audit's M4, 2026-11-16: legend-pure's
+     *  sentence was the product's until then). */
+    WINDOW_FRAME_INVERTED("window frame starts after it ends"),
+    /** A window frame whose computed bounds, read by how they are written (-(n) before the current row, any other n
+     *  after it), start after they end (register S170). */
+    WINDOW_FRAME_COMPUTED_INVERTED("window frame starts after it ends, its computed bounds read by how they are written:"
+            + " write a bound before the current row as -(n)");
 
     private final String sentence;
 

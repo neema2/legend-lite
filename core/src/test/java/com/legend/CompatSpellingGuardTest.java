@@ -67,8 +67,12 @@ class CompatSpellingGuardTest {
             "Can't find ", "Invalid supertype", "arguments count (", "variables count (",
             "Missing external parameter(s)",
             // legend-pure's match failure (W7 of docs/records/d-plan-2026-11-16.md, 2026-11-16: raised as a kind,
-            // MATCH_FAILURE, its sentence the edge's) and its collection offset sentence (TdsDesugars' compile kind)
-            "Match failure:", "trying to get an element at offset",
+            // MATCH_FAILURE, its sentence the edge's); its collection offset sentence is listed with K1 above (the P2
+            // checkpoint audit's S6, 2026-11-16: it was listed twice)
+            "Match failure:",
+            // legend-pure's window frame assert, and the "Invalid window frame boundary - " opening the edge gives S170's
+            // refusal (the P2 checkpoint audit's M4, 2026-11-16: raised as compile kinds, worded at the edge)
+            "Invalid window frame boundary",
             // K9 and K7: Pure's print forms and the engine's trace comment
             "+0000", "@_", "executionTraceID",
             // K4: the engine corpus's scan order flag

@@ -234,12 +234,11 @@ final class Windows {
         Double from = numericOf(f.from());
         Double to = numericOf(f.to());
         if (from != null && to != null && from > to) {
-            // real rows()/_range() assert text verbatim (PCT parity)
+            // its kind, lite's sentence; legend-pure's rows()/_range() assert text is the edge's (PureMessages; the P2
+            // checkpoint audit's M4, 2026-11-16)
             throw new com.legend.error.ModelException(
                     com.legend.error.LegendCompileException.Phase.TYPE,
-                    "Invalid window frame boundary - lower bound of window"
-                            + " frame cannot be greater than the upper"
-                            + " bound!");
+                    com.legend.error.CompileKind.WINDOW_FRAME_INVERTED, java.util.List.of());
         }
         SqlExpr.WindowCall.Frame.Bound lo = sqlBound(f.from(), offsets);
         SqlExpr.WindowCall.Frame.Bound hi = sqlBound(f.to(), offsets);
@@ -247,12 +246,10 @@ final class Windows {
         // it (or an end written before it with a start at or after it) is no frame SQL can write, whatever the value
         if (lo instanceof SqlExpr.WindowCall.Frame.Bound.ComputedFollowing && !following(hi)
                 || hi instanceof SqlExpr.WindowCall.Frame.Bound.ComputedPreceding && !preceding(lo)) {
+            // its kind, lite's sentence; the edge keeps S170's text (PureMessages; the P2 checkpoint audit's M4)
             throw new com.legend.error.ModelException(
                     com.legend.error.LegendCompileException.Phase.TYPE,
-                    "Invalid window frame boundary - a computed bound's direction is read from how it is written"
-                            + " (-(n) is n before the current row, any other n after it), and this frame then"
-                            + " starts after where it ends: write the bound before the current row as -(n)"
-                            + " (docs/SEMANTICS_REGISTER.md S170)");
+                    com.legend.error.CompileKind.WINDOW_FRAME_COMPUTED_INVERTED, java.util.List.of());
         }
         return new SqlExpr.WindowCall.Frame(
                 f.kind() == com.legend.compiler.spec.typed.WindowFrame.Kind.ROWS
