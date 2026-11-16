@@ -1036,12 +1036,6 @@ public final class PlanMaker {
                 ExecutionPlan.Site.sentence(w.kind(), w.where()), w.upstream())).toList();
     }
 
-    /** A CSV file's reading as the plan carries it: {@code load}'s statements, its undoing statements and its sites,
-     *  planned ({@link #sites}). */
-    public static ExecutionPlan.LoadStep.Delivery.Reads reads(com.legend.sql.dialect.SqlDialect.CsvLoad load) {
-        return new ExecutionPlan.LoadStep.Delivery.Reads(load.statements(), load.after(), sites(load.sites()));
-    }
-
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database
      *  refuses it ({@link ExecutionPlan.Binding.Payload#label}: the database splits the payload itself, so its refusal --
      *  a malformed element, a statement or packet limit -- names which payload it was, as a load's names what it loads;
