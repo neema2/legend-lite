@@ -65,7 +65,7 @@ corpus-judge	DuckDB	meta::relational::tests::functions::pureToSqlQuery	3	375153	
 corpus-judge	DuckDB	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations	92	358879	5246407	1022	31218	0
 corpus-judge	DuckDB	meta::relational::tests::functions::sqlstring	61	75812	1421465	247	18964	0
 corpus-judge	DuckDB	meta::relational::tests::getter	2	9421	171832	29	2096	0
-corpus-judge	DuckDB	meta::relational::tests::groupBy	43	375985	4984489	1255	45841	4
+corpus-judge	DuckDB	meta::relational::tests::groupBy	43	365705	4957535	1241	37845	4
 corpus-judge	DuckDB	meta::relational::tests::groupBy::datePeriods	2	15317	203469	40	4583	0
 corpus-judge	DuckDB	meta::relational::tests::injection	3	14881	279756	55	1401	0
 corpus-judge	DuckDB	meta::relational::tests::json	0	0	0	0	0	1
@@ -79,7 +79,7 @@ corpus-judge	DuckDB	meta::relational::tests::mapping::boolean	3	10147	181776	47	
 corpus-judge	DuckDB	meta::relational::tests::mapping::classMappingFilterWithInnerJoin	32	179388	2554102	559	10792	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::dataType	4	116478	1278899	307	43321	1
 corpus-judge	DuckDB	meta::relational::tests::mapping::dates::datetime	4	30719	524881	108	8673	0
-corpus-judge	DuckDB	meta::relational::tests::mapping::dates::strictdate	3	11831	210436	54	2008	0
+corpus-judge	DuckDB	meta::relational::tests::mapping::dates::strictdate	3	11492	208910	53	2008	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::distinct	18	79759	1228256	287	8731	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::dynajoin	5	44901	772292	160	8493	0
 corpus-judge	DuckDB	meta::relational::tests::mapping::embedded	18	81750	1131536	211	16765	0
@@ -378,7 +378,7 @@ corpus-judge	H2	meta::relational::tests::functions::pureToSqlQuery	3	394583	5437
 corpus-judge	H2	meta::relational::tests::functions::pureToSqlQuery::calendarAggregations	46	208168	2525322	424	27015	0
 corpus-judge	H2	meta::relational::tests::functions::sqlstring	61	81946	1467741	247	20445	0
 corpus-judge	H2	meta::relational::tests::getter	2	10628	175119	29	2318	0
-corpus-judge	H2	meta::relational::tests::groupBy	43	657077	5329353	1025	245717	4
+corpus-judge	H2	meta::relational::tests::groupBy	43	645105	5299463	1011	236523	4
 corpus-judge	H2	meta::relational::tests::groupBy::datePeriods	2	16178	205928	40	4885	0
 corpus-judge	H2	meta::relational::tests::injection	3	17023	285348	55	1575	0
 corpus-judge	H2	meta::relational::tests::json	0	0	0	0	0	1
@@ -392,7 +392,7 @@ corpus-judge	H2	meta::relational::tests::mapping::boolean	3	14598	189309	47	1399
 corpus-judge	H2	meta::relational::tests::mapping::classMappingFilterWithInnerJoin	32	197697	2604749	559	12257	0
 corpus-judge	H2	meta::relational::tests::mapping::dataType	4	183223	1358726	251	94530	1
 corpus-judge	H2	meta::relational::tests::mapping::dates::datetime	4	29848	462582	94	9250	0
-corpus-judge	H2	meta::relational::tests::mapping::dates::strictdate	3	16444	218343	54	2254	0
+corpus-judge	H2	meta::relational::tests::mapping::dates::strictdate	3	16039	216697	53	2254	0
 corpus-judge	H2	meta::relational::tests::mapping::distinct	18	87806	1252759	287	9967	0
 corpus-judge	H2	meta::relational::tests::mapping::dynajoin	5	50702	785683	160	9980	0
 corpus-judge	H2	meta::relational::tests::mapping::embedded	18	87721	1152792	210	18644	0
