@@ -222,7 +222,9 @@ class ProductRaiseProbeTest {
                     }
                 }
                 default -> {
-                    if (cell == null || cell.isEmpty() || Double.parseDouble(cell) != Double.parseDouble(p.expect())) {
+                    // a NULL cell is an answer too: a wrong one (ClickHouse's CAST reads bad text as NULL, measured)
+                    if (cell == null || !cell.matches("-?[0-9.eE+]+")
+                            || Double.parseDouble(cell) != Double.parseDouble(p.expect())) {
                         wrong.add(label + ": expected " + p.expect() + ", answered " + describe(got));
                     }
                 }
