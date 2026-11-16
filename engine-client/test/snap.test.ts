@@ -45,6 +45,7 @@ import {
 } from '../src/snap.ts';
 import { unplanned } from './unplanned.ts';
 import type { QueryEngine, RawTable } from '../src/engine.ts';
+import { inRun } from '../src/run-frame.ts';
 
 /** The tab's engine, each statement first offered to `over`: what it answers (a table, or a failure) instead of the
  *  database's -- a count that answers no row, a drop that fails -- else the database's own answer. */
@@ -72,14 +73,14 @@ before(async () => {
   planner = await loadPlanner();
   const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
   engine = new DuckDbEngine(db.connect() as ArrowishConnection);
-  await engine.run(
+  await inRun('a test', () => engine.run(
     unplanned(`CREATE TABLE trades AS
        SELECT (i%5) AS region, (i%20) AS book,
               CAST(2020 + (i%4) AS INTEGER) AS year,
               (i*7.5) AS notional
        FROM range(1000) t(i)`),
     0,
-  );
+  ));
 });
 
 after(async () => {
@@ -109,24 +110,24 @@ describe('SnapManager', () => {
 
   it('is genuinely frozen: live changes do not reach the snap', async () => {
     // its own live table, so the row it adds reaches no other test (Bazel workplan P3-10)
-    await engine.run(unplanned('CREATE TABLE trades_frozen AS SELECT * FROM trades'), 0);
+    await inRun('a test', () => engine.run(unplanned('CREATE TABLE trades_frozen AS SELECT * FROM trades'), 0));
     const s = new SnapManager(engine, null, planner);
     const { table: snapped } = await s.snap(1, { ...counting('SELECT * FROM trades_frozen'), pull: pullOf('trades_frozen'), target: target('snap_frozen') });
 
     // The world moves on underneath.
-    await engine.run(
+    await inRun('a test', () => engine.run(
       unplanned('INSERT INTO trades_frozen SELECT 9, 9, 2024, 1.0'),
       2,
-    );
+    ));
 
-    const fromSnap = await engine.run(
+    const fromSnap = await inRun('a test', () => engine.run(
       unplanned(`SELECT count(*) AS n FROM ${snapped}`),
       3,
-    );
-    const fromLive = await engine.run(
+    ));
+    const fromLive = await inRun('a test', () => engine.run(
       unplanned('SELECT count(*) AS n FROM trades_frozen'),
       4,
-    );
+    ));
     assert.equal(fromSnap.columns[0]?.values[0], 1000, 'snap is stable');
     assert.equal(fromLive.columns[0]?.values[0], 1001, 'live moved');
   });
@@ -177,9 +178,9 @@ describe('SnapManager', () => {
     await assert.rejects(() => s.snap(1, { ...counting('SELECT * FROM trades'), pull: pullOf('trades'), target: { table: 'snap_unmodelled', landed: async () => { throw new Error('no model of it'); } } }),
       (e: unknown) => e instanceof Error && /no model of it -- and dropping the copy snap_unmodelled failed: the drop was refused/.test(e.message));
     // the database dropped nothing: the copy is still there, and said so
-    const left = await engine.run(unplanned("SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap_unmodelled'"), 0);
+    const left = await inRun('a test', () => engine.run(unplanned("SELECT count(*) FROM duckdb_tables() WHERE table_name = 'snap_unmodelled'"), 0));
     assert.equal(Number(left.columns[0]!.values[0]), 1);
-    await engine.run(unplanned('DROP TABLE snap_unmodelled'), 0);
+    await inRun('a test', () => engine.run(unplanned('DROP TABLE snap_unmodelled'), 0));
   });
 
   it("says a release that fails as the page leaves, never swallowed (G7; the orchestrator's ruling)", async () => {
@@ -218,10 +219,10 @@ describe('SnapManager', () => {
     assert.notEqual(a.table, b.table);
     // Snap A survives taking snap B, which is what makes an
     // as-of-A vs as-of-B comparison possible.
-    const stillThere = await engine.run(
+    const stillThere = await inRun('a test', () => engine.run(
       unplanned(`SELECT count(*) AS n FROM "${a.table}"`),
       3,
-    );
+    ));
     assert.equal(stillThere.columns[0]?.values[0], 200);
   });
 
@@ -231,7 +232,7 @@ describe('SnapManager', () => {
       target: { table: 'snap_refused', landed: async () => { throw new Error('no model of it'); } },
     }), /no model of it/);
     assert.equal(s.isSnapped, false);
-    const left = await engine.run(unplanned("SELECT count(*) AS n FROM information_schema.tables WHERE table_name = 'snap_refused'"), 5);
+    const left = await inRun('a test', () => engine.run(unplanned("SELECT count(*) AS n FROM information_schema.tables WHERE table_name = 'snap_refused'"), 5));
     assert.equal(Number(left.columns[0]?.values[0]), 0, 'the copy is gone');
   });
 });

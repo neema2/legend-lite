@@ -1,43 +1,24 @@
-// The calls a query app makes to a legend engine -- legend-engine's own `/api` paths and shapes,
-// served by legend-lite or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1). One is
-// legend-lite's own (a model's every compile error, `compileErrors`), asked first and answered by
-// legend-engine's route where the server has no such route; pointing the app at legend-engine is a base URL.
+// The engines a query app reaches a legend engine through -- legend-engine's own `/api` paths and shapes, served by
+// legend-lite or legend-engine alike (docs/QUERY_APP_DESIGN_2026_09_30.md D1); pointing the app at legend-engine is a
+// base URL. HttpEngine is the server's planning client (planning-client.ts) and its execute, the server's door, which
+// plans and runs in one request on the server; RoutedEngine answers grammar and typing in the tab and the rest on a
+// server. C5-T (2026-11-15): these are doors (//engine-client:doors), the planning client and the API's types are not.
 
 import type { Lambda } from '../../../pure-protocol/src/index.ts';
-import { readLambda, toJson } from '../../../pure-protocol/src/index.ts';
 import type { PureModelContextData } from './pmcd.ts';
-import { planning } from '../run-frame.ts';
+import { planning } from '../plan-guard.ts';
+import type { Grammar } from './grammar.ts';
+import { HttpPlanning, withContext } from './planning-client.ts';
 import type {
   CompileResult, ExecuteInput, ExecutionResult, PureModelContext, RelationTypeAnswer,
 } from './wire.ts';
 
-/** A refusal from the engine, in its error shape (`{code, errorType?, message, status}`). */
-export class EngineError extends Error {
-  readonly status: number;
-  readonly errorType: string | undefined;
+// the engine's refusal (engine-api.ts, records) and the planner's Grammar (grammar.ts), read here by their importers
+export { EngineError } from './engine-api.ts';
+export type { Grammar } from './grammar.ts';
 
-  constructor(message: string, status: number, errorType?: string) {
-    super(message);
-    this.name = 'EngineError';
-    this.status = status;
-    this.errorType = errorType;
-  }
-}
-
-/** Grammar and typing: what the tab's WASM planner can answer as well as a server. */
-export interface Grammar {
-  /** `grammar/grammarToJson/model`, without source information. */
-  modelJson(text: string): Promise<PureModelContextData>;
-  /** `grammar/grammarToJson/lambda`, without source information. */
-  lambdaJson(text: string): Promise<Lambda>;
-  /** `grammar/jsonToGrammar/lambda`. */
-  lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string>;
-  /** `grammar/jsonToGrammar/model`: a model's protocol JSON as Pure text. */
-  modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string>;
-  /** `compilation/lambdaRelationType`. */
-  relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer>;
-}
-
+// THE ENGINE, the server's interface (C5-T audit, item 3, 2026-11-15: out of the records, engine-api.ts, beside the
+// engines that are one): a Grammar, and what needs a server -- its execute among it, which plans and runs on the server.
 /** Everything else, which needs a server. */
 export interface Engine extends Grammar {
   /** `compilation/compile`. */
@@ -52,136 +33,13 @@ export interface Engine extends Grammar {
   currentUser(): Promise<string>;
 }
 
-
-/** legend-engine refuses an ExecuteInput without its execution context (measured, 4.145.0: a 500). */
-function withContext(input: ExecuteInput): ExecuteInput {
-  return { clientVersion: 'vX_X_X', context: { _type: 'BaseExecutionContext' }, ...input };
-}
-
-/** An engine at a base URL (`http://host:port/api`): legend-lite's server or legend-engine. */
-export class HttpEngine implements Engine {
-  readonly #base: string;
-  readonly #fetch: typeof fetch;
-  /** Whether the server serves legend-lite's own compile route: unknown until it is first asked. */
-  #liteCompile: boolean | undefined;
-
-  constructor(baseUrl: string, fetcher: typeof fetch = globalThis.fetch.bind(globalThis)) {
-    this.#base = baseUrl.replace(/\/+$/, '');
-    this.#fetch = fetcher;
-  }
-
-  async #call(method: string, path: string, body?: string, contentType = 'application/json',
-    signal?: AbortSignal): Promise<Response> {
-    const init: RequestInit = { method, headers: { 'Content-Type': contentType } };
-    if (body !== undefined) init.body = body;
-    if (signal !== undefined) init.signal = signal;
-    const res = await this.#fetch(`${this.#base}${path}`, init);
-    if (!res.ok) {
-      const text = await res.text();
-      let message = text || `${res.status} ${res.statusText}`;
-      let errorType: string | undefined;
-      try {
-        const e = JSON.parse(text) as { message?: string; errorType?: string };
-        if (typeof e.message === 'string') message = e.message;
-        errorType = e.errorType;
-      } catch { /* not JSON: the text is the message */ }
-      throw new EngineError(message, res.status, errorType);
-    }
-    return res;
-  }
-
-  async #json<T>(method: string, path: string, body?: unknown, signal?: AbortSignal): Promise<T> {
-    const res = await this.#call(method, path, body === undefined ? undefined : toJson(body), 'application/json', signal);
-    return res.json() as Promise<T>;
-  }
-
-  async modelJson(text: string): Promise<PureModelContextData> {
-    const res = await this.#call('POST', '/pure/v1/grammar/grammarToJson/model?returnSourceInformation=false', text, 'text/plain');
-    return res.json() as Promise<PureModelContextData>;
-  }
-
-  async lambdaJson(text: string): Promise<Lambda> {
-    return JSON.parse(await this.#lambdaJsonText(text)) as Lambda;
-  }
-
-  /** As `lambdaJson`, read by the protocol library: numbers exact (a query a person typed keeps its digits). */
-  async lambda(text: string): Promise<Lambda> {
-    return readLambda(await this.#lambdaJsonText(text));
-  }
-
-  async #lambdaJsonText(text: string): Promise<string> {
-    const res = await this.#call('POST', '/pure/v1/grammar/grammarToJson/lambda?returnSourceInformation=false', text, 'text/plain');
-    return res.text();
-  }
-
-  async lambdaText(lambda: Lambda, style: 'PRETTY' | 'STANDARD'): Promise<string> {
-    const res = await this.#call('POST', `/pure/v1/grammar/jsonToGrammar/lambda?renderStyle=${style}`, toJson(lambda));
-    return res.text();
-  }
-
-  async modelText(model: PureModelContextData, style: 'PRETTY' | 'STANDARD'): Promise<string> {
-    const res = await this.#call('POST', `/pure/v1/grammar/jsonToGrammar/model?renderStyle=${style}`, toJson(model));
-    return res.text();
-  }
-
-  // a server's typing is planning: each refused inside a run of the caller's flow (run-frame.ts; the last list of
-  // 2026-11-14, T2's neighbours) -- by a rejected promise, never a throw where a promise is promised (each method async;
-  // the C4 final fix round's nit, 2026-11-14)
-  async relationType(model: PureModelContext, lambda: Lambda): Promise<RelationTypeAnswer> {
-    planning('relationType');
-    return this.#json('POST', '/pure/v1/compilation/lambdaRelationType', { model, lambda });
-  }
-
-  async compile(model: PureModelContext): Promise<CompileResult> {
-    planning('compile');
-    return this.#json('POST', '/pure/v1/compilation/compile', model);
-  }
-
-  /**
-   * A whole model's compile errors, [] when it compiles. legend-lite's own route answers every one
-   * (`/lite/v1/compilation/compile`: the first element error alone, else every body's); legend-engine has no such
-   * route, and once it has answered 404 its `compilation/compile` is asked instead, which answers the first.
-   */
-  async compileErrors(code: string): Promise<string[]> {
-    planning('compileErrors');
-    const model: PureModelContext = { _type: 'text', code };
-    if (this.#liteCompile !== false) {
-      try {
-        const answer = await this.#json<{ errors: { message: string }[] }>('POST', '/lite/v1/compilation/compile', model);
-        this.#liteCompile = true;
-        return answer.errors.map((e) => e.message);
-      } catch (e) {
-        // two compiles in flight before the first answer both see the route unknown: either's 404 answers both
-        if (!(this.#liteCompile !== true && e instanceof EngineError && e.status === 404)) throw e;
-        this.#liteCompile = false;
-      }
-    }
-    try {
-      await this.compile(model);
-      return [];
-    } catch (e) {
-      if (e instanceof EngineError && e.status < 500) return [e.message];
-      throw e;
-    }
-  }
-
-  async returnType(model: PureModelContext, lambda: Lambda): Promise<string> {
-    planning('returnType');
-    return (await this.#json<{ returnType: string }>('POST', '/pure/v1/compilation/lambdaReturnType', { model, lambda })).returnType;
-  }
-
+/**
+ * An engine at a base URL (`http://host:port/api`): legend-lite's server or legend-engine -- the server's planning
+ * client (planning-client.ts) and its execute, the server's door (it plans and runs in one request, on the server).
+ */
+export class HttpEngine extends HttpPlanning implements Engine {
   execute(input: ExecuteInput, signal?: AbortSignal): Promise<ExecutionResult> {
-    return this.#json('POST', '/pure/v1/execution/execute', withContext(input), signal);
-  }
-
-  async generatePlan(input: ExecuteInput): Promise<unknown> {
-    // a server's planner: refused inside a run of the caller's flow (run-frame.ts; the final audit of 9af16fbe58's T2)
-    planning('generatePlan');
-    return this.#json('POST', '/pure/v1/execution/generatePlan', withContext(input));
-  }
-
-  currentUser(): Promise<string> {
-    return this.#json('GET', '/server/v1/currentUser');
+    return this.json('POST', '/pure/v1/execution/execute', withContext(input), signal);
   }
 }
 

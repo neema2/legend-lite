@@ -132,6 +132,9 @@ interface Sql {
 // operands (raiseText) -- planning data this runner never reads; it sends the statement's text as written
 // 53 since 2026-11-13 (E-4): every cast and case of a statement's tree names its reason
 const PLAN_VERSION = 53;
+// the version a test's stand-in plan is written at (the doors' witnesses, engine-client/test/run-frame.test.ts); the
+// declaration above stays one line, as PlanVersionsAgreeTest reads it
+export { PLAN_VERSION };
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -258,7 +261,7 @@ export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; 
 }
 
 /**
- * A LOAD'S PLAN RUN IN ONE TRANSACTION (a person's file put into a declared table: model-data.ts loadFileTable) --
+ * A LOAD'S PLAN RUN IN ONE TRANSACTION (a person's file put into a declared table: model-data.ts putFile) --
  * `work` (the host's run of it: runLoad) between the transaction statements the load's target carries, so a refused
  * file leaves the table as it was. The statements are the plan's (the re-audit's S8, 2026-11-12: until then the host
  * asked the planner for them at run).
