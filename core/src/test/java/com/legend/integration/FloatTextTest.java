@@ -50,7 +50,12 @@ class FloatTextTest {
      *  program, 2026-11-16): the literal as its literal processor writes it, then the database's cast. The default
      *  processor writes legend-pure's print bare, an exact numeric the database prints as written (legend-engine passes
      *  {@code testFloatToStringWithNegativeExponent} on DuckDB); H2's writes {@code CAST(%s AS FLOAT)}, a double, which
-     *  H2 prints with an exponent (legend-engine's H2 manifest expects {@code '1.3421E-8'} and {@code '1.3421E8'}). */
+     *  H2 prints with an exponent ({@code h2Extension2_1_214.pure:152}). The H2 answers are legend-engine's own: its H2
+     *  manifest's expected failures (legend-engine 4.145.0,
+     *  {@code legend-engine-xt-relationalStore-h2-PCT/.../relational-h2/EssentialFunctions_manifest.json:628-632}:
+     *  {@code testFloatToStringWithNegativeExponent} "expected: '0.000000013421' actual: '1.3421E-8'",
+     *  {@code testFloatToStringWithPositiveExponent} "expected: '134210000.0' actual: '1.3421E8'"); the edge is
+     *  identical to legend-engine on each database (the orchestrator's ruling, 2026-11-16). */
     @Test
     void anEdgeFloatLiteralsTextIsLegendEnginesSql() throws Exception {
         TestBackend backend = LaneFloor.backend();
