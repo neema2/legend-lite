@@ -52,6 +52,7 @@ public final class AliasPrefix extends SqlRewriter {
                     new SqlSource.Values(v.rows(), v.columns(), p(v.alias()), v.outputs(), v.payload());
             case SqlSource.Pivot pv -> new SqlSource.Pivot(pv.source(), pv.on(), pv.in(), pv.named(),
                     pv.usings(), p(pv.alias()), pv.outputs());
+            case SqlSource.RowValues rv -> new SqlSource.RowValues(rv.rows(), rv.values(), p(rv.alias()), rv.outputs());
         };
     }
 

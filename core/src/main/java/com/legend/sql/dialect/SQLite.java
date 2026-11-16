@@ -69,6 +69,12 @@ import java.util.Set;
  */
 public class SQLite extends AnsiSqlRenderer {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): no lateral subquery. */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** {@inheritDoc} -- SQLite: half its SQLITE_MAX_SQL_LENGTH (1,000,000 bytes), a margin for multi-byte text. */
     @Override
     public int fusedStatementBudget() {

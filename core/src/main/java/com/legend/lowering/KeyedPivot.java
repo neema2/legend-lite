@@ -97,6 +97,7 @@ public final class KeyedPivot {
                 collect(j.left(), out);
                 collect(j.right(), out);
             }
+            case SqlSource.RowValues rv -> collect(rv.rows(), out);
             case SqlSource.Table t -> {
             }
             case SqlSource.Cte c -> {

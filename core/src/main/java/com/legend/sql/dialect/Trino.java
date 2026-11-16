@@ -46,6 +46,12 @@ import java.util.Set;
  */
 public class Trino extends AnsiSqlRenderer {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): LATERAL, to measure on its lane. */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** Trino (2026-10-12, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §18): double quotes; Trino's documented reserved
      *  keywords. The {@code Trino} dialect quotes every identifier, so the list decides no spelling there. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of(

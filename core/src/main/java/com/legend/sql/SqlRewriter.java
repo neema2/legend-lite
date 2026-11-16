@@ -127,6 +127,15 @@ public abstract class SqlRewriter {
                 yield l == j.left() && r == j.right() && on == j.on() ? j
                         : new SqlSource.Join(l, r, j.kind(), on);
             }
+            case SqlSource.RowValues rv -> {
+                SqlSource rows = rewriteSource(rv.rows());
+                List<SqlSelect.Projection> vs = mapList(rv.values(), p -> {
+                    SqlExpr e2 = rewriteExpr(p.expr());
+                    return e2 == p.expr() ? p : new SqlSelect.Projection(e2, p.alias(), p.out());
+                });
+                yield rows == rv.rows() && vs == rv.values() ? rv
+                        : new SqlSource.RowValues(rows, vs, rv.alias(), rv.outputs());
+            }
             case SqlSource.Pivot p -> {
                 SqlSource src = rewriteSource(p.source());
                 List<SqlExpr> on = mapList(p.on(), this::rewriteExpr);

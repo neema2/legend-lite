@@ -31,6 +31,12 @@ import java.util.Set;
  */
 public class H2 extends AnsiSqlRenderer {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): no lateral subquery. */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** The words H2 2.x reserves that legend-engine's own H2 session frees ({@code NON_KEYWORDS}: H2Manager's list,
      *  4.145.0), so a golden replayed here reads as it did in the engine's run. A session's setting, which commits no
      *  transaction: H2's session statement ({@link #sessionSetup}). */

@@ -169,6 +169,43 @@ public sealed interface SqlSource {
         }
     }
 
+    /**
+     * A ROW'S VALUES COMPUTED ONCE (the lean program's step 7, ruled 2026-11-16): {@code rows}, each with
+     * {@code values} computed once over it and read by column as {@code alias.<name>}. What holds, not how it is
+     * written: each dialect writes it in its own form ({@code readsRowLets}: a lateral of one row per row, or each
+     * value written back where it is read, {@link RowLets.Inline}). A value never reads another value of the same
+     * {@code RowValues}; one that reads an earlier binding reads the {@code RowValues} below it. One row per row, in
+     * order: the select over it reads exactly {@code rows}' rows.
+     */
+    record RowValues(SqlSource rows, List<SqlSelect.Projection> values, String alias, List<OutputCol> outputs)
+            implements SqlSource {
+
+        /** {@code rows} with {@code values}; its columns, {@code rows}' then the values', computed here once. */
+        public RowValues(SqlSource rows, List<SqlSelect.Projection> values, String alias) {
+            this(rows, values, alias, delivered(rows, values));
+        }
+
+        public RowValues {
+            values = List.copyOf(values);
+            if (values.isEmpty()) {
+                throw new IllegalArgumentException("a row binding binds at least one value");
+            }
+            for (SqlSelect.Projection p : values) {
+                if (p.alias() == null || p.out() == null) {
+                    throw new IllegalArgumentException("a row binding's value is named and typed: " + p);
+                }
+            }
+        }
+
+        private static List<OutputCol> delivered(SqlSource rows, List<SqlSelect.Projection> values) {
+            List<OutputCol> all = new ArrayList<>(rows.outputs());
+            for (SqlSelect.Projection p : values) {
+                all.add(java.util.Objects.requireNonNull(p.out(), "a bound value's column"));
+            }
+            return List.copyOf(all);
+        }
+    }
+
     /** {@code frameName}: the derived table's MODEL identity (a view's
      * own name) — null for anonymous isolation subselects. Dialects that
      * re-alias by table group name view frames by it. */

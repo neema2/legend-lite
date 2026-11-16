@@ -526,8 +526,8 @@ final class LetBinding {
 
     /**
      * {@code q} with what each of its FROM selects writes more than once over its own row computed once beside the
-     * row ({@link com.legend.sql.RowLets}: {@code CROSS JOIN LATERAL (SELECT <value> AS __rv0) AS __r0}); a database
-     * that reads no lateral writes it back where it stood. The rule is P1a's, over the row: a repeat worth binding by
+     * row ({@link SqlSource.RowValues}, read as {@code __r0.__rv0}; each dialect writes it in its own form, a lateral
+     * or the value written back where it stood). The rule is P1a's, over the row: a repeat worth binding by
      * P1a's count, reading only the select's own row (its FROM's aliases) and lambda parameters it binds, holding no
      * aggregate, window, subquery, check or tag; a value that can raise only where one copy is always evaluated by
      * every row the FROM gives -- the lateral is evaluated before the WHERE, so a copy in the WHERE, or in a term of a
@@ -665,29 +665,32 @@ final class LetBinding {
             top = Math.max(top, d);
         }
         Replace aliased = x -> x instanceof SqlExpr.Column c && PENDING.equals(c.table())
-                ? SqlExpr.Column.of(com.legend.sql.RowLets.ALIAS_PREFIX + levelOf.get(c.name()), c.name(),
+                ? SqlExpr.Column.of(com.legend.sql.RowLets.ALIAS_PREFIX + levelOf(levelOf, c.name()), c.name(),
                         ((com.legend.sql.TypeFact.Typed) c.type()).type(), true, OutputCol.Origin.DERIVED)
                 : null;
         SqlSource from = at.from();
         for (int level = 0; level <= top; level++) {
             List<SqlSelect.Projection> cols = new ArrayList<>();
-            List<OutputCol> outs = new ArrayList<>();
             for (Bound b : bound) {
-                if (levelOf.get(b.column()) == level) {
+                if (levelOf(levelOf, b.column()) == level) {
                     OutputCol o = new OutputCol(b.column(), b.type(), true, OutputCol.Origin.DERIVED);
                     cols.add(new SqlSelect.Projection(swapIn(b.value(), aliased), b.column(), o));
-                    outs.add(o);
                 }
             }
-            SqlSelect values = new SqlSelect(cols, false, new SqlSource.Dual(), null, List.of(), null, null, List.of(),
-                    null, null, outs);
-            from = new SqlSource.Join(from, new SqlSource.Subselect(values,
-                    com.legend.sql.RowLets.ALIAS_PREFIX + level, null), SqlSource.Join.Kind.CROSS_LATERAL, null);
+            from = new SqlSource.RowValues(from, cols, com.legend.sql.RowLets.ALIAS_PREFIX + level);
         }
         return swapTerms(at, aliased).withFrom(from);
     }
 
-    /** A bound value's pending reference, until its level names its lateral. */
+    private static int levelOf(java.util.Map<String, Integer> levels, String column) {
+        Integer level = levels.get(column);
+        if (level == null) {
+            throw new IllegalStateException("a row binding with no level: " + column);
+        }
+        return level;
+    }
+
+    /** A bound value's pending reference, until its level names its binding. */
     private static final String PENDING = "__r?";
 
     private static int rowDepth(Bound b, List<Bound> all, java.util.Set<String> seen) {
@@ -765,6 +768,9 @@ final class LetBinding {
             case SqlSource.Subselect sub -> new SqlSource.Subselect(map(sub.inner(), f), sub.alias(), sub.frameName());
             case SqlSource.Join j -> new SqlSource.Join(mapSource(j.left(), f), mapSource(j.right(), f), j.kind(),
                     opt(j.on(), f), j.outputs());
+            case SqlSource.RowValues rv -> new SqlSource.RowValues(mapSource(rv.rows(), f), rv.values().stream()
+                    .map(p -> new SqlSelect.Projection(mapExpr(p.expr(), f), p.alias(), p.out())).toList(), rv.alias(),
+                    rv.outputs());
             case SqlSource.Values v -> new SqlSource.Values(v.rows().stream()
                     .map(row -> row.stream().map(e -> mapExpr(e, f)).toList()).toList(), v.columns(), v.alias(),
                     v.outputs(), v.payload());

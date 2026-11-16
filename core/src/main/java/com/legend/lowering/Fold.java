@@ -845,6 +845,7 @@ final class Fold {
             case SqlSource.Subselect sub -> sub.alias().equals(c.table());
             case SqlSource.SourceUrl u -> u.alias().equals(c.table());
             case SqlSource.Pivot p -> p.alias().equals(c.table());
+            case SqlSource.RowValues rv -> rv.alias().equals(c.table()) || physicallyRenderable(rv.rows(), c);
         };
     }
 
@@ -1201,6 +1202,10 @@ final class Fold {
             // knowable: it is its aggregate TEMPLATE's (§4bZ-U leg 1, the
             // demand-driven stamp — only the name is runtime).
             case SqlSource.Pivot p -> pivotColumn(p, column);
+            // a bound value claims its own name; any other is its rows'
+            case SqlSource.RowValues rv -> claims(rv.values().stream()
+                    .map(v -> java.util.Objects.requireNonNull(v.out())).toList(), column)
+                    ? stamped(rv.alias(), rv.outputs(), column) : sourceColumn(rv.rows(), column, rejected);
             case SqlSource.Join j -> {
                 // §E3 M-N2 — JOIN-PAD PROVENANCE at the read door: a
                 // column resolved from a NULL-padded side may be NULL

@@ -46,6 +46,12 @@ import java.util.Set;
  */
 public class ClickHouse extends AnsiSqlRenderer {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): no lateral subquery (an expression alias is its form, to measure). */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** {@inheritDoc} -- ClickHouse: one assert's statement (up to ~45K characters, measured) parses well
      *  under its AST limit; 1.3M characters fused passed neither the limit nor, raised, the memory (10-12 GB). */
     @Override

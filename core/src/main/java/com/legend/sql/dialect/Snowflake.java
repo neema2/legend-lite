@@ -65,6 +65,12 @@ import java.util.Set;
  */
 public class Snowflake extends AnsiSqlRenderer {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): a lateral or alias reuse, to measure on its lane. */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** The engine's H2 text is refused here: Snowflake has no translation of it (decision D2: raw text runs on the
      *  database its connection declares; only the engine's H2 text is translated, for H2, DuckDB and Postgres). */
     @Override

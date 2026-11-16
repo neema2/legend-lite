@@ -63,6 +63,12 @@ import java.util.Set;
  */
 public class MariaDb extends AnsiSqlRenderer {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): no lateral subquery on MariaDB. */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** MariaDB (2026-10-11, docs/CLOUD_BACKENDS_PCT_2026_10_11.md §13): double quotes under the session's
      *  ANSI_QUOTES; MariaDB's reserved words. The {@code MariaDb} dialect quotes EVERY identifier, so the list decides
      *  no spelling there. */

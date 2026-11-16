@@ -50,6 +50,12 @@ import java.util.Set;
  */
 public class MongoDb extends AnsiSqlRenderer {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): an aggregation pipeline: its stages read the value where it stands. */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** No quoting: a field or collection name is spelled as a JSON string, never delimited. */
     public static final Lexicon LEXICON = new Lexicon('"', Set.of());
 

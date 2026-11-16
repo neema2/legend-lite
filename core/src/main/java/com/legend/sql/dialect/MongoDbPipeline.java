@@ -114,6 +114,7 @@ final class MongoDbPipeline {
                 throw new DialectCapability("sourceUrl reached MongoDb: no external source encoding");
             }
             case SqlSource.Pivot p -> baseOf(p.source());
+            case SqlSource.RowValues rv -> baseOf(rv.rows());
         };
     }
 
@@ -394,6 +395,9 @@ final class MongoDbPipeline {
                 }
                 join(w, j, st);
             }
+            // written back before the pipeline is written (MongoDb.readsRowLets: RowLets.Inline)
+            case SqlSource.RowValues rv -> throw new IllegalStateException("a row binding reached MongoDb's pipeline:"
+                    + " its values are written back before the pipeline is written");
             case SqlSource.Cte c -> throw new DialectCapability("a CTE reference reached MongoDb: no shape yet");
             case SqlSource.VarSetPlaceholder v -> throw new IllegalStateException("a plan variable (" + v.varName()
                     + ") reached an executable dialect: plan-text vocabulary only");

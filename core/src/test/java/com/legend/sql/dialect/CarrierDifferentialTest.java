@@ -629,6 +629,12 @@ class CarrierDifferentialTest {
             super(DuckDb.LEXICON);
         }
 
+        /** H2's capabilities: no lateral, so a row's bound values are written back (RowLets, 2026-11-16). */
+        @Override
+        protected boolean readsRowLets() {
+            return false;
+        }
+
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> passes() {
             CarrierStrategies carriers = new CarrierStrategies(H2.CAPS);

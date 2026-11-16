@@ -131,7 +131,9 @@ interface Sql {
 // 52 since 2026-11-13 (phase D's D1.1, merged onto 51): a statement's tree may hold a raise's message as its kind and
 // operands (raiseText) -- planning data this runner never reads; it sends the statement's text as written
 // 53 since 2026-11-13 (E-4): every cast and case of a statement's tree names its reason
-const PLAN_VERSION = 53;
+// 54 since 2026-11-16 (the lean program's step 7): a statement's tree may hold a row's values computed once beside it
+// (rowValues) -- planning data this runner never reads; it sends the statement's text as written
+const PLAN_VERSION = 54;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }

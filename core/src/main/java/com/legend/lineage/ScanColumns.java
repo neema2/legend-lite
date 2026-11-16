@@ -156,6 +156,7 @@ public final class ScanColumns {
             case SqlSource.Catalog c -> out.add(c.alias());
             case SqlSource.Subselect s -> out.add(s.alias());
             case SqlSource.Pivot p -> rootSpine(p.source(), out);
+            case SqlSource.RowValues rv -> rootSpine(rv.rows(), out);
             case SqlSource.Values v -> out.add(v.alias());
             case SqlSource.SourceUrl u -> out.add(u.alias());
             case SqlSource.Dual d -> { }
@@ -235,6 +236,15 @@ public final class ScanColumns {
                     (col, ctx, o) -> { });
             case SqlSource.Pivot p ->
                     collectEnv(p.source(), outer, env, out);
+            // a row's bound values: their rows' bindings, and each value's columns read where the value is read
+            case SqlSource.RowValues rv -> {
+                collectEnv(rv.rows(), outer, env, out);
+                Map<String, Resolver> rowsEnv = new LinkedHashMap<>(outer);
+                rowsEnv.putAll(env);
+                env.put(rv.alias(), (col, ctx, o) -> rv.values().stream()
+                        .filter(v -> col.equals(v.alias()))
+                        .forEach(v -> use(v.expr(), rowsEnv, ctx, o)));
+            }
             case SqlSource.SourceUrl u -> env.put(u.alias(),
                     (col, ctx, o) -> { });
         }

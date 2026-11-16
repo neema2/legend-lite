@@ -270,6 +270,9 @@ public final class SqlPostProcessors {
                     v.columns(), v.alias(), v.outputs(), v.payload());
             case SqlSource.SourceUrl u -> u;
             case SqlSource.Dual d -> d;
+            case SqlSource.RowValues rv -> new SqlSource.RowValues(source(rv.rows(), m), rv.values().stream()
+                    .map(v -> new SqlSelect.Projection(expr(v.expr(), m), v.alias(), v.out())).toList(), rv.alias(),
+                    rv.outputs());
         };
     }
 

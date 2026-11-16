@@ -28,6 +28,12 @@ import java.util.List;
  */
 public class MySql extends MariaDb {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): MySQL 8 reads LATERAL; inline until measured on its lane. */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     public MySql() {
         // MariaDB's reserved words and quoting: the same lexicon, named
         super(MariaDb.LEXICON);

@@ -74,6 +74,12 @@ import java.util.Set;
  */
 public class BigQuery extends AnsiSqlRenderer {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): no lateral subquery (UNNEST of one struct is its form, to measure). */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** {@inheritDoc} -- BigQuery: half its 1,024K-character query limit. */
     @Override
     public int fusedStatementBudget() {

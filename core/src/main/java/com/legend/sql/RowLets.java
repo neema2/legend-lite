@@ -9,109 +9,80 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * A ROW'S VALUES COMPUTED ONCE (step 7's second half, the lean program, 2026-11-16): an expression a select writes more
- * than once over its own row is bound once beside the row, {@code FROM <rows> CROSS JOIN LATERAL (SELECT <value> AS
- * __rv0) AS __r0}, and read by column. The lowering binds (LetBinding); this class names the shape and writes it back
- * inline for a database that reads no lateral ({@link Inline}), so every dialect either reads the binding in its own
- * form or writes the expression where it stood, the same query either way.
- *
- * <p>The shape: a {@link SqlSource.Join} of kind {@link SqlSource.Join.Kind#CROSS_LATERAL} whose right side is a
- * {@link SqlSource.Subselect} aliased {@code __r<N>} over a FROM-less select of plain projections.
+ * A ROW'S VALUES COMPUTED ONCE, WRITTEN BACK (the lean program's step 7, ruled 2026-11-16): the lowering binds what a
+ * select writes more than once over its own row as a {@link SqlSource.RowValues}; a dialect that does not read it in a
+ * form of its own writes each value back where it is read ({@link Inline}), the same query either way.
  */
 public final class RowLets {
 
     private RowLets() {
     }
 
-    /** The binding's alias prefix: {@code __r<level>}. */
+    /** A binding level's alias prefix: {@code __r<level>}. */
     public static final String ALIAS_PREFIX = "__r";
 
     /** A bound value's column prefix: {@code __rv<N>}. */
     public static final String COLUMN_PREFIX = "__rv";
 
-    /** Whether {@code j} is a row binding: a cross lateral over a FROM-less select aliased {@code __r<N>}. */
-    public static boolean is(SqlSource.Join j) {
-        return j.kind() == SqlSource.Join.Kind.CROSS_LATERAL
-                && j.right() instanceof SqlSource.Subselect sub
-                && sub.alias().startsWith(ALIAS_PREFIX) && isLevel(sub.alias())
-                && sub.inner() instanceof SqlSelect s && s.from() instanceof SqlSource.Dual;
-    }
-
-    private static boolean isLevel(String alias) {
-        String n = alias.substring(ALIAS_PREFIX.length());
-        return !n.isEmpty() && n.chars().allMatch(Character::isDigit);
-    }
-
     /**
-     * The row bindings written back where they stood, for a database that reads no lateral: each select whose FROM
-     * ends in row bindings reads its rows again, and each reference to a bound value is the value (a value reading an
-     * earlier binding is that binding's value, in turn).
+     * Each {@link SqlSource.RowValues} written back: the select over it reads its rows again, and each reference to a
+     * bound value is the value (a value reading a lower binding is that binding's value, in turn).
      */
     public static final class Inline extends SqlRewriter {
 
         @Override
         protected SqlQuery select(SqlSelect s) {
             SqlSource from = s.from();
-            List<SqlSource.Join> bindings = new ArrayList<>();
-            while (from instanceof SqlSource.Join j && is(j)) {
-                bindings.add(0, j);
-                from = j.left();
+            List<SqlSource.RowValues> levels = new ArrayList<>();
+            while (from instanceof SqlSource.RowValues rv) {
+                levels.add(0, rv);
+                from = rv.rows();
             }
-            if (bindings.isEmpty()) {
+            if (levels.isEmpty()) {
                 return s;
             }
             Map<String, SqlExpr> values = new HashMap<>();
-            for (SqlSource.Join j : bindings) {
-                SqlSource.Subselect sub = (SqlSource.Subselect) j.right();
-                SqlSelect inner = (SqlSelect) sub.inner();
-                for (SqlSelect.Projection p : inner.projections()) {
-                    values.put(sub.alias() + "." + p.alias(), substitute(p.expr(), values));
+            for (SqlSource.RowValues rv : levels) {
+                for (SqlSelect.Projection p : rv.values()) {
+                    values.put(rv.alias() + "." + p.alias(), swap(values).rewriteExprOf(p.expr()));
                 }
             }
-            SqlRewriter swap = new SqlRewriter() {
-                @Override
-                protected SqlExpr expr(SqlExpr e) {
-                    if (e instanceof SqlExpr.Column c && c.table() != null) {
-                        SqlExpr v = values.get(c.table() + "." + c.name());
-                        if (v != null) {
-                            return v;
-                        }
-                    }
-                    return e;
-                }
-            };
-            SqlSelect bare = new SqlSelect(s.projections(), s.distinct(), from, s.where(), s.groupBy(), s.having(),
-                    s.qualify(), s.orderBy(), s.limit(), s.offset(), s.outputs());
+            Swap all = swap(values);
             // the select's own terms only: its FROM is the rows, which read no binding
-            SqlSelect swapped = (SqlSelect) swap.rewrite(new SqlSelect(bare.projections(), bare.distinct(),
-                    new SqlSource.Dual(), bare.where(), bare.groupBy(), bare.having(), bare.qualify(), bare.orderBy(),
-                    bare.limit(), bare.offset(), bare.outputs()));
-            return new SqlSelect(swapped.projections(), swapped.distinct(), from, swapped.where(), swapped.groupBy(),
-                    swapped.having(), swapped.qualify(), swapped.orderBy(), swapped.limit(), swapped.offset(),
-                    swapped.outputs());
+            SqlSelect terms = (SqlSelect) all.rewrite(new SqlSelect(s.projections(), s.distinct(),
+                    new SqlSource.Dual(), s.where(), s.groupBy(), s.having(), s.qualify(), s.orderBy(), s.limit(),
+                    s.offset(), s.outputs()));
+            return new SqlSelect(terms.projections(), terms.distinct(), from, terms.where(), terms.groupBy(),
+                    terms.having(), terms.qualify(), terms.orderBy(), terms.limit(), terms.offset(), terms.outputs());
         }
 
-        private static SqlExpr substitute(SqlExpr e, Map<String, SqlExpr> values) {
-            if (values.isEmpty()) {
-                return e;
-            }
-            SqlRewriter swap = new SqlRewriter() {
-                @Override
-                protected SqlExpr expr(SqlExpr x) {
-                    if (x instanceof SqlExpr.Column c && c.table() != null) {
-                        SqlExpr v = values.get(c.table() + "." + c.name());
-                        if (v != null) {
-                            return v;
-                        }
-                    }
-                    return x;
+        private static Swap swap(Map<String, SqlExpr> values) {
+            return new Swap(Map.copyOf(values));
+        }
+    }
+
+    /** A reference to a bound value replaced by the value. */
+    private static final class Swap extends SqlRewriter {
+
+        private final Map<String, SqlExpr> values;
+
+        Swap(Map<String, SqlExpr> values) {
+            this.values = values;
+        }
+
+        SqlExpr rewriteExprOf(SqlExpr e) {
+            return values.isEmpty() ? e : rewriteExpr(e);
+        }
+
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            if (e instanceof SqlExpr.Column c && c.table() != null) {
+                SqlExpr v = values.get(c.table() + "." + c.name());
+                if (v != null) {
+                    return v;
                 }
-            };
-            SqlSelect one = (SqlSelect) swap.rewrite(new SqlSelect(
-                    List.of(new SqlSelect.Projection(e, "v", new OutputCol("v", SqlType.Scalar.VARCHAR, true))), false,
-                    new SqlSource.Dual(), null, List.of(), null, null, List.of(), null, null,
-                    List.of(new OutputCol("v", SqlType.Scalar.VARCHAR, true))));
-            return one.projections().get(0).expr();
+            }
+            return e;
         }
     }
 }

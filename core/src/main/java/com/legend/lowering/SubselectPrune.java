@@ -144,6 +144,10 @@ final class SubselectPrune {
                 starFromAliases(j.left(), r);
                 starFromAliases(j.right(), r);
             }
+            case SqlSource.RowValues rv -> {
+                r.starred().add(rv.alias());
+                starFromAliases(rv.rows(), r);
+            }
         }
     }
 
@@ -182,6 +186,11 @@ final class SubselectPrune {
                 // subselect dropped a pivot key)
                 starFromAliases(p.source(), r);
                 collectSource(p.source(), r);
+            }
+            // a bound value reads its rows' columns: each a reference, as a projection's
+            case SqlSource.RowValues rv -> {
+                rv.values().forEach(v -> collectExpr(v.expr(), r));
+                collectSource(rv.rows(), r);
             }
             case SqlSource.Values v ->
                     v.rows().forEach(row -> row.forEach(e -> collectExpr(e, r)));
@@ -380,6 +389,10 @@ final class SubselectPrune {
                 yield inner == p.source() ? p
                         : new SqlSource.Pivot(inner, p.on(), p.in(), p.named(), p.usings(),
                                 p.alias(), p.outputs());
+            }
+            case SqlSource.RowValues rv -> {
+                SqlSource rows = rewriteSource(rv.rows(), r);
+                yield rows == rv.rows() ? rv : new SqlSource.RowValues(rows, rv.values(), rv.alias());
             }
             case SqlSource.Values v -> v;
         };

@@ -143,6 +143,8 @@ public final class ColumnFacts {
                 yield defined != null && (alias == null || alias.equals(c.alias())) && rawGridCell(defined, col, ctes);
             }
             case SqlSource.Join j -> rawGridCellIn(j.left(), alias, col, ctes) || rawGridCellIn(j.right(), alias, col, ctes);
+            // a row's bound values are computed, never a raw grid's cell; its rows are read as they are
+            case SqlSource.RowValues rv -> !rv.alias().equals(alias) && rawGridCellIn(rv.rows(), alias, col, ctes);
             case SqlSource.Table t -> false;
             case SqlSource.Pivot p -> false;
             case SqlSource.Values v -> false;
@@ -179,6 +181,7 @@ public final class ColumnFacts {
                 pivotTemplates(j.left(), out);
                 pivotTemplates(j.right(), out);
             }
+            case SqlSource.RowValues rv -> pivotTemplates(rv.rows(), out);
             case SqlSource.Table t -> { }
             case SqlSource.Cte c -> { }
             case SqlSource.Values v -> { }
@@ -337,6 +340,8 @@ public final class ColumnFacts {
             }
             case SqlSource.Pivot p -> alias == null || alias.equals(p.alias())
                     ? storedInSource(p.source(), null, col, ctes) : null;
+            // a bound value declares nothing (computed); a column of its rows is the rows'
+            case SqlSource.RowValues rv -> rv.alias().equals(alias) ? null : storedInSource(rv.rows(), alias, col, ctes);
             case SqlSource.Values v -> null;
             case SqlSource.Dual d -> null;
             case SqlSource.SourceUrl u -> null;

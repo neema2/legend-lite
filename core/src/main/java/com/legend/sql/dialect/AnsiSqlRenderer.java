@@ -243,12 +243,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return java.util.List.copyOf(ps);
     }
 
-    /** Whether this dialect reads a row's bound values ({@link com.legend.sql.RowLets}) as the lowering wrote them, a
-     *  {@code CROSS JOIN LATERAL} of one row per row; else they are written back where they stood. Measured per
-     *  database before it reads them (the lean program's step 7, 2026-11-16). */
-    protected boolean readsRowLets() {
-        return false;
-    }
+    /** Whether this dialect reads a row's bound values ({@link SqlSource.RowValues}) in its own form
+     *  ({@link #rowValuesSource}), or has them written back where they are read ({@link com.legend.sql.RowLets.Inline}).
+     *  Every dialect answers: a database reads them only once measured (the lean program's step 7, 2026-11-16). */
+    protected abstract boolean readsRowLets();
 
     /** A HUGEINT-fact integer literal (past a signed BIGINT): bare, the database types it by its magnitude. */
     protected String hugeIntLiteral(java.math.BigDecimal v) {
@@ -676,6 +674,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                 yield nl(writer, depth).append(") AS ").append(aliasIdent(u.alias()));
             }
             case SqlSource.Pivot p -> pivotSource(writer, p, depth);
+            case SqlSource.RowValues rv -> rowValuesSource(writer, rv, depth);
             case SqlSource.Join j -> {
                 source(writer, j.left(), depth);
                 nl(writer, depth);
@@ -736,6 +735,23 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     /** The name of {@code v}'s column {@code i} in its alias list: a label ({@link #aliasIdent}). */
     protected String valuesColumn(SqlSource.Values v, int i) {
         return aliasIdent(v.columns().get(i));
+    }
+
+    /** A row's values computed once beside it ({@link SqlSource.RowValues}), where this dialect reads them
+     *  ({@link #readsRowLets}): a lateral of one row per row, {@code <rows> CROSS JOIN LATERAL (SELECT <value> AS
+     *  __rv0) AS __r0}. A dialect that does not read them never meets one: they are written back before its passes. */
+    protected SqlWriter rowValuesSource(SqlWriter writer, SqlSource.RowValues rv, int depth) {
+        if (!readsRowLets()) {
+            throw new IllegalStateException("a row binding reached a dialect that writes its values back: the"
+                    + " write-back pass did not run");
+        }
+        source(writer, rv.rows(), depth);
+        nl(writer, depth);
+        writer.append(joinKeyword(SqlSource.Join.Kind.CROSS_LATERAL)).append(" ");
+        SqlSelect values = new SqlSelect(rv.values(), false, new SqlSource.Dual(), null, List.of(), null, null,
+                List.of(), null, null, rv.values().stream().map(v -> java.util.Objects.requireNonNull(v.out()))
+                        .toList());
+        return subselectSource(writer, new SqlSource.Subselect(values, rv.alias(), null), depth);
     }
 
     /** Native PIVOT or a CASE-WHEN aggregation rewrite — no ANSI form exists. */

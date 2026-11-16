@@ -1347,6 +1347,7 @@ public final class PlanMaker {
                     case SqlSource.Subselect sub -> { }
                     case SqlSource.Values v -> { }
                     case SqlSource.Join j -> { }
+                    case SqlSource.RowValues rv -> { }
                 }
                 return s;
             }

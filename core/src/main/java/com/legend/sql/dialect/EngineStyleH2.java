@@ -28,6 +28,12 @@ import java.util.Set;
  */
 public class EngineStyleH2 extends AnsiSqlRenderer implements EngineTextDialect {
 
+    /** A row's bound values written back where they are read (RowLets, the lean program's step 7, 2026-11-16): the engine-text printer writes upstream's text. */
+    @Override
+    protected boolean readsRowLets() {
+        return false;
+    }
+
     /** {@inheritDoc} 9: H2's {@code TIMESTAMP '...'} literal keeps the digits it is written with, nine at most (S181, A7, 2026-11-10). */
     @Override
     protected int literalFractionDigits() {

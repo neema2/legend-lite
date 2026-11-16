@@ -41,7 +41,7 @@ public final class MirJson {
 
     enum QueryTag { select, union, with }
 
-    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet, gridReport }
+    enum SourceTag { table, subselect, cte, join, pivot, values, dual, sourceUrl, rawSql, catalog, varSet, gridReport, rowValues }
 
     enum ExprTag {
         rowOrder, storedRead, reduceCollection, membership, column, starExcept, star, stringLit, intLit, floatLit,
@@ -189,6 +189,21 @@ public final class MirJson {
                 o.put("kind", j.kind().name());
                 o.put("on", j.on() == null ? null : expr(j.on()));
                 o.put("outputs", outputCols(j.outputs()));
+            }
+            case SqlSource.RowValues rv -> {
+                o.put("_type", SourceTag.rowValues.name());
+                o.put("rows", source(rv.rows()));
+                List<Object> values = new ArrayList<>();
+                for (SqlSelect.Projection p : rv.values()) {
+                    Map<String, Object> vo = new LinkedHashMap<>();
+                    vo.put("expr", expr(p.expr()));
+                    vo.put("alias", p.alias());
+                    vo.put("out", outputCol(java.util.Objects.requireNonNull(p.out(), "a bound value's column")));
+                    values.add(vo);
+                }
+                o.put("values", values);
+                o.put("alias", rv.alias());
+                o.put("outputs", outputCols(rv.outputs()));
             }
             case SqlSource.Pivot p -> {
                 o.put("_type", SourceTag.pivot.name());
@@ -891,6 +906,16 @@ public final class MirJson {
                 yield new SqlSource.Join(readSource(o.getObj("left")), readSource(o.getObj("right")),
                         named(SqlSource.Join.Kind.class, o.getString("kind"), "join kind"),
                         on == null ? null : readExpr(on), readOutputCols(o.getArr("outputs")));
+            }
+            case rowValues -> {
+                List<SqlSelect.Projection> values = new ArrayList<>();
+                for (Json.Node n : o.getArr("values").items()) {
+                    Json.Obj v = (Json.Obj) n;
+                    values.add(new SqlSelect.Projection(readExpr(v.getObj("expr")), v.getString("alias"),
+                            readOutputCol(v.getObj("out"))));
+                }
+                yield new SqlSource.RowValues(readSource(o.getObj("rows")), values, o.getString("alias"),
+                        readOutputCols(o.getArr("outputs")));
             }
             case pivot -> {
                 List<SqlSource.Pivot.Using> usings = new ArrayList<>();

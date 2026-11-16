@@ -151,8 +151,11 @@ public final class PlanJson {
      *  2026-11-13 (phase D's D1.1, merged onto 51): a statement's tree may hold a {@code raiseText}, a raise's message as
      *  its {@code kind} and its {@code operands}. 53 since 2026-11-13 (E-4, the cast-and-case rule, its number after
      *  D's): every {@code cast} and {@code caseExpr} of a statement's tree names its {@code reason}
-     *  ({@code SqlExpr.Reason}'s code), the cast's {@code conform} flag folded into it. */
-    public static final int VERSION = 53;
+     *  ({@code SqlExpr.Reason}'s code), the cast's {@code conform} flag folded into it. 54 since 2026-11-16 (the lean
+     *  program's step 7, ruled by the orchestrator): a statement's tree may hold a {@code rowValues} source, a row's
+     *  values computed once beside it ({@code SqlSource.RowValues}: its {@code rows}, its named {@code values} and
+     *  their {@code alias}). */
+    public static final int VERSION = 54;
 
     private PlanJson() {
     }
