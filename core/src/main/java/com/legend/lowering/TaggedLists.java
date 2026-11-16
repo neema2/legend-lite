@@ -474,7 +474,8 @@ final class TaggedLists {
      *  text, anything else a JSON string of its text. */
     private static SqlExpr json(SqlExpr.TaggedList tl) {
         String p = "_tlj";
-        SqlExpr texts = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, tl.positions(), new SqlExpr.Lambda(List.of(p),
+        // through map's one carrier emission (the carrier purity ratchet: no new direct LIST_ site)
+        SqlExpr texts = map(tl, new SqlExpr.Lambda(List.of(p),
                 MixedEncoding.perCandidate(tl.element(SqlExpr.Column.derived(null, p)), TaggedLists::jsonValue)));
         return Scalars.cat(new SqlExpr.StringLit("["),
                 SqlExpr.Call.of(SqlFn.COALESCE,

@@ -3981,7 +3981,9 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.compiler.spec.SortChecker", 8),
                     java.util.Map.entry("com.legend.compiler.spec.SourceSubst", 10),
                     java.util.Map.entry("com.legend.compiler.spec.StaticFold", 12),
-                    java.util.Map.entry("com.legend.compiler.spec.TdsDesugars", 58),
+                    // 58 -> 55 (2026-11-16, W1 of docs/records/d-plan-2026-11-16.md: D1.3's merge -- a TDS cell's text is
+                    // one cellText call, the TDSNull desugar the edge's -- shrinkage, ratcheted down)
+                    java.util.Map.entry("com.legend.compiler.spec.TdsDesugars", 55),
                     java.util.Map.entry("com.legend.compiler.spec.TdsNullForms", 1),
                     java.util.Map.entry("com.legend.compiler.spec.TypeAnnotations", 1),
                     java.util.Map.entry("com.legend.compiler.spec.Typer", 17),
@@ -3992,7 +3994,8 @@ final class ArchitectureTest {
                     java.util.Map.entry("com.legend.lineage.ScanRelations", 2),
                     java.util.Map.entry("com.legend.model.MappingFromProtocol", 4),
                     java.util.Map.entry("com.legend.test.PureTestRunner", 2),
-                    java.util.Map.entry("com.legend.edge.ServiceTestRunner", 2),
+                    // com.legend.edge.ServiceTestRunner (2): gone from the scan 2026-11-16 (W1's merge of D1.4): the
+                    // runner is //core:edge_service_tests, the compatibility edge's own library, outside core's classes
                     java.util.Map.entry("com.legend.validation.ValidateDesugar", 22)
             ));
 
