@@ -812,7 +812,7 @@ class JavaEvalLedgerTest {
             // 127 -> 268 (2026-10-31, the shared preparation): the body driver's prelude's framing and its classification of a
             // statement's answer with no plan (prepare), the orchestration handle's type, the effect scan, and the bare plan with
             // no session (bare) -- from the body driver; the answers that run stay there
-            Map.entry("core/src/main/java/com/legend/planner/BodyPlanner.java", 343),   // 341 -> 343 (2026-11-06, I1: the runtime wall's guard at boundContext -- RunScope.planning, a run that would bind a runtime's context refused by name; a guard, nothing evaluated)   // 336 -> 341 (2026-11-01, the test-is-the-product plan's M9c): lowererFor binds the environment's trace-stamp parameters (PlanEnv.stamps) as typed String plan parameters, as the program road binds every stamp it minted (PlanMaker.withStamps); plumbing, nothing evaluated   // 294 -> 336 (2026-11-01, the test-is-the-product plan's MRa, R20): imports for the inline fully-qualified names, one line each; nothing evaluated   // 282 -> 294 (2026-11-01, the test-is-the-product plan's M3h, R17 C9): a statement's from() frame's own table renames merged with the environment's, a conflict refused by name; nothing evaluated   // 268 -> 282 (2026-10-31, S2j's first piece): the generator's view SQL (viewSql), from the body driver
+            Map.entry("core/src/main/java/com/legend/planner/BodyPlanner.java", 345),   // 343 -> 345 (2026-11-15, phase D's D1.2, register S312: the resolver handed the plan style's text of a graph fetch's key arguments -- one call, two method references; nothing evaluated)   // 341 -> 343 (2026-11-06, I1: the runtime wall's guard at boundContext -- RunScope.planning, a run that would bind a runtime's context refused by name; a guard, nothing evaluated)   // 336 -> 341 (2026-11-01, the test-is-the-product plan's M9c): lowererFor binds the environment's trace-stamp parameters (PlanEnv.stamps) as typed String plan parameters, as the program road binds every stamp it minted (PlanMaker.withStamps); plumbing, nothing evaluated   // 294 -> 336 (2026-11-01, the test-is-the-product plan's MRa, R20): imports for the inline fully-qualified names, one line each; nothing evaluated   // 282 -> 294 (2026-11-01, the test-is-the-product plan's M3h, R17 C9): a statement's from() frame's own table renames merged with the environment's, a conflict refused by name; nothing evaluated   // 268 -> 282 (2026-10-31, S2j's first piece): the generator's view SQL (viewSql), from the body driver
             // a frame's chain planned (the seam program's S2g, third step, 2026-10-31): moved from the body driver, pinned where it went
             Map.entry("core/src/main/java/com/legend/planner/FramePlanner.java", 214),   // 212 -> 214 (2026-11-15, the C5-J audit's nit: the executeLegendQuery activity through PlanAllocations.activityOrNone, one rule with execute()'s -- two effectively-final locals for its lambda; still below main's 219; nothing evaluated)   // 219 -> 212 (2026-11-15, C5-J item 4, G7: the legendQuery activity SQL's catch-and-continue deleted -- a chain with no engine-style render fails the body by name; nothing evaluated)   // 199 -> 219 (2026-11-01, the test-is-the-product plan's M9b audit, F5): relationRooted, a frame's relation-rootedness read off the query lambda's typed root with no chain built and no raise, for the body-class rule; planning over a typed fact, nothing evaluated   // 201 -> 199 (2026-11-01, MR's audit fold): two fully-qualified names split across lines joined and imported; nothing evaluated   // 176 -> 201 (2026-11-01, the test-is-the-product plan's MRa, R20): imports for the inline fully-qualified names, one line each; nothing evaluated   // 172 -> 176 (2026-11-01, the test-is-the-product plan's M3g): the CTE planner takes its chain's lowering (the walk's identity lane or the product's), its old signature delegating; nothing evaluated   // 140 -> 172 (2026-10-31, the test-is-the-product plan's M3f): the frame renames' union (renames), from the body driver's frameReplaceEnv, which delegates; nothing evaluated   // 96 -> 140 (2026-10-31, the shared preparation): the frame's planned CTE and class extent rows (cte), from the body driver's buildFrame
             // a let's kind (the seam program's S2b, 2026-10-31): the frame alias analysis from the body driver, the
@@ -1724,11 +1724,8 @@ class JavaEvalLedgerTest {
                     // a tagged column's cell as a decoder hands it to the batch (track F, 2026-10-29; D57 (5)): the
                     // slot index and the slot's carrier, a record of two fields and nothing computed
                     "TaggedCell.java",
-                    // legend-engine's PURE_TDSOBJECT serialization (the doors, 2026-10-29; D63): the service test
-                    // runner's answer as a writer at the boundary -- objects keyed by the presented column name, each
-                    // cell legend-engine's token (CellText.engine); a to-one value as its one cell; spells, decides
-                    // nothing
-                    "TdsObjectsWriter.java",
+                    // TdsObjectsWriter.java went to the edge 2026-11-15 (phase D's D1.4: legend-engine's PURE_TDSOBJECT,
+                    // the service test runner's; listed in the edge's funnel below)
                     // where a run's answer goes, as data (2026-11-09, the user's question "why do we have any
                     // callbacks?"): a closed set of formats and their streams, the writer chosen by the answer's shape
                     // from the plan before any statement runs (PureV1Writer.Facts, the envelope's facts read before the
@@ -1762,10 +1759,19 @@ class JavaEvalLedgerTest {
                             "EffectTexts.java", "PureMessages.java",
                             // legend-engine's text printers (O3) and the dialects spelled upstream's way (D1.0)
                             "EngineStyleH2.java", "EngineStyleDB2.java", "EngineStyleComposite.java", "PureText.java",
+                            // legend-pure's print forms written for the product's text nodes, one rewrite (D1.2,
+                            // 2026-11-15): a node for a node, no value met
+                            "PurePrintForms.java",
                             // pure/v1's routes and the test-data routes (D1.0b): read, compile and plan only
                             "PureV1Routes.java", "TestDataRoutes.java",
                             // the referee's load of a fixture's rows, planned (the edge's appeals, G6)
-                            "RefereeLoad.java"),
+                            "RefereeLoad.java",
+                            // legend-engine's service tests (D1.4, 2026-11-15, moved from com.legend.test and
+                            // com.legend.result): the runner -- a test's data seeded and its query run through the
+                            // test door, its answer compared as the test's JSON -- and legend-engine's PURE_TDSOBJECT
+                            // writer, objects keyed by the presented column name, each cell legend-engine's token
+                            // (CellText.engine); spells, decides nothing
+                            "ServiceTestRunner.java", "TdsObjectsWriter.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

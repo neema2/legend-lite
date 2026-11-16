@@ -90,6 +90,8 @@ class CompatSpellingGuardTest {
             "D1.6",   // the compile messages in the product's own wording, keyed by kind
             "D1.7",   // engine text (EngineText, EnginePlans' text half, EngineStyle*), RawSqlBoundary, appeals, referee
             "D1.8",   // pure/v1's upstream routes (and the query store they answer) to the edge
+            "D1.9",   // the judges' compatibility to the edge, handed in by a hook (the user, 2026-11-15: COMPILED_PURE_COMPAT's
+                      // branches, Pure's sentences the asserts expect, the canons that reproduce legend-pure's equality)
             "HOOK",   // the edge's hook: a type the product's plan style names so the edge hands its printers in, the
                       // product's style refusing it by name (O3; the D part 1 audit's nit, 2026-11-15)
             "JUDGE",  // the judges' own canon on the test road (D0 §10): not compatibility, never moved
@@ -105,9 +107,12 @@ class CompatSpellingGuardTest {
             "compiler/element/ModelIntegrity.java | Invalid supertype | 1 | D1.6",
             "compiler/element/TypeClassifier.java | arguments count ( | 1 | D1.6",
             "compiler/element/TypeClassifier.java | variables count ( | 1 | D1.6",
-            "compiler/element/type/PlatformTypes.java | TDS_NULL_CELL | 2 | D1.3",
+            // D1.3 -> D1.9 (2026-11-15): the constant's users are the judges' (VerdictSql, SideShapes), the #TDS
+            // literal's input read (Scalars, STAYS) and the edge (EngineStyleH2); no product text writes it any more
+            "compiler/element/type/PlatformTypes.java | TDS_NULL_CELL | 2 | D1.9",
             "compiler/spec/TableReferenceChecker.java | Can't find  | 1 | D1.6",
-            "compiler/spec/TdsDesugars.java | TDS_NULL_CELL | 2 | D1.3",
+            // compiler/spec/TdsDesugars.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a TDS cell's toString is cellText,
+            // empty where the cell is in the product, legend-engine's TDSNull at the edge)
             "compiler/spec/TdsDesugars.java | trying to get an element at offset | 1 | D1.6",
             // 2026-11-13 (phase D's O3): the plan style names the type it hands the planner -- the edge's printers
             // implement it; the product's style refuses it by name -- so it stays while the engine-text natives plan
@@ -118,29 +123,60 @@ class CompatSpellingGuardTest {
             "exec/PlanParameters.java | Missing external parameter(s) | 1 | D1.6",
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
-            "exec/PlanRunner.java | traceComment | 1 | D1.4",
-            "executionplan/ExecutionPlan.java | executionTraceID | 1 | D1.4",
-            "executionplan/ExecutionPlan.java | traceComment | 1 | D1.4",
+            // exec/PlanRunner.java | traceComment and executionplan/ExecutionPlan.java's executionTraceID and traceComment:
+            // gone 2026-11-15 (D1.4: the runner binds the execution's id; an activity row's comment is the TRACE_TEXT
+            // node, the id in the product, legend-engine's comment around it written by the edge, PurePrintForms; the
+            // comment's one Java spelling, the engine answer's activity, moved into PureV1Writer, which goes at D1.8)
             "lowering/DateFormats.java | +0000 | 1 | STAYS",
-            "lowering/LiteralSpelling.java | +0000 | 8 | D1.2",
+            // 8 -> 7 (2026-11-15, D1.2: dateTimeText's composition moved to sql/dialect/DateTimePrintText, the judges' and
+            // the edge's node DATETIME_PRINT; the product's DateTime text is DATETIME_TO_TEXT, ISO with Z). What stays:
+            // the judges' canon (temporalCanon, dateTimeLiteralAt: D1.9) and the TDS text's (Render's: D1.3)
+            // D1.3 -> D1.9 (2026-11-15, D1.3's end): 4 are the judges' canon (temporalCanon, dateTimeLiteralAt), 3 the
+            // TDS text's (Render's dateTimeTextTds, dateTimeTextOfText), which the product now refuses by name
+            // (RELATION_TEXT) and only the edge writes: both move with D1.9's hook, which hands the lowering the edge's
+            // and the judges' compositions
+            "lowering/LiteralSpelling.java | +0000 | 7 | D1.9",
             "lowering/LiteralSpelling.java | FLOAT_CANON | 1 | JUDGE",
-            "lowering/LiteralSpelling.java | FLOAT_PRINT | 1 | D1.2",
-            "lowering/Lowerer.java | TDS_NULL_CELL | 1 | D1.3",
+            // FLOAT_PRINT, reclassified D1.2 -> JUDGE 2026-11-15 (phase D's D1.2): the product's text of a Float is
+            // FLOAT_TO_TEXT, lite's six decimals (register S311); FLOAT_PRINT, legend-pure's print form, stays in each
+            // product dialect as the JUDGES' %r of a Float in an assert's message (lowering/Repr: the database judge
+            // prints a value as the host judge does, judge parity G2) -- the edge writes it for FLOAT_TO_TEXT
+            // (edge/PurePrintForms). LiteralSpelling's row went (it writes FLOAT_TO_TEXT); Repr's added (the judges' arm)
+            // lowering/Lowerer.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: a row's cells joined skip an empty one, the
+            // CELL_TEXT node; legend-engine's TDSNull is the edge's, edge/PurePrintForms)
             "lowering/Lowerer.java | withEngineText | 1 | D1.7",
-            "lowering/Repr.java | Repr | 2 | D1.3",
-            "lowering/Scalars.java | +0000 | 2 | D1.2",
-            "lowering/Scalars.java | @_ | 1 | D1.3",
-            "lowering/Scalars.java | Repr | 2 | D1.3",
-            "lowering/Scalars.java | TDS_NULL_CELL | 2 | D1.3",
-            "lowering/Scalars.java | dateLiteralPrint | 3 | D1.2",
-            "lowering/Scalars.java | signedZeroPad | 2 | D1.3",
+            "lowering/Repr.java | FLOAT_PRINT | 1 | JUDGE",
+            // D1.3 -> D1.9 (2026-11-15): Repr is the judges' %r (and format's %r, which the assert bodies write): it
+            // moves with the judges
+            "lowering/Repr.java | Repr | 2 | D1.9",
+            // 2 -> 1 (2026-11-15, D1.2: a DateTime literal's text is a node carrying its written text, the edge's +0000).
+            // What stays reads a TDS cell's zone suffix as INPUT (a PCT fixture's +0000 or Z dropped), no spelling
+            // written: D2 reviews it
+            "lowering/Scalars.java | +0000 | 1 | STAYS",
+            // lowering/Scalars.java | @_: gone 2026-11-15 (D1.3: an instance's toString is the INSTANCE_TEXT node, refused
+            // by the product's renderer -- an object is written by graph fetch -- and composed by the edge)
+            // toRepresentation's (STAYS: its answer is Pure's source form by definition, the orchestrator's ruling of
+            // 2026-11-15, on D2's list for the user) and format's %r, which the assert bodies' messages write (the
+            // judges' Repr, measured 2026-11-15: AssertBarTest's assertNotEq message): it moves with them, D1.9, and
+            // the row falls to 1 STAYS
+            "lowering/Scalars.java | Repr | 2 | D1.9",
+            // 2 -> 1 (2026-11-15, D1.3: makeString's empty element skipped, the CELL_TEXT node, legend-engine's
+            // TDSNull the edge's), reclassified STAYS: what stays reads a #TDS literal's TDSNull cell as NULL -- INPUT,
+            // the text legend-pure's TDS literal writes for an empty cell, read, never written: D2 reviews it
+            "lowering/Scalars.java | TDS_NULL_CELL | 1 | STAYS",
+            // lowering/Scalars.java | dateLiteralPrint: gone 2026-11-15 (D1.2: dateLiteralText, a literal that is no
+            // DateTime; a DateTime literal's text the DATETIME_TO_TEXT node, its written text the edge's)
+            // lowering/Scalars.java | signedZeroPad: gone 2026-11-15 (D1.3: format's %0<w>d is the FORMAT_PADDED node,
+            // refused by the product's renderer, legend-pure's padding composed by the edge, edge/PurePrintForms)
             "lowering/VerdictSql.java | Repr | 3 | JUDGE",
             "lowering/VerdictSql.java | TDS_NULL_CELL | 1 | JUDGE",
             "normalizer/ImplicitInheritance.java | Can't find  | 1 | D1.6",
             "normalizer/MappingClosures.java | Can't find  | 2 | D1.6",
             "normalizer/MappingNormalizer.java | Can't find  | 1 | D1.6",
             "normalizer/MappingValidation.java | Can't find  | 1 | D1.6",
-            "plan/PlanNode.java | executionTraceID | 1 | D1.4",
+            // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
+            // engine's post-processor's constant: it moves with EnginePlans' text half
+            "plan/PlanNode.java | executionTraceID | 1 | D1.7",
             "planner/BodyPlanner.java | EnginePlans | 3 | D1.7",
             "planner/EnginePlans.java | EnginePlans | 2 | D1.7",
             // 20 -> 12 (2026-11-13, phase D's O3: the printers reached through the plan style, PlanStyle.engineText)
@@ -167,71 +203,87 @@ class CompatSpellingGuardTest {
             // literal, dropping the zone the compiler's text writes ("+0000"): input read, not a spelling written
             "protocol/ts/TsShow.java | +0000 | 1 | STAYS",
             "resolver/ChainDispatch.java | Cast exception:  | 1 | D1.1",
-            "resolver/ClassSources.java | TDS_NULL_CELL | 1 | D1.3",
-            "resolver/GraphEmission.java | +0000 | 2 | D1.2",
+            // resolver/ClassSources.java | TDS_NULL_CELL: gone 2026-11-15 (D1.3: an absent system fact is an empty
+            // cell, which a literal cell reads as NULL as it read TDSNull -- an internal marker, never a spelling)
+            // resolver/GraphEmission.java | +0000: gone 2026-11-15 (D1.2, the orchestrator's ruling under the user's of
+            // 2026-11-10, S312: a graph fetch's key arguments in the plan style's text, PlanStyle.graphKeyDate/String;
+            // legend-engine's +0000 and quoting the edge's)
             "resolver/Substitution.java | Cast exception:  | 1 | D1.1",
             "result/CellText.java | +0000 | 1 | D1.4",
             "result/CellText.java | @_ | 1 | D1.4",
-            "result/CellText.java | presentedName | 1 | D1.4",
-            "result/CsvWriter.java | presentedName | 1 | D1.4",
-            "result/JsonRowsWriter.java | presentedName | 1 | D1.4",
-            "result/Output.java | PureV1Writer | 12 | D1.4",
-            "result/PureV1Writer.java | PureV1Writer | 6 | D1.4",
-            "result/PureV1Writer.java | presentedName | 2 | D1.4",
-            "result/PureV1Writer.java | traceComment | 1 | D1.4",
-            "result/TdsObjectsWriter.java | TdsObjectsWriter | 2 | D1.4",
-            "result/TdsObjectsWriter.java | presentedName | 1 | D1.4",
+            // D1.4 -> D1.8 (2026-11-15): legend-engine's pivot quoting, CellText's engine half, read by the engine writers
+            "result/CellText.java | presentedName | 1 | D1.8",
+            // result/CsvWriter.java and result/JsonRowsWriter.java | presentedName: gone 2026-11-15 (D1.4: a pivot's
+            // generated name bare in lite's writers, register S315)
+            // D1.4 -> D1.8 (2026-11-15, the orchestrator's ruling: no exception; PureV1Writer, Output.Engine/Arrow and
+            // CellText's engine half move at D1.8, with D-1's host halves un-parked): the engine's answer writer and its
+            // formats. traceComment 1 -> 2 and executionTraceID +1 (2026-11-15): the trace comment's method moved here
+            // from ExecutionPlan (its two rows gone above), the engine answer's activity its one Java reader
+            "result/Output.java | PureV1Writer | 12 | D1.8",
+            "result/PureV1Writer.java | PureV1Writer | 6 | D1.8",
+            "result/PureV1Writer.java | executionTraceID | 1 | D1.8",
+            "result/PureV1Writer.java | presentedName | 2 | D1.8",
+            "result/PureV1Writer.java | traceComment | 2 | D1.8",
+            // result/TdsObjectsWriter.java (TdsObjectsWriter 2, presentedName 1) and test/ServiceTestRunner.java
+            // (PureV1Writer 1, TdsObjectsWriter 1): gone 2026-11-15 (D1.4: legend-engine's service tests and their
+            // PURE_TDSOBJECT writer moved to the edge, //core:edge_service_tests)
             "server/PureV1Api.java | Missing external parameter(s) | 1 | D1.6",
             "server/PureV1Api.java | PureV1Writer | 17 | D1.8",
-            "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.3",
+            // D1.3 -> D1.9 (2026-11-15): the constant PlatformTypes names, the judges' and the edge's (above)
+            "sql/SqlExpr.java | TDS_NULL_CELL | 1 | D1.9",
             "sql/SqlFn.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/SqlFn.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/SqlFn.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/SqlTyping.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/SqlTyping.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/SqlTyping.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/AnsiSqlRenderer.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/BigQuery.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/BigQuery.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/BigQuery.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/ClickHouse.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/ClickHouse.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/ClickHouse.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Databricks.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/Databricks.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/Databricks.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/DuckDb.java | StableScanOrder | 1 | D1.5",
             "sql/dialect/DuckDb.java | legend.exec.engineScanOrder | 1 | D1.5",
             "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | D1.7",
             "sql/dialect/FloatCanonText.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | D1.2",
             // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
             // engine's list once more to derive H2's own keywords; the same D1.5 move takes it)
+            // 2026-11-15 (D1.2): legend-pure's DateTime text, moved here from lowering/LiteralSpelling (dateTimeText) as the
+            // node DATETIME_PRINT the judges' %r and canon read, and the edge writes for DATETIME_TO_TEXT; D1.9 moves it
+            "sql/dialect/DateTimePrintText.java | +0000 | 2 | JUDGE",
+            "sql/dialect/FloatPrintText.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/H2.java | ENGINE_LEXICON | 3 | D1.5",
             "sql/dialect/H2.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/H2.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/H2.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MariaDb.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/MariaDb.java | FLOAT_PRINT | 1 | D1.2",
-            "sql/dialect/MongoDb.java | +0000 | 4 | D1.2",
+            "sql/dialect/MariaDb.java | FLOAT_PRINT | 1 | JUDGE",
+            // sql/dialect/MongoDb.java | +0000: gone 2026-11-15 (D1.2: its date-time format a @SpellingArm hook,
+            // dateTimeFormat, the product's ISO with Z; legend-pure's +0000 the edge's MongoDb's)
             "sql/dialect/MongoDb.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/MongoDb.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/MongoDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/MySql.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/MySql.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/MySql.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Postgres.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/Postgres.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/Postgres.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Postgres.java | RawSqlBoundary | 1 | D1.7",
             "sql/dialect/RawSqlBoundary.java | RawSqlBoundary | 2 | D1.7",
             "sql/dialect/SQLite.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | D1.2",
+            "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/StableScanOrder.java | StableScanOrder | 1 | D1.5",
             "sql/dialect/Trino.java | FLOAT_CANON | 1 | JUDGE",
-            "sql/dialect/Trino.java | FLOAT_PRINT | 1 | D1.2",
-            "test/ServiceTestRunner.java | PureV1Writer | 1 | D1.4",
-            "test/ServiceTestRunner.java | TdsObjectsWriter | 1 | D1.4",
+            "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
             "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",
             "testdatagen/TestDataGenerator.java | EngineTextDialect | 3 | D1.7",
-            "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.2",
-            "testdatagen/TestDataPlanner.java | COMPAT | 3 | D1.2",
+            // retagged 2026-11-15 (D1.2's end): the generator's CLEAN timestamp text mirrors lite's writers (CellText's
+            // INSTANT precision), so it moves with them (D1.4); its COMPAT printing follows the judging rules
+            // (TestPlanner picks it by COMPILED_PURE_COMPAT), a judges' compatibility branch D1.9 moves to the edge
+            "testdatagen/TestDataPlanner.java | +0000 | 1 | D1.4",
+            "testdatagen/TestDataPlanner.java | COMPAT | 3 | D1.9",
             "testexec/AssertRuns.java | EngineText | 1 | D1.7",
             "testexec/CanonicalForm.java | +0000 | 1 | JUDGE",
             "testexec/HostJudgments.java | EngineText | 1 | D1.7",
@@ -251,8 +303,11 @@ class CompatSpellingGuardTest {
             "testplan/Seeds.java | EnginePlans | 1 | D1.7",
             "testplan/SqlTextVerdicts.java | EngineText | 1 | D1.7",
             "testplan/SqlTextVerdicts.java | withEngineText | 3 | D1.7",
-            "testplan/TestPlanner.java | COMPAT | 1 | D1.2",
-            "values/PureDateLiteral.java | +0000 | 4 | D1.2"
+            // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's
+            "testplan/TestPlanner.java | COMPAT | 1 | D1.9",
+            // retagged 2026-11-15 (D1.2's end): Java's spelling of a date value, read by lite's writers (CellText's
+            // engine JSON and Pure text) -- the writers' step (D1.4)
+            "values/PureDateLiteral.java | +0000 | 4 | D1.4"
     );
 
     @Test

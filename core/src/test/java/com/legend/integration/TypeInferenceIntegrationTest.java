@@ -155,9 +155,13 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         @Test
         void testFloatToStringWithNegativeExponent() throws SQLException {
                 // PCT: 0.000000013421->toString() → '0.000000013421' (fixed-point, not
-                // scientific notation)
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|0.000000013421->toString()", "test::TestRuntime", connection);
+                // scientific notation): legend-pure's print form, the compatibility edge's since D1.2 (2026-11-15)
+                var result = Lean.runInStyle(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
+                        "test::TestRuntime", connection, com.legend.edge.PureText.UPSTREAM);
                 assertEquals("0.000000013421", result.rows().get(0).get(0).toString());
+                // the product's text (register S311): six decimals, trimmed -- below 0.0000005, 0
+                assertEquals("0", Lean.run(getCompletePureModelWithRuntime(), "|0.000000013421->toString()",
+                        "test::TestRuntime", connection).rows().get(0).get(0).toString());
         }
 
         @Test
@@ -1101,8 +1105,14 @@ public class TypeInferenceIntegrationTest extends AbstractDatabaseTest {
         void testDateTimeToString() throws SQLException {
                 // PCT: |%2014-01-01T00:00:00.000+0000->toString() =>
                 // '2014-01-01T00:00:00.000+0000'
-                var result = Lean.run(getCompletePureModelWithRuntime(), "|%2014-01-01T00:00:00.000+0000->toString()", "test::TestRuntime", connection);
+                // legend-pure's text, at the written precision: the compatibility edge's since D1.2 (2026-11-15)
+                var result = Lean.runInStyle(getCompletePureModelWithRuntime(), "|%2014-01-01T00:00:00.000+0000->toString()",
+                        "test::TestRuntime", connection, com.legend.edge.PureText.UPSTREAM);
                 assertEquals("2014-01-01T00:00:00.000+0000", result.rows().get(0).get(0));
+                // the product's text (the user's ruling of 2026-11-10): ISO 8601 in UTC, six fraction digits and Z
+                assertEquals("2014-01-01T00:00:00.000000Z", Lean.run(getCompletePureModelWithRuntime(),
+                        "|%2014-01-01T00:00:00.000+0000->toString()", "test::TestRuntime", connection)
+                        .rows().get(0).get(0));
         }
 
         @Test

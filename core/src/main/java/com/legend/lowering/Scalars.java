@@ -968,10 +968,10 @@ final class Scalars {
                         new SqlExpr.IntLit(0));
             });
         }
-        // makeString: the Any[*] joiner. Elements stringify; a NULL element
-        // prints 'TDSNull' (engine TDS-cell convention — ordinary pure
-        // collections hold no empties, so the coalesce is unobservable
-        // outside TDS rows).
+        // makeString: the Any[*] joiner. Elements stringify; an empty element
+        // is skipped (the user's ruling of 2026-11-10; phase D's D1.3,
+        // 2026-11-15: CELL_TEXT), legend-engine's 'TDSNull' cell the
+        // compatibility edge's.
         for (com.legend.model.FunctionId f : Pure.AT_STRING_MAKE_STRING) {
             RULES.put(f, (n, args) -> {
                 SqlExpr sep = args.size() == 2 ? args.get(1)
@@ -998,15 +998,14 @@ final class Scalars {
                 } else {
                     SqlExpr coll = PureSql.asList(args.get(0),
                             !isToOne(n.args().get(0)));
+                    SqlExpr text = PureSql.elementText(n.args().get(0), coll,
+                            SqlExpr.Column.param("x", coll));
+                    // an empty element: skipped by the product's join (CELL_TEXT, D1.3 2026-11-15; legend-engine's
+                    // TDSNull is the edge's), '' from an honest [0..1] source
                     strs = SqlExpr.Call.of(SqlFn.LIST_TRANSFORM, coll,
-                            new SqlExpr.Lambda(List.of("x"),
-                                    SqlExpr.Call.of(SqlFn.COALESCE,
-                                            PureSql.elementText(n.args().get(0),
-                                                    coll, SqlExpr.Column.param(
-                                                            "x", coll)),
-                                            new SqlExpr.StringLit(optionalScalar
-                                                    ? ""
-                                                    : PlatformTypes.TDS_NULL_CELL))));
+                            new SqlExpr.Lambda(List.of("x"), optionalScalar
+                                    ? SqlExpr.Call.of(SqlFn.COALESCE, text, new SqlExpr.StringLit(""))
+                                    : SqlExpr.Call.of(SqlFn.CELL_TEXT, text)));
                 }
                 SqlExpr joined = SqlExpr.Call.of(SqlFn.COALESCE,
                         new SqlExpr.ReduceCollection(SqlAgg.Fn.STRING_AGG, strs,
@@ -2293,15 +2292,16 @@ final class Scalars {
                             Type.RelationType.trustedColumn(
                                     com.legend.sql.SqlSelect.SYNTH_MAP_COL)));
                 }
-                // A DATE LITERAL's print form is fully static — subsecond
-                // DIGIT COUNT is part of the value (%2014-01-01T00:00:00.00
-                // prints '.00', which no timestamp carrier can retain).
-                SqlExpr lit = dateLiteralPrint(n.args().get(0), t);
+                // a DateTime's text, the product's (D1.2, 2026-11-15: ISO 8601 with Z); a literal's call carries its
+                // written text, legend-pure's precision, for the compatibility edge (%2014-01-01T00:00:00.00 prints
+                // '.00' there, which no timestamp carrier can retain)
+                if (t == Type.Primitive.DATE_TIME) {
+                    return dateTimeText(SqlFn.DATETIME_TO_TEXT, n.args().get(0), args.get(0));
+                }
+                // any other date literal's text is fully static: as written
+                SqlExpr lit = dateLiteralText(n.args().get(0));
                 if (lit != null) {
                     return lit;
-                }
-                if (t == Type.Primitive.DATE_TIME) {
-                    return LiteralSpelling.dateTimeText(args.get(0));
                 }
                 if (t == Type.Primitive.FLOAT) {
                     return floatRepr(args.get(0));
@@ -2802,10 +2802,16 @@ final class Scalars {
                     SqlExpr.Call.of(SqlFn.EQUAL,
                             SqlExpr.Call.of(SqlFn.JSON_TYPE, x),
                             new SqlExpr.JsonKindLit(com.legend.sql.JsonKind.ARRAY)),
-                    cat(new SqlExpr.StringLit("["),
-                            joinList(new SqlExpr.Cast(x, new SqlType.Array(
-                                    PureSql.type(Type.Primitive.STRING)))),
-                            new SqlExpr.StringLit("]")))),
+                    // the product's text of a list, a JSON array: the value's canonical JSON (the user's ruling of
+                    // 2026-11-10; D1.3, 2026-11-15); legend-pure's [a, b] the edge's
+                    SqlExpr.Call.of(SqlFn.TEXT_FORMS,
+                            new SqlExpr.Cast(SqlExpr.Call.of(SqlFn.TO_VARIANT,
+                                    new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.JSON)),
+                                    com.legend.sql.SqlType.Scalar.VARCHAR),
+                            cat(new SqlExpr.StringLit("["),
+                                    joinList(new SqlExpr.Cast(x, new SqlType.Array(
+                                            PureSql.type(Type.Primitive.STRING)))),
+                                    new SqlExpr.StringLit("]"))))),
                     new SqlExpr.Cast(
                             SqlExpr.Call.of(SqlFn.VARIANT_GET, x, new SqlExpr.StringLit("$")),
                             PureSql.type(Type.Primitive.STRING)));
@@ -2865,12 +2871,15 @@ final class Scalars {
         // instance name; the accepted spellings are Anonymous_*/@_*,
         // and our minted F13 site id rides the @_ form. The id is the
         // struct's own __id field, read IN SQL — no Java formatting.
+        // The product writes an object by graph fetch: INSTANCE_TEXT is
+        // refused by its renderer, the edge composes the @_ form (D1.3,
+        // 2026-11-15).
         // ClassType ONLY — a GenericType here is a metamodel CARRIER
         // (Class<T>/Enumeration<T> element refs print their NAME via
         // their own arm), never an instance struct
         if (t instanceof Type.ClassType && Type.schemaView(t) == null
                 && InstanceEquality.userClass(t)) {
-            return cat(new SqlExpr.StringLit("@_"), CanonicalRenderSql.trackedId(x));
+            return SqlExpr.Call.of(SqlFn.INSTANCE_TEXT, CanonicalRenderSql.trackedId(x));
         }
         if ((Type.schemaView(t) != null && !scalarCell)
                 || com.legend.compiler.element.type.PlatformTypes
@@ -3378,6 +3387,8 @@ final class Scalars {
             // %r: pure's REPR — a string in quotes with \-escapes, a date
             // with its % literal prefix.
             if (d == 'r') {
+                // legend-pure's representation, the judges' Repr: the assert bodies' messages write it, so it moves
+                // with the judges (D1.9; the product's own refusal waits for it, 2026-11-15)
                 spread.set(argIdx, Repr.of(typed, spread.get(argIdx)));
                 out.append("%s");
                 argIdx++;
@@ -3394,7 +3405,9 @@ final class Scalars {
                 }
                 if (j > i + 2 && j < fmt.length() && fmt.charAt(j) == 'd') {
                     long width = Long.parseLong(fmt.substring(i + 2, j));
-                    spread.set(argIdx, signedZeroPad(spread.get(argIdx), width));
+                    // legend-pure's padding (the digits, then the sign): the edge's alone (D1.3, 2026-11-15)
+                    spread.set(argIdx, SqlExpr.Call.of(SqlFn.FORMAT_PADDED, spread.get(argIdx),
+                            new SqlExpr.IntLit(width)));
                     out.append("%s");
                     argIdx++;
                     i = j + 1;
@@ -3479,28 +3492,33 @@ final class Scalars {
         return cat(shifted, sign, hh, mm);
     }
 
-    /** {@code -3 @ width 5 → '-00003'}: pad the digits, then sign (pure's format). */
-    private static SqlExpr signedZeroPad(SqlExpr x, long width) {
-        SqlExpr padded = SqlExpr.Call.of(SqlFn.LPAD,
-                str(SqlExpr.Call.of(SqlFn.ABS, x)),
-                new SqlExpr.IntLit(width), new SqlExpr.StringLit("0"));
-        return new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.LESS, x, new SqlExpr.IntLit(0)),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("-"), padded))),
-                padded);
+
+
+    /** A date's text in a format slot ({@code %s}), or null when not a date: a DateTime's the product's
+     *  ({@link SqlFn#DATETIME_TO_TEXT}, D1.2), any other date literal's as written. */
+    static @com.legend.base.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
+        return dateText(SqlFn.DATETIME_TO_TEXT, typed, e);
     }
 
-    /** Pure's default date print for a format slot, or null when not a date. */
-    static @com.legend.base.Nullable SqlExpr datePrintOf(TypedSpec typed, SqlExpr e) {
-        Type t = typed.info().type();
-        SqlExpr lit = dateLiteralPrint(typed, t);
-        if (lit != null) {
-            return lit;
+    /** A date's representation ({@code %r}, the judges' message), or null when not a date: a DateTime's legend-pure's
+     *  print form ({@link SqlFn#DATETIME_PRINT}, the judges' since D1.2), any other date literal's as written. */
+    static @com.legend.base.Nullable SqlExpr dateReprOf(TypedSpec typed, SqlExpr e) {
+        return dateText(SqlFn.DATETIME_PRINT, typed, e);
+    }
+
+    private static @com.legend.base.Nullable SqlExpr dateText(SqlFn dateTime, TypedSpec typed, SqlExpr e) {
+        if (typed.info().type() == Type.Primitive.DATE_TIME) {
+            return dateTimeText(dateTime, typed, e);
         }
-        if (t == Type.Primitive.DATE_TIME) {
-            return LiteralSpelling.dateTimeText(e);
-        }
-        return null;
+        return dateLiteralText(typed);
+    }
+
+    /** {@code fn} of the DateTime {@code e}; a literal's ({@code spec}) its written text second (the parser already
+     *  shifted a zone-carrying literal to GMT), which the edge and the judges print, the product never reads. */
+    private static SqlExpr dateTimeText(SqlFn fn, TypedSpec spec, SqlExpr e) {
+        return spec instanceof TypedCDate cd
+                ? SqlExpr.Call.of(fn, e, new SqlExpr.StringLit(cd.value().toEngineString()))
+                : SqlExpr.Call.of(fn, e);
     }
 
     static boolean isClassish(Type t) {
@@ -3513,19 +3531,10 @@ final class Scalars {
                 || (t instanceof Type.GenericType && !Type.isRelation(t));
     }
 
-    /**
-     * The STATIC print form of a date literal (real pure's toString):
-     * components padded, subsecond digits exactly as written, DateTime
-     * normalized to +0000 (the parser already shifted zone-carrying
-     * literals to GMT). {@code null} for non-literal args.
-     */
-    private static @com.legend.base.Nullable SqlExpr dateLiteralPrint(TypedSpec spec, Type t) {
-        if (!(spec instanceof TypedCDate cd)) {
-            return null;
-        }
-        String s = cd.value().toEngineString();
-        // a DateTime literal's text with its zone (register S121, pending: legend-pure writes +0000 from the minute)
-        return new SqlExpr.StringLit(t == Type.Primitive.DATE_TIME ? s + "+0000" : s);
+    /** The static text of a date literal that is no DateTime (a StrictDate, a year, a month): components padded, as
+     *  written. {@code null} for a non-literal. A DateTime's is {@link #dateTimeText}'s node (D1.2). */
+    private static @com.legend.base.Nullable SqlExpr dateLiteralText(TypedSpec spec) {
+        return spec instanceof TypedCDate cd ? new SqlExpr.StringLit(cd.value().toEngineString()) : null;
     }
 
     /** Partial-date-literal precision: 1 = year, 2 = year-month; null otherwise. */

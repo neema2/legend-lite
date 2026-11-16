@@ -62,6 +62,19 @@ class BigQueryDialectTest {
         }
     }
 
+    /** The product's Float text (D1.2, 2026-11-15; the user's ruling of 2026-11-10): {@code FORMAT}'s six decimals,
+     *  trimmed, BigQuery's {@code nan} and {@code inf} by Pure's names; the value read once, no derived table. */
+    @Test
+    void aFloatsTextIsSixDecimalsTrimmed() {
+        String sql = render(SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, X), null);
+        // a negative value that rounds to zero is 0 (round 56, 2026-11-15: its -0.000000 written 0.000000 first)
+        assertTrue(sql.contains("REPLACE(REPLACE(RTRIM(RTRIM(REPLACE(FORMAT('%.6f', `t`.`x`), '-0.000000', '0.000000'),"
+                + " '0'), '.'), 'nan', 'NaN'),"
+                + " 'inf', 'Infinity')"), sql);
+        assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, sql);
+        assertFalse(sql.contains("(SELECT"), sql);
+    }
+
     /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError); a DATETIME
      *  through text, since an IF of a DATETIME with an ERROR branch fails before it raises. */
     @Test

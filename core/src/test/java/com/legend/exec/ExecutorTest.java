@@ -126,7 +126,7 @@ class ExecutorTest {
         // aggregate template (never SQL-type sniffing).
         List<String> names = t.columns().stream().map(Lean.Column::name).toList();
         // engine presentation: pivot names carry their quotes
-        assertEquals(List.of("YR", "'NYC__|__total'", "'SF__|__total'"),
+        assertEquals(List.of("YR", "NYC__|__total", "SF__|__total"),
                 names);
         assertEquals("Integer", t.columns().get(0).type());
         assertEquals("Integer", t.columns().get(1).type(),

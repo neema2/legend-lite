@@ -347,8 +347,9 @@ class TestDoorTest {
         try (Connection c = TestBackends.platform().open()) {
             List<List<Object>> rows = run(plan, c);
             assertEquals(1, rows.size());
+            // the run's id itself: legend-engine's comment around it is the edge's (TRACE_TEXT, D1.4 2026-11-15)
             assertTrue(String.valueOf(rows.get(0).get(0)).matches(
-                    "-- \"executionTraceID\" : \"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\""),
+                    "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"),
                     String.valueOf(rows.get(0).get(0)));
         }
     }
@@ -432,7 +433,8 @@ class TestDoorTest {
         assertEquals(Set.of("#stamp1"), second.slots().stream().map(ExecutionPlan.Slot::parameter)
                 .collect(java.util.stream.Collectors.toSet()), "the second statement reads its own run's comment");
         try (Connection c = TestBackends.platform().open()) {
-            assertTrue(String.valueOf(run(plan, c).get(0).get(0)).startsWith("-- \"executionTraceID\""));
+            // the run's id itself (D1.4, 2026-11-15: legend-engine's comment around it is the edge's)
+            assertTrue(String.valueOf(run(plan, c).get(0).get(0)).matches("[0-9a-f-]{36}"));
         }
     }
 

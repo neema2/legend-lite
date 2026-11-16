@@ -215,9 +215,6 @@ class BodyRouterParityTest {
                 "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1);}",
-                // the rendered text: one side a grid's text (the CSV form, toCSV, is the relational tests' own
-                // function, absent from this model: the corpora measure it)
-                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
                 // a side whose planning raises (a computed bound the lowering refuses by name): raised at its turn,
                 // after the assert before it ran and reported, counted under its family
                 "{| assertEquals(1, 1); assertEquals(#TDS\na\n1\n2\n#->filter(r|$r.a > 1),"
@@ -229,9 +226,16 @@ class BodyRouterParityTest {
                 "{| assertTdsEquivalent(#TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0),"
                         + " #TDS\na,b\n1,x\n2,y\n#->filter(r|$r.a > 0), 0.1, 1.0);}",
                 "{| assert([1, 2]->forAll(e|[1, 2, 3]->contains($e)));}",
-                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}",
-                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
+                "{| assertFalse([1, 4]->forAll(e|[1, 2]->contains($e)));}")) {
             assertParity(backend, body, "select 1");
+        }
+        // the rendered text: one side a grid's text, legend-pure's and the compatibility edge's alone (the product
+        // refuses a relation's text by name: phase D's D1.3, 2026-11-15), so under the compatibility rules (the CSV
+        // form, toCSV, is the relational tests' own function, absent from this model: the corpora measure it)
+        for (String body : List.of(
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n1,x\n2,y\n#->toString());}",
+                "{| assertEquals('a,b\\n1,x\\n2,y\\n', #TDS\na,b\n2,y\n1,x\n#->sort(~a->ascending())->toString());}")) {
+            inCompatibilityMode(() -> assertParity(backend, body, "select 1"));
         }
     }
 
@@ -517,7 +521,7 @@ class BodyRouterParityTest {
             for (String body : List.of(
                     "{| assertSize(" + EXECUTE + ".activities, 1);}",
                     "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                            + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));}",
+                            + "RelationalActivity).comment->toOne()->length() == 36);}",
                     "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2);}",
                     // two executions (the execution id as upstream, 2026-11-12): their stamps in the plan, no id
                     "{| let a = " + EXECUTE + "; let b = " + EXECUTE + "; assert($a.activities->at(0)" + COMMENT
@@ -537,11 +541,12 @@ class BodyRouterParityTest {
     /** An activity's comment, read by the body: its execution's trace comment. */
     private static final String COMMENT = "->cast(@meta::relational::mapping::RelationalActivity).comment->toOne()";
 
-    /** Every execution-trace comment an answer holds, in order. */
+    /** Every execution id an answer holds, in order (an activity's comment is the run's id itself on the product road;
+     *  legend-engine's comment around it, the edge's: D1.4, 2026-11-15). */
     private static List<String> traceIds(String answer) {
         List<String> out = new ArrayList<>();
         java.util.regex.Matcher m = java.util.regex.Pattern.compile(
-                "executionTraceID\\\\?\" : \\\\?\"([0-9a-f-]{36})").matcher(answer);
+                "([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})").matcher(answer);
         while (m.find()) {
             out.add(m.group(1));
         }
@@ -656,7 +661,7 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE + "; assertEquals(1, x::TFirm.all(%2020-06-01)->from(x::M, x::RT)->size());"
                         + " assertSize($r.values.rows, 2);}",
                 "{| let r = " + EXECUTE + "; let cm = $r.activities->at(0)->cast(@meta::relational::mapping::"
-                        + "RelationalActivity).comment->toOne(); assert($cm->startsWith('-- \"executionTraceID\"'));}",
+                        + "RelationalActivity).comment->toOne(); assert($cm->length() == 36);}",
                 // M9d: a frame over a business-temporal class, read by the asserts
                 "{| let r = " + EXECUTE_TEMPORAL + "; assertSize($r.values.rows, 1); assertEquals(['New'],"
                         + " $r.values.rows.values);}",
@@ -791,12 +796,13 @@ class BodyRouterParityTest {
                         + " assertEqWithinTolerance(1.0, 1.05, 0.1);}",
                 // an assert after a failing one: planned, judged after the first failure raised -- never
                 "{| assertEquals(3, 1 + 1); assertEquals(2, 1 + 1);}",
-                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}",
-                // a relation's toString against a literal: a string equality the database judges (not the rendered
-                // form the host reads: that is toCSV's, pinned walked below)
-                "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}")) {
+                "{| assertEquals(1, 1); let x = 2; assertEquals($x, 2); 'done';}")) {
             assertParity(backend, ctx, RT, body, "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE);
         }
+        // a relation's toString against a literal: a string equality the database judges (not the rendered form the
+        // host reads: that is toCSV's, pinned walked below) -- legend-pure's text, the edge's alone (D1.3, 2026-11-15)
+        inCompatibilityMode(() -> assertParity(backend, ctx, RT, "{| assertEquals('a\n1\n', #TDS\na\n1\n#->toString());}",
+                "select 1", List.of(), com.legend.testplan.PlanningOptions.JudgeMode.DATABASE));
     }
 
     /** M7: the assert shapes whose DATABASE arm reads a side on the host at the assert's turn ({@code assertEq} over
@@ -1299,8 +1305,8 @@ class BodyRouterParityTest {
                 "{| let r = " + EXECUTE + "; assertSize($r.activities, 1); assert($r.activities->at(0)->cast("
                         + "@meta::relational::mapping::RelationalActivity).sql->toOne()->startsWith('select'));}",
                 "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                        + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
-                        + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                        + "RelationalActivity).comment->toOne()->length() == 36);"
+                        + " assertEquals(36, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                         + ".comment->toOne()->length());}",
                 "{| let p = meta::pure::executionPlan::executionPlan(|x::Firm.all()->project([f|$f.name], ['name']),"
                         + " x::M, x::RT.runtimeValue, []); assertNotEmpty($p.rootExecutionNode.executionNodes);}",
@@ -1846,9 +1852,11 @@ class BodyRouterParityTest {
     @MethodSource("backends")
     void theActivityCommentIsTheRunsStamp(TestBackend backend) throws Exception {
         ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        // the comment is the run's id itself, 36 characters (D1.4, 2026-11-15: legend-engine's comment around it,
+        // 62, is the edge's)
         String body = "{| let r = " + EXECUTE + "; assert($r.activities->at(0)->cast(@meta::relational::mapping::"
-                + "RelationalActivity).comment->toOne()->startsWith('-- \"executionTraceID\"'));"
-                + " assertEquals(62, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
+                + "RelationalActivity).comment->toOne()->contains('-'));"
+                + " assertEquals(36, $r.activities->at(0)->cast(@meta::relational::mapping::RelationalActivity)"
                 + ".comment->toOne()->length());}";
         Run moved = assertParity(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
                 com.legend.testplan.PlanningOptions.JudgeMode.HOST);
@@ -1946,7 +1954,9 @@ class BodyRouterParityTest {
      *  registered after the run): the program binds the stamp as a parameter the run's check step binds (R17 C4; M9c)
      *  and never spells it. */
     private static final java.util.regex.Pattern STAMP_LITERAL =
-            java.util.regex.Pattern.compile("'-- \"executionTraceID\" : \"[0-9a-f-]{36}\"'");
+            // the run's id as a literal, bare (the product's comment since D1.4, 2026-11-15) or in legend-engine's comment
+            java.util.regex.Pattern.compile("'(-- \"executionTraceID\" : \")?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}"
+                    + "-[0-9a-f]{12}\"?'");
 
     /** @param statements the statements sent on the body's own connection, recorded there
      *  @param sent       every statement the run sent on any session, counted by exec by origin: {@link #allRecorded}

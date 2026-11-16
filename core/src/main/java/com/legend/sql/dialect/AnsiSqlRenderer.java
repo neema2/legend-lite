@@ -224,7 +224,22 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  dialect's pass list can leave the reads out. */
     protected final java.util.List<com.legend.sql.SqlRewriter> renderPasses() {
         java.util.List<com.legend.sql.SqlRewriter> ps = new java.util.ArrayList<>();
-        // a Float's print forms, expanded before every other pass unless this dialect spells them itself
+        // the compatibility edge's spellings, expanded before every other pass (legend-pure's print form of a Float:
+        // phase D's D1.2, 2026-11-15); the product's dialects add none
+        ps.addAll(spellingPasses());
+        // a DateTime's texts (phase D's D1.2, 2026-11-15): the product's, a STRFTIME (the edge's spelling passes wrote
+        // legend-pure's node for it first, if any); legend-pure's, the judges' and the edge's, its composition
+        ps.add(new DateTimeText.Expansion());
+        ps.add(new DateTimePrintText.Expansion());
+        // a joined element's text (phase D's D1.3, 2026-11-15): the product's join skips an empty element
+        ps.add(new CellTexts.Expansion());
+        ps.add(new CellTexts.Rest());
+        // a value's text in two forms (a list's; D1.3): the product's
+        ps.add(new TextForms.Product());
+        // a text only legend-pure writes (format's %0<w>d, an instance's @_ id; D1.3): the product refuses it by name
+        ps.add(new PureOnlyText.Refusal());
+        // a Float's print forms (the judges' %r; the edge's text of a Float), expanded before every other pass unless
+        // this dialect spells them itself
         if (!spellsFloatPrint()) {
             ps.add(new FloatPrintText.Expansion(bindsFloatPrint()));
         }
@@ -258,6 +273,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  (a dialect whose double text is a long expression and whose derived tables read the row around them). */
     protected boolean bindsFloatPrint() {
         return false;
+    }
+
+    /** The passes the compatibility edge runs before every other ({@code com.legend.edge}: legend-pure's print form
+     *  of a Float, {@code FLOAT_PRINT}, written for the product's {@code FLOAT_TO_TEXT}: phase D's D1.2, 2026-11-15).
+     *  The product's dialects run none: they write each node lite's own way. */
+    @SpellingArm
+    protected java.util.List<com.legend.sql.SqlRewriter> spellingPasses() {
+        return java.util.List.of();
     }
 
     /** Whether that expansion reads the double's text from a one-row derived table, written once (a dialect whose
@@ -1316,6 +1339,62 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  over the double's text (a dialect whose double text is long spells it once, its own way). */
     protected final SqlWriter floatPrintByText(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
         return writer.expr(FloatPrintText.of(c.args().get(0)), parentPrec);
+    }
+
+    /** A call the base renderer's first passes expand or refuse ({@link com.legend.sql.SqlFn#DATETIME_TO_TEXT},
+     *  {@link com.legend.sql.SqlFn#DATETIME_PRINT}, {@link com.legend.sql.SqlFn#CELL_TEXT},
+     *  {@link com.legend.sql.SqlFn#FORMAT_PADDED}, {@link com.legend.sql.SqlFn#INSTANCE_TEXT}: {@link DateTimeText},
+     *  {@link DateTimePrintText}, {@link CellTexts}, {@link PureOnlyText}): one reaching a dialect's arm is a renderer
+     *  bug, refused by name. */
+    protected static IllegalStateException expandedFirst(SqlExpr.Call c) {
+        return new IllegalStateException("renderer bug: " + c.fn() + " is expanded before any dialect reads it");
+    }
+
+    /**
+     * A Float's text ({@link com.legend.sql.SqlFn#FLOAT_TO_TEXT}; the user's ruling of 2026-11-10, D_BRIEF §1, phase
+     * D's D1.2, 2026-11-15): six decimals, the trailing zeros and then a trailing point trimmed ({@code 1.5},
+     * {@code 2}, {@code 0.333333}), NaN and the infinities by name ({@code NaN}, {@code Infinity},
+     * {@code -Infinity}). Each dialect writes it in one format call (measured on each database: register S311); the
+     * compatibility edge writes legend-pure's print form instead. A function-call form: no parenthesis is needed.
+     */
+    @SpellingArm
+    protected abstract SqlWriter floatToText(SqlWriter writer, SqlExpr x);
+
+    /** {@code x} as a double: itself where its fact is one (a column, a computed double), else cast -- a format call's
+     *  {@code %f} reads no integer and no decimal, and a six-decimal text is trimmed only where it has its six
+     *  digits (a literal is cast too: DuckDB reads {@code 1.5} as a DECIMAL). */
+    protected static SqlExpr asDouble(SqlExpr x) {
+        return !(x instanceof SqlExpr.FloatLit) && x.type() instanceof com.legend.sql.TypeFact.Typed t
+                && t.type() == com.legend.sql.SqlType.Scalar.DOUBLE ? x
+                : new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.DOUBLE);
+    }
+
+    /** {@code text} -- a value's fixed-point text with six fraction digits -- with its trailing zeros, then a trailing
+     *  point, dropped, by the trailing trim {@code trim} names ({@code rtrim}, {@code RTRIM}): {@code 2.000000} is
+     *  {@code 2}, {@code 0.300000} is {@code 0.3}. Six digits always follow the point, so no digit before it is cut. A
+     *  negative value that rounds to zero ({@code -0.000000}: -1e-7, -0.0) is {@code 0}, its sign dropped -- one form on
+     *  every database (the orchestrator's round 56, 2026-11-15: DuckDB, SQLite, ClickHouse, Trino, MySQL, MongoDB and
+     *  Databricks printed {@code -0}, MariaDB, Postgres and H2 {@code 0}); the whole six-digit text alone matches. */
+    protected static SqlWriter trimmedSix(SqlWriter writer, String trim, java.util.function.Consumer<SqlWriter> text) {
+        writer.append(trim).append("(").append(trim).append("(");
+        unsignedZero(writer, text);
+        return writer.append(", '0'), '.')");
+    }
+
+    /** {@code text}, a six-digit fixed-point text, with {@code -0.000000} written {@code 0.000000} ({@link #trimmedSix}):
+     *  no other text holds that run ({@code -10.000000} holds {@code 10.000000}, its sign before a 1). */
+    private static void unsignedZero(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
+        writer.append("REPLACE(");
+        text.accept(writer);
+        writer.append(", '-0.000000', '0.000000')");
+    }
+
+    /** {@link #trimmedSix} spelled by the SQL standard's trailing trim ({@code TRIM(TRAILING '0' FROM ...)}), for a
+     *  database whose {@code RTRIM} takes no character. */
+    protected static SqlWriter trimmedSixStandard(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
+        writer.append("TRIM(TRAILING '.' FROM TRIM(TRAILING '0' FROM ");
+        unsignedZero(writer, text);
+        return writer.append("))");
     }
 
     // ---- idiom extension points (base = capability statement, loud) ----
@@ -2631,6 +2710,12 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     }
 
     static String plainFloat(double v) {
+        // a negative zero keeps its sign, as a double literal: BigDecimal has no -0, and a plain -0.0 is a decimal,
+        // which has none either (the orchestrator's round 56, 2026-11-15: -0.0 was written 0.0, the value rewritten
+        // before the database saw it)
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "-0.0E0";
+        }
         // the numeric charter's Rule 1, one owner (SqlTyping.floatDecimal; the runner binds a Float by it): plain
         // digits, or an extreme magnitude in exponent form
         java.math.BigDecimal plain = com.legend.sql.SqlTyping.floatDecimal(v);

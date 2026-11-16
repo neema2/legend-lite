@@ -328,6 +328,17 @@ legend_java_library(
     ],
 )
 legend_java_library(name = "ide", srcs = glob(["src/main/java/com/legend/ide/*.java"]), deps = ["//base", ":door", ":lexer", ":model", ":parser"])
+# legend-engine's service tests at the compatibility edge (phase D's D1.4, 2026-11-15): the service test runner and its
+# writer of legend-engine's PURE_TDSOBJECT, moved from //core:test and //core:result -- a run of a Legend service's
+# test, so its own library beside the edge's planning half (as edge_server is), reaching exec as //core:test does.
+legend_java_library(
+    name = "edge_service_tests",
+    srcs = [
+        "src/main/java/com/legend/edge/ServiceTestRunner.java",
+        "src/main/java/com/legend/edge/TdsObjectsWriter.java",
+    ],
+    deps = ["//base", "//json", ":compiler", ":error", ":exec", ":test_execution", ":execution_plan", ":testexec", ":model", ":planner", ":protocol", ":result", ":sql", ":test", ":test_plan", ":values"],
+)
 legend_java_library(
     name = "test",
     srcs = glob(["src/main/java/com/legend/test/*.java"]),
@@ -453,7 +464,11 @@ legend_java_library(
 # edge (G5): only the harnesses that run under the compatibility rules do.
 legend_java_library(
     name = "edge",
-    srcs = glob(["src/main/java/com/legend/edge/*.java"], exclude = ["src/main/java/com/legend/edge/EdgeServer.java"]),
+    srcs = glob(["src/main/java/com/legend/edge/*.java"], exclude = [
+        "src/main/java/com/legend/edge/EdgeServer.java",
+        "src/main/java/com/legend/edge/ServiceTestRunner.java",
+        "src/main/java/com/legend/edge/TdsObjectsWriter.java",
+    ]),
     # //wasm (D1.0b, 2026-11-12): the compiler's boundary answers legend-engine's routes in the tab and Python
     visibility = ["//spec:__pkg__", "//pct:__pkg__", "//tools/census:__pkg__", "//wasm:__pkg__"],
     resources = glob(["src/main/edge/META-INF/**"]),
@@ -689,6 +704,8 @@ legend_java_library(
         ":edge",
         # the shipped server's root (D1.0b, 2026-11-12): the HTTP tests start the server legend-engine's clients call
         ":edge_server",
+        # legend-engine's service tests (D1.4, 2026-11-15: ServiceTestRunner moved to the edge)
+        ":edge_service_tests",
         ":core",
         ":test_backends",
         ":test_cases",
@@ -1073,6 +1090,8 @@ junit_test(
         "@embedded_mongodb//:mongodb/MONGODB_ROOT",
         "@embedded_mysql//:mysql",
         "@embedded_mysql//:mysql/MYSQL_ROOT",
+        "@embedded_postgres//:pg/PG_ROOT",
+        "@embedded_postgres//:postgres",
         "@embedded_trino//:trino",
         "@embedded_trino//:trino/TRINO_ROOT",
     ],
@@ -1086,6 +1105,7 @@ junit_test(
         "-Dembedded.mariadb.root=$(rlocationpath @embedded_mariadb//:mariadb/MARIADB_ROOT)",
         "-Dembedded.mongodb.root=$(rlocationpath @embedded_mongodb//:mongodb/MONGODB_ROOT)",
         "-Dembedded.mysql.root=$(rlocationpath @embedded_mysql//:mysql/MYSQL_ROOT)",
+        "-Dembedded.postgres.root=$(rlocationpath @embedded_postgres//:pg/PG_ROOT)",
         "-Dembedded.trino.root=$(rlocationpath @embedded_trino//:trino/TRINO_ROOT)",
     ],
     select = ["--select-class=com.legend.exec.ProductRaiseProbeTest"],

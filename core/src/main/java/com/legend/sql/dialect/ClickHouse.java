@@ -860,6 +860,11 @@ public class ClickHouse extends AnsiSqlRenderer {
      *  here); NaN and the infinities are Float64. */
     @Override
     protected String floatLiteral(double v) {
+        // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
+        // BigDecimal has no -0, so -0.0 was written 0.0)
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "toFloat64('-0.0')";
+        }
         if (Double.isNaN(v)) {
             return "nan";
         }
@@ -1797,6 +1802,9 @@ public class ClickHouse extends AnsiSqlRenderer {
             case XOR -> xorAsAndOr(writer, c.args(), parentPrec);
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -3267,5 +3275,14 @@ public class ClickHouse extends AnsiSqlRenderer {
     @Override
     public boolean deliversOwn(com.legend.sql.SqlType label, String wire) {
         return label == com.legend.sql.SqlType.Scalar.JSON && wire.equals("VARCHAR");
+    }
+
+    /** {@inheritDoc} {@code printf}'s six decimals, trimmed by the standard's trailing trim; its {@code nan} and {@code inf} by Pure's names (measured on 25.8, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("replaceAll(replaceAll(");
+        trimmedSixStandard(writer, w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
     }
 }

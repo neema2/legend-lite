@@ -759,12 +759,11 @@ public class Postgres extends AnsiSqlRenderer {
         };
     }
 
+    // the empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
+    // itself, NULL, as DuckDB answers over NULL (Postgres types every array: a reduction over an untyped NULL is
+    // refused, "could not determine polymorphic type", measured); a concatenation is its other lists (listConcat)
     @Override
     protected SqlWriter call(SqlWriter writer, SqlExpr.Call c, int parentPrec) {
-        // the empty collection as a list: a reduction, an element or a rearrangement of it is the empty collection
-        // itself, NULL, as DuckDB answers over a NULL list (Postgres types every array: a reduction over an untyped
-        // NULL is refused, "could not determine polymorphic type", measured); a concatenation is its other lists
-        // (listConcat)
         if (emptyCollection(c)) {
             return writer.append("NULL");
         }
@@ -807,6 +806,9 @@ public class Postgres extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> castAs(writer, c.args().get(0), "VARCHAR");
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+                    throw expandedFirst(c);
             case CURRENT_USER_FN -> writer.append("current_user");
             // the hooks: this dialect's own (or the base's refusal)
             case BIT_AND, BIT_OR, BIT_XOR, BIT_SHIFT_LEFT, BIT_SHIFT_RIGHT -> bitOp(writer, c.fn(), c.args());
@@ -2610,5 +2612,23 @@ public class Postgres extends AnsiSqlRenderer {
     @Override
     protected SqlWriter tempTableAs(com.legend.sql.SqlDml.CreateTempTableAs ct) {
         return createTemporaryTableAs(ct, true);
+    }
+
+    /** {@inheritDoc} The value's NUMERIC rounded to six places, trimmed: a NUMERIC holds every double, NaN and the infinities by Pure's names (measured on the embedded Postgres, 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return trimmedSix(writer, "rtrim", w -> w.append("CAST(ROUND(CAST(").expr(x, 0)
+                .append(" AS NUMERIC), 6) AS VARCHAR)"));
+    }
+
+    /** A Float literal: the base's, but a negative zero, cast from its text -- an exponent literal is a NUMERIC here,
+     *  which has no -0 (the orchestrator's round 56, 2026-11-15: -0.0 was written 0.0). */
+    @Override
+    protected String floatLiteral(double v) {
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "CAST('-0' AS DOUBLE PRECISION)";
+        }
+        return super.floatLiteral(v);
     }
 }

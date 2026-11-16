@@ -1,0 +1,79 @@
+// Copyright 2026 Legend Contributors
+// SPDX-License-Identifier: Apache-2.0
+
+package com.legend.sql.dialect;
+
+import com.legend.sql.SqlExpr;
+import com.legend.sql.SqlFn;
+
+/**
+ * THE PRODUCT'S TEXT OF A CELL ({@link SqlFn#CELL_TEXT}; the user's ruling of 2026-11-10, D_BRIEF §1: "makeString
+ * skips empty elements", and a TDS cell's toString empty where the cell is, relayed 2026-11-15; phase D's D1.3): the
+ * text alone, EMPTY where the cell is ({@link Rest}) -- a joined element that is empty is a
+ * {@code NULL}, which a list's {@code STRING_AGG} skips; a row's cells joined (a literal list) are written as each present
+ * cell after the separator, the first separator cut (H2's and SQLite's literal join is a CONCAT chain, which kept an
+ * empty cell's separator: {@code 2,}, measured 2026-11-15). A pass of the base renderer, run after the compatibility edge's
+ * spelling passes (which write legend-engine's {@code TDSNull} for it) and before every other.
+ */
+final class CellTexts {
+
+    private CellTexts() {
+    }
+
+    /** The base renderer's pass, at the join (the walk is bottom-up: a hook sees its operands rewritten, so the join
+     *  reads its elements' {@link SqlFn#CELL_TEXT}s, which no other node holds; one reaching a dialect is refused). */
+    static final class Expansion extends com.legend.sql.SqlRewriter {
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            if (!(e instanceof SqlExpr.ReduceCollection rc && rc.reducer() == com.legend.sql.SqlAgg.Fn.STRING_AGG
+                    && rc.extras().size() == 1)) {
+                return e;
+            }
+            // a list's elements joined (makeString): each element's text, the list's STRING_AGG skipping an empty one
+            if (rc.collection() instanceof SqlExpr.Call t && t.fn() == SqlFn.LIST_TRANSFORM && t.args().size() == 2
+                    && t.args().get(1) instanceof SqlExpr.Lambda l && isJoined(l.body())) {
+                return new SqlExpr.ReduceCollection(rc.reducer(), SqlExpr.Call.of(SqlFn.LIST_TRANSFORM,
+                        t.args().get(0), new SqlExpr.Lambda(l.params(), operand(l.body()))), rc.extras());
+            }
+            // a row's cells joined (a literal list of CELL_TEXTs, the one join whose elements may be empty: a Pure
+            // list holds no empty, a collected column is compacted when it is collected): each present cell after
+            // the separator, the first separator cut -- a literal list's join is a CONCAT chain on the databases
+            // that fold it (H2, SQLite: CarrierStrategies), where an empty cell kept its separator (2026-11-15, 2,)
+            if (rc.collection() instanceof SqlExpr.ArrayLit cells && !cells.elements().isEmpty()
+                    && cells.elements().stream().allMatch(Expansion::isJoined)) {
+                SqlExpr sep = rc.extras().get(0);
+                java.util.List<SqlExpr> parts = new java.util.ArrayList<>(cells.elements().size());
+                for (SqlExpr cell : cells.elements()) {
+                    SqlExpr text = operand(cell);
+                    parts.add(new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
+                            SqlExpr.Call.of(SqlFn.IS_NULL, text), new SqlExpr.StringLit(""))),
+                            SqlExpr.Call.of(SqlFn.CONCAT, sep, text)));
+                }
+                SqlExpr out = parts.get(0);
+                for (SqlExpr part : parts.subList(1, parts.size())) {
+                    out = SqlExpr.Call.of(SqlFn.CONCAT, out, part);
+                }
+                return SqlExpr.Call.of(SqlFn.SUBSTRING, out, SqlExpr.Call.of(SqlFn.PLUS,
+                        SqlExpr.Call.of(SqlFn.LENGTH, sep), new SqlExpr.IntLit(1)));
+            }
+            return e;
+        }
+
+        private static boolean isJoined(SqlExpr e) {
+            return e instanceof SqlExpr.Call c && c.fn() == SqlFn.CELL_TEXT;
+        }
+
+        private static SqlExpr operand(SqlExpr joined) {
+            return ((SqlExpr.Call) joined).args().get(0);
+        }
+    }
+
+    /** The base renderer's pass after {@link Expansion}: a {@link SqlFn#CELL_TEXT} no join read (a TDS cell's
+     *  {@code toString}), its text -- {@code NULL}, empty, where the cell is. */
+    static final class Rest extends com.legend.sql.SqlRewriter {
+        @Override
+        protected SqlExpr expr(SqlExpr e) {
+            return e instanceof SqlExpr.Call c && c.fn() == SqlFn.CELL_TEXT ? c.args().get(0) : e;
+        }
+    }
+}

@@ -629,6 +629,12 @@ class CarrierDifferentialTest {
             super(DuckDb.LEXICON);
         }
 
+        /** A Float's text as DuckDB writes it (D1.2). */
+        @Override
+        protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+            return duck.floatToText(writer, x);
+        }
+
         @Override
         protected java.util.List<com.legend.sql.SqlRewriter> passes() {
             CarrierStrategies carriers = new CarrierStrategies(H2.CAPS);

@@ -35,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
  *
  * <p>A manual probe in {@code //gates:heavy}, beside {@code :identifier_escaping_cloud_probe}: {@code bazel test
  * //core:product_raise_probe} with {@code LEGENDLITE_PROBE_DATABASE} one of {@code mariadb}, {@code mysql},
- * {@code clickhouse}, {@code trino}, {@code mongodb} (the embedded servers; Linux x86_64) or {@code snowflake},
+ * {@code clickhouse}, {@code trino}, {@code mongodb}, {@code postgres} (the embedded servers; Linux x86_64; Postgres
+ * as an unprivileged user, tools/postgres/as_unprivileged.sh) or {@code snowflake},
  * {@code databricks}, {@code bigquery} (with {@code LEGENDLITE_PCT_CLOUD_PROPERTIES}, the cloud lanes' account file).
  * One database a run; without it the probe fails by name, it never skips (the skip census).
  */
@@ -100,11 +101,61 @@ class ProductRaiseProbeTest {
         Object two = run(backend, "toOne over two rows", "|" + ROWS + "->map(r|$r.x)->toOne()->from("
                 + StorelessRuntime.RUNTIME + ")");
         expectKind(wrong, "toOne over two rows", two, com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY, "[1]");
+        // 4. a print site: a Float's text (D1.2, register S311): six decimals, trimmed, the same on every database
+        Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n  100000000000000000000.0\n"
+                + "  0.0000001\n#->extend(~t: r|"
+                + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+        if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2\"},{\"t\":\"-1.25\"},"
+                + "{\"t\":\"100000000000000000000\"},{\"t\":\"0\"}]")) {
+            wrong.add("a Float's text: " + describe(text));
+        }
+        // 5. the edges of a Float's text (the orchestrator's round 54, 2026-11-15): whole numbers (a trim must keep their
+        // zeros), zero and its sign, the halfway region, noise above 4.5e9, NUMBER(38,6)'s 32 integer digits, the
+        // double's extremes. Exact where register S311 says every database agrees; -0 and below 5e-7 either sign of
+        // zero (S311's rows); from 1e21 up the plain digits with no exponent and no failure, as many digits as the
+        // value's magnitude (the noise is S311's; a capped text -- MySQL's FORMAT wrote 61 digits for 1e300 -- is wrong)
+        String[] values = {"100.0", "10.0", "0.0", "-0.0", "123456789.0", "0.30000000000000004", "-0.0000001",
+                "1.0E21", "1.0E32", "1.0E300", "-1.0E300", "1.7976931348623157E308", "2.2250738585072014E-308"};
+        String[][] expected = {{"100"}, {"10"}, {"0"}, {"0"}, {"123456789"}, {"0.3"}, {"0"},
+                null, null, null, null, null, {"0"}};
+        Object edges = run(backend, "a Float's text, its edges", "|#TDS\n  i:Integer, x:Float\n"
+                + java.util.stream.IntStream.range(0, values.length).mapToObj(i -> "  " + i + ", " + values[i] + "\n")
+                        .collect(java.util.stream.Collectors.joining())
+                + "#->sort(~i->ascending())->extend(~t: r|$r.x->toOne()->toString())->select(~t)->from("
+                + StorelessRuntime.RUNTIME + ")");
+        if (!(edges instanceof String e5)) {
+            wrong.add("a Float's text, its edges: " + describe(edges));
+        } else {
+            java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"t\":\"([^\"]*)\"").matcher(e5);
+            List<String> got = new ArrayList<>();
+            while (m.find()) {
+                got.add(m.group(1));
+            }
+            for (int i = 0; i < values.length; i++) {
+                String g = i < got.size() ? got.get(i) : null;
+                boolean ok = g != null && (expected[i] != null ? List.of(expected[i]).contains(g)
+                        : g.matches("-?[0-9]+") && g.replace("-", "").length()
+                                == (int) Math.floor(Math.log10(Math.abs(Double.parseDouble(values[i])))) + 1);
+                if (!ok) {
+                    wrong.add("a Float's text of " + values[i] + ": " + g);
+                }
+            }
+        }
+        // 6. a DateTime's text (D1.2, register S312): ISO 8601 in UTC, six fraction digits and Z
+        Object dt = run(backend, "a DateTime's text", "|#TDS\n  x:DateTime\n  2014-01-01T10:20:30.5\n#->extend(~t: r|"
+                + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+        if (!(dt instanceof String t6) || !t6.replace(" ", "").equals("[{\"t\":\"2014-01-01T10:20:30.500000Z\"}]")) {
+            wrong.add("a DateTime's text: " + describe(dt));
+        }
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
         System.out.println("[product raise probe] " + backend.name() + " toOne over two rows, raised: " + describe(two));
-        System.out.println("[product raise probe] " + backend.name() + ": " + (3 - wrong.size()) + " of 3 as expected");
+        System.out.println("[product raise probe] " + backend.name() + " a Float's text, answered: " + describe(text));
+        System.out.println("[product raise probe] " + backend.name() + " a Float's text, its edges "
+                + List.of(values) + ", answered: " + describe(edges));
+        System.out.println("[product raise probe] " + backend.name() + " a DateTime's text, answered: " + describe(dt));
+        System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());
     }
 

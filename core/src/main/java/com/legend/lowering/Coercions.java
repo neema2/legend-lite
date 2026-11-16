@@ -121,6 +121,11 @@ final class Coercions {
         for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_TRUST_ONE) {
             rules.put(f, (n, args) -> args.get(0));
         }
+        // cellText -- a TDS cell's text (Lite.CELL_TEXT): the product's empty where the cell is, the edge's TDSNull
+        // (phase D's D1.3, 2026-11-15)
+        for (com.legend.model.FunctionId f : Pure.AT_LEGEND_LITE_CELL_TEXT) {
+            rules.put(f, (n, args) -> com.legend.sql.SqlExpr.Call.of(com.legend.sql.SqlFn.CELL_TEXT, args.get(0)));
+        }
         // toOneMany narrows [*] to [1..*]: at-least-one is CHECKED
         // (audit slice 3 — it was an unconditional no-op). A to-one
         // operand additionally re-carriers to the LIST the [1..*]

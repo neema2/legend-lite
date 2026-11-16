@@ -1,6 +1,6 @@
 package com.legend.integration;
 
-import com.legend.test.ServiceTestRunner;
+import com.legend.edge.ServiceTestRunner;
 import com.legend.testbackend.TestBackend;
 import com.legend.testbackend.TestBackends;
 

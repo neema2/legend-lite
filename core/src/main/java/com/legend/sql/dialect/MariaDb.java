@@ -1984,6 +1984,9 @@ public class MariaDb extends AnsiSqlRenderer {
             // mixed list, measured 2026-10-11)
             case FLOAT_CANON -> writer.piece(floatLayout(w -> w.expr(a.get(0), 0), true));
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+                    throw expandedFirst(c);
             // NULL-skipping, as DuckDB's (MariaDB's GREATEST/LEAST are NULL for any NULL argument)
             case GREATEST -> writer.piece(nullSkipping("GREATEST", a));
             case LEAST -> writer.piece(nullSkipping("LEAST", a));
@@ -3602,5 +3605,17 @@ public class MariaDb extends AnsiSqlRenderer {
                 || label instanceof SqlType.Decimal d && wire.startsWith("DECIMAL(")
                         && wire.endsWith("," + d.scale() + ")")
                 || composite && (wire.equals("JSON") || wire.equals("VARCHAR"));
+    }
+
+    /** {@inheritDoc} {@code FORMAT}'s six decimals in the {@code en_US} locale, its grouping commas taken out, trimmed
+     *  by the standard's trailing trim: the same text as the other databases at every magnitude (measured 2026-11-15 on
+     *  the embedded MariaDB and MySQL, from 1e-7 to 1.7976931348623157e308: a DECIMAL(65, 6) cast saturates past
+     *  10^59, and MySQL's text of ROUND writes an exponent from 10^15; the orchestrator's rule, the same text on every
+     *  database). No NaN or infinity is stored. MySQL inherits it. */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return trimmedSixStandard(writer, w -> w.append("REPLACE(FORMAT(").expr(asDouble(x), 0)
+                .append(", 6, 'en_US'), ',', '')"));
     }
 }

@@ -10,7 +10,6 @@ import com.legend.exec.Sessions;
 import com.legend.executionplan.ExecutionPlan;
 import com.legend.json.Json;
 import com.legend.result.Batch;
-import com.legend.result.CellText;
 import com.legend.result.JsonRowsWriter;
 import com.legend.result.ResultSink;
 import com.legend.result.RowDecode;
@@ -209,9 +208,9 @@ public final class Lean {
                 }
                 List<Object> cells = new ArrayList<>(planColumns.size());
                 for (ExecutionPlan.Column c : planColumns) {
-                    // the writer keys a row by the column's PRESENTED name (a generated pivot column in its quotes,
-                    // as the engine labels it: CellText.presentedName); the reader looks it up the same way
-                    Json.Node node = o.fields().get(CellText.presentedName(c.name()));
+                    // the writer keys a row by the column's name, a generated pivot column's bare (the user's ruling of
+                    // 2026-11-10, "Pivot names are bare"; D1.4, 2026-11-15)
+                    Json.Node node = o.fields().get(c.name());
                     if (node == null) {
                         throw new IllegalStateException("the row has no field for the column '" + c.name()
                                 + "' (it has " + o.fields().keySet() + ")");

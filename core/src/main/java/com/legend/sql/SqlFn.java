@@ -130,8 +130,62 @@ public enum SqlFn {
     FLOAT_CANON,
     /** A Float's text as Pure's {@code toString} prints it (2026-10-22): the shortest digits, plain within the
      *  database's plain range and fixed point past it where exact, at least one fraction digit (lowering/LiteralSpelling).
-     *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). */
+     *  One call per value, which each dialect spells (dialect/FloatPrintText the portable decomposition). Since phase
+     *  D's D1.2 (2026-11-15) the JUDGES' form: their {@code %r} of a Float in an assert's message, as the host judge
+     *  prints it (judge parity, G2), and what the compatibility edge writes for {@link #FLOAT_TO_TEXT}; never the
+     *  product's text of a Float. */
     FLOAT_PRINT,
+    /** A Float's text ({@code toString}, {@code format}'s {@code %f}): the product's is six decimals, the trailing
+     *  zeros and a trailing point trimmed, NaN and the infinities by name (the user's ruling of 2026-11-10, D_BRIEF
+     *  §1; phase D's D1.2, 2026-11-15) -- each dialect writes it ({@code AnsiSqlRenderer.floatToText}); the
+     *  compatibility edge writes {@link #FLOAT_PRINT} for it, legend-pure's print form (edge/PurePrintForms). */
+    FLOAT_TO_TEXT,
+    /** A DateTime's text ({@code toString}, {@code format}'s {@code %s}): the product's is ISO 8601 in UTC, six fraction
+     *  digits and {@code Z} (the user's ruling of 2026-11-10, D_BRIEF §1; phase D's D1.2, 2026-11-15), a STRFTIME the
+     *  base renderer expands it to ({@code dialect.DateTimeText}). A literal's call carries, second, the text the
+     *  literal was written in -- the compatibility edge's (legend-pure prints a literal at its written precision); the
+     *  product reads the value alone. The compatibility edge writes {@link #DATETIME_PRINT} for it. */
+    DATETIME_TO_TEXT,
+    /** A DateTime's text as legend-pure prints it: the fraction's digits with their trailing zeros trimmed, then
+     *  {@code +0000}; a literal's (a second operand, its written text) that text and {@code +0000}. The JUDGES' form
+     *  (their {@code %r} and canon, judge parity G2) and the compatibility edge's text of {@link #DATETIME_TO_TEXT};
+     *  never the product's (phase D's D1.2, 2026-11-15: until then the lowering composed it in place,
+     *  LiteralSpelling.dateTimeText). Expanded before every other pass ({@code dialect.DateTimePrintText}). */
+    DATETIME_PRINT,
+    /** An element's text in a {@code makeString} ({@code x}, one operand, {@code NULL} where the element is empty): the
+     *  product's join skips an empty element (the user's ruling of 2026-11-10, D_BRIEF §1: "makeString skips empty
+     *  elements"; phase D's D1.3, 2026-11-15) -- the base renderer writes the text alone ({@code dialect.CellTexts}),
+     *  the join's {@code STRING_AGG} drops a {@code NULL}. legend-engine prints an empty TDS cell as {@code TDSNull}: the
+     *  compatibility edge writes that (edge/PurePrintForms). */
+    CELL_TEXT,
+    /** {@code format}'s {@code %0<w>d} ({@code x}, then the width): legend-pure pads the digits and then signs
+     *  ({@code -3} at width 5 is {@code -00003}). Only legend-pure's {@code format} writes it: the product's renderer
+     *  refuses it by name ({@code dialect.PureOnlyText}), the compatibility edge composes it (edge/PurePrintForms;
+     *  phase D's D1.3, 2026-11-15: until then the lowering composed it, Scalars.signedZeroPad). */
+    FORMAT_PADDED,
+    /** An instance's {@code toString} ({@code id}, the instance's identity): legend-pure prints an instance without a
+     *  {@code toString} of its own by its repository id, {@code @_} and the id. The product writes an object by graph
+     *  fetch: its renderer refuses this by name ({@code dialect.PureOnlyText}); the compatibility edge composes it
+     *  (edge/PurePrintForms; phase D's D1.3, 2026-11-15). */
+    INSTANCE_TEXT,
+    /** A relation's text ({@code x}, then what the text is as a string literal: {@code toString}'s {@code #TDS} text,
+     *  {@code toCSV}, a TDS's {@code csv}): legend-pure's and legend-engine's texts of rows. The product writes a
+     *  relation's rows by its result writers (JSON, CSV, Arrow): its renderer refuses this by name
+     *  ({@code dialect.PureOnlyText}); the compatibility edge writes {@code x}, today's SQL (edge/PurePrintForms; the
+     *  user's ruling of 2026-11-10, "objects and relations are refused", relayed 2026-11-15; phase D's D1.3). */
+    RELATION_TEXT,
+    /** A value's text in two forms ({@code product}, then {@code pure}): the product's (a list's JSON array; the user's
+     *  ruling of 2026-11-10, start-here §5.4, relayed 2026-11-15) and legend-pure's ({@code [a, 1]}), where the two
+     *  differ in their composition, not one spelling. The base renderer keeps the product's
+     *  ({@code dialect.TextForms}); the compatibility edge keeps legend-pure's (edge/PurePrintForms). Phase D's D1.3,
+     *  2026-11-15: until the hook has a lowering half, legend-pure's form is composed beside the product's. */
+    TEXT_FORMS,
+    /** An execution's trace text in an activity's row ({@code id}, the execution's id the runner binds): the product's
+     *  is the id (the user's ruling of 2026-11-10, C1: "The execution id lives in lite's trace and in the edge's
+     *  activity report"; phase D's D1.4, 2026-11-15) -- the base renderer writes the operand ({@code dialect.TextForms});
+     *  the compatibility edge writes legend-engine's comment around it, {@code -- "executionTraceID" : "<id>"}
+     *  (edge/PurePrintForms). Until then the runner bound the comment itself. */
+    TRACE_TEXT,
     // Variant navigation: logical JSON access; text-extraction idioms are rendering
     VARIANT_ELEMENTS, VARIANT_GET, JSON_TYPE,
     /** json_array_length(doc): the element count of a JSON array (the size of a serialized class collection — database-mode assertSize). */

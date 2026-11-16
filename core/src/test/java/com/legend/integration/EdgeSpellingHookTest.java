@@ -83,6 +83,16 @@ class EdgeSpellingHookTest {
         public String activitySql(Activity activity) {
             return PlanStyle.PRODUCT.activitySql(activity);
         }
+
+        @Override
+        public String graphKeyDate(String written) {
+            return PlanStyle.PRODUCT.graphKeyDate(written);
+        }
+
+        @Override
+        public String graphKeyString(String value) {
+            return PlanStyle.PRODUCT.graphKeyString(value);
+        }
     };
 
     private static String sql(ExecutionPlan plan) {
@@ -140,11 +150,20 @@ class EdgeSpellingHookTest {
      *  (edge.PureMessages), where the product writes the raise's kind. */
     private static final Set<String> D1_1 = Set.of("raiseMessage");
 
+    /** D1.1's arm, and D1.2's (2026-11-15): {@code spellingPasses} and {@code floatToText}, legend-pure's print form of
+     *  a Float ({@code FLOAT_PRINT}, edge.PurePrintForms) where the product writes its six decimals. */
+    private static final Set<String> D1_2 = Set.of("raiseMessage", "spellingPasses", "floatToText");
+
+    /** D1.2's arms and MongoDB's {@code dateTimeFormat} (2026-11-15): legend-pure's {@code +0000} text of a date-time
+     *  in its {@code $dateToString}s, where the product writes ISO with {@code Z}. */
+    private static final Set<String> D1_2_MONGO = Set.of("raiseMessage", "spellingPasses", "floatToText",
+            "dateTimeFormat");
+
     private static final Map<String, Set<String>> OVERRIDES = new TreeMap<>(Map.ofEntries(
-            Map.entry("BigQuery", D1_1), Map.entry("ClickHouse", D1_1), Map.entry("Databricks", D1_1),
-            Map.entry("DuckDb", D1_1), Map.entry("H2", D1_1), Map.entry("MariaDb", D1_1),
-            Map.entry("MongoDb", D1_1), Map.entry("MySql", D1_1), Map.entry("Postgres", D1_1),
-            Map.entry("SQLite", D1_1), Map.entry("Snowflake", D1_1), Map.entry("Trino", D1_1)));
+            Map.entry("BigQuery", D1_2), Map.entry("ClickHouse", D1_2), Map.entry("Databricks", D1_2),
+            Map.entry("DuckDb", D1_2), Map.entry("H2", D1_2), Map.entry("MariaDb", D1_2),
+            Map.entry("MongoDb", D1_2_MONGO), Map.entry("MySql", D1_2), Map.entry("Postgres", D1_2),
+            Map.entry("SQLite", D1_2), Map.entry("Snowflake", D1_2), Map.entry("Trino", D1_2)));
 
     /** The methods {@code c} declares that override a product dialect's method which is not a
      *  {@link com.legend.sql.dialect.SpellingArm}: a decision the edge must not take ({@code EdgeMayOverride}, used

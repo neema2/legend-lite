@@ -1096,6 +1096,9 @@ public class Databricks extends AnsiSqlRenderer {
             case DATE_TRUNC -> dateTruncDateGrained(writer, c.args(), stringLit(truncUnit(part(c.args().get(0)))));
             case FLOAT_CANON -> floatCanonByText(writer, c.args(), parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, c.args().get(0));
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -1952,5 +1955,12 @@ public class Databricks extends AnsiSqlRenderer {
             return "date";
         }
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Databricks");
+    }
+
+    /** {@inheritDoc} {@code format_string}'s six decimals (Java's, NaN and the infinities by name), trimmed by the standard's trailing trim (the brief's measurement, D_BRIEF §1). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        return trimmedSixStandard(writer, w -> w.append("format_string('%.6f', ").expr(asDouble(x), 0).append(")"));
     }
 }

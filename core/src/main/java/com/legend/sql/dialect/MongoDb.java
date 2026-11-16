@@ -710,7 +710,7 @@ public class MongoDb extends AnsiSqlRenderer {
         if (text && temporal(c.value()) != null) {
             return writer.append("{\"$dateToString\": {\"date\": ").expr(c.value(), 0).append(", \"format\": ")
                     .append(MongoJson.string(temporal(c.value()) == SqlType.Scalar.DATE ? "%Y-%m-%d"
-                            : "%Y-%m-%dT%H:%M:%S.%L+0000")).append("}}");
+                            : dateTimeFormat())).append("}}");
         }
         if (text && mayBeNumber(c.value())) {
             return numberText(writer, c.value());
@@ -819,9 +819,18 @@ public class MongoDb extends AnsiSqlRenderer {
         w.append("}}");
     }
 
-    /** The format a date's text takes in a wire: a date alone, or Pure's date-time to the millisecond. */
-    private static String dateFormat(SqlExpr e) {
-        return temporal(e) == SqlType.Scalar.DATE ? "%Y-%m-%d" : "%Y-%m-%dT%H:%M:%S.%L+0000";
+    /** The format a date's text takes in a wire: a date alone, or a date-time's ({@link #dateTimeFormat}). */
+    private String dateFormat(SqlExpr e) {
+        return temporal(e) == SqlType.Scalar.DATE ? "%Y-%m-%d" : dateTimeFormat();
+    }
+
+    /** The {@code $dateToString} format of a date-time's text: the product's, ISO 8601 in UTC with six fraction digits
+     *  and {@code Z} (the user's ruling of 2026-11-10, register S312; MongoDB keeps milliseconds, so the last three of
+     *  the six are its zeros); the compatibility edge writes legend-pure's ({@code +0000}) instead (phase D's D1.2,
+     *  2026-11-15: until then Pure's was the product's here). */
+    @SpellingArm
+    protected String dateTimeFormat() {
+        return "%Y-%m-%dT%H:%M:%S.%L000Z";
     }
 
     /**
@@ -905,7 +914,7 @@ public class MongoDb extends AnsiSqlRenderer {
                     + " {\"$cond\": [" + isObject + ", {\"$concat\": [\"\\\"\", " + escapedJsonString("\"$$this.k\"")
                     + ", \"\\\":\"]}, \"\"]}, {\"$let\": {\"vars\": {\"v\": {\"$cond\": [" + isObject
                     + ", \"$$this.v\", \"$$this\"]}}, \"in\": ");
-            jsonLevel(writer, "%Y-%m-%dT%H:%M:%S.%L+0000", depth - 1);
+            jsonLevel(writer, dateTimeFormat(), depth - 1);
             writer.append("}}]}}}, {\"$cond\": [" + isObject + ", \"}\", \"]\"]}]}");
         }
         writer.append("}, {\"case\": {\"$in\": [{\"$type\": \"$$v\"}, [\"double\", \"decimal\"]]}, \"then\": ");
@@ -1235,6 +1244,9 @@ public class MongoDb extends AnsiSqlRenderer {
             case BOOL_TO_TEXT -> MongoJson.op1(writer, "$toString", a.get(0));
             case FLOAT_CANON -> floatCanonByText(writer, a, parentPrec);
             case FLOAT_PRINT -> floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+                    throw expandedFirst(c);
             // ---- raising
             case ERROR -> raise(writer, a);
         };
@@ -1572,7 +1584,7 @@ public class MongoDb extends AnsiSqlRenderer {
                 + " {\"branches\": [{\"case\": {\"$eq\": [\"$$g0\", null]}, \"then\": \"\"},"
                 + " {\"case\": {\"$eq\": [{\"$type\": \"$$g0\"}, \"string\"]}, \"then\": \"$$g0\"},"
                 + " {\"case\": {\"$eq\": [{\"$type\": \"$$g0\"}, \"date\"]}, \"then\": {\"$dateToString\":"
-                + " {\"date\": \"$$g0\", \"format\": \"%Y-%m-%dT%H:%M:%S.%L+0000\"}}},"
+                + " {\"date\": \"$$g0\", \"format\": \"" + dateTimeFormat() + "\"}}},"
                 + " {\"case\": {\"$in\": [{\"$type\": \"$$g0\"}, [\"double\", \"decimal\"]]}, \"then\": ");
         numberTextOf(writer, MongoJson.var("g0"), false);
         writer.append("}], \"default\": {\"$toString\": \"$$g0\"}}}}}");
@@ -2851,5 +2863,30 @@ public class MongoDb extends AnsiSqlRenderer {
     @Override
     public @com.legend.base.Nullable Integer resultColumnLimit() {
         return null;
+    }
+
+    /** {@inheritDoc} The value as a Decimal128 rounded to six places, whose text MongoDB writes plain with its six
+     *  decimals, then its trailing zeros and point trimmed ({@code $rtrim}): a double's own {@code $toString} writes an
+     *  exponent ({@code 1e+20}, measured on the embedded MongoDB 2026-11-15). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        // the value rounded to six decimals as a Decimal128, its text: below 1e34 plain digits, trimmed of the zeros
+        // and a point after them; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
+        // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
+        // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
+        writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
+        MongoJson.op1(writer, "$toDecimal", x);
+        return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
+                + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
+                + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
+                + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"
+                + " {\"$let\": {\"vars\": {\"m\": {\"$substrCP\": [\"$$s\", 0, \"$$e\"]},"
+                + " \"n\": {\"$toInt\": {\"$substrCP\": [\"$$s\", {\"$add\": [\"$$e\", 2]}, 8]}}},"
+                + " \"in\": {\"$let\": {\"vars\": {\"p\": {\"$indexOfCP\": [\"$$m\", \".\"]}},"
+                + " \"in\": {\"$concat\": [{\"$replaceAll\": {\"input\": \"$$m\", \"find\": \".\", \"replacement\": \"\"}},"
+                + " {\"$reduce\": {\"input\": {\"$range\": [0, {\"$subtract\": [\"$$n\", {\"$cond\": [{\"$lt\": [\"$$p\", 0]},"
+                + " 0, {\"$subtract\": [{\"$subtract\": [{\"$strLenCP\": \"$$m\"}, \"$$p\"]}, 1]}]}]}]},"
+                + " \"initialValue\": \"\", \"in\": {\"$concat\": [\"$$value\", \"0\"]}}}]}}}}}]}}}}}");
     }
 }

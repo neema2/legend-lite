@@ -409,10 +409,11 @@ describe("a plan's loads, established on a database the host made for its target
       + "->pivot(~[city], ~[names:r|$r.name:y|$y->joinStrings(',')])->sort(~dept->ascending())->from(x::BareRT)}", 'x::BareRT');
     assert.match(plan, /"_type":"keyed"/);
     assert.equal(targetKey(plan), null, "it loads nothing: the host's own session serves it");
-    // each key's column named as the plan's keys statement names it (Java's runner reads the same name)
+    // each key's column named as the plan's keys statement names it, bare (D1.4, 2026-11-15; Java's runner reads the
+    // same name)
     assert.deepEqual(looseJson(await run(plan)), [
-      { dept: 'A', "'NYC__|__names'": 'x', "'SAN__|__names'": 'y' },
-      { dept: 'B', "'NYC__|__names'": 'z', "'SAN__|__names'": null },
+      { dept: 'A', 'NYC__|__names': 'x', 'SAN__|__names': 'y' },
+      { dept: 'B', 'NYC__|__names': 'z', 'SAN__|__names': null },
     ]);
     // H8: exactly the plan's statements, as the database itself received them (the unfiltered witness, H13) -- its
     // target's session, then its keys statement and its body written for the keys read (expandKeyed, the one form a

@@ -130,16 +130,10 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
         }
     }
 
-    /** An execution's trace comment, as legend-engine's executor writes one per execution: the run stamps a
-     *  statement with one, and planning writes the one a frame's activity row names (2026-11-09: one spelling for
-     *  both halves). */
-    public static String traceComment(java.util.UUID id) {
-        return "-- \"executionTraceID\" : \"" + id + "\"";
-    }
-
-    /** The prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the trace
-     *  comment of the execution it names ({@link Sql#stamp}, and a slot reading one: an activity row's comment). The
-     *  planner's names spell it ({@code planner.ProgramFrames.STAMP}). */
+    /** The prefix of an EXECUTION's stamp: a parameter no Pure parameter can spell, bound by the runner to the id of
+     *  the execution it names ({@link Sql#stamp}, and a slot reading one: an activity row's comment; legend-engine's
+     *  comment around the id is the edge's plan's, TRACE_TEXT, phase D's D1.4, 2026-11-15). The planner's names spell
+     *  it ({@code planner.ProgramFrames.STAMP}). */
     public static final String STAMP = "#stamp";
 
     /** The executions {@code node}'s statements read, by stamp, in the order first met, added to {@code into}: each

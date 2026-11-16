@@ -133,12 +133,19 @@ public final class PureV1Writer implements ResultSink {
      * execution that ran the SQL, as upstream's {@code RelationalExecutionActivity(sqlQuery, sqlComment)} carries the
      * comment processed with its {@code execID} ({@code RelationalExecutor.java:332,351}).
      */
+    /** An execution's trace comment, as legend-engine's executor writes one per execution (moved here from
+     *  ExecutionPlan, 2026-11-15, phase D's D1.4: the plan's activity rows carry the id, the edge's comment around it;
+     *  this writer goes to the edge at D1.8). */
+    static String traceComment(java.util.UUID id) {
+        return "-- \"executionTraceID\" : \"" + id + "\"";
+    }
+
     public static java.util.Map<String, Object> activity(String sql, boolean typed, java.util.UUID execution) {
         java.util.Map<String, Object> activity = new java.util.LinkedHashMap<>();
         if (typed) {
             activity.put("_type", "relational");
         }
-        activity.put("comment", ExecutionPlan.traceComment(execution));
+        activity.put("comment", traceComment(execution));
         activity.put("sql", sql);
         return activity;
     }

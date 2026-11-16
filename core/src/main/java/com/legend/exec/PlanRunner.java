@@ -842,7 +842,9 @@ public final class PlanRunner {
         }
         Map<String, PlanParameters.Checked> out = new HashMap<>(values);
         for (String execution : read) {
-            out.put(execution, new PlanParameters.One(ExecutionPlan.traceComment(com.legend.base.RunScope.execution())));
+            // the execution's id itself: legend-engine's comment around it is the edge's plan's (TRACE_TEXT, phase D's
+            // D1.4, 2026-11-15)
+            out.put(execution, new PlanParameters.One(com.legend.base.RunScope.execution().toString()));
         }
         return out;
     }

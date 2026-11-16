@@ -792,13 +792,12 @@ public final class Render {
     /** THE RFC4180 escape rule ({@code escapeCSVString}), spelled once:
      *  quote when the text contains comma, quote, LF or CR; embedded
      *  quotes double. */
-    /** A generated column's name as the engine labels it: the key's text, the separator and the USING's alias
-     *  ({@code tail}) between literal single quotes -- the quotes are part of the name on legend-engine's DuckDB SQL
-     *  ({@code concat('''', <key>, '''')}), in its interpreter and in the PCT's expected text; lite's physical column
-     *  is bare and every carrier presents it this way ({@link Type.RelationType#presentPivotName}; the pivot
-     *  homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md). */
+    /** A generated column's name: the key's text, the separator and the USING's alias ({@code tail}), bare -- the
+     *  physical column's, as a native PIVOT names it (the user's ruling of 2026-11-10, start-here §5.4: "Pivot names
+     *  are bare"; phase D's D1.4, 2026-11-15). legend-engine labels it between literal single quotes (the pivot
+     *  homework, docs/PIVOT_UPSTREAM_HOMEWORK_2026_10_18.md): its writers' quoting, the edge's. */
     static SqlExpr generatedName(SqlExpr keyText, String tail) {
-        return cat(new SqlExpr.StringLit("'"), keyText, new SqlExpr.StringLit(tail + "'"));
+        return cat(keyText, new SqlExpr.StringLit(tail));
     }
 
     static SqlExpr escapeCsv(SqlExpr s) {

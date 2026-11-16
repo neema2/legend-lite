@@ -470,25 +470,32 @@ public final class LiteralSpelling {
     // ==================================================================
 
     /**
-     * Pure prints a Float as its {@code toString} does: one call, {@link SqlFn#FLOAT_PRINT}, which each dialect spells
-     * (2026-10-22: the portable spelling, dialect/FloatPrintText, reads the value's text some nine times, which
-     * multiplied a dialect whose double text is itself a long expression -- Snowflake's PCT statement for
-     * {@code 1.5 + 2.25} was 48 KB).
+     * A Float's text ({@code toString}, {@code format}'s {@code %f}): one call, {@link SqlFn#FLOAT_TO_TEXT}, which each
+     * dialect writes -- the product six decimals trimmed (the user's ruling of 2026-11-10), the compatibility edge
+     * legend-pure's print form (phase D's D1.2, 2026-11-15; until then this was Pure's form, FLOAT_PRINT, everywhere).
      */
     public static SqlExpr floatPrint(SqlExpr x) {
+        // (D1.2: the product's text of an integer-held value is its digits too, the same text as six decimals trimmed,
+        // so this lean form is both styles')
         // A Float the STORE holds as an integer -- a physical column the store declares integral under a Float
         // property (legend-engine's test tradeTable.quantity INT under the validation showcase's Float) -- prints the
         // integer the database holds, as legend-engine's cast of the column does ('Quantity not in range: 1000000',
         // measured on the corpus 2026-10-18, step 6 of the plan path program). The store's fact, read off the scan's
         // own column (origin PHYSICAL), never inferred; a computed Float, and a projected one read back through a
         // frame, keep Pure's text (the output layer's step 5: a whole Float's .0 on every database).
-        if (x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
-                && (c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
-                        || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
-                && isIntegral(t.type())) {
+        if (heldAsInteger(x)) {
             return new SqlExpr.Cast(x, SqlType.Scalar.VARCHAR);
         }
-        return SqlExpr.Call.of(SqlFn.FLOAT_PRINT, x);
+        return SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, x);
+    }
+
+    /** Whether {@code x} is a Float the STORE holds as an integer: a physical column the store declares integral
+     *  (its text is its digits; {@link #floatPrint}). */
+    static boolean heldAsInteger(SqlExpr x) {
+        return x instanceof SqlExpr.Column c && c.type() instanceof com.legend.sql.TypeFact.Typed t
+                && (c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL
+                        || c.origin() == com.legend.sql.OutputCol.Origin.PHYSICAL_QUOTED)
+                && isIntegral(t.type());
     }
 
     /** Whether {@code t} is one of the integral SQL kinds. */
@@ -594,19 +601,9 @@ public final class LiteralSpelling {
      * typer knows them. The fraction is read at nine digits, which every SQL dialect spells.
      */
     public static SqlExpr dateTimeText(SqlExpr x) {
-        SqlExpr digits = SqlExpr.Call.of(SqlFn.RTRIM,
-                SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                        new SqlExpr.FormatLit(List.of(com.legend.sql.DateFmt.Part.SUBSEC_NANO))),
-                new SqlExpr.StringLit("0"));
-        SqlExpr fraction = new SqlExpr.Case(List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(SqlFn.EQUAL, digits, new SqlExpr.StringLit("")), new SqlExpr.StringLit(""))),
-                SqlExpr.Call.of(SqlFn.CONCAT, new SqlExpr.StringLit("."), digits));
-        return SqlExpr.Call.of(SqlFn.CONCAT,
-                SqlExpr.Call.of(SqlFn.CONCAT,
-                        SqlExpr.Call.of(SqlFn.STRFTIME, x,
-                                new SqlExpr.FormatLit(com.legend.sql.DateFmt.ISO_LOCAL)),
-                        fraction),
-                new SqlExpr.StringLit("+0000"));
+        // phase D's D1.2 (2026-11-15): legend-pure's form is a node, the judges' and the edge's, its composition the
+        // renderer's (dialect.DateTimePrintText, moved there unchanged); the product's own text is DATETIME_TO_TEXT
+        return SqlExpr.Call.of(SqlFn.DATETIME_PRINT, x);
     }
 
     /**

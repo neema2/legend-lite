@@ -372,6 +372,10 @@ class CodeShapeGuardrailTest {
             // serialize arm, consumed at the envelope build — same
             // per-resolution frame lifecycle
             "StoreResolver.checkedEnvelope",
+            // a graph fetch's key arguments in the plan's style (D1.2, 2026-11-15): set once by the planner that
+            // builds the resolver (BodyPlanner.resolver), read at the envelope build, carried to each emission it
+            // copies -- the same per-resolution frame lifecycle as serializeTypeCfg
+            "StoreResolver.graphKeyText", "GraphEmission.keyText",
             "SyntheticHeads.count", "Lowerer.tdsCounter", "Lowerer.aliasCounter",
             "UserCallInliner.fresh", "Bindings.contravariantDepth",
             // walk-scoped mode flag: inside a postprocessor-CONFIG

@@ -347,6 +347,11 @@ public class Snowflake extends AnsiSqlRenderer {
     /** A Float literal's plain spelling; NaN and the infinities as FLOAT text (a bare {@code NaN} is no literal). */
     @Override
     protected String floatLiteral(double v) {
+        // a negative zero keeps its sign, cast from its text (the orchestrator's round 56, 2026-11-15: the digits'
+        // BigDecimal has no -0, so -0.0 was written 0.0)
+        if (v == 0.0 && Double.doubleToRawLongBits(v) != 0L) {
+            return "CAST('-0.0' AS DOUBLE)";
+        }
         if (Double.isNaN(v)) {
             return "CAST('NaN' AS DOUBLE)";
         }
@@ -1408,6 +1413,9 @@ public class Snowflake extends AnsiSqlRenderer {
             // a double from its digits; any other value (a literal, a decimal slot) through the database's own text of
             // it, which is exact, as the portable spelling read it
             case FLOAT_PRINT -> isDouble(a.get(0)) ? floatPrint(writer, a.get(0)) : floatPrintByText(writer, c, parentPrec);
+            case FLOAT_TO_TEXT -> floatToText(writer, a.get(0));
+            case DATETIME_TO_TEXT, DATETIME_PRINT, CELL_TEXT, FORMAT_PADDED, INSTANCE_TEXT, RELATION_TEXT, TEXT_FORMS, TRACE_TEXT ->
+                    throw expandedFirst(c);
             // the hooks: this dialect's own (or the base's refusal)
             case ROUND -> roundHalfEven(writer, c.args());
             case HASH -> hashSigned(writer, c.args());
@@ -3511,5 +3519,25 @@ public class Snowflake extends AnsiSqlRenderer {
         boolean integral = label == SqlType.Scalar.BIGINT || label == SqlType.Scalar.INTEGER;
         return integral && wire.startsWith("DECIMAL(") && wire.endsWith(",0)")
                 || (label instanceof SqlType.Struct || label instanceof SqlType.Map) && wire.equals("OBJECT");
+    }
+
+    /** {@inheritDoc} The value's NUMBER(38, 6) text, trimmed; NaN and the infinities by Pure's names, which are Java's
+     *  (Snowflake's NaN equals itself and exceeds every number; the brief's measurement, D_BRIEF §1). */
+    @Override
+    @SpellingArm
+    protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
+        writer.append("CASE WHEN ").expr(x, 0).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CASE WHEN ")
+                .expr(x, 0).append(" = 'NaN'::FLOAT THEN 'NaN' WHEN ").expr(x, 0)
+                .append(" > 0 THEN 'Infinity' ELSE '-Infinity' END ");
+        // NUMBER(38, 6) holds a magnitude below 1e32 (the orchestrator's round 56, 2026-11-15: 1e32, +-1e300 and
+        // Double's max failed the whole statement, "Number out of representable range"): from 1e32 the value's leading
+        // 21 digits, NUMBER(38, 0) of it scaled down, and the rest written as zeros -- its magnitude kept (S311's noise
+        // above 4.5e9), as MySQL's form from 1e60
+        writer.append("WHEN ABS(").expr(x, 0).append(") >= 1E32 THEN CAST(CAST(").expr(x, 0)
+                .append(" / POWER(10, FLOOR(LOG(10, ABS(").expr(x, 0)
+                .append("))) - 20) AS NUMBER(38, 0)) AS VARCHAR) || REPEAT('0', FLOOR(LOG(10, ABS(").expr(x, 0)
+                .append("))) - 20) ELSE ");
+        trimmedSix(writer, "RTRIM", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS NUMBER(38, 6)) AS VARCHAR)"));
+        return writer.append(" END");
     }
 }

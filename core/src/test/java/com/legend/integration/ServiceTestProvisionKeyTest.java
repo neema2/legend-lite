@@ -8,7 +8,7 @@ import com.legend.testing.LaneFloor;
 import com.legend.Compiler;
 import com.legend.model.ConnectionDefinition;
 import com.legend.model.ServiceDefinition;
-import com.legend.test.ServiceTestRunner;
+import com.legend.edge.ServiceTestRunner;
 import com.legend.testing.Own;
 import org.junit.jupiter.api.Test;
 

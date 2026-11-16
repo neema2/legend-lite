@@ -52,7 +52,7 @@ class PivotOverClassQueryTest {
             // a pivot column's NAME carries literal single quotes, as the engine
             // presents it (pureToSQLQuery.pure mayQuotePivotColNames); the SQL
             // column underneath stays bare
-            assertEquals(List.of("region", "'2023__|__total'", "'2024__|__total'"),
+            assertEquals(List.of("region", "2023__|__total", "2024__|__total"),
                     r.columns().stream().map(Lean.Column::name).toList());
             assertEquals(List.of("EU|15|7", "US|1|5"), r.rows().stream()
                     .map(row -> row.get(0) + "|" + row.get(1) + "|" + row.get(2)).toList());
