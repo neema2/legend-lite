@@ -163,6 +163,9 @@ class ProductRaiseProbeTest {
         if (!(dt instanceof String t6) || !t6.replace(" ", "").equals("[{\"t\":\"2014-01-01T10:20:30.500000Z\"}]")) {
             wrong.add("a DateTime's text: " + describe(dt));
         }
+        // 7. the parse family (Phase 8, 2026-11-16; round 71's gap: the external lanes run this probe alone): each
+        // input's parseFloat and parseInteger, legend-pure's value or a refusal by name, never a silent wrong value
+        parses(backend, wrong);
         // what came back, each case's (the orchestrator, 2026-11-15: every lane's log shows it, not only the count)
         System.out.println("[product raise probe] " + backend.name() + " guarded, no raise, answered: " + describe(rows));
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
@@ -174,6 +177,57 @@ class ProductRaiseProbeTest {
         System.out.println("[product raise probe] " + backend.name() + " a DateTime's text, answered: " + describe(dt));
         System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());
+    }
+
+    /** A parse's expected answer: a number (legend-pure's), a raise, NaN or Infinity (the value, or VALUE_NOT_HELD
+     *  where the database holds none), or either (a follow-up's open case, printed). */
+    private record Parse(String fn, String text, String expect) {
+    }
+
+    private static final List<Parse> PARSES = List.of(
+            new Parse("parseFloat", "abc", "raise"), new Parse("parseFloat", "", "raise"),
+            new Parse("parseFloat", "+-1", "raise"), new Parse("parseFloat", "0x10", "raise"),
+            new Parse("parseFloat", " 1 ", "1.0"), new Parse("parseFloat", "1f", "1.0"),
+            new Parse("parseFloat", "1e5", "100000.0"), new Parse("parseFloat", "NaN", "NaN"),
+            new Parse("parseFloat", "Infinity", "Infinity"),
+            new Parse("parseInteger", "abc", "raise"), new Parse("parseInteger", "", "raise"),
+            new Parse("parseInteger", "+-1", "raise"), new Parse("parseInteger", "0x10", "raise"),
+            new Parse("parseInteger", "1f", "raise"), new Parse("parseInteger", "1e5", "raise"),
+            new Parse("parseInteger", "NaN", "raise"), new Parse("parseInteger", "Infinity", "raise"),
+            new Parse("parseInteger", "12", "12"),
+            // legend-pure raises on whitespace in both modes (Long.valueOf, Long.parseLong); every database trims
+            // today: a follow-up, printed, either answer passing until it lands
+            new Parse("parseInteger", " 1 ", "either"));
+
+    private static void parses(com.legend.testbackend.TestBackend backend, List<String> wrong) {
+        for (Parse p : PARSES) {
+            String label = p.fn() + "('" + p.text() + "')";
+            Object got = run(backend, label, "|#TDS\n  k:Integer\n  1\n#->extend(~t: r|'" + p.text() + "'->" + p.fn()
+                    + "())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+            System.out.println("[product raise probe] " + backend.name() + " " + label + ", answered: " + describe(got));
+            String cell = got instanceof String rows && rows.contains("\"t\":")
+                    ? rows.substring(rows.indexOf("\"t\":") + 4).replaceAll("[}\\]\\s\"]", "") : null;
+            switch (p.expect()) {
+                case "either" -> { }
+                case "raise" -> {
+                    if (!(got instanceof Throwable)) {
+                        wrong.add(label + ": expected a raise, answered " + describe(got));
+                    }
+                }
+                case "NaN", "Infinity" -> {
+                    if (got instanceof Throwable) {
+                        expectKind(wrong, label, got, com.legend.error.ErrorKind.VALUE_NOT_HELD, null);
+                    } else if (cell == null || !cell.contains(p.expect())) {
+                        wrong.add(label + ": expected " + p.expect() + " or VALUE_NOT_HELD, answered " + describe(got));
+                    }
+                }
+                default -> {
+                    if (cell == null || cell.isEmpty() || Double.parseDouble(cell) != Double.parseDouble(p.expect())) {
+                        wrong.add(label + ": expected " + p.expect() + ", answered " + describe(got));
+                    }
+                }
+            }
+        }
     }
 
     /** The product's text of {@code x} (register S311): its shortest round-trip digits, rounded half up to six places,
