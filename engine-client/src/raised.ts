@@ -6,13 +6,15 @@
  * where it happened ... never the value"): a statement lite planned raises its kind and its where inside an envelope
  * (sql.RaiseKind, the dialect's raise), and the tab words it as Java's runner does (exec.RaisedErrors, error.DataError):
  * the kind's sentence, then its where -- at its one send's failure (DuckDbEngine's), so every route that sends a plan's
- * statement says the same words, as Python's one send does. The envelope's marks and the sentences are GENERATED from
- * legend-lite (src/generated/lite-raise.ts, error.ErrorKind): one source, never copied; the envelope's cases are one
+ * statement says the same words, as Python's one send does. The envelope's marks are GENERATED from legend-lite
+ * (src/generated/lite-raise.ts); the sentences are the plans' own (`raises`, PlanJson.raises from error.ErrorKind,
+ * declared as each answer is read: declared-raises.ts; phase D's option (D), 2026-11-15): one source, never copied; the envelope's cases are one
  * shared fixture (test/fixtures/raise-envelopes.json) Java's, the tab's and Python's readers all read.
  */
 
 import { QueryError } from './engine.ts';
-import { RAISE, RAISED_KINDS } from './generated/lite-raise.ts';
+import { declaredSentence } from './declared-raises.ts';
+import { RAISE } from './generated/lite-raise.ts';
 
 /** A product raise a plan's statement made: its kind, its where (a fixed text known at planning, or none), and its
  *  words -- the kind's sentence, then the where -- as its message. A QueryError, as every failure of a send is. */
@@ -53,8 +55,10 @@ export function failure(message: string, sql: string, options: { cause?: unknown
   const raise = raiseIn(message);
   if (raise === undefined) return new QueryError(message, sql, options);
   if (raise.kind === undefined) return new QueryError(raise.text, sql, options);
-  if (!Object.hasOwn(RAISED_KINDS, raise.kind)) {
-    return new QueryError(`a raise of the kind '${raise.kind}', which legend-lite does not name`, sql, options);
+  // worded from the plans the tab read (declared-raises.ts; phase D's option (D), 2026-11-15), never a table of its own
+  const sentence = declaredSentence(raise.kind);
+  if (sentence === undefined) {
+    return new QueryError(`a raise of the kind '${raise.kind}', which no plan this tab read declares`, sql, options);
   }
-  return new PlanRaise(raise.kind, RAISED_KINDS[raise.kind]!, raise.where, sql, options);
+  return new PlanRaise(raise.kind, sentence, raise.where, sql, options);
 }

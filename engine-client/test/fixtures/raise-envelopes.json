@@ -1,5 +1,12 @@
 {
-  "_comment": "A product raise's envelope, one set of cases Java's runner (exec.RaisedErrors), the tab's (engine-client/src/raised.ts) and Python's (legend_lite/_raised.py) each read and agree on: the words each says for 'message' (#104's M2(b), the narrow check's item 7, 2026-11-15). Not here, on purpose, until the three agree (recorded, a later round): a kind legend-lite does not name (Java passes it, the hosts refuse it) and a fail message that opens with the kind mark.",
+  "_comment": "A product raise's envelope, one set of cases Java's runner (exec.RaisedErrors), the tab's (engine-client/src/raised.ts) and Python's (legend_lite/_raised.py) each read and agree on: the words each says for 'message' (#104's M2(b), the narrow check's item 7, 2026-11-15). Not here, on purpose, until the three agree (recorded, a later round): a kind no plan declared (Java's runner refuses it at the plan, PlanRunner.declared; the hosts at the send) and a fail message that opens with the kind mark.",
+  "_aboutRaises": "the raises a plan declares for these cases (PlanJson.raises, v53: phase D's option (D), 2026-11-15): each host words a raise from the plans it read, so each reader declares these first; Java's test holds them to error.ErrorKind's sentences, the one source",
+  "raises": {
+    "DIVIDE_BY_ZERO": "division by zero",
+    "FRACTION_NOT_KEPT": "more fraction digits than this database keeps",
+    "INDEX_OUT_OF_BOUNDS": "index out of bounds",
+    "SIZE_NOT_MULTIPLICITY": "collection size does not match the multiplicity"
+  },
   "cases": [
     {
       "name": "a database's own error is passed on as it is",

@@ -25,7 +25,7 @@ from collections import OrderedDict
 from collections.abc import Container, Iterable, Sequence
 from typing import Any
 
-from ._raised import worded
+from ._raised import declare_raises, worded
 from ._runframe import current_run
 
 
@@ -179,11 +179,15 @@ class Answered:
                 self._plan(database['load'])
         elif kind == 'plan':
             text = json.loads(payload)
+            # the raises its statement can send, worded by the planner (_raised.declare_raises; phase D's option (D))
+            declare_raises(text.get('raises'), 'a text plan')
             self._add(text['sql'])
             if text.get('plan') is not None:
                 self._plan(text['plan'])
         elif kind in self.PLANS:
-            self._plan(json.loads(payload))
+            plan = json.loads(payload)
+            declare_raises(plan.get('raises') if isinstance(plan, dict) else None, f'a {kind} answer')
+            self._plan(plan)
 
     def __contains__(self, text: object) -> bool:
         if not isinstance(text, str):

@@ -418,6 +418,8 @@ public final class PureV1Api {
             metadata.put("legend.columns", Json.toCompact(columnNames(plan)));
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", plan.sql());
+            // the raises the text can send, by kind, to their sentences (PlanJson.raises; phase D's option (D), 2026-11-15)
+            out.put("raises", com.legend.executionplan.PlanJson.raises(plan.plan()));
             out.put("metadata", metadata);
             if (!plan.textAlone()) {
                 // what runs the text: the execution plan it renders from (B3, 2026-11-11), its target's loads
@@ -477,6 +479,8 @@ public final class PureV1Api {
             Map<String, Object> out = new LinkedHashMap<>();
             out.put("sql", statement);
             out.put("run", statement);
+            // the raises `run` can send, by kind, to their sentences (PlanJson.raises; phase D's option (D), 2026-11-15)
+            out.put("raises", com.legend.executionplan.PlanJson.raises(plan));
             if (!result.sql().slots().isEmpty()) {
                 // what the host binds to `run`'s `?`s: the plan, its payloads its statement's content by digest
                 out.put("plan", Json.parse(com.legend.executionplan.PlanJson.write(plan)));

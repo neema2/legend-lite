@@ -25,6 +25,12 @@ class RaiseEnvelopeConformanceTest {
     void javasRunnerReadsEachEnvelopeAsTheHostsDo() throws Exception {
         Json.Obj fixture = (Json.Obj) Json.parse(Files.readString(Runfile.property("raise.fixture"),
                 StandardCharsets.UTF_8));
+        // the raises the hosts declare before they read a case are a plan's (PlanJson.raises, v53): error.ErrorKind's
+        // sentences, the one source (phase D's option (D), 2026-11-15)
+        for (var e : fixture.getObj("raises").fields().entrySet()) {
+            assertEquals(com.legend.error.ErrorKind.valueOf(e.getKey()).sentence(), ((Json.Str) e.getValue()).value(),
+                    "the fixture's raise " + e.getKey() + " is ErrorKind's sentence");
+        }
         List<Json.Node> cases = fixture.getArr("cases").items();
         assertTrue(cases.size() > 5, "the fixture holds too few cases to prove anything: " + cases.size());
         for (Json.Node node : cases) {

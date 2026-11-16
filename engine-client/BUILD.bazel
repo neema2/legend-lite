@@ -131,9 +131,9 @@ legend_java_library(
     # not yet written to the null discipline (Bazel workplan P1-20: NullAway forced on everywhere, 2026-10-04, found 792 errors in the first wave)
     nullaway = False,
     srcs = ["tools/typefacts/TypeFacts.java"],
-    # a product raise's envelope and words (#104's M2(b), 2026-11-15): exec.RaisedErrors's marks, sql.RaiseKind's and
-    # error.ErrorKind's sentences, the one source the hosts word a raise from
-    deps = ["//core:compiler_element_type", "//core:error", "//core:exec", "//core:sql"],
+    # a product raise's envelope (#104's M2(b), 2026-11-15): exec.RaisedErrors's marks and sql.RaiseKind's; its words
+    # are the plans' own since 2026-11-15 (PlanJson.raises, phase D's option (D)), so error.ErrorKind is not read here
+    deps = ["//core:compiler_element_type", "//core:exec", "//core:sql"],
 )
 
 java_run(
@@ -147,7 +147,7 @@ java_run(
     deps = [":type_facts_main"],
 )
 
-# a product raise's envelope and words (#104's M2(b), 2026-11-15), a module of their own: raised.ts reads them, and the
+# a product raise's envelope (#104's M2(b), 2026-11-15; its words the plans' own since option (D)), a module of its own: raised.ts reads it, and the
 # tab loads it on a statement's first failure -- outside the grid's startup set (its bundle budget, 2026-11-15)
 java_run(
     name = "lite_raise",

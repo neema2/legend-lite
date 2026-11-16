@@ -51,39 +51,10 @@ TYPE_FACTS: dict[str, tuple[str, str]] = {
     'meta::pure::precisePrimitives::Varchar': ('String', 'text'),
 }
 
-# A PRODUCT RAISE'S ENVELOPE AND WORDS (#104's M2(b), 2026-11-15), as exec.RaisedErrors reads it: between two
+# A PRODUCT RAISE'S ENVELOPE (#104's M2(b), 2026-11-15), as exec.RaisedErrors reads it: between two
 # SENTINELs, after an optional source position and POSITION_SEP, the kind's name behind KIND_MARK, then its where
 # behind a second; a quote the database could not hold as QUOTE_MARK. The same as DataCube's (lite-facts.ts RAISE).
 RAISE_SENTINEL = '\u001f'
 RAISE_POSITION_SEP = '\u001e'
 RAISE_QUOTE_MARK = '\u001d'
 RAISE_KIND_MARK = '\u001c'
-
-# Each raise kind's sentence (error.ErrorKind): lite's own words, no value in them -- the one source a host words
-# a product raise from.
-RAISED_KINDS: dict[str, str] = {
-    'DIVIDE_BY_ZERO': 'division by zero',
-    'SHIFT_OUT_OF_RANGE': 'bit shift outside 0..62',
-    'DATE_PART_ABSENT': 'the date has no such part: it is coarser',
-    'INDEX_OUT_OF_BOUNDS': 'index out of bounds',
-    'INSERT_OUT_OF_BOUNDS': 'insert position out of bounds',
-    'SQRT_OF_NEGATIVE': 'square root of a negative number',
-    'SIZE_NOT_MULTIPLICITY': 'collection size does not match the multiplicity',
-    'SLICE_BOUNDS_INVERTED': 'slice start is after its end',
-    'DATE_COMPONENT_INVALID': 'invalid date component',
-    'CAST_IMPOSSIBLE': 'the value cannot be cast to the requested type',
-    'RANGE_STEP_ZERO': 'range step is zero',
-    'CONSTRAINT_UNEVALUABLE': 'constraint not evaluable: data not available',
-    'LIST_LENGTHS_DIFFER': 'the two lists differ in length',
-    'MAP_KEYS_MISALIGNED': 'map keys do not align with values',
-    'MAP_KEY_NULL': 'map key is null',
-    'MAP_KEYS_NOT_UNIQUE': 'map keys are not unique',
-    'TEXT_NOT_INTEGER': 'text is not an integer',
-    'TEXT_NOT_DATE': 'text is not a date',
-    'VALUE_NOT_HELD': 'the value is outside the range this database can hold',
-    'FRACTION_NOT_KEPT': 'more fraction digits than this database keeps',
-    'CSV_TOO_WIDE': 'CSV record wider than its table',
-    'WINDOW_FRAME_INVERTED': 'window frame starts after it ends',
-    'WINDOW_FRAME_OFFSET_INVALID': 'window frame offset is negative or empty',
-    'USER_FAIL': 'fail',
-}

@@ -22,6 +22,7 @@ import type { Plan } from './relation-type.ts';
 import type { ResultTable, Scalar } from './result.ts';
 import { dayText, decimalText, exactInteger, timeText, timestampText } from './values.ts';
 import type { PlannedSql } from './planned-sql.ts';
+import { failure } from './raised.ts';
 
 /**
  * The slice of duckdb-wasm's connection we actually use. Declaring it
@@ -563,9 +564,8 @@ export class DuckDbEngine implements QueryEngine {
   async #failed(cause: unknown, sql: string): Promise<QueryError> {
     const said = cause instanceof Error ? cause.message : String(cause);
     const message = this.settings === undefined ? said : this.settings.redact(said);
-    // a product raise in lite's words, as Java's runner and Python's one send word it (raised.ts; #104's M2(b)) --
-    // loaded on the first failure, its own chunk, never in the grid's startup set (2026-11-15: the bundle budget)
-    const { failure } = await import('./raised.ts');
+    // a product raise in lite's words, as Java's runner and Python's one send word it (raised.ts; #104's M2(b)), its
+    // words the plans' own (declared-raises.ts; phase D's option (D), 2026-11-15)
     return failure(message, sql, message === said ? { cause } : {});
   }
 

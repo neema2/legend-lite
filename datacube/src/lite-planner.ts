@@ -33,6 +33,7 @@ import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, Model
 import type { PrintStyle } from '../../engine-client/src/pure-v1.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
 import { planParams } from '../../engine-client/src/plan-params.ts';
+import { declareRaises } from '../../engine-client/src/declared-raises.ts';
 import type { FileLoadRequest } from '../../engine-client/src/model-data.ts';
 import type { RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest, SynthesizeRequest } from '../../engine-client/src/host-operations.ts';
 import type { ProjectDataStatements } from '../../engine-client/src/project-data.ts';
@@ -153,7 +154,9 @@ export interface TsNode {
  * digest, verified by SHA-256; any other slot refused by name: the tenets audit's M3).
  */
 function textPlan(text: string): Plan {
-  const body = JSON.parse(text) as { sql: string; type: unknown; plan?: unknown };
+  const body = JSON.parse(text) as { sql: string; type: unknown; plan?: unknown; raises?: unknown };
+  // the raises its statement can send, worded by the planner (declared-raises.ts; phase D's option (D), 2026-11-15)
+  declareRaises(body.raises, 'a text plan');
   const params = planParams(body.plan);
   return { sql: fromPlan(body.sql), columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}) };
 }

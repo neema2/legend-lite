@@ -88,7 +88,26 @@ public final class PlanRunner {
         // the runtime wall (the deep audit, 2026-11-05): while the plan runs, nothing on this thread plans
         try (var run = com.legend.base.RunScope.enter(execution)) {
             streamRun(plan, values, sessions, sink, capacity);
+        } catch (com.legend.error.DataError e) {
+            throw declared(plan, e);
         }
+    }
+
+    /** {@code e} as it is where it names a raise {@code plan} declares, or none (phase D's option (D), 2026-11-15: a
+     *  host words a raise from the plan it runs, {@code PlanJson.raises}; exec, holding the plan, asks it the same): a
+     *  product raise of a kind no statement of the plan can send is refused by name -- the database reported what the
+     *  plan did not plan. Asked only on a failure. */
+    static com.legend.error.DataError declared(ExecutionPlan plan, com.legend.error.DataError e) {
+        com.legend.error.ErrorKind kind = e.kind();
+        if (kind == null) {
+            return e;
+        }
+        String sentence = com.legend.executionplan.PlanJson.raises(plan).get(kind.name());
+        if (!kind.sentence().equals(sentence)) {
+            throw new IllegalStateException("the database raised " + kind.name() + ", which this plan does not declare"
+                    + " (it declares " + com.legend.executionplan.PlanJson.raises(plan).keySet() + ")", e);
+        }
+        return e;
     }
 
     private static void streamRun(ExecutionPlan plan, Map<String, ?> values, PlanSessions.Source sessions,

@@ -186,6 +186,9 @@ public final class Boundary {
         java.util.Map<String, Object> out = new java.util.LinkedHashMap<>();
         out.put("sql", p.sql());
         out.put("type", com.legend.plan.UpstreamRelationType.of(p.rootType()));
+        // the raises its statement can send, by kind, to their sentences (PlanJson.raises; phase D's option (D),
+        // 2026-11-15): what a host words a failure with, read from the answer, never from a table of its own
+        out.put("raises", com.legend.executionplan.PlanJson.raises(p.plan()));
         if (!p.textAlone()) {
             out.put("plan", com.legend.json.Json.parse(com.legend.executionplan.PlanJson.write(p.plan())));
         }

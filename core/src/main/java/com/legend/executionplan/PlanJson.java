@@ -149,8 +149,10 @@ public final class PlanJson {
      *  problem"): a stream step's {@code sql} is the planner's own plan of the snapshot's pull (its model, runtime and
      *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. 52 since
      *  2026-11-13 (phase D's D1.1, merged onto 51): a statement's tree may hold a {@code raiseText}, a raise's message as
-     *  its {@code kind} and its {@code operands}. */
-    public static final int VERSION = 52;
+     *  its {@code kind} and its {@code operands}. 53 since 2026-11-15 (phase D's option (D), the orchestrator's go): a
+     *  plan carries {@code raises}, each product raise its statements can send, its kind's name to the kind's sentence
+     *  ({@link #raises}) -- a host words a raise from the plan it runs, never from a table of its own. */
+    public static final int VERSION = 53;
 
     private PlanJson() {
     }
@@ -220,7 +222,69 @@ public final class PlanJson {
         out.put("root", node(plan.root()));
         out.put("writes", plan.writes());
         out.put("loads", hoistLoads(out));
+        out.put("raises", raisesOf(out));
         return out;
+    }
+
+    /**
+     * THE PLAN'S RAISES (phase D's option (D), the orchestrator's go of 2026-11-15: "the plan-level raises map ... One
+     * source: ErrorKind through the planner"): each product raise a statement of {@code plan} can send -- a text opening
+     * with {@link com.legend.sql.RaiseKind#MARK} and a kind's name, as the renderer writes it
+     * ({@code AnsiSqlRenderer.raiseMessage}), in a statement, a script, a load's step or its bundle, or a MongoDB
+     * pipeline's JSON (the mark escaped there) -- by the kind's name, to its sentence, the error layer's
+     * ({@link com.legend.error.ErrorKind#sentence}). A plan the compatibility edge wrote, whose raises spell upstream's
+     * sentences, has none. The hosts read it from the plan's JSON ({@code raises}); exec, which holds the plan, asks
+     * here when a statement fails (a raise the plan does not declare is refused by name).
+     */
+    public static java.util.SortedMap<String, String> raises(ExecutionPlan plan) {   // a fresh map each call
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("parameters", List.of());
+        out.put("root", node(plan.root()));
+        out.put("loads", hoistLoads(out));
+        return raisesOf(out);
+    }
+
+    private static java.util.SortedMap<String, String> raisesOf(Object tree) {
+        java.util.SortedSet<String> kinds = new java.util.TreeSet<>();
+        collectRaises(tree, kinds);
+        java.util.SortedMap<String, String> out = new java.util.TreeMap<>();
+        for (String kind : kinds) {
+            out.put(kind, com.legend.error.ErrorKind.valueOf(kind).sentence());
+        }
+        return out;
+    }
+
+    /** The JSON escape of {@link com.legend.sql.RaiseKind#MARK}, as a MongoDB pipeline's text holds it. */
+    private static final String ESCAPED_MARK = "\\u001c";
+
+    private static void collectRaises(@com.legend.base.Nullable Object n, java.util.SortedSet<String> kinds) {
+        switch (n) {
+            case String text -> {
+                raisesIn(text, String.valueOf(com.legend.sql.RaiseKind.MARK), kinds);
+                raisesIn(text, ESCAPED_MARK, kinds);
+            }
+            case Map<?, ?> m -> m.values().forEach(v -> collectRaises(v, kinds));
+            case List<?> l -> l.forEach(v -> collectRaises(v, kinds));
+            case null, default -> {
+                // a number, a Boolean, null: no text
+            }
+        }
+    }
+
+    private static void raisesIn(String text, String mark, java.util.SortedSet<String> kinds) {
+        for (int at = text.indexOf(mark); at >= 0; at = text.indexOf(mark, at + 1)) {
+            int start = at + mark.length();
+            int end = start;
+            while (end < text.length() && (Character.isUpperCase(text.charAt(end)) || text.charAt(end) == '_')) {
+                end++;
+            }
+            String name = text.substring(start, end);
+            // a raise's text names one of the closed list; a mark before anything else (a where's, a user's text) is
+            // no raise's kind
+            if (java.util.Arrays.stream(com.legend.sql.RaiseKind.values()).anyMatch(k -> k.name().equals(name))) {
+                kinds.add(name);
+            }
+        }
     }
 
     /** The field of a load holding its bundle inline (L6c). */
@@ -954,7 +1018,19 @@ public final class PlanJson {
         for (Json.Node n : o.getArr("parameters").items()) {
             parameters.add(readParameter((Json.Obj) n));
         }
-        return new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
+        ExecutionPlan plan = new ExecutionPlan(parameters, readNode(o.getObj("root")), o.getBool("writes"));
+        // the raises the plan carries are its statements' (v53, phase D's option (D)): a map that says otherwise is
+        // refused by name, never trusted over the statements
+        Map<String, String> carried = new java.util.TreeMap<>();
+        for (Map.Entry<String, Json.Node> e : o.getObj("raises").fields().entrySet()) {
+            carried.put(e.getKey(), ((Json.Str) e.getValue()).value());
+        }
+        java.util.SortedMap<String, String> stated = raises(plan);
+        if (!stated.equals(carried)) {
+            throw new IllegalArgumentException("a plan's raises are its statements' raises " + stated
+                    + ", and this one carries " + carried);
+        }
+        return plan;
     }
 
     /** Each holder of a bundle in {@code tree} given back the blobs it names that it does not hold inline (L6c): a

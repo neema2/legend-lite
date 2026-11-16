@@ -59,6 +59,7 @@ import pyarrow.ipc
 
 from . import _host, _json, compiler, warehouse
 from ._planned import PlannedSql, across_the_bridge, connect, from_plan
+from ._raised import declare_raises
 from .compiler import LegendError
 from ._library import library
 from ._pool import _on_compiler_threads, _workers
@@ -1805,6 +1806,8 @@ class Engine:
                 if answer.status != 200:
                     return Answer(answer.status, answer.content_type, answer.body.encode('utf-8'))
                 planned = json.loads(answer.body)
+                # the raises its statement can send, worded by the planner (_raised.declare_raises; option (D))
+                declare_raises(planned.get('raises'), 'an execute plan')
                 # its values (a data: payload: compiler.plan_params, M3) bound to its `?`s; a failure's words name no
                 # value this engine holds (a bearer URL: M2) -- the plan read here, then handed to its run
                 sql, params = from_plan(planned['sql']), compiler.plan_params(planned.get('plan'))
@@ -1825,6 +1828,7 @@ class Engine:
                 if planned.status != 200:
                     return Answer(planned.status, planned.content_type, planned.body.encode('utf-8'))
                 said = json.loads(planned.body)
+                declare_raises(said.get('raises'), 'an execute plan')
                 # the plan read here, then handed to its run, which hands its rows back as the driver read them
                 sql, params = from_plan(said['run']), compiler.plan_params(said.get('plan'))
                 rows = run_rows_json(connection, sql, self.frames.held_values(), params)

@@ -32,6 +32,7 @@ import { familyOf, isBoolean } from './types.ts';
 import { payloadValue } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
 import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
+import { declareRaises } from './declared-raises.ts';
 import { inRun } from './run-frame.ts';
 
 /** A value bound into a statement's `?`. */
@@ -130,7 +131,7 @@ interface Sql {
 // own plan of the snapshot's pull -- its request carries the pull (model, runtime, lambda), never the statement
 // 52 since 2026-11-13 (phase D's D1.1, merged onto 51): a statement's tree may hold a raise's message as its kind and
 // operands (raiseText) -- planning data this runner never reads; it sends the statement's text as written
-const PLAN_VERSION = 52;
+const PLAN_VERSION = 53;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
@@ -179,7 +180,7 @@ interface Target {
 /** A plan read: its JSON, and its load section by identity. */
 interface ReadPlan {
   readonly format?: unknown; readonly version?: unknown; readonly parameters?: unknown; readonly root?: Step;
-  readonly loads?: readonly Load[];
+  readonly loads?: readonly Load[]; readonly raises?: unknown;
 }
 
 /** `plan`'s JSON read, refused by name unless it is a legend-lite plan of the version this runner reads. */
@@ -188,6 +189,8 @@ function read(plan: string): ReadPlan {
   if (p.format !== 'legend-lite-plan' || p.version !== PLAN_VERSION) {
     throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: p.format, version: p.version })}`);
   }
+  // the raises its statements can send, worded by the plan (declared-raises.ts; phase D's option (D), 2026-11-15)
+  declareRaises(p.raises, 'a plan');
   return p;
 }
 
@@ -530,6 +533,7 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     if (read.format !== 'legend-lite-plan' || read.version !== PLAN_VERSION) {
       throw new PlanRefusal(`not a legend-lite execution plan of version ${PLAN_VERSION}: ${JSON.stringify({ format: read.format, version: read.version })}`);
     }
+    declareRaises(read.raises, 'a plan');
     if (!Array.isArray(read.parameters) || read.parameters.length > 0) throw new PlanRefusal('a plan that takes parameters is not run here: its program binds none');
     const root = read.root;
     if (root === undefined) throw new PlanRefusal('a plan with no root');

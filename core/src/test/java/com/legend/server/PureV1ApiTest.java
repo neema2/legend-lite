@@ -589,7 +589,7 @@ class PureV1ApiTest {
         assertEquals(200, a.status(), a.json());
         Json.Obj plan = Json.parseObject(a.json());
         // 2026-11-12 (C1's second half): the host's execution's id, minted with the plan half it runs ("execution")
-        assertEquals(List.of("sql", "run", "shape", "resultColumns", "execution", "builder", "activities", "columns"),
+        assertEquals(List.of("sql", "run", "raises", "shape", "resultColumns", "execution", "builder", "activities", "columns"),
                 new ArrayList<>(plan.fields().keySet()));
         assertEquals("RELATION", plan.getString("shape"));
         Json.Obj activity = (Json.Obj) plan.getArr("activities").items().get(0);
@@ -630,7 +630,7 @@ class PureV1ApiTest {
                 + Json.toCompact(Map.of("_type", "text", "code", trading)) + "}", List.of(trading), com.legend.edge.PureText.UPSTREAM);
         assertEquals(200, graph.status(), graph.json());
         Json.Obj graphPlan = Json.parseObject(graph.json());
-        assertEquals(List.of("sql", "run", "shape", "resultColumns", "builder"),
+        assertEquals(List.of("sql", "run", "raises", "shape", "resultColumns", "builder"),
                 new ArrayList<>(graphPlan.fields().keySet()));
         assertEquals("OBJECTS", graphPlan.getString("shape"));
         assertEquals("{\"_type\":\"json\"}", Json.toCompact(graphPlan.getObj("builder")));

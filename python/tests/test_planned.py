@@ -113,7 +113,7 @@ class OneSendTest(unittest.TestCase):
     def test_a_loads_steps_are_the_plans(self):
         # run_load types each step as it reads it from the plan: what reaches the database is a PlannedSql
         seen: list[object] = []
-        plan = {'format': 'legend-lite-plan', 'version': projects.PLAN_VERSION,
+        plan = {'format': 'legend-lite-plan', 'version': projects.PLAN_VERSION, 'raises': {},
                 'root': {'_type': 'load', 'identity': 'L', 'cadence': 'ONCE', 'connection': 'c',
                          'steps': [{'_type': 'statement', 'sql': 'CREATE TABLE a (x INT)'}]}}
         try:
@@ -998,9 +998,9 @@ class TheBridgeTest(unittest.TestCase):
         """The C checkpoint's code audit, SHOULD-FIX 6 (2026-11-12): an answer's statements alone are kept, read by its
         kind -- a column's label, a constant in the typed tree, a value a slot binds and an HTTP body are not."""
         answered = Answered()
-        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT a AS "DROP TABLE t" FROM x', 'type': {
+        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT a AS "DROP TABLE t" FROM x', 'raises': {}, 'type': {
             'columns': [{'name': 'DROP TABLE t', 'type': 'String'}]}}))
-        answered.record('executionPlan', 'OK\n' + json.dumps({'format': 'legend-lite-plan', 'root': {
+        answered.record('executionPlan', 'OK\n' + json.dumps({'format': 'legend-lite-plan', 'raises': {}, 'root': {
             '_type': 'tds', 'sql': {'statement': 'SELECT ? AS v', 'slots': [], 'tree': {'value': 'DELETE FROM t'},
                                     'content': {'abc': 'TRUNCATE t'}, 'target': {'session': ['SET threads = 1']}}}}))
         answered.record('pureV1', 'OK\n500\napplication/json\n{"sql": "DROP TABLE u"}')
@@ -1022,7 +1022,7 @@ class TheBridgeTest(unittest.TestCase):
         self.assertNotIn(str(sent), answered, "the remote plane's statement is never this database's")
         for local in [*stream['prepare'], stream['count'], *stream['transaction']['begin']]:
             self.assertIn(local, answered, local)
-        answered.record('executionPlan', 'OK\n' + json.dumps({'root': {'_type': 'sequence', 'steps': [
+        answered.record('executionPlan', 'OK\n' + json.dumps({'raises': {}, 'root': {'_type': 'sequence', 'steps': [
             {'_type': 'update', 'count': 'written', 'sql': {'statement': 'INSERT INTO t SELECT 1', 'slots': []}}]}}))
         self.assertIn('INSERT INTO t SELECT 1', answered)
         self.assertNotIn('written', answered, "an update's count names a value, never a statement")
@@ -1055,7 +1055,7 @@ class TheBridgeTest(unittest.TestCase):
         answered): a host operation takes no SQL -- a source query, a select list, a replacement -- whatever it is."""
         answered = Answered()
         ops = lambda op: {'kind': 'hostOperations', 'databaseType': 'DuckDB', 'operations': json.dumps([op])}
-        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT * FROM t'}))
+        answered.record('plan', 'OK\n' + json.dumps({'sql': 'SELECT * FROM t', 'raises': {}}))
         for op, key in (({'op': 'count', 'from': {'query': 'SELECT * FROM t'}}, 'query'),
                         ({'op': 'relation', 'kind': 'table', 'target': {'name': 't'}, 'selectList': '*',
                           'from': {'relation': {'name': 't'}}}, 'selectList'),
@@ -1125,21 +1125,28 @@ class ARaiseIsWorded(unittest.TestCase):
     def test_each_envelope_reads_as_javas_runner_and_the_tabs_read_it(self):
         import os
 
-        from legend_lite._raised import raised_words
-        cases = json.loads(open(os.environ['LEGEND_LITE_RAISE_FIXTURE'], encoding='utf-8').read())['cases']
+        from legend_lite._raised import declare_raises, raised_words
+        fixture = json.loads(open(os.environ['LEGEND_LITE_RAISE_FIXTURE'], encoding='utf-8').read())
+        # the words are a plan's (PlanJson.raises; phase D's option (D), 2026-11-15): declared first, as a plan read does
+        declare_raises(fixture['raises'], 'the fixture')
+        cases = fixture['cases']
         self.assertGreater(len(cases), 5)
         for case in cases:
             with self.subTest(case['name']):
                 said = raised_words(case['message'])
                 self.assertEqual(case['message'] if said is None else said, case['words'])
 
-    def test_a_kind_legend_lite_does_not_name_is_refused_by_name(self):
+    def test_a_kind_no_plan_declared_is_refused_by_name(self):
         from legend_lite._raised import raised_words
-        with self.assertRaisesRegex(ValueError, "'NO_SUCH_KIND', which legend-lite does not name"):
+        with self.assertRaisesRegex(ValueError, "'NO_SUCH_KIND', which no plan read here declares"):
             raised_words('\x1f\x1cNO_SUCH_KIND\x1f')
 
     def test_a_raise_fired_at_a_fetch_is_worded(self):
         from legend_lite._planned import Result
+        from legend_lite._raised import declare_raises
+
+        # what a plan that divides declares (PlanJson.raises)
+        declare_raises({'DIVIDE_BY_ZERO': 'division by zero'}, 'a plan')
 
         class Failing:
             def fetchall(self):
