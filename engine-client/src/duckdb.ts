@@ -348,6 +348,8 @@ export class DuckDbEngine implements QueryEngine {
   readonly #conn: ArrowishConnection;
   /** Tail of the queue of queries on this connection. See #serialised. */
   #chain: Promise<void> = Promise.resolve();
+  /** Closing is shared by the connection's owner and the tab's lifetime. */
+  #closed: Promise<void> | undefined;
   /** Remote files a mounted source reads over HTTP (`readsRemote`), for the receipt. */
   readonly #reads: string[] = [];
 
@@ -541,6 +543,7 @@ export class DuckDbEngine implements QueryEngine {
    * for. Serialising means the only cancellable query is ours.
    */
   async #serialised<T>(run: () => Promise<T>): Promise<T> {
+    if (this.#closed) throw new Error('this DuckDB connection is closed');
     const previous = this.#chain;
     let release!: () => void;
     this.#chain = new Promise<void>((r) => {
@@ -651,7 +654,7 @@ export class DuckDbEngine implements QueryEngine {
     if (signal?.aborted) throw signal.reason ?? new Error('aborted');
   }
 
-  async close(): Promise<void> {
-    await this.#conn.close?.();
+  close(): Promise<void> {
+    return this.#closed ??= this.#chain.then(async () => { await this.#conn.close?.(); });
   }
 }

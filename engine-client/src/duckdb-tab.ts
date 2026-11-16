@@ -52,6 +52,8 @@ export interface DuckDbInTab {
    * planner's): what a project's own database is queried on (project-data.ts), its names pointed there alone.
    */
   connect(): Promise<DuckDbEngine>;
+  /** Close every connection and terminate this tab's database worker. Idempotent. */
+  dispose(): Promise<void>;
   /** The settings a remote file's mount made on a connection (a bearer URL's session variable: B3's Q3), kept for the
    *  tab's database and replayed on every connection `connect` opens. */
   readonly settings: ConnectionSettings;
@@ -84,6 +86,7 @@ export function extensionRepository(vendor: string): string {
 /** The tab's database instantiated, not yet connected: its download, its worker and its WebAssembly, no statement. */
 export interface TabDatabase {
   readonly db: duckdb.AsyncDuckDB;
+  dispose(): Promise<void>;
 }
 
 /**
@@ -107,8 +110,19 @@ export async function duckDbRunsHere(): Promise<void> {
  */
 export async function instantiateDuckDbInTab(worker: Worker, module: string): Promise<TabDatabase> {
   const db = new duckdb.AsyncDuckDB(new duckdb.ConsoleLogger(duckdb.LogLevel.WARNING), worker);
-  await db.instantiate(module, null);
-  return { db };
+  let closed: Promise<void> | undefined;
+  const dispose = (): Promise<void> => (closed ??= (async () => {
+    try { await db.terminate(); }
+    finally { worker.terminate(); }
+  })());
+  try {
+    await db.instantiate(module, null);
+    return { db, dispose };
+  } catch (error) {
+    try { await dispose(); }
+    catch (cleanup) { throw new AggregateError([error, cleanup], 'DuckDB startup and cleanup failed'); }
+    throw error;
+  }
 }
 
 /**
@@ -120,22 +134,62 @@ export async function connectDuckDbInTab(database: TabDatabase, setup: TabSetup)
   // every connection set up alike: a setting of DuckDB's may be a session's, so none is left to the first's -- a remote
   // file's session variable included, replayed from the tab's settings (B3's Q3: a variable is one connection's)
   const settings = new ConnectionSettings();
-  const connect = async (): Promise<DuckDbEngine> => {
+  const connections = new Set<DuckDbEngine>();
+  const connecting = new Set<Promise<DuckDbEngine>>();
+  let disposed = false;
+  let closed: Promise<void> | undefined;
+  const ensureOpen = (): void => {
+    if (disposed) throw new Error("this tab's DuckDB is disposed");
+  };
+  const create = async (): Promise<DuckDbEngine> => {
+    ensureOpen();
     const connection = new DuckDbEngine((await db.connect()) as unknown as ArrowishConnection, { settings });
-    for (const statement of setup.extensions) await connection.run(statement, 0);
-    await setUpSession(connection, setup.session);
-    await settings.replay((sql, params) => connection.exclusive((held) => held.rows(sql, params)));
-    return connection;
+    connections.add(connection);
+    try {
+      ensureOpen();
+      for (const statement of setup.extensions) await connection.run(statement, 0);
+      await setUpSession(connection, setup.session);
+      await settings.replay((sql, params) => connection.exclusive((held) => held.rows(sql, params)));
+      ensureOpen();
+      return connection;
+    } catch (error) {
+      try { await connection.close(); }
+      catch (cleanup) { throw new AggregateError([error, cleanup], 'DuckDB connection setup and cleanup failed'); }
+      throw error;
+    }
+  };
+  const connect = (): Promise<DuckDbEngine> => {
+    const pending = create();
+    connecting.add(pending);
+    void pending.then(() => connecting.delete(pending), () => connecting.delete(pending));
+    return pending;
+  };
+  const dispose = (): Promise<void> => {
+    disposed = true;
+    return closed ??= (async () => {
+      await Promise.allSettled(connecting);
+      const results = await Promise.allSettled([...connections].map((connection) => connection.close()));
+      const stopped = await Promise.allSettled([database.dispose()]);
+      connections.clear();
+      const errors = [...results, ...stopped].flatMap((result) => result.status === 'rejected' ? [result.reason] : []);
+      if (errors.length) throw new AggregateError(errors, "could not dispose this tab's DuckDB");
+    })();
   };
   const engine = await connect();
+  const files = new TabFiles({
+    registerFileText: (name, text) => { ensureOpen(); return db.registerFileText(name, text); },
+    registerFileBuffer: (name, bytes) => { ensureOpen(); return db.registerFileBuffer(name, bytes); },
+    dropFile: (name) => { ensureOpen(); return db.dropFile(name); },
+  });
   return {
     engine,
     data: {
-      registerFileBuffer: (name, bytes) => db.registerFileBuffer(name, bytes),
-      dropFile: async (name) => { await db.dropFile(name); },
+      registerFileBuffer: (name, bytes) => files.registerFileBuffer(name, bytes),
+      dropFile: (name) => files.dropFile(name),
     },
-    db: new TabFiles(db),
+    db: files,
     connect,
+    dispose,
     settings,
   };
 }

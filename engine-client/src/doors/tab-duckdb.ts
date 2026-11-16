@@ -23,7 +23,7 @@ export function openDuckDbInTab(vendor: string, planner: TabDuckDbPlanner): Prom
   return openedInTab(async () => {
     await duckDbRunsHere();
     return instantiateDuckDbInTab(new Worker(vendorAsset(vendor, 'duckdb-browser-eh.worker.js')), vendorAsset(vendor, 'duckdb-eh.wasm'));
-  }, extensionRepository(vendor), planner, connectDuckDbInTab);
+  }, extensionRepository(vendor), planner, connectDuckDbInTab, (database) => database.dispose());
 }
 
 /**
@@ -36,6 +36,7 @@ export async function openedInTab<D, T>(
   repository: string,
   planner: TabDuckDbPlanner,
   connect: (database: D, setup: TabSetup) => Promise<T>,
+  dispose: (database: D) => Promise<void>,
 ): Promise<T> {
   const asked = (async (): Promise<TabSetup> => {
     const extensions = (await planner.hostOperations(DuckDbEngine.databaseType, [
@@ -43,8 +44,18 @@ export async function openedInTab<D, T>(
     ])).flat();
     return { extensions, session: await planner.sessionSetup(DuckDbEngine.databaseType) };
   })();
-  const [database, setup] = await Promise.all([instantiate(), asked]);
-  return inRun("the tab's DuckDB started", () => connect(database, setup));
+  const started = instantiate();
+  try {
+    const [database, setup] = await Promise.all([started, asked]);
+    return await inRun("the tab's DuckDB started", () => connect(database, setup));
+  } catch (error) {
+    const [result] = await Promise.allSettled([started]);
+    if (result!.status === 'fulfilled') {
+      try { await dispose(result!.value); }
+      catch (cleanup) { throw new AggregateError([error, cleanup], 'DuckDB startup and cleanup failed'); }
+    }
+    throw error;
+  }
 }
 
 /**

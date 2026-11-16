@@ -455,6 +455,13 @@ node_test(
     entry_point = "test/run-frame.test.ts",
 )
 
+node_test(
+    name = "tab_lifecycle_test",
+    size = "small",
+    data = [":engine_client", "test/unplanned.ts"],
+    entry_point = "test/tab-lifecycle.test.ts",
+)
+
 # A write's execution plan (the planner's executionPlan) run by the host's plan runner on DuckDB-WASM, in one
 # transaction (plan-runner.ts; docs/DATACUBE_FLOW_MODE_2026_10_24.md M6)
 node_test(
@@ -555,6 +562,7 @@ test_suite(
         ":plan_runner_test",
         ":planned_sql_test",
         ":run_frame_test",
+        ":tab_lifecycle_test",
         ":snap_test",
         ":update_generated_test",
         ":warehouse_corpus_test",
