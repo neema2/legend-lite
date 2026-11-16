@@ -1906,20 +1906,6 @@ public class Snowflake extends AnsiSqlRenderer {
     /** A Float's shortest digits as {@link #shortestDigits} reads them: the value (for NaN and the infinities), its
      *  sign ({@code '-'} or empty), its significant digits (no sign, no point, no trailing zero; empty for a zero) and
      *  the exponent of the first. */
-    /** {@code d}'s value rounded half up to six places, as {@code [-]I.FFFFFF} (register S311's rounding of the shortest
-     *  digits, never the binary value): {@code n}, the digits kept to the sixth place as a NUMBER(38, 0) (padded with
-     *  zeros where fewer are written; none below 1e-7), plus one where the next digit is 5 or more. */
-    private static String sixPlaces(Digits d) {
-        String k = "(" + d.exponent() + " + 7)";
-        String n = "(CASE WHEN " + k + " < 0 THEN 0 WHEN " + k + " >= LENGTH(" + d.digits() + ") THEN TO_NUMBER(RPAD("
-                + d.digits() + ", " + k + ", '0')) ELSE TO_NUMBER('0' || LEFT(" + d.digits() + ", " + k + ")) + IFF(SUBSTR("
-                + d.digits() + ", " + k + " + 1, 1) >= '5', 1, 0) END)";
-        // n has at most 24 digits (17 shortest, padded to a 1e17 value's six places): padded to 30 once, its integer
-        // part the 24 before the six, their leading zeros dropped (none left: 0)
-        String t = "LPAD(TO_VARCHAR(" + n + "), 30, '0')";
-        return "(" + d.sign() + " || COALESCE(NULLIF(LTRIM(LEFT(" + t + ", 24), '0'), ''), '0') || '.' || RIGHT(" + t
-                + ", 6))";
-    }
 
     private record Digits(String value, String sign, String digits, String exponent) {
         /** The digits placed by their exponent, unsigned: {@code 123.456}, {@code 1500.0}, {@code 0.00025} (each count
@@ -3544,16 +3530,15 @@ public class Snowflake extends AnsiSqlRenderer {
         writer.append("CASE WHEN ").expr(x, 0).append(" IN ('NaN'::FLOAT, 'inf'::FLOAT, '-inf'::FLOAT) THEN CASE WHEN ")
                 .expr(x, 0).append(" = 'NaN'::FLOAT THEN 'NaN' WHEN ").expr(x, 0)
                 .append(" > 0 THEN 'Infinity' ELSE '-Infinity' END ");
-        // the shortest round-trip digits, at every magnitude (W3 of docs/records/d-plan-2026-11-16.md; the orchestrator's
-        // round 63: NUMBER(38, 6) rounded the binary value -- 70 of 288 wrong below 1e17, the exact binary integer from
-        // 1e16, six places of the binary value from 1e10, a six-place tie rounded down; every format model caps a FLOAT
-        // at sixteen digits, floatText's note): from 1e17 written out plain; zero as 0; below 1e17 rounded half up to six
-        // places in integer arithmetic -- the k = e + 7 digits kept (none below 1e-7: zero), the next digit 5 or more
-        // adding one, the point put back six from the right
-        writer.append("ELSE ");
-        writer.piece(shortestDigits(x, d -> "CASE WHEN ABS(" + d.value() + ") >= 1E17 THEN " + d.sign() + " || RPAD("
-                + d.digits() + ", " + d.exponent() + " + 1, '0') WHEN " + d.value() + " = 0 THEN '0' ELSE RTRIM(RTRIM("
-                + "REPLACE(" + sixPlaces(d) + ", '-0.000000', '0.000000'), '0'), '.') END"));
+        // NUMBER(38, 6) holds a magnitude below 1e32 (the orchestrator's round 56, 2026-11-15: 1e32, +-1e300 and
+        // Double's max failed the whole statement, "Number out of representable range"): from 1e32 the value's leading
+        // 21 digits, NUMBER(38, 0) of it scaled down, and the rest written as zeros -- its magnitude kept (S311's noise
+        // above 4.5e9), as MySQL's form from 1e60
+        writer.append("WHEN ABS(").expr(x, 0).append(") >= 1E32 THEN CAST(CAST(").expr(x, 0)
+                .append(" / POWER(10, FLOOR(LOG(10, ABS(").expr(x, 0)
+                .append("))) - 20) AS NUMBER(38, 0)) AS VARCHAR) || REPEAT('0', FLOOR(LOG(10, ABS(").expr(x, 0)
+                .append("))) - 20) ELSE ");
+        trimmedSix(writer, "RTRIM", w -> w.append("CAST(CAST(").expr(x, 0).append(" AS NUMBER(38, 6)) AS VARCHAR)"));
         return writer.append(" END");
     }
 }

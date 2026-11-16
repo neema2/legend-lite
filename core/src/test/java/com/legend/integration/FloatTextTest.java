@@ -31,25 +31,9 @@ class FloatTextTest {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
         try (Connection c = backend.open()) {
-            // a database that refuses a value's text from a bound (SQLite from 1e8: register S311's proposed row)
-            // answers the rows below it, and refuses the 1e20 row by name
-            boolean huge = com.legend.sql.dialect.FloatTextInstrumentTest.refusedFrom(backend.type()) > 1e20;
-            String rows = huge ? ROWS : ROWS.replace("100000000000000000000.0\n", "");
-            List<String> want = new ArrayList<>(List.of("1.5", "2", "-1.25", "1234567.89"));
-            if (huge) {
-                want.add("100000000000000000000");
-            } else {
-                Object refused;
-                try {
-                    refused = Lean.run(model, "|100000000000000000000.0->toString()", StorelessRuntime.RUNTIME, c);
-                } catch (RuntimeException e) {
-                    refused = e;
-                }
-                org.junit.jupiter.api.Assertions.assertTrue(
-                        com.legend.sql.dialect.FloatTextInstrumentTest.refusedByName(refused), String.valueOf(refused));
-            }
-            assertEquals(want, column(Lean.run(model, "|" + rows + "->extend(~t: r|$r.x->toOne()->toString())"
-                    + "->select(~t)", StorelessRuntime.RUNTIME, c)), backend.name());
+            assertEquals(List.of("1.5", "2", "-1.25", "1234567.89", "100000000000000000000"),
+                    column(Lean.run(model, "|" + ROWS + "->extend(~t: r|$r.x->toOne()->toString())->select(~t)",
+                            StorelessRuntime.RUNTIME, c)), backend.name());
             assertEquals("0.333333", scalar(model, c, "|(1.0 / 3.0)->toString()"), backend.name());
             assertEquals("0.3", scalar(model, c, "|(0.1 + 0.2)->toString()"), backend.name());
             assertEquals("0", scalar(model, c, "|0.0000001->toString()"), backend.name());

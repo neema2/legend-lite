@@ -2875,28 +2875,9 @@ public class MongoDb extends AnsiSqlRenderer {
         // and a point after them; from 1e34 up (Decimal128 holds 34 digits) its text is d.dddE+n, so the digits are
         // spelled out -- the mantissa's digits, then n less its fraction's length of zeros -- never trimmed (measured
         // 2026-11-15, the probe: the trim ate the exponent's zeros, 1e300 printed 1.000...E+3; round 54's question)
-        // from 1e17 (W3 of docs/records/d-plan-2026-11-16.md): the double's own text, its shortest round-trip digits
-        // ({@code 1.7976931348623157e+308}) -- a Decimal128 of a double keeps 15 (round 57) -- spelled out as below
-        writer.append("{\"$let\": {\"vars\": {\"s\": {\"$replaceAll\": {\"find\": \"e\", \"replacement\": \"E\","
-                + " \"input\": {\"$cond\": [{\"$gte\": [");
-        MongoJson.op1(writer, "$abs", x);
-        writer.append(", 1e17]}, ");
-        MongoJson.op1(writer, "$toString", x);
-        // below 1e17 (W3's instrument, 2026-11-16): the double's own text as a Decimal128 (a Decimal128 of the double
-        // keeps 15 digits), rounded half up to six places in exact decimal arithmetic ($round rounds half to even)
-        writer.append(", {\"$let\": {\"vars\": {\"d\": {\"$toDecimal\": ");
-        MongoJson.op1(writer, "$toString", x);
-        // the value times 10^6 rounded half up as a whole Decimal128, its digits plain (exponent 0), padded to seven, the
-        // point put back before the last six, the sign in front (a negative zero trimmed to 0 below)
-        writer.append("}}, \"in\": {\"$let\": {\"vars\": {\"q\": {\"$toString\": {\"$floor\": {\"$add\":"
-                + " [{\"$multiply\": [{\"$abs\": \"$$d\"}, {\"$toDecimal\": \"1000000\"}]},"
-                + " {\"$toDecimal\": \"0.5\"}]}}}}, \"in\": {\"$let\": {\"vars\": {\"t\": {\"$cond\":"
-                + " [{\"$lt\": [{\"$strLenCP\": \"$$q\"}, 7]}, {\"$concat\": [{\"$substrCP\": [\"0000000\", 0,"
-                + " {\"$subtract\": [7, {\"$strLenCP\": \"$$q\"}]}]}, \"$$q\"]}, \"$$q\"]}}, \"in\": {\"$concat\":"
-                + " [{\"$cond\": [{\"$lt\": [\"$$d\", 0]}, \"-\", \"\"]}, {\"$substrCP\": [\"$$t\", 0,"
-                + " {\"$subtract\": [{\"$strLenCP\": \"$$t\"}, 6]}]}, \".\", {\"$substrCP\": [\"$$t\","
-                + " {\"$subtract\": [{\"$strLenCP\": \"$$t\"}, 6]}, 6]}]}}}}}}}");
-        return writer.append("]}}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
+        writer.append("{\"$let\": {\"vars\": {\"s\": {\"$toString\": {\"$round\": [");
+        MongoJson.op1(writer, "$toDecimal", x);
+        return writer.append(", 6]}}}, \"in\": {\"$let\": {\"vars\": {\"e\": {\"$indexOfCP\": [\"$$s\", \"E\"]}},"
                 + " \"in\": {\"$cond\": [{\"$lt\": [\"$$e\", 0]},"
                 + " {\"$rtrim\": {\"input\": {\"$rtrim\": {\"input\": {\"$replaceAll\": {\"input\": \"$$s\","
                 + " \"find\": \"-0.000000\", \"replacement\": \"0.000000\"}}, \"chars\": \"0\"}}, \"chars\": \".\"}},"

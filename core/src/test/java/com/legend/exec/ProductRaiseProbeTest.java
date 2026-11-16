@@ -111,49 +111,25 @@ class ProductRaiseProbeTest {
             expectKind(wrong, "toOne over two rows", two, com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY, "[1]");
         }
         // 4. a print site: a Float's text (D1.2, register S311): six decimals, trimmed, the same on every database
-        // (a database that refuses a value's text from a bound -- SQLite from 1e8 -- judged without the 1e20 row, which
-        // case 5 judges refused by name)
-        double bound = com.legend.sql.dialect.FloatTextInstrumentTest.refusedFrom(backend.type());
-        boolean huge = bound > 1e20;
-        Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n"
-                + (huge ? "  100000000000000000000.0\n" : "") + "  0.0000001\n#->extend(~t: r|"
+        Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
-        if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2\"},{\"t\":\"-1.25\"},"
-                + (huge ? "{\"t\":\"100000000000000000000\"}," : "") + "{\"t\":\"0\"}]")) {
+        if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2\"},"
+                + "{\"t\":\"-1.25\"}]")) {
             wrong.add("a Float's text: " + describe(text));
         }
-        // 5. the edges of a Float's text (the orchestrator's round 54, 2026-11-15; judged since W2 of
-        // docs/records/d-plan-2026-11-16.md, round 57's finding that a magnitude-only check passed 15, 16, 21 and the
-        // exact binary digits alike): whole numbers, zero and its sign, the halfway region, noise above 4.5e9,
-        // NUMBER(38,6)'s 32 integer digits, the double's extremes -- each judged against ONE answer, the shortest
-        // round-trip digits (Java's Double.toString, which every database must agree with: register S311), rounded to
-        // six places and trimmed, a zero unsigned
-        // and the Float text instrument's sample, so each external lane judges what the embedded databases are judged
-        // on: FloatTextInstrumentTest.probeValues, its count stated there once (PROBE_SIZE, 287: the round 63 count)
-        List<String> all = com.legend.sql.dialect.FloatTextInstrumentTest.probeValues();
-        assertEquals(com.legend.sql.dialect.FloatTextInstrumentTest.PROBE_SIZE, all.size(), "the probe's values");
-        // a value from the database's bound is refused by name at run time, each judged on its own
-        List<String> refusedValues = new ArrayList<>();
-        for (String v : all) {
-            if (Math.abs(Double.parseDouble(v)) >= bound) {
-                refusedValues.add(v);
-            }
-        }
-        for (String v : refusedValues) {
-            Object one = run(backend, "a Float's text from the bound", "|#TDS\n  x:Float\n  " + v + "\n#->extend(~t: r|"
-                    + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
-            if (!com.legend.sql.dialect.FloatTextInstrumentTest.refusedByName(one)) {
-                wrong.add("a Float's text of " + v + ": expected VALUE_NOT_HELD by name, got " + describe(one));
-            }
-        }
-        String[] values = all.stream().filter(v -> !refusedValues.contains(v)).toArray(String[]::new);
-        Object edges = run(backend, "a Float's text, its edges", "|#TDS\n  i:Integer, x:Float\n"
+        // 5. a Float's text on ORDINARY values (the orchestrator's revert of 2026-11-16, the user's question: S311 is
+        // ONE simple format call per database, six decimals trimmed): whole numbers, a fraction, a third, 0.1 + 0.2, a
+        // nine-digit integer, zero. S311's recorded divergences -- a huge value's digits, a six-place tie, a value
+        // below 5e-7, -0 -- are the register's, by database, and not judged here
+        String[] values = {"100.0", "10.0", "0.0", "123456789.0", "0.30000000000000004", "1234567.89",
+                "-98765.4321", "0.3333333333333333", "42.125"};
+        Object edges = run(backend, "a Float's text, ordinary values", "|#TDS\n  i:Integer, x:Float\n"
                 + java.util.stream.IntStream.range(0, values.length).mapToObj(i -> "  " + i + ", " + values[i] + "\n")
                         .collect(java.util.stream.Collectors.joining())
                 + "#->sort(~i->ascending())->extend(~t: r|$r.x->toOne()->toString())->select(~t)->from("
                 + StorelessRuntime.RUNTIME + ")");
         if (!(edges instanceof String e5)) {
-            wrong.add("a Float's text, its edges: " + describe(edges));
+            wrong.add("a Float's text, ordinary values: " + describe(edges));
         } else {
             java.util.regex.Matcher m = java.util.regex.Pattern.compile("\"t\":\"([^\"]*)\"").matcher(e5);
             List<String> got = new ArrayList<>();
@@ -163,13 +139,8 @@ class ProductRaiseProbeTest {
             for (int i = 0; i < values.length; i++) {
                 String g = i < got.size() ? got.get(i) : null;
                 String want = floatText(Double.parseDouble(values[i]));
-                String known = KNOWN.get(backend.name() + " " + values[i]);
-                if (known != null && known.equals(g)) {
-                    continue;
-                }
                 if (!want.equals(g)) {
-                    wrong.add("a Float's text of " + values[i] + ": " + g + " (the shortest round-trip form: " + want
-                            + ")");
+                    wrong.add("a Float's text of " + values[i] + ": " + g + " (want " + want + ")");
                 }
             }
         }
@@ -184,33 +155,11 @@ class ProductRaiseProbeTest {
         System.out.println("[product raise probe] " + backend.name() + " divide by zero, raised: " + describe(zero));
         System.out.println("[product raise probe] " + backend.name() + " toOne over two rows, raised: " + describe(two));
         System.out.println("[product raise probe] " + backend.name() + " a Float's text, answered: " + describe(text));
-        System.out.println("[product raise probe] " + backend.name() + " a Float's text, its edges "
+        System.out.println("[product raise probe] " + backend.name() + " a Float's text, ordinary values "
                 + List.of(values) + ", answered: " + describe(edges));
         System.out.println("[product raise probe] " + backend.name() + " a DateTime's text, answered: " + describe(dt));
         System.out.println("[product raise probe] " + backend.name() + ": " + wrong.size() + " wrong " + wrong);
         assertEquals(List.of(), wrong, backend.name());
-    }
-
-    /** A database's known text of a value where it is not S311's one answer, by {@code "<backend> <value>"}: the
-     *  rows of {@code product-raise-probe/float-text-known.tsv}, each with its dated reason there. */
-    private static final Map<String, String> KNOWN = known();
-
-    private static Map<String, String> known() {
-        Map<String, String> out = new java.util.HashMap<>();
-        try (var in = ProductRaiseProbeTest.class.getClassLoader().getResourceAsStream(
-                "product-raise-probe/float-text-known.tsv")) {
-            for (String line : new String(java.util.Objects.requireNonNull(in, "the known texts").readAllBytes(),
-                    java.nio.charset.StandardCharsets.UTF_8).split("\n")) {
-                if (line.isBlank() || line.startsWith("#")) {
-                    continue;
-                }
-                String[] cells = line.split("\t");
-                out.put(cells[0] + " " + cells[1], cells[2]);
-            }
-        } catch (java.io.IOException e) {
-            throw new java.io.UncheckedIOException(e);
-        }
-        return out;
     }
 
     /** The product's text of {@code x} (register S311): its shortest round-trip digits, rounded half up to six places,

@@ -1957,20 +1957,11 @@ public class Databricks extends AnsiSqlRenderer {
         throw new DialectCapability("a TYPEOF compared with " + type + "'s name reached Databricks");
     }
 
-    /** {@inheritDoc} {@code format_string}'s six decimals (Java's Formatter, which rounds the shortest digits half up;
-     *  NaN and the infinities by name), trimmed by the standard's trailing trim (the brief's measurement, D_BRIEF §1);
-     *  from 1e16 the double's own text, Java's shortest digits, written out plain (the orchestrator's round 63: 19
-     *  values from 5.5e16 printed with a seventeenth digit, {@code 282879384806159008} for 2.82879384806159E17). */
+    /** {@inheritDoc} {@code format_string}'s six decimals (Java's, NaN and the infinities by name), trimmed by the standard's trailing trim (the brief's measurement, D_BRIEF §1). */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        return shortestWhenHuge(writer, x, w -> trimmedSixStandard(w, t -> t.append("format_string('%.6f', ")
-                .expr(asDouble(x), 0).append(")")));
+        return trimmedSixStandard(writer, w -> w.append("format_string('%.6f', ").expr(asDouble(x), 0).append(")"));
     }
 
-    /** {@inheritDoc} 1e16: every double from 2^53 is a whole number, its text its shortest digits (round 63). */
-    @Override
-    protected double shortestFrom() {
-        return 1e16;
-    }
 }

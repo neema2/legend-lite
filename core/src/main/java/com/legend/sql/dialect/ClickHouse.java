@@ -72,14 +72,11 @@ public class ClickHouse extends AnsiSqlRenderer {
      *  held back once its select was a side of a hash join (the PCT's channel B verdict of {@code
      *  testExtendLeadAdjustDerivedOffset} and {@code testProjectExtendNestedIfLeadAdjust}: a lead's date adjusted, its
      *  date guard raised in the join of the expected and actual cells, each side answering alone; measured 2026-11-09
-     *  on 26.3.60.2 with {@code clickhouse local}, the lane round on PR #81). And a text read as a Float64 is the
-     *  double nearest it ({@code precise_float_parsing}; W3 of docs/records/d-plan-2026-11-16.md, 2026-11-16): the
-     *  default fast parse read 1.234567890123457e40 as 1.2345678901234566e40, so a Float's shortest digits, chosen by
-     *  which text reads back as the value, were not. */
+     *  on 26.3.60.2 with {@code clickhouse local}, the lane round on PR #81). */
     static final String SETTINGS = "SETTINGS join_use_nulls = 1, union_default_mode = 'DISTINCT',"
             + " cast_keep_nullable = 1, session_timezone = 'UTC', query_plan_merge_expressions = 0,"
             + " query_plan_filter_push_down = 0, optimize_functions_to_subcolumns = 0,"
-            + " query_plan_use_new_logical_join_step = 0, precise_float_parsing = 1";
+            + " query_plan_use_new_logical_join_step = 0";
 
     /** The setting of correlated subqueries, experimental on 25.8 and ON by default there (measured 2026-10-13): a
      *  correlated EXISTS answers false for an outer row whose correlated column is NULL, whatever the filter (o.v IS
@@ -3286,71 +3283,12 @@ public class ClickHouse extends AnsiSqlRenderer {
         return label == com.legend.sql.SqlType.Scalar.JSON && wire.equals("VARCHAR");
     }
 
-    /**
-     * {@inheritDoc} Register S311's one answer, exactly (W3 of docs/records/d-plan-2026-11-16.md, its instrument,
-     * 2026-11-16): the double's shortest round-trip digits, as {@code m * 10^p} -- the fewest of 15, 16 and 17 correctly
-     * rounded digits ({@code printf('%.Ne')}) whose text reads back as the value, or the 16-digit one above (a power of
-     * two's narrower interval below it): ClickHouse's {@code toString} is not always the closest, and {@code printf}
-     * rounds the binary value -- then, from {@link #SHORTEST_FROM}, the digits padded with zeros; below it rounded half
-     * up to six places in integer arithmetic ({@code 10^k} exact as a Float64 to 10^22) and trimmed by the standard's
-     * trailing trim. Its {@code nan} and {@code inf} by Pure's names (measured on 25.8, 2026-11-15). The template's
-     * {@code §} is the value's magnitude, each written where it stands.
-     */
+    /** {@inheritDoc} {@code printf}'s six decimals, trimmed by the standard's trailing trim; its {@code nan} and {@code inf} by Pure's names (measured on 25.8, 2026-11-15). */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        // each value named once, by a one-element arrayMap's lambda (ClickHouse applies no lambda otherwise): the text
-        // stays linear in its parts
-        String d = "replaceAll(substring(%1$s, 1, position(%1$s, 'e') - 1), '.', '')";
-        String e = "toInt32(replaceAll(substring(%1$s, position(%1$s, 'e') + 1), '+', ''))";
-        String readsBack = "toFloat64(concat(%s, 'e', toString(%s))) = __v";
-        String up = "toString(toInt64(substring(concat(__d15, '0000000000000000'), 1, 16)) + 1)";
-        String k = "(-__p - 6)";
-        String q = "multiIf(" + k + " <= 0, concat(__m, repeat('0', toUInt64(greatest(-" + k + ", 0)))), " + k
-                + " >= 19, '0', toString(intDiv(toInt64(__m) + toInt64(5 * pow(10, " + k + " - 1)), toInt64(pow(10, " + k
-                + ")))))";
-        String six = "arrayMap(__q -> arrayMap(__t -> concat(substring(__t, 1, length(__t) - 6), '.', substring(__t,"
-                + " length(__t) - 5)), [leftPad(__q, toUInt64(greatest(length(__q), 7)), '0')])[1], [" + q + "])[1]";
-        String body = "if(__v >= 1e17, concat(__m, repeat('0', toUInt64(greatest(__p, 0)))), " + six + ")";
-        String chosen = "arrayMap((__m, __p) -> " + body + ", [multiIf("
-                + readsBack.formatted("__d14", "__p14") + ", __d14, " + readsBack.formatted("__d15", "__p15") + ", __d15, "
-                + readsBack.formatted(up, "__e15 - 15") + ", " + up + ", __d17)], [multiIf("
-                + readsBack.formatted("__d14", "__p14") + ", __p14, " + readsBack.formatted("__d15", "__p15") + ", __p15, "
-                + readsBack.formatted(up, "__e15 - 15") + ", __e15 - 15, __p17)])[1]";
-        // toString's text, plain or with an exponent, for the 17-digit form (printf's 17th digit is not correctly
-        // rounded: 2.1503981020101822e11 printed ...825, the probe 2026-11-16)
-        String tm = "if(position(__ts, 'e') = 0, __ts, substring(__ts, 1, position(__ts, 'e') - 1))";
-        String te = "if(position(__ts, 'e') = 0, 0, toInt32(replaceAll(substring(__ts, position(__ts, 'e') + 1), '+', '')))";
-        String tf = "if(position(" + tm + ", '.') = 0, 0, length(" + tm + ") - position(" + tm + ", '.'))";
-        // from 1 to 1e17 the 17-digit form is the CLOSEST (Java's), from the double's own bits (the orchestrator's round
-        // 63: ClickHouse's 17th digit moved the 4th-5th decimal of five values in 1e11-1e13): the value exactly as an
-        // integer __xn over 10^__xk -- its 53-bit mantissa times 5^k (10^k / 2^k, exact), or times 2^e for a whole
-        // number -- rounded half up to 17 digits; elsewhere toString's text (its 17th digit is below the sixth place)
-        String len = "toInt32(length(toString(__xn)))";
-        String p10 = "toUInt256(concat('1', repeat('0', toUInt64(greatest(%s, 0)))))";
-        String x17 = "if(" + len + " <= 17, toString(__xn), toString(intDiv(__xn + toUInt256(5) * " + p10.formatted(len
-                + " - 18") + ", " + p10.formatted(len + " - 17") + ")))";
-        String parts = "arrayMap((__d14, __p14, __d15, __p15, __e15, __d17, __p17) -> " + chosen + ", ["
-                + d.formatted("__c14") + "], [" + e.formatted("__c14") + " - length(" + d.formatted("__c14") + ") + 1], ["
-                + d.formatted("__c15") + "], [" + e.formatted("__c15") + " - length(" + d.formatted("__c15") + ") + 1], ["
-                + e.formatted("__c15") + "], [if(__xn = 0, replaceAll(" + tm + ", '.', ''), " + x17 + ")], [if(__xn = 0, "
-                + te + " - " + tf + ", if(" + len + " <= 17, -__xk, " + len + " - 17 - __xk))])[1]";
-        String e2 = "(toInt32(bitShiftRight(reinterpretAsUInt64(__v), 52)) - 1075)";
-        String mantissa = "toUInt256(bitAnd(reinterpretAsUInt64(__v), 4503599627370495) + 4503599627370496)";
-        String exactN = "if(__v >= 1 AND __v < 1e17, if(" + e2 + " >= 0, " + mantissa + " * toUInt256(pow(2, greatest("
-                + e2 + ", 0))), " + mantissa + " * intDiv(" + p10.formatted("-" + e2) + ", toUInt256(pow(2, greatest(-"
-                + e2 + ", 0))))), toUInt256(0))";
-        String texts = "arrayMap((__c14, __c15, __ts, __xn, __xk) -> " + parts + ", [printf('%.14e', __v)], [printf('%.15e',"
-                + " __v)], [toString(__v)], [" + exactN + "], [toInt32(greatest(-" + e2 + ", 0))])[1]";
-        java.util.function.Consumer<SqlWriter> unsigned = w -> w.append("arrayMap(__v -> " + texts + ", [abs(")
-                .expr(asDouble(x), 0).append(")])[1]");
-        // the unsigned text computed once (its lambda's __u): from 1e17 signed as it is; below, the sign inside the
-        // six-digit text, so a negative value that rounds to zero is written 0 (trimmedSix's rule)
-        writer.append("replaceAll(replaceAll(if(NOT isFinite(").expr(asDouble(x), 0).append("), toString(")
-                .expr(asDouble(x), 0).append("), arrayMap((__u, __s) -> if(position(__u, '.') = 0, concat(__s, __u), ");
-        trimmedSixStandard(writer, t -> t.append("concat(__s, __u)"));
-        writer.append("), [");
-        unsigned.accept(writer);
-        writer.append("], [if(").expr(asDouble(x), 0).append(" < 0, '-', '')])[1])");        return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
+        writer.append("replaceAll(replaceAll(");
+        trimmedSixStandard(writer, w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
     }
 }

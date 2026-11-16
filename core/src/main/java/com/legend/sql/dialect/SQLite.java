@@ -3341,59 +3341,13 @@ public class SQLite extends AnsiSqlRenderer {
         };
     }
 
-    /**
-     * {@inheritDoc} Register S311's one answer, exactly, below {@link #FLOAT_TEXT_BOUND}; refused by name at run time
-     * from it (W3 of docs/records/d-plan-2026-11-16.md, the user's U3: exact where it costs under twice the inexact
-     * form, refused by name where it cannot be; the orchestrator's round 63: a value's refusal, never the operation's).
-     * SQLite writes no shortest round-trip digits of a double. Below 1e8 its {@code printf('%.6f')} rounds the binary
-     * value, which agrees with the shortest digits rounded half up everywhere except near a six-place tie (5e-7,
-     * 0.0011445: the binary value just below the half): such a row -- |x|*10^6's fraction within three ulps of a half
-     * -- takes the exact path, the shortest of the 15-, 16- and 17-digit {@code printf('%!.Ne')} texts that reads back as
-     * the value, rounded half up in integer arithmetic. From 1e8 the six places reach the 15th significant digit, where
-     * nearly every row is that close, so the value is refused ({@code VALUE_NOT_HELD}). Judged on the instrument's 273
-     * values ({@code FloatTextInstrumentTest}: exact below the bound, refused by name from it) and measured at 1.3 to
-     * 1.9 times {@code printf('%.6f')} over 200,000 random-digit rows below the bound (SQLite 3.53, 2026-11-16; a 1e9
-     * bound measured 4.5 times). Its infinities by Pure's names; no NaN is stored (it reads as NULL).
-     */
+    /** {@inheritDoc} {@code printf}'s six decimals, trimmed; its {@code Inf} by Pure's name (no NaN is stored: a NaN reads as NULL; measured 2026-11-15). */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        SqlExpr v = asDouble(x);
-        // the exact path, each piece written once (a scalar subquery binds it): the shortest text t, its digits m and
-        // exponent e, the k digits past the sixth place, m rounded half up there as an integer q, the point put back
-        String t = "(SELECT CASE WHEN CAST(a AS REAL) = v THEN a WHEN CAST(b AS REAL) = v THEN b ELSE printf('%!.16e', v)"
-                + " END FROM (SELECT v, printf('%!.14e', v) AS a, printf('%!.15e', v) AS b FROM (SELECT abs(§) AS v)))";
-        String me = "(SELECT replace(substr(t, 1, instr(t, 'e') - 1), '.', '') AS m, CAST(substr(t, instr(t, 'e') + 1)"
-                + " AS INTEGER) AS e FROM (SELECT " + t + " AS t))";
-        String q = "(SELECT CASE WHEN k <= 0 THEN m || substr('0000000000000000000000000', 1, -k) WHEN k > 18 THEN '0'"
-                + " ELSE CAST((CAST(m AS INTEGER) + 5 * CAST(substr('1000000000000000000', 1, k) AS INTEGER))"
-                + " / CAST(substr('1000000000000000000', 1, k + 1) AS INTEGER) AS TEXT) END AS q"
-                + " FROM (SELECT m, length(m) - 7 - e AS k FROM " + me + "))";
-        String s7 = "(SELECT substr('0000000' || q, -max(7, length(q))) AS s FROM " + q + ")";
-        String exact = "(SELECT CASE WHEN § < 0 THEN '-' ELSE '' END || substr(s, 1, length(s) - 6) || '.'"
-                + " || substr(s, -6) FROM " + s7 + ")";
-        String near = "abs(abs(§) * 1e6 - CAST(abs(§) * 1e6 AS INTEGER) - 0.5) <= abs(§) * 1e6 * 6.7e-16";
-        writer.append("rtrim(rtrim(replace(CASE WHEN ");
-        spliced(writer, "§ = 9e999 THEN 'Infinity' WHEN § = -9e999 THEN '-Infinity' WHEN abs(§) >= "
-                + FLOAT_TEXT_BOUND + " THEN ", v);
-        writer.piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
-                "a Float's text (toString) on SQLite from " + FLOAT_TEXT_BOUND + ": SQLite writes no shortest"
-                + " round-trip digits of a double (register S311)"))));
-        spliced(writer, " WHEN " + near + " THEN " + exact + " ELSE printf('%.6f', §) END", v);
-        return writer.append(", '-0.000000', '0.000000'), '0'), '.')");
+        writer.append("replace(");
+        trimmedSix(writer, "rtrim", w -> w.append("printf('%.6f', ").expr(asDouble(x), 0).append(")"));
+        return writer.append(", 'Inf', 'Infinity')");
     }
 
-    /** The magnitude from which SQLite refuses a Float's text ({@link #floatToText}). */
-    static final String FLOAT_TEXT_BOUND = "1e8";
-
-    /** {@code template} written with each {@code §} replaced by {@code v}, written where it stands. */
-    private static void spliced(SqlWriter writer, String template, SqlExpr v) {
-        String[] parts = template.split("§", -1);
-        for (int i = 0; i < parts.length; i++) {
-            writer.append(parts[i]);
-            if (i < parts.length - 1) {
-                writer.expr(v, 0);
-            }
-        }
-    }
 }

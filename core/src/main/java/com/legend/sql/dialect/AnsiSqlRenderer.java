@@ -1434,66 +1434,6 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         writer.append(", '-0.000000', '0.000000')");
     }
 
-    /** The magnitude from which a Float's text is its shortest round-trip digits written out plain (W3 of
-     *  docs/records/d-plan-2026-11-16.md, register S311): from 1e17 a double holds no fraction and at most 17 significant
-     *  digits, so its text is those digits, then zeros to its magnitude -- one answer on every database (round 57: 15,
-     *  16 and 21 digits, or the exact binary expansion, before). */
-    protected static final double SHORTEST_FROM = 1e17;
-
-    /** The magnitude from which this database's Float text is its shortest digits written out plain
-     *  ({@link #shortestWhenHuge}): {@link #SHORTEST_FROM}, or lower where the six-decimal form below it is not exact
-     *  that far down (Databricks: every double from 2^53 is a whole number, so its shortest digits are its text). */
-    protected double shortestFrom() {
-        return SHORTEST_FROM;
-    }
-
-    /** A Float's text from {@link #SHORTEST_FROM} up: the database's own text of the double (its shortest round-trip
-     *  form, {@code 1.7976931348623157e+308} or {@code 1e32}) written out plain, else {@code otherwise} (the six-decimal
-     *  text). For a database whose text of a double is its shortest round-trip digits; one whose is not spells its own
-     *  (SQLite's, MongoDB's). */
-    protected SqlWriter shortestWhenHuge(SqlWriter writer, SqlExpr x, java.util.function.Consumer<SqlWriter> otherwise) {
-        writer.append("CASE WHEN ").expr(SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER_EQUAL,
-                SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, x), new SqlExpr.FloatLit(shortestFrom())), 0).append(" THEN ")
-                .expr(plainDigits(new SqlExpr.Cast(asDouble(x), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), x),
-                        0)
-                .append(" ELSE ");
-        otherwise.accept(writer);
-        return writer.append(" END");
-    }
-
-    /** {@code s}, a double's text of magnitude at least {@link #SHORTEST_FROM}, as plain digits: a scientific text's
-     *  mantissa digits (its point dropped, its sign kept) padded with zeros to the exponent's magnitude; a text with no
-     *  exponent, its digits (a trailing {@code .0} alone dropped). Not a value of the database's arithmetic: its own text, cut. */
-    protected static SqlExpr plainDigits(SqlExpr s, SqlExpr x) {
-        SqlExpr at = SqlExpr.Call.of(com.legend.sql.SqlFn.STRPOS, SqlExpr.Call.of(com.legend.sql.SqlFn.LOWER, s),
-                new SqlExpr.StringLit("e"));
-        SqlExpr mantissa = SqlExpr.Call.of(com.legend.sql.SqlFn.SUBSTRING, s, new SqlExpr.IntLit(1),
-                SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS, at, new SqlExpr.IntLit(1)));
-        SqlExpr exponent = new SqlExpr.Cast(SqlExpr.Call.of(com.legend.sql.SqlFn.REPLACE,
-                SqlExpr.Call.of(com.legend.sql.SqlFn.SUBSTRING, s, SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS, at,
-                        new SqlExpr.IntLit(1)), new SqlExpr.IntLit(8)),
-                new SqlExpr.StringLit("+"), new SqlExpr.StringLit("")), com.legend.sql.SqlType.Scalar.BIGINT,
-                SqlExpr.Reason.PRINT);
-        // the digits' width: the exponent's plus one, plus the sign's place
-        SqlExpr width = SqlExpr.Call.of(com.legend.sql.SqlFn.PLUS, exponent, new SqlExpr.Case(java.util.List.of(
-                new SqlExpr.Case.When(SqlExpr.Call.of(com.legend.sql.SqlFn.LESS, x, new SqlExpr.FloatLit(0.0)),
-                        new SqlExpr.IntLit(2))), new SqlExpr.IntLit(1), SqlExpr.Reason.PRINT));
-        SqlExpr digits = SqlExpr.Call.of(com.legend.sql.SqlFn.RPAD, SqlExpr.Call.of(com.legend.sql.SqlFn.REPLACE,
-                mantissa, new SqlExpr.StringLit("."), new SqlExpr.StringLit("")), width, new SqlExpr.StringLit("0"));
-        // a text with no exponent: its digits, a trailing ".0" alone cut (never a ".0" inside the text)
-        SqlExpr length = SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH, s);
-        SqlExpr tail = SqlExpr.Call.of(com.legend.sql.SqlFn.SUBSTRING, s, SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS,
-                length, new SqlExpr.IntLit(1)), new SqlExpr.IntLit(2));
-        SqlExpr plain = new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, tail, new SqlExpr.StringLit(".0")),
-                SqlExpr.Call.of(com.legend.sql.SqlFn.SUBSTRING, s, new SqlExpr.IntLit(1),
-                        SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS, length, new SqlExpr.IntLit(2))))),
-                s, SqlExpr.Reason.PRINT);
-        return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, at, new SqlExpr.IntLit(0)), plain)),
-                digits, SqlExpr.Reason.PRINT);
-    }
-
     /** {@link #trimmedSix} spelled by the SQL standard's trailing trim ({@code TRIM(TRAILING '0' FROM ...)}), for a
      *  database whose {@code RTRIM} takes no character. */
     protected static SqlWriter trimmedSixStandard(SqlWriter writer, java.util.function.Consumer<SqlWriter> text) {
