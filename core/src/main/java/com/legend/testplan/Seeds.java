@@ -158,7 +158,7 @@ public final class Seeds {
         List<String> texts = new ArrayList<>(elements.size());
         for (TypedSpec e : elements) {
             if (e instanceof TypedNativeCall call && NativeFn.DdlStatement.of(call.callee().id()).isPresent()) {
-                texts.add(com.legend.planner.EnginePlans.ddlText(call, env));
+                texts.add(env.style().facet(com.legend.planner.UpstreamPlans.class).ddlText(call, env));
             } else {
                 texts.add((String) java.util.Objects.requireNonNull(Literals.fold(e, lets)));
             }

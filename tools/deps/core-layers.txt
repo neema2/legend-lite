@@ -127,7 +127,10 @@ exec_program	base error exec execution_plan result
 # from result.CellText to edge.EngineCells, reads a date's own value
 # 2026-11-16 (W9's judge half, E-Java; the orchestrator's ruling): edge reaches testplan, to answer the plan style's
 # test-planning facets (testplan.EngineTestText); the edge depends on the product, never the reverse (G5).
-edge	arrow_ipc base compiler compiler_element_type database door error execution_plan json model parser plan planner protocol pure_v1 result sql sql_dialect test_plan testdatagen testplan values
+# 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): builtin lineage lowering platform resolver setup --
+# legend-engine's plan text (edge.EnginePlans, EngineAllocations) moved from the planner lowers and renders a query in
+# the engine's text through the product's lowering, its natives' catalog, its scan relations and its DDL generator
+edge	arrow_ipc base builtin compiler compiler_element_type database door error execution_plan json lineage lowering model parser plan planner platform protocol pure_v1 resolver result setup sql sql_dialect test_plan testdatagen testplan values
 edge_server	base edge execution pure_v1 saved_queries server_lib
 # 2026-11-15 (phase D's D1.4): legend-engine's service tests at the edge, the runner and its PURE_TDSOBJECT writer
 # 2026-11-16 (W8 of docs/records/d-plan-2026-11-16.md): edge_service_tests reaches edge -- PureV1Writer moved there

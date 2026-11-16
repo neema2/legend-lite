@@ -229,13 +229,10 @@ class HarnessDisciplineTest {
             // helpers left for the planner, and the discipline follows the code; the planner's own sites, walked for
             // the first time, register with them. None reorders a result: each is a set of names or a record's
             // accessor. ----
-            // PlanAllocations: sel.distinct() is the SqlSelect record's DISTINCT accessor, read to rebuild the
-            // select -- the regex's one false positive here, registered rather than special-cased (the driver's
-            // file until S2g)
-            Map.entry("PlanAllocations.java", 1),
-            // EnginePlans: a distinct() over the plan call's chain mappings (names, to find the one that binds the
-            // root class; the body driver's until S2g)
-            Map.entry("EnginePlans.java", 1),
+            // PlanAllocations (sel.distinct(), the SqlSelect record's DISTINCT accessor) and EnginePlans (a distinct()
+            // over a plan call's chain mappings' names): GONE 2026-11-16 (W9's planner half) -- both sites left the
+            // scanned packages with legend-engine's plan text for the edge (edge.EngineAllocations, edge.EnginePlans);
+            // neither is comparison policy, and the edge is no harness
             // CrossStoreGuard: the stores and connections a query names, collected in sorted sets and maps so the
             // refusal's message names them in one order (names, not a result)
             Map.entry("CrossStoreGuard.java", 5),

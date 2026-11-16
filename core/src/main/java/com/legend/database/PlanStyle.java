@@ -70,11 +70,9 @@ public interface PlanStyle {
         /** lite's own SQL for the chain: the product's lowering, written in the frame database's product dialect. */
         String lites();
 
-        /** The database legend-engine's text is written for. */
-        com.legend.model.ConnectionDefinition.DatabaseType engineDatabase();
-
-        /** legend-engine's text for the chain, written by {@code printer}. */
-        String engines(com.legend.sql.dialect.EngineTextDialect printer);
+        /** legend-engine's text for the chain: the style's upstream plan facet's (the planner's
+         *  {@code UpstreamPlans.activitySql}; W9's planner half, 2026-11-16: the printer is the edge's choice). */
+        String engines();
     }
 
     /** THE PRODUCT'S STYLE (phase D's D1.0): each declared type's statements written in the product's own dialect

@@ -808,7 +808,7 @@ class JavaEvalLedgerTest {
             // values: planToString, toSQLString, the plan model) and the body planner (the resolver, the Lowerer, the
             // plan-preparation ladder, a value's road to its body); 2,281 = 1,498 + 658 + 127 - 2 (the generator's plan
             // text handed in by the driver, two lines more there)
-            Map.entry("core/src/main/java/com/legend/planner/EnginePlans.java", 712),   // 717 -> 712 (2026-11-14, S310 RULED by the user, DE2 (a): engineTestSql deleted, an execute's activity SQL the style's pick in PlanAllocations; nothing evaluated)   // 707 -> 717 (2026-10-31, the test-is-the-product plan's M2, its census re-run): toSQLString applies its own runtime argument's table renames (the connection's post-processors, read from the model) wherever it is planned -- the product stages it with no frame, and printed the text without them; nothing evaluated   // 663 -> 707 (2026-10-31, the shared preparation): the DDL text generators' text (ddlText, D30's plan-time values) from the body driver's prelude   // 658 -> 663 (2026-10-31, S2g's third step): engineTestSql, the frame planner's road to an activity's engine SQL (only the plan-text classes hold the engine-text dialect)
+            Map.entry("core/src/main/java/com/legend/edge/EnginePlans.java", 724),   // 712 -> 724 (2026-11-16, W9's planner half: the style's UpstreamPlans facet, five delegating methods replacing the routine table, which the planner keeps as UpstreamPlans.routines; nothing evaluated) // the path planner/ -> edge/ (2026-11-16, W9's planner half: upstream's plan text moved to the edge, nothing evaluated differently; the row follows the file)   // 717 -> 712 (2026-11-14, S310 RULED by the user, DE2 (a): engineTestSql deleted, an execute's activity SQL the style's pick in PlanAllocations; nothing evaluated)   // 707 -> 717 (2026-10-31, the test-is-the-product plan's M2, its census re-run): toSQLString applies its own runtime argument's table renames (the connection's post-processors, read from the model) wherever it is planned -- the product stages it with no frame, and printed the text without them; nothing evaluated   // 663 -> 707 (2026-10-31, the shared preparation): the DDL text generators' text (ddlText, D30's plan-time values) from the body driver's prelude   // 658 -> 663 (2026-10-31, S2g's third step): engineTestSql, the frame planner's road to an activity's engine SQL (only the plan-text classes hold the engine-text dialect)
             // 127 -> 268 (2026-10-31, the shared preparation): the body driver's prelude's framing and its classification of a
             // statement's answer with no plan (prepare), the orchestration handle's type, the effect scan, and the bare plan with
             // no session (bare) -- from the body driver; the answers that run stay there
@@ -1097,9 +1097,12 @@ class JavaEvalLedgerTest {
         // connectionStoreElementOf) that PlanRows turns into rows.
         // 2026-10-31 (the seam program's S2g): the plan MODEL left the body driver for the planner with the engine's
         // plan text (planner/EnginePlans), the same three sites, so the row follows the file (path only)
-        EVICT_NAMES.put("core/src/main/java/com/legend/planner/EnginePlans.java",
+        // 2026-11-16 (W9's planner half): to the edge with the engine's plan text (path only)
+        EVICT_NAMES.put("core/src/main/java/com/legend/edge/EnginePlans.java",
                 new Object[]{"(planWalk|walkProp|walkFilter|walkResult|planModel|planConnOf|constructNode|constructOp|nodeValue|typeRefSimple|activityEnvelopeRead|connectionStoreElementOf)\\(",
-                        3});
+                        // 3 -> 5 (2026-11-16, W9's planner half): the UpstreamPlans facet's planModel, declared and
+                        // delegating to the same walk -- a name, no new site
+                        5});
         // E4.d batch 1 LANDED (2026-08-17, user-ratified "engine-exact
         // text is a lower TARGET"): the second DDL speller is DEAD —
         // dropTableStatementText/createTableStatementText/engineSpell
@@ -1545,7 +1548,10 @@ class JavaEvalLedgerTest {
                     // the engine's plan text (EnginePlans, EngineText, PlanEnvelope, SqlTextInputs), the handles' and
                     // activities' rows (PlanAllocations, AggAwareActivities) -- planning work, no session, moved from
                     // the driver with no rule changed
-                    "BodyPlanner.java", "EnginePlans.java", "EngineText.java", "PlanEnvelope.java",
+                    // (EnginePlans, EngineText and PlanEnvelope left for the edge 2026-11-16, W9's planner half; the planner
+                    // names upstream's plan text as the style's facet, UpstreamPlans: an interface and its lazy routine
+                    // table, no text of upstream's)
+                    "BodyPlanner.java", "UpstreamPlans.java",
                     // a frame's chain (S2g's third step, 2026-10-31): the execute call to the chain its readers splice
                     "FramePlanner.java",
                     // a let's kind and its read analyses (S2b, 2026-10-31): where a let's rows live, decided with no
@@ -1799,7 +1805,11 @@ class JavaEvalLedgerTest {
                             // halves (plan and write only; no connection, no JDBC); and legend-engine's and legend-pure's
                             // text of a cell, moved from result.CellText (spells, decides nothing:
                             // WriterCarriageGuardTest registers its representation operations)
-                            "PureV1Writer.java", "EngineAnswers.java", "HostAnswers.java", "EngineCells.java"),
+                            "PureV1Writer.java", "EngineAnswers.java", "HostAnswers.java", "EngineCells.java",
+                            // legend-engine's plan text, moved from com.legend.planner (W9's planner half, 2026-11-16):
+                            // planToString/toSQLString, a toDDL statement, a $plan handle's node model, an execute's
+                            // activity SQL -- planning work, no session; the style's UpstreamPlans facet
+                            "EnginePlans.java", "EngineText.java", "PlanEnvelope.java", "EngineAllocations.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,

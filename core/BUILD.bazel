@@ -484,7 +484,7 @@ legend_java_library(
     # values (W8, 2026-11-16): legend-engine's and legend-pure's cell text (EngineCells) reads a date's own value
     deps = ["//arrow_ipc", "//base", "//json", ":compiler", ":compiler_element_type", ":database", ":door", ":error",
             ":execution_plan", ":model", ":parser", ":plan", ":planner", ":protocol", ":pure_v1", ":result", ":sql",
-            ":sql_dialect", ":test_plan", ":testdatagen", ":testplan", ":values"],
+            ":sql_dialect", ":test_plan", ":testdatagen", ":testplan", ":values", ":setup", ":resolver", ":platform", ":lowering", ":lineage", ":builtin"],
 )
 
 # THE SHIPPED SERVER'S ROOT (phase D's D1.0b, 2026-11-12): lite's own server with legend-engine's API mounted beside

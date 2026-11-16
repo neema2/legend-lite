@@ -121,7 +121,8 @@ class CompatSpellingGuardTest {
             // reclassified STAYS -> HOOK 2026-11-15 (the D part 1 audit's nit): the edge's hook, not a product semantic
             // 5 -> 9 (2026-11-16, W9's judge half, E-Java: the judges' engine-text methods on the one hook, declared and refused by the product --
             // engineTestText and engineTestPlanText -- so the test planner names no engine text of its own)
-            "database/PlanStyle.java | EngineTextDialect | 9 | HOOK",
+            // 9 -> 8 (2026-11-16, W9's planner half: the activity's engines() takes no printer, the edge's facet picks it)
+            "database/PlanStyle.java | EngineTextDialect | 8 | HOOK",
             // (Missing external parameter(s): gone 2026-11-16, W7: error.MissingParameters, worded by the edge)
             // moved from testplan/ActivityComments.java (2026-11-12, C's J10 merged at 4ef947a: the execution id one per
             // execute(), minted by the door; the activity's comment now the program runner's): a move, the count the same
@@ -175,26 +176,10 @@ class CompatSpellingGuardTest {
             // D1.4 -> D1.7 (2026-11-15): PlanNode is legend-engine's plan JSON (generatePlan's nodes), its comment the
             // engine's post-processor's constant: it moves with EnginePlans' text half
             "plan/PlanNode.java | executionTraceID | 1 | D1.7",
-            "planner/BodyPlanner.java | EnginePlans | 3 | D1.7",
-            "planner/EnginePlans.java | EnginePlans | 2 | D1.7",
-            // 20 -> 12 (2026-11-13, phase D's O3: the printers reached through the plan style, PlanStyle.engineText)
-            // 12 -> 11 (2026-11-14, S310: engineTestSql deleted, the activity's SQL the style's pick in PlanAllocations)
-            "planner/EnginePlans.java | EngineText | 11 | D1.7",
-            "planner/EnginePlans.java | EngineTextDialect | 4 | D1.7",
-            "planner/EnginePlans.java | withEngineText | 1 | D1.7",
-            "planner/EngineText.java | EngineText | 2 | D1.7",
-            // planner/FramePlanner.java | EnginePlans: gone 2026-11-14 (S310, RULED by the user, DE2 (a): the string
-            // entry's activity SQL is the style's pick, through PlanAllocations)
-            "planner/PlanAllocations.java | EnginePlans | 5 | D1.7",
-            // 3 -> 1 (2026-11-13, phase D's O3: the printers reached through the plan style)
-            "planner/PlanAllocations.java | EngineText | 1 | D1.7",
-            // 2026-11-14 (S310 RULED by the user, DE2 (a)): an execute's activity SQL is the style's pick; the planner's
-            // Activity takes the edge's printer as its parameter (the product's style never hands one)
-            "planner/PlanAllocations.java | EngineTextDialect | 1 | D1.7",
-            "planner/PlanEnvelope.java | EnginePlans | 1 | D1.7",
-            "planner/PlanEnvelope.java | EngineText | 2 | D1.7",
-            "planner/PlanEnvelope.java | EngineTextDialect | 1 | D1.7",
-            "planner/ProductStatements.java | EnginePlans | 1 | D1.7",
+            // planner/BodyPlanner, EnginePlans, EngineText, PlanAllocations, PlanEnvelope and ProductStatements rows:
+            // GONE 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): upstream's plan text moved to the
+            // edge (edge.EnginePlans, EngineText, PlanEnvelope, EngineAllocations), the planner reaching it as the
+            // style's facet planner.UpstreamPlans; its routine table (UpstreamPlans.routines) asks the facet when called
             // queries/SavedCubes.java and SavedQueries.java | Can't find: gone 2026-11-16 (W8): a refusal's kind
             // (SavedQueries.Refusal.Kind), legend-engine's words at the edge's mount (EdgeServer.storeWords)
             // 2026-11-14 (merged main 3a217086a, #81): the #TS island reads a Pure date literal's own text into its SQL
@@ -300,12 +285,12 @@ class CompatSpellingGuardTest {
             "testexecutionplan/Verdicts.java | +0000 | 1 | D1.9",
             "testplan/AgreementAsserts.java | EngineText | 1 | D1.7",
             "testplan/AssertVerdicts.java | EngineText | 3 | D1.7",
-            "testplan/BodyDriver.java | EnginePlans | 1 | D1.7",
             // (BodyDriver's EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText,
             // engineTestPlanText and engineTestConnection name the engine test database, the planner none)
             "testplan/BodyDriver.java | withEngineText | 1 | D1.7",
             // (SeedSqlForms' EngineText row gone, 2026-11-16, W9's judge half: the style's engineTestText)
-            "testplan/Seeds.java | EnginePlans | 1 | D1.7",
+            // testplan/BodyDriver.java and Seeds.java | EnginePlans: gone 2026-11-16 (W9's planner half: the routine table
+            // and a toDDL statement's text through planner.UpstreamPlans)
             "testplan/SqlTextVerdicts.java | EngineText | 1 | D1.7",
             "testplan/SqlTextVerdicts.java | withEngineText | 3 | D1.7",
             // retagged 2026-11-15 (D1.2's end): the judging rules' choice of the generator's printing, D1.9's

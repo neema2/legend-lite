@@ -53,6 +53,9 @@ public final class PureText {
             if (kind == com.legend.testplan.EngineTestText.class) {
                 return kind.cast(EdgeEngineTestText.INSTANCE);
             }
+            if (kind == com.legend.planner.UpstreamPlans.class) {
+                return kind.cast(EnginePlans.FACET);
+            }
             throw new com.legend.error.NotImplementedException("the test-planning facet " + kind.getName()
                     + " is none of the declared kinds (com.legend.testplan.PlanStyleFacets.KINDS)");
         }
@@ -89,7 +92,7 @@ public final class PureText {
         /** legend-engine's text, as its activity records the SQL it generated. */
         @Override
         public String activitySql(Activity activity) {
-            return activity.engines(PureText.engineText(activity.engineDatabase()));
+            return activity.engines();
         }
     };
 

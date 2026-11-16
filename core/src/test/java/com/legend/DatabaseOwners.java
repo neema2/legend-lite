@@ -157,7 +157,8 @@ final class DatabaseOwners {
             // quarantined (ArchitectureTest.engineStyleRendererIsQuarantinedToTheRootLayer) -- the layer's execution
             // side, com.legend.driver, since step C (D73, 2026-10-30); the planner since the seam program's S2g
             // (2026-10-31: the engine's plan text is planning work; the quarantine names it alone of the planner)
-            MAIN + "planner/EngineText.java",
+            // 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): moved to the edge with the engine's plan text
+            MAIN + "edge/EngineText.java",
             // 2026-11-12 (phase D's D1.0, the spelling hook): the edge's dialect registry, Databases' counterpart for
             // upstream's spellings (a declared type to the edge's subclass of its product dialect), its test, and the
             // test class planted for the rule that a dialect is the product's or the edge's

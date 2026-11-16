@@ -1,7 +1,9 @@
 // Copyright 2026 Legend Contributors
 // SPDX-License-Identifier: Apache-2.0
 
-package com.legend.planner;
+package com.legend.edge;
+
+import com.legend.planner.*;
 
 import com.legend.compiler.element.ModelContext;
 import com.legend.compiler.spec.SpecCompiler;
@@ -197,33 +199,47 @@ public final class EnginePlans {
     /** {@code planToString(executionPlan(func, MAPPING, runtime, ...),
      * ext)}: the SINGLE-RELATIONAL literal plan text (#47 pilot —
      * com.legend.plan.PlanText owns the format). */
-    /** The executor's routine table for catalog-dispatched natives
-     * (NativeDispatch): exactly the catalog's JAVA_ROUTINE rows. The
-     * rules and literal minting live in the COMPILER (NativeDispatch,
-     * Invariant 7); this supplies plan compilation only. */
-    public static java.util.Map<String, com.legend.compiler.spec
-            .NativeDispatch.Routine> nativeRoutines(
-            com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
-        com.legend.compiler.spec.NativeDispatch.Routine text =
-                (call, letPrefix) -> {
-                    String r = planToString(call, letPrefix,
-                            specs, env);
-                    return java.util.Objects.requireNonNull(r, "plan text");
-                };
-        com.legend.compiler.spec.NativeDispatch.Routine sqlText =
-                (call, letPrefix) -> {
-                    String r = toSqlString(call, letPrefix, specs, env);
-                    return java.util.Objects.requireNonNull(r, "sql text");
-                };
-        return java.util.Map.of(
-                com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING.fqn(), text,
-                com.legend.builtin.NativeFn.JavaRoutine.PLAN_TO_STRING_WITHOUT_FORMATTING.fqn(),
-                (call, letPrefix) -> text.value(call, letPrefix)
-                        .replace("\n", "").replace(" ", ""),
-                com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING.fqn(), sqlText,
-                com.legend.builtin.NativeFn.JavaRoutine.TO_SQL_STRING_PRETTY.fqn(), sqlText,
-                com.legend.builtin.NativeFn.JavaRoutine.TO_NON_EXECUTABLE_SQL_STRING.fqn(), sqlText);
-    }
+    /** The planner's facet of upstream's plan text ({@link UpstreamPlans}), answered by the edge's style
+     *  ({@code PureText.UPSTREAM}): its routines are the planner's ({@link UpstreamPlans#routines}), each asking here when
+     *  it is called (W9's planner half, 2026-11-16: until then this class was the planner's own). */
+    static final UpstreamPlans FACET = new UpstreamPlans() {
+        @Override
+        public String planToString(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
+                java.util.List<TypedSpec> letPrefix, com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
+            return java.util.Objects.requireNonNull(EnginePlans.planToString(call, letPrefix, specs, env), "plan text");
+        }
+
+        @Override
+        public String toSqlString(com.legend.compiler.spec.NativeDispatch.RoutineCall call,
+                java.util.List<TypedSpec> letPrefix, com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
+            return java.util.Objects.requireNonNull(EnginePlans.toSqlString(call, letPrefix, specs, env), "sql text");
+        }
+
+        @Override
+        public String ddlText(com.legend.compiler.spec.typed.TypedNativeCall ds, PlanEnv env) {
+            return EnginePlans.ddlText(ds, env);
+        }
+
+        @Override
+        public com.legend.plan.PlanNode planModel(com.legend.compiler.spec.typed.TypedNativeCall executionPlan,
+                com.legend.compiler.spec.SpecCompiler specs, PlanEnv env) {
+            return EnginePlans.planModel(executionPlan, specs, env);
+        }
+
+        @Override
+        public String activitySql(java.util.List<TypedSpec> chain, @com.legend.base.Nullable String mappingFqn,
+                com.legend.compiler.spec.SpecCompiler specs, PlanEnv env, boolean recorded) {
+            com.legend.sql.dialect.EngineTextDialect renderer = PureText.engineText(EngineText.ENGINE_TEST_DATABASE);
+            EngineSql es = engineSql(chain, mappingFqn, specs, env, renderer, java.util.Map.of(),
+                    java.util.function.UnaryOperator.identity());
+            if (!recorded) {
+                return es.sql();
+            }
+            com.legend.sql.SqlQuery post = com.legend.lowering.SqlPostProcessors.applyRecorded(es.plan(),
+                    env.tableReplace(), env.postProcessors().extractCtes(), env.postProcessors().nonExecutable());
+            return post == es.plan() ? es.sql() : renderer.render(post);
+        }
+    };
 
     private static @com.legend.base.Nullable String planToString(
             com.legend.compiler.spec.NativeDispatch.RoutineCall call,
@@ -584,7 +600,7 @@ public final class EnginePlans {
                 throw new com.legend.error.NotImplementedException(
                         "plan: non-let intermediate statement");
             }
-            children.add(PlanAllocations.node(let, mappingFqn, specs, env,
+            children.add(EngineAllocations.node(let, mappingFqn, specs, env,
                     params, paramSpells, quote, timeZone, dbType, connName));
             params.put(let.name(), new com.legend.sql.SqlExpr.PlanParam(
                     let.name(), com.legend.lowering.PlanParams.kindOf(
@@ -596,7 +612,7 @@ public final class EnginePlans {
             // processes a let cluster into AllocationExecutionNode and
             // emits Sequence only when clusters != 1) — a lone let IS
             // the plan, no Sequence envelope.
-            children.add(java.util.Objects.requireNonNull(PlanAllocations
+            children.add(java.util.Objects.requireNonNull(EngineAllocations
                     .node(tlet, mappingFqn, specs, env, params, paramSpells,
                             quote, timeZone, dbType, connName)));
             if (children.size() != 1) {

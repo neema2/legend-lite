@@ -176,9 +176,9 @@ class ProductStatementsTest {
                 BodyPlanner.class, java.util.Set.of("lowerAndPrepare", "lowererFor", "prepare", "bare"),
                 PlanMaker.class, java.util.Set.of("copyInto"),
                 // the final audit of 9af16fbe58's J1 (2026-11-14): their callers the planner's own
-                SidePlanner.class, java.util.Set.of("prepare"),
-                PlanAllocations.class, java.util.Set.of("node"),
-                EnginePlans.class, java.util.Set.of("engineSql", "engineTestSql", "planModel"));
+                SidePlanner.class, java.util.Set.of("prepare"));
+        // PlanAllocations.node and EnginePlans' engineSql, engineTestSql and planModel: gone from the planner 2026-11-16
+        // (W9's planner half: upstream's plan text is the edge's, reached through the style's UpstreamPlans facet)
         narrowed.forEach((owner, names) -> {
             for (java.lang.reflect.Method m : owner.getDeclaredMethods()) {
                 if (names.contains(m.getName()) && java.lang.reflect.Modifier.isPublic(m.getModifiers())) {

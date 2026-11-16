@@ -285,9 +285,10 @@ final class ArchitectureTest {
             .and().resideInAPackage("com.legend..")
             // 2026-10-31 (the seam program's S2g): the engine's plan text is planning work (D30: plan-time values) and
             // left the driver for the planner -- the registry, the plan printer, the envelope and the plan-node
-            // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface
-            .and().doNotBelongToAnyOf(com.legend.planner.EngineText.class, com.legend.planner.EnginePlans.class,
-                    com.legend.planner.PlanEnvelope.class, com.legend.planner.PlanAllocations.class)
+            // factory, by name; no other planner class (PlanMaker, the body planner's lowering) holds the interface.
+            // 2026-11-16 (W9's planner half, docs/records/d-plan-2026-11-16.md): the four exemptions GONE -- the registry,
+            // the printer and the envelope moved to the edge (planner.UpstreamPlans, the style's facet, is what the
+            // planner names), and PlanAllocations' activity no longer takes a printer: no planner class holds it
             // 2026-11-12 (phase D, D1.7's move pulled forward): the spelling hook names the interface as the type it
             // hands the planner (the product's refuses it by name), and the edge supplies its printers
             .and().doNotBelongToAnyOf(com.legend.database.PlanStyle.class)
@@ -1251,9 +1252,9 @@ final class ArchitectureTest {
             // cross-store guard, the Lowerer and its object sites, the platform's registrations, and a program's facts
             // (stated by ProgramFacts.of since C5-J item 2, 2026-11-15; the PCT runner reads the test plan's instead)
             "lowering.Lowerer#<init>(java.util.function.Function, java.util.function.Predicate, "
-                    + "com.legend.platform.ImplementationTable)", "com.legend.Compiler",
-            "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler",
-            "lowering.Lowerer#withEngineExistsJoinForm()", "com.legend.Compiler",
+                    + "com.legend.platform.ImplementationTable)", "com.legend.Compiler com.legend.edge.EnginePlans",
+            "lowering.Lowerer#lower(java.util.List)", "com.legend.Compiler com.legend.edge.EnginePlans",
+            "lowering.Lowerer#withEngineExistsJoinForm()", "com.legend.Compiler com.legend.edge.EnginePlans",
             "lowering.Lowerer#withInstanceKeys(java.util.function.Function)", "com.legend.Compiler",
             "lowering.Lowerer#withObjectIdentity(java.util.function.Function)", "com.legend.Compiler",
             "lowering.ObjectSites#<init>()", "com.legend.Compiler",
@@ -1321,7 +1322,52 @@ final class ArchitectureTest {
                     + "com.legend.planner.LoadPlanner$DeclaredTable, long, java.util.Map)", "planner.Boundary",
             "planner.Synthesize$Knob$Range#<init>(java.lang.String, java.lang.String, java.lang.Integer)",
             "planner.Boundary",
-            "planner.Synthesize$Knob$Values#<init>(java.util.List)", "planner.Boundary"
+            "planner.Synthesize$Knob$Values#<init>(java.util.List)", "planner.Boundary",
+            // W9's planner half (2026-11-16, docs/records/d-plan-2026-11-16.md): upstream's plan text moved to the edge
+            // (edge.EnginePlans, PlanEnvelope, EngineAllocations: the planner's own until then), reached as the style's
+            // facet planner.UpstreamPlans; it lowers and renders a query in legend-engine's text through the product's
+            // lowering and the plan's environment, so each of those reaches is listed here, by signature and caller
+            "lowering.Lowerer#bindPlanParam(com.legend.sql.SqlExpr$PlanParam)", "com.legend.edge.EnginePlans",
+            "lowering.Lowerer#withEngineText()", "com.legend.edge.EnginePlans",
+            "lowering.Lowerer#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
+            "lowering.Lowerer#withOptions(java.util.Set)", "com.legend.edge.EnginePlans",
+            "lowering.PlanParams#kindOf(com.legend.compiler.element.type.Type)", "com.legend.edge.EnginePlans",
+            "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.Map)", "com.legend.edge.EnginePlans",
+            "lowering.SqlPostProcessors#apply(com.legend.sql.SqlQuery, java.util.function.UnaryOperator)",
+            "com.legend.edge.EnginePlans",
+            "lowering.SqlPostProcessors#applyRecorded(com.legend.sql.SqlQuery, java.util.Map, boolean, boolean)",
+            "com.legend.edge.EnginePlans",
+            "lowering.SqlPostProcessors#nonExecutable(com.legend.sql.SqlQuery)", "com.legend.edge.EnginePlans",
+            "planner.BodyPlanner#boundContext(com.legend.compiler.spec.typed.TypedSpec, com.legend.compiler.spec.SpecCompiler)",
+            "com.legend.edge.EnginePlans",
+            "planner.BodyPlanner#featuresOf(com.legend.planner.PlanEnv, java.util.List)", "com.legend.edge.EnginePlans",
+            "planner.BodyPlanner#pushDownEnums(com.legend.planner.PlanEnv, java.util.List)",
+            "com.legend.edge.EnginePlans com.legend.edge.PlanEnvelope",
+            "planner.BodyPlanner#resolver(com.legend.compiler.spec.SpecCompiler, com.legend.planner.PlanEnv)",
+            "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#ctx()",
+            "com.legend.edge.EngineAllocations com.legend.edge.EnginePlans com.legend.edge.PlanEnvelope",
+            "planner.PlanEnv#features()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#generatorPlanText()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#options()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#postProcessors()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#queryLets()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#runtimeFqn()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#style()", "com.legend.edge.EngineAllocations com.legend.edge.EnginePlans",
+            "planner.PlanEnv#tableReplace()", "com.legend.edge.EnginePlans",
+            "planner.PlanEnv#withFeatures(java.util.Set)", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters#of(com.legend.compiler.spec.typed.TypedLambda)", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#name()", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#planParam(java.lang.String)", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#signature()", "com.legend.edge.EnginePlans",
+            "planner.QueryParameters$Declared#type()", "com.legend.edge.EnginePlans",
+            "planner.SqlTextInputs#dialect()", "com.legend.edge.EnginePlans",
+            "planner.SqlTextInputs#mapping()", "com.legend.edge.EnginePlans",
+            "planner.SqlTextInputs#of(com.legend.compiler.spec.NativeDispatch$RoutineCall, java.util.List)",
+            "com.legend.edge.EnginePlans",
+            "planner.SqlTextInputs#query()", "com.legend.edge.EnginePlans",
+            "planner.SqlTextInputs#receiverForm()", "com.legend.edge.EnginePlans",
+            "planner.SqlTextInputs#runtime()", "com.legend.edge.EnginePlans"
             // 2026-11-15 (C5-J item 3): the resolver's seven reads of the lowering's helpers left this list -- the
             // reducer table moved to compiler.element.Reducers and the object reference's protocol to model.AsorRef, below
             // both; the resolver reaches the lowering no more (tools/deps/core-layers.txt)

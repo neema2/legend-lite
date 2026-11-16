@@ -108,13 +108,14 @@ public final class PlantedLowering {
         }
     }
 
-    /** The executor's routine table (EnginePlans.nativeRoutines), whose text routine lowers. */
+    /** The executor's routine table (UpstreamPlans.routines: EnginePlans.nativeRoutines until W9, 2026-11-16), whose text
+     *  routine lowers. */
     public static final class Routines {
         private Routines() {
         }
 
         public static Object routines() {
-            return com.legend.planner.EnginePlans.nativeRoutines(null, null);
+            return com.legend.planner.UpstreamPlans.routines(null, null);
         }
     }
 

@@ -16,6 +16,7 @@ public final class PlanStyleFacets {
     private PlanStyleFacets() {
     }
 
-    /** The facet kinds, in the order they were added: the engine-text assert's arm (W9's judge half, 2026-11-16). */
-    public static final List<Class<?>> KINDS = List.of(EngineTestText.class);
+    /** The facet kinds, in the order they were added: the engine-text assert's arm (W9's judge half, 2026-11-16);
+     *  upstream's plan text at planning (W9's planner half, 2026-11-16: {@code planner.UpstreamPlans}). */
+    public static final List<Class<?>> KINDS = List.of(EngineTestText.class, com.legend.planner.UpstreamPlans.class);
 }

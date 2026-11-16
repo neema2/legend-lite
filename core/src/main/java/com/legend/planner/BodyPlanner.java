@@ -249,7 +249,7 @@ public final class BodyPlanner {
             SpecCompiler specs, PlanEnv env) {
         final List<TypedSpec> stageEnv = body;
         body.replaceAll(b -> NativeDispatch
-                .stage(b, stageEnv, EnginePlans.nativeRoutines(specs, env)));
+                .stage(b, stageEnv, UpstreamPlans.routines(specs, env)));
         return resolvedToExecute(resolver(specs, env), body, env);
     }
 
@@ -348,7 +348,7 @@ public final class BodyPlanner {
         // compiled store model (the lowerer has no model access)
         if (root instanceof TypedNativeCall ds
                 && NativeFn.DdlStatement.of(ds.callee().id()).isPresent()) {
-            return new Prepared.DdlText(EnginePlans.ddlText(ds, env), ds.info().type());
+            return new Prepared.DdlText(env.style().facet(UpstreamPlans.class).ddlText(ds, env), ds.info().type());
         }
         com.legend.compiler.element.type.@Nullable Type handle = handleType(root, env.ctx());
         if (handle != null) {
@@ -365,7 +365,7 @@ public final class BodyPlanner {
             for (TypedSpec e : ddlColl.elements()) {
                 if (e instanceof TypedNativeCall enc
                         && NativeFn.DdlStatement.of(enc.callee().id()).isPresent()) {
-                    strs.add(EnginePlans.ddlText(enc, env));
+                    strs.add(env.style().facet(UpstreamPlans.class).ddlText(enc, env));
                 } else if (e instanceof TypedCString cs2) {
                     strs.add(cs2.value());
                 } else {
