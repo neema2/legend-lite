@@ -1335,6 +1335,17 @@ public class SQLite extends AnsiSqlRenderer {
             return writer.piece(asText(typeOf(v) == SqlType.Scalar.HUGEINT ? deliveredValue(v, SqlType.Scalar.HUGEINT)
                     : v));
         }
+        // a Float parsed from text (parseFloat): SQLite's CAST reads 'NaN' and 'Infinity' as 0 (measured), so the
+        // spellings Pure's parse accepts (Java's: trimmed, case exact) are read here -- NaN, which SQLite cannot hold,
+        // raised by name (register S138), an infinity as SQLite's own (Phase 8, 2026-11-16: D's probe, NaN answered 0)
+        if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
+            return writer.append("(CASE WHEN trim(").expr(v, 0).append(") IN ('NaN', '+NaN', '-NaN') THEN ")
+                    .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                            "parseFloat of NaN is NaN, which this database cannot hold"))))
+                    .append(" WHEN trim(").expr(v, 0).append(") IN ('Infinity', '+Infinity') THEN 9e999 WHEN trim(")
+                    .expr(v, 0).append(") = '-Infinity' THEN -9e999 ELSE ")
+                    .piece(castTo(w -> w.expr(v, 0), SqlType.Scalar.VARCHAR, target)).append(" END)");
+        }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
     }
 
