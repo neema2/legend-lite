@@ -39,7 +39,7 @@ The browser's run reaches the planner through one door, `Boundary.deephaven(op, 
 | `releaseExport`, `doGet`, `publish` | the session | inside the run | encoding a request | the driver's |
 | `batch` | nothing in the browser | -- | encoding | deleted (its work is the driver's) |
 
-Three things are wrong, and only the first is the door:
+Four things are wrong, and only the first is the door:
 
 1. **The run asks the planner, three times a query** (`keys`, `send`, `made`) and again for each release, read and
    publish. In the browser this passes only because the run frame cannot see there (`engine-client/src/run-frame.ts`:
@@ -54,6 +54,10 @@ Three things are wrong, and only the first is the door:
    the server reports (`columnType(c, held)`), and every later query of the grid is planned against that declaration:
    the server's answer feeds the planner. Types are the frontend's (AGENTS.md invariant 1); the server's answer is
    checked against them (DH16, decided strict), never read to plan.
+4. **A query finds its base by name, during the run.** The query reads the base as if it were a server's table,
+   `s/legend_base_<key>` (declared in DataCube's model fragment `legend::Bases`), and the session swaps that name for
+   its own ticket as it sends (`DeephavenEngine.#supplied`, `DeephavenWire.suppliedTicket`): a run-time rewrite keyed
+   on a name. The planner does not know the table is the session's base, so it cannot mark the place as a slot.
 
 ## 2. The model: DuckDB's pattern
 
@@ -125,9 +129,19 @@ grid sends and every result it follows) becomes a plan step of its own:
   open is a sign it should be declared as a materialized view -- the author's call.
 - **A new plan node.** Its name and place in the plan format are agreed with the plan format's owner (the total-wall
   orchestrator); the plan version number is assigned at landing (§8, answer 6).
-- **DataCube's side:** `ServerBases` still declares each base's table in its model fragment (`legend::Bases`), but from
-  the base step's columns. So a grid's queries can be planned before its base is made, and are never planned from a
-  server's answer.
+- **How a query reads its base: planned with it.** The base and a query over it are planned together, the query as a
+  function of its base: the base its typed input, a lambda, and the query a lambda over it. The plan then holds the
+  base step and the query's step, and the query reads the base through a plan variable -- legend-engine's own pattern
+  for one plan node reading another's result (lite keeps its shape in the IR, `SqlSource.VarSetPlaceholder`, plan text
+  only today) -- which the Deephaven dialect writes as a ticket slot naming the base step. Nothing is found by name
+  during a run (§1, point 4).
+- **What goes from DataCube:** the model fragment it writes for its bases (`legend::Bases`, a `Table` per base,
+  declared from the server's answer: §1, point 3), the second planner and model it holds so a new base does not
+  re-hold the page's model (`ServerBaseOptions.connectionOf`: the trader screens' 4.4 s, 2026-10-25), and the name swap.
+  `ServerBases` keeps what it decides -- which base each grid reads, and when no grid reads one -- and DataCube's
+  `rebased` seam writes the query over the base's parameter instead of over a declared table.
+- **A public interface change, named:** one planning entry takes the base as well as the query (the query's planning
+  entry gains the base lambda; its name and shape settled with the C5 surface's rows, `PlannerSurfaceTest`).
 
 ### 3.3 Reuse: every table kept is a step of the plan
 
@@ -215,8 +229,8 @@ Its transport (gRPC-web, or Deephaven's own Python client) is chosen when it is 
 
 ## 5. The door after
 
-`Boundary.deephaven` keeps planning operations only -- `topics`, `plan`, `validate`, `holds`, and one new `base` (a
-grid's base as its session-table step: §3.2), each closed by `only(...)` over the keys it reads and each registered in
+`Boundary.deephaven` keeps planning operations only -- `topics`, `plan`, `validate`, `holds` -- and the query's planning
+entry takes a base (§3.2); each is closed by `only(...)` over the keys it reads and each registered in
 `PlannerSurfaceTest` with a dated note (the orchestrator's answer 5). The other nine go: `nullable`, `stored`, `keys`,
 `send` into the plan; `made`, `batch`, `releaseExport`, `doGet`, `publish` into the driver. `ingestPlans` and the lite
 route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
@@ -270,10 +284,11 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
 2. **Merge `main`** (`4dfbb5b7`: C5-P, C5-J, C5-T; 85 commits, about 18 conflicts), placing the Deephaven TypeScript
    in C5-T's layers.
 3. **M1, M2 and M5** measured on the branch.
-4. **The planner:** the statement as bytes, its slots and identity; the columns' two facts (§3.4); the base step; the
-   encoder and the planning parts of `DeephavenWire` (`keys`, `stored`) moved to the planner's side; Java tests.
-5. **The browser's driver** in a run layer; the door narrowed and closed; DataCube's bases declared from the plan; the
-   witnesses; every Deephaven lane green.
+4. **The planner:** the statement as bytes, its slots and identity; the columns' two facts (§3.4); a query planned
+   over its base, the base a step and the query reading it through a plan variable; the encoder and the planning
+   parts of `DeephavenWire` (`keys`, `stored`) moved to the planner's side; Java tests.
+5. **The browser's driver** in a run layer; the door narrowed and closed; DataCube's bases planned with their queries
+   (its model fragment, second planner and name swap deleted); the witnesses; every Deephaven lane green.
 6. **The Java driver** -- the session part re-homed into exec, with the shared fixtures -- in the PR right after v0's
    (Q1, ruled).
 7. **The surfaces and layers registered, every lane run,** and the landing as §8, answer 6 says (the user's word for
@@ -290,3 +305,6 @@ route `/api/lite/v1/grammar/grammarToJson/model` are registered the same way.
   if they are part of the plan. §3.3: every kept table is a planned step under the same two rules; v0 cuts the base
   and the result, and a table between them only when M1 shows a gesture needs it.
 - **Q5, ruled 2026-11-16:** Python later ("yes python later").
+- **Q6, a public interface change (§3.2):** the query's planning entry takes the grid's base too, so the plan knows
+  the base is a step and the query reads it through a slot. Found 2026-11-16 by tracing how a query reaches its base
+  (§1, point 4). For the user's word.
