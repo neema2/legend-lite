@@ -39,26 +39,50 @@ public final class Temporal {
         if (strat == null) {
             return null;
         }
-        return switch (prop) {
-            case "businessDate" -> strat.has(MilestoningStrategy.Dimension.BUSINESS)
-                    ? new GeneratedMember(prop, GENERATED_DATE_TYPE, false) : null;
-            case "processingDate" -> strat.has(MilestoningStrategy.Dimension.PROCESSING)
-                    ? new GeneratedMember(prop, GENERATED_DATE_TYPE, false) : null;
-            // lite's spelling, kept as it was before the rule moved here: a
-            // bitemporal class's struct is BusinessDateMilestoning (the engine's
-            // MilestoningStereotypeEnum names BiTemporalMilestoning)
-            case "milestoning" -> new GeneratedMember(prop, "meta::pure::milestoning::"
-                    + (strat == MilestoningStrategy.PROCESSING
-                            ? "ProcessingDateMilestoning" : "BusinessDateMilestoning"), true);
-            default -> null;
-        };
+        Member m = Member.spelled(prop);
+        if (m == null || m.axis != null && !strat.has(m.axis)) {
+            return null;
+        }
+        // the struct's type is lite's spelling, kept as it was before the rule
+        // moved here: a bitemporal class's struct is BusinessDateMilestoning
+        // (the engine's MilestoningStereotypeEnum names BiTemporalMilestoning)
+        String type = m.axis != null ? GENERATED_DATE_TYPE : "meta::pure::milestoning::"
+                + (strat == MilestoningStrategy.PROCESSING ? "ProcessingDateMilestoning" : "BusinessDateMilestoning");
+        return new GeneratedMember(m.spelling, type, m.axis == null);
+    }
+
+    /** The members the rule generates, as DATA: each one's spelling and the
+     * temporal axis that generates it (none for the milestoning struct, which
+     * every temporal class carries). The one place the three spellings live. */
+    private enum Member {
+        BUSINESS_DATE("businessDate", MilestoningStrategy.Dimension.BUSINESS),
+        PROCESSING_DATE("processingDate", MilestoningStrategy.Dimension.PROCESSING),
+        MILESTONING("milestoning", null);
+
+        final String spelling;
+        final MilestoningStrategy.@com.legend.base.Nullable Dimension axis;
+
+        Member(String spelling, MilestoningStrategy.@com.legend.base.Nullable Dimension axis) {
+            this.spelling = spelling;
+            this.axis = axis;
+        }
+
+        /** The member spelled {@code prop}, or null. */
+        static @com.legend.base.Nullable Member spelled(String prop) {
+            for (Member m : values()) {
+                if (m.spelling.equals(prop)) {
+                    return m;
+                }
+            }
+            return null;
+        }
     }
 
     /** Whether {@code prop} is a name the rule can generate at all -- the
      * cheap test a lookup's miss path asks before walking the hierarchy for
      * a strategy. */
     public static boolean isGeneratedMemberName(String prop) {
-        return "businessDate".equals(prop) || "processingDate".equals(prop) || "milestoning".equals(prop);
+        return Member.spelled(prop) != null;
     }
 
     /** A generated member's typed form: its type classified (a primitive, or
