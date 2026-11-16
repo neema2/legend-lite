@@ -60,12 +60,13 @@ class FloatTextTest {
     void anEdgeFloatLiteralsTextIsLegendEnginesSql() throws Exception {
         TestBackend backend = LaneFloor.backend();
         String model = backend.withStorelessRuntime("");
-        boolean h2 = backend.name().equals("h2");
+        // legend-engine writes a Float literal CAST(%s AS FLOAT) on this lane's database (its H2 processor)
+        boolean floatLiteralCast = backend.name().equals("h2");
         try (Connection c = backend.open()) {
-            assertEquals(h2 ? "1.3421E-8" : "0.000000013421", edge(model, c, "|0.000000013421->toString()"),
+            assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", edge(model, c, "|0.000000013421->toString()"),
                     backend.name());
-            assertEquals(h2 ? "1.3421E-8" : "0.000000013421", edge(model, c, "|1.3421e-8->toString()"), backend.name());
-            assertEquals(h2 ? "1.3421E8" : "134210000.0", edge(model, c, "|1.3421e8->toString()"), backend.name());
+            assertEquals(floatLiteralCast ? "1.3421E-8" : "0.000000013421", edge(model, c, "|1.3421e-8->toString()"), backend.name());
+            assertEquals(floatLiteralCast ? "1.3421E8" : "134210000.0", edge(model, c, "|1.3421e8->toString()"), backend.name());
             assertEquals("17.0", edge(model, c, "|17.000->toString()"), backend.name());
         }
     }
