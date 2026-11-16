@@ -605,10 +605,24 @@ final class RelOpTranslator {
                             .toList());
             case RelationalOperation.JoinNavigation jn -> joinNavigation(jn,
                     tableScope, targetVarOrNull, rowBindOrNull, pipeline);
-            // group-1 types never reach here (their arms matched above);
-            // javac still needs coverage over the sealed hierarchy
+            // A lambda argument (the relational grammar's `x | body`, `(a, b | body)`) and its `$x` are parsed and
+            // carried; translating them is a leg of its own, refused by name until then. Until 2026-11-14 both fell
+            // to the default arm, a raw IllegalStateException naming the Java class, from a user's text
+            // (RefusalsNotCrashesTest). A function call's arguments reach here
+            // whatever the function (a translator arm's or the generic one's), and a view column's too.
+            case RelationalOperation.Lambda lam -> throw new NotImplementedException(
+                    "a lambda argument (" + String.join(", ", lam.parameters())
+                  + " | ...) in a relational expression is not supported by this platform yet");
+            case RelationalOperation.LambdaParam lp -> throw new NotImplementedException(
+                    "a lambda parameter ($" + lp.name()
+                  + ") in a relational expression is not supported by this platform yet");
+            // The kinds left -- a column reference, a {target} column, a literal -- never reach here: translate
+            // matches each one itself before it hands an operation to translateTail (the invariant; javac still
+            // needs the sealed hierarchy covered). 2026-11-14: an internal error naming that
+            // invariant, where the text named the operation's Java class.
             default -> throw new IllegalStateException(
-                    "relational-op dispatch: unexpected " + op.getClass());
+                    "relational-op dispatch: a column, {target} column or literal reached translateTail;"
+                  + " translate matches those kinds before it (an internal error)");
         };
     }
 
@@ -717,8 +731,15 @@ final class RelOpTranslator {
         return switch (d.resolution()) {
             case PURE -> call.name();
             case SHIM -> d.liteFqn();
-            case TRANSLATED -> throw new IllegalStateException("dynafunction '" + call.name()
-                    + "' is declared TRANSLATED but no translator arm rewrote it");
+            // a TRANSLATED name in a shape no arm above rewrites (an arm's guard -- its argument count, a literal it
+            // needs -- did not match): the user's call, refused by name as the UNSUPPORTED arm below refuses one.
+            // Until 2026-11-14 a raw IllegalStateException ("declared TRANSLATED but no translator arm rewrote it"),
+            // from a user's text (RefusalsNotCrashesTest). The group
+            // reducers' callers (GroupBySynthesis, ViewRelation) ask only for PURE names.
+            case TRANSLATED -> throw new com.legend.error.NotImplementedException(
+                    "engine dynafunction '" + call.name() + "' is not supported by this platform yet in this shape ("
+                    + call.args().size() + (call.args().size() == 1 ? " argument" : " arguments") + "; DynaFn."
+                    + d.name() + ": no translator arm rewrites it)");
             case UNSUPPORTED -> throw new com.legend.error.NotImplementedException(
                     "engine dynafunction '" + call.name() + "' is not supported by this platform yet (DynaFn."
                     + d.name() + "; the engine's dialects that register it: docs/engine-dynafunctions.tsv)");

@@ -141,7 +141,7 @@ class IdentityGuardrailTest {
             // 208 -> 205 (2026-10-06, build rebuild Phase 3: measured when the table became the one authority)
             Map.entry("NAME_COMPARE_REVERSED", 78), // 79 -> 78 (2026-10-21, leg 8 step 2, rule A: a model store's negative number is the parser's one literal, so the emitter's negation fold and its "minus" test are gone); 81 -> 79 (2026-10-10, L7 "resolve once" steps 3-4: readers read the record)
             Map.entry("LITERAL_NAME_COMPARE", 65),   // 64 -> 65 (2026-09-27, T4a): protocol/ProtocolUpgrade, upstream's protocol converter for a Result variable ("meta::pure::mapping::Result" on the WIRE, before any resolution)
-            Map.entry("NAME_AFFIX_TEST", 55),       // 54 -> 55 (2026-11-03, the A2 gate, register S146: the same line of model/SignatureMangle.mangle, upstream's namespace meta:: tested as a prefix); 53 -> 54 (2026-11-01, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md M3/S5): compiler/spec/TsIslands.memberOf, the #TS catalog's one reader of a package's members -- the library's words and enumerations -- by their paths (the model lists elements by path alone)
+            Map.entry("NAME_AFFIX_TEST", 56),       // 55 -> 56 (2026-11-14, java_bugFixes, measured): compiler/NameResolver.callTierMatches refuses a qualified spelling (name.contains("::")) -- until then pkg::a::b::f was asked of the universe at every tier; 54 -> 55 (2026-11-03, the A2 gate, register S146: the same line of model/SignatureMangle.mangle, upstream's namespace meta:: tested as a prefix); 53 -> 54 (2026-11-01, docs/TS_LIBRARY_DEFINES_THE_LANGUAGE_2026_10_31.md M3/S5): compiler/spec/TsIslands.memberOf, the #TS catalog's one reader of a package's members -- the library's words and enumerations -- by their paths (the model lists elements by path alone)
             // 52 -> 53 (2026-10-29, track L, D50d): MixedEncoding.enumerationKind reads a tagged slot's KIND -- the
             // plan format's own vocabulary (the eight primitives' names, DateTime(n), an enumeration's path) -- for
             // an enumeration's; the kind is the plan's text, written by the lowering and read back by it and the
@@ -161,7 +161,11 @@ class IdentityGuardrailTest {
             Map.entry("MINT_BY_NAME", 152),   // 142 -> 18 (2026-10-10, L7 "resolve once" steps 3-4: every call built after the resolver is built by Calls, with its record)
             // 143 -> 142 (2026-09-27: the #>{}# island's record is built by ONE factory, AppliedFunction.tableReference, for the parser and the protocol reader; the parser's two mints went into it)
             Map.entry("FORM_DISPATCH_BY_NAME", 1),   // 21 -> 1 (2026-10-06, build rebuild Phase 3: ResolvedNames.form)
-            Map.entry("LOCAL_NAME_COMPARE", 85),   // 87 -> 85 (2026-10-06, build rebuild Phase 3: measured); 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
+            // 86 -> 84 (2026-11-15, java_bugFixes, measured by the guard's run): compiler/element/ViewSignatures'
+            // aggregate switch reads sum by the registry's member (DynaFn.SUM), not fn.equals("sum"): the branch's
+            // site and main's gone; the schema "default" compare stays. The 85 -> 86 note named that compare alone:
+            // the branch added two sites over main's measured 84, it and fn.equals("sum") at :135 (main's at :140)
+            Map.entry("LOCAL_NAME_COMPARE", 84),   // 85 -> 86 (2026-11-14, java_bugFixes, measured): compiler/element/ViewSignatures reads a view column's schema "default" as the database's own, refusing a schema the database lacks in the engine's words (HelperRelationalBuilder); 87 -> 85 (2026-10-06, build rebuild Phase 3: measured); 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
             Map.entry("CASE_NAME_LABEL", 4),
             Map.entry("PARSE_NAME_LOOKUP", 3));
 

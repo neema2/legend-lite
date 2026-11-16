@@ -137,7 +137,15 @@ final class JoinChainEmission {
                         break;
                     }
                 }
-                ClassDefinition owner = model.knowledge().hierarchyClass(ownerClassFqn).orElseThrow(() -> new IllegalStateException("F7.8: class unresolved at JoinChainEmission#2 (this default NEVER fired on the corpus census; a miss here is a real model gap): " + ownerClassFqn));
+                // a class mapping of a class the model has not (`*a::Nope: Relational { ..., p() Inline[s] }`): the
+                // model's error, in the words of emitOtherwiseEmbeddedHop's same refusal below. Until 2026-11-14 a
+                // raw IllegalStateException ("F7.8: class unresolved at JoinChainEmission#2 ...")
+                // (RefusalsNotCrashesTest)
+                ClassDefinition owner = model.knowledge().hierarchyClass(ownerClassFqn).orElseThrow(() ->
+                        new ModelException(LegendCompileException.Phase.NORMALIZE,
+                                "Inline-embedded PM '" + ie.propertyName()
+                                + "': unknown owner class '" + ownerClassFqn
+                                + "'; mapping=" + md.qualifiedName()));
                 TypeExpression propType = owner == null ? null
                         : model.knowledge().propertyType(owner, ie.propertyName());
                 if (referenced != null
@@ -447,7 +455,7 @@ final class JoinChainEmission {
             }
             p.aliasToTargetTable.put(slotAlias, targetTable);
             p.aliasToTargetColumns.put(slotAlias,
-                    targetColumnNames(hopDb, targetTable, viewTarget, model));
+                    targetColumnNames(hopDb, targetTable, viewTarget, model, hop.joinName(), propName, md));
             if (!emitNavigate) p.pathToSlot.put(pathKey, slotAlias);
             prevTable = targetTable;
             prevAlias = slotAlias;
@@ -1043,21 +1051,28 @@ final class JoinChainEmission {
     }
 
     /** The declared column names of a hop's target relation — a view's
-     * column mappings, else the physical table's columns; empty when
-     * unknown (the terminal rebase then leaves the column where spelled). */
+     * column mappings, else the physical table's columns. A target table
+     * neither the hop's database nor its includes declare (a join whose
+     * condition names it, `Join J(A.X = NOPE.ID)`, or one in an included
+     * database the model has not) is the model's error, in the words of
+     * the join-not-found refusal in emitJoinChain ({@code joinName},
+     * {@code propName} and {@code md} name it as that refusal does). Until
+     * 2026-11-14 the never-fired funnel's "JoinChainEmission#3", a raw
+     * IllegalStateException (RefusalsNotCrashesTest). */
     private static Set<String> targetColumnNames(String dbFqn, String targetTable,
-            @com.legend.base.Nullable String viewTarget, ModelBuilder model) {
+            @com.legend.base.Nullable String viewTarget, ModelBuilder model, String joinName,
+            @com.legend.base.Nullable String propName, @com.legend.base.Nullable ResolvedMapping md) {
         Set<String> out = new java.util.LinkedHashSet<>();
         if (viewTarget != null) {
             model.findView(dbFqn, viewTarget).ifPresent(v ->
                     v.columnMappings().forEach(c -> out.add(c.name())));
             return out;
         }
-        DatabaseDefinition.TableDefinition t =
-                model.knowledge().table(dbFqn, targetTable).orElseThrow(() -> MissProbe.neverFired("JoinChainEmission#3"));
-        if (t != null) {
-            t.columns().forEach(c -> out.add(c.name()));
-        }
+        DatabaseDefinition.TableDefinition t = model.knowledge().table(dbFqn, targetTable)
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "Join '" + joinName + "' target table '" + targetTable + "' not found in db '"
+                        + dbFqn + "'; PM='" + propName + "', " + ViewRelation.owner(md, dbFqn)));
+        t.columns().forEach(c -> out.add(c.name()));
         return out;
     }
 

@@ -1914,6 +1914,233 @@ class NameResolverTest {
                 "T inside Bar (no type params) resolves to model::T \u2014 no leak");
     }
 
+    /** Since 2026-11-13: a qualified call is
+     * itself -- the call tiers no longer prefix it with a package, so {@code b::f()} under {@code import a::*;} is not
+     * {@code a::b::f} (Pure has no relative qualified names). */
+    @Test
+    void aQualifiedCallIsNeverPrefixedByATier() {
+        ParsedModel resolved = NameResolver.resolve(com.legend.testing.Own.model("""
+                import a::*;
+                function a::b::f():String[1] { 'x' }
+                function c::g():String[1] { b::f() }
+                function c::h():String[1] { a::b::f() }
+                """));
+        java.util.function.Function<String, AppliedFunction> call = fqn -> resolved.elements().stream()
+                .filter(e -> e instanceof FunctionDefinition f && f.qualifiedName().equals(fqn))
+                .map(e -> (AppliedFunction) ((FunctionDefinition) e).body().get(0))
+                .findFirst().orElseThrow();
+        assertEquals("b::f", call.apply("c::g").function());
+        assertEquals(List.of(), call.apply("c::g").referents());
+        assertEquals("a::b::f", call.apply("c::h").function());
+    }
+
+    /** Since 2026-11-13: two binding keys that
+     * name one store keep both connection lists under the first key's place (the second replaced the first's), and the
+     * connection ids' stores resolve whatever else changed (only on a rebuild before). A connection both keys list is
+     * kept once (2026-11-15). A text spells an id's store as
+     * its binding key, so they change together; a model given as protocol records need not. */
+    @Test
+    void aRuntimesBindingsAndIdsResolveAndMerge() {
+        ParsedModel m = com.legend.testing.Own.model("""
+                ###Relational
+                Database a::S ( Table T (ID INTEGER) )
+                ###Connection
+                RelationalDatabaseConnection a::C1 { store: a::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }
+                RelationalDatabaseConnection a::C2 { store: a::S; type: H2; specification: LocalH2 {}; auth: DefaultH2; }
+                ###Runtime
+                import a::*;
+                Runtime a::R { mappings: []; connections: [ S: [ id1: a::C1 ], a::S: [ id2: a::C2 ] ]; }
+                Runtime a::Q { mappings: []; connections: [ a::S: [ id3: a::C1 ] ]; }
+                Runtime a::P { mappings: []; connections: [ S: [ id4: a::C1 ], a::S: [ id5: a::C1 ] ]; }
+                """);
+        java.util.function.BiFunction<ParsedModel, String, RuntimeDefinition> runtime = (pm, fqn) ->
+                pm.elements().stream().filter(e -> e instanceof RuntimeDefinition rd && rd.qualifiedName().equals(fqn))
+                        .map(e -> (RuntimeDefinition) e).findFirst().orElseThrow();
+        ParsedModel r = NameResolver.resolve(m);
+        RuntimeDefinition rd = runtime.apply(r, "a::R");
+        assertEquals(java.util.Map.of("a::S", List.of("a::C1", "a::C2")), rd.connectionBindings());
+        assertEquals(List.of("id1", "id2"), List.copyOf(rd.connectionIds().keySet()));
+        assertEquals(List.of("a::S", "a::S"), List.copyOf(rd.connectionIds().values()));
+        // a connection both keys list is kept once (2026-11-15)
+        assertEquals(java.util.Map.of("a::S", List.of("a::C1")), runtime.apply(r, "a::P").connectionBindings());
+        List<PackageableElement> elements = new java.util.ArrayList<>();
+        for (PackageableElement e : m.elements()) {
+            elements.add(e instanceof RuntimeDefinition q && q.qualifiedName().equals("a::Q")
+                    ? new RuntimeDefinition(q.qualifiedName(), q.mappings(), q.connectionBindings(),
+                            q.jsonConnections(), q.inlineConnections(), java.util.Map.of("id3", "S"))
+                    : e);
+        }
+        ParsedModel bare = NameResolver.resolve(new ParsedModel(elements, m.imports(), m.source(),
+                m.elementOffsets(), m.elementImports(), m.elementSources()));
+        assertEquals(java.util.Map.of("id3", "a::S"), runtime.apply(bare, "a::Q").connectionIds());
+    }
+
+    /** Since 2026-11-13: three places the
+     * resolver did not walk. An enumerated-expression property mapping's operation resolves as an expression mapping's
+     * does; a generic's type-variable values resolve as any value (a text's are literals, the parser takes no other; a
+     * model given as protocol records may carry any value, so the test sets one); a quoted tree call's tree resolves in
+     * the SECTIONLESS scope -- the core imports, never the section's -- as the engine compiles the quoted string in a
+     * section of its own (LegendCompile.doCompileVS). */
+    @Test
+    void theResolverWalksEnumeratedExpressionsTypeVariableValuesAndQuotedTrees() {
+        ParsedModel parsed = com.legend.testing.Own.model("""
+                ###Relational
+                Database app::Db ( Table T (ID INTEGER PRIMARY KEY, K VARCHAR(10)) )
+                Database app::Other ( Table T2 (K VARCHAR(10)) )
+                ###Pure
+                import app::*;
+                Enum app::E { A, B }
+                Class app::C { e: E[1]; v: Varchar(8)[1]; }
+                function app::g():Any[*] { compileLegendValueSpecification('#{C{e, x(DurationUnit.DAYS)}}#') }
+                ###Mapping
+                import app::*;
+                Mapping app::M (
+                  E: EnumerationMapping EM { A: 'a', B: 'b' }
+                  C: Relational { ~mainTable [Db]T e: EnumerationMapping EM: case(equal([Other]T2.K, 'x'), 'a', 'b') }
+                )
+                """);
+        List<PackageableElement> elements = new java.util.ArrayList<>();
+        for (PackageableElement e : parsed.elements()) {
+            if (e instanceof ClassDefinition c && c.qualifiedName().equals("app::C")) {
+                // the class's Varchar(8) carries the value E.A instead, as a protocol model may
+                List<PropertyDefinition> props = new java.util.ArrayList<>(c.properties());
+                PropertyDefinition v = props.get(1);
+                TypeExpression.Generic g = (TypeExpression.Generic) v.type();
+                props.set(1, new PropertyDefinition(v.name(), new TypeExpression.Generic(g.name(),
+                        g.arguments(), g.multiplicityArguments(), List.of(new EnumValue("E", "A")), g.pos()),
+                        v.multiplicity(), v.stereotypes(), v.taggedValues(), v.hasDefault(), v.defaultValue()));
+                e = new ClassDefinition(c.qualifiedName(), c.typeParams(), c.typeVariables(), c.superClasses(), props,
+                        c.derivedProperties(), c.constraints(), c.stereotypes(), c.taggedValues(), c.isNative(),
+                        c.multiplicityParams());
+            }
+            elements.add(e);
+        }
+        ParsedModel r = NameResolver.resolve(new ParsedModel(elements, parsed.imports(), parsed.source(),
+                parsed.elementOffsets(), parsed.elementImports(), parsed.elementSources()));
+        java.util.function.Function<String, PackageableElement> el = fqn -> r.elements().stream()
+                .filter(e -> e.qualifiedName().equals(fqn)).findFirst().orElseThrow();
+        ClassMapping.Relational cm = (ClassMapping.Relational)
+                ((LegacyMappingDefinition) el.apply("app::M")).classMappings().get(0);
+        PropertyMapping.EnumeratedExpression ee = (PropertyMapping.EnumeratedExpression) cm.propertyMappings().get(0);
+        RelationalOperation.FunctionCall caseCall = (RelationalOperation.FunctionCall) ee.expression();
+        RelationalOperation.Comparison eq = (RelationalOperation.Comparison) caseCall.args().get(0);
+        assertEquals("app::Other", ((RelationalOperation.ColumnRef) eq.left()).databaseName(),
+                "the enumerated expression's [Other] resolves");
+        TypeExpression.Generic v = (TypeExpression.Generic) ((ClassDefinition) el.apply("app::C")).properties().get(1)
+                .type();
+        assertEquals("app::E", ((EnumValue) v.typeVariableValues().get(0)).fullPath(), "the type-variable value resolves");
+        com.legend.protocol.spec.QuotedTreeCall q = (com.legend.protocol.spec.QuotedTreeCall)
+                ((FunctionDefinition) el.apply("app::g")).body().get(0);
+        assertTrue(q.tree().toString().contains("meta::pure::functions::date::DurationUnit"),
+                "the tree's qualifier argument resolves through the core imports: " + q.tree());
+    }
+
+    /** Since 2026-11-13: a rebuilt record
+     * keeps every component but the names it resolved -- a resolved model its unclaimed sections, a name reference, a
+     * collection and an enum value their positions, the enum value its wire spelling too. The convenience constructors
+     * dropped each (and the enum value became the real {@code enumValue} node). */
+    @Test
+    void aRebuiltRecordKeepsEveryComponentButItsNames() {
+        // a section no grammar claims (the platform's dialect leaves one unclaimed, lite's refuses it), set on the
+        // records: the own-corpus guards keep a test's text to the engine's grammar (2026-11-13;
+        // the fix's first version parsed one, `###Unknown`, at the platform's dialect)
+        ParsedModel p = com.legend.testing.Own.model("""
+                import app::*;
+                Class app::A { b: B[1]; }
+                Class app::B { b: String[0..1]; }
+                Enum app::E { x }
+                function app::g():Any[*] { [E.x, E.x] }
+                """);
+        ParsedModel m = new ParsedModel(p.elements(), p.imports(), p.source(), p.elementOffsets(), p.elementImports(),
+                p.elementSources(), List.of(new ParsedModel.UnclaimedSection("Unknown", 0, 8)), p.elementSpans());
+        assertEquals(1, m.unclaimedSections().size());
+        ParsedModel r = NameResolver.resolve(m);
+        assertEquals(m.unclaimedSections(), r.unclaimedSections(), "a resolved model keeps its unclaimed sections");
+        ClassDefinition a = (ClassDefinition) r.elements().stream()
+                .filter(e -> e.qualifiedName().equals("app::A")).findFirst().orElseThrow();
+        TypeExpression.NameRef nr = (TypeExpression.NameRef) a.properties().get(0).type();
+        assertEquals("app::B", nr.name());
+        assertTrue(nr.pos() != null, "a rebuilt name reference keeps its position");
+        FunctionDefinition g = (FunctionDefinition) r.elements().stream()
+                .filter(e -> e.qualifiedName().equals("app::g")).findFirst().orElseThrow();
+        PureCollection coll = (PureCollection) g.body().get(0);
+        assertTrue(coll.pos() != null, "a rebuilt collection keeps its position");
+        EnumValue ev = (EnumValue) coll.values().get(0);
+        assertEquals("app::E", ev.fullPath());
+        assertTrue(ev.pos() != null, "a rebuilt enum value keeps its position");
+        assertTrue(ev.enumerationPos() != null, "and its enumeration's");
+        assertTrue(!ev.node(), "and its wire spelling: a property on an element pointer, not the enumValue node");
+    }
+
+    /** A primitive extension's type variables, fully (2026-11-13): a rebuilt PrimitiveExtensionDefinition keeps
+     * them (the two-argument form dropped them), and each type
+     * variable's declared type resolves in the element's scope, a primitive extension's and a class's alike (neither was
+     * walked). Held to legend-pure's own tests of the four cases (5.99.0, TestPrimitiveCompile:113-126
+     * testPrimitiveVariableTypeInheritance, :154-166 testPrimitiveWithParameterInClass, :168-181
+     * testPrimitiveWithParameterInClassError; TestNewInstance's a::P(8)) and legend-engine's check of a generic type's
+     * values (4.145.0 CompileContext.newGenericType :756-771, in whose words lite refuses): IntCap(1) with x:Number,
+     * IntCap(2) and a::P(8) with x:Integer compile, IntCap() is refused. The primitives are built as records, the rest
+     * parsed: a {@code Primitive} declaration is the platform dialect's alone, which the own-corpus guards keep to their
+     * declared hosts. */
+    @Test
+    void aPrimitiveExtensionsTypeVariablesRideTheRebuildAndTheirTypesResolve() {
+        java.util.function.BiFunction<String, String, String> compile = (primitive, rest) -> {
+            String[] p = primitive.split("\\|");   // fqn|variable|type
+            ParsedModel parsed = com.legend.testing.Own.model(rest);
+            List<PackageableElement> elements = new java.util.ArrayList<>();
+            elements.add(new com.legend.model.PrimitiveExtensionDefinition(p[0], "Integer", List.of(
+                    new com.legend.protocol.ParameterDefinition(p[1], new TypeExpression.NameRef(p[2]),
+                            Multiplicity.Concrete.PURE_ONE))));
+            elements.addAll(parsed.elements());
+            ParsedModel m = new ParsedModel(elements, parsed.imports(), parsed.source(), parsed.elementOffsets(),
+                    parsed.elementImports(), parsed.elementSources());
+            try {
+                var ctx = com.legend.Compiler.buildModel(m);
+                java.util.Map<String, String> walls = com.legend.Compiler.compileAllBodies(ctx);
+                return walls.isEmpty() ? "ACCEPTED" : "WALLS " + walls;
+            } catch (RuntimeException e) {
+                return "REFUSED " + e.getMessage();
+            }
+        };
+        assertEquals("ACCEPTED", compile.apply("test::IntCap|x|Number",
+                "function test::x():test::IntCap(1)[0..1]\n{\n  [];\n}\n"));
+        assertEquals("ACCEPTED", compile.apply("test::IntCap|x|Integer", "Class x::A\n{\n  v : test::IntCap(2)[1];\n}\n"));
+        assertEquals("ACCEPTED", compile.apply("a::P|x|Integer", "Class a::Container2\n{\n  val : a::P(8)[1];\n}\n"));
+        String refused = compile.apply("test::IntCap|x|Integer", "Class x::A\n{\n  v : test::IntCap()[1];\n}\n");
+        assertTrue(refused.startsWith("REFUSED ") && refused.endsWith(
+                "Wrong type variables count (0) for type: IntCap(x:Integer)"), refused);
+        // resolution itself: the rebuilt extension keeps its variable, whose type resolves through the imports, and a
+        // class's type variable's type resolves too
+        ParsedModel parsed = com.legend.testing.Own.model("""
+                import a::*;
+                Class a::C
+                {
+                  x : Integer[1];
+                }
+                """);
+        List<PackageableElement> elements = new java.util.ArrayList<>(parsed.elements());
+        elements.add(new com.legend.model.PrimitiveExtensionDefinition("a::P", "a::Base", List.of(
+                new com.legend.protocol.ParameterDefinition("x", new TypeExpression.NameRef("C"),
+                        Multiplicity.Concrete.PURE_ONE))));
+        ClassDefinition c = (ClassDefinition) elements.get(0);
+        elements.set(0, new ClassDefinition(c.qualifiedName(), c.typeParams(), List.of(
+                new com.legend.protocol.ParameterDefinition("y", new TypeExpression.NameRef("C"),
+                        Multiplicity.Concrete.PURE_ONE)), c.superClasses(), c.properties(),
+                c.derivedProperties(), c.constraints(), c.stereotypes(), c.taggedValues(), c.isNative(),
+                c.multiplicityParams()));
+        java.util.Map<String, ImportScope> imports = new java.util.LinkedHashMap<>(parsed.elementImports());
+        imports.put("a::P", imports.get("a::C"));
+        ParsedModel r = NameResolver.resolve(new ParsedModel(elements, parsed.imports(), parsed.source(),
+                parsed.elementOffsets(), imports, parsed.elementSources()));
+        com.legend.model.PrimitiveExtensionDefinition pe = (com.legend.model.PrimitiveExtensionDefinition) r.elements()
+                .get(1);
+        assertEquals(1, pe.typeVariables().size(), "the rebuilt extension keeps its type variable");
+        assertEquals("a::C", ((TypeExpression.NameRef) pe.typeVariables().get(0).type()).name(),
+                "and its type resolves in the element's scope");
+        assertEquals("a::C", ((TypeExpression.NameRef) ((ClassDefinition) r.elements().get(0)).typeVariables().get(0)
+                .type()).name(), "a class's type variable's type resolves too");
+    }
+
     @Test
     void resolveProducesSameInstanceWhenNothingChanges() {
         // Already-FQN tree round-trips through resolve with reference

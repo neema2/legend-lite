@@ -257,10 +257,12 @@ public final class NameResolver {
             resolved.add(r);
             changed |= r != el;
         }
+        // every side component survives the rebuild: a resolution rewrites names, nothing else (until 2026-11-13 the
+        // six-argument form dropped the unclaimed sections and the element spans whenever a name changed)
         return !changed ? model
                 : new ParsedModel(resolved, model.imports(),
                         model.source(), model.elementOffsets(), model.elementImports(),
-                        model.elementSources());
+                        model.elementSources(), model.unclaimedSections(), model.elementSpans());
     }
 
     /** The platform's own type universe (native classes and enums, the
@@ -349,8 +351,12 @@ public final class NameResolver {
 
     /** The call tiers' matches for a bare name (the wildcards, the own package, the core import group over the
      *  scope's universe), EMPTY when none: what {@link #resolveCallCandidates} falls back from, and what the pointer
-     *  arm asks for a signature id's base. A qualified spelling matches no tier. */
+     *  arm asks for a signature id's base. A qualified spelling matches no tier: it is not prefixed with a package
+     *  (until 2026-11-13 it was, {@code pkg::a::b::f} asked of the universe for every tier). */
     private static List<String> callTierMatches(String name, Scope scope) {
+        if (name.contains("::")) {
+            return List.of();
+        }
         List<String> out = new ArrayList<>(2);
         for (String pkg : scope.imports().wildcards()) {
             addKnown(out, pkg + "::" + name, scope);
@@ -407,11 +413,17 @@ public final class NameResolver {
             case com.legend.model.DataDefinition dd -> dd;
             case com.legend.model.PrimitiveExtensionDefinition pe -> {
                 // base primitives (String, Integer...) pass through resolveName
-                // unchanged; an extension-of-extension base resolves via imports
+                // unchanged; an extension-of-extension base resolves via imports.
+                // Its type variables ride the rebuild and each one's declared type resolves in the element's scope
+                // (until 2026-11-13 the two-argument form dropped them and their types were never walked, so
+                // `Primitive IntCap(x:Integer[1])` used as `IntCap(2)` was refused and `IntCap()` accepted -- the
+                // engine compiles the first and refuses the second: legend-pure TestPrimitiveCompile, legend-engine
+                // CompileContext.newGenericType :756-771)
                 String base = resolveName(pe.baseTypeName(), scope);
-                yield base.equals(pe.baseTypeName()) ? pe
+                List<ParameterDefinition> typeVariables = resolveParameterList(pe.typeVariables(), scope);
+                yield base.equals(pe.baseTypeName()) && typeVariables == pe.typeVariables() ? pe
                         : new com.legend.model.PrimitiveExtensionDefinition(
-                                pe.qualifiedName(), base);
+                                pe.qualifiedName(), base, typeVariables);
             }
             case ClassDefinition cd -> resolveClass(cd, scope);
             case AssociationDefinition ad -> resolveAssociation(ad, scope);
@@ -649,17 +661,20 @@ public final class NameResolver {
         return switch (t) {
             case TypeExpression.NameRef nr -> {
                 String r = resolveName(nr.name(), scope);
-                yield r.equals(nr.name()) ? nr : new TypeExpression.NameRef(r);
+                yield r.equals(nr.name()) ? nr : new TypeExpression.NameRef(r, nr.pos());
             }
             case TypeExpression.Generic g -> {
                 String r = resolveName(g.name(), scope);
                 List<TypeExpression> args = resolveTypeList(g.arguments(), scope);
+                // the type-variable values resolve as any value specification in the element's scope (until
+                // 2026-11-13 they were not walked)
+                List<ValueSpecification> values = resolveVsList(g.typeVariableValues(), scope);
                 // the rebuild keeps the MULTIPLICITY arguments and the type
                 // variable values (Result<TabularDataSet|1>: dropping the |1
                 // typed every .values read of a user function's Result [*])
-                yield (r.equals(g.name()) && args == g.arguments()) ? g
+                yield (r.equals(g.name()) && args == g.arguments() && values == g.typeVariableValues()) ? g
                         : new TypeExpression.Generic(r, args, g.multiplicityArguments(),
-                                g.typeVariableValues(), g.pos());
+                                values, g.pos());
             }
             case TypeExpression.FunctionType ft -> {
                 List<TypeExpression.TypedParameter> params = resolveList(
@@ -693,7 +708,7 @@ public final class NameResolver {
             TypeExpression.Column c, Scope scope) {
         TypeExpression t = resolveType(c.type(), scope);
         return t == c.type() ? c
-                : new TypeExpression.Column(c.name(), nn(t), c.multiplicity());
+                : new TypeExpression.Column(c.name(), nn(t), c.multiplicity(), c.pos());
     }
 
     /** Core lookup. Private; callers go through {@link #resolveType} etc. */
@@ -833,18 +848,20 @@ public final class NameResolver {
         // inside the body. Push them onto the scope before resolving
         // anything that could mention them.
         Scope scope = outer.withTypeParams(cd.typeParams());
+        // its type variables' declared types resolve in its scope (until 2026-11-13 they were not walked)
+        List<ParameterDefinition> typeVariables = resolveParameterList(cd.typeVariables(), scope);
         List<TypeExpression> superClasses = resolveTypeList(cd.superClasses(), scope);
         List<PropertyDefinition> properties = resolvePropertyList(cd.properties(), scope);
         List<DerivedPropertyDefinition> derived = resolveDerivedList(cd.derivedProperties(), scope);
         List<ConstraintDefinition> constraints = resolveConstraintList(cd.constraints(), scope);
         List<StereotypeApplication> stereotypes = resolveStereotypes(cd.stereotypes(), scope);
         List<TaggedValue> taggedValues = resolveTaggedValues(cd.taggedValues(), scope);
-        if (superClasses == cd.superClasses() && properties == cd.properties()
+        if (typeVariables == cd.typeVariables() && superClasses == cd.superClasses() && properties == cd.properties()
                 && derived == cd.derivedProperties() && constraints == cd.constraints()
                 && stereotypes == cd.stereotypes() && taggedValues == cd.taggedValues()) {
             return cd;
         }
-        return new ClassDefinition(cd.qualifiedName(), cd.typeParams(), cd.typeVariables(),
+        return new ClassDefinition(cd.qualifiedName(), cd.typeParams(), typeVariables,
                 superClasses, properties, derived, constraints,
                 stereotypes, taggedValues, cd.isNative(), cd.multiplicityParams());
     }
@@ -893,7 +910,7 @@ public final class NameResolver {
             ParameterDefinition p, Scope scope) {
         TypeExpression type = resolveType(p.type(), scope);
         return type == p.type() ? p
-                : new ParameterDefinition(p.name(), nn(type), p.multiplicity());
+                : new ParameterDefinition(p.name(), nn(type), p.multiplicity(), p.pos());
     }
 
     private static ConstraintDefinition resolveConstraint(
@@ -909,7 +926,7 @@ public final class NameResolver {
             return c;
         }
         return new ConstraintDefinition(c.name(), realization, message,
-                c.enforcementLevel());
+                c.enforcementLevel(), c.externalId(), c.owner(), c.pos());
     }
 
     private static AssociationDefinition resolveAssociation(
@@ -1067,7 +1084,7 @@ public final class NameResolver {
             case Realization.Ref ref -> {
                 String fqn = resolveName(ref.functionFqn(), scope);
                 yield fqn.equals(ref.functionFqn()) ? ref
-                        : new Realization.Ref(fqn);
+                        : new Realization.Ref(fqn, ref.source());
             }
             case Realization.Inline inl -> {
                 List<ValueSpecification> body = resolveList(inl.body(),
@@ -1229,7 +1246,7 @@ public final class NameResolver {
                 yield className.equals(rf.className()) && funcRef.equals(rf.funcRef())
                         ? rf
                         : new ClassMapping.RelationFunction(className, rf.setId(),
-                                rf.extendsSetId(), rf.root(), funcRef, rf.columns());
+                                rf.extendsSetId(), rf.root(), funcRef, null, rf.columns(), rf.primaryKey());
             }
             case ClassMapping.Pure p -> {
                 String className = resolveName(p.className(), scope);
@@ -1335,7 +1352,13 @@ public final class NameResolver {
                 yield db.equals(c.database()) ? c
                         : new PropertyMapping.Column(c.propertyName(), db, c.table(), c.column());
             }
-            case PropertyMapping.EnumeratedExpression ee -> ee;
+            // its operation resolves as an Expression's does (until 2026-11-13 it was not walked, so its [db]
+            // qualifiers kept their spelling)
+            case PropertyMapping.EnumeratedExpression ee -> {
+                RelationalOperation expr = resolveRelOp(ee.expression(), scope);
+                yield expr == ee.expression() ? ee
+                        : new PropertyMapping.EnumeratedExpression(ee.propertyName(), ee.enumMappingId(), nn(expr));
+            }
             case PropertyMapping.EnumeratedColumn ec -> {
                 String db = resolveName(ec.database(), scope);
                 yield db.equals(ec.database()) ? ec
@@ -1366,8 +1389,11 @@ public final class NameResolver {
             case PropertyMapping.Embedded e -> {
                 List<PropertyMapping> subs = resolvePropertyMappingList(
                         e.propertyMappings(), scope);
-                yield subs == e.propertyMappings() ? e
-                        : new PropertyMapping.Embedded(e.propertyName(), subs);
+                // its ~primaryKey's operations resolve as a class mapping's do, and ride the rebuild (until
+                // 2026-11-13 the two-argument form dropped them)
+                List<RelationalOperation> pk = resolveRelOpList(e.primaryKey(), scope);
+                yield subs == e.propertyMappings() && pk == e.primaryKey() ? e
+                        : new PropertyMapping.Embedded(e.propertyName(), subs, pk);
             }
             case PropertyMapping.InlineEmbedded ie -> ie; // setId is local; no FQN inside
             case PropertyMapping.OtherwiseEmbedded oe -> {
@@ -1479,6 +1505,10 @@ public final class NameResolver {
         List<String> mappings = resolveFqnList(rd.mappings(), scope);
         // jsonConnections (List<JsonModelConnection>) carry only literal
         // JSON payloads; no element FQN inside the public record shape.
+        // two keys that name one store keep both connection lists, in order, under the first key's place: a rename
+        // never drops a connection (until 2026-11-13 the second REPLACED the first's;
+        // the engine refuses several connections against one
+        // store, HelperRuntimeBuilder, a check lite makes for no runtime)
         Map<String, List<String>> bindings = new java.util.LinkedHashMap<>();
         boolean bindingsChanged = false;
         for (Map.Entry<String, List<String>> e
@@ -1487,7 +1517,15 @@ public final class NameResolver {
             List<String> conns = resolveFqnList(e.getValue(), scope);
             bindingsChanged |= !store.equals(e.getKey())
                     || conns != e.getValue();
-            bindings.put(store, conns);
+            List<String> prior = bindings.get(store);
+            if (prior == null) {
+                bindings.put(store, conns);
+            } else {
+                // a connection both keys list is kept once, at its first place (2026-11-15)
+                java.util.LinkedHashSet<String> merged = new java.util.LinkedHashSet<>(prior);
+                merged.addAll(conns);
+                bindings.put(store, List.copyOf(merged));
+            }
         }
         List<PackageableElement> inline = new java.util.ArrayList<>();
         boolean inlineChanged = false;
@@ -1496,11 +1534,17 @@ public final class NameResolver {
             inlineChanged |= r != el;
             inline.add(r);
         }
-        if (mappings == rd.mappings() && !bindingsChanged && !inlineChanged) {
+        // the connection ids' stores resolve whatever else changed (until 2026-11-13 only on a rebuild)
+        Map<String, String> ids = new java.util.LinkedHashMap<>();
+        boolean idsChanged = false;
+        for (Map.Entry<String, String> e : rd.connectionIds().entrySet()) {
+            String store = resolveName(e.getValue(), scope);
+            idsChanged |= !store.equals(e.getValue());
+            ids.put(e.getKey(), store);
+        }
+        if (mappings == rd.mappings() && !bindingsChanged && !inlineChanged && !idsChanged) {
             return rd;
         }
-        Map<String, String> ids = new java.util.LinkedHashMap<>();
-        rd.connectionIds().forEach((id, store) -> ids.put(id, resolveName(store, scope)));
         return new RuntimeDefinition(rd.qualifiedName(), mappings, bindings,
                 rd.jsonConnections(), inline, ids);
     }
@@ -1837,12 +1881,17 @@ public final class NameResolver {
             // its class names resolve in place, its call arguments as the
             // expressions they are
             case com.legend.protocol.spec.GraphFetchLiteral gf -> resolveGraphFetch(gf, scope);
+            // the tree resolves in the SECTIONLESS scope (the core imports, no section imports) over the same
+            // universe: the engine compiles the quoted string as a section of its own with no imports
+            // (LegendCompile.doCompileVS, `function a::f():Any[*]{ <code> }`). Until 2026-11-13 it was not walked
             case com.legend.protocol.spec.QuotedTreeCall q ->
                     new com.legend.protocol.spec.QuotedTreeCall(
                             (com.legend.protocol.spec.AppliedFunction)
                                     java.util.Objects.requireNonNull(
                                             resolveVs(q.original(), scope)),
-                            q.tree(), q.pos());
+                            java.util.Objects.requireNonNull(resolveVs(q.tree(),
+                                    Scope.preludeOf(ImportScope.empty(), scope.knownFqns()))),
+                            q.pos());
             // the grammar carrier's lambdas resolve in the ENCLOSING scope
             // (the payload spells its elements fully qualified; the
             // engine's native compiles it against the same model)
@@ -1864,7 +1913,7 @@ public final class NameResolver {
                 if (tilde > 0) {
                     String base = resolveName(ptr.fullPath().substring(0, tilde), scope);
                     String q = base + ptr.fullPath().substring(tilde);
-                    yield q.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(q);
+                    yield q.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(q, ptr.pos());
                 }
                 // a function referenced BY ITS SIGNATURE ID
                 // (contains(x, comparator_A_1__A_1__Boolean_1_), PCT's
@@ -1879,11 +1928,14 @@ public final class NameResolver {
                 // 2026-10-10; before, the typer walked the tiers from the bare base at every read). A resolved
                 // or qualified spelling matches no tier and comes back as it is.
                 String r = qualifyIdByBase(resolveName(ptr.fullPath(), scope), scope);
-                yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r);
+                yield r.equals(ptr.fullPath()) ? ptr : new PackageableElementPtr(r, ptr.pos());
             }
             case EnumValue ev -> {
                 String r = resolveName(ev.fullPath(), scope);
-                yield r.equals(ev.fullPath()) ? ev : new EnumValue(r, ev.value());
+                // the positions and the wire spelling ride the rebuild (until 2026-11-13 the two-argument form dropped
+                // both positions, and so made the value the real enumValue node)
+                yield r.equals(ev.fullPath()) ? ev
+                        : new EnumValue(r, ev.value(), ev.enumerationPos(), ev.pos(), ev.node());
             }
             case AppliedFunction af -> {
                 // IDEMPOTENT: a call carrying its record was resolved (its scope decided the names; since L7 step 2
@@ -1907,7 +1959,7 @@ public final class NameResolver {
             case AppliedProperty ap -> {
                 ValueSpecification receiver = resolveVs(ap.receiver(), scope);
                 yield receiver == ap.receiver() ? ap
-                        : new AppliedProperty(nn(receiver), ap.property());
+                        : new AppliedProperty(nn(receiver), ap.property(), ap.pos(), ap.ownerClass());
             }
             case LambdaFunction lf -> resolveLambda(lf, scope);
             case Variable v -> resolveVariable(v, scope);
@@ -1921,7 +1973,7 @@ public final class NameResolver {
                         && props == ni.properties()) {
                     yield ni;
                 }
-                yield new NewInstance(className, typeArgs, props);
+                yield new NewInstance(className, typeArgs, ni.typeMultiplicityArguments(), props);
             }
             case NewInstanceCast nic -> {
                 // Cast form ^Class($src): rewrite className (FQN
@@ -1941,12 +1993,12 @@ public final class NameResolver {
             }
             case PureCollection coll -> {
                 List<ValueSpecification> values = resolveVsList(coll.values(), scope);
-                yield values == coll.values() ? coll : new PureCollection(values);
+                yield values == coll.values() ? coll : new PureCollection(values, coll.pos());
             }
             case ColSpec cs -> resolveColSpec(cs, scope);
             case ColSpecArray csa -> {
                 List<ColSpec> out = resolveList(csa.colSpecs(), NameResolver::resolveColSpec, scope);
-                yield out == csa.colSpecs() ? csa : new ColSpecArray(out);
+                yield out == csa.colSpecs() ? csa : new ColSpecArray(out, csa.pos());
             }
             case TypeAnnotation ta -> resolveTypeAnnotation(ta, scope);
             // Explicit leaf pass-through. Listing every C-literal variant
@@ -1972,7 +2024,7 @@ public final class NameResolver {
 
     private static Variable resolveVariable(Variable v, Scope scope) {
         TypeExpression t = resolveType(v.type(), scope);
-        return t == v.type() ? v : new Variable(v.name(), t, v.multiplicity());
+        return t == v.type() ? v : new Variable(v.name(), t, v.multiplicity(), v.pos());
     }
 
     private static List<Variable> resolveVariableList(
@@ -1991,7 +2043,7 @@ public final class NameResolver {
         List<Variable> params = resolveVariableList(lf.parameters(), scope);
         List<ValueSpecification> body = resolveVsList(lf.body(), scope);
         return (params == lf.parameters() && body == lf.body()) ? lf
-                : new LambdaFunction(params, body);
+                : new LambdaFunction(params, body, lf.pos());
     }
 
     private static java.util.List<NewInstance.KeyBinding> resolveKeyBindings(
@@ -2048,7 +2100,8 @@ public final class NameResolver {
                 (x, sc) -> Objects.requireNonNull(resolveVs(x, sc), "resolveVs(x, sc)"), scope);
         return (r1 == fn1 && r2 == fn2 && ra == cs.args()) ? cs
                 : new ColSpec(cs.name(), r1, r2, cs.alias(), ra,
-                        cs.qualified());
+                        cs.qualified(), cs.pos(), cs.colType(), cs.colTypeMult(), cs.stereotypes(),
+                        cs.taggedValues());
     }
 
     private static TypeAnnotation resolveTypeAnnotation(
@@ -2056,7 +2109,7 @@ public final class NameResolver {
         return switch (ta) {
             case TypeAnnotation.Named named -> {
                 TypeExpression t = resolveType(named.type(), scope);
-                yield t == named.type() ? named : new TypeAnnotation.Named(nn(t));
+                yield t == named.type() ? named : new TypeAnnotation.Named(nn(t), named.pos());
             }
             case TypeAnnotation.Wildcard ignored -> ta;
             case TypeAnnotation.MultiplicityRef ignored -> ta;   // no names to resolve
@@ -2064,7 +2117,7 @@ public final class NameResolver {
                 List<TypeAnnotation.RelationShape.Column> out = resolveList(
                         shape.columns(), NameResolver::resolveRelationShapeColumn, scope);
                 yield out == shape.columns() ? shape
-                        : new TypeAnnotation.RelationShape(out);
+                        : new TypeAnnotation.RelationShape(out, shape.spelledName(), shape.typeSpan(), shape.pos());
             }
         };
     }

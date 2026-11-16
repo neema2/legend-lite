@@ -80,9 +80,6 @@ public final class NativeFn {
         return java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(out));
     }
 
-    /** Every family, by name — THE registration the claim registry reads. A
-     *  new enum in this file that is not listed here is unclaimed, and the
-     *  ledger says so. */
     /** Is the FQN a member of ANY family — a native this platform CLAIMS (the
      * claim registry's own question, asked at compile time: a typed native in no
      * family has no body here and is loud at evaluation). */
@@ -97,13 +94,16 @@ public final class NativeFn {
         return false;
     }
 
+    /** Every family, by name — THE registration the claim registry reads. A
+     *  new enum in this file that is not listed here is unclaimed, and the
+     *  ledger says so. Each family once (2026-11-12: RowGetter was put
+     *  twice, the second put a no-op). */
     public static Map<String, List<? extends Member>> families() {
         Map<String, List<? extends Member>> out = new LinkedHashMap<>();
         out.put("Calendar", List.of(Calendar.values()));
         out.put("Verdict", List.of(Verdict.values()));
         out.put("RowGetter", List.of(RowGetter.values()));
         out.put("Frame", List.of(Frame.values()));
-        out.put("RowGetter", List.of(RowGetter.values()));
         out.put("LowererForm", List.of(LowererForm.values()));
         out.put("LiteralForm", List.of(LiteralForm.values()));
         out.put("ContextOption", List.of(ContextOption.values()));
@@ -347,8 +347,13 @@ public final class NativeFn {
 
         private static final Map<com.legend.model.FunctionId, LowererForm> BY_ID = indexById(values());
 
-        /** rowMapper / wavgRowMapper — the bi-variate aggregate map bodies. */
+        /** rowMapper / wavgRowMapper — the bi-variate aggregate map bodies. THE INVARIANT (2026-11-12: the
+         *  one family predicate whose id is not {@code @Nullable}, by design): a
+         *  resolved native callee's id, never null -- its one caller (the lowering's aggregate map body) passes
+         *  {@code TypedFunction.id()}, which throws rather than answer null; a null here is refused, never read as
+         *  "not a map". */
         public static boolean isBivariateMap(com.legend.model.FunctionId id) {
+            java.util.Objects.requireNonNull(id, "isBivariateMap takes a resolved callee's id");
             LowererForm f = BY_ID.get(id);
             return f == ROW_MAPPER || f == WAVG_ROW_MAPPER;
         }
@@ -494,7 +499,15 @@ public final class NativeFn {
      *  written over the GROUP inside a groupBy/aggregate FuncColSpec
      *  ({@code ~names : g | $g->joinStrings(~name, ',', ~id->ascending())}) and
      *  desugared by GroupLambdaAggs to the map/reduce aggregate form whose
-     *  reducer is the ordered {@code string_agg}. Never lowered as a call. */
+     *  reducer is the ordered {@code string_agg}. Never lowered as a call.
+     *
+     *  <p>NO {@code of} (2026-11-12: the
+     *  one family with overloads and no id lookup, by design): no resolved callee
+     *  is dispatched through this family -- GroupLambdaAggs reads the call by its
+     *  resolved name ({@code PlatformTypes.RELATION_JOIN_STRINGS}) before typing,
+     *  and the lowering reads its overloads as {@link Pure#AT_RELATION_JOIN_STRINGS}
+     *  (Aggregates, Lowerer). {@code NativeRegistryGovernanceTest} holds the member
+     *  to both, so the three cannot drift. */
     public enum GroupAggregate implements Member {
         JOIN_STRINGS("meta::pure::functions::relation::joinStrings",
                 Pure.JOIN_STRINGS__RELATION_1__COL_SPEC_1__STRING_1,
@@ -782,16 +795,18 @@ public final class NativeFn {
         private final @com.legend.base.Nullable String implementedDerived;
 
         JavaRoutine(String fqn, NativeFunctionDefinition... overloads) {
-            this(fqn, null, overloads);
+            this(fqn, null, null, overloads);
         }
 
-        JavaRoutine(String fqn, @com.legend.base.Nullable String derivedOwner,
-                NativeFunctionDefinition... overloads) {
-            this(fqn, derivedOwner, null, overloads);
-        }
-
+        /** THE INVARIANT (2026-11-12): the implemented class member is an
+         *  owner AND a property, given together or not at all. A constructor that took an owner alone (no member
+         *  used it) set neither field, dropping the owner silently; it is gone, and a half-given member is refused. */
         JavaRoutine(String fqn, @com.legend.base.Nullable String derivedOwner,
                 @com.legend.base.Nullable String derivedProperty, NativeFunctionDefinition... overloads) {
+            if ((derivedOwner == null) != (derivedProperty == null)) {
+                throw new IllegalArgumentException(fqn + ": a routine implements a class member by its owner and its"
+                        + " property together (owner " + derivedOwner + ", property " + derivedProperty + ")");
+            }
             this.fqn = fqn;
             this.overloads = List.of(overloads);
             this.implementedDerived = derivedOwner == null || derivedProperty == null ? null
@@ -1052,11 +1067,16 @@ public final class NativeFn {
 
         private static final Map<com.legend.model.FunctionId, OperatorRun> BY_ID = byId();
 
+        /** Every run by the identity of each of its overloads: an overload in two DIFFERENT runs is refused, a run
+         *  naming one overload twice is the same mapping -- {@link #indexById}'s rule, the one every by-id map follows
+         *  (2026-11-12: a repeat within one run was refused too, under a
+         *  message, "in two operator runs", that was then false). */
         private static Map<com.legend.model.FunctionId, OperatorRun> byId() {
             Map<com.legend.model.FunctionId, OperatorRun> out = new HashMap<>();
             for (OperatorRun r : values()) {
                 for (NativeFunctionDefinition o : r.overloads) {
-                    if (out.put(com.legend.model.FunctionId.of(o), r) != null) {
+                    OperatorRun prior = out.put(com.legend.model.FunctionId.of(o), r);
+                    if (prior != null && prior != r) {
                         throw new IllegalStateException(o.qualifiedName() + " in two operator runs");
                     }
                 }
@@ -1284,7 +1304,11 @@ public final class NativeFn {
             BY_PROPERTY = java.util.Collections.unmodifiableMap(new java.util.LinkedHashMap<>(m));
         }
 
-        /** The accessor an APPLIED (bare) name spells, or empty. */
+        /** The accessor an APPLIED (bare) name spells, or empty. THE INVARIANT (2026-11-12): an applied
+         *  spelling, never a lifted FQN -- its callers (the typer's row-cell read,
+         *  JoinChecker's row read) pass an AppliedFunction's name, which never holds a lifted one (DerivedProps makes
+         *  those after parsing, and they reach the typer as typed calls); a lifted FQN is {@link #ofLifted}'s, and
+         *  here answers empty ({@code NativeRegistryGovernanceTest} pins both for every getter). */
         public static Optional<RowGetter> of(@com.legend.base.Nullable String appliedName) {
             if (appliedName == null) {
                 return Optional.empty();

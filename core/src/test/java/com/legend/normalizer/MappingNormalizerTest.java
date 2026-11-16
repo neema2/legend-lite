@@ -4592,6 +4592,24 @@ class MappingNormalizerTest {
                 () -> "Expected both classes named in the cycle; got: " + ex.getMessage());
     }
 
+    @Test
+    @DisplayName("m2mSrcChainCycle_textFollowsDeclarationOrder")
+    void m2mSrcChainCycle_textFollowsDeclarationOrder() {
+        // the chain is spelled from the first-declared class (2026-11-14):
+        // both orders, since one order alone can match the old
+        // HashMap's by luck -- these two names hashed model::B first, whichever was written first
+        String aFirst = "Class model::A { x: String[1]; } Class model::B { x: String[1]; }\n###Mapping\nMapping my::M ("
+                + " *model::A: Pure { ~src model::B x: $src.x } *model::B: Pure { ~src model::A x: $src.x } )";
+        String bFirst = "Class model::A { x: String[1]; } Class model::B { x: String[1]; }\n###Mapping\nMapping my::M ("
+                + " *model::B: Pure { ~src model::A x: $src.x } *model::A: Pure { ~src model::B x: $src.x } )";
+        assertEquals("Circular M2M ~src chain detected in mapping 'my::M': model::A -> model::B -> model::A",
+                org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.ModelException.class,
+                        () -> normalizeStrict(com.legend.testing.Own.model(aFirst))).getMessage());
+        assertEquals("Circular M2M ~src chain detected in mapping 'my::M': model::B -> model::A -> model::B",
+                org.junit.jupiter.api.Assertions.assertThrows(com.legend.error.ModelException.class,
+                        () -> normalizeStrict(com.legend.testing.Own.model(bFirst))).getMessage());
+    }
+
     // ====================================================================
     // PM-name validation  —  a PM must target a declared property
     // ====================================================================

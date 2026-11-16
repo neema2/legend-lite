@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 package com.legend.compiler.element;
+import com.legend.builtin.DynaFn;
 import com.legend.compiler.StoreLookups;
 
 import com.legend.compiler.element.type.Multiplicity;
@@ -15,7 +16,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.IdentityHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Set;
 
 /**
@@ -27,7 +27,11 @@ import java.util.Set;
  *       NOT NULL / PRIMARY KEY multiplicity (the table lookup is the index's,
  *       include closure); a plain column of an inner VIEW carries that
  *       view's signature column (view-on-view);</li>
- *   <li>an aggregate column carries its reducer's Pure result over the
+ *   <li>a column the operation reads that its database does not have, plain or
+ *       nested, refuses the view in the engine's words, as the engine refuses it
+ * when the database compiles (2026-11-13); a join
+ * navigation's terminal too, once its joins resolve (2026-11-13);</li>
+ *   <li>an aggregate column, at any arity, carries its reducer's Pure result over the
  *       argument's store type ({@code count} Integer[1]; {@code sum} and
  *       {@code average} [1]; {@code max} / {@code min} [0..1]; Integer, Float
  *       and the dates keep their type, every other number is Number &mdash;
@@ -79,6 +83,11 @@ public final class ViewSignatures {
             DatabaseDefinition.ViewDefinition.ViewColumnMapping cm,
             Set<DatabaseDefinition.ViewDefinition> expanding) {
         RelationalOperation expr = cm.expression();
+        // every column the operation reads exists, or the view is refused in the engine's words, as the engine refuses
+        // it when the database compiles (processDatabaseViewSecondPass: each TableAliasColumn through getRelation and
+        // getColumn, HelperRelationalBuilder.java:160-165, :284-293); until 2026-11-13 a plain column found nowhere was
+        // typed Any[0..1] and a nested one read as no type
+        requireColumns(store, dbFqn, expr);
         if (expr instanceof RelationalOperation.ColumnRef cr) {
             String srcDb = cr.databaseName() != null ? cr.databaseName() : dbFqn;
             var td = store.findTableDefinition(srcDb, cr.table());
@@ -99,10 +108,16 @@ public final class ViewSignatures {
                     }
                 }
             }
-            return any(cm.name());
+            throw cantFindColumn(cr.column());
         }
-        if (expr instanceof RelationalOperation.FunctionCall fc && fc.args().size() == 1) {
-            String fn = fc.name().toLowerCase(Locale.ROOT);
+        // an aggregate at any arity, typed as the engine's inferRelationalType types it (relationalExtension.pure:
+        // count BIGINT and average DOUBLE whatever their arguments, :291-300, :543-551; sum by its first, :1717-1741;
+        // max and min over several the safe type when one exists, else the first's, :1151-1197); until 2026-11-13 at
+        // exactly one argument only
+        // the name matched exactly, as the engine's map get matches it (relationalExtension.pure:114): COUNT or Sum is
+        // no aggregate, no rule; until 2026-11-14 lower-cased first
+        if (expr instanceof RelationalOperation.FunctionCall fc) {
+            String fn = fc.name();
             switch (fn) {
                 case "count" -> {
                     return new Type.Column(cm.name(), Type.Primitive.INTEGER, Multiplicity.Bounded.ONE);
@@ -111,16 +126,26 @@ public final class ViewSignatures {
                     return new Type.Column(cm.name(), Type.Primitive.FLOAT, Multiplicity.Bounded.ONE);
                 }
                 case "sum", "max", "min" -> {
+                    if (fc.args().isEmpty()) {
+                        break;
+                    }
                     // Pure's reducer overloads: Integer and Float keep their type;
                     // every other number (Decimal, Number) is Number; max / min
                     // over a date keep the date type, over anything else the
                     // generic collection reducer keeps the element type
-                    Type arg = inferred(fc.args().get(0), db, store);
+                    // sum read by the registry's member, not its spelled name (2026-11-15)
+                    boolean sum = DynaFn.of(fn).orElseThrow() == DynaFn.SUM;
+                    // a sum its rule does not type (over a VARCHAR, a BIT, a DATE) is Any as every untyped column is,
+                    // never its argument's type (2026-11-15; until then sum(VARCHAR) was String[1], register row S501)
+                    if (sum && RelationalTypeInference.infer(fc, db, store) == null) {
+                        break;
+                    }
+                    Type arg = inferred(sum || fc.args().size() == 1 ? fc.args().get(0) : fc, db, store);
                     boolean numeric = arg instanceof Type.PrecisionDecimal
                             || arg instanceof Type.Primitive p && p.family() == Type.Primitive.Family.NUMERIC;
                     Type out = arg == Type.Primitive.INTEGER || arg == Type.Primitive.FLOAT || !numeric
                             ? arg : Type.Primitive.NUMBER;
-                    return new Type.Column(cm.name(), out, fn.equals("sum")
+                    return new Type.Column(cm.name(), out, sum
                             ? Multiplicity.Bounded.ONE : Multiplicity.Bounded.ZERO_ONE);
                 }
                 default -> { }
@@ -141,8 +166,123 @@ public final class ViewSignatures {
         return StoreCompiler.columnType(dt);
     }
 
-    private static Type.Column any(String name) {
-        return new Type.Column(name, new Type.ClassType(PlatformTypes.ANY),
-                Multiplicity.Bounded.ZERO_ONE);
+    /** Every column reference of {@code op} (a function's arguments, a comparison's and a boolean's sides, a group, a
+     *  null test, an array literal, a lambda's body, a join navigation's terminal once its joins resolve) names a table
+     *  or view of its database (the include closure, the index's spellings) and a column of it. */
+    private static void requireColumns(StoreLookups store, String dbFqn, RelationalOperation op) {
+        switch (op) {
+            case RelationalOperation.ColumnRef cr -> {
+                String srcDb = cr.databaseName() != null ? cr.databaseName() : dbFqn;
+                var td = store.findTableDefinition(srcDb, cr.table());
+                if (td.isPresent()) {
+                    if (td.get().columns().stream().noneMatch(c -> c.name().equals(cr.column()))) {
+                        throw cantFindColumn(cr.column());
+                    }
+                    return;
+                }
+                var view = store.findView(srcDb, cr.table());
+                if (view.isPresent()) {
+                    if (view.get().columnMappings().stream().noneMatch(c -> c.name().equals(cr.column()))) {
+                        throw cantFindColumn(cr.column());
+                    }
+                    return;
+                }
+                // the engine's getRelation validates the schema before it looks for the table (validateSchemaExists,
+                // HelperRelationalBuilder.java:348-354, called at :286): a schema neither the database nor, through
+                // its includes, an included one declares is refused in its own words; default always exists
+                // (:369-379). Until 2026-11-14 refused as a missing table
+                throw schemaMissing(store, srcDb, schemaOf(cr.table())) ? cantFindSchema(schemaOf(cr.table()), srcDb)
+                        : cantFindTable(cr.table(), srcDb);
+            }
+            case RelationalOperation.FunctionCall f -> f.args().forEach(a -> requireColumns(store, dbFqn, a));
+            case RelationalOperation.Comparison c -> {
+                requireColumns(store, dbFqn, c.left());
+                requireColumns(store, dbFqn, c.right());
+            }
+            case RelationalOperation.BooleanOp b -> {
+                requireColumns(store, dbFqn, b.left());
+                requireColumns(store, dbFqn, b.right());
+            }
+            case RelationalOperation.IsNull n -> requireColumns(store, dbFqn, n.operand());
+            case RelationalOperation.IsNotNull n -> requireColumns(store, dbFqn, n.operand());
+            case RelationalOperation.Group g -> requireColumns(store, dbFqn, g.inner());
+            case RelationalOperation.ArrayLiteral a -> a.elements().forEach(e -> requireColumns(store, dbFqn, e));
+            case RelationalOperation.Lambda l -> requireColumns(store, dbFqn, l.body());
+            // a join navigation's terminal is compiled as any other operation, after the navigation's joins
+            // (HelperRelationalBuilder.java:1181-1186: buildElementWithJoinsJoinTreeNode's getJoin first, :1255,
+            // :167-192, then processRelationalOperationElement over the terminal, each TableAliasColumn through getRelation
+            // and getColumn, :1170-1171; a {target} column a self-join's, unchecked, :1162-1168), in the database of the
+            // navigation's last join (RelationalParseTreeWalker.java:1024-1044; the model writes the terminal relative to
+            // the navigation's own database, RelOpFromProtocol). So a terminal reading a column or table its database
+            // lacks refuses the view in the same words, once every join resolves: a missing join is refused first, by the
+            // lift in lite's own words (JoinChainEmission). Until 2026-11-13 the terminal was not checked
+            case RelationalOperation.JoinNavigation j -> {
+                String navDb = j.databaseName() != null ? j.databaseName() : dbFqn;
+                if (j.terminal() != null && j.chain().stream().allMatch(hop -> store.findJoin(
+                        hop.databaseName() != null ? hop.databaseName() : navDb, hop.joinName()).isPresent())) {
+                    requireColumns(store, navDb, j.terminal());
+                }
+            }
+            case RelationalOperation.TargetColumnRef ignored -> { }
+            case RelationalOperation.Literal ignored -> { }
+            case RelationalOperation.LambdaParam ignored -> { }
+        }
+    }
+
+    /** The engine's getColumn refusal (HelperRelationalBuilder.java:160-165). */
+    private static com.legend.error.ModelException cantFindColumn(String column) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                "Can't find column '" + column + "'");
+    }
+
+    /** The engine's getRelation refusal (HelperRelationalBuilder.java:284-293): the table, its schema ({@code default}
+     *  when unwritten) and the database's own name. */
+    private static com.legend.error.ModelException cantFindTable(String spelled, String dbFqn) {
+        int dot = spelled.lastIndexOf('.');
+        String schema = schemaOf(spelled);
+        String table = dot < 0 ? spelled : spelled.substring(dot + 1);
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                "Can't find table '" + table + "' in schema '" + schema + "' and database '"
+                        + com.legend.protocol.Protocol.splitFqn(dbFqn)[1] + "'");
+    }
+
+    /** A spelled relation's schema: what precedes its last dot, {@code default} when there is none. */
+    private static String schemaOf(String spelled) {
+        int dot = spelled.lastIndexOf('.');
+        return dot < 0 ? "default" : spelled.substring(0, dot);
+    }
+
+    /** The engine's validateSchemaExists refusal (HelperRelationalBuilder.java:348-354): {@code Can't find schema 's' in
+     *  database 'D'}, the database written as its own name (the engine concatenates the Database itself, whose text is
+     *  its name: asked of the engine, 2026-11-14). */
+    private static com.legend.error.ModelException cantFindSchema(String schema, String dbFqn) {
+        return new com.legend.error.ModelException(com.legend.error.LegendCompileException.Phase.MODEL,
+                "Can't find schema '" + schema + "' in database '" + com.legend.protocol.Protocol.splitFqn(dbFqn)[1] + "'");
+    }
+
+    /** Whether the engine's schemaExists is false (HelperRelationalBuilder.java:369-379): the schema is not default, the
+     *  database is known, and neither it nor a database it includes, transitively (each once), declares the schema. An
+     *  unknown database claims nothing (its own refusal is another's). */
+    private static boolean schemaMissing(StoreLookups store, String dbFqn, String schema) {
+        if (schema.equals("default") || store.findDatabase(dbFqn).isEmpty()) {
+            return false;
+        }
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        java.util.ArrayDeque<String> todo = new java.util.ArrayDeque<>(List.of(dbFqn));
+        while (!todo.isEmpty()) {
+            String fqn = todo.pop();
+            if (!seen.add(fqn)) {
+                continue;
+            }
+            var db = store.findDatabase(fqn).orElse(null);
+            if (db == null) {
+                continue;
+            }
+            if (db.schemas().stream().anyMatch(s -> s.name().equals(schema))) {
+                return false;
+            }
+            todo.addAll(db.includes());
+        }
+        return true;
     }
 }

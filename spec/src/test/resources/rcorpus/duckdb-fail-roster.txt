@@ -104,5 +104,6 @@ meta::relational::tests::query::take::testFilterLimitInSequenceForTableAccessor
 meta::relational::tests::query::take::testLimitFilterInSequenceForTableAccessor
 meta::relational::tests::tds::sort::testSortQuotes
 meta::relational::tests::tds::window::routing::testExecutionPlanGeneration
+meta::relational::tests::typeInference::testDynaCaseWithDecimalInference_Decimal_Double
 meta::relational::tests::typeInference::testTranslateDbType
 meta::relational::transform::autogen::tests::testClassesAssociationsAndMappingFromDatabase

@@ -438,10 +438,15 @@ public final class MappingNormalizer {
             }
             if (fn != null) {
                 lifted.add(fn);
+                // the binding is keyed by the association synthesis found; an association it did not find is the
+                // model's error, in MappingClosures' words for the same lookup. Until 2026-11-14 the raw spelling
+                // (`.orElse(am.associationName())`), a Phase-D fallback no text reached, strict or tolerant (measured)
                 assocBindings.add(new MappingDefinition.AssociationBinding(
                         AssociationSynthesis.resolveAssociation(model, md, am)
                                 .map(a -> a.qualifiedName())
-                                .orElse(am.associationName()), fn.qualifiedName()));
+                                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.MAPPING,
+                                        "Can't find association '" + am.associationName() + "'")),
+                        fn.qualifiedName()));
             }
         }
         // includes survive the rewrite unchanged — one shared MappingInclude type.
@@ -943,7 +948,14 @@ public final class MappingNormalizer {
     static FunctionDefinition synthesizeXStoreMapping(ResolvedMapping md,
             AssociationMapping.Cross xs, ModelBuilder model,
             String classA, String classB) {
-        AssociationDefinition ad = model.findAssociation(xs.associationName()).orElseThrow();
+        // the caller found the association through the mapping's imports (resolveAssociation); a name step D left
+        // unresolved -- a mapping D walled in a tolerant build stays as parsed -- is no element's name here. The
+        // model's error, in the words of the inline association predicate's same lookup; until 2026-11-14 a bare
+        // orElseThrow(), a raw NoSuchElementException (RefusalsNotCrashesTest)
+        AssociationDefinition ad = model.findAssociation(xs.associationName())
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "XStore mapping references unknown association '" + xs.associationName()
+                        + "'; mapping=" + md.qualifiedName()));
         // the line's [srcSet, tgtSet] ids select the sets: srcSet = the
         // OWNING end's, tgtSet = the line's target end's (engine
         // PropertyMappingBuilder uses them the same way)
@@ -1058,7 +1070,11 @@ public final class MappingNormalizer {
     static FunctionDefinition synthesizeModelJoinMapping(ResolvedMapping md,
             AssociationMapping.ModelJoin mj, ModelBuilder model,
             String classA, String classB) {
-        AssociationDefinition ad2 = model.findAssociation(mj.associationName()).orElseThrow();
+        // as synthesizeXStoreMapping's lookup (2026-11-14, a bare orElseThrow() until then)
+        AssociationDefinition ad2 = model.findAssociation(mj.associationName())
+                .orElseThrow(() -> new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        "ModelJoin mapping references unknown association '" + mj.associationName()
+                        + "'; mapping=" + md.qualifiedName()));
         // ends resolve like the XStore path: a Relation(~func) set
         // directly, or a TABLE-backED Relational set converted to its
         // column view (the testRelational*/mixed sub-family)
@@ -1086,6 +1102,15 @@ public final class MappingNormalizer {
                 classA, classB, p0, p1, t0, t1);
         String aVar = pair[0];
         String bVar = pair[1];
+        // the lambda's two parameters one name (`{p: A[1], p: B[1]| ...}`, which the grammar admits): one variable
+        // cannot be both ends. Refused by name, as the parameter count above is; until 2026-11-14 the maps below
+        // threw a raw "duplicate key" IllegalArgumentException (RefusalsNotCrashesTest).
+        // ModelJoinNesting.compose relies on it.
+        if (aVar.equals(bVar)) {
+            throw new NotImplementedException(
+                    "ModelJoin for '" + mj.associationName() + "' needs two distinct lambda parameter names;"
+                    + " got [" + p0.name() + ", " + p1.name() + "]");
+        }
         Variable srcRow = new Variable("srcRow");
         Variable tgtRow = new Variable("tgtRow");
         Map<String, Variable> rowByVar = Map.of(aVar, srcRow, bVar, tgtRow);

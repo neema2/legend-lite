@@ -492,9 +492,11 @@ public final class Compiler {
             all.addAll(merged);
             // the boot layer's own index is checked and then discarded: its
             // prepared elements enter every graph's index at that graph's gate
+            // (every side component rides the rebuild, the element spans too: until 2026-11-13 the seven-argument
+            // form dropped them)
             Layer layer = normalizeLayer(new ParsedModel(all, resolved.imports(), resolved.source(),
                     resolved.elementOffsets(), resolved.elementImports(), resolved.elementSources(),
-                    resolved.unclaimedSections()), null);
+                    resolved.unclaimedSections(), resolved.elementSpans()), null);
             java.util.Map<com.legend.model.FunctionId, com.legend.model.FunctionDefinition> byId =
                     new java.util.LinkedHashMap<>();
             for (com.legend.model.PackageableElement el : layer.model().elements()) {
@@ -564,10 +566,11 @@ public final class Compiler {
                 kept.add(el);
             }
         }
+        // (the element spans ride the rebuild: until 2026-11-13 the seven-argument form dropped them)
         return kept.size() == parsed.elements().size() ? parsed
                 : new ParsedModel(kept, parsed.imports(), parsed.source(),
                         parsed.elementOffsets(), parsed.elementImports(),
-                        parsed.elementSources(), parsed.unclaimedSections());
+                        parsed.elementSources(), parsed.unclaimedSections(), parsed.elementSpans());
     }
 
     /**
@@ -620,9 +623,11 @@ public final class Compiler {
             }
             own.add(el);
         }
+        // (the element spans ride the rebuild: until 2026-11-13 the seven-argument form dropped them)
         Layer user = normalizeLayer(adopted.isEmpty() ? graph
                 : new ParsedModel(own, graph.imports(), graph.source(), graph.elementOffsets(),
-                        graph.elementImports(), graph.elementSources(), graph.unclaimedSections()), walls, library);
+                        graph.elementImports(), graph.elementSources(), graph.unclaimedSections(),
+                        graph.elementSpans()), walls, library);
         NormalizedModel sys = boot.model();
         List<com.legend.model.PackageableElement> elements = new java.util.ArrayList<>(
                 user.model().elements().size() + library.size() + sys.elements().size());
