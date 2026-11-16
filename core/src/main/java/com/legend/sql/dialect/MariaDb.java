@@ -1730,6 +1730,21 @@ public class MariaDb extends AnsiSqlRenderer {
         if (target == SqlType.Scalar.VARCHAR) {
             return writer.piece(asText(v));
         }
+        // a Float parsed from text (parseFloat), legend-pure's interpreted grammar (new BigDecimal: an optional sign,
+        // digits with an optional point, an optional exponent, no whitespace): MariaDB's and MySQL's CAST read any
+        // other text as 0 with only a warning (round 70: 'NaN' answered 0), so other text raises TEXT_NOT_FLOAT, and
+        // NaN and the infinities, which a DOUBLE here cannot hold, VALUE_NOT_HELD by name (S138) (Phase 8, 2026-11-16)
+        if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
+            return writer.append("(CASE WHEN ").expr(v, 4).append(" IS NULL THEN NULL WHEN ").expr(v, 4)
+                    .append(" IN ('NaN', '+NaN', '-NaN', 'Infinity', '+Infinity', '-Infinity') THEN ")
+                    .piece(raise(raiseArgs(SqlExpr.RaiseText.placed(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                            "parseFloat of NaN or an infinity, which this database cannot hold")), SqlType.Scalar.DOUBLE))
+                    .append(" WHEN ").expr(v, 4).append(" REGEXP '^[+-]?([0-9]+[.]?[0-9]*|[.][0-9]+)([eE][+-]?[0-9]+)?$'")
+                    .append(" THEN CAST(").expr(v, 0).append(" AS DOUBLE) ELSE ")
+                    .piece(raise(raiseArgs(new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT, List.of(v))),
+                            SqlType.Scalar.DOUBLE))
+                    .append(" END)");
+        }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
     }
 

@@ -115,4 +115,23 @@ class ParseFloatHeldTest extends AbstractDatabaseTest {
         }
         org.junit.jupiter.api.Assertions.assertThrows(Exception.class, () -> one("|' 1 '->parseFloat()"));
     }
+
+    @Test
+    @DisplayName("the parse table: each input's answer on this lane, printed for the lane rounds (the parse family's MUST)")
+    void printsTheParseTable() {
+        String lane = backend().name();
+        for (String fn : java.util.List.of("parseFloat", "parseInteger")) {
+            for (String text : java.util.List.of("1", "-0.5", "1e5", "+1", ".5", "1.", " 1 ", "abc", "", "0x10",
+                    "1.2.3", "Infinity", "NaN", "1f", "01", "+-1", "1e")) {
+                String answer;
+                try {
+                    answer = String.valueOf(one("|'" + text + "'->" + fn + "()"));
+                } catch (Exception raised) {
+                    String m = String.valueOf(raised.getMessage());
+                    answer = "RAISES " + (m.length() > 80 ? m.substring(0, 80) : m).replace('\n', ' ');
+                }
+                System.out.println("[parse-table] " + lane + " " + fn + " '" + text + "' -> " + answer);
+            }
+        }
+    }
 }
