@@ -457,7 +457,7 @@ keyed tables' latest-version filters. (Both done 2026-11-15: §15.6a.)
 
 7. **Last, maybe:** a lane against a real Kafka-compatible broker (the user: "Real Kafka maybe at the end").
 
-**The Deephaven run side, PROPOSED 2026-11-16:** `docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md` (the plan as data, one driver per runtime, a grid's base as a session table), for review with the user before the merge of `main`.
+**The Deephaven run side, RULED 2026-11-16:** `docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md` (every request a runtime sends is one the plan declares; a grid's base the planner's, a `let`; a runtime per environment). The program after step 6: §15.7.
 
 **State, 2026-11-15:** steps 0 to 6 built (§15.1 to §15.5a), the filtered-mapping join fixed and the 26 latest-version
 filters on (§15.6a); the full local gate green on `claude/deephaven-3-browser` at 5a34e63d (529 of 541, the ten
@@ -720,6 +720,32 @@ unknown column 'BOOK_ID' on its left side`. The smallest failing query:
   twice writes it once as a common table expression (the lowering's `SharedRelations`). Deephaven's batch now makes
   each expression's operation once and every read of it a view of that operation (`DeephavenBatch.with`, `cte`); a
   recursive WITH is still refused by name.
+
+### 15.7 After step 6: the phases (ruled 2026-11-16)
+
+The user's order: Deephaven done end to end first; the lake and history last, as a phase of their own ("put the
+history/lake last as a separate phase ... focus this phase on getting Deephaven done completely end to end").
+
+1. **v0, one PR:** steps 0 to 6 above, the merge of `main`, and the Deephaven run side
+   (docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md); the desk demo without leaks, and finding 10.
+2. **The Java Deephaven runtime,** its own PR: the same plans sent and read from Java, so PCT runs on Deephaven.
+3. **Materialized views** (`#I{...}#` read by lite's parser first): on Deephaven a live table the loader makes; in the
+   tab's DuckDB once measured (risk 1: maintained incrementally, or recomputed after each batch). How the loader
+   applies a view's operations is that phase's decision.
+4. **Data products served:** an access point run wherever its product is deployed, or only on its target (§7).
+5. **Production readiness:** Avro or Protobuf with Legend's schemas in a registry, real authentication, a restart
+   reading only as far back as each table keeps (risk 4), a long-running test of scale and failures, and the lane
+   against a real broker (item 7: a machine or an environment that has one).
+6. **The lake and history** (below).
+
+**How the history tier plugs in, and what it asks of v0.** The lake is a third target of the same deployment: a writer
+lands each topic as Parquet or Iceberg tables, keyed datasets keeping every version (upstream's milestoning columns,
+which lite refuses today: S404). The Deephaven loader reads the lake's files as tables of the server, so a query that
+reads history and live reads two tables of one server: queries stay on one target, and the query side's design is
+unchanged. Its own questions are the lake's: the milestoning columns, "as of" queries over history, and where history
+ends and live begins (by key or by offset). What it asks of v0, checked in v0's review: a server table is not always a
+live one (a table the loader made from files); the version columns stay ordinary columns of the landed tables
+(`LAKE_IN_ID`, `LAKE_OUT_ID`, as today); and keeping `current` is one way of keeping among others, never assumed.
 
 ## 16. Upstream, read
 

@@ -3,8 +3,8 @@
 > **A session picking this line up starts at `docs/DEEPHAVEN_START_HERE.md`** (where things stand, how to run and
 > check it, what is open). This document is the record.
 >
-> **Proposed 2026-11-16, for review:** `docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md` changes DH11, DH22, DH23 and B1's
-> run side: the planner writes every byte sent, each environment's driver carries it, and no run asks the planner.
+> **Ruled 2026-11-16:** `docs/DEEPHAVEN_RUN_SIDE_2026_11_16.md` changes DH11, DH22, DH23 and B1's run side: every
+> request a runtime sends is one the plan declares, the planner writes its bytes, a grid's base is the planner's.
 
 **Status: L1, L2, L3b, D0, J1 (DataCube's own app on Deephaven, DH23), T1 (real ticking, DH24), F1 (filters the
 server reads without compiling, DH25), B1, G1, and V1-V3 (a flat grid of any size, a page of several grids, charts
