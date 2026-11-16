@@ -3470,13 +3470,13 @@ core	DuckDB	TypedMerge	15	3774	30300	13	55	0
 core	DuckDB	TypedNewInstance	5	1086	25253	0	0	0
 core	DuckDB	TypedPackageableRef	1	23	52144	0	0	0
 core	DuckDB	TypedPivot	53	25320	406900	46	2814	0
-core	DuckDB	TypedProject	641	92401	6664320	139	2463	0
+core	DuckDB	TypedProject	641	92709	6664625	138	2674	0
 core	DuckDB	TypedPropertyAccess	7	6112	79657	6	184	0
 core	DuckDB	TypedRename	4	473	15721	0	0	0
 core	DuckDB	TypedSelect	143	24622	627776	22	1734	0
 core	DuckDB	TypedSerialize	68	29032	460715	70	1515	0
 core	DuckDB	TypedSlice	12	1847	38905	3	0	0
-core	DuckDB	TypedSort	232	70142	1430775	108	6394	0
+core	DuckDB	TypedSort	232	71704	1432325	104	7755	0
 core	DuckDB	TypedSortBy	1	149	3271	1	0	0
 core	DuckDB	TypedTableReference	3	274	7426	0	0	0
 core	DuckDB	TypedTds	8	767	14906	0	0	0
