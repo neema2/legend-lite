@@ -1227,14 +1227,17 @@ final class AssociationJoins {
                 }
                 continue;
             }
-            for (String any : closure) {
-                if (ctx.findMapping(any).map(m -> m.bindings().withSetId(dangling.get()) != null)
-                        .orElse(false)) {
-                    return;
+            // two property mappings of one property can each name a missing id: the ledger keeps both, joined
+            // by "; " (MappingLedger.poison), and a set id holds no "; "
+            for (String id : dangling.get().split("; ")) {
+                if (closure.stream().noneMatch(any -> ctx.findMapping(any)
+                        .map(m -> m.bindings().withSetId(id) != null).orElse(false))) {
+                    throw new MappingResolutionException("Expected 1 class mapping for '"
+                            + nameInMessage(targetClass) + "' in '" + nameInMessage(cs.mappingFqn())
+                            + "', found 0", assoc.qualifiedName());
                 }
             }
-            throw new MappingResolutionException("Expected 1 class mapping for '" + nameInMessage(targetClass)
-                    + "' in '" + nameInMessage(cs.mappingFqn()) + "', found 0", assoc.qualifiedName());
+            return;
         }
     }
 

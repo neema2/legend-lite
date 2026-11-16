@@ -90,7 +90,10 @@ public final class PeRatchets {
             "own_corpus.matched 3268 -> 3275 (2026-11-17, the F-U1/F-U2 PR, #114, rebased onto #93 at c30396fe5; it read"
                     + " 3252 -> 3259 on 62c1c9525): as measured: +7, the number of elements in OpenMappingGapsPinTest's"
                     + " new multi-hop model (F-U2's open form; the F-U5 model's connection also changed), not attributed"
-                    + " element by element");
+                    + " element by element",
+            "own_corpus.matched 3275 -> 3285 (2026-11-17, the same PR, its independent review's test gaps; it read"
+                    + " 3259 -> 3269 on 62c1c9525): MappingGapsAsUpstreamTest's models, as measured, not attributed element"
+                    + " by element");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

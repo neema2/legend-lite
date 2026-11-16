@@ -23,5 +23,6 @@
 # own_corpus.matched 3261 -> 3262 (2026-11-15, C5-J, found by the gate on its branch): its new tests' models, measured by //parser-equivalence:update_ratchets
 # own_corpus.matched 3262 -> 3268 (2026-11-16, PR #93, the unstructured study, rebased onto main at 4dfbb5b76; it read 3246 -> 3252 on 3a217086a): the branch's models over main's, as measured by //parser-equivalence:update_ratchets, not attributed element by element
 # own_corpus.matched 3268 -> 3275 (2026-11-17, the F-U1/F-U2 PR, #114, rebased onto #93 at c30396fe5; it read 3252 -> 3259 on 62c1c9525): as measured: +7, the number of elements in OpenMappingGapsPinTest's new multi-hop model (F-U2's open form; the F-U5 model's connection also changed), not attributed element by element
+# own_corpus.matched 3275 -> 3285 (2026-11-17, the same PR, its independent review's test gaps; it read 3259 -> 3269 on 62c1c9525): MappingGapsAsUpstreamTest's models, as measured, not attributed element by element
 mutation.deck	950
-own_corpus.matched	3275
+own_corpus.matched	3285

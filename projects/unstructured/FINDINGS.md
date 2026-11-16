@@ -20,7 +20,7 @@ When a pin turns red the behaviour has moved: read its failure message, then cha
 ## F-U1 and F-U2: closed to match upstream (2026-11-14)
 
 The owner ruled both fixed to match upstream, in a separate PR (#93's review, 2026-11-13). Branch
-`abs/mapping-gaps-match-upstream` closes them. Both were run on the pin's own model with an H2 connection, and the same
+`abs/mapping-gaps-match-upstream`, PR #114, closes them. Both were run on the pin's own model with an H2 connection, and the same
 model with the real column or the real set id compiles and plans. Paths are at tag `legend-engine-4.145.0`.
 
 ### F-U1: a mapping to a column that does not exist is refused at compile
@@ -30,7 +30,9 @@ model with the real column or the real set id compiles and plans. Paths are at t
 - **Pinned source:** `legend-engine-xts-relationalStore/legend-engine-xt-relationalStore-generation/legend-engine-xt-relationalStore-grammar/src/main/java/org/finos/legend/engine/language/pure/compiler/toPureGraph/HelperRelationalBuilder.java:163`
 - **Lite now:** `compileModel` refuses it at phase MODEL, with `Can't find column 'NO_SUCH_COLUMN'` behind lite's
   source position. A tolerant build withholds the set, and a query that reaches it gives the same reason. The check is
-  `MappingValidation.validateColumns`.
+  `MappingValidation.validateColumns`. It also covers `~primaryKey`, a join's terminal column, an embedded block and a
+  missing table (`Can't find table 'NOTABLE' in schema 'default' and database 'Db'`), each upstream's message, asked of
+  the runner (`MappingGapsAsUpstreamTest`).
 
 ### F-U2: an association mapping to a target set id that does not exist is refused at planning
 
@@ -41,7 +43,14 @@ model with the real column or the real set id compiles and plans. Paths are at t
 - **Lite now, for a single-hop join:** `compileModel` accepts it. Planning refuses `$a.bs` at phase MAPPING with exactly
   `Expected 1 class mapping for 'B' in 'M', found 0`, and plans `$b.a`. The normalizer records the dangling end
   (`AssociationSynthesis`). The resolver refuses it (`AssociationJoins.refuseDanglingEnd`), looking the id up across the
-  queried mapping's include closure, as upstream does.
+  queried mapping's include closure, as upstream does: a target set that only an including mapping holds plans, as
+  upstream plans it. Every direction's id missing refuses each direction, as upstream does. The cases are in
+  `MappingGapsAsUpstreamTest`, each with the runner's answer.
+- **Refused in other words:** two property mappings of one property, each naming a missing target id
+  (`bs[setA, x1]`, `bs[setA, x2]`). Upstream refuses `$a.bs` by its union path's assert,
+  `Assert failure at (resource:/platform/pure/essential/tests/assert.pure line:26 column:5), " Did not find setID x1 from properties bs in any in scope mapping"`
+  (`pureToSQLQuery_union.pure:386`). Lite refuses it with F-U2's message. Both plan `$b.a`. Pinned by
+  `MappingGapsAsUpstreamTest.twoMissingTargetIdsOfOnePropertyAreRefusedInF_U2sWords`.
 - **Still open, for a multi-hop join:** upstream refuses it with the same assert and message (asked of the engine
   runner, 2026-11-14, `bs[setA, noSuchSet]: [gap::Db]@AC > @CB`). Lite still plans it. A multi-hop end is navigated
   through the property mapping that `AssociationSynthesis.injectMultiHopAssociationPMs` injects into the class's own

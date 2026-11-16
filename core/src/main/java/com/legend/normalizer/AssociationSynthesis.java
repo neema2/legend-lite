@@ -428,8 +428,12 @@ final class AssociationSynthesis {
         // validateAssociationId only warns) and refuses THAT direction at
         // planning, the other planning (pureToSQLQuery.pure's doJoinToClass:
         // "Expected 1 class mapping for 'B' in 'M', found 0"). Recorded here
-        // per direction, read where the resolver navigates it; never a
-        // predicate's primary, so no stand-in table anchors it.
+        // per direction, read where the resolver navigates it, which looks
+        // the id up under the QUERIED mapping, as the engine does: a mapping
+        // that includes this one may hold the set. The primary is the first
+        // property mapping whose target is a set of this mapping's closure;
+        // when none is, the first, as before -- each direction whose id names
+        // no set where it is queried is refused there.
         AssociationPropertyMapping firstAm = null;
         for (AssociationPropertyMapping apm : rel.propertyMappings()) {
             String written = writtenTargetSetId(apm);
@@ -441,9 +445,7 @@ final class AssociationSynthesis {
             }
         }
         if (firstAm == null) {
-            recordWithheld(md, am, model, ledger, "every property mapping names a target"
-                    + " set id no set of this mapping has");
-            return null;
+            firstAm = rel.propertyMappings().get(0);
         }
         // Pick the FIRST such property mapping as the primary; multi-PM
         // disambiguation by [srcSetId, tgtSetId] could differentiate
@@ -776,9 +778,11 @@ final class AssociationSynthesis {
 
     /** One end's anchor: the set its id names when written and resolvable
      * (the engine's rule), else the class's ({@link #anchorTableOf}). A
-     * TARGET id that names no set never reaches here (F-U2: its direction
-     * is refused at planning, and the primary is another property mapping).
-     * A SOURCE id that names no set still meets the class rule: legend-engine
+     * TARGET id that names no set of this mapping's closure reaches here
+     * only when every property mapping's does (F-U2: its direction is
+     * refused at planning unless the queried mapping holds the set, which
+     * an including mapping may). A SOURCE id that names no set still meets
+     * the class rule: legend-engine
      * refuses that direction at planning by another assert
      * (helperFunctions.pure:395, "The system can't find a mapping for the
      * property ..."), and lite plans it -- the open finding F-U7

@@ -175,9 +175,11 @@ final class MappingValidation {
 
     private static void validateColumn(@com.legend.base.Nullable String database, String table, String column,
             ModelBuilder model) {
+        // a ModelException, so a tolerant build walls the set and goes on (never met on the corpus or core's tests,
+        // 2026-11-14: lite's own words, as upstream reaches no column without its table's database)
         if (database == null) {
-            throw new IllegalStateException("F-U1: the column " + table + "." + column + " is read in no database:"
-                    + " its set has no main table to read it in (never met on the corpus, 2026-11-14)");
+            throw new ModelException(LegendCompileException.Phase.MODEL, "The column '" + table + "." + column
+                    + "' is read in no database: its set has no main table to read it in");
         }
         // a database the model does not hold is a missing reference, refused as one where references are checked
         // ("Can't find database 'D'", ReferenceIntegrityTest.aMissingDatabaseIsSaidToBeMissing): no table of it is read
