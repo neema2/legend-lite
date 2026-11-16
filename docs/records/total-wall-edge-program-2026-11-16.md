@@ -212,7 +212,7 @@ gets the same columns.
 
 **Parallel tracks:**
 - Phase 0 (E-SQL), Phase 1 (D) and Phase 4a (E-Java) run at the same time.
-- Then D does 2, 3, 5, 6 and 7 in order, while E-Java does 4b, and E-SQL does 8, then 10.
+- Then D does 2, 3, 5 and 7 in order, while E-Java does 4b, and E-SQL does 8, then 6 (rebalanced 2026-11-16 15:45, on its own branch, which D merges), then 10.
 
 ### Phase 0: the safety net (E-SQL; about one day)
 - **Build** `//pct:edge_contract_test` (or a runner plus test) on `claude/total-wall-edge-contract`. It takes the
@@ -275,7 +275,7 @@ gets the same columns.
   3. on the ruling, implement the move and re-record the goldens with the ruling cited.
 - **Done when** every B row is built, and its moves are ruled and re-recorded.
 
-### Phase 6: legend-engine's plan text at the edge (D)
+### Phase 6: legend-engine's plan text at the edge (E-SQL, rebalanced from D 2026-11-16; D merges)
 - Finish W9's planner half: the remaining engine-text rows in the planner, `PlanAllocations`, `ProductStatements`,
   `RawSqlBoundary` and `PlanNode`'s trace id.
 - **Done when:** the planner names no upstream text, and the golden net is empty.
@@ -412,6 +412,7 @@ About four working days to D's landing, with the three workers in parallel.
 
 | When (UTC) | Entry |
 |---|---|
+| 2026-11-16 15:45 | **The orchestrator's self-check, at the user's question, and three adjustments:**<br>(1) d-stage has had NO CI result yet: the first run was cancelled by the next push, and the second sat queued on the closed draft PR #112 (this session can't cancel it, 403). So D pushes its finished Phase 1 commits now, which starts the Linux CI, rather than at Phase 1's end.<br>(2) Phases 2 and 3 each start from a one-page design note (the shape, the inventory, the deletions, the golden-net proof), checked by the orchestrator, with any new mechanism taken to the user.<br>(3) Rebalance: D is the bottleneck, doing Phases 1, 2, 3, 5, 6 and 7 serially. After Phase 0 and Phase 8, E-SQL takes **Phase 6** (legend-engine's plan text at the edge) on its own branch cut from d-stage, which D merges. |
 | 2026-11-16 15:35 | **The user ruled §10 item 8:** the product refuses `toRepresentation` and `format('%r')` by name; the edge keeps legend-pure's exact text. Every open ruling is now decided except items 6 and 10, which wait for their data. |
 | 2026-11-16 15:30 | **The user ruled §10 item 7:** H2 `toOne` over a list stays refused by name now. Follow-ups F2 (`toOne` by counting, lean SQL) and F1 (lists properly everywhere). **§9 is now the written follow-up list (F1 to F26), at the user's word:** "We should have a written down list of real follow ups we want either way so we don't forget". |
 | 2026-11-16 15:20 | **Phase 4b design: on-failure side reads** (E-Java's option 1, approved by the orchestrator). A database verdict's fused row keeps only `holds`. The test plan carries each verdict's two typed side reads as data (`Verdict.failureSides`), which the runner sends only after a false `holds`; the message is then formatted in Java by the host judge's formatter. This is a planned branch (charter A3(b): the database decides, the runner follows the plan's named side). It adds a test-plan format bump, numbered at landing, and no extra statement under BOTH. The alternative, a JSON carrier of each side built in SQL for every verdict, was rejected: it is print and carrier text in SQL. SideShapes' raise sentence becomes a kind plus operands, using D's Phase 2 marker. *(For the user's phase report.)* |
