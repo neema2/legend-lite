@@ -51,5 +51,7 @@ TypeConversionCheckerTest$SqlGeneration#testPivotCastFilterSql	measured 2026-10-
 # sentence
 TypeInferenceIntegrationTest#testHugeIntegerLiteralSubtraction	measured 2026-11-15: the value is outside the range this database can hold: an integer past 64 bits has no SQLite value
 TypeInferenceIntegrationTest#testLargeIntegerMultiplication	measured 2026-11-15: the value is outside the range this database can hold: an integer past 64 bits has no SQLite value
-UnionJoinMappedPropertyTest#joinMappedOnOneMemberOnly	measured 2026-10-29: Cast exception: ux::A is not a ux::B
+# 2026-11-16 (W5 of docs/records/d-plan-2026-11-16.md): re-measured -- a run-time type check raises its kind
+# (INSTANCE_NOT_OF), the product's sentence; legend-pure's "Cast exception" is the edge's
+UnionJoinMappedPropertyTest#joinMappedOnOneMemberOnly	measured 2026-11-16: the value is not an instance of the requested type: ux::A to
 WritePlansTest#aProgramThatWritesIsPlannedAsItsSteps	measured 2026-10-29: an INSERT of a query's rows on SQLite: no spelling measured on its database (the store writes run on DuckDB, H2 and Post

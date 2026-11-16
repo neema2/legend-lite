@@ -3234,12 +3234,30 @@ public class BigQuery extends AnsiSqlRenderer {
                 || label instanceof SqlType.Decimal d && d.scale() <= 38 && d.precision() - d.scale() <= 38;
     }
 
-    /** {@inheritDoc} {@code FORMAT}'s six decimals, trimmed; its {@code nan} and {@code inf} by Pure's names (the brief's measurement, D_BRIEF §1). */
+    /** {@inheritDoc} Register S311's one answer (the orchestrator's round 63: {@code FORMAT('%.6f')} of the double
+     *  answered 134 of 287 values wrong -- the binary value's digits from 1e17, extra digits from 1e9, a six-place tie
+     *  rounded the binary way): the double's shortest text ({@link #floatText}: Java's shortest digits in its plain
+     *  range, the cast's text outside it), bound once in a scalar subquery; below 1e17 read as a BIGNUMERIC by
+     *  {@code PARSE_BIGNUMERIC} (which reads an exponent) and rounded to six places half away from zero, BIGNUMERIC's
+     *  own rounding; from 1e17 its mantissa's digits padded with zeros to the exponent; below 1e-7 zero (no six-place
+     *  digit, and a BIGNUMERIC's 38 places end before a subnormal's); NaN and the infinities by Pure's names. */
     @Override
     @SpellingArm
     protected SqlWriter floatToText(SqlWriter writer, SqlExpr x) {
-        writer.append("REPLACE(REPLACE(");
-        trimmedSix(writer, "RTRIM", w -> w.append("FORMAT('%.6f', ").expr(asDouble(x), 0).append(")"));
-        return writer.append(", 'nan', 'NaN'), 'inf', 'Infinity')");
+        SqlExpr v = asDouble(x);
+        String fv = param("__tv");
+        String fs = param("__ts");
+        String mantissa = "SPLIT(" + fs + ", 'e')[OFFSET(0)]";
+        writer.append("CASE WHEN IS_NAN(").expr(v, 0).append(") THEN 'NaN' WHEN IS_INF(").expr(v, 0).append(") THEN IF(")
+                .expr(v, 0).append(" > 0, 'Infinity', '-Infinity') WHEN ABS(").expr(v, 0).append(") < 1e-7 THEN '0' ELSE ")
+                .append("(SELECT CASE WHEN ABS(" + fv + ") >= 1e17 THEN CASE WHEN STRPOS(" + fs + ", 'e') = 0 THEN"
+                        + " IF(ENDS_WITH(" + fs + ", '.0'), SUBSTR(" + fs + ", 1, LENGTH(" + fs + ") - 2), " + fs + ")"
+                        + " ELSE CONCAT(IF(" + fv + " < 0, '-', ''), RPAD(REPLACE(REPLACE(" + mantissa + ", '.', ''),"
+                        + " '-', ''), CAST(REPLACE(SPLIT(" + fs + ", 'e')[OFFSET(1)], '+', '') AS INT64) + 1, '0')) END"
+                        + " ELSE RTRIM(RTRIM(REPLACE(FORMAT('%.6f', ROUND(PARSE_BIGNUMERIC(" + fs + "), 6)), '-0.000000',"
+                        + " '0.000000'), '0'), '.') END FROM (SELECT " + fv + ", ")
+                .piece(floatText(w -> w.append(fv))).append(" AS " + fs + " FROM (SELECT ").expr(v, 0)
+                .append(" AS " + fv + ")))");
+        return writer.append(" END");
     }
 }

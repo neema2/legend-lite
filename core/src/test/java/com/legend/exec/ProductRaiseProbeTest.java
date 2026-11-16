@@ -111,11 +111,15 @@ class ProductRaiseProbeTest {
             expectKind(wrong, "toOne over two rows", two, com.legend.error.ErrorKind.SIZE_NOT_MULTIPLICITY, "[1]");
         }
         // 4. a print site: a Float's text (D1.2, register S311): six decimals, trimmed, the same on every database
-        Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n  100000000000000000000.0\n"
-                + "  0.0000001\n#->extend(~t: r|"
+        // (a database that refuses a value's text from a bound -- SQLite from 1e8 -- judged without the 1e20 row, which
+        // case 5 judges refused by name)
+        double bound = com.legend.sql.dialect.FloatTextInstrumentTest.refusedFrom(backend.type());
+        boolean huge = bound > 1e20;
+        Object text = run(backend, "a Float's text", "|#TDS\n  x:Float\n  1.5\n  2.0\n  -1.25\n"
+                + (huge ? "  100000000000000000000.0\n" : "") + "  0.0000001\n#->extend(~t: r|"
                 + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
         if (!(text instanceof String t4) || !t4.replace(" ", "").equals("[{\"t\":\"1.5\"},{\"t\":\"2\"},{\"t\":\"-1.25\"},"
-                + "{\"t\":\"100000000000000000000\"},{\"t\":\"0\"}]")) {
+                + (huge ? "{\"t\":\"100000000000000000000\"}," : "") + "{\"t\":\"0\"}]")) {
             wrong.add("a Float's text: " + describe(text));
         }
         // 5. the edges of a Float's text (the orchestrator's round 54, 2026-11-15; judged since W2 of
@@ -124,17 +128,25 @@ class ProductRaiseProbeTest {
         // NUMBER(38,6)'s 32 integer digits, the double's extremes -- each judged against ONE answer, the shortest
         // round-trip digits (Java's Double.toString, which every database must agree with: register S311), rounded to
         // six places and trimmed, a zero unsigned
-        // and the Float text instrument's sample (W3's audit, 2026-11-16: 273 values, FloatTextInstrumentTest), so
-        // each external lane judges what the embedded databases are judged on
-        java.util.List<String> all = new java.util.ArrayList<>(List.of("100.0", "10.0", "0.0", "-0.0", "123456789.0",
-                "0.30000000000000004", "-0.0000001", "1.0E21", "1.0E32", "1.0E300", "-1.0E300",
-                "1.7976931348623157E308", "2.2250738585072014E-308", "1.2345678901234567E40", "-9.87654321E25"));
-        for (double v : com.legend.sql.dialect.FloatTextInstrumentTest.sample()) {
-            if (!all.contains(Double.toString(v))) {
-                all.add(Double.toString(v));
+        // and the Float text instrument's sample, so each external lane judges what the embedded databases are judged
+        // on: FloatTextInstrumentTest.probeValues, its count stated there once (PROBE_SIZE, 287: the round 63 count)
+        List<String> all = com.legend.sql.dialect.FloatTextInstrumentTest.probeValues();
+        assertEquals(com.legend.sql.dialect.FloatTextInstrumentTest.PROBE_SIZE, all.size(), "the probe's values");
+        // a value from the database's bound is refused by name at run time, each judged on its own
+        List<String> refusedValues = new ArrayList<>();
+        for (String v : all) {
+            if (Math.abs(Double.parseDouble(v)) >= bound) {
+                refusedValues.add(v);
             }
         }
-        String[] values = all.toArray(String[]::new);
+        for (String v : refusedValues) {
+            Object one = run(backend, "a Float's text from the bound", "|#TDS\n  x:Float\n  " + v + "\n#->extend(~t: r|"
+                    + "$r.x->toOne()->toString())->select(~t)->from(" + StorelessRuntime.RUNTIME + ")");
+            if (!com.legend.sql.dialect.FloatTextInstrumentTest.refusedByName(one)) {
+                wrong.add("a Float's text of " + v + ": expected VALUE_NOT_HELD by name, got " + describe(one));
+            }
+        }
+        String[] values = all.stream().filter(v -> !refusedValues.contains(v)).toArray(String[]::new);
         Object edges = run(backend, "a Float's text, its edges", "|#TDS\n  i:Integer, x:Float\n"
                 + java.util.stream.IntStream.range(0, values.length).mapToObj(i -> "  " + i + ", " + values[i] + "\n")
                         .collect(java.util.stream.Collectors.joining())

@@ -1440,13 +1440,20 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      *  16 and 21 digits, or the exact binary expansion, before). */
     protected static final double SHORTEST_FROM = 1e17;
 
+    /** The magnitude from which this database's Float text is its shortest digits written out plain
+     *  ({@link #shortestWhenHuge}): {@link #SHORTEST_FROM}, or lower where the six-decimal form below it is not exact
+     *  that far down (Databricks: every double from 2^53 is a whole number, so its shortest digits are its text). */
+    protected double shortestFrom() {
+        return SHORTEST_FROM;
+    }
+
     /** A Float's text from {@link #SHORTEST_FROM} up: the database's own text of the double (its shortest round-trip
      *  form, {@code 1.7976931348623157e+308} or {@code 1e32}) written out plain, else {@code otherwise} (the six-decimal
      *  text). For a database whose text of a double is its shortest round-trip digits; one whose is not spells its own
      *  (SQLite's, MongoDB's). */
     protected SqlWriter shortestWhenHuge(SqlWriter writer, SqlExpr x, java.util.function.Consumer<SqlWriter> otherwise) {
         writer.append("CASE WHEN ").expr(SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER_EQUAL,
-                SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, x), new SqlExpr.FloatLit(SHORTEST_FROM)), 0).append(" THEN ")
+                SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, x), new SqlExpr.FloatLit(shortestFrom())), 0).append(" THEN ")
                 .expr(plainDigits(new SqlExpr.Cast(asDouble(x), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), x),
                         0)
                 .append(" ELSE ");

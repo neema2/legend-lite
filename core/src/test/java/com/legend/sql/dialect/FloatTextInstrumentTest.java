@@ -75,6 +75,42 @@ public class FloatTextInstrumentTest {
         return new ArrayList<>(values);
     }
 
+    /** The sample's size, stated once (the orchestrator's round 63: the count a lane judges is the count stated). */
+    public static final int SAMPLE_SIZE = 273;
+
+    /** The hand-picked values the probe judged before the sample (round 54's edges), as Java writes them. */
+    private static final List<String> EDGES = List.of("100.0", "10.0", "0.0", "-0.0", "123456789.0",
+            "0.30000000000000004", "-0.0000001", "1.0E21", "1.0E32", "1.0E300", "-1.0E300", "1.7976931348623157E308",
+            "2.2250738585072014E-308", "1.2345678901234567E40", "-9.87654321E25");
+
+    /** What every lane's probe judges ({@code ProductRaiseProbeTest}): the edges, then the sample, each value once --
+     *  0.0 is in both, so {@link #PROBE_SIZE}, not their sum. */
+    public static List<String> probeValues() {
+        List<String> all = new ArrayList<>(EDGES);
+        for (double v : sample()) {
+            if (!all.contains(Double.toString(v))) {
+                all.add(Double.toString(v));
+            }
+        }
+        return all;
+    }
+
+    /** The probe's size, stated once. */
+    public static final int PROBE_SIZE = 287;
+
+    /** The magnitude from which {@code type} refuses a Float's text by name at run time ({@code VALUE_NOT_HELD}),
+     *  infinite where it answers every value: SQLite's from 1e8 (its {@code floatToText}: register S311's proposed
+     *  row, W3 of docs/records/d-plan-2026-11-16.md, round 63). */
+    public static double refusedFrom(DatabaseType type) {
+        return type == DatabaseType.SQLite ? 1e8 : Double.POSITIVE_INFINITY;
+    }
+
+    @Test
+    void theCountsAreTheStatedOnes() {
+        assertEquals(SAMPLE_SIZE, sample().size(), "the sample");
+        assertEquals(PROBE_SIZE, probeValues().size(), "the probe's values");
+    }
+
     /** The product's text of {@code x} (register S311). */
     static String floatText(double x) {
         String t = new BigDecimal(Double.toString(x)).setScale(6, RoundingMode.HALF_UP).stripTrailingZeros()
@@ -111,9 +147,20 @@ public class FloatTextInstrumentTest {
     }
 
     private static void judge(DatabaseType type) {
-        List<Double> values = sample();
+        List<Double> values = new ArrayList<>();
+        List<Double> refused = new ArrayList<>();
+        for (double v : sample()) {
+            (Math.abs(v) < refusedFrom(type) ? values : refused).add(v);
+        }
         Object answered = texts(type, values);
         List<String> wrong = new ArrayList<>();
+        // each value from the bound refused by name, at run time: the kind, never an answer
+        for (double v : refused) {
+            Object one = texts(type, List.of(v));
+            if (!refusedByName(one)) {
+                wrong.add(v + " -> " + one + " (want VALUE_NOT_HELD, refused by name)");
+            }
+        }
         if (!(answered instanceof List<?> got)) {
             wrong.add("refused: " + answered);
         } else {
@@ -125,7 +172,8 @@ public class FloatTextInstrumentTest {
                 }
             }
         }
-        System.out.println("[float text instrument] " + type + ": " + values.size() + " values, " + wrong.size()
+        System.out.println("[float text instrument] " + type + ": " + values.size() + " values judged, "
+                + refused.size() + " refused by name from " + refusedFrom(type) + ", " + wrong.size()
                 + " wrong " + wrong);
         assertEquals(List.of(), wrong, type + ": " + wrong.size() + " of " + values.size() + " wrong");
     }
@@ -135,17 +183,21 @@ public class FloatTextInstrumentTest {
         judge(DatabaseType.DuckDB);
     }
 
-    /** SQLite's is refused by name (U3: its exact form measured at 4.2 times the inexact one; register S311's
-     *  proposed row), never answered inexactly. */
-    @Test
-    void sqliteRefusesByName() {
-        Object answered = texts(DatabaseType.SQLite, sample());
-        boolean refused = false;
+    /** Whether {@code answered} is the run-time refusal of a Float's text by name. */
+    public static boolean refusedByName(Object answered) {
         for (Throwable t = answered instanceof Throwable th ? th : null; t != null; t = t.getCause()) {
-            refused |= t instanceof com.legend.sql.DialectCapability && String.valueOf(t.getMessage()).contains(
-                    "a Float's text (toString) on SQLite");
+            if (t instanceof com.legend.error.DataError d && d.kind() == com.legend.error.ErrorKind.VALUE_NOT_HELD) {
+                return true;
+            }
         }
-        org.junit.jupiter.api.Assertions.assertTrue(refused, "SQLite: " + answered);
+        return false;
+    }
+
+    /** SQLite's: exact below its bound, ties included (round 63: a six-place tie rounded on the shortest digits, never
+     *  the binary value), refused by name from it (U3; register S311's proposed row). */
+    @Test
+    void sqlite() {
+        judge(DatabaseType.SQLite);
     }
 
     @Test

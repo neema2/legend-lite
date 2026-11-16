@@ -67,12 +67,16 @@ class BigQueryDialectTest {
     @Test
     void aFloatsTextIsSixDecimalsTrimmed() {
         String sql = render(SqlExpr.Call.of(SqlFn.FLOAT_TO_TEXT, X), null);
-        // a negative value that rounds to zero is 0 (round 56, 2026-11-15: its -0.000000 written 0.000000 first)
-        assertTrue(sql.contains("REPLACE(REPLACE(RTRIM(RTRIM(REPLACE(FORMAT('%.6f', `t`.`x`), '-0.000000', '0.000000'),"
-                + " '0'), '.'), 'nan', 'NaN'),"
-                + " 'inf', 'Infinity')"), sql);
-        assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 1, sql);
-        assertFalse(sql.contains("(SELECT"), sql);
+        // the double's shortest text, bound once, rounded half away from zero as a BIGNUMERIC (round 63: FORMAT of the
+        // double rounded the binary value); a negative value that rounds to zero is 0 (round 56: its -0.000000 written
+        // 0.000000 first); from 1e17 the text's digits padded; NaN and the infinities by name
+        assertTrue(sql.contains("RTRIM(RTRIM(REPLACE(FORMAT('%.6f', ROUND(PARSE_BIGNUMERIC(`__ts`), 6)), '-0.000000',"
+                + " '0.000000'), '0'), '.')"), sql);
+        assertTrue(sql.contains("WHEN IS_NAN(`t`.`x`) THEN 'NaN' WHEN IS_INF(`t`.`x`) THEN IF(`t`.`x` > 0, 'Infinity',"
+                + " '-Infinity')") && sql.contains("WHEN ABS(`__tv`) >= 1e17 THEN"), sql);
+        // the value read by each of the four guards, and once into the bound text's derived table
+        assertTrue(sql.split("`t`\\.`x`", -1).length - 1 == 5, sql);
+        assertTrue(sql.length() < 4_000, sql.length() + " characters: " + sql);
     }
 
     /** A projected error() is raised in its column's type (a bare ERROR is INT64 here: testNewDateError); a DATETIME
