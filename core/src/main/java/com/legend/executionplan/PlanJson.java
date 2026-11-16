@@ -147,8 +147,11 @@ public final class PlanJson {
      *  with on its database (DuckDB's), written only where the database has them -- a host's runner reads them from the
      *  plan, never asking the planner at run. 51 since 2026-11-12 (the user's ruling: "that is a real off platform
      *  problem"): a stream step's {@code sql} is the planner's own plan of the snapshot's pull (its model, runtime and
-     *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. */
-    public static final int VERSION = 51;
+     *  lambda, planned in the call that answers the plan) -- no request carries the statement a plane runs. 54 since
+     *  2026-11-16 (C5-J's batch 4(b), P2, the user's ruling; 52 and 53 are stream D's): a declared connection may carry
+     *  {@code queryTimeOutInSeconds}, the time-out exec sets on every statement it sends for that connection's target,
+     *  written only where the connection declares one. */
+    public static final int VERSION = 54;
 
     private PlanJson() {
     }

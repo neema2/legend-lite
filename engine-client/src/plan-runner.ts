@@ -128,7 +128,9 @@ interface Sql {
 // target has none is refused by name where it needs one
 // 51 since 2026-11-12 (the user's ruling: "that is a real off platform problem"): a stream step's sql is the planner's
 // own plan of the snapshot's pull -- its request carries the pull (model, runtime, lambda), never the statement
-const PLAN_VERSION = 51;
+// 54 since 2026-11-16 (C5-J's batch 4(b), P2; 52 and 53 are stream D's): a declared connection may carry
+// queryTimeOutInSeconds -- the JVM's exec sets it on its statements; a host runs no declared connection
+const PLAN_VERSION = 54;
 interface Column { readonly name: string; readonly type: string }
 type Step =
   | { readonly _type: 'update'; readonly sql: Sql; readonly count?: string | null }
