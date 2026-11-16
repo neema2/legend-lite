@@ -147,7 +147,7 @@ final class PctCaseRecorder {
         // the edge golden net rides this call (none added to PctExecuteNative's ledger pin): the message exactly as
         // PctExecuteNative hands it to the interpreter -- KEEP IN STEP with its throw (on d-stage,
         // edge.PureMessages.compile(e))
-        edgeError(expression, e.getMessage());
+        edgeError(expression, com.legend.edge.PureMessages.compile(e));
         if (SHAPES_DIR == null) {
             return;
         }
