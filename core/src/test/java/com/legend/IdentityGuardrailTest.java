@@ -165,7 +165,7 @@ class IdentityGuardrailTest {
             // aggregate switch reads sum by the registry's member (DynaFn.SUM), not fn.equals("sum"): the branch's
             // site and main's gone; the schema "default" compare stays. The 85 -> 86 note named that compare alone:
             // the branch added two sites over main's measured 84, it and fn.equals("sum") at :135 (main's at :140)
-            Map.entry("LOCAL_NAME_COMPARE", 84),   // 85 -> 86 (2026-11-14, java_bugFixes, measured): compiler/element/ViewSignatures reads a view column's schema "default" as the database's own, refusing a schema the database lacks in the engine's words (HelperRelationalBuilder), and its aggregate switch read sum by fn.equals("sum") a second time; 87 -> 85 (2026-10-06, build rebuild Phase 3: measured); 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
+            Map.entry("LOCAL_NAME_COMPARE", 84),   // 85 -> 86 (2026-11-14, java_bugFixes, measured): compiler/element/ViewSignatures reads a view column's schema "default" as the database's own, refusing a schema the database lacks in the engine's words (HelperRelationalBuilder); 87 -> 85 (2026-10-06, build rebuild Phase 3: measured); 90 -> 87 (2026-09-26, step 2: three local-name compares in the rule tables left with the bare names)
             Map.entry("CASE_NAME_LABEL", 4),
             Map.entry("PARSE_NAME_LOOKUP", 3));
 
