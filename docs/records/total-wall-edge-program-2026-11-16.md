@@ -381,5 +381,6 @@ About four working days to D's landing, with the three workers in parallel.
 
 | When (UTC) | Entry |
 |---|---|
+| 2026-11-16 15:15 | **Phase 4a done** (E-Java, `42b38e44aa` on `claude/total-wall-d-judges`). The engine-text arm is at the edge behind one facade, with one architecture row; the `EngineTestText#arm` allowance is gone. `AssertVerdicts` is at 1,520, and `SqlTextVerdicts` has left the product (1,152 lines, now in the edge). Channel B DuckDB is unchanged under HOST, DATABASE and BOTH; core testplan (every judge), integration, root, both corpus verdicts, guardrails and census are green. D merges it. E-Java has started 4b (step a: messages in Java). |
 | 2026-11-16 15:15 | **The user ruled §10 items 1-5 and 9** ("I agree with all"). Items 7 and 8 were explained, and await the user's choice. D's Phase 1: A-M1 restored (`9c28a1a7e`, H2's text byte-identical to before W6, one guard row); `stage-linux.yml` committed (`2ed80afe6`); `//core:lean_sql_baseline_test`'s plan-JSON growth approved for one re-pin, on condition that one case confirms it is the per-statement raises field (SQL characters only shrank). |
 | 2026-11-16 15:00 | Written, at the user's word. It supersedes `total-wall-plan-2026-11-16.md`, which holds the day's earlier log. |
