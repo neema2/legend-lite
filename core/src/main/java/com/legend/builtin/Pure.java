@@ -1217,6 +1217,17 @@ public final class Pure {
     // from<T|m>(t:T[m], m:Mapping[1], r:PackageableRuntime[1]):T[m]) —
     // the erased T[*] form broke toString(serialize(...)->from(...))
     public static final NativeFunctionDefinition FROM__T_m__MAPPING_1__PACKAGEABLE_RUNTIME_1 = signature("native function meta::pure::mapping::from<T|m>(t:T[m], m:meta::pure::mapping::Mapping[1], packageableRuntime:meta::pure::runtime::PackageableRuntime[1]):T[m];");
+    // A SERVICE'S EXECUTION ENVIRONMENT (2026-11-14, the Studio roundtrip's DSL_ExecutionEnvironment cases):
+    // legend-engine 4.145.0 core_service/service/mappingExtension.pure:1 declares this from (a NotImplementedFunction)
+    // and helperFunctions.pure:26/34/44 the environment's getters; ServiceCompilerExtensionImpl registers all four
+    // as handlers (the bare names come from that registry, engine-handlers.tsv). Typed here; never executed: the
+    // environment's key is a service parameter, so store resolution refuses the from by name and the getters are
+    // walled (WALLED_NATIVES). The mappingExtension.pure overload over ExecutionEnvironmentInstance has no engine
+    // handler and is not declared.
+    public static final NativeFunctionDefinition FROM__T_m__SINGLE_EXECUTION_PARAMETERS_1 = signature("native function meta::pure::mapping::from<T|m>(t:T[m], executionParameters:meta::legend::service::metamodel::SingleExecutionParameters[1]):T[m];");
+    public static final NativeFunctionDefinition SERVICE_GET__EXECUTION_ENVIRONMENT_INSTANCE_1__STRING_1 = signature("native function meta::legend::service::get(execEnv:meta::legend::service::metamodel::ExecutionEnvironmentInstance[1], key:meta::pure::metamodel::type::String[1]):meta::legend::service::metamodel::SingleExecutionParameters[1];");
+    public static final NativeFunctionDefinition SERVICE_GET__EXECUTION_ENVIRONMENT_INSTANCE_1__STRING_1__STRING_1 = signature("native function meta::legend::service::get(execEnv:meta::legend::service::metamodel::ExecutionEnvironmentInstance[1], masterKey:meta::pure::metamodel::type::String[1], subKey:meta::pure::metamodel::type::String[1]):meta::legend::service::metamodel::SingleExecutionParameters[1];");
+    public static final NativeFunctionDefinition SERVICE_GET_WITH_RUNTIME__EXECUTION_ENVIRONMENT_INSTANCE_1__STRING_1__STRING_1 = signature("native function meta::legend::service::getWithRuntime(execEnv:meta::legend::service::metamodel::ExecutionEnvironmentInstance[1], key:meta::pure::metamodel::type::String[1], data:meta::pure::metamodel::type::String[1]):meta::legend::service::metamodel::SingleExecutionParameters[1];");
     // engine Handlers.java:2223 withChainedMappings_T_m__Mapping_MANY__T_m_
     // — identity on the stream, tagging CHAINED mappings (the M2M2R
     // query-side chain channel; FromChecker absorbs it into
@@ -1695,7 +1706,15 @@ public final class Pure {
                     + " toOne / toOneMany / the identity) — a checked narrowing to [0..1] has no platform spelling",
             "meta::pure::functions::meta::addColumns",
             "schema algebra on a RelationType INSTANCE (a metamodel value) — the typer's schema"
-                    + " algebra covers types, not values");
+                    + " algebra covers types, not values",
+            // 2026-11-14 (the Studio roundtrip's DSL_ExecutionEnvironment cases): typed so a service query
+            // compiles; the key names one keyed execution of the environment and is a service parameter
+            "meta::legend::service::get",
+            "a service execution environment's keyed execution — its key is a service parameter bound when the"
+                    + " service runs; the platform never guesses it",
+            "meta::legend::service::getWithRuntime",
+            "a service execution environment's keyed execution with a runtime rebuilt from data — its key is a"
+                    + " service parameter bound when the service runs; the platform never guesses it");
 
     /** The wall reason for a walled native, or null when the native is not walled. */
     public static @com.legend.base.Nullable String walledNativeReason(String fqn) {
@@ -2583,6 +2602,8 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_UPDATE = com.legend.model.FunctionId.ofAll(UPDATE__ACCESSOR_1__FUNCTION_1__FUNC_COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_WITHOUT = com.legend.model.FunctionId.ofAll(WITHOUT__RELATION_1__COL_SPEC_1, WITHOUT__RELATION_1__COL_SPEC_ARRAY_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_LITE_WRITE_INSTANCES = com.legend.model.FunctionId.ofAll(WRITE_INSTANCES__RELATION_1__CLASS_1__COL_SPEC_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_SERVICE_GET = com.legend.model.FunctionId.ofAll(SERVICE_GET__EXECUTION_ENVIRONMENT_INSTANCE_1__STRING_1, SERVICE_GET__EXECUTION_ENVIRONMENT_INSTANCE_1__STRING_1__STRING_1);
+    public static final List<com.legend.model.FunctionId> AT_LEGEND_SERVICE_GET_WITH_RUNTIME = com.legend.model.FunctionId.ofAll(SERVICE_GET_WITH_RUNTIME__EXECUTION_ENVIRONMENT_INSTANCE_1__STRING_1__STRING_1);
     public static final List<com.legend.model.FunctionId> AT_LEGEND_TEST_MAY_EXECUTE_LEGEND_TEST = com.legend.model.FunctionId.ofAll(MAY_EXECUTE_LEGEND_TEST);
     public static final List<com.legend.model.FunctionId> AT_ALLOY_CONNECTIONS_RELATIONAL_MAPPER_POST_PROCESSOR = com.legend.model.FunctionId.ofAll(RELATIONAL_MAPPER_PP);
     public static final List<com.legend.model.FunctionId> AT_EXECUTION_PLAN_EXECUTE = com.legend.model.FunctionId.ofAll(EXECUTION_PLAN_EXECUTE__EXECUTION_PLAN_1__ANY_MANY__EXTENSION_MANY);
@@ -2976,7 +2997,7 @@ public final class Pure {
     public static final List<com.legend.model.FunctionId> AT_LINEAGE_SCAN_PROPERTIES_PROPERTY_TREE_BUILD_PROPERTY_TREE = com.legend.model.FunctionId.ofAll(BUILD_PROPERTY_TREE__LISTS);
     public static final List<com.legend.model.FunctionId> AT_LINEAGE_SCAN_PROPERTIES_SCAN_PROPERTIES = com.legend.model.FunctionId.ofAll(SCAN_PROPERTIES__4);
     public static final List<com.legend.model.FunctionId> AT_LINEAGE_SCAN_RELATIONS_SCAN_RELATIONS = com.legend.model.FunctionId.ofAll(SCAN_RELATIONS__FUNCTION_DEFINITION_1__MAPPING_1__EXTENSION_MANY, SCAN_RELATIONS__FUNCTION_DEFINITION_1__MAPPING_1__RUNTIME_1__EXTENSION_MANY);
-    public static final List<com.legend.model.FunctionId> AT_MAPPING_FROM = com.legend.model.FunctionId.ofAll(FROM__T_m__PACKAGEABLE_RUNTIME_1, FROM__T_m__MAPPING_1__PACKAGEABLE_RUNTIME_1, FROM__T_m__MAPPING_1__RUNTIME_1, FROM__FN_1__PACKAGEABLE_RUNTIME_1, FROM__FN_1__RUNTIME_1, FROM__T_m__RUNTIME_1);
+    public static final List<com.legend.model.FunctionId> AT_MAPPING_FROM = com.legend.model.FunctionId.ofAll(FROM__T_m__PACKAGEABLE_RUNTIME_1, FROM__T_m__MAPPING_1__PACKAGEABLE_RUNTIME_1, FROM__T_m__SINGLE_EXECUTION_PARAMETERS_1, FROM__T_m__MAPPING_1__RUNTIME_1, FROM__FN_1__PACKAGEABLE_RUNTIME_1, FROM__FN_1__RUNTIME_1, FROM__T_m__RUNTIME_1);
     public static final List<com.legend.model.FunctionId> AT_MAPPING_WITH_CHAINED_MAPPINGS = com.legend.model.FunctionId.ofAll(WITH_CHAINED_MAPPINGS);
     public static final List<com.legend.model.FunctionId> AT_MAPPING_WITH_MAPPING = com.legend.model.FunctionId.ofAll(WITH_MAPPING);
     public static final List<com.legend.model.FunctionId> AT_METAMODEL_RELATION_NEW_TDSRELATION_ACCESSOR = com.legend.model.FunctionId.ofAll(NEW_TDS_RELATION_ACCESSOR__TDS_1);

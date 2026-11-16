@@ -1023,6 +1023,14 @@ final class Typer {
             return new TypedPackageableRef(ref.fullPath(), ExprType.one(new Type.ClassType(
                     com.legend.compiler.element.type.PlatformTypes.PACKAGEABLE_RUNTIME)));
         }
+        // an EXECUTION ENVIRONMENT element is upstream's ExecutionEnvironmentInstance
+        // (ServiceCompilerExtensionImpl's value-specification builder types the
+        // reference as an instance value of it): get(EEI[1], key) and
+        // getWithRuntime(EEI[1], key, data) are declared over it
+        if (ctx.findExecutionEnvironment(ref.fullPath()).isPresent()) {
+            return new TypedPackageableRef(ref.fullPath(), ExprType.one(new Type.ClassType(
+                    com.legend.compiler.element.type.PlatformTypes.EXECUTION_ENVIRONMENT_INSTANCE)));
+        }
         // a CONNECTION element stays Any[1] — the prelude carries no
         // PackageableConnection; its typing is owed with the connection natives
         if (ctx.isExecutionContextElement(ref.fullPath())) {

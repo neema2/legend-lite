@@ -6879,6 +6879,49 @@ Profile meta::external::format::rosetta::generation::metadata
 
 
 ###Pure
+// legend-engine/legend-engine-xts-service/legend-engine-language-pure-dsl-service-pure/src/main/resources/core_service/service/metamodel.pure
+import meta::legend::service::metamodel::*;
+import meta::pure::executionPlan::*;
+import meta::pure::mapping::*;
+import meta::core::runtime::*;
+Class meta::legend::service::metamodel::ExecutionEnvironmentInstance extends PackageableElement
+{
+    executionParameters: ExecutionParameters[*];
+}
+
+Class meta::legend::service::metamodel::ExecutionParameters
+{
+}
+
+Class meta::legend::service::metamodel::SingleExecutionParameters extends ExecutionParameters
+[
+  runtimeOrFunction: assert($this.runtime->concatenate($this.runtimeComponents)->size() == 1, 'Must specify either a runtime or a runtime function')
+]
+{
+    key : String[1];
+    mapping : Mapping[1];
+    runtime : Runtime[0..1];
+    runtimeComponents : meta::legend::service::metamodel::RuntimeComponents[0..1];
+
+    rebuildRuntime(data:String[1])
+    {
+        assert($this.runtimeComponents->isNotEmpty(), 'Must exist');
+        let r = $this.runtimeComponents->toOne();
+        mergeRuntimes([getRuntimeWithModelQueryConnection($r.class, $r.binding, $data), $r.runtime]);
+    }:Runtime[1];
+    
+}
+
+Class meta::legend::service::metamodel::RuntimeComponents
+{
+    runtime : Runtime[1];
+    binding: meta::external::format::shared::binding::Binding[1];
+    class: Class<Any>[1];
+
+}
+
+
+###Pure
 // legend-engine/legend-engine-xts-sql/legend-engine-xt-sql-transformation/legend-engine-xt-sql-pure/src/main/resources/core_external_query_sql/binding/fromPure/extension.pure
 import meta::external::query::sql::*;
 Profile meta::external::query::sql::sql
@@ -6886,7 +6929,7 @@ Profile meta::external::query::sql::sql
    stereotypes: [Extension];
 }
 
-// 485 classes, 23 enums, 43 profiles, 152 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
+// 489 classes, 23 enums, 43 profiles, 152 functions (legend-pure's platform library, bodied and non-test;1 files unparsed, the census's load walls).
 // ENGINE LIBRARY FUNCTIONS — 1 bodied declarations outside the platform roots, carried by membership
 // (PreludeGenerator.ENGINE_LIBRARY_FUNCTIONS, each with its reason), verbatim, every overload:
 //   meta::pure::functions::collection::removeAll (2 overloads) — the corpus's tds extensions (columnValueDifference) and the prelude's SchemaState bodies call it; the corpus loader refuses the namespace as runtime (MinimalCorpus.refusePlatformNamespace), so this module is its only home. INTERIM for the namespace rule (charter D7: every bodied function upstream declares under meta::pure::functions:: is library, measured 2026-09-25 at 126 functions / 26 boot-typing failures / the agg form unowned) — one row until that lands
@@ -7199,6 +7242,10 @@ Profile meta::external::query::sql::sql
 //   meta::json::JSONNumber
 //   meta::json::JSONObject
 //   meta::json::JSONString
+//   meta::legend::service::metamodel::ExecutionEnvironmentInstance
+//   meta::legend::service::metamodel::ExecutionParameters
+//   meta::legend::service::metamodel::RuntimeComponents
+//   meta::legend::service::metamodel::SingleExecutionParameters
 //   meta::pure::alloy::connections::Mapper
 //   meta::pure::alloy::connections::MapperPostProcessor
 //   meta::pure::alloy::connections::PostProcessor
