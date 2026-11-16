@@ -303,22 +303,6 @@ final class SqlTextVerdicts {
                 c.textEqual(), c.decline(), c.oursOrigin(), appeal, routed));
     }
 
-    /** Whether the arm claims {@code bare} ({@link EngineTestText#claims}): a root arm's helper, or an equality whose
-     *  sides a producer of upstream's text feeds ({@link #mayArm}, over the narrowed sides as {@link #armOf} reads
-     *  them). A static superset: the arm may still decline what it claims. */
-    static boolean claims(TypedSpec bare, List<TypedSpec> letPrefix, SpecCompiler specs) {
-        String fqn = EngineTextPlanning.calleeFqn(bare);
-        if (fqn != null && isRoot(fqn) && bare instanceof com.legend.compiler.spec.typed.TypedUserCall) {
-            return true;
-        }
-        if (!equalityFamily(bare)) {
-            return false;
-        }
-        com.legend.builtin.NativeFn.Verdict fn = verdictOf(bare);
-        return mayArm(fn.bareName(), fn == com.legend.builtin.NativeFn.Verdict.ASSERT_EQUALS,
-                narrowed(bare, letPrefix, specs), letPrefix, specs);
-    }
-
     /** Whether {@code bare} is {@code assertEquals} or {@code assertNotEquals}: the equality arm's family. */
     private static boolean equalityFamily(TypedSpec bare) {
         com.legend.builtin.NativeFn.Verdict fn = com.legend.builtin.NativeFn.Verdict.of(
