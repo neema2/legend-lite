@@ -204,6 +204,15 @@ a ruling, batched in §10. It does not wait on that batch unless the work is blo
         reason.
      3. The list goes to the user (§10) before the switch lands.
    - The judges' share of this is E-Java's (§6 item 2).
+   - **First, an inventory.** List every SQL site in every dialect that spells a Float's text, with what reaches it
+     (product, edge or judge). Each gets its fate:
+     - product → S311's one simple call;
+     - an edge value → Java;
+     - an edge expression → legend-engine's cast;
+     - a judge → a typed comparison (E-Java).
+
+     Known so far: Snowflake's `CAST(double AS VARCHAR)` still goes through `floatText`'s exact-digits machinery
+     (`shortestDigits`, from October), alongside `floatCanon` and `floatPrint`. The revert did not touch these.
 3. **Finish moving legend-engine's plan text to the edge.** Run the corpus verdicts, then the rest of the planner's
    engine-text rows.
 4. **The guard to zero.**
@@ -400,4 +409,5 @@ run, and the user's merge word.
 | 2026-11-16 13:05 | (recorded) D interrupted: commit the planner-text move as it stands, then the Float revert before anything else. |
 | 2026-11-16 13:10 | (recorded) Snowflake's timing re-run stopped (it was timing code being reverted); it is timed fresh after the revert. |
 | 2026-11-16 13:25 | E-Java's S2c: only S2c-1a (a pure move, no guard row) goes ahead during the freeze. The rest, moving `SqlTextVerdicts` to the edge, reads about 20 test-planner members. **Decided (b):** one public facade class in `testplan` (the typed seam E-Java proposed at S2's start), with one architecture entry row, rather than about 20 entry rows. It is narrower, one place to read, and one row to guard. It is built after the freeze lifts. |
+| 2026-11-16 13:35 | D's Float revert pushed (`4ff4f86e7`). Every product `floatToText` is D1.2's form, the exactness machinery and `precise_float_parsing` are gone, and the instrument is deleted. Its SQL is D1.2's statement on every dialect, so no alternation is needed. Found while checking: Snowflake's cast of a double to text still uses the October exact-digits machinery. It goes into §5 item 2's inventory. Lane round 66 is sent on `4ff4f86e7`. |
 | 2026-11-16 13:25 | E-SQL's item 6 (Postgres `jsonb_build_array`), committed just before the freeze, stays. It is a dialect spelling within E-v3's plan, and E-v3's review and lane round judge it. |
