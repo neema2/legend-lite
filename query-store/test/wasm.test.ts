@@ -7,7 +7,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
 import { QueryStoreClient, QueryStoreError } from '../src/client.ts';
-import { MemoryRecords, type Records } from '../src/records.ts';
+import { BrowserRecords, MemoryRecords, type Records } from '../src/records.ts';
 import { LOCAL_API, loadQueriesModule, wasmQueryServer } from '../src/wasm-server.ts';
 import { conformance } from './conformance.ts';
 import { runfileDirUrl } from '../../tools/js/runfiles.mts';
@@ -21,6 +21,34 @@ const module = await loadQueriesModule(DIR, async (runtimeUrl) => {
 const records = new MemoryRecords();
 const server = wasmQueryServer({ load: async () => module, records, user: 'anonymous' });
 conformance("the page's own store, legend-lite's rules in WebAssembly", () => ({ api: LOCAL_API, fetch: server.fetch, user: 'anonymous' }));
+
+describe('a browser store owned by an embedded app', () => {
+  it('closes before a queued IndexedDB open answers and releases its late connection', async () => {
+    const request = {} as IDBOpenDBRequest;
+    const store = new BrowserRecords({ open: () => request } as unknown as IDBFactory);
+    const refused = assert.rejects(store.call(() => { throw new Error('must not read'); }), /closed/);
+    await store.close();
+    await refused;
+    let closes = 0;
+    Object.defineProperty(request, 'result', { value: { close: () => { closes++; } } });
+    request.onsuccess!.call(request, new Event('success'));
+    assert.equal(closes, 1);
+    await assert.rejects(store.call(() => { throw new Error('must not read'); }), /closed/);
+  });
+
+  it('releases a late connection after refusing an upgrade blocked by another tab', async () => {
+    const request = {} as IDBOpenDBRequest;
+    const store = new BrowserRecords({ open: () => request } as unknown as IDBFactory);
+    const refused = assert.rejects(store.call(() => { throw new Error('must not read'); }), /another tab/);
+    request.onblocked!.call(request, new Event('blocked') as IDBVersionChangeEvent);
+    await refused;
+    let closes = 0;
+    Object.defineProperty(request, 'result', { value: { close: () => { closes++; } } });
+    request.onsuccess!.call(request, new Event('success'));
+    assert.equal(closes, 1);
+    await store.close();
+  });
+});
 
 describe("the page's own store: what a server here cannot be asked", () => {
   it('only the owner updates or deletes', async () => {

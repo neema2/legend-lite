@@ -40,6 +40,21 @@ const base = (more: Partial<SaveDialogOptions> = {}): SaveDialogOptions => ({
 });
 
 describe('the Save window', () => {
+  it('stays in its embedding and is dismissed when that embedding is disposed', async () => {
+    const host = doc.createElement('div');
+    doc.body.append(host);
+    const lifetime = new AbortController();
+    const done = saveDialog(doc, base({ host, signal: lifetime.signal }));
+    assert.ok(host.querySelector('.dc-save'));
+    assert.equal(doc.body.querySelector(':scope > .dc-picker-backdrop'), null);
+    lifetime.abort();
+    assert.equal(await done, undefined);
+    assert.equal(host.childElementCount, 0);
+    assert.deepEqual(saved, []);
+    assert.equal(await saveDialog(doc, base({ host, signal: lifetime.signal })), undefined);
+    assert.equal(host.childElementCount, 0, 'a disposed host never opens another dialog');
+  });
+
   it('Save over the copy this was opened from, saying so -- or Save as new', async () => {
     // the dialog's clock is the test's: "2 hours ago" is a fact of the two times, not of when the test runs
     const now = Date.parse('2026-10-05T12:00:00Z');

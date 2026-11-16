@@ -809,7 +809,7 @@
 
 /* A long press opened the menu under the finger, and its release left the entry there hovered (a touch screen's sticky
    hover): until the next touch that hover opens no submenu -- a tap on the entry does (ui/long-press.ts PRESSED_CLASS) */
-:root.dc-long-pressed .dc-menu-item.dc-has-submenu:hover:not(:focus-within) > .dc-submenu {
+.dc-long-pressed .dc-menu-item.dc-has-submenu:hover:not(:focus-within) > .dc-submenu {
   display: none;
 }
 

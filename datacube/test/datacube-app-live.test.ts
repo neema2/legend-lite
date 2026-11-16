@@ -17,7 +17,7 @@ import type { LiveWrite } from '../src/app/services.ts';
 import { corpus } from './fixtures/pages/make.ts';
 import { FakeKeeper } from './fake-keeper.ts';
 import { pageHash } from '../src/page-hash.ts';
-import { GateEngine, StubPlanner, plus } from './cube-fixture.ts';
+import { GateEngine, StubPlanner, plus, shown } from './cube-fixture.ts';
 import { DEFAULT_CONFIGURATION } from '../src/config.ts';
 import { cubeToJson, writeCube } from '../src/cube-document.ts';
 import type { CubeSnapshot } from '../src/snapshot.ts';
@@ -132,6 +132,41 @@ function blankPage(): void {
   item('New Page').click();
 }
 
+describe('the app embedded in another application', () => {
+  it('starts empty without publishing globals, preserves the host title, and reports a file refusal to its caller', async () => {
+    const doc = dom.window.document;
+    doc.title = 'Host application';
+    const host = doc.getElementById('host')!;
+    const windows = doc.getElementById('windows')!;
+    const services = {
+      engine: {
+        plane: { word: 'local', planes: [], choose() {} }, label: 'local', reading: {},
+        rows: () => ({ planner: new StubPlanner(), engine: new GateEngine() }),
+        database: { ingestFile: async () => { throw new Error('the file could not be read'); }, forgetFile: async () => {} },
+      },
+      browser: { download() {}, writeClipboard: async () => {}, readSettings: () => undefined, writeSettings() {} },
+    };
+    const app = await openDataCube({
+      services: services as never, host, windows, status: doc.getElementById('status')!,
+      start: { kind: 'empty' }, taken: [], settled: { show() {} }, publishDebugState: false,
+    });
+    try {
+      assert.ok(host.querySelector('.dc-page'), 'the full page is mounted, ready for a file');
+      assert.equal(doc.title, 'Host application');
+      for (const key of ['__dataPage', '__dataCube', '__dataCubeSignal', '__dataPageHash']) {
+        assert.equal(key in dom.window, false, `${key} is not published on the host window`);
+      }
+      await assert.rejects(app.openFile(new File(['a\n1'], 'rows.csv')), /the file could not be read/);
+      assert.equal(doc.title, 'Host application');
+    } finally {
+      app.dispose();
+    }
+    app.dispose();
+    await assert.rejects(app.openFile(new File(['a\n1'], 'rows.csv')), /disposed/);
+    assert.equal(windows.childElementCount, 0, 'the app removes only its own windows');
+  });
+});
+
 describe("the app on a page Python serves, from its start (the S4 audit's 1)", () => {
   it('a page of no grid yet is followed as Python moves it: only New Page leaves it', async () => {
     const editor = new Editor();
@@ -178,8 +213,8 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     const add = [...doc.querySelectorAll<HTMLButtonElement>('.dc-blank-actions button')].find((b) => b.textContent === 'Add a data source');
     assert.ok(add, 'the card offers a data source');
     add.click();
-    await settle();
-    assert.equal(doc.querySelector('.dc-picker-title')?.textContent, 'Add a source', 'added to the page, not opened in place of it');
+    const title = await shown(doc, '.dc-picker-title');
+    assert.equal(title.textContent, 'Add a source', 'added to the page, not opened in place of it');
     assert.equal(app.unwatched(), false, 'the page Python serves is still the one on screen');
   });
 
@@ -199,8 +234,7 @@ describe("the app on a page Python serves, from its start (the S4 audit's 1)", (
     await settle();
     const doc = dom.window.document;
     [...doc.querySelectorAll<HTMLButtonElement>('.dc-blank-actions button')].find((b) => b.textContent === 'Add a data source')!.click();
-    await settle();
-    (doc.querySelector('[data-section="classes"]') as HTMLElement).click();
+    (await shown<HTMLElement>(doc, '[data-section="classes"]')).click();
     const [cls, project, revision] = [...doc.querySelectorAll<HTMLInputElement>('.dc-picker-panel .dc-picker-field input')];
     cls!.value = ' p::domain::Trade ';
     project!.value = 'p:q';

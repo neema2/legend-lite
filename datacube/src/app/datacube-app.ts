@@ -57,7 +57,6 @@ import type { CubeSnapshot } from '../snapshot.ts';
 import { CubeLibrary } from '../ui/cube-library.ts';
 import { EXAMPLE_PAGES } from '../examples/catalog.ts';
 import type { MenuItem } from '../ui/menu.ts';
-import { saveDialog } from '../ui/save-dialog.ts';
 import type { SectionId } from '../ui/source-picker.ts';
 import type { TsTogether } from '../ui/timeseries-view.ts';
 import { makeWindow, type WindowSpec } from '../ui/window.ts';
@@ -87,6 +86,8 @@ const CLASS_GRID_ID = 'host.classGrid' as const;
 
 /** What the app opens first. */
 export type AppStart =
+  /** An embedded application, ready for the host or person to open a file. */
+  | { readonly kind: 'empty' }
   /** The host's sample: its rows, under its own model, laid out as it says. */
   | { readonly kind: 'sample'; readonly sample: Sample }
   /** A link the page was opened from (a shared page, a saved query's link): `forget` takes it out of the address, so a
@@ -101,6 +102,8 @@ export type AppStart =
 
 /** The app open on its host: what takes it down (a notebook's cell re-run, its view closed). */
 export interface DataCubeApp {
+  /** Add a local file as another grid through the same source path the picker uses. */
+  openFile(file: File): Promise<void>;
   dispose(): void;
 }
 
@@ -117,6 +120,8 @@ export interface OpenDataCube {
   readonly taken: readonly string[];
   /** Told how to show a start that failed, once the page can say it (its empty card). */
   readonly settled: { show: (reason: string) => void };
+  /** The standalone demo's browser harness probes. Embedded applications keep their window to themselves. */
+  readonly publishDebugState?: boolean;
 }
 
 /** DataCube's app, opened in `o.host` over the host's services. */
@@ -218,8 +223,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   });
   windows.errorQuery.addEventListener('click', () => windows.show(windows.query));
   /** What taking the app down undoes, besides the page: the windows, a watch, a timer, a listener. */
-  const undo: (() => void)[] = [windows.remove];
+  const lifetime = new AbortController();
+  const dialogs = { host: o.windows, signal: lifetime.signal };
+  const undo: (() => void)[] = [() => lifetime.abort(), windows.remove];
   let disposed = false;
+  let openFile: ((file: File) => Promise<void>) | undefined;
 
   /** The planes, as entries: the one the page is ON disabled, not hidden. */
   const planeMenu = (): MenuItem[] => services.engine.plane.planes.map((plane) => ({
@@ -259,10 +267,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   const harnessSignal = { changes: 0, printing: 0 };
   /** Each grid the app made, by its tile's id: what following a frame re-runs (`page.cubes` says which are on it). */
   const madeCubes = new Map<string, CubeApp>();
+  /** A grid's refusal, also returned to an embedding that asked to open its file. */
+  const gridFailures = new WeakMap<CubeApp, string>();
   /** The page's channel to the page's keeper, on a page another editor serves (live-channel.ts): its writes carry the
    *  edits made here, each grid's and the page's. */
   let channel: LiveChannel | undefined;
-  (window as unknown as { __dataCubeSignal?: typeof harnessSignal }).__dataCubeSignal = harnessSignal;
+  if (o.publishDebugState !== false) (window as unknown as { __dataCubeSignal?: typeof harnessSignal }).__dataCubeSignal = harnessSignal;
 
   /**
    * A GRID ON THE PAGE, as DataCube's app makes one (docs/DATACUBE_PAGES_DESIGN_2026_10_09.md §6): a compact cube in a
@@ -365,6 +375,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         ...(kept ? { settings: kept } : {}),
         download,
         onStatus: (text, kind) => {
+          if (kind === 'error') gridFailures.set(created, text);
           // ERRORS ONLY. The cube's own status bar carries the result
           // and the timing; a host that echoed the same line beside it
           // said one fact twice in a 20px strip. What a host is for is
@@ -374,9 +385,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
           sayError(text);
         },
         onView: (view) => {
+          gridFailures.delete(created);
           // For the browser harness: how many views have landed.
-          const w = window as unknown as { __dataCubeViews?: number };
-          w.__dataCubeViews = (w.__dataCubeViews ?? 0) + 1;
+          if (o.publishDebugState !== false) {
+            const w = window as unknown as { __dataCubeViews?: number };
+            w.__dataCubeViews = (w.__dataCubeViews ?? 0) + 1;
+          }
           harnessSignal.changes += 1;
           // A VIEW LANDED, SO THE LAST ERROR IS OVER: a status line says what is true NOW.
           if (status.classList.contains('bad')) {
@@ -452,6 +466,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     (set === undefined ? { disabled: true, hint: 'The page is still starting' } : {});
   /** Close the Open… window, when it is open. */
   let closeCubes: (() => void) | undefined;
+  undo.push(() => closeCubes?.());
   /** Save the page (over the one it was opened from), or Save As a new one. */
   let saveCube: ((asNew: boolean) => void) | undefined;
   /** Copies the page's share link; set once the page can open files. */
@@ -657,11 +672,13 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   };
   // For the browser harness ONLY: the page, its views and its layout; and its first grid (a CubeApp), so a check can
   // read that grid's own configuration and snapshot when what it sees on screen disagrees. Not product code.
-  (window as unknown as { __dataPage?: PageApp }).__dataPage = page;
-  Object.defineProperty(window, '__dataCube', {
-    configurable: true,
-    get: () => (page.grids[0] !== undefined ? page.grid(page.grids[0]) : undefined),
-  });
+  if (o.publishDebugState !== false) {
+    (window as unknown as { __dataPage?: PageApp }).__dataPage = page;
+    Object.defineProperty(window, '__dataCube', {
+      configurable: true,
+      get: () => (page.grids[0] !== undefined ? page.grid(page.grids[0]) : undefined),
+    });
+  }
 
   // OPENING A FILE.
   //
@@ -671,10 +688,11 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
   // compiles an ordinary model over an ordinary table, which is why
   // the SQL panel, the tree and the snap plane all keep working
   // without a second code path.
-  {
+  try {
     // THE PAGE'S SOURCES (src/app/sources.ts): each kind opened through the services, a grid's file and planners kept
     const sources = pageSources({
       services, page, gridMaker, taken: o.taken, ask: (content) => library?.ask(content),
+      dialogs,
     });
     tablesTaken = (table) => sources.isTaken(table);
     tableWritten = (table) => sources.wrote(table);
@@ -761,7 +779,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     pageKept = (name) => pageNow(name);
     // For the browser harness ONLY (test/python-engine/python-engine.mjs, two tabs on one page): the page's hash as its
     // keeper computes it (page-hash.ts, W17), to compare with Python's. Not product code.
-    Object.defineProperty(window, '__dataPageHash', {
+    if (o.publishDebugState !== false) Object.defineProperty(window, '__dataPageHash', {
       configurable: true,
       get: () => { const now = pageNow(page.title, true); return now === undefined ? undefined : pageHash(now); },
     });
@@ -1200,7 +1218,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       }
       library?.sync();
       void library?.refresh();
-      (document.querySelector('#cubelib .dc-lib-search') as HTMLElement | null)?.focus();
+      (windows.library.querySelector('.dc-lib-search') as HTMLElement | null)?.focus();
     };
     /**
      * THE EXAMPLE PAGES (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §3.3), under the saved ones: each built when it is
@@ -1312,7 +1330,10 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         const lostWarning = current.lost?.length
           ? `The saved “${current.savedName ?? offered}” has parts this page cannot show: ${current.lost.join('; ')}.` : undefined;
         const warning = [lostWarning, stripping].filter((w): w is string => w !== undefined).join(' ');
+        // Saving is an interaction, not startup work: the dialog's code arrives when Save or Save As is chosen.
+        const { saveDialog } = await lazily(() => import('../ui/save-dialog.ts'));
         await saveDialog(document, {
+          host: o.windows, signal: lifetime.signal,
           purpose: asNew ? 'saveAs' : 'save',
           name: offered,
           ...(page.record !== undefined
@@ -1326,7 +1347,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
             await saveTo(name, saveAsNew);
           },
         });
-      })();
+      })().catch((error: unknown) => { if (!disposed) sayError(error instanceof Error ? error.message : String(error)); });
     };
 
     // THE SHARE LINK: the page's settings, never its data. It is said HOW LONG it is, and a long
@@ -1518,16 +1539,23 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       };
     };
     // A FILE DROPPED ONTO A FLOW'S CANVAS: an Input over it, opened as the picker opens a file it is given
+    openFile = async (file) => {
+      if (disposed) throw new Error('DataCube has been disposed');
+      const shown = placed;
+      const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
+      if (disposed || placed !== shown) {
+        await opened.discard?.();
+        throw new Error(disposed ? 'DataCube has been disposed' : 'The page changed while the file was opening');
+      }
+      const id = page.addGrid(opened.make);
+      await page.ready();
+      if (disposed) throw new Error('DataCube has been disposed');
+      const grid = madeCubes.get(id);
+      if (grid === undefined) throw new Error('The grid was removed while its file was opening');
+      if (grid.view === null) throw new Error(gridFailures.get(grid) ?? 'The file opened but its first query was refused');
+    };
     flowFile = (file) => {
-      void (async () => {
-        const shown = placed;
-        const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
-        if (placed !== shown) {
-          await opened.discard?.();
-          return;
-        }
-        page.addGrid(opened.make);
-      })().catch((e: unknown) => window.alert(`${file.name}: ${e instanceof Error ? e.message : String(e)}`));
+      void openFile!(file).catch((e: unknown) => window.alert(`${file.name}: ${e instanceof Error ? e.message : String(e)}`));
     };
     // A TOOL OF THE PALETTE: an Input, a grid over a source picked now, a box of its own; any other tool, a box after
     // `after` -- a grid over that box's rows, read live -- over the tables that box's grid reads when it is shown. Dropped
@@ -1537,6 +1565,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       void (async () => {
         const shown = placed;
         const { outputCommand, pageCommand } = await lazily(() => import('../page-gestures.ts'));
+        if (disposed) return;
         // let go at a point of the canvas: the box made there, in the same step
         const placedAt = at === undefined ? {} : { after: (id: string) => [pageCommand('placeBox', { tile: id, x: at.x, y: at.y })] };
         if (tool === 'input') {
@@ -1548,11 +1577,12 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         if (tool === 'textInput') {
           const { tableCsv, textInputDialog } = await lazily(() => import('../ui/text-input-dialog.ts'));
           await textInputDialog(document, {
+            ...dialogs,
             apply: async (table) => {
               const file = new File([tableCsv(table)], `${table.name}.csv`, { type: 'text/csv' });
               try {
                 const opened = await sources.opened({ kind: 'file', file }, gridCapped(page.cubes.length + 1));
-                if (placed !== shown) {
+                if (disposed || placed !== shown) {
                   await opened.discard?.();
                   return null;
                 }
@@ -1623,7 +1653,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         else if (editor !== undefined) page.grid(box)?.openStep?.(editor);
         // a tool with no settings does its step as it is made: Count Records counts
         else if (tool === 'countRecords') page.grid(box)?.openStep?.({ window: 'countRecords' });
-      })().catch((e: unknown) => window.alert(`${tool[0]!.toUpperCase()}${tool.slice(1)}: ${e instanceof Error ? e.message : String(e)}`));
+      })().catch((e: unknown) => {
+        if (!disposed) window.alert(`${tool[0]!.toUpperCase()}${tool.slice(1)}: ${e instanceof Error ? e.message : String(e)}`);
+      });
     };
     // A FLOW'S JOIN BOX (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): made after a box, or set again -- the Join window over
     // the flow's boxes, in this tab's own database (a page Python serves makes one by page.join: refused here, said)
@@ -1636,8 +1668,9 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       const boxes = layout?.kind === 'flow' ? layout.boxes.map((b) => b.tile) : [];
       const { flowJoin } = await lazily(() => import('./join-app.ts'));
       await flowJoin({
+        dialog: dialogs,
         cube: o.cube, ...(o.box !== undefined ? { box: o.box } : {}), tool: o.tool, boxes, page, sources,
-        services: { ...services, engine: { ...services.engine, local } }, stillShown: () => placed === shown,
+        services: { ...services, engine: { ...services.engine, local } }, stillShown: () => !disposed && placed === shown,
         ...(o.into !== undefined ? { into: o.into } : {}),
       });
     };
@@ -1651,7 +1684,7 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
         : how !== undefined && isFuzzy(how) ? 'fuzzyMatch' : 'join';
       const named = { join: 'Join', union: 'Union', dynamicInput: 'Dynamic Input', appendFields: 'Append Fields', fuzzyMatch: 'Fuzzy Match' } as const;
       void joinOnFlow({ cube: box, box, tool, sheet, now })
-        .catch((e: unknown) => window.alert(`${named[tool]}: ${e instanceof Error ? e.message : String(e)}`));
+        .catch((e: unknown) => { if (!disposed) window.alert(`${named[tool]}: ${e instanceof Error ? e.message : String(e)}`); });
     };
     // JOIN… (§17.5): where the page plans and runs its own SQL, its grids' tables in its own database (§17.3); on a
     // host's page (Python's), which has none there, the host answers its window's asks over its tables (HostJoin: B11).
@@ -1663,14 +1696,14 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
       // refuse, in words, before the window opens: join-flow.ts hostJoinFlow)
       offered: (place) => (localEngine ? place.tables !== undefined : place.cubeSource !== undefined),
       open: (cube, ask) => {
-        if (cube === undefined) return;
+        if (disposed || cube === undefined) return;
         const shown = placed;
-        const stillShown = () => placed === shown;
+        const stillShown = () => !disposed && placed === shown;
         const asked = ask !== undefined ? { ask } : {};
         void lazily(() => import('./join-app.ts')).then(({ joinFlow, hostJoinFlow }) => (localEngine
-          ? joinFlow({ cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } }, stillShown, ...asked })
-          : hostJoinFlow({ cube, page, sources, join: hostJoin!, parse: (text) => services.engine.reading.parse(text), stillShown, ...asked })))
-          .catch((e: unknown) => window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`));
+          ? joinFlow({ cube, page, sources, services: { ...services, engine: { ...services.engine, local: localEngine } }, dialog: dialogs, stillShown, ...asked })
+          : hostJoinFlow({ cube, page, sources, join: hostJoin!, parse: (text) => services.engine.reading.parse(text), dialog: dialogs, stillShown, ...asked })))
+          .catch((e: unknown) => { if (!disposed) window.alert(`Join: ${e instanceof Error ? e.message : String(e)}`); });
       },
     };
     // A GRID'S RIGHT-CLICK JOIN ▸, as its Filter ▸ (join-menu.ts): the page's grids it can join gathered here, as it
@@ -1961,11 +1994,21 @@ export async function openDataCube(o: OpenDataCube): Promise<DataCubeApp> {
     // why: never an empty page without a word -- but the page its other editor serves, opened, which is shown as its keeper
     // has it, a page of no grid too (the S7 audit's H-1)
     if (page.empty && channel?.shown === undefined) blankPage({ reason: startProblem });
+  } catch (error) {
+    disposed = true;
+    for (const u of undo.splice(0)) u();
+    page.dispose();
+    throw error;
   }
   // the start has settled: from now on an empty page is a blank one
   if (blankCard) blankCard.hidden = false;
 
   return {
+    openFile: (file) => {
+      if (disposed) return Promise.reject(new Error('DataCube has been disposed'));
+      if (openFile === undefined) return Promise.reject(new Error('DataCube has not finished starting'));
+      return openFile(file);
+    },
     dispose: () => {
       if (disposed) return;
       disposed = true;

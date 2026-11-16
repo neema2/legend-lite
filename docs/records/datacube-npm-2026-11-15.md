@@ -40,3 +40,20 @@ host's title and URL. The existing architectural layer checks and JVM/WASM diffe
 Focused resource-lifetime tests precede the integration check. The repository's local gate is the broader
 regression check. Test results and any environment limitations are recorded with the checkpoint report, rather
 than presumed from an internal demo or a successful bundle.
+
+## Implementation and review notes
+
+The archive is `bazel-bin/datacube/legend-lite-datacube.tgz`. The source manifests remain private; the release
+manifest and installation/release instructions are in `datacube/npm/`. The public facade's declarations contain
+only its interfaces and DOM types. The asset-copy command runs offline with the installed package alone.
+
+The lifecycle review exercised failures as well as successful teardown. DuckDB-WASM's worker termination does
+not settle its pending JavaScript requests, so the owning runtime explicitly rejects outstanding work. Disposal
+also stops the planner, rejects public file operations, closes owned dialogs and touch handlers, and cancels
+IndexedDB opens blocked by another tab. IndexedDB itself cannot cancel a queued open; any late connection is
+closed when it arrives. Borrowed planners retain their existing graceful release path.
+
+Source and save dialogs are fetched when opened. This keeps the existing standalone browser, engine and notebook
+startup-size budgets intact while adding lifecycle ownership. No size ceiling was raised. One source guard was
+corrected, with a dated explanation, to distinguish the platform's `AbortSignal` abort listener (available in Node)
+from DOM listeners; its screen-import and DOM-global restrictions remain.

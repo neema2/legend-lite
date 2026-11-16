@@ -684,8 +684,10 @@ describe('the chart API stands apart from the screen (docs/TS_DECISIONS_2026_11_
     'src/timeseries-builder-source.ts', 'src/timeseries-builder-wire.ts', 'src/timeseries-text.ts',
   ];
   const IMPORT = /\bfrom\s+'(\.[^']+)'|\bimport\(\s*'(\.[^']+)'\s*\)/g;
-  // the DOM's globals, never a property of that name (a chart's own `d.window.column`)
-  const DOM = /(?<![.\w])(?:document|window)\.|\bHTMLElement\b|\baddEventListener\(/;
+  // The DOM's globals, never a property of that name (a chart's own `d.window.column`).
+  // 2026-11-15, npm embedding lifetime: AbortSignal's abort listener is a platform cancellation primitive in Node
+  // too, not a screen dependency. Other event listeners and every DOM global remain forbidden along this path.
+  const DOM = /(?<![.\w])(?:document|window)\.|\bHTMLElement\b|\baddEventListener\((?!\s*['"]abort['"])/;
 
   it('the API reaches nothing of the screen, the page or the DOM, however far its imports go', () => {
     const known = new Set(SOURCES.under('src', '.ts').concat(SOURCES.under('../engine-client/src', '.ts')));

@@ -1341,6 +1341,18 @@ describe('the page loads ECharts only when a chart draws', () => {
     assert.equal(chunksOf().filter((f) => holds(f, 'src/ui/layout-picker.ts')).length, 1, 'one chunk holds the layout picker');
   });
 
+  it('source and save dialogs load on interaction in the browser, engine page and notebook', () => {
+    // npm browser embedding, 2026-11-15: a host opening its own file needs neither dialog at startup.
+    for (const entry of ['BUNDLE', 'ENGINE_BUNDLE', 'WIDGET']) {
+      const bundle = runfileFromEnv(entry);
+      const outputs = outputsOf(bundle);
+      for (const dialog of ['src/ui/source-picker.ts', 'src/ui/save-dialog.ts']) {
+        assert.equal([...outputs.keys()].filter((f) => holds(f, dialog, outputs)).length, 1, `${entry} retains ${dialog}`);
+        for (const file of startup(bundle, outputs)) assert.ok(!holds(file, dialog, outputs), `${entry} fetches ${dialog} at startup`);
+      }
+    }
+  });
+
   it(`the first chart fetches at most ${CHART_BUDGET.toLocaleString()} bytes more, gzipped: ECharts and the drawing`, () => {
     // what a chart adds to the page, beside the grid's own budget (docs/DATACUBE_CHARTS_DESIGN_2026_10_09.md §5)
     // ECharts' chunks and the drawing's that a first chart fetches (firstChart): a chunk only batch 3's kinds and the

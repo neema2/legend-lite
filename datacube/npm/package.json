@@ -1,0 +1,42 @@
+{
+  "name": "@legend-lite/datacube",
+  "version": "0.1.0",
+  "description": "Embed Legend DataCube with its compiler and DuckDB running entirely in the browser.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/browser.d.ts",
+      "import": "./dist/browser.js"
+    },
+    "./styles.css": {
+      "types": "./dist/styles.d.ts",
+      "default": "./dist/styles.css"
+    },
+    "./package.json": "./package.json"
+  },
+  "types": "./dist/browser.d.ts",
+  "bin": {
+    "legend-datacube-assets": "./bin/copy-assets.mjs"
+  },
+  "files": [
+    "dist",
+    "assets",
+    "bin",
+    "LICENSE",
+    "NOTICE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/neema2/legend-lite.git",
+    "directory": "datacube"
+  },
+  "engines": {
+    "node": ">=22.14"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  }
+}

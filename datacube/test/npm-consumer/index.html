@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Independent application</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="./main.css">
+  <style>
+    body { margin: 16px; font: 14px system-ui; }
+    #host-controls { display: flex; align-items: center; gap: 12px; height: 48px; }
+    #cube { height: 720px; position: relative; }
+    #error { color: #b00020; }
+  </style>
+</head>
+<body>
+  <div id="host-controls">
+    <label>Application file input <input id="file" type="file" accept=".csv"></label>
+    <button id="dispose" type="button">Unmount cube</button>
+    <button id="mount" type="button">Mount cube</button>
+    <button id="invalid" type="button">Open invalid file</button>
+    <button id="hold-file" type="button">Open held file</button>
+    <button id="release-file" type="button">Release file</button>
+    <button id="start-abort" type="button">Start cancellable mount</button>
+    <button id="abort" type="button">Cancel startup</button>
+    <output id="state">starting</output>
+    <output id="error"></output>
+    <output id="expected-error" hidden></output>
+    <output id="pending-open" hidden></output>
+    <output id="pending-read" hidden></output>
+  </div>
+  <main id="cube"></main>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>

@@ -556,6 +556,8 @@ export class CubeApp {
   /** The same zones again, as a list in the sidebar. */
   readonly #sideZones: PivotPanel;
   readonly #menu: MenuView;
+  readonly #stopLongPress: () => void;
+  readonly #longPressWindows = new Map<HTMLElement, () => void>();
   /** The title bar's menu button, while the bar shows: where the page's layouts open from (Arrange...). */
   #burger: HTMLElement | null = null;
   /** The button the open menu was opened from (the bar's, a grid's own): a press on it again shuts it, another opens. */
@@ -930,8 +932,8 @@ export class CubeApp {
     this.#listenForKeys();
 
     this.#wireContextMenu();
-    // on a touch screen a long press is the right-click (an iPad fires none of its own): once for the document
-    longPressMenus(this.#doc);
+    // On a touch screen a long press is the right-click, scoped to this grid's lifetime and owned UI.
+    this.#stopLongPress = longPressMenus(root);
     this.#buildToolbar();
     this.#applyChrome();
     // A DRAG BRINGS THE ZONES BACK. Both listeners are on the app's
@@ -3635,6 +3637,7 @@ export class CubeApp {
     // onStatus, and a late answer painted into a page that had moved on
     // (P2-105).
     this.#disposed = true;
+    this.#stopLongPress();
     this.#unsubscribe();
     // The change in flight is cancelled and its query stopped.
     this.#owner.cancel();
@@ -5054,6 +5057,7 @@ export class CubeApp {
       if (host !== this.#els.root) win.classList.add('dc-app-floating');
       host.append(win);
       this.#open.set(key, win);
+      this.#longPressWindows.set(win, longPressMenus(win));
       // Whichever window is touched comes to the front.
       win.addEventListener('pointerdown', () => this.#raise(win));
       // A (?) in this window asks for its documentation. On the WINDOW,
@@ -5123,6 +5127,8 @@ export class CubeApp {
     if (key === 'Filters') this.#filters = null;
     const win = this.#open.get(key);
     if (!win) return;
+    this.#longPressWindows.get(win)?.();
+    this.#longPressWindows.delete(win);
     win.remove();
     this.#open.delete(key);
     // An alert's position is not worth remembering: each is new.

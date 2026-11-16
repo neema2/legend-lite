@@ -15,6 +15,9 @@ export interface TypedTable {
 }
 
 export interface TextInputOptions {
+  /** An embedding's own overlay container and lifetime. */
+  readonly host?: HTMLElement;
+  readonly signal?: AbortSignal;
   /** Where the table starts: its name, and the cells it starts with. */
   readonly start?: TypedTable;
   /** The table made: null when it was, else why not (the window stays, saying it). */
@@ -51,6 +54,7 @@ export function pastedCells(text: string): string[][] {
 
 /** Open the window; resolves once it is closed, with whether a table was made. */
 export function textInputDialog(doc: Document, o: TextInputOptions): Promise<boolean> {
+  if (o.signal?.aborted) return Promise.resolve(false);
   return new Promise((resolve) => {
     const el = <K extends keyof HTMLElementTagNameMap>(tag: K, cls: string, parent?: Element, text?: string): HTMLElementTagNameMap[K] => {
       const e = doc.createElement(tag);
@@ -59,7 +63,7 @@ export function textInputDialog(doc: Document, o: TextInputOptions): Promise<boo
       parent?.append(e);
       return e;
     };
-    const backdrop = el('div', 'dc-picker-backdrop', doc.body);
+    const backdrop = el('div', 'dc-picker-backdrop', o.host ?? doc.body);
     const win = el('div', 'dc-picker dc-save dc-text-input dc-app-floating', backdrop);
     win.setAttribute('role', 'dialog');
     win.setAttribute('aria-modal', 'true');
@@ -71,11 +75,14 @@ export function textInputDialog(doc: Document, o: TextInputOptions): Promise<boo
     const finish = (): void => {
       if (done) return;
       done = true;
+      o.signal?.removeEventListener('abort', onAbort);
       doc.removeEventListener('keydown', onKey, true);
       backdrop.remove();
       before?.focus?.();
       resolve(made);
     };
+    const onAbort = (): void => finish();
+    o.signal?.addEventListener('abort', onAbort, { once: true });
     const onKey = (e: KeyboardEvent): void => {
       if (e.key === 'Escape' && !busy) {
         e.preventDefault();
@@ -245,10 +252,12 @@ export function textInputDialog(doc: Document, o: TextInputOptions): Promise<boo
       draw({ r: rows.length - 1, c: 0 });
     });
     primary.addEventListener('click', () => void (async () => {
+      if (done || busy) return;
       busy = true;
       check();
       status.textContent = '';
       const refused = await o.apply(typed()).finally(() => { busy = false; });
+      if (done) return;
       if (refused === null) {
         made = true;
         finish();

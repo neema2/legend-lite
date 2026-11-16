@@ -94,6 +94,21 @@ function over(page: PageDocument, sourceOf: (id: string) => CubeSource | undefin
 }
 
 describe("Join… on a host's page: each of the window's answers the host's (B11)", () => {
+  it('passes its embedding lifetime to the dialog and makes no grid after disposal', async () => {
+    const { o, added } = over(trades);
+    const host = doc.createElement('div');
+    doc.body.append(host);
+    const lifetime = new AbortController();
+    const flow = hostJoinFlow({ ...o, dialog: { host, signal: lifetime.signal } });
+    assert.ok(host.querySelector('.dc-join'));
+    lifetime.abort();
+    await flow;
+    assert.equal(host.childElementCount, 0);
+    assert.deepEqual(added, []);
+    await hostJoinFlow({ ...o, dialog: { host, signal: lifetime.signal } });
+    assert.equal(host.childElementCount, 0);
+  });
+
   it('asks the host the sides and what the join will do, then its grid, added beside the grid joined', async () => {
     const { o, asked, pages, added, reopened, said } = over(trades);
     const flow = hostJoinFlow(o);

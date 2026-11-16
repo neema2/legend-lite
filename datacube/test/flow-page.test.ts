@@ -40,6 +40,7 @@ beforeEach(() => {
   const g = globalThis as unknown as Record<string, unknown>;
   g['window'] = dom.window;
   g['document'] = dom.window.document;
+  g['Option'] = dom.window.Option;
   g['requestAnimationFrame'] = (cb: FrameRequestCallback) => {
     cb(0);
     return 1;
@@ -123,6 +124,35 @@ const written = (): PageDocument => {
 const cubeOf = (doc: PageDocument, id: string): CubeDocument => doc.cubes.find((c) => c.id === id)!.cube;
 
 describe('a flow sheet on a page of its own', () => {
+  it('removes a floating Save as Macro form when its page is disposed', async () => {
+    opened();
+    pg().showSheet('sheet-2');
+    await shown(host, '.dc-flow-box[data-tile="grid-3"]');
+    box('grid-3').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+    const save = [...dom.window.document.querySelectorAll<HTMLElement>('.dc-menu-item')]
+      .find((item) => item.querySelector('.dc-menu-label')?.textContent === 'Save as Macro…');
+    assert.ok(save);
+    save.click();
+    assert.ok(dom.window.document.querySelector('.dc-flow-macro-form'));
+    pg().dispose();
+    assert.equal(dom.window.document.querySelector('.dc-flow-macro-form'), null);
+  });
+
+  it('disposes a chart mounted in the flow results pane', async () => {
+    let closed = 0;
+    const board = new FlowBoard(host, {
+      documentOf: () => cube(FILE),
+      chartOf: () => ({ toggleForm() {}, dispose() { closed++; } }),
+    });
+    board.add({ id: 'grid-1', title: 'Trades', element: dom.window.document.createElement('div') });
+    await board.drawn();
+    host.querySelector<HTMLButtonElement>('.dc-flow-mode[data-mode="chart"]')!.click();
+    assert.ok(host.querySelector('.dc-flow-chart-host'));
+    board.dispose();
+    board.dispose();
+    assert.equal(closed, 1);
+  });
+
   it('opens no box: each is drawn from its document, and the page writes it as it was saved', async () => {
     opened();
     await shown(host, '.dc-flow-box[data-tile="grid-3"]');

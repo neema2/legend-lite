@@ -4,21 +4,24 @@
 // is not let through to the menu entry under the finger.
 //
 // The user, 2026-10-24, on an iPad: the menu's first submenu opened by itself, and columns could not be dragged or
-// resized. From a long press's menu until the next touch the document carries PRESSED_CLASS (the entry left hovered under
+// resized. From a long press's menu until the next touch the owned root carries PRESSED_CLASS (the entry left hovered under
 // the released finger opens no submenu, grid.css); on what the browser drags itself the menu waits for the release, and a
 // drag is no menu; a resize grip is never a menu.
 
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { beforeEach, describe, it } from 'node:test';
+import { afterEach, beforeEach, describe, it } from 'node:test';
 import { JSDOM } from 'jsdom';
 
 import { runfileFromEnv } from '../../tools/js/runfiles.mts';
 
 import { HOLD_MS, PRESSED_CLASS, longPressMenus } from '../src/ui/long-press.ts';
+import { MenuView } from '../src/ui/menu-view.ts';
 
 describe('a long press opens the right-click menu', () => {
   let dom: JSDOM;
+  let root: HTMLElement;
+  let release: () => void;
   let cell: HTMLElement;
   let other: HTMLElement;
   /** A column's header: what the browser drags itself. */
@@ -31,21 +34,23 @@ describe('a long press opens the right-click menu', () => {
   let clicks: string[];
 
   beforeEach(() => {
-    dom = new JSDOM('<!doctype html><body><div id="cell">AMER</div><div id="other">item</div>'
-      + '<div id="head" draggable="true"><span id="label">Desk</span><div id="grip" class="dc-col-resize"></div></div></body>');
+    dom = new JSDOM('<!doctype html><body><div id="root"><div id="cell">AMER</div><div id="other">item</div>'
+      + '<div id="head" draggable="true"><span id="label">Desk</span><div id="grip" class="dc-col-resize"></div></div></div></body>');
     const doc = dom.window.document;
     cell = doc.getElementById('cell') as HTMLElement;
     other = doc.getElementById('other') as HTMLElement;
     head = doc.getElementById('head') as HTMLElement;
     grip = doc.getElementById('grip') as HTMLElement;
+    root = doc.getElementById('root') as HTMLElement;
     heard = [];
     clicks = [];
     doc.body.addEventListener('contextmenu', (e) => {
       heard.push(`${(e.target as HTMLElement).id}@${e.clientX},${e.clientY}`);
     });
     for (const el of [cell, other, head]) el.addEventListener('click', () => clicks.push(el.id));
-    longPressMenus(doc);
+    release = longPressMenus(root);
   });
+  afterEach(() => { release(); dom.window.close(); });
 
   const pointer = (el: Element, type: string, o: { x?: number; y?: number; kind?: string; id?: number; primary?: boolean } = {}): void => {
     el.dispatchEvent(new dom.window.PointerEvent(type, {
@@ -60,7 +65,7 @@ describe('a long press opens the right-click menu', () => {
   const drag = (el: Element, type: string, x = 0, y = 0): void => {
     el.dispatchEvent(new dom.window.MouseEvent(type, { bubbles: true, cancelable: true, clientX: x, clientY: y }));
   };
-  const pressed = (): boolean => dom.window.document.documentElement.classList.contains(PRESSED_CLASS);
+  const pressed = (): boolean => root.classList.contains(PRESSED_CLASS);
 
   it('a finger held still: the right-click on what it pressed, at the finger, once', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -142,12 +147,108 @@ describe('a long press opens the right-click menu', () => {
     assert.deepEqual(clicks, ['other', 'other', 'cell']);
   });
 
-  it('installed twice on one document: one menu a press, not two', (t) => {
+  it('nested and repeated owners share one gesture and each releases its own registration', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
-    longPressMenus(dom.window.document);
+    const again = longPressMenus(root);
+    const nested = longPressMenus(cell);
+    release();
     pointer(cell, 'pointerdown');
     t.mock.timers.tick(HOLD_MS);
     assert.deepEqual(heard, ['cell@10,20']);
+    again();
+    pointer(other, 'pointerdown');
+    t.mock.timers.tick(HOLD_MS);
+    assert.deepEqual(heard, ['cell@10,20'], 'only the nested root is still owned');
+    pointer(cell, 'pointerdown');
+    t.mock.timers.tick(HOLD_MS);
+    assert.deepEqual(heard, ['cell@10,20', 'cell@10,20']);
+    nested();
+    nested();
+    pointer(cell, 'pointerdown');
+    t.mock.timers.tick(HOLD_MS);
+    assert.equal(heard.length, 2, 'the last owner gone: no handler');
+  });
+
+  it('host touches never synthesize menus or swallow clicks, even while a cube finger is held', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const host = dom.window.document.createElement('button');
+    host.id = 'host';
+    dom.window.document.body.append(host);
+    let hostClicks = 0;
+    host.addEventListener('click', () => { hostClicks += 1; });
+    pointer(host, 'pointerdown');
+    t.mock.timers.tick(HOLD_MS);
+    assert.deepEqual(heard, []);
+    pointer(cell, 'pointerdown');
+    t.mock.timers.tick(HOLD_MS);
+    assert.deepEqual(heard, ['cell@10,20']);
+    assert.equal(dom.window.document.documentElement.classList.contains(PRESSED_CLASS), false, 'no host document classes');
+    const native = new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true });
+    host.dispatchEvent(native);
+    assert.equal(native.defaultPrevented, false, 'host native menu is untouched');
+    pointer(host, 'pointerup');
+    click(host);
+    assert.equal(hostClicks, 1, 'host click is untouched');
+  });
+
+  it('disposing during a press cancels its timer and removes every shared capture listener after the last owner', (t) => {
+    release();
+    const doc = dom.window.document;
+    const adds = t.mock.method(doc, 'addEventListener');
+    const removes = t.mock.method(doc, 'removeEventListener');
+    release = longPressMenus(root);
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    pointer(cell, 'pointerdown');
+    release();
+    t.mock.timers.tick(HOLD_MS);
+    assert.deepEqual(heard, [], 'a released root starts no late menu');
+    const captures = adds.mock.calls.filter((call) => call.arguments[2] === true);
+    assert.ok(captures.length > 0);
+    for (const { arguments: args } of captures) {
+      assert.ok(removes.mock.calls.some(({ arguments: gone }) => gone[0] === args[0] && gone[1] === args[1] && gone[2] === true),
+        `${String(args[0])} capture listener released`);
+    }
+    assert.equal(pressed(), false);
+  });
+
+  it('two separate mounts: disposing the first leaves the second working, and remounting starts cleanly', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    const second = dom.window.document.createElement('div');
+    second.id = 'second';
+    dom.window.document.body.append(second);
+    const stopSecond = longPressMenus(second);
+    pointer(cell, 'pointerdown');
+    release();
+    pointer(second, 'pointerdown');
+    t.mock.timers.tick(HOLD_MS);
+    assert.deepEqual(heard, ['second@10,20']);
+    stopSecond();
+    release = longPressMenus(root);
+    pointer(cell, 'pointerdown');
+    t.mock.timers.tick(HOLD_MS);
+    assert.deepEqual(heard, ['second@10,20', 'cell@10,20']);
+  });
+
+  it('a floating menu outside the root owns its touch behavior only while open', (t) => {
+    t.mock.timers.enable({ apis: ['setTimeout'] });
+    let chosen = 0;
+    const menu = new MenuView(dom.window.document, { onSelect: () => { chosen += 1; } });
+    cell.addEventListener('contextmenu', () => menu.show([{ label: '', items: [{ id: 'sort.asc', label: 'Pick' }] }], 10, 20));
+    pointer(cell, 'pointerdown');
+    t.mock.timers.tick(HOLD_MS);
+    const item = menu.items[0]!;
+    const popup = item.parentElement!;
+    assert.equal(root.contains(popup), false);
+    assert.equal(popup.classList.contains(PRESSED_CLASS), true, 'floating menu carries the touch-hover rule');
+    pointer(item, 'pointerup');
+    click(item);
+    assert.equal(chosen, 0, 'the release does not pick the floating item');
+    pointer(item, 'pointerdown', { id: 2 });
+    pointer(item, 'pointerup', { id: 2 });
+    click(item);
+    assert.equal(chosen, 1, 'the next tap chooses normally');
+    assert.equal(menu.open, false);
+    assert.equal(popup.classList.contains(PRESSED_CLASS), false);
   });
   it('the menu says it came from a finger until the next touch: the entry left hovered opens no submenu', (t) => {
     t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -233,7 +334,7 @@ describe('a long press opens the right-click menu', () => {
   });
   it("grid.css: a long press's menu opens no submenu by hover alone; the grip is a finger wide on a touch screen", () => {
     const css = readFileSync(runfileFromEnv('GRID_CSS'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
-    const rule = new RegExp(`:root\\.${PRESSED_CLASS} \\.dc-menu-item\\.dc-has-submenu:hover:not\\(:focus-within\\) > \\.dc-submenu \\{\\s*display: none;`);
+    const rule = new RegExp(`\\.${PRESSED_CLASS} \\.dc-menu-item\\.dc-has-submenu:hover:not\\(:focus-within\\) > \\.dc-submenu \\{\\s*display: none;`);
     assert.match(css, rule, 'the hover left by the released finger: no submenu (a tap, or the keyboard, still opens one)');
     assert.match(css, /@media \(pointer: coarse\) \{\s*\.dc-col-resize \{ width: 18px;/);
   });
