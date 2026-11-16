@@ -534,6 +534,28 @@ class BodyRouterParityTest {
         }
     }
 
+    /**
+     * THE PR1 RE-REVIEW'S B9 (2026-11-16, a risk the reviewer could not verify): a frame let's ROWS and its ACTIVITY read
+     * by the asserts after it, now that frames do not run at their let -- the rows by a side of its own (a grid read, the
+     * root the fused row cannot carry) and the activity by a fused root. Under every judge the body ends as the host
+     * judge's run ends, its verdicts told alike.
+     */
+    @ParameterizedTest
+    @MethodSource("backends")
+    void aFramesRowsAndActivityReadAfterItsLetAgreeUnderEveryJudge(TestBackend backend) throws Exception {
+        ModelContext ctx = Compiler.compileModel(frameModel(backend));
+        String body = "{| let r = " + EXECUTE + "; assertSize($r.values.rows, 2); assert($r.activities->at(0)"
+                + COMMENT + "->startsWith('-- \"executionTraceID\"'));}";
+        Run host = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS,
+                PlanningOptions.JudgeMode.HOST);
+        assertEquals("ok", host.outcome(), backend + " HOST: " + host.verdicts());
+        for (PlanningOptions.JudgeMode mode : PlanningOptions.JudgeMode.values()) {
+            Run r = run(backend, ctx, "x::RT", body, "select count(*) from FIRM", FIRM_ROWS, mode);
+            assertEquals(host.outcome(), r.outcome(), backend + " " + mode);
+            assertEquals(host.verdicts(), r.verdicts(), backend + " " + mode + ": the verdicts told");
+        }
+    }
+
     /** An activity's comment, read by the body: its execution's trace comment. */
     private static final String COMMENT = "->cast(@meta::relational::mapping::RelationalActivity).comment->toOne()";
 
