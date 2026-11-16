@@ -107,4 +107,17 @@ class ModelJoinPureEndTest {
         assertEquals(engine, fetch(MODEL_JOIN, q));
         assertEquals(engine, fetch(XSTORE, q));
     }
+
+    @Test
+    @DisplayName("an inner lambda's parameter shadows an end's name: the inner read is the lambda's own")
+    void anInnerLambdaShadowsAnEnd() {
+        // `employee` inside map(...) is the lambda's own parameter (the name), not the association's end: the join
+        // condition is the plain one (no list function: every lane's database reads it)
+        String shadowed = MODEL_JOIN.replace("$firm.legalName == $employee.firstName}",
+                "$firm.legalName == $employee.firstName->map(employee | $employee)->toOne()}");
+        assertNotEquals(MODEL_JOIN, shadowed);
+        String q = "t::Firm.all()->graphFetch(#{t::Firm{legalName,employees{firstName}}}#)"
+                + "->serialize(#{t::Firm{legalName,employees{firstName}}}#)";
+        assertEquals(fetch(MODEL_JOIN, q), fetch(shadowed, q));
+    }
 }

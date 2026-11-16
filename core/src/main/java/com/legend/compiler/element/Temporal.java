@@ -136,16 +136,16 @@ public final class Temporal {
      *  them on temporal classes; no mapping exists for them) — the ONE owner
      *  of the spellings the lineage scan reads. */
     public static boolean isGeneratedDateName(String prop) {
-        return "businessDate".equals(prop) || "processingDate".equals(prop)
-                || "snapshotDate".equals(prop);
+        // the two date members (Member's spellings), and the struct's own snapshotDate
+        Member m = Member.spelled(prop);
+        return m != null && m.axis != null || "snapshotDate".equals(prop);
     }
 
     public static boolean isGeneratedDateProperty(String prop,
             MilestoningStrategy strat) {
-        return "businessDate".equals(prop)
-                        && strat != MilestoningStrategy.PROCESSING
-                || "processingDate".equals(prop)
-                        && strat != MilestoningStrategy.BUSINESS;
+        // Member's spelling and axis: the one rule generatedMember reads
+        Member m = Member.spelled(prop);
+        return m != null && m.axis != null && strat.has(m.axis);
     }
 
     /**

@@ -276,8 +276,7 @@ public final class StoreResolver {
      * a store against any one entry would guess that key (AGENTS.md
      * invariant 4), so no store is resolved. */
     static void refuseServiceKeyedFrom(TypedSpec n) {
-        if (n instanceof TypedNativeCall c && com.legend.model.FunctionId.of(
-                Pure.FROM__T_m__SINGLE_EXECUTION_PARAMETERS_1).equals(c.callee().id())) {
+        if (n instanceof TypedNativeCall c && SERVICE_KEYED_FROM.equals(c.callee().id())) {
             throw new com.legend.error.NotImplementedException("from(SingleExecutionParameters): the execution"
                     + " context is a service execution environment's entry chosen by a key the service receives"
                     + " as a parameter when it runs; a query is planned against a mapping and a runtime, and the"
@@ -287,6 +286,9 @@ public final class StoreResolver {
             refuseServiceKeyedFrom(c);
         }
     }
+
+    private static final com.legend.model.FunctionId SERVICE_KEYED_FROM =
+            com.legend.model.FunctionId.of(Pure.FROM__T_m__SINGLE_EXECUTION_PARAMETERS_1);
 
     /** POST-CONDITION (core/README rule 9) — {@link StoreEscapees}. */
     static void assertNoStoreOnlyEscapees(TypedSpec n) {

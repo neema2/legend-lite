@@ -108,6 +108,10 @@ public final class PeRatchets {
             "own_corpus.matched 3320 -> 3321 (2026-11-16, the dev fixes from the review of neema2/legend-lite#113): its"
                     + " test's model (DataSpaceIncludeTest.aTolerantBuildLeavesNoMarker's mapping x::Outer, which"
                     + " includes the mapping whose include dataspace is refused), measured by"
+                    + " //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3321 -> 3323 (2026-11-16, the remaining dev fixes from the review of"
+                    + " neema2/legend-lite#113): their tests' models (JsonSourceToManyTest's nested-array model, which"
+                    + " builds now, and ModelJoinPureEndTest's shadowing condition), measured by"
                     + " //parser-equivalence:update_ratchets");
 
     public static void main(String[] args) throws Exception {

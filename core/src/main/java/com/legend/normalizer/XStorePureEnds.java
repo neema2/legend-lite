@@ -335,9 +335,16 @@ final class XStorePureEnds {
             case PureCollection pc -> new PureCollection(
                     pc.values().stream().map(x ->
                             renameReads(x, rowByVar, endByVar)).toList());
-            case LambdaFunction lf -> new LambdaFunction(lf.parameters(),
-                    lf.body().stream().map(x ->
-                            renameReads(x, rowByVar, endByVar)).toList());
+            case LambdaFunction lf -> {
+                // a lambda's own parameter SHADOWS an end's variable inside it: a ModelJoin names its ends as
+                // the user wrote them ({firm, employee | ... ->exists(employee | $employee.id == 1)}); an
+                // XStore's this/that cannot be shadowed
+                Map<String, Variable> rows = new java.util.HashMap<>(rowByVar);
+                lf.parameters().forEach(p -> rows.remove(p.name()));
+                yield new LambdaFunction(lf.parameters(),
+                        lf.body().stream().map(x ->
+                                renameReads(x, rows, endByVar)).toList());
+            }
             default -> v.mapChildren(x -> renameReads(x, rowByVar, endByVar));
         };
     }

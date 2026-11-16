@@ -1685,11 +1685,20 @@ public final class MappingNormalizer {
                 } else {
                     if (model.knowledge().hierarchyClass(nr.name()).isPresent()) {
                         // a nested ARRAY of objects: lite serves a nested
-                        // JSON object as an embedded instance only, so the
-                        // array is refused where the model is built, never
-                        // compiled to fail at the query (the user's ruling of
-                        // 2026-10-30: exclude rather than defer)
-                        throw new ModelException(LegendCompileException.Phase.NORMALIZE,
+                        // JSON object as an embedded instance only. A lite
+                        // gap, not an engine refusal (the engine accepts the
+                        // model), so by §6's line it is a
+                        // NotImplementedException: the model builds, the
+                        // class is poisoned, and every query through it is
+                        // refused by name (2026-11-16, the review of
+                        // neema2/legend-lite#113 -- until then a
+                        // ModelException that failed the whole strict build).
+                        // The CLASS, not the key: the resolver reads a JSON
+                        // source's properties from the class declaration
+                        // (JsonSourceFrame), where a deferred key is not
+                        // seen -- a read through this property answered
+                        // null (measured that day)
+                        throw new NotImplementedException(
                                 "JSON-source class '" + rcm.className() + "' property '"
                               + prop.name() + "' is a to-many class-typed property ("
                               + nr.name() + "): lite does not read a nested array of"

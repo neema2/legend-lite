@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.*;
  * property was refused at model build as {@code [0..1]} (the Studio roundtrip's r1 repro) and a {@code [*]} one read
  * an array as a single value. The expected answers are legend-engine's, probed on the same model, data and query
  * through the M2M mapping (2026-11-14; the engine refuses a graph fetch of the JSON source class itself). A to-many
- * CLASS-typed property, a nested array of objects, is refused by name where the model is built.
+ * CLASS-typed property, a nested array of objects, does not fail the build: a query through the class is refused by name.
  */
 @DisplayName("a JSON source's to-many properties")
 @org.junit.jupiter.api.extension.ExtendWith(LaneFloor.class)
@@ -76,26 +76,39 @@ class JsonSourceToManyTest {
     }
 
     @Test
-    @DisplayName("a nested array of objects is refused by name at model build")
-    void aNestedArrayOfObjectsIsRefused() {
-        Throwable t = assertThrows(Throwable.class, () -> com.legend.Compiler.compileModel("""
+    @DisplayName("a nested array of objects: the model builds, a query through the class is refused by name")
+    void aNestedArrayOfObjectsIsRefusedAtUse() {
+        // a lite gap, not an engine refusal (legend-engine accepts the model): the class is poisoned
+        // (MappingNormalizer's line between the two), the build does not fail. The class and not the key: a read
+        // through the property answered null when only the key was deferred (JsonSourceFrame reads the declaration)
+        String model = """
                 ###Pure
                 Class t::P { first: String[1]; }
                 Class t::F { name: String[1]; employees: t::P[1..*]; }
-                Class t::G { name: String[1]; }
+                Class t::G { name: String[1]; firsts: String[*]; }
                 ###Mapping
-                Mapping t::M ( t::G: Pure { ~src t::F name: $src.name } )
+                Mapping t::M ( *t::G: Pure { ~src t::F name: $src.name, firsts: $src.employees.first } )
+                ###Relational
+                Database store::TestDb ( )
+                ###Connection
+                RelationalDatabaseConnection store::TestConnection { type: DuckDB; specification: DuckDB { }; auth: Test; }
                 ###Runtime
                 Runtime t::R
                 {
                   mappings: [ t::M ];
-                  connections: [ ModelStore: [ c: #{ JsonModelConnection { class: t::F; url: 'data:application/json,[]'; } }# ] ];
+                  connections: [ store::TestDb: [ env: store::TestConnection ], ModelStore: [ c: #{ JsonModelConnection { class: t::F; url: 'data:application/json,[{"name":"a","employees":[{"first":"x"}]},{"name":"b","employees":[{"first":"y"}]}]'; } }# ] ];
                 }
-                """));
-        StringBuilder all = new StringBuilder();
-        for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause()) {
-            all.append(c.getMessage()).append(" | ");
+                """;
+        com.legend.Compiler.compileModel(model);
+        for (String tree : java.util.List.of("#{t::G{name}}#", "#{t::G{name,firsts}}#")) {
+            Throwable t = assertThrows(Throwable.class, () -> Lean.run(model,
+                    "t::G.all()->graphFetch(" + tree + ")->serialize(" + tree + ")->from(t::M, t::R)", null,
+                    connection), tree);
+            StringBuilder all = new StringBuilder();
+            for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause()) {
+                all.append(c.getMessage()).append(" | ");
+            }
+            assertTrue(all.toString().contains("is a to-many class-typed property"), tree + ": " + all);
         }
-        assertTrue(all.toString().contains("is a to-many class-typed property"), all.toString());
     }
 }
