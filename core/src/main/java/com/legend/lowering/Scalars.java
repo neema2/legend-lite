@@ -1121,6 +1121,14 @@ final class Scalars {
                     if (mixed != null) {
                         return TaggedLists.sort(mixed, "_tls");
                     }
+                    // a list of any kinds on the variant carrier (a concatenation, a range joined to a literal): the
+                    // carrier's order is the variant's, not Pure's across kinds -- refused by name, never a wrong order
+                    // (the mixed-list ruling of 2026-11-12: a sort across kinds is refused; E-Java's find, 2026-11-16:
+                    // range(...)->concatenate(['a'])->sort() put 'a' first)
+                    if (PlatformTypes.isAny(sortOperand.info().type())) {
+                        throw new com.legend.error.NotImplementedException("sort of a list of mixed kinds (Any): Pure's"
+                                + " order across kinds is not kept on the variant carrier; sort a list of one kind");
+                    }
                     // STAMP-read (pair-#4 eliminated): only many-
                     // stamped operands reach here, and a many-stamped
                     // value's SQL is a list (the invariant's contract).

@@ -4,6 +4,7 @@
 package com.legend.lowering;
 
 import com.legend.compiler.element.type.PlatformTypes;
+import com.legend.sql.SqlAgg;
 import com.legend.sql.SqlExpr;
 import com.legend.sql.SqlFn;
 import com.legend.sql.SqlType;
@@ -163,6 +164,49 @@ final class ListEncodings {
                 : transformed;
     }
 
+    /** Integer past 2^53: the largest integer every DOUBLE holds exactly, and its successor the first it does not. */
+    private static final long EXACT_DOUBLE = 9007199254740992L;
+
+    /**
+     * The sides of a concatenation where an INTEGER list meets a DOUBLE list (a Number list, promoted to Float by the
+     * mixed-list ruling of 2026-11-12): each integer side guarded, so an element past 2^53 raises {@code VALUE_NOT_HELD}
+     * instead of becoming the nearest Float (E-Java's find, 2026-11-16: 9007199254740993 read 9007199254740992.0, and a
+     * sort and a max answered it). An integer literal past 2^53 is refused at planning by the same ruling; a range's
+     * values are known only at run time, so they raise there. Other sides as they are.
+     */
+    static List<SqlExpr> exactIntegers(List<SqlExpr> sides) {
+        boolean anyDouble = sides.stream().anyMatch(a -> element(a) == SqlType.Scalar.DOUBLE);
+        if (!anyDouble) {
+            return sides;
+        }
+        List<SqlExpr> out = new java.util.ArrayList<>(sides.size());
+        for (SqlExpr side : sides) {
+            SqlType e = element(side);
+            if (e != SqlType.Scalar.BIGINT && e != SqlType.Scalar.INTEGER) {
+                out.add(side);
+                continue;
+            }
+            // the list's extremes, through the collection's own semantic node (the carrier purity ratchet: no
+            // direct list function before the dialect)
+            SqlExpr anyPast = SqlExpr.Call.of(SqlFn.OR,
+                    SqlExpr.Call.of(SqlFn.GREATER, new SqlExpr.ReduceCollection(SqlAgg.Fn.MAX, side, List.of()),
+                            new SqlExpr.IntLit(EXACT_DOUBLE)),
+                    SqlExpr.Call.of(SqlFn.LESS, new SqlExpr.ReduceCollection(SqlAgg.Fn.MIN, side, List.of()),
+                            new SqlExpr.IntLit(-EXACT_DOUBLE)));
+            out.add(new SqlExpr.Case(List.of(new SqlExpr.Case.When(anyPast,
+                    SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.VALUE_NOT_HELD,
+                            List.of(new SqlExpr.StringLit("an Integer past 2^53 in a list of Numbers promoted to"
+                                    + " Float: no Float holds it exactly")))))),
+                    side, SqlExpr.Reason.RAISE));
+        }
+        return out;
+    }
+
+    private static @com.legend.base.Nullable SqlType element(SqlExpr list) {
+        return list.type() instanceof com.legend.sql.TypeFact.Typed t && t.type() instanceof SqlType.Array a
+                ? a.element() : null;
+    }
+
     /** The concatenate RULE registration (seam split from
      * {@link Scalars} — the encoding's owner; the relation overload is
      * the TypedConcatenate set-op and never reaches scalar lowering).
@@ -195,7 +239,7 @@ final class ListEncodings {
                         && a1.element() instanceof SqlType.Struct s1
                         && !s0.equals(s1);
                 if (!PlatformTypes.isAny(n.info().type()) && !mixedStructs) {
-                    return new SqlExpr.Call(SqlFn.LIST_CONCAT, args);
+                    return new SqlExpr.Call(SqlFn.LIST_CONCAT, exactIntegers(args));
                 }
                 List<SqlExpr> wrapped = new java.util.ArrayList<>(args.size());
                 for (int i = 0; i < args.size(); i++) {
