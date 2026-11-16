@@ -532,6 +532,14 @@ class PlannerSurfaceTest {
             Map.entry("Compiler#compileAllBodies(ModelContext)", List.of(MODEL)),
             Map.entry("Compiler#compileErrors(String)", List.of(MODEL_TEXT)),
             Map.entry("Compiler#compileErrors(Protocol.PureModelContextData)", List.of(MODEL)),
+            // compile errors' sourceInformation, 2026-11-16 (legend-studio's text mode against lite, register S400;
+            // found by this check on studio-compatibility-dev 75183a9c8): compileErrors' two doors again, each error
+            // with where its element is, and the record they answer -- a message and a span, data, no query
+            Map.entry("Compiler#placedCompileErrors(String)", List.of(MODEL_TEXT)),
+            Map.entry("Compiler#placedCompileErrors(Protocol.PureModelContextData)", List.of(MODEL)),
+            Map.entry("Compiler.CompileError#new(String, SourceInfo)", List.of(MESSAGE, VALUE)),
+            Map.entry("Compiler.CompileError#message()", List.of()),
+            Map.entry("Compiler.CompileError#at()", List.of()),
             Map.entry("Compiler#query(ModelContext, String)", List.of(MODEL, LAMBDA)),
             Map.entry("Compiler#query(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),
             Map.entry("Compiler#queryResolved(ModelContext, ValueSpecification)", List.of(MODEL, LAMBDA)),

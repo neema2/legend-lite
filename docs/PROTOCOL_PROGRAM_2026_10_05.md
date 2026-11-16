@@ -405,6 +405,12 @@ not be written back, so it is refused.
    function's id (`my::f_String_1__Integer_1_`), not its name, and the module driver's file-and-line attribution reads
    the parsed model's side maps by that key (`ParsedModel.keyOf`); `compileAllBodies` skips the boot layer's bodies by
    id; the wall map's keys and messages are pinned by Phase 3b's tests -- 6b is designed with that line first.
+   **Where an error is, built ahead of 6b (2026-11-13, for legend-studio's text mode):** both routes write
+   legend-engine's `sourceInformation` beside an error's message where the model says where the error's ELEMENT is
+   (`Compiler.placedCompileErrors`; a text model's span from its parse, a `PureModelContextData`'s from its records),
+   and no field where it does not; the messages and their `[line:col]` lead are unchanged. What differs from the
+   engine (element-level, the message's lead, a text that does not parse) is `docs/SEMANTICS_REGISTER.md` S400. 6b's
+   own work -- every ELEMENT error through the tolerant build -- is still open.
 7. **The SDLC server's rules free of Pure.** SDLC's rules (`//sdlc-server:rules`) depend on all of `//core` today,
    because the class that answers their two Pure questions (`CoreGrammar`) sits in the same library; nothing stops
    the rules from calling the compiler directly, and the SDLC server carries the whole engine. The rules keep asking
