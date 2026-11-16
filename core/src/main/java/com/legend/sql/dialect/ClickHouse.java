@@ -1683,6 +1683,14 @@ public class ClickHouse extends AnsiSqlRenderer {
         return writer.append("JSONExtractArrayRaw(coalesce(").expr(args.get(0), 0).append(", 'null'))");
     }
 
+    /** parseInteger, guarded: multiIf evaluates every branch, so the cast reads '0' where the grammar refuses (as
+     *  parseFloat's, {@link #variantAwareCast}) and the text itself where it matches. */
+    private SqlWriter parseInteger(SqlWriter writer, SqlExpr x) {
+        SqlWriter.Piece matches = w -> w.append("match(").expr(x, 0).append(", '^[+-]?[0-9]+$')");
+        return guardedParseInt(writer, x, matches, w -> w.append("CAST(if(").piece(matches).append(", ")
+                .expr(x, 0).append(", '0') AS " + castTypeName(SqlType.Scalar.BIGINT) + ")"));
+    }
+
     /** Every cast names the nullable type ({@code CAST(NULL AS Int64)} is refused); a Decimal's too. */
     @Override
     protected SqlWriter variantAwareCast(SqlWriter writer, SqlExpr.Cast c) {
@@ -1807,13 +1815,7 @@ public class ClickHouse extends AnsiSqlRenderer {
             case IS_NOT_NULL -> isNotNullTest(writer, c.args());
             case IN -> inList(writer, c.args(), parentPrec);
             // 64-bit parse (PCT Long.MIN/MAX round-trips)
-            // multiIf evaluates every branch: the cast reads '0' where the grammar refuses (as parseFloat's)
-            case PARSE_INT -> {
-                SqlExpr x = c.args().get(0);
-                SqlWriter.Piece matches = w -> w.append("match(").expr(x, 0).append(", '^[+-]?[0-9]+$')");
-                yield guardedParseInt(writer, x, matches, w -> w.append("CAST(if(").piece(matches).append(", ")
-                        .expr(x, 0).append(", '0') AS " + castTypeName(SqlType.Scalar.BIGINT) + ")"));
-            }
+            case PARSE_INT -> parseInteger(writer, c.args().get(0));
             case PI -> writer.append("pi()");
             case CEILING -> bigintOf(writer, "ceil", c.args());
             case FLOOR -> bigintOf(writer, "floor", c.args());
