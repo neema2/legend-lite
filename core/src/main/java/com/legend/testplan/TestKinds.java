@@ -108,7 +108,7 @@ final class TestKinds implements ProgramKinds {
     public ExecutionPlan.@com.legend.base.Nullable Target targetOf(ProgramState program, int index,
             TypedSpec statement) {
         if (program.target().database() instanceof ExecutionPlan.Database.System
-                || BodyClass.storesOf(statement, body, index) != BodyClass.Stores.SYSTEM) {
+                || StoreReads.storesOf(statement, body, index) != StoreReads.Stores.SYSTEM) {
             return null;
         }
         return com.legend.planner.PlanMaker.systemBeside(program.target(), body.context());
@@ -297,7 +297,7 @@ final class TestKinds implements ProgramKinds {
         // reaches a size(execute(...)): inlining a statement reaching none plans nothing here and may raise where its
         // judge's planner does not (2026-11-06: the corpus's testConvertSubqueryPredicates, an inlined helper's union
         // typed against a query specification)
-        if (!StatementEffects.reaches(statement, BodyClass::eagerInlineExecute, program.query().specs(),
+        if (!StatementEffects.reaches(statement, FramePrograms::eagerInlineExecute, program.query().specs(),
                 new java.util.HashMap<>())) {
             return;
         }
@@ -306,7 +306,7 @@ final class TestKinds implements ProgramKinds {
     }
 
     private void eagerReadsIn(ProgramState program, int index, TypedSpec statement) {
-        if (BodyClass.eagerInlineExecute(statement)) {
+        if (FramePrograms.eagerInlineExecute(statement)) {
             TypedSpec arg = ((TypedNativeCall) statement).args().get(0);
             while (arg instanceof com.legend.compiler.spec.typed.TypedFrom f) {
                 arg = f.source();

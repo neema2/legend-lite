@@ -75,7 +75,7 @@ class ElementConsumptionTest {
     private static ElementConsumption of(String body) {
         ModelContext ctx = Compiler.compileModel(MODEL);
         TypedQuery q = Compiler.query(ctx, body);
-        return new ElementConsumption(q.body(), BodyClass.systemClasses(ctx), ctx, q.specs());
+        return new ElementConsumption(q.body(), StoreReads.systemClasses(ctx), ctx, q.specs());
     }
 
     @Test

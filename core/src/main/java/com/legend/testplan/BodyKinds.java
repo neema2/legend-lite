@@ -47,7 +47,7 @@ public final class BodyKinds {
         if (QueryDoor.declaresTestData(runtime, ctx)) {
             tags.add("declares-test-data");
         }
-        Set<String> systemClasses = BodyClass.systemClasses(ctx);
+        Set<String> systemClasses = StoreReads.systemClasses(ctx);
         QueryDoor.Scan scan = new QueryDoor.Scan(query, runtime);
         List<TypedSpec> body = query.body();
         // the frames and the lets, as the rule keeps them: the census reads a statement where the rule reads it (a
@@ -67,7 +67,7 @@ public final class BodyKinds {
             if (StatementEffects.containsTdgGenerator(statement)) {
                 tags.add("tdg");
             }
-            if (StatementEffects.reaches(statement, BodyClass::readsActivities, query.specs(), new HashMap<>())) {
+            if (StatementEffects.reaches(statement, FramePrograms::readsActivities, query.specs(), new HashMap<>())) {
                 tags.add("activities");
             }
             TypedSpec value = statement instanceof TypedLet l ? l.value() : statement;
@@ -77,7 +77,7 @@ public final class BodyKinds {
                 }
                 if (NativeFn.Effect.of(call.callee().id()).orElse(null) == NativeFn.Effect.LOAD_CSV_TO_DB_TABLE) {
                     tags.add("load-csv");
-                } else if (!BodyClass.literalEffect(call, body.subList(0, i))) {
+                } else if (!EffectPrograms.literalEffect(call, body.subList(0, i))) {
                     tags.add("effect-computed");
                 }
                 if (last) {
@@ -85,7 +85,7 @@ public final class BodyKinds {
                 }
                 continue;
             }
-            TypedSpec read = BodyClass.framesAndHandlesAsTheirQueries(statement);
+            TypedSpec read = FramePrograms.framesAndHandlesAsTheirQueries(statement);
             boolean frameQuery = false;
             if (statement instanceof TypedLet let && !last) {
                 if (LetPlanner.badAliasIndex(let.value(), relationFrame)) {
@@ -130,8 +130,8 @@ public final class BodyKinds {
             // assert or a value let the side kinds (BodyClass.sideKind)
             boolean ofAFrame = frameQuery;
             StatementEffects.reaches(read, n -> {
-                BodyClass.Kind kind = ofAFrame ? BodyClass.anotherWay(n, systemClasses, ctx)
-                        : BodyClass.sideKind(n, systemClasses, ctx);
+                StoreReads.Kind kind = ofAFrame ? StoreReads.anotherWay(n, systemClasses, ctx)
+                        : StoreReads.sideKind(n, systemClasses, ctx);
                 if (kind != null) {
                     tags.add(ofAFrame ? "frame-" + kind.tag() : kind.tag());
                 }
@@ -144,7 +144,7 @@ public final class BodyKinds {
                     && kinds.contains(QueryDoor.TestOnly.EFFECT)) {
                 // an effectful map (M10c item 7c): a seed form whose data folds over one effect the door writes moves;
                 // any other is named for the residue histogram
-                tags.add(BodyClass.seedFormEffectMap(tm, body.subList(0, i)) ? "effect-map-seed" : "effect-map-computed");
+                tags.add(EffectPrograms.seedFormEffectMap(tm, body.subList(0, i)) ? "effect-map-seed" : "effect-map-computed");
                 continue;
             }
             if (!BodyClass.plansNoStep(statement, body.subList(0, i), ctx)) {

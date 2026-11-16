@@ -1821,6 +1821,9 @@ class JavaEvalLedgerTest {
                             // the classes of bodies that run whole on the program road (M5, R16, 2026-11-01): a named
                             // rule over a body's typed shape, reading it, never running it; nothing evaluated
                             "BodyClass.java",
+                            // 2026-11-16 (v2 item 8, E-Java: no judge class over 1,000 lines): BodyClass split along its
+                            // seams, the code moved unchanged -- the store-reading facts, the frame and effect programs' rules
+                            "StoreReads.java", "FramePrograms.java", "EffectPrograms.java",
                             // (EffectSegment.java, an effect segment's name and its failure's message, deleted
                             // 2026-11-07, P1: a failed script raises the database's own error, as upstream's executeInDb
                             // does; nothing read which statement failed -- no corpus body fails in a script)

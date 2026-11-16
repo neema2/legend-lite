@@ -64,7 +64,7 @@ public final class ConsumptionProbe {
             System.out.println("  kinds=" + BodyKinds.of(q, runtime, null));
             boolean sr = BodyClass.systemRouted(q, runtime);
             System.out.println("  systemRouted=" + sr + " class(oneJudge)=" + BodyClass.of(q, runtime, true));
-            ElementConsumption a = new ElementConsumption(body, BodyClass.systemClasses(ctx), ctx, q.specs());
+            ElementConsumption a = new ElementConsumption(body, StoreReads.systemClasses(ctx), ctx, q.specs());
             for (int i = 0; i < body.size(); i++) {
                 TypedSpec s = body.get(i);
                 String head = s.getClass().getSimpleName() + (s instanceof TypedLet l ? " " + l.name() : "");
@@ -75,17 +75,17 @@ public final class ConsumptionProbe {
                     System.out.println("  [" + i + "] " + head);
                 }
                 TypedSpec bare = s instanceof TypedLet l ? l.value() : s;
-                java.util.Set<String> systemClasses = BodyClass.systemClasses(ctx);
+                java.util.Set<String> systemClasses = StoreReads.systemClasses(ctx);
                 com.legend.planner.QueryDoor.Scan scan = new com.legend.planner.QueryDoor.Scan(q, runtime);
                 String letKind = s instanceof TypedLet l && i < body.size() - 1 ? String.valueOf(
                         com.legend.planner.LetPlanner.kind(l, body, i, q.specs(), new java.util.HashMap<>(), n -> false)) : "-";
                 boolean sideKind = com.legend.compiler.spec.StatementEffects.reaches(
-                        BodyClass.framesAndHandlesAsTheirQueries(s), n -> BodyClass.sideKind(n, systemClasses, ctx) != null,
+                        FramePrograms.framesAndHandlesAsTheirQueries(s), n -> StoreReads.sideKind(n, systemClasses, ctx) != null,
                         q.specs(), new java.util.HashMap<>());
                 System.out.println("      kinds=" + scan.kinds(s) + " letKind=" + letKind
                         + " handle=" + (com.legend.planner.BodyPlanner.handleType(bare, ctx) != null)
                         + " reachesSideKind=" + sideKind
-                        + " seedMap=" + BodyClass.seedFormEffectMap(bare, body.subList(0, i))
+                        + " seedMap=" + EffectPrograms.seedFormEffectMap(bare, body.subList(0, i))
                         + " plansNoStep=" + BodyClass.plansNoStep(s, body.subList(0, i), ctx));
                 describe(bare, "      ", 0);
                 if (bare instanceof TypedUserCall uc) {

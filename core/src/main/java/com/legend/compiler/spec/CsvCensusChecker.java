@@ -24,7 +24,7 @@ import com.legend.protocol.spec.ValueSpecification;
  * ({@code TypedCsvCensus}) of the query and the mapping. The walk that
  * folded it in Java was deleted (2026-11-06) and its census with it
  * (2026-11-07, the P1 audit's 5): a body holding the carrier is refused
- * by name ({@code BodyClass.Kind#CSV_CENSUS}, the test-data generator's
+ * by name ({@code StoreReads.Kind#CSV_CENSUS}, the test-data generator's
  * skipped tests, a ruled register row).
  */
 public final class CsvCensusChecker {

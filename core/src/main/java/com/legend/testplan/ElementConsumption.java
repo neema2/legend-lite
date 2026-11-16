@@ -95,13 +95,13 @@ final class ElementConsumption {
         }
         boolean r = false;
         if (body.get(i) instanceof TypedLet let && i < body.size() - 1) {
-            boolean carries = BodyClass.readsStore(let.value(), n -> systemElementReference(n), specs, new HashMap<>(),
+            boolean carries = StoreReads.readsStore(let.value(), n -> systemElementReference(n), specs, new HashMap<>(),
                     true);
             for (String c : carriedNames(i)) {
                 carries |= valueRead(let.value(), c);
             }
-            r = carries && !BodyClass.readsStore(let.value(), n -> BodyClass.elementNavigation(n, systemClasses)
-                    || BodyClass.sideKind(n, systemClasses, ctx) != null && !systemElementReference(n), specs,
+            r = carries && !StoreReads.readsStore(let.value(), n -> StoreReads.elementNavigation(n, systemClasses)
+                    || StoreReads.sideKind(n, systemClasses, ctx) != null && !systemElementReference(n), specs,
                     new HashMap<>(), true);
         }
         elementOnly.put(i, r);
@@ -128,7 +128,7 @@ final class ElementConsumption {
     }
 
     private boolean systemElementReference(TypedSpec n) {
-        return BodyClass.systemElementReference(n, systemClasses, ctx);
+        return StoreReads.systemElementReference(n, systemClasses, ctx);
     }
 
     /** The names carried before statement {@code i}: the seeded ones (a helper's parameter under analysis) and those
