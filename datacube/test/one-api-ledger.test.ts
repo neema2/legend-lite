@@ -854,6 +854,10 @@ const HOST_BRANCHES: Readonly<Record<string, { readonly count?: number; readonly
   'src/app/datacube-app.ts:copyShareLink:address': { other: `${NATURE} a link needs an address others can open` },
   'src/app/datacube-app.ts:makeClass:modelHome': { count: 2, other: `${BOTH} Create a Class… where the host has a model home and a writer (the tab's, Python's)`, ability: 'model' },
   'src/app/datacube-app.ts:modelActions:modelHome': { count: 2, other: `${BOTH} the model actions where the host has a model home and a writer`, ability: 'model' },
+  // 2026-11-15 (the npm package: DataCube in another application's page, a host that gives no model home): the model
+  // actions' menu entries are made where the host has a model home -- the tab's and Python's both have one; without it
+  // each entry was offered and did nothing when chosen
+  'src/app/datacube-app.ts:openDataCube:modelHome': { other: `${BOTH} the model actions' entries offered where the host has a model home (the tab's, Python's)`, ability: 'model' },
   'src/app/datacube-app.ts:openDataCube:engine.local': { other: `${BOTH} Add a Grid over a class: opened here, or made by the host (K16)`, ability: 'class' },
   'src/app/datacube-app.ts:openDataCube:localEngine': { other: `${BOTH} Join…: the tab's own join, or the host's (B11)`, ability: 'join' },
   // 2026-10-25 (docs/DATACUBE_FLOW_MODE_2026_10_24.md M2): a flow's Join or Union box, made in the tab's own database

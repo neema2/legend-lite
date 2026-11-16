@@ -31,7 +31,7 @@ export interface QueriesModule {
 export async function loadQueriesModule(base: string, load?: (runtimeUrl: string) => Promise<unknown>): Promise<QueriesModule> {
   const dir = base.endsWith('/') ? base : `${base}/`;
   const runtimeUrl = `${dir}wasm-gc-module-runtime.js`;
-  const runtime = (load ? await load(runtimeUrl) : await import(/* @vite-ignore */ runtimeUrl)) as {
+  const runtime = (load ? await load(runtimeUrl) : await import(/* webpackIgnore: true */ /* @vite-ignore */ runtimeUrl)) as {
     load(src: string, options?: unknown): Promise<QueriesModule>;
   };
   return runtime.load(`${dir}classes.wasm`, {

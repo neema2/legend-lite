@@ -2488,10 +2488,18 @@ js_run_binary(
 # and `npm pack <the folder>` makes the archive another project installs from a file.
 
 # The module: DataCube's app over the tab's services, opened by an application that hands it its data (demo/library.ts).
-# One file an application imports, everything it runs on inside it (no dependency for the application to install),
-# minified with its names kept as the site's bundles are; what a page loads only when it needs it (ECharts, the first
-# time a chart draws) is a chunk beside it, fetched by the module itself. Its styles are a second entry point of the
-# same name, as the notebook's are (widget-styles.css says why).
+# One file an application imports, everything it runs on inside it (no dependency for the application to install);
+# what a page loads only when it needs it (ECharts, the first time a chart draws) is a chunk beside it, fetched by the
+# module itself. Its styles are a second entry point of the same name, as the notebook's are (widget-styles.css says
+# why).
+#
+# Its names are minified, its syntax and whitespace are not, unlike the site's bundles: an application's own bundler
+# reads this module, and an import whose module is chosen at run time (the saved pages' rules, from the assets folder)
+# carries the comments that tell a bundler to leave it be -- `webpackIgnore: true`, `@vite-ignore`. esbuild keeps them
+# only while it keeps whitespace, and loses one when it folds a constant into the import (measured, esbuild 0.28.2:
+# --minify dropped every one, --minify-syntax the warehouse door's). Without them webpack rewrites such an import into
+# a lookup among its own modules, which finds nothing. The application's bundler does the rest of the minifying;
+# test/package/npm-entries.ts holds the comments.
 esbuild_bundle(
     name = "library",
     srcs = [
@@ -2511,7 +2519,7 @@ esbuild_bundle(
         "--bundle",
         "--format=esm",
         "--target=es2022",
-        "--minify",
+        "--minify-identifiers",
         "--keep-names",
         "--log-level=warning",
         "--splitting",

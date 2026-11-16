@@ -91,6 +91,8 @@ test('package.json names a module an application can install and import', () => 
 test('its types are demo/library-api.ts, a file that reads no other', () => {
   const types = read('dist/index.d.ts');
   assert.equal(types, readFileSync(runfileFromEnv('NPM_API'), 'utf8'));
+  // (a `/// <reference>` line is no comment: it reads another file)
+  assert.doesNotMatch(types, /^\s*\/\/\/\s*<reference/m, 'the declarations refer to another file');
   const code = types.split('\n').filter((line) => !/^\s*(\/\/|\/?\*)/.test(line)).join('\n');
   assert.doesNotMatch(code, /\bimport\b|\bfrom\s*['"]|\brequire\s*\(/, 'the declarations import another file');
   assert.match(code, /export declare function mountDataCube\(/);
@@ -98,7 +100,10 @@ test('its types are demo/library-api.ts, a file that reads no other', () => {
 
 test('its module leaves no import for the application to resolve', () => {
   const meta = JSON.parse(readFileSync(runfileFromEnv('NPM_META'), 'utf8')) as {
-    readonly outputs: Readonly<Record<string, { readonly imports?: readonly { readonly path: string; readonly external?: boolean }[] }>>;
+    readonly outputs: Readonly<Record<string, {
+      readonly imports?: readonly { readonly path: string; readonly external?: boolean }[];
+      readonly exports?: readonly string[];
+    }>>;
   };
   const outputs = Object.keys(meta.outputs);
   assert.ok(outputs.length > 10, `esbuild's record names ${outputs.length} outputs: it is not the bundle's`);
@@ -115,7 +120,26 @@ test('its module leaves no import for the application to resolve', () => {
   // stylesheet
   const made = new Set(outputs.map(shipped));
   assert.deepEqual(files('dist').filter((f) => !made.has(f)), ['dist/css.d.ts', 'dist/fonts.css', 'dist/index.d.ts']);
-  assert.ok(read('dist/datacube.js').includes('mountDataCube'), 'the module exports mountDataCube by name');
+  // what the module gives an application, by esbuild's own record of its exports: the one function, and no other
+  assert.deepEqual(meta.outputs['npm/dist/datacube.js']?.exports, ['mountDataCube'], 'the module exports mountDataCube, and nothing else');
+});
+
+test("an import chosen at run time tells the application's bundler to leave it be", () => {
+  // every import() of the module that is not one of its own chunks (a relative literal): a module from the assets
+  // folder, named when it runs. webpack rewrites such an import into a lookup among its own modules unless told not
+  // to, and Vite warns of it: each carries both bundlers' comments, which the build must not have taken out
+  const sites: string[] = [];
+  for (const file of files('dist').filter((f) => f.endsWith('.js'))) {
+    for (const m of read(file).matchAll(/\bimport\(\s*((?:\/\*[\s\S]*?\*\/\s*)*)([^\s)]+)/g)) {
+      const [, comments = '', specifier = ''] = m;
+      if (/^["'`]\.\.?\//.test(specifier)) continue;
+      sites.push(`${file}: import(${specifier.slice(0, 40)}`);
+      assert.ok(comments.includes('webpackIgnore: true') && comments.includes('@vite-ignore'),
+        `${file}: import(${specifier.slice(0, 40)}...) is chosen at run time and does not say so to a bundler`);
+    }
+  }
+  // the saved pages' rules at least: were none found, the reading above is not looking
+  assert.ok(sites.length >= 1, 'no import chosen at run time was found in the module');
 });
 
 test('its assets are what the module fetches, and no other', () => {

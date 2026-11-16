@@ -246,6 +246,10 @@ class PlannedSqlTest {
             Map.entry("datacube/demo/boot.ts", List.of("fetch('./trades.pure'")),
             Map.entry("datacube/demo/chaos.mjs", List.of("fetch(`${ENGINE}/api/pure/v1/grammar/grammarToJson/lam")),
             Map.entry("datacube/demo/engine.ts", List.of("fetch(input")),
+            // 2026-11-15 (the npm package, datacube/npm/README.md): DataCube in another application's page asks, by a
+            // HEAD and before anything starts, whether its two workers' scripts are in the assets folder it was told
+            // (library.ts assetsThere) -- a site's own assets, as boot.ts's model is; it carries no body
+            Map.entry("datacube/demo/library.ts", List.of("fetch(new URL(file, assets)")),
             Map.entry("datacube/demo/page-config.ts", List.of("fetch(url")),
             Map.entry("datacube/demo/planners.ts", List.of("fetch(health")),
             Map.entry("datacube/demo/verify-calc-vocabulary.mjs", List.of("fetch(`${ENGINE}/api/server/v1/info`")),

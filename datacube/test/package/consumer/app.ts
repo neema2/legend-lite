@@ -9,9 +9,19 @@ import { mountDataCube, type DataCube, type DataCubeData } from '@legend-lite/da
 import '@legend-lite/datacube/styles.css';
 import '@legend-lite/datacube/fonts.css';
 
+// records as an application has them: typed by an interface of its own, which has no index signature
+interface Order {
+  readonly id: bigint;
+  readonly region: string;
+  readonly qty: number;
+  readonly placed: Date;
+}
+const orders: readonly Order[] = [{ id: 1n, region: 'EMEA', qty: 3, placed: new Date() }];
+
 // each form a table is handed over in
 const tables: DataCubeData[] = [
-  { name: 'orders', rows: [{ id: 1n, region: 'EMEA', qty: 3, placed: new Date() }] },
+  { name: 'orders', rows: orders },
+  { name: 'inline', rows: [{ a: 1, b: 'two' }] },
   { name: 'rates', format: 'csv', content: 'ccy,rate\nUSD,1\n' },
   { name: 'trades', format: 'parquet', content: new Uint8Array(0) },
   new File(['a\n1\n'], 'more.csv'),
@@ -19,8 +29,13 @@ const tables: DataCubeData[] = [
 
 const element = document.getElementById('cube');
 if (!(element instanceof HTMLElement)) throw new Error('no element');
-const cube: DataCube = await mountDataCube(element, { assets: '/datacube-assets/', data: tables, askBeforeLeaving: true });
-await cube.add(new File(['a\n1\n'], 'later.csv'));
+// a mount a component may stop while it loads
+const stop = new AbortController();
+const cube: DataCube = await mountDataCube(element, {
+  assets: '/datacube-assets/', data: tables, askBeforeLeaving: true, windows: document.body, signal: stop.signal,
+});
+const added: void = await cube.add(new File(['a\n1\n'], 'later.csv'));
+void added;
 cube.dispose();
 
 // what the types refuse, each held: were one accepted, its line would fail as an expectation not met
