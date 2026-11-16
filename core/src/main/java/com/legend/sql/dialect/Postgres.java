@@ -586,7 +586,46 @@ public class Postgres extends AnsiSqlRenderer {
      *  raise's own volatile term ({@link #raise}) covers only a raise typed as a list or a map, the kind that IS an
      *  argument, not the one a column carries. */
     private static SqlWriter.Piece unnest(SqlWriter.Piece list) {
+        // a list of constants that cannot raise (literals, non-raising functions of them) is planned as it is: its
+        // estimate opens nothing that raises (the lean program's E-v3, 2026-11-16)
+        if (list instanceof ExprPiece ep && planSafe(ep.expr())) {
+            return w -> w.append("unnest(").expr(ep.expr(), 0).append(")");
+        }
         return w -> w.append("unnest((SELECT ").piece(list).append("))");
+    }
+
+    /** A piece that is one expression as written, so a reader can see what it writes. */
+    private record ExprPiece(SqlExpr expr) implements SqlWriter.Piece {
+        @Override
+        public void writeTo(SqlWriter writer) {
+            writer.expr(expr, 0);
+        }
+    }
+
+    /** Whether the planner's estimate of {@code e} can raise nothing: no column (a pulled-up subquery's expression
+     *  could stand there), no CASE (an arm never taken is evaluated), no subquery, no raise, no raising function. */
+    private static boolean planSafe(SqlExpr e) {
+        boolean ok = switch (e) {
+            case SqlExpr.Column c -> false;
+            case SqlExpr.Case c -> false;
+            case SqlExpr.ScalarSubquery q -> false;
+            case SqlExpr.Exists q -> false;
+            case SqlExpr.InSubquery q -> false;
+            case SqlExpr.Quantified q -> false;
+            case SqlExpr.RaiseText r -> false;
+            case SqlExpr.Lambda l -> false;
+            case SqlExpr.Call c -> !com.legend.sql.SqlFn.RAISING.contains(c.fn());
+            default -> true;
+        };
+        if (!ok) {
+            return false;
+        }
+        for (SqlExpr c : e.children()) {
+            if (!planSafe(c)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** {@code ... FROM} the elements of {@code xs}: each bound to {@code elem} as its type reads (a list
@@ -666,7 +705,7 @@ public class Postgres extends AnsiSqlRenderer {
      *  order)}, NULL for a NULL list (DuckDB's list functions answer NULL there). */
     private SqlWriter.Piece overElements(SqlExpr list, SqlType element, String elem, String idx,
             SqlWriter.Piece select, SqlWriter.@com.legend.base.Nullable Piece where, SqlWriter.Piece order) {
-        SqlWriter.Piece xs = w -> w.expr(list, 0);
+        SqlWriter.Piece xs = new ExprPiece(list);
         return nullIfNull(list, w -> {
             w.append("ARRAY(SELECT ").piece(select).append(" FROM ").piece(elementsFrom(xs, element, elem, idx));
             if (where != null) {
@@ -700,7 +739,7 @@ public class Postgres extends AnsiSqlRenderer {
     @Override
     protected SqlWriter listCall(SqlWriter writer, SqlFn fnName, List<SqlExpr> args) {
         SqlType first = elementOf(args.get(0), fnName);
-        SqlWriter.Piece xs = w -> w.expr(args.get(0), 0);
+        SqlWriter.Piece xs = new ExprPiece(args.get(0));
         String x = param("__x");
         SqlWriter.Piece xp = w -> w.append(x);
         return switch (fnName) {
