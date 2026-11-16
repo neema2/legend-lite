@@ -715,11 +715,17 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
      * bytes once in the plan's data, inline in its JSON below {@code PlanJson.INLINE_LIMIT_BYTES}, beside it above,
      * every text verified against its digest where a plan is read): exactly the digests its slots name, a payload slot
      * whose digest it lacks or a text no slot binds refused by name here, as a load's bundle is.
+     * {@code raises}: the kinds of the product raises the statement can send, as the dialect's render wrote them
+     * (the D-P1 audit's MUST 1, 2026-11-16: typed at the render, never read back out of the text) -- the plan's
+     * declared raises ({@code PlanJson.raises}).
      */
     public record Sql(String statement, List<Slot> slots, Target target,
             com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
-            @com.legend.base.Nullable String stamp, java.util.Map<String, String> content) {
+            @com.legend.base.Nullable String stamp, java.util.Map<String, String> content,
+            java.util.Set<com.legend.sql.RaiseKind> raises) {
         public Sql {
+            raises = java.util.Collections.unmodifiableSet(raises.isEmpty()
+                    ? java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class) : java.util.EnumSet.copyOf(raises));
             Objects.requireNonNull(statement, "statement");
             slots = List.copyOf(slots);
             Objects.requireNonNull(target, "target");
@@ -760,6 +766,18 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
             }
         }
 
+        /** A statement whose render wrote no raise (a setup's, a session's, a probe's). */
+        public Sql(String statement, List<Slot> slots, Target target,
+                com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
+                @com.legend.base.Nullable String stamp, java.util.Map<String, String> content) {
+            this(statement, slots, target, tree, regions, stamp, content, java.util.Set.of());
+        }
+
+        /** This statement, sending the raises {@code kinds} (its render's). */
+        public Sql raising(java.util.Set<com.legend.sql.RaiseKind> kinds) {
+            return new Sql(statement, slots, target, tree, regions, stamp, content, kinds);
+        }
+
         /** A statement binding no payload. */
         public Sql(String statement, List<Slot> slots, Target target,
                 com.legend.sql.@com.legend.base.Nullable SqlQuery tree, List<Region> regions,
@@ -781,12 +799,12 @@ public record ExecutionPlan(List<Parameter> parameters, Node root, boolean write
 
         /** This statement, its own execution-trace stamp bound under {@code name}. */
         public Sql stamped(String name) {
-            return new Sql(statement, slots, target, tree, regions, name, content);
+            return new Sql(statement, slots, target, tree, regions, name, content, raises);
         }
 
         /** This statement minting no stamp. */
         public Sql unstamped() {
-            return new Sql(statement, slots, target, tree, regions, null, content);
+            return new Sql(statement, slots, target, tree, regions, null, content, raises);
         }
 
         /** A statement of no slot and no tree, final for {@code target}: a schema probe's, a setup's, a session

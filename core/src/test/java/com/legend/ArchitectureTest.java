@@ -3791,7 +3791,8 @@ final class ArchitectureTest {
     void staticStateIsConstantOrRegistered() throws Exception {
         java.util.List<String> violations = new java.util.ArrayList<>();
         java.util.Set<String> seen = new java.util.TreeSet<>();
-        for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_PROD_CLASSES) {
+        // the edge's classes too (W6, 2026-11-16: StableScanOrder's census moved to com.legend.edge, its own jar)
+        for (com.tngtech.archunit.core.domain.JavaClass jc : CORE_AND_EDGE_CLASSES) {
             Class<?> cls;
             try {
                 cls = Class.forName(jc.getName());

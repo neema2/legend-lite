@@ -225,7 +225,7 @@ public final class PlanJson {
         out.put("root", node(plan.root()));
         out.put("writes", plan.writes());
         out.put("loads", hoistLoads(out));
-        out.put("raises", raisesOf(out));
+        out.put("raises", raises(plan));
         return out;
     }
 
@@ -240,54 +240,51 @@ public final class PlanJson {
      * here when a statement fails (a raise the plan does not declare is refused by name).
      */
     public static java.util.SortedMap<String, String> raises(ExecutionPlan plan) {   // a fresh map each call
-        Map<String, Object> out = new LinkedHashMap<>();
-        out.put("parameters", List.of());
-        out.put("root", node(plan.root()));
-        out.put("loads", hoistLoads(out));
-        return raisesOf(out);
-    }
-
-    private static java.util.SortedMap<String, String> raisesOf(Object tree) {
-        java.util.SortedSet<String> kinds = new java.util.TreeSet<>();
-        collectRaises(tree, kinds);
+        java.util.Set<com.legend.sql.RaiseKind> kinds = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
+        raisesOf(plan.root(), kinds);
         java.util.SortedMap<String, String> out = new java.util.TreeMap<>();
-        for (String kind : kinds) {
-            out.put(kind, com.legend.error.ErrorKind.valueOf(kind).sentence());
+        for (com.legend.sql.RaiseKind kind : kinds) {
+            out.put(kind.name(), com.legend.error.ErrorKind.valueOf(kind.name()).sentence());
         }
         return out;
     }
 
-    /** The JSON escape of {@link com.legend.sql.RaiseKind#MARK}, as a MongoDB pipeline's text holds it. */
-    private static final String ESCAPED_MARK = "\\u001c";
-
-    private static void collectRaises(@com.legend.base.Nullable Object n, java.util.SortedSet<String> kinds) {
-        switch (n) {
-            case String text -> {
-                raisesIn(text, String.valueOf(com.legend.sql.RaiseKind.MARK), kinds);
-                raisesIn(text, ESCAPED_MARK, kinds);
+    /** The raises {@code node}'s statements can send: each statement's own, as its renderer recorded them
+     *  ({@link Sql#raises}), and a CSV file's read, whose record check raises {@code CSV_TOO_WIDE}
+     *  ({@code AnsiSqlRenderer.csvRecordCheck}). Typed, never read from a statement's text (audit B's item 1,
+     *  2026-11-16: the text scan missed a raise whose text a dialect spells in its own escape). */
+    private static void raisesOf(ExecutionPlan.Node node, java.util.Set<com.legend.sql.RaiseKind> kinds) {
+        switch (node) {
+            case ExecutionPlan.Sequence s -> s.steps().forEach(step -> raisesOf(step, kinds));
+            case ExecutionPlan.TdsResult t -> raisesOf(t.sql(), kinds);
+            case ExecutionPlan.Keyed k -> {
+                raisesOf(k.keys(), kinds);
+                raisesOf(k.body(), kinds);
             }
-            case Map<?, ?> m -> m.values().forEach(v -> collectRaises(v, kinds));
-            case List<?> l -> l.forEach(v -> collectRaises(v, kinds));
-            case null, default -> {
-                // a number, a Boolean, null: no text
+            case ExecutionPlan.Update u -> raisesOf(u.sql(), kinds);
+            case ExecutionPlan.Check c -> raisesOf(c.sql(), kinds);
+            case ExecutionPlan.Effect e -> raisesOf(e.sql(), kinds);
+            case ExecutionPlan.Load l -> {
+                for (LoadStep step : l.steps()) {
+                    if (step instanceof LoadStep.File f && f.delivery() instanceof LoadStep.Delivery.Reads) {
+                        kinds.add(com.legend.sql.RaiseKind.CSV_TOO_WIDE);
+                    }
+                }
+                raisesOf(l.target(), kinds);
+            }
+            case ExecutionPlan.Constant c -> {
+                // rows, no statement
             }
         }
     }
 
-    private static void raisesIn(String text, String mark, java.util.SortedSet<String> kinds) {
-        for (int at = text.indexOf(mark); at >= 0; at = text.indexOf(mark, at + 1)) {
-            int start = at + mark.length();
-            int end = start;
-            while (end < text.length() && (Character.isUpperCase(text.charAt(end)) || text.charAt(end) == '_')) {
-                end++;
-            }
-            String name = text.substring(start, end);
-            // a raise's text names one of the closed list; a mark before anything else (a where's, a user's text) is
-            // no raise's kind
-            if (java.util.Arrays.stream(com.legend.sql.RaiseKind.values()).anyMatch(k -> k.name().equals(name))) {
-                kinds.add(name);
-            }
-        }
+    private static void raisesOf(Sql sql, java.util.Set<com.legend.sql.RaiseKind> kinds) {
+        kinds.addAll(sql.raises());
+        raisesOf(sql.target(), kinds);
+    }
+
+    private static void raisesOf(Target target, java.util.Set<com.legend.sql.RaiseKind> kinds) {
+        target.loads().forEach(load -> raisesOf(load, kinds));
     }
 
     /** The field of a load holding its bundle inline (L6c). */
@@ -730,6 +727,10 @@ public final class PlanJson {
             o.put("regions", regions);
         }
         o.put("target", target(s.target()));
+        if (!s.raises().isEmpty()) {
+            // the raises its text can send, as the renderer recorded them (typed at render, never read from the text)
+            o.put("raises", s.raises().stream().map(Enum::name).sorted().toList());
+        }
         if (s.stamp() != null) {
             o.put("stamp", s.stamp());
         }
@@ -1314,9 +1315,16 @@ public final class PlanJson {
                         r.getInt("slotCount"), counters));
             }
         }
+        java.util.Set<com.legend.sql.RaiseKind> raised = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
+        Json.Node rk = o.getOr("raises", null);
+        if (rk != null) {
+            for (Json.Node n : ((Json.Arr) rk).items()) {
+                raised.add(named(com.legend.sql.RaiseKind.class, ((Json.Str) n).value(), "raise kind"));
+            }
+        }
         return new Sql(o.getString("statement"), slots, readTarget(o.getObj("target")),
                 tree == null ? null : MirJson.readQuery((Json.Obj) tree), regions, o.getStringOr("stamp", null),
-                contentOf(o.getObjOr(CONTENT, null), "the statement"));
+                contentOf(o.getObjOr(CONTENT, null), "the statement")).raising(raised);
     }
 
     private static Target readTarget(Json.Obj t) {

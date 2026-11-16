@@ -247,8 +247,6 @@ class CompatSpellingGuardTest {
             "sql/dialect/DuckDb.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/DuckDb.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/DuckDb.java | RawSqlBoundary | 1 | D1.7",
-            "sql/dialect/DuckDb.java | StableScanOrder | 1 | D1.5",
-            "sql/dialect/DuckDb.java | legend.exec.engineScanOrder | 1 | D1.5",
             "sql/dialect/EngineTextDialect.java | EngineTextDialect | 1 | D1.7",
             "sql/dialect/FloatCanonText.java | FLOAT_CANON | 1 | JUDGE",
             // 2 -> 3 (2026-11-13, the merge of claude/total-wall @ 549c018: C4's bare-H2 lexicon, c42369dec, reads the
@@ -276,7 +274,6 @@ class CompatSpellingGuardTest {
             "sql/dialect/SQLite.java | FLOAT_PRINT | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/Snowflake.java | FLOAT_PRINT | 1 | JUDGE",
-            "sql/dialect/StableScanOrder.java | StableScanOrder | 1 | D1.5",
             "sql/dialect/Trino.java | FLOAT_CANON | 1 | JUDGE",
             "sql/dialect/Trino.java | FLOAT_PRINT | 1 | JUDGE",
             "testdatagen/TestDataGenerationNatives.java | EngineTextDialect | 2 | D1.7",

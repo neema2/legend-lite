@@ -1023,7 +1023,9 @@ public final class PlanMaker {
         // the typed tree carried beside the statement names each payload by its digest, never its text or rows (the
         // JSON pass: the bytes once in the plan -- a bound payload's the statement's content, an inline one's its text)
         SqlQuery carried = tree == null ? null : DataSources.byDigest(tree, content.keySet());
-        return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content);
+        // the raises its render wrote, by kind (the D-P1 audit's MUST 1: typed at the render)
+        return new ExecutionPlan.Sql(rendered.sql(), slots, target, carried, regions, null, content)
+                .raising(rendered.raises());
     }
 
     /** What a statement binding the payload {@code json} (its SHA-256 {@code digest}) is told under where its database

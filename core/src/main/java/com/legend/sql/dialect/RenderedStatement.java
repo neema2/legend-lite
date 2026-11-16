@@ -15,20 +15,40 @@ import java.util.Objects;
  *
  * @param sql   the statement text, sent as it is: a placeholder is typed by its parameter's declared type when the
  *              statement is written (D1; the type hole the runner wrote into was deleted 2026-11-09, P4)
- * @param binds one per {@code ?}, in order
+ * @param binds  one per {@code ?}, in order
+ * @param raises the kinds of the product raises the render wrote into it ({@code AnsiSqlRenderer.raiseMessage}, the
+ *               one place a raise's text is written; the D-P1 audit's MUST 1, 2026-11-16): the plan's declared raises,
+ *               typed at the render, never read back out of the text
  */
-public record RenderedStatement(String sql, List<Bind> binds, List<Region> regions) {
+public record RenderedStatement(String sql, List<Bind> binds, List<Region> regions,
+        java.util.Set<com.legend.sql.RaiseKind> raises) {
 
     public RenderedStatement {
         Objects.requireNonNull(sql, "sql");
         binds = List.copyOf(binds);
         regions = List.copyOf(regions);
+        raises = java.util.Collections.unmodifiableSet(raises.isEmpty()
+                ? java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class) : java.util.EnumSet.copyOf(raises));
         Region.check(sql.length(), binds, regions, b -> b.binding() instanceof Binding.Key);
+    }
+
+    /** A statement as a writer wrote it: the raises are added by the render that returns it
+     *  ({@code AnsiSqlRenderer.renderStatement}). */
+    public RenderedStatement(String sql, List<Bind> binds, List<Region> regions) {
+        this(sql, binds, regions, java.util.Set.of());
     }
 
     /** A statement with no per-key region. */
     public RenderedStatement(String sql, List<Bind> binds) {
         this(sql, binds, List.of());
+    }
+
+    /** This statement with {@code more} raises its render wrote. */
+    public RenderedStatement raising(java.util.Set<com.legend.sql.RaiseKind> more) {
+        java.util.EnumSet<com.legend.sql.RaiseKind> all = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
+        all.addAll(raises);
+        all.addAll(more);
+        return new RenderedStatement(sql, binds, regions, all);
     }
 
     /**

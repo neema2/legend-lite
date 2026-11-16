@@ -409,6 +409,10 @@ class CodeShapeGuardrailTest {
             "Snowflake.fresh", "ExplosionMarkers.next",
             // render mode toggle + import memo
             "AnsiSqlRenderer.inlineMode", "ModelOrchestrator.cachedImports",
+            // 2026-11-16 (audit B's item 1, the plan's raises typed at render): the kinds of the raises the statement
+            // under way writes, set by the outermost renderStatement and cleared when it returns (collectingRaises),
+            // inlineMode's lifecycle -- one render at a time per dialect, as the writer's cursor is
+            "AnsiSqlRenderer.raisedKinds",
             // 2026-10-17 (docs/MONGODB_PLAN_2026_10_16.md §5.1): the MongoDb pipeline writer's stage counter -- Stages
             // IS the frame object, one per pipeline level, scoped to one render() as the renderer's cursor is: it
             // puts the comma before every stage but the first

@@ -73,7 +73,26 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public RenderedStatement renderStatement(SqlQuery query) {
-        return write(query).statement();
+        return collectingRaises(() -> write(query).statement());
+    }
+
+    /** The kinds of the raises the render under way wrote ({@link #raiseMessage}), or null outside a statement's
+     *  render (the D-P1 audit's MUST 1, 2026-11-16: the plan's raises typed at the render). One render at a time per
+     *  dialect instance, as {@link #renderInline}'s mode is. */
+    private java.util.@com.legend.base.Nullable EnumSet<com.legend.sql.RaiseKind> raisedKinds;
+
+    /** {@code render}'s statement with the kinds of every raise written while it ran: the outermost render collects, a
+     *  nested one adds to it. */
+    protected final RenderedStatement collectingRaises(java.util.function.Supplier<RenderedStatement> render) {
+        if (raisedKinds != null) {
+            return render.get();
+        }
+        raisedKinds = java.util.EnumSet.noneOf(com.legend.sql.RaiseKind.class);
+        try {
+            return render.get().raising(raisedKinds);
+        } finally {
+            raisedKinds = null;
+        }
     }
 
     /** {@inheritDoc} This dialect's own {@link #render}, in the single-line mode {@link #inline} writes a subquery
@@ -1143,6 +1162,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
      */
     @SpellingArm
     protected SqlExpr raiseMessage(SqlExpr.RaiseText r) {
+        noteRaise(r);
         if (r.asData() != null) {
             // the kind's text as data in an answer (a checked graph's defect): the product's words, worded at planning
             return new SqlExpr.StringLit(r.asData());
@@ -1151,6 +1171,14 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
         return r.kind() == com.legend.sql.RaiseKind.USER_FAIL ? r.operands().get(0)
                 : new SqlExpr.StringLit(com.legend.sql.RaiseKind.MARK + r.kind().name()
                         + (r.where() == null ? "" : com.legend.sql.RaiseKind.MARK + r.where()));
+    }
+
+    /** {@code r}'s kind, among the raises the render under way writes ({@link #collectingRaises}): a product raise
+     *  whose text carries its kind (an answer's data does not raise). */
+    protected final void noteRaise(SqlExpr.RaiseText r) {
+        if (raisedKinds != null && r.asData() == null) {
+            raisedKinds.add(r.kind());
+        }
     }
 
     /**
@@ -1419,7 +1447,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
     protected SqlWriter shortestWhenHuge(SqlWriter writer, SqlExpr x, java.util.function.Consumer<SqlWriter> otherwise) {
         writer.append("CASE WHEN ").expr(SqlExpr.Call.of(com.legend.sql.SqlFn.GREATER_EQUAL,
                 SqlExpr.Call.of(com.legend.sql.SqlFn.ABS, x), new SqlExpr.FloatLit(SHORTEST_FROM)), 0).append(" THEN ")
-                .expr(plainDigits(new SqlExpr.Cast(x, com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), x),
+                .expr(plainDigits(new SqlExpr.Cast(asDouble(x), com.legend.sql.SqlType.Scalar.VARCHAR, SqlExpr.Reason.PRINT), x),
                         0)
                 .append(" ELSE ");
         otherwise.accept(writer);
@@ -1428,7 +1456,7 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     /** {@code s}, a double's text of magnitude at least {@link #SHORTEST_FROM}, as plain digits: a scientific text's
      *  mantissa digits (its point dropped, its sign kept) padded with zeros to the exponent's magnitude; a text with no
-     *  exponent, its digits (a trailing {@code .0} dropped). Not a value of the database's arithmetic: its own text, cut. */
+     *  exponent, its digits (a trailing {@code .0} alone dropped). Not a value of the database's arithmetic: its own text, cut. */
     protected static SqlExpr plainDigits(SqlExpr s, SqlExpr x) {
         SqlExpr at = SqlExpr.Call.of(com.legend.sql.SqlFn.STRPOS, SqlExpr.Call.of(com.legend.sql.SqlFn.LOWER, s),
                 new SqlExpr.StringLit("e"));
@@ -1445,9 +1473,17 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
                         new SqlExpr.IntLit(2))), new SqlExpr.IntLit(1), SqlExpr.Reason.PRINT));
         SqlExpr digits = SqlExpr.Call.of(com.legend.sql.SqlFn.RPAD, SqlExpr.Call.of(com.legend.sql.SqlFn.REPLACE,
                 mantissa, new SqlExpr.StringLit("."), new SqlExpr.StringLit("")), width, new SqlExpr.StringLit("0"));
+        // a text with no exponent: its digits, a trailing ".0" alone cut (never a ".0" inside the text)
+        SqlExpr length = SqlExpr.Call.of(com.legend.sql.SqlFn.LENGTH, s);
+        SqlExpr tail = SqlExpr.Call.of(com.legend.sql.SqlFn.SUBSTRING, s, SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS,
+                length, new SqlExpr.IntLit(1)), new SqlExpr.IntLit(2));
+        SqlExpr plain = new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
+                SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, tail, new SqlExpr.StringLit(".0")),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.SUBSTRING, s, new SqlExpr.IntLit(1),
+                        SqlExpr.Call.of(com.legend.sql.SqlFn.MINUS, length, new SqlExpr.IntLit(2))))),
+                s, SqlExpr.Reason.PRINT);
         return new SqlExpr.Case(java.util.List.of(new SqlExpr.Case.When(
-                SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, at, new SqlExpr.IntLit(0)),
-                SqlExpr.Call.of(com.legend.sql.SqlFn.REPLACE, s, new SqlExpr.StringLit(".0"), new SqlExpr.StringLit("")))),
+                SqlExpr.Call.of(com.legend.sql.SqlFn.EQUAL, at, new SqlExpr.IntLit(0)), plain)),
                 digits, SqlExpr.Reason.PRINT);
     }
 
@@ -2463,6 +2499,10 @@ public abstract class AnsiSqlRenderer implements SqlDialect {
 
     @Override
     public RenderedStatement renderStatement(com.legend.sql.SqlDml dml) {
+        return collectingRaises(() -> dmlStatement(dml));
+    }
+
+    private RenderedStatement dmlStatement(com.legend.sql.SqlDml dml) {
         com.legend.base.RunScope.planning("render a statement");
         return switch (dml) {
             // a seed's rows, a copy, a table emptied: setup's statements, which bind no value (their text, as this

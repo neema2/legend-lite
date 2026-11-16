@@ -1780,7 +1780,11 @@ class JavaEvalLedgerTest {
                             // test door, its answer compared as the test's JSON -- and legend-engine's PURE_TDSOBJECT
                             // writer, objects keyed by the presented column name, each cell legend-engine's token
                             // (CellText.engine); spells, decides nothing
-                            "ServiceTestRunner.java", "TdsObjectsWriter.java"),
+                            "ServiceTestRunner.java", "TdsObjectsWriter.java",
+                            // legend-engine's scan order for the corpus lanes (W6 of docs/records/d-plan-2026-11-16.md,
+                            // 2026-11-16, moved from com.legend.sql.dialect): a rewrite of the statement's tree that adds
+                            // an ORDER BY the engine's insertion order implies -- a node for a node, no value met
+                            "StableScanOrder.java"),
                     "core/src/main/java/com/legend/planner", PLANNER_CLASSES,
                     "core/src/main/java/com/legend/exec", EXEC_CLASSES,
                     "core/src/main/java/com/legend/testexec", TESTEXEC_CLASSES,
