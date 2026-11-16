@@ -55,6 +55,91 @@ class PlanDeclaresItsRaisesTest {
         }
     }
 
+    /** Raising queries, each with the kind it must declare where a database plans it, or none where a database may
+     *  check it itself (a text read as an Integer: the product's raise on some databases, the database's own error
+     *  on others) -- whose marks are held to its declaration all the same. */
+    private static final Map<String, java.util.Optional<RaiseKind>> RAISING = Map.of(
+            "|#>{s::DB.T}#->extend(~r: r|$r.ID / $r.D)->select(~r)", java.util.Optional.of(RaiseKind.DIVIDE_BY_ZERO),
+            "|#>{s::DB.T}#->map(r|$r.ID)->toOne()", java.util.Optional.of(RaiseKind.SIZE_NOT_MULTIPLICITY),
+            "|#>{s::DB.T}#->extend(~r: r|$r.ID->toString()->parseInteger())->select(~r)", java.util.Optional.empty());
+
+    /**
+     * EVERY KIND A STATEMENT MARKS IS DECLARED, on every relational database and on MongoDB (the P2 checkpoint audit's
+     * A-S5, 2026-11-16): for each raising query a database plans, its kind is among the plan's raises, and every kind
+     * whose mark its statements' texts carry is too -- a raise written outside {@code raiseMessage} would carry its mark
+     * undeclared. (A dialect that escapes the mark, BigQuery's, is checked by the declared kind alone; a query a
+     * database refuses by name at planning is that database's answer, not this test's.)
+     */
+    @Test
+    void everyKindAStatementMarksIsDeclared() {
+        java.util.List<String> wrong = new java.util.ArrayList<>();
+        java.util.List<java.util.Map.Entry<String, ExecutionPlan>> plans = new java.util.ArrayList<>();
+        for (DatabaseType type : com.legend.database.Databases.relational()) {
+            for (Map.Entry<String, java.util.Optional<RaiseKind>> q : RAISING.entrySet()) {
+                ExecutionPlan plan;
+                try {
+                    plan = planned(type, q.getKey());
+                } catch (com.legend.sql.DialectCapability | com.legend.error.NotImplementedException refused) {
+                    continue;
+                }
+                if (q.getValue().isPresent() && !PlanJson.raises(plan).containsKey(q.getValue().get().name())) {
+                    wrong.add(type + " " + q.getKey() + ": " + q.getValue().get() + " undeclared " + PlanJson.raises(plan));
+                }
+                plans.add(Map.entry(type + " " + q.getKey(), plan));
+            }
+        }
+        plans.add(Map.entry("a document store's division", documentStorePlanned(
+                "#>{s::Store.people}#->extend(~r: x|$x.age / $x.zero)->select(~r)")));
+        for (Map.Entry<String, ExecutionPlan> e : plans) {
+            Map<String, String> declared = PlanJson.raises(e.getValue());
+            String texts = statements(e.getValue());
+            for (RaiseKind kind : RaiseKind.values()) {
+                if (texts.contains(RaiseKind.MARK + kind.name()) && !declared.containsKey(kind.name())) {
+                    wrong.add(e.getKey() + ": marks " + kind + ", declares " + declared.keySet());
+                }
+            }
+        }
+        assertEquals(java.util.List.of(), wrong);
+    }
+
+    /** Every statement text of {@code plan}, its JSON's (the statements, wherever the plan holds them). */
+    private static String statements(ExecutionPlan plan) {
+        return PlanJson.write(plan).replace("\\u001c", String.valueOf(RaiseKind.MARK))
+                .replace("\\u001C", String.valueOf(RaiseKind.MARK));
+    }
+
+    /** {@code query} over a MongoDB store: planning alone, no server. */
+    private static ExecutionPlan documentStorePlanned(String query) {
+        String model = """
+                ###MongoDB
+                Database s::Store
+                (
+                  Collection people
+                  (
+                    jsonSchema: {
+                      "bsonType": "object",
+                      "properties": { "age": { "bsonType": "long" }, "zero": { "bsonType": "long" } },
+                      "required": ["age", "zero"]
+                    };
+                  )
+                )
+                ###Connection
+                MongoDBConnection s::Conn
+                {
+                  database: d;
+                  store: s::Store;
+                  serverURLs: [127.0.0.1:1];
+                  authentication: # UserPassword {
+                    username: 'u';
+                    password: SystemPropertiesSecret { systemPropertyName: 'p'; };
+                  }#;
+                }
+                ###Runtime
+                Runtime s::RT { mappings: []; connections: [ s::Store: [ c1: s::Conn ] ]; }
+                """;
+        return com.legend.Compiler.query(com.legend.Compiler.compileModel(model), query).executionPlan("s::RT");
+    }
+
     @Test
     void aPlanThatRaisesNothingDeclaresNothing() {
         for (DatabaseType type : com.legend.database.Databases.relational()) {
