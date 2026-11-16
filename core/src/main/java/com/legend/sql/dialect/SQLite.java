@@ -1335,12 +1335,13 @@ public class SQLite extends AnsiSqlRenderer {
             return writer.piece(asText(typeOf(v) == SqlType.Scalar.HUGEINT ? deliveredValue(v, SqlType.Scalar.HUGEINT)
                     : v));
         }
-        // a Float parsed from text (parseFloat), EXACTLY legend-pure's interpreted grammar (the user, 2026-11-16:
-        // "Parsefloat - sure"): new BigDecimal(text) -- an optional sign, digits with an optional point, an optional
-        // exponent, no whitespace -- where SQLite's CAST read 'abc' as 0, '1.2.3' as 1.2 and 'NaN' as 0 (measured).
+        // a Float parsed from text (parseFloat), legend-pure's grammar (the user, 2026-11-16: "Parsefloat - sure"): an
+        // optional sign, digits with an optional point, an optional exponent; surrounding whitespace and one trailing f
+        // accepted, one rule on every database (the orchestrator, 2026-11-16) -- where SQLite's CAST read 'abc' as 0,
+        // '1.2.3' as 1.2 and 'NaN' as 0 (measured).
         // The text is read once (t); the sign stripped (u), its leading zeros (z), a bare point or exponent given a
-        // digit (p), and the result (n) is JSON's number grammar, the one test SQLite has. A trailing f, which
-        // legend-pure strips, is refused by name as DuckDB refuses it (the register's row). NaN raises VALUE_NOT_HELD
+        // digit (p), and the result (n) is JSON's number grammar, the one test SQLite has; the text is trimmed and one
+        // trailing f stripped first, as legend-pure strips it. NaN raises VALUE_NOT_HELD
         // (S138) and an infinity is SQLite's own, as DuckDB and H2 read them. Prototyped against the grammar: the
         // table and 30,000 fuzzed strings, no mismatch (Phase 8).
         if (target == SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER && typeOf(v) == SqlType.Scalar.VARCHAR) {
@@ -1360,8 +1361,9 @@ public class SQLite extends AnsiSqlRenderer {
                             + " substr(__pf_z, 1, 1) IN ('.', 'e', 'E') THEN '0' || __pf_z ELSE __pf_z END AS __pf_p FROM"
                             + " (SELECT __pf_t, __pf_u, ltrim(__pf_u, '0') AS __pf_z FROM (SELECT __pf_t, CASE WHEN"
                             + " substr(__pf_t, 1, 1) IN ('+', '-') THEN substr(__pf_t, 2) ELSE __pf_t END AS __pf_u FROM"
-                            + " (SELECT ")
-                    .expr(v, 0).append(" AS __pf_t))))))");
+                            + " (SELECT CASE WHEN __pf_s GLOB '*[fF]' THEN substr(__pf_s, 1, length(__pf_s) - 1)"
+                            + " ELSE __pf_s END AS __pf_t FROM (SELECT trim(")
+                    .expr(v, 0).append(", char(9, 10, 11, 12, 13, 32)) AS __pf_s)))))))");
         }
         return writer.piece(castTo(w -> w.expr(v, 0), typeOf(v), target));
     }

@@ -1243,7 +1243,8 @@ public class DuckDb extends AnsiSqlRenderer {
         }
         // a Float parsed from text (parseFloat): DuckDB's CAST accepts forms legend-pure raises on ('+-1' read -1,
         // '1_000' 1000, 'nan' and 'inf' in any case; measured, 87 shapes); the text is held to legend-pure's grammar
-        // as its compiled mode reads it (Double.valueOf: trimmed, NaN and Infinity as spelled), any other raising
+        // as its compiled mode reads it (Double.valueOf: trimmed, NaN and Infinity as spelled, one trailing f accepted
+        // and stripped, one rule on every database), any other raising
         // TEXT_NOT_FLOAT (the orchestrator's ruling, 2026-11-16: the guard applies wherever a database accepts an
         // invalid form; Phase 8)
         if (c.target() == com.legend.sql.SqlType.Scalar.DOUBLE && c.reason() == SqlExpr.Reason.USER
@@ -1251,8 +1252,8 @@ public class DuckDb extends AnsiSqlRenderer {
                 && t.type() == com.legend.sql.SqlType.Scalar.VARCHAR) {
             SqlExpr v = c.value();
             return writer.append("(CASE WHEN ").expr(v, 4).append(" IS NULL THEN NULL WHEN regexp_full_match(")
-                    .expr(v, 0).append(", '\\s*[+-]?(NaN|Infinity|(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?)\\s*')")
-                    .append(" THEN CAST(").expr(v, 0).append(" AS DOUBLE) ELSE ")
+                    .expr(v, 0).append(", '\\s*[+-]?(NaN|Infinity|(\\d+\\.?\\d*|\\.\\d+)([eE][+-]?\\d+)?[fF]?)\\s*')")
+                    .append(" THEN CAST(regexp_replace(").expr(v, 0).append(", '[fF]\\s*$', '') AS DOUBLE) ELSE ")
                     .expr(SqlExpr.Call.of(SqlFn.ERROR, new SqlExpr.RaiseText(com.legend.sql.RaiseKind.TEXT_NOT_FLOAT,
                             List.of(v))), 0)
                     .append(" END)");

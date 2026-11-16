@@ -92,15 +92,16 @@ class ParseFloatHeldTest extends AbstractDatabaseTest {
         numbers.put("-01", -1.0);
         numbers.put("00.5", 0.5);
         numbers.put("1.e5", 1e5);
+        // one rule on every database (the orchestrator, 2026-11-16): whitespace lenient, one trailing f accepted
+        numbers.put(" 1 ", 1.0);
+        numbers.put("1f", 1.0);
+        numbers.put("1.5F", 1.5);
         for (var n : numbers.entrySet()) {
             Object v;
             try {
                 v = one("|'" + n.getKey() + "'->parseFloat()");
             } catch (Exception refused) {
-                assertTrue(String.valueOf(refused.getMessage()).contains("to DOUBLE")
-                        || String.valueOf(refused.getMessage()).toLowerCase(java.util.Locale.ROOT).contains("float"),
-                        n.getKey() + ": " + refused.getMessage());
-                continue;
+                throw new AssertionError(n.getKey() + " refused: " + refused.getMessage(), refused);
             }
             // Pure's equality: 0.0 == -0.0 (parseFloat.pure's testParseZero)
             assertTrue(n.getValue() == ((Number) v).doubleValue(), n.getKey() + " answered " + v);
