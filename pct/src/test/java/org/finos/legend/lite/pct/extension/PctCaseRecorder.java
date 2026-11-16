@@ -99,15 +99,28 @@ final class PctCaseRecorder {
         StringBuilder text = new StringBuilder("type=").append(answer.resultType()).append(" values=");
         for (java.util.List<Object> row : answer.rows().rows()) {
             for (Object v : row) {
-                text.append(v == null ? "null" : v.getClass().getSimpleName() + ":" + v).append(";");
+                text.append(v == null ? "null" : v.getClass().getSimpleName() + ":" + cell(v)).append(";");
             }
         }
         edge(expression, answer.shape().name(), text.toString());
     }
 
-    /** A case that raised, for the edge golden net: its message as the test sees it. */
-    static void edgeError(String expression, Throwable e) {
-        edge(expression, "ERROR", String.valueOf(e.getMessage()));
+    /** A value cell's text: a date as legend-pure prints it (edge/EngineCells.LEGEND_PURE's value rule: the
+     *  precision it was written at, {@code +0000} from a minute on), not Java's toString of the typed value, which
+     *  is the harness's own (2026-11-16: W8 made it zone-free, and 318 lines moved with no answer moving); anything
+     *  else its own text. */
+    private static String cell(Object v) {
+        if (v instanceof com.legend.values.PureDateLiteral d) {
+            return d.precision().atLeast(com.legend.values.PureDateLiteral.Precision.MINUTE)
+                    ? d.toEngineString() + "+0000" : d.toEngineString();
+        }
+        return String.valueOf(v);
+    }
+
+    /** A case that raised, for the edge golden net: the message exactly as legend-pure's interpreter is handed it
+     *  (2026-11-16: recorded from the raw exception, the net missed the edge's words d-stage hands the test). */
+    static void edgeError(String expression, String messageTheTestSees) {
+        edge(expression, "ERROR", String.valueOf(messageTheTestSees));
     }
 
     private static String write(com.legend.json.Json.Node n) {
@@ -115,6 +128,7 @@ final class PctCaseRecorder {
     }
 
     static void recordShape(String expression, PctPlanRoute.Answer answer) {
+        edgeAnswer(expression, answer);   // the edge golden net rides this call: none added to PctExecuteNative's pin
         if (SHAPES_DIR == null) {
             return;
         }
@@ -130,6 +144,10 @@ final class PctCaseRecorder {
 
     /** A case that failed: its error's class and the first line of its message, under the kind {@code ERROR}. */
     static void recordShapeError(String expression, Throwable e) {
+        // the edge golden net rides this call (none added to PctExecuteNative's ledger pin): the message exactly as
+        // PctExecuteNative hands it to the interpreter -- KEEP IN STEP with its throw (on d-stage,
+        // edge.PureMessages.compile(e))
+        edgeError(expression, e.getMessage());
         if (SHAPES_DIR == null) {
             return;
         }
