@@ -104,7 +104,11 @@ public final class PeRatchets {
             "own_corpus.matched 3316 -> 3320 (2026-11-16, compile errors' sourceInformation; it measured 3211 -> 3215 on"
                     + " its branch on 2026-11-13, re-measured on studio-compatibility-dev 75183a9c8): its tests' models"
                     + " (PureV1ApiTest's compile_* models: my::Ok and my::Desk, my::Ok with a derived property and the"
-                    + " function my::broken), measured by //parser-equivalence:update_ratchets");
+                    + " function my::broken), measured by //parser-equivalence:update_ratchets",
+            "own_corpus.matched 3320 -> 3321 (2026-11-16, the dev fixes from the review of neema2/legend-lite#113): its"
+                    + " test's model (DataSpaceIncludeTest.aTolerantBuildLeavesNoMarker's mapping x::Outer, which"
+                    + " includes the mapping whose include dataspace is refused), measured by"
+                    + " //parser-equivalence:update_ratchets");
 
     public static void main(String[] args) throws Exception {
         if (args.length != 1) {

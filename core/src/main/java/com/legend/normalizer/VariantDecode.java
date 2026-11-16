@@ -38,8 +38,11 @@ import java.util.Map;
  * legend-engine rejects (no such binding, a non-class property, a class outside the binding's model unit) is a
  * {@link ModelException}, a strict build's error; what lite cannot do yet -- a to-many class-typed property (a nested
  * array of objects: lite serves a nested object as an embedded instance only), a class reachable from itself (its
- * decode would not end) -- is a {@link NotImplementedException}: the class mapping is poisoned, loud when a query
- * reaches it, and the rest of the model builds (the stress corpus's 8118-semi.pure binds such a class).
+ * decode would not end) -- is DEFERRED key by key ({@link #deferred}): that key's value raises its reason when a
+ * query reads it, and every other key, the class that owns the bound property and the rest of the model stay
+ * readable, as legend-engine's key-by-key navigation leaves them (the stress corpus's 8118-semi.pure binds such a
+ * class). Only a property whose type is no named type is a {@link NotImplementedException}, which poisons the class
+ * mapping: there is no type to give its deferred value.
  */
 final class VariantDecode {
 
@@ -76,21 +79,29 @@ final class VariantDecode {
                     + " should be included in modelUnit for binding: " + binding + "; mapping=" + mappingFqn);
         }
         if (isMany(prop.multiplicity())) {
-            throw new NotImplementedException("property '" + propertyName + "' of '"
+            return deferred("property '" + propertyName + "' of '"
                     + ownerFqn + "' is to-many and bound by Binding " + binding + ": lite does not decode an array"
-                    + " of objects from a semi-structured value yet; mapping=" + mappingFqn);
+                    + " of objects from a semi-structured value yet; mapping=" + mappingFqn, classFqn);
         }
         return guarded(value, instance(classFqn, value, model, mappingFqn, new ArrayDeque<>()));
+    }
+
+    /**
+     * The value of a key lite cannot decode yet, DEFERRED: {@code cast(fail('reason'), @C)}, a value that raises its
+     * reason when it is read and costs nothing when it is not (the shape the M2M enum decode's unmapped arm has). The
+     * rest of the instance, and the class that owns the bound property, stay readable; a navigation through the key
+     * is refused with the reason where the query is resolved ({@code Pipelines.embeddedView}), any other read of it
+     * raises the reason from the database.
+     */
+    private static ValueSpecification deferred(String reason, String classFqn) {
+        return Calls.form(CoreFn.CAST, List.of(
+                Calls.exact(Pure.FAIL__STRING_1.qualifiedName(), List.of(new CString(reason))),
+                new TypeAnnotation.Named(new TypeExpression.NameRef(classFqn))));
     }
 
     /** {@code ^C(...)} with each of {@code classFqn}'s properties read from {@code v} by key. */
     static ValueSpecification instance(String classFqn, ValueSpecification v, ModelBuilder model,
             String mappingFqn, Deque<String> path) {
-        if (path.contains(classFqn)) {
-            throw new NotImplementedException("class '" + classFqn
-                    + "' is reachable from itself (" + String.join(" > ", path) + " > " + classFqn + "): its decode"
-                    + " from a semi-structured value would not end; mapping=" + mappingFqn);
-        }
         path.addLast(classFqn);
         Map<String, KeyExpression> fields = new LinkedHashMap<>();
         for (ClassDefinition cd : model.knowledge().lineage(classFqn)) {
@@ -119,9 +130,14 @@ final class VariantDecode {
         boolean many = isMany(p.multiplicity());
         if (model.knowledge().hierarchyClass(nr.name()).isPresent()) {
             if (many) {
-                throw new NotImplementedException("property '" + p.name() + "' of '"
+                return deferred("property '" + p.name() + "' of '"
                         + ownerFqn + "' is a to-many class-typed property (" + nr.name() + "): lite does not decode"
-                        + " an array of objects from a semi-structured value yet; mapping=" + mappingFqn);
+                        + " an array of objects from a semi-structured value yet; mapping=" + mappingFqn, nr.name());
+            }
+            if (path.contains(nr.name())) {
+                return deferred("class '" + nr.name() + "' is reachable from itself ("
+                        + String.join(" > ", path) + " > " + nr.name() + "): its decode from a semi-structured value"
+                        + " would not end; mapping=" + mappingFqn, nr.name());
             }
             return guarded(get, instance(nr.name(), get, model, mappingFqn, path));
         }

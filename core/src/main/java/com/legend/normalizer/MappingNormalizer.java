@@ -156,20 +156,19 @@ public final class MappingNormalizer {
             java.util.@com.legend.base.Nullable Map<String, String> wallSink, LiftedViews views) {
         Objects.requireNonNull(parsed, "parsed");
         Objects.requireNonNull(model, "model");
-        if (wallSink == null) {
-            // an include dataspace marker is name resolution's to rewrite
-            // (NameResolver.resolveDataSpaceIncludes); one reaching a strict
-            // normalize would be read as a mapping path (a tolerant build
-            // walled its mapping at resolution, with the reason)
-            for (PackageableElement el : parsed.elements()) {
-                List<MappingInclude> incs = el instanceof LegacyMappingDefinition lm ? lm.includes()
-                        : el instanceof CleanSheetMappingDefinition cs ? cs.includes() : List.of();
-                for (MappingInclude inc : incs) {
-                    if (inc.dataSpace()) {
-                        throw new IllegalStateException("resolver bug: mapping '" + el.qualifiedName()
-                                + "' still holds the include dataspace marker '" + inc.mappingPath()
-                                + "' past name resolution");
-                    }
+        // an include dataspace marker is name resolution's to rewrite
+        // (NameResolver.resolveDataSpaceIncludes); one reaching a normalize,
+        // strict or tolerant, would be read as a mapping path (a tolerant
+        // build walled its mapping at resolution, with the reason, and
+        // dropped the marker)
+        for (PackageableElement el : parsed.elements()) {
+            List<MappingInclude> incs = el instanceof LegacyMappingDefinition lm ? lm.includes()
+                    : el instanceof CleanSheetMappingDefinition cs ? cs.includes() : List.of();
+            for (MappingInclude inc : incs) {
+                if (inc.dataSpace()) {
+                    throw new IllegalStateException("resolver bug: mapping '" + el.qualifiedName()
+                            + "' still holds the include dataspace marker '" + inc.mappingPath()
+                            + "' past name resolution");
                 }
             }
         }

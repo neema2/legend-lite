@@ -93,6 +93,23 @@ class DataSpaceIncludeTest {
                 "include dataspace x::Trade"));
     }
 
+    @Test
+    @DisplayName("a tolerant build walls the mapping with the reason; a mapping that includes it meets no marker")
+    void aTolerantBuildLeavesNoMarker() {
+        // the data space has no default execution context: x::TradeMapping's include cannot be rewritten. The
+        // tolerant build walls it by name and drops the marker, so x::Outer's walk of its includes never reads
+        // the data space's path as a mapping's
+        String model = model("include dataspace x::EntitySpace", "") + """
+                ###Mapping
+                Mapping x::Outer ( include mapping x::TradeMapping )
+                """;
+        com.legend.Compiler.BuiltModule built = com.legend.Compiler.buildModule(com.legend.Compiler.parseSources(
+                List.of(new com.legend.Compiler.ModelSource("m.pure", model))).model());
+        assertTrue(String.valueOf(built.walls().get("x::TradeMapping")).contains("has no default execution context"),
+                () -> "the including mapping is walled with the reason: " + built.walls());
+        assertFalse(built.walls().containsKey("x::Outer"), () -> "x::Outer met the marker: " + built.walls());
+    }
+
     private static void assertRefused(String fragment, String model) {
         Throwable t = assertThrows(Throwable.class, () -> com.legend.Compiler.compileModel(model));
         StringBuilder all = new StringBuilder();

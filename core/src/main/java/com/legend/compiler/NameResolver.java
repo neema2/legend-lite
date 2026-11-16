@@ -1170,9 +1170,11 @@ public final class NameResolver {
                 if (wallSink == null) {
                     throw new com.legend.error.ModelException(e.phase(), e.getMessage(), ParsedModel.keyOf(el));
                 }
-                // POISON-NOT-DROP, as the element loop above: the mapping stays, its marker unrewritten, walled
+                // POISON-NOT-DROP, as the element loop above: the mapping stays, walled with the reason. Its
+                // markers go: one left behind would be read as a mapping path by every walker of the includes
+                // of a mapping that includes this one
                 wallSink.putIfAbsent(ParsedModel.keyOf(el), String.valueOf(e.getMessage()).split("\n")[0]);
-                continue;
+                rewritten = includes.stream().filter(inc -> !inc.dataSpace()).toList();
             }
             PackageableElement r = el instanceof LegacyMappingDefinition md
                     ? new LegacyMappingDefinition(md.qualifiedName(), rewritten, md.classMappings(),
@@ -1263,6 +1265,19 @@ public final class NameResolver {
         return new ClassMapping.AggregationAware(out);
     }
 
+    /** A relation mapping's columns with each {@code Binding} transformer's path resolved (as a relational property
+     *  mapping's is, {@code resolvePropertyMapping}); the list itself when none changes. */
+    private static List<ClassMapping.RelationFunction.Col> resolveRelationCols(
+            List<ClassMapping.RelationFunction.Col> cols, Scope scope) {
+        return resolveList(cols, (c, sc) -> {
+            String binding = c.binding() == null ? null : resolveName(c.binding(), sc);
+            List<ClassMapping.RelationFunction.Col> embedded = resolveRelationCols(c.embedded(), sc);
+            return java.util.Objects.equals(binding, c.binding()) && embedded == c.embedded() ? c
+                    : new ClassMapping.RelationFunction.Col(c.property(), c.column(), c.local(),
+                            c.enumMappingId(), embedded, c.inlineSetId(), c.expr(), binding);
+        }, scope);
+    }
+
     private static ClassMapping resolveClassMapping(
             ClassMapping cm, Scope scope) {
         return switch (cm) {
@@ -1300,22 +1315,24 @@ public final class NameResolver {
             }
             case ClassMapping.RelationFunction rf -> {
                 String className = resolveName(rf.className(), scope);
+                List<ClassMapping.RelationFunction.Col> columns = resolveRelationCols(rf.columns(), scope);
                 if (rf.funcRef() == null) {
                     // ~src inline expression: the SOURCE resolves like any
                     // mapping expression; there is no name to resolve
                     ValueSpecification src = resolveVs(rf.inlineSource(), scope);
                     yield className.equals(rf.className())
-                            && src == rf.inlineSource()
+                            && src == rf.inlineSource() && columns == rf.columns()
                             ? rf
                             : new ClassMapping.RelationFunction(className,
                                     rf.setId(), rf.extendsSetId(), rf.root(),
-                                    null, src, rf.columns(), rf.primaryKey());
+                                    null, src, columns, rf.primaryKey());
                 }
                 String funcRef = resolveName(rf.funcRef(), scope);
                 yield className.equals(rf.className()) && funcRef.equals(rf.funcRef())
+                        && columns == rf.columns()
                         ? rf
                         : new ClassMapping.RelationFunction(className, rf.setId(),
-                                rf.extendsSetId(), rf.root(), funcRef, rf.columns());
+                                rf.extendsSetId(), rf.root(), funcRef, columns);
             }
             case ClassMapping.Pure p -> {
                 String className = resolveName(p.className(), scope);

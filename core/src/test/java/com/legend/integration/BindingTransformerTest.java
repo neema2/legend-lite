@@ -129,6 +129,19 @@ class BindingTransformerTest {
     }
 
     @Test
+    @DisplayName("a relation function mapping's Binding, named through the section's import: the same decode")
+    void aRelationFunctionsBindingResolvesThroughAnImport() throws Exception {
+        String query = "|x::Person.all()->project(~[n:x|$x.name, f:x|$x.firm.legalName])"
+                + "->sort(~n->ascending())->from(x::RM, x::RT)";
+        String model = model(ANY, "").replace("###Mapping\nMapping x::M", "###Mapping\nimport x::*;\nMapping x::M")
+                .replace("firm: Binding x::FirmBinding : FIRM", "firm: Binding FirmBinding : FIRM");
+        assertTrue(model.contains("import x::*;") && model.contains("firm: Binding FirmBinding : FIRM"), model);
+        assertEquals(List.of(Arrays.asList("Ann", "Acme"), Arrays.asList("Bob", "Beta"), Arrays.asList("Cy", "null")),
+                DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, query, List.of(), "x::RT"),
+                        query, ANY), "the binding's short name resolved against the import");
+    }
+
+    @Test
     @DisplayName("a filter through the bound object: legend-engine's rows")
     void filters() throws Exception {
         String query = "|x::Person.all()->filter(x|$x.firm.legalName == 'Acme')->project(~[n:x|$x.name])"
@@ -158,20 +171,47 @@ class BindingTransformerTest {
     }
 
     @Test
-    @DisplayName("an array of objects in the bound class: the model builds, a query of the class is refused by name")
-    void anArrayOfObjectsIsRefusedAtUse() {
-        // a lite gap, not an engine refusal: the class mapping is poisoned (MappingNormalizer's line between the
-        // two), so the rest of the model -- here the relation function's mapping -- still builds and runs
-        String model = model(ANY, "").replace("address: x::Address[0..1];", "address: x::Address[*];");
-        com.legend.Compiler.compileModel(model);
-        String query = "|x::Person.all()->project(~[n:x|$x.name])->from(x::M, x::RT)";
-        Throwable t = assertThrows(Throwable.class, () -> DataDeliveryMatrixTest.read(
-                new DataDeliveryMatrixTest.Data(model, query, List.of(), "x::RT"), query, ANY));
+    @DisplayName("a key lite cannot decode is deferred: the class and the object's other keys read, that key is refused by name")
+    void anUndecodableKeyIsDeferred() throws Exception {
+        // lite gaps, not engine refusals (MappingNormalizer's line between the two): an array of objects, a class
+        // reachable from itself, a to-many bound property. Each defers its own key (VariantDecode.deferred), as
+        // legend-engine's key-by-key navigation leaves the rest readable
+        List<List<String>> names = List.of(List.of("Ann"), List.of("Bob"), List.of("Cy"));
+        List<List<String>> firms = List.of(Arrays.asList("Ann", "Acme"), Arrays.asList("Bob", "Beta"),
+                Arrays.asList("Cy", "null"));
+        String name = "|x::Person.all()->project(~[n:x|$x.name])->sort(~n->ascending())->from(x::M, x::RT)";
+        String firm = "|x::Person.all()->project(~[n:x|$x.name, f:x|$x.firm.legalName])->sort(~n->ascending())"
+                + "->from(x::M, x::RT)";
+
+        String arrays = model(ANY, "").replace("address: x::Address[0..1];", "address: x::Address[*];");
+        com.legend.Compiler.compileModel(arrays);
+        assertEquals(names, rows(arrays, name), "the owning class reads");
+        assertEquals(firms, rows(arrays, firm), "the bound object's other keys read");
+        assertRefusedAtUse("lite does not decode an array of objects", arrays,
+                "|x::Person.all()->project(~[c:x|$x.firm.address.city])->from(x::M, x::RT)");
+
+        String cycle = model(ANY, "").replace("size: Integer[0..1];", "size: Integer[0..1]; parent: x::Firm[0..1];");
+        assertEquals(firms, rows(cycle, firm), "a class reachable from itself: its other keys read");
+        assertRefusedAtUse("is reachable from itself", cycle,
+                "|x::Person.all()->project(~[c:x|$x.firm.parent.legalName])->from(x::M, x::RT)");
+
+        String many = model(ANY, "").replace("firm: x::Firm[0..1];", "firm: x::Firm[*];");
+        assertEquals(names, rows(many, name), "a to-many bound property: the owning class reads");
+        assertRefusedAtUse("is to-many and bound by Binding", many,
+                "|x::Person.all()->project(~[c:x|$x.firm.legalName])->from(x::M, x::RT)");
+    }
+
+    private static List<List<String>> rows(String model, String query) throws Exception {
+        return DataDeliveryMatrixTest.read(new DataDeliveryMatrixTest.Data(model, query, List.of(), "x::RT"), query, ANY);
+    }
+
+    private static void assertRefusedAtUse(String fragment, String model, String query) {
+        Throwable t = assertThrows(Throwable.class, () -> rows(model, query));
         StringBuilder all = new StringBuilder();
         for (Throwable c = t; c != null; c = c.getCause() == c ? null : c.getCause()) {
             all.append(c.getMessage()).append(" | ");
         }
-        assertTrue(all.toString().contains("lite does not decode an array of objects"), all.toString());
+        assertTrue(all.toString().contains(fragment), all.toString());
     }
 
     private static void assertRefused(String fragment, String model) {
