@@ -163,6 +163,18 @@ describe('LitePlanner', () => {
     });
   });
 
+  // a connection's declared statement timeout (2026-11-16, the TypeScript batch's T-H): read beside the plan's values,
+  // carried on the plan for the engine to stop the statement then, or refuse it; a value not a whole number refused
+  it("carries the statement timeout the plan's connection declares, and refuses one not a whole number of seconds", async () => {
+    const declaring = (declared: unknown): string => `OK\n${JSON.stringify({ sql: 'SELECT 1', type: { _type: 'relationType', columns: [] },
+      plan: { root: { _type: 'tdsResult', sql: { statement: 'SELECT 1', slots: [], target: { database: { _type: 'declared',
+        connection: { name: 'trades::Conn', databaseType: 'DuckDB', ...(declared === undefined ? {} : { queryTimeOutInSeconds: declared }) } } } } } } })}`;
+    assert.deepEqual(await planner(() => declaring(30)).planText('g'), { sql: 'SELECT 1', columns: [], timeout: 30 });
+    assert.deepEqual(await planner(() => declaring(undefined)).planText('g'), { sql: 'SELECT 1', columns: [] });
+    assert.deepEqual(await planner(() => declaring(0)).planText('g'), { sql: 'SELECT 1', columns: [] }, '0 is no limit');
+    await assert.rejects(planner(() => declaring(2.5)).planText('g'), /queryTimeOutInSeconds is a whole number of seconds, not 2.5/);
+  });
+
   it('passes the model and runtime through to the module', async () => {
     let seen: string[] = [];
     const p = planner((m, q, r) => {

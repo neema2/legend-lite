@@ -4,7 +4,7 @@
 // store binds), run by the hosts' runner (runLoad) in one transaction. Until then the server's seed statements were
 // handed over as text (testDataSql) and the file named by a host's operation, run outside any plan (census M14).
 
-import { inLoadsTransaction, runLoad, sha256Hex, type PlanValue } from './plan-runner.ts';
+import { inLoadsTransaction, runLoad, sha256Hex, type PlanValue, type TimedRun } from './plan-runner.ts';
 import type { PlannedSql, PlanText } from './planned-sql.ts';
 
 /** The model JSON parts read here (grammarToJson/model). */
@@ -88,8 +88,9 @@ export function dataTables(elements: readonly ModelElement[]): DataTable[] {
 export interface FileSink {
   registerFileBuffer(name: string, bytes: Uint8Array): Promise<void>;
   dropFile?(name: string): Promise<void>;
-  /** The connection held for `work`: each statement run with its bound values, no other query between them. */
-  hold<T>(work: (run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>) => Promise<T>): Promise<T>;
+  /** The connection held for `work`: each statement run with its bound values, no other query between them -- and, where
+   *  the connection can stop one, `runWithin`: a statement told to stop after its target's declared timeout (T-H). */
+  hold<T>(work: (run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>, runWithin?: TimedRun) => Promise<T>): Promise<T>;
 }
 
 /** A person's file ready for its planned load: its bytes, the name they are registered under, their format and SHA-256. */
@@ -144,7 +145,7 @@ export async function putFile(sink: FileSink, plan: PlanText, put: FilePut): Pro
     },
   };
   try {
-    await sink.hold((run) => inLoadsTransaction(plan, run, () => runLoad(plan, run, { files })));
+    await sink.hold((run, runWithin) => inLoadsTransaction(plan, run, () => runLoad(plan, run, { files, ...(runWithin ? { runWithin } : {}) }), runWithin));
   } finally {
     // the rows are the table's now (or the table is as it was): the file is not read again -- and a drop that fails
     // neither fails a put that worked nor hides why a read did not (at worst the file stays registered)

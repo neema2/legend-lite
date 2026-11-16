@@ -32,7 +32,7 @@ import { writerBodies } from '../../model-changes/src/wire.ts';
 import type { AssociationAction, ClassAction, DataSpaceAction, GridSource, ModelAnswer, ModelWriter } from './model-writer.ts';
 import type { PrintStyle } from '../../engine-client/src/pure-v1-planning.ts';
 import { relationColumns, type Plan, type PlanColumn } from '../../engine-client/src/relation-type.ts';
-import { planParams } from '../../engine-client/src/plan-params.ts';
+import { planParams, planTimeout } from '../../engine-client/src/plan-params.ts';
 import type {
   FileLoadRequest, HostOperation, ProjectDataStatements, RemoteMountRequest, SnapCopyRequest, SnapPull, SnapStreamRequest,
   SynthesizeRequest,
@@ -153,7 +153,10 @@ export interface TsNode {
 function textPlan(text: string): Plan {
   const body = JSON.parse(text) as { sql: string; type: unknown; plan?: unknown };
   const params = planParams(body.plan);
-  return { sql: fromPlan(body.sql), columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}) };
+  // its connection's declared statement timeout, read beside its values (T-H): the engine stops it, or refuses it
+  const timeout = planTimeout(body.plan);
+  return { sql: fromPlan(body.sql), columns: relationColumns(body.type), ...(params.length > 0 ? { params } : {}),
+    ...(timeout === undefined ? {} : { timeout }) };
 }
 
 /**

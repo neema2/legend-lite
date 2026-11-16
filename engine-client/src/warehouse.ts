@@ -213,6 +213,14 @@ function refuseParams(sql: string, params: readonly string[] | undefined): void 
   }
 }
 
+/** A statement timeout a plan's target declares (plan-params.ts planTimeout, T-H): the warehouse's statement API stops
+ *  none after a time, so a plan that declares one is refused by name, never sent untimed. */
+function refuseTimeout(sql: string, seconds: number | undefined): void {
+  if (seconds !== undefined) {
+    throw new QueryError(`this statement's connection stops it after ${seconds} seconds (queryTimeOutInSeconds), and the warehouse stops none: it is not sent`, sql);
+  }
+}
+
 export class WarehouseEngine implements LiveWarehouse {
   readonly name = 'warehouse';
   /** Its catalog's database type (`DuckDB`, `Postgres`): what a statement run on it is written for (Snap's count). */
@@ -307,7 +315,7 @@ export class WarehouseEngine implements LiveWarehouse {
    * cancelled on the server.
    */
   async execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable> {
-    return typedByPlan(await this.run(plan.sql, epoch, signal, plan.params), plan);
+    return typedByPlan(await this.run(plan.sql, epoch, signal, plan.params, plan.timeout), plan);
   }
 
   /** A planned query's rows chunk by chunk, as the server wrote them (its Arrow chunks). */
@@ -318,6 +326,7 @@ export class WarehouseEngine implements LiveWarehouse {
     signal?: AbortSignal,
   ): Promise<void> {
     refuseParams(plan.sql, plan.params);
+    refuseTimeout(plan.sql, plan.timeout);
     const started = performance.now();
     try {
       for await (const bytes of this.arrowChunks(plan.sql, signal)) {
@@ -330,8 +339,9 @@ export class WarehouseEngine implements LiveWarehouse {
     }
   }
 
-  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable> {
+  async run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[], seconds?: number): Promise<RawTable> {
     refuseParams(sql, params);
+    refuseTimeout(sql, seconds);
     const started = performance.now();
     const batches: RecordBatch[] = [];
     let receipt: Receipt | undefined;

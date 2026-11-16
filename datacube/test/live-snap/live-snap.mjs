@@ -65,8 +65,9 @@ try {
     console.log(`FAIL the setup: ${verdict.setupError}`);
     failed = true;
   }
-  if (verdict.outcomes.length !== 7) {
-    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 7`);
+  // 8 since 2026-11-16: a statement stopped at its connection's declared timeout (the TypeScript batch's T-H)
+  if (verdict.outcomes.length !== 8) {
+    console.log(`FAIL ${verdict.outcomes.length} checks ran, not 8`);
     failed = true;
   }
 } finally {

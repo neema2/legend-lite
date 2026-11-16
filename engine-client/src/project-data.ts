@@ -19,7 +19,7 @@ import type { ProjectDataStatements } from './requests.ts';
 /** A connection of a project's database: its queries, and itself held for a run of statements with bound values (a
  *  person's file put in: a planned load's, model-data.ts putFile; DuckDbEngine.exclusive). */
 export interface HeldEngine extends QueryEngine {
-  exclusive<T>(work: (held: Pick<HeldConnection, 'rows'>) => Promise<T>): Promise<T>;
+  exclusive<T>(work: (held: Pick<HeldConnection, 'rows' | 'rowsWithin'>) => Promise<T>): Promise<T>;
 }
 
 /** What a project's database needs of the tab's DuckDB: its type, statements on any connection, and connections of its own. */
@@ -155,7 +155,10 @@ export class ProjectDatabases {
       for (const sql of statements.use) await engine.run(sql, 0);
       // its rows: the plan's load, run on its own connection
       const on = engine;
-      if (statements.load !== undefined) await runLoad(statements.load, (sql) => on.run(sql, 0));
+      // within its target's declared timeout, where it declares one: the engine stops it, or refuses it by name (T-H)
+      if (statements.load !== undefined) {
+        await runLoad(statements.load, (sql) => on.run(sql, 0), { runWithin: (sql, _params, seconds) => on.run(sql, 0, undefined, [], seconds) });
+      }
       users = kept(engine);
       if (made) await made(users, statements.name);
     } catch (e) {

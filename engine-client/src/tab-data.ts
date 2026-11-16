@@ -272,7 +272,8 @@ export class TabTables {
     return {
       registerFileBuffer: (name, bytes) => this.#sink.registerFileBuffer(name, bytes),
       ...(this.#sink.dropFile ? { dropFile: (name: string) => this.#sink.dropFile!(name) } : {}),
-      hold: (work) => engine.exclusive((held) => work((sql, params) => held.rows(sql, params))),
+      hold: (work) => engine.exclusive((held) => work((sql, params) => held.rows(sql, params),
+        held.rowsWithin ? (sql, params, seconds) => held.rowsWithin!(sql, params, seconds) : undefined)),
     };
   }
 }

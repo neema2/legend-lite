@@ -10,7 +10,11 @@ import { startNodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
 import { DuckDbEngine, type ArrowishConnection } from '../src/duckdb.ts';
 import { answer, type PlannerModule } from '../src/legend/planner-answer.ts';
-import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession } from '../src/plan-runner.ts';
+import { ConnectionSettings, establish, expandKeyed, inLoadsTransaction, PlanRefusal, runAuthored, runLoad, runPlan, targetKey, transacted, type PlanSession, type PlanValue } from '../src/plan-runner.ts';
+import type { HeldConnection, QueryEngine } from '../src/query-engine.ts';
+import { WarehouseBinding, WarehouseEngine } from '../src/warehouse.ts';
+import { runAuthoredStatement } from '../src/doors/authored.ts';
+import { dataLoaded } from '../src/doors/project-data.ts';
 import { currentRun, frameKept, inRun } from '../src/run-frame.ts';
 import { heldTexts, redactHeld } from '../src/connection-settings.ts';
 import { PlanParamsRefusal, planParams, statementParams } from '../src/plan-params.ts';
@@ -561,6 +565,247 @@ Runtime m::RT { mappings: [m::MM]; connections: [ ModelStore: [ json: #{ JsonMod
     // the activity's SQL is the statement's text: its `?`, never the payload
     assert.ok(!JSON.stringify(answered.activities).includes('back'), JSON.stringify(answered.activities));
   });
+});
+
+// A CONNECTION'S DECLARED STATEMENT TIMEOUT (2026-11-16, the TypeScript batch's T-H): `queryTimeOutInSeconds` on the
+// declared connection inside a target's database, which upstream applies to every statement (legend-engine's
+// SQLResult). The planner side is C5-J's, so the key is written by hand here into a plan the planner made (a platform
+// database, which never carries one, written as a declared connection of its type): every statement of the target goes
+// through the host's timed send, and a host that stops none has the plan refused by name, nothing sent.
+describe("a connection's declared statement timeout", () => {
+  /** `plan` with `seconds` declared on every target's connection, by hand (as C5-J's planner will write it). */
+  const declaring = (plan: string, seconds: unknown): PlanText => {
+    const read: unknown = looseJson(plan);
+    let written = 0;
+    const visit = (node: unknown): void => {
+      if (node === null || typeof node !== 'object') return;
+      const here = node as Record<string, unknown>;
+      const database = (here['target'] as { database?: Record<string, unknown> } | undefined)?.database;
+      if (database !== undefined) {
+        if (database['_type'] === 'declared') (database['connection'] as Record<string, unknown>)['queryTimeOutInSeconds'] = seconds;
+        else {
+          (here['target'] as Record<string, unknown>)['database'] = { _type: 'declared', connection: { name: 'w::Conn',
+            databaseType: database['databaseType'], specification: { _type: 'InMemory' }, authentication: { _type: 'TestAuth' },
+            queryTimeOutInSeconds: seconds }, project: database['project'] };
+        }
+        written++;
+      }
+      Object.values(here).forEach(visit);
+    };
+    visit(read);
+    assert.ok(written > 0, 'the plan names a target');
+    return unplannedPlan(JSON.stringify(read));
+  };
+  /** A session over the tab's held connection recording what it is sent and how: `timed` false is a host that stops none. */
+  const recording = (held: HeldConnection, timed: boolean): { session: PlanSession; sent: string[] } => {
+    const sent: string[] = [];
+    const session: PlanSession = {
+      databaseType: engine.databaseType,
+      run: (sql, params) => { sent.push(`run ${sql}`); return held.rows(sql, params); },
+      ...(timed ? { runWithin: (sql: PlannedSql, params: readonly PlanValue[], seconds: number) => {
+        sent.push(`within ${seconds}s ${sql}`);
+        return held.rows(sql, params);
+      } } : {}),
+    };
+    return { session, sent };
+  };
+  /** A write that changes nothing (its delete matches no row), run in its target's transaction: a count and the
+   *  transaction's statements sent, the table as it was. */
+  const write = (): string => ok(answer(m, { kind: 'executionPlan', handle, runtime: 'w::RT',
+    lambda: toJson(lambda([], fn('delete', target(), lambda(['r'], lit.boolean(false))))) }));
+  const sentBy = (plan: PlanText, timed: boolean): Promise<string[]> => engine.exclusive(async (held) => {
+    const { session, sent } = recording(held, timed);
+    await runPlan(plan, session);
+    return sent;
+  });
+
+  it("sends every statement of the target within its declared timeout, by the host's timed send", async () => {
+    const sent = await sentBy(declaring(write(), 7), true);
+    assert.ok(sent.length > 2, sent.join(' | '));
+    assert.deepEqual(sent.filter((s) => !s.startsWith('within 7s ')), [], 'none sent untimed');
+    // the statements a plan with no timeout sends, in the same order, and that plan sent as it is
+    const plain = await sentBy(unplannedPlan(write()), true);
+    assert.deepEqual(plain.filter((s) => !s.startsWith('run ')), [], 'a plan with no timeout is sent as it is');
+    assert.deepEqual(sent.map((s) => s.replace('within 7s ', '')), plain.map((s) => s.replace('run ', '')));
+  });
+
+  it('is refused by name, nothing sent, on a host that stops no statement', async () => {
+    let sent: string[] = [];
+    await assert.rejects(() => engine.exclusive(async (held) => {
+      const r = recording(held, false);
+      sent = r.sent;
+      return runPlan(declaring(write(), 7), r.session);
+    }), (e: unknown) => e instanceof PlanRefusal && /stops each statement after 7 seconds \(queryTimeOutInSeconds\), and this host stops none/.test(e.message));
+    assert.deepEqual(sent, [], 'nothing sent');
+  });
+
+  it("reads 0 as no limit (JDBC's), and refuses a value that is not a whole number of seconds, nothing sent", async () => {
+    const zero = await sentBy(declaring(write(), 0), false);
+    assert.ok(zero.length > 2 && zero.every((s) => s.startsWith('run ')), zero.join(' | '));
+    for (const bad of [-1, 1.5, '7', null]) {
+      let sent: string[] = [];
+      await assert.rejects(() => engine.exclusive(async (held) => {
+        const r = recording(held, true);
+        sent = r.sent;
+        return runPlan(declaring(write(), bad), r.session);
+      }), (e: unknown) => e instanceof PlanParamsRefusal && /queryTimeOutInSeconds is a whole number of seconds/.test(e.message), String(bad));
+      assert.deepEqual(sent, [], `nothing sent for ${String(bad)}`);
+    }
+  });
+
+  it("times a person's statement (runAuthored) and a load's (runLoad) the same way", async () => {
+    const typed = declaring(ok(answer(m, { kind: 'authored', request: JSON.stringify({ databaseType: 'DuckDB', text: 'SELECT 1' }) })), 3);
+    const seen: string[] = [];
+    await runAuthored(typed, { databaseType: 'DuckDB', run: async (sql) => { seen.push(`run ${sql}`); },
+      runWithin: async (sql, seconds) => { seen.push(`within ${seconds}s ${sql}`); } });
+    assert.ok(seen.length > 0 && seen.every((s) => s.startsWith('within 3s ')), seen.join(' | '));
+    assert.ok(seen.includes('within 3s SELECT 1'), seen.join(' | '));
+    seen.length = 0;
+    await assert.rejects(() => runAuthored(typed, { databaseType: 'DuckDB', run: async (sql) => { seen.push(`run ${sql}`); } }),
+      /stops each statement after 3 seconds/);
+    assert.deepEqual(seen, [], 'nothing sent');
+    // a load's statements: a project's Data load, its target declaring a timeout
+    const project = await grammar.projectData("###Relational\nDatabase w::P ( Schema S ( Table T ( ID INTEGER ) ) )\n###Data\nData w::D\n{\n  Relational\n  #{\n    S.T:\n      'ID\\n1\\n';\n  }#\n}\n", 'DuckDB');
+    const load = declaring(project.load!, 5);
+    const loaded: string[] = [];
+    await runLoad(load, async (sql) => { loaded.push(`run ${sql}`); }, { runWithin: async (sql, _p, seconds) => { loaded.push(`within ${seconds}s ${sql}`); } });
+    assert.ok(loaded.length > 0 && loaded.every((s) => s.startsWith('within 5s ')), loaded.join(' | '));
+    loaded.length = 0;
+    await assert.rejects(() => runLoad(load, async (sql) => { loaded.push(`run ${sql}`); }), /stops each statement after 5 seconds/);
+    assert.deepEqual(loaded, [], 'nothing sent');
+  });
+
+  it("times a target's establishing (its session and loads), a keyed plan's keys and body, and a snap's stream", async () => {
+    const loaded = Number(ok(answer(m, { kind: 'hold', model: LOADED })));
+    // establish: a connection's declared test data loaded on a database of its own, in its transaction
+    const established = (() => {
+      const planned = looseJson(ok(answer(m, { kind: 'plan', handle: loaded, query: '|#>{x::DB.T}#->select(~[ID, NAME])', runtime: 'x::RT' }))) as { plan: unknown };
+      return declaring(JSON.stringify(planned.plan), 6);
+    })();
+    const db = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    const own = new DuckDbEngine(db.connect() as ArrowishConnection);
+    await assert.rejects(() => own.exclusive((held) => establish(established, recording(held, false).session)), /stops each statement after 6 seconds/);
+    const loadedSent = await own.exclusive(async (held) => {
+      const { session, sent } = recording(held, true);
+      await establish(established, session);
+      return sent;
+    });
+    assert.ok(loadedSent.length > 2 && loadedSent.every((s) => s.startsWith('within 6s ')), loadedSent.join(' | '));
+    // a keyed plan: its target's session, its keys statement and its body written per key
+    const [status, , ...body] = ok(answer(m, { kind: 'pureV1', path: '/api/pure/v1/grammar/grammarToJson/lambda', query: '',
+      body: "{|#TDS{\ndept, city, name\nA, NYC, x\nA, SAN, y\n}#->pivot(~[city], ~[names:r|$r.name:y|$y->joinStrings(',')])->from(x::BareRT)}" })).split('\n');
+    assert.equal(status, '200', body.join('\n'));
+    const keyed = declaring(ok(answer(m, { kind: 'executionPlan', handle: loaded, lambda: body.join('\n'), runtime: 'x::BareRT' })), 4);
+    assert.match(keyed, /"_type":"keyed"/);
+    const keyedSent = await sentBy(keyed, true);
+    assert.ok(keyedSent.length > 2 && keyedSent.every((s) => s.startsWith('within 4s ')), keyedSent.join(' | '));
+    await assert.rejects(() => sentBy(keyed, false), /stops each statement after 4 seconds/);
+    // a snap's stream: its statements on the stream's connection, timed as the load's others are
+    const streamed = declaring(ok(answer(m, { kind: 'snapStream', request: JSON.stringify({ databaseType: 'DuckDB', plane: 'warehouse',
+      model: MODEL, runtime: 'w::RT', lambda: toJson(lambda([], src())), table: 'timed_snap' }) })), 2);
+    const plane = {
+      async *arrowChunks(_sql: string, _signal?: AbortSignal, onReceipt?: (r: Receipt) => void): AsyncIterable<Uint8Array> {
+        onReceipt?.({ plane: 'warehouse', where: 'a stand-in warehouse', statementId: 's-1', serverRows: 2 });
+        yield arrowIpcStream(2, { id: { integers: (i) => i } });
+      },
+    };
+    const streamSent = await inRun('a test', () => asTest(engine).exclusive(async (held) => {
+      const sent: string[] = [];
+      const timed = (sql: PlannedSql, params: readonly PlanValue[], seconds: number): Promise<unknown[][]> => {
+        sent.push(`within ${seconds}s ${sql}`);
+        return held.rows(sql, params);
+      };
+      await runLoad(streamed, (sql, params) => { sent.push(`run ${sql}`); return held.rows(sql, params); }, { runWithin: timed,
+        streams: { planes: { warehouse: plane }, held: { rows: (sql, params) => { sent.push(`run ${sql}`); return held.rows(sql, params); },
+          rowsWithin: timed, insertArrow: (bytes, t, create) => held.insertArrow(bytes, t, create) } } });
+      return sent;
+    }));
+    assert.ok(streamSent.length > 2 && streamSent.every((s) => s.startsWith('within 2s ')), streamSent.join(' | '));
+  });
+
+  it("on DuckDB: a statement, a plan's answer and its stream are answered within the timeout; one that binds values is refused by name, never sent untimed", async () => {
+    // Node's DuckDB-WASM is the blocking build: it runs a statement to its end in one call, so the stop itself is seen in
+    // the browser (datacube/test/live-snap/page.ts); here, the answers and the refusals
+    const answered = await inRun('a test', () => asTest(engine).exclusive((held) => held.rowsWithin!(unplanned('SELECT 42 AS n'), [], 5)));
+    assert.equal(Number(answered[0]![0]), 42);
+    const refusal = (e: unknown): boolean => e instanceof QueryError
+      && /cannot stop a statement that binds values after 5 seconds, as its connection's queryTimeOutInSeconds asks: it is not sent/.test(e.message);
+    await assert.rejects(() => inRun('a test', () => asTest(engine).exclusive((held) => held.rowsWithin!(unplanned('SELECT CAST(? AS INTEGER) AS n'), [1], 5))), refusal);
+    const table = await inRun('a test', () => asTest(engine).run(unplanned('SELECT 7 AS n'), 0, undefined, [], 5));
+    assert.equal(Number(table.columns[0]!.values[0]), 7);
+    await assert.rejects(() => inRun('a test', () => asTest(engine).run(unplanned('SELECT CAST(? AS INTEGER) AS n'), 0, undefined, ['1'], 5)), refusal);
+    // a plan's answer and its stream (DataCube's grid, Query's cube): the timeout the planner's text plan carries
+    const plan = { sql: unplanned('SELECT 8 AS n'), columns: [{ name: 'n', type: 'Integer' }], timeout: 5 };
+    assert.equal(Number((await inRun('a test', () => asTest(engine).execute(plan, 0))).columns[0]!.values[0]), 8);
+    const chunks: unknown[] = [];
+    await inRun('a test', () => asTest(engine).stream(plan, 0, (chunk) => { chunks.push(chunk.columns[0]!.values[0]); }));
+    assert.deepEqual(chunks.map(Number), [8]);
+    await assert.rejects(() => inRun('a test', () => asTest(engine).execute({ ...plan, sql: unplanned('SELECT CAST(? AS INTEGER) AS n'), params: ['1'] }, 0)), refusal);
+    await assert.rejects(() => inRun('a test', () => asTest(engine).stream({ ...plan, sql: unplanned('SELECT CAST(? AS INTEGER) AS n'), params: ['1'] }, 0, () => {})), refusal);
+  });
+
+  it("on the warehouse: a statement, a plan's answer and its stream with a declared timeout are refused by name, nothing submitted", async () => {
+    const asked: string[] = [];
+    const binding = new WarehouseBinding({ exports: {
+      call: (op: string): string => { asked.push(op); throw new Error('the test stops at the call'); },
+      read: (): string => '{}',
+    } });
+    // a session already expired: no refresh is scheduled (the token is a sentinel, never a credential)
+    const warehouse = new WarehouseEngine(binding,
+      { baseUrl: 'http://warehouse.invalid', token: 'sentinel-token', principal: 'tester', expiresAt: '2000-01-01T00:00:00Z' },
+      'main', 'DuckDB');
+    const refused = /connection stops it after 4 seconds \(queryTimeOutInSeconds\), and the warehouse stops none: it is not sent/;
+    const plan = { sql: unplanned('SELECT 1 AS n'), columns: [{ name: 'n', type: 'Integer' }], timeout: 4 };
+    await assert.rejects(inRun('a test', () => warehouse.run(plan.sql, 0, undefined, [], 4)), refused);
+    await assert.rejects(inRun('a test', () => warehouse.execute(plan, 0)), refused);
+    await assert.rejects(inRun('a test', () => warehouse.stream(plan, 0, () => {})), refused);
+    assert.deepEqual(asked, [], 'nothing submitted');
+  });
+
+  it("the doors hand the engine the declared seconds: the playground's statement and a project's Data rows loaded where the engine runs", async () => {
+    const seconds: unknown[] = [];
+    class Recording extends DuckDbEngine {
+      override run(...args: Parameters<DuckDbEngine['run']>): ReturnType<DuckDbEngine['run']> {
+        seconds.push(args[4]);
+        return super.run(...args);
+      }
+    }
+    const every = (n: number): boolean => seconds.length > 0 && seconds.every((s) => s === n);
+    // the playground's door (Studio's SQL playground): its statement, as the planner carried it, within 3 seconds
+    const typed = declaring(ok(answer(m, { kind: 'authored', request: JSON.stringify({ databaseType: 'DuckDB', text: 'SELECT 1 AS one' }) })), 3);
+    const fresh = await startNodeDuckDb(runfilesFromEnv('DUCKDB_EXTENSIONS'));
+    const own = new Recording(fresh.connect() as ArrowishConnection);
+    const one = await runAuthoredStatement('SELECT 1 AS one', { authored: async () => typed }, { engine: own, databaseType: 'DuckDB' });
+    assert.equal(Number(one.columns[0]!.values[0]), 1);
+    assert.ok(every(3), JSON.stringify(seconds));
+    // a project's Data rows loaded where the engine runs (dataLoaded: Query's warehouse demo seed), within 5 seconds
+    seconds.length = 0;
+    const model = "###Relational\nDatabase w::P ( Schema S ( Table T ( ID INTEGER ) ) )\n###Data\nData w::D\n{\n  Relational\n  #{\n    S.T:\n      'ID\\n1\\n';\n  }#\n}\n";
+    const seeded = { ...await grammar.projectData(model, 'DuckDB') };
+    await dataLoaded(own, { projectData: async () => ({ ...seeded, load: declaring(seeded.load!, 5) }) }, model, "the test's rows");
+    assert.ok(every(5), JSON.stringify(seconds));
+  });
+
+  it("the tab's pure/v1 execute (BrowserEngine) runs its plan's answer within the timeout the plan's target declares", async () => {
+    const seconds: unknown[] = [];
+    const recorded: QueryEngine = { ...engine, name: engine.name, execute: engine.execute.bind(engine), stream: engine.stream.bind(engine), close: async () => {},
+      run: (sql, epoch, signal, params, s) => { seconds.push(s); return engine.run(sql, epoch, signal, params, s); } };
+    const planWith = (declared: unknown): unknown => ({ root: { _type: 'tdsResult', sql: { statement: 'SELECT 9 AS n', slots: [], target: {
+      database: { _type: 'declared', connection: { name: 'w::Conn', databaseType: 'DuckDB', queryTimeOutInSeconds: declared } } } } } });
+    const planner = (declared: unknown) => ({
+      executePlan: async () => ({ plan: { sql: 'SELECT 9 AS n', run: unplanned('SELECT 9 AS n'), shape: 'RELATION', plan: planWith(declared) }, text: 'the plan' }),
+      executeAnswer: async (_text: string, rows: string) => rows,
+    });
+    const input: Parameters<BrowserEngine['executeText']>[0] = { clientVersion: 'vX_X_X', function: await grammar.lambda('|1'), model: { _type: 'text', code: '' } as never,
+      runtime: { runtime: 'w::RT' }, context: { _type: 'BaseExecutionContext' } };
+    const rows = await new BrowserEngine(planner(6) as never, recorded, 'tester').executeText(input);
+    assert.deepEqual(looseJson(rows), [{ n: 9 }]);
+    assert.deepEqual(seconds, [6], "the engine is told the plan's timeout");
+    await assert.rejects(new BrowserEngine(planner('6') as never, recorded, 'tester').executeText(input),
+      (e: unknown) => e instanceof PlanParamsRefusal && /queryTimeOutInSeconds is a whole number of seconds, not "6"/.test(e.message));
+    assert.deepEqual(seconds, [6], 'nothing run');
+  });
+
 });
 
 // THE KEYED EXPANSION'S ONE FIXTURE (the C final audit's H8, 2026-11-12): the tab's expandKeyed writes each case as

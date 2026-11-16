@@ -288,6 +288,8 @@ filegroup(
         # the saved-query records Query writes and DataCube reads (fixtures/saved-queries/README.md)
         "//fixtures/saved-queries:records",
         ":demo_models",
+        # a test's own SQL, typed as such (cube-planner.test.ts: a planner's stand-in answer)
+        "//engine-client:unplanned",
     ] + glob(["test/*.ts"], exclude = ["test/*.test.ts"]) + (
         ["//pure-protocol:pure_protocol", "//query-store:query_store"] if t[len("test/"):-len(".test.ts")] in _WASM_TESTS else []
     ),
@@ -315,6 +317,8 @@ typescript.tsc_test(
         "//query-store:query_store",
         "//datacube:src",
         "//engine-client:engine_client",
+        # a test's own SQL, typed as such (cube-planner.test.ts; 2026-11-16, the TypeScript batch's T-H)
+        "//engine-client:unplanned",
         "//depot-client:depot_client",
         "//legend-art:legend_art",
         "//sdlc-client:sdlc_client",

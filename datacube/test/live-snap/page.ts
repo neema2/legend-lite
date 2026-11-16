@@ -40,6 +40,8 @@ import { PlanThenRun } from '../../src/runner.ts';
 import { LitePlanner } from '../../src/lite-planner.ts';
 import { CASES, MODEL, queries, RUNTIME } from '../wasm-differential/cases.ts';
 import { unplanned } from '../../../engine-client/test/unplanned.ts';
+import { unplannedPlan } from '../../../engine-client/test/unplanned.ts';
+import { PLAN_VERSION, runPlan } from '../../../engine-client/src/plan-runner.ts';
 
 const SOURCE = accessor('trades::DB', 'TRADES');
 const COLUMNS = ['region', 'desk', 'book', 'year', 'qtr', 'notional', 'pnl', 'qty'];
@@ -354,6 +356,33 @@ async function run(): Promise<void> {
     ok(Date.parse(soon.expiresAt) > Date.now() + 30 * 60_000, 'for one with the server\'s full life');
     equal((await soon.run(unplanned('SELECT 1 AS one'), 0)).rowCount, 1);
     await soon.close();
+  });
+
+  // A CONNECTION'S DECLARED STATEMENT TIMEOUT (2026-11-16, the TypeScript batch's T-H): the tab's DuckDB stops a
+  // statement its target's connection gives `queryTimeOutInSeconds`, as upstream does. Only here: Node's DuckDB-WASM is
+  // the blocking build, which runs a statement to its end in one call. The plan is written by hand (the planner side is
+  // C5-J's): one statement that runs for minutes uncancelled (range(1e11) took 14.6 s here; this is 10 times that),
+  // its connection declaring 1 second.
+  await check("a statement past its connection's declared timeout is stopped by the tab's DuckDB, and the connection answers after", async () => {
+    const plan = unplannedPlan(JSON.stringify({ format: 'legend-lite-plan', version: PLAN_VERSION, parameters: [], root: {
+      _type: 'tdsResult', shape: 'RELATION', columns: [{ name: 'n', type: 'Integer' }],
+      sql: { statement: 'SELECT count(*) AS n FROM range(1000000000000)', slots: [], target: {
+        database: { _type: 'declared', connection: { name: 'live::Timed', databaseType: 'DuckDB', specification: { _type: 'InMemory' },
+          authentication: { _type: 'NoAuth' }, queryTimeOutInSeconds: 1 }, project: null },
+        session: [], loads: [] } } } }));
+    const t0 = performance.now();
+    // bounded here: a statement not stopped is a failure named in 15 s, never a wait of minutes
+    const outcome = await Promise.race([
+      local.exclusive((held) => runPlan(plan, { databaseType: local.databaseType, run: held.rows,
+        ...(held.rowsWithin ? { runWithin: held.rowsWithin } : {}) })).then(() => 'it answered', (e: unknown) => e),
+      new Promise((done) => { setTimeout(() => done('it was still running after 15 s'), 15_000); }),
+    ]);
+    ok(outcome instanceof Error, `the statement was stopped by the database: ${String(outcome)}`);
+    match(outcome.message, /query was canceled/);
+    const took = performance.now() - t0;
+    ok(took >= 900 && took < 10_000, `stopped after its second, not before and not minutes later: ${Math.round(took)} ms`);
+    // the connection goes on: the next statement is answered
+    equal((await local.run(unplanned('SELECT 42 AS n'), 0)).rowCount, 1);
   });
 }
 

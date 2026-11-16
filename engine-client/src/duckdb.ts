@@ -436,6 +436,11 @@ export class DuckDbEngine implements QueryEngine {
           throw this.#failed(cause, sql);
         }
       },
+      rowsWithin: async (sql, params, seconds) => {
+        const rows: unknown[][] = [];
+        await this.#within(sql, params, seconds, (batch) => { rows.push(...rowsOf(batch)); });
+        return rows;
+      },
       // a promise, refused as one (#whole's refusal rejects it): never a throw where a promise is promised
       table: async (sql) => this.#whole(sql, 0, undefined, performance.now()),
       insertArrow: async (bytes, target, create) => {
@@ -453,7 +458,7 @@ export class DuckDbEngine implements QueryEngine {
 
   async execute(plan: Plan, epoch: number, signal?: AbortSignal): Promise<ResultTable> {
     // the plan's own values its statement binds (a data: payload: plan-params.ts, M3), bound to its `?`s
-    return { ...typedByPlan(await this.run(plan.sql, epoch, signal, plan.params ?? []), plan), receipt: this.receipt() };
+    return { ...typedByPlan(await this.run(plan.sql, epoch, signal, plan.params ?? [], plan.timeout), plan), receipt: this.receipt() };
   }
 
   async run(
@@ -461,6 +466,7 @@ export class DuckDbEngine implements QueryEngine {
     epoch: number,
     signal?: AbortSignal,
     params: readonly string[] = [],
+    seconds?: number,
   ): Promise<RawTable> {
     // a run's, on Node: refused at the send primitives (#whole, #batches, #bound: run-frame.ts sending), DuckDB's one
     // choke point (PlannedSqlTest's DATABASE_SENDS)
@@ -472,13 +478,41 @@ export class DuckDbEngine implements QueryEngine {
       // superseded query simply never runs.
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
       const started = performance.now();
-      if (typeof this.#conn.send === 'function') {
+      if (seconds !== undefined || typeof this.#conn.send === 'function') {
         const acc = new BatchAccumulator();
-        await this.#batches(sql, signal, (batch) => acc.add(batch), params);
+        // within its target's declared timeout, where it declares one (#within, T-H)
+        if (seconds !== undefined) await this.#within(sql, params, seconds, (batch) => acc.add(batch), signal);
+        else await this.#batches(sql, signal, (batch) => acc.add(batch), params);
         return acc.build(epoch, performance.now() - started);
       }
       return this.#whole(sql, epoch, signal, started, params);
     });
+  }
+
+  /**
+   * A STATEMENT STOPPED AFTER `seconds` (a plan's target's declared statement timeout; 2026-11-16, the TypeScript batch's
+   * T-H): sent as a pending query (`send`), which DuckDB-WASM's worker runs a slice at a time, and stopped between slices
+   * by `cancelSent` when the time is up -- the database's own "query was canceled" through #failed, never retried
+   * (measured in Chromium: stopped at 1,026 ms of a 1 s timeout, the connection answering after). A statement that binds
+   * values is a prepared statement's, which the worker runs to its end in one call (measured: `cancelSent` found nothing
+   * pending): refused by name, never sent untimed; so is any statement on a connection that sends no pending query.
+   */
+  async #within(sql: PlannedSql, params: readonly (string | number | boolean | null)[], seconds: number,
+    onBatch: (batch: ArrowishTable) => void, signal?: AbortSignal): Promise<void> {
+    const conn = this.#conn;
+    if (params.length > 0 || conn.send === undefined || conn.cancelSent === undefined) {
+      throw new QueryError(`this database cannot stop a statement ${params.length > 0 ? 'that binds values' : 'it sends'} after ${seconds} seconds, as its connection's queryTimeOutInSeconds asks: it is not sent`, sql);
+    }
+    let stopped: Promise<boolean> | undefined;
+    const timer = setTimeout(() => { stopped = conn.cancelSent!(); }, seconds * 1000);
+    try {
+      // sent as every pending query is (#batches: a superseded run cancelled, a failure the database's own)
+      await this.#batches(sql, signal, onBatch);
+    } finally {
+      clearTimeout(timer);
+    }
+    // stopped between its batches, its answer cut short: said, never read as its whole answer
+    if (stopped !== undefined && await stopped) throw new QueryError(`stopped after ${seconds} seconds, as its connection's queryTimeOutInSeconds asks`, sql);
   }
 
   /**
@@ -517,9 +551,11 @@ export class DuckDbEngine implements QueryEngine {
       if (signal?.aborted) throw signal.reason ?? new Error('aborted');
       const started = performance.now();
       const params = plan.params ?? [];
+      const chunk = (batch: ArrowishTable): void => onChunk(typedByPlan(toRawTable(batch, epoch, performance.now() - started), plan));
+      // within its target's declared timeout, where it declares one (#within, T-H)
+      if (plan.timeout !== undefined) return this.#within(plan.sql, params, plan.timeout, chunk, signal);
       if (typeof this.#conn.send === 'function') {
-        await this.#batches(plan.sql, signal, (batch) =>
-          onChunk(typedByPlan(toRawTable(batch, epoch, performance.now() - started), plan)), params);
+        await this.#batches(plan.sql, signal, chunk, params);
         return;
       }
       onChunk(typedByPlan(await this.#whole(plan.sql, epoch, signal, started, params), plan));

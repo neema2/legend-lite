@@ -14,5 +14,8 @@ export async function runAuthoredStatement(
   database: { readonly engine: Pick<QueryEngine, 'run'>; readonly databaseType: string },
 ): Promise<RawTable> {
   const plan = await planner.authored(statement);
-  return runAuthored(plan, { databaseType: database.databaseType, run: (sql) => database.engine.run(sql, 0) });
+  // within its connection's declared timeout, where the plan's target declares one: the engine stops it, or refuses it
+  // by name (QueryEngine.run's `seconds`, T-H)
+  return runAuthored(plan, { databaseType: database.databaseType, run: (sql) => database.engine.run(sql, 0),
+    runWithin: (sql, seconds) => database.engine.run(sql, 0, undefined, [], seconds) });
 }

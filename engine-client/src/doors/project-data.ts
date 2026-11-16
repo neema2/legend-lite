@@ -98,8 +98,15 @@ export async function dataLoaded(engine: QueryEngine & { readonly databaseType: 
   model: string, what: string): Promise<void> {
   const { load } = await planner.projectData(model, engine.databaseType);
   if (load === undefined) throw new Error(`${what} holds no Data rows to load`);
-  await inRun("a project's Data rows loaded", () => runLoad(load, (sql, params) => {
+  const unbound = (params: readonly unknown[]): void => {
     if (params.length > 0) throw new Error("a project's Data load binds no value");
+  };
+  // within its target's declared timeout, where it declares one: the engine stops it, or refuses it by name (T-H)
+  await inRun("a project's Data rows loaded", () => runLoad(load, (sql, params) => {
+    unbound(params);
     return engine.run(sql, 0);
-  }));
+  }, { runWithin: (sql, params, seconds) => {
+    unbound(params);
+    return engine.run(sql, 0, undefined, [], seconds);
+  } }));
 }

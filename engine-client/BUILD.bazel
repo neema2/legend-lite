@@ -431,12 +431,16 @@ node_test(
 )
 
 # A TEST'S OWN STATEMENT, typed as a plan's by name (test/unplanned.ts): DataCube's tests and pages send their fixtures'
-# SQL through it; no product source imports it (//tools/guards:planned_sql_test)
+# SQL through it, and Query's (2026-11-16, the TypeScript batch's T-H: cube-planner.test.ts's stand-in planner answer); no
+# product source imports it (//tools/guards:planned_sql_test)
 js_library(
     name = "unplanned",
     testonly = True,
     srcs = ["test/unplanned.ts"],
-    visibility = ["//datacube:__pkg__"],
+    visibility = [
+        "//datacube:__pkg__",
+        "//query:__pkg__",
+    ],
     # a test's own statements sent in the test's own run (`asTest`: run-frame.ts inRun, a record)
     deps = [":records"],
 )

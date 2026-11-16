@@ -17,7 +17,7 @@ import { ProjectRunner } from '../src/project-data.ts';
 import { TabTables, type Model } from '../src/tab-data.ts';
 import { startNodeDuckDb, type NodeDuckDb } from '../src/node-require.ts';
 import { runfilesFromEnv } from '../../tools/js/runfiles.mts';
-import { unplanned } from './unplanned.ts';
+import { unplanned, unplannedPlan } from './unplanned.ts';
 import { inRun } from '../src/run-frame.ts';
 
 type Elements = Parameters<typeof dataTables>[0];
@@ -191,6 +191,36 @@ describe("each version of a project in a database of its own (C5, ProjectDatabas
     assert.deepEqual((await rowsOf('PARTY', edited.engine)).map((r) => r[1]), ['Meridian Capital', 'Kestrel Securities']);
     // the first one's rows as they were: a SNAPSHOT republished with new rows is never answered with the old, nor the old with the new
     assert.deepEqual((await rowsOf('PARTY', v1.engine)).map((r) => r[1]), ['Meridian Capital', 'Halberd Securities']);
+  });
+
+  it("runs its Data load within the statement timeout its target's connection declares, on the database's own connection", async () => {
+    // the planner side is C5-J's (2026-11-16, the TypeScript batch's T-H): the key written by hand into the planner's load
+    const declared = (load: string, seconds: number): string => {
+      const plan = JSON.parse(load) as { root: { target: { database: { databaseType?: unknown; project?: unknown } } } };
+      const { database } = plan.root.target;
+      plan.root.target.database = { _type: 'declared', connection: { name: 'demo::party::Conn', databaseType: database.databaseType,
+        specification: { _type: 'InMemory' }, authentication: { _type: 'TestAuth' }, queryTimeOutInSeconds: seconds }, project: database.project } as never;
+      return JSON.stringify(plan);
+    };
+    const seconds: unknown[] = [];
+    class Recording extends DuckDbEngine {
+      override run(...args: Parameters<DuckDbEngine['run']>): ReturnType<DuckDbEngine['run']> {
+        seconds.push(args[4]);
+        return super.run(...args);
+      }
+    }
+    const projects = new ProjectDoor({ databaseType: 'DuckDB', engine, connect: async () => new Recording(db.connect() as ArrowishConnection) }, {
+      projectData: async (model, type) => {
+        const statements = await planner.projectData(model, type);
+        return { ...statements, load: unplannedPlan(declared(statements.load!, 9)) };
+      },
+    });
+    keepers.push(projects);
+    const held = await projects.engineFor(partyText(V1), engine);
+    // the connection's own statements (its `use`) untimed, the load's every statement within its 9 seconds
+    const load = seconds.slice(seconds.indexOf(9));
+    assert.ok(load.length > 0 && load.every((s) => s === 9), JSON.stringify(seconds));
+    assert.deepEqual((await rowsOf('PARTY', held.engine)).map((r) => r[0]), [1, 2]);
   });
 
   it("runs a model with no Data rows on the tab's own connection: no database of its own", async () => {

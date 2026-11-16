@@ -29,7 +29,7 @@
 
 import { boundValues, type Bind, type HostSecrets, type KeptSetting } from './connection-settings.ts';
 import { familyOf, isBoolean } from './types.ts';
-import { payloadValue } from './plan-params.ts';
+import { payloadValue, queryTimeOut } from './plan-params.ts';
 import type { Receipt } from './receipt.ts';
 import { fromPlan, type PlannedSql, type PlanText } from './planned-sql.ts';
 import { inRun } from './run-frame.ts';
@@ -51,6 +51,31 @@ export interface PlanSession {
   readonly databaseType: string;
   /** A statement run with its `?`s bound in order: its rows, each its values by column. */
   run(sql: PlannedSql, params: readonly PlanValue[]): Promise<readonly (readonly unknown[])[]>;
+  /** The same, the database told to stop it after `seconds` (TimedRun); none where this host stops no statement. */
+  readonly runWithin?: TimedRun<readonly (readonly unknown[])[]>;
+}
+
+/**
+ * A host's send of a statement the database is told to stop after `seconds`: a target's declared statement timeout (its
+ * connection's queryTimeOutInSeconds, plan-params.ts queryTimeOut), which upstream applies to every statement. Its
+ * failure is the database's own, through the host's failure path, never retried; a statement the host cannot stop is
+ * refused by name, never sent untimed (2026-11-16, the TypeScript batch's T-H).
+ */
+export type TimedRun<R = unknown> = (sql: PlannedSql, params: readonly PlanValue[], seconds: number) => Promise<R>;
+
+/**
+ * How `target`'s statements are sent: within its connection's declared timeout by the host's timed send (`timed`), else
+ * by `run` as they are. A target that declares one, on a host that stops no statement, is refused by name here, before
+ * anything is sent: never run untimed (T-H).
+ */
+function within<R>(target: unknown, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<R>, timed: TimedRun<R> | undefined):
+  (sql: PlannedSql, params: readonly PlanValue[]) => Promise<R> {
+  const seconds = queryTimeOut(target);
+  if (seconds === undefined) return run;
+  if (timed === undefined) {
+    throw new PlanRefusal(`its connection stops each statement after ${seconds} seconds (queryTimeOutInSeconds), and this host stops none: it is not run here`);
+  }
+  return (sql, params) => timed(sql, params, seconds);
 }
 
 interface Slot { readonly parameter: string; readonly binding: { readonly _type: string; readonly asText?: unknown; readonly digest?: string } }
@@ -264,11 +289,12 @@ export async function transacted<T>(t: { readonly begin: readonly PlannedSql[]; 
  * asked the planner for them at run).
  */
 export async function inLoadsTransaction<T>(plan: PlanText, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
-  work: () => Promise<T>): Promise<T> {
+  work: () => Promise<T>, runWithin?: TimedRun): Promise<T> {
   return inRun("a load's transaction", async () => {
     const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
     if (root === undefined || root._type !== 'load') throw new PlanRefusal(`a load's plan has a load at its root, not a ${String(root?._type)}`);
-    return inTransaction(required(root.target, "its load's target"), run, work);
+    const target = required(root.target, "its load's target");
+    return inTransaction(target, within(target, run, runWithin), work);
   });
 }
 
@@ -330,6 +356,8 @@ export interface HostStreams {
   readonly signal?: AbortSignal;
   readonly held: {
     rows(sql: PlannedSql, params: readonly PlanValue[]): Promise<unknown[][]>;
+    /** The same, stopped after `seconds` (TimedRun); none where this host stops no statement. */
+    rowsWithin?: TimedRun<unknown[][]>;
     insertArrow(bytes: Uint8Array, target: { readonly schema?: string; readonly table: string }, create: boolean): Promise<void>;
   };
 }
@@ -364,8 +392,10 @@ async function stream(load: Load, step: StreamStep, streams: HostStreams | undef
   }
   const plane = Object.hasOwn(streams.planes, step.plane) ? streams.planes[step.plane] : undefined;
   if (plane === undefined) throw new PlanRefusal(`'${step.plane}' is not a remote plane this host holds: nothing is streamed into ${into}`);
+  // the step's statements on the stream's connection, within the load's declared timeout where it declares one (T-H)
+  const send = within(load.target, streams.held.rows.bind(streams.held), streams.held.rowsWithin?.bind(streams.held));
   const run = async (statements: readonly string[]): Promise<void> => {
-    for (const sql of statements) await streams.held.rows(fromPlan(sql), []);
+    for (const sql of statements) await send(fromPlan(sql), []);
   };
   const target = { ...(step.schema === null ? {} : { schema: step.schema }), table: step.table };
   await run(step.transaction.begin);
@@ -381,7 +411,7 @@ async function stream(load: Load, step: StreamStep, streams: HostStreams | undef
     if (chunks === 0) throw new PlanRefusal(`no data came back from '${step.plane}' to load into ${into}, not even its columns`);
     const expected = receipt.serverRows;
     if (expected === undefined) throw new PlanRefusal(`'${step.plane}' did not count its answer, so a stream cut short could not be told: nothing of it is kept in ${into}`);
-    const counted = Number((await streams.held.rows(fromPlan(step.count), []))[0]?.[0]);
+    const counted = Number((await send(fromPlan(step.count), []))[0]?.[0]);
     if (counted !== expected) {
       throw new PlanRefusal(`the stream from '${step.plane}' landed ${counted} rows in ${into}, where its plane counted ${expected}: nothing of it is kept`);
     }
@@ -477,7 +507,7 @@ async function deliver(load: Load, session: Pick<PlanSession, 'run'>, files?: Ho
  * whole, a file put in one transaction, a stream rolled back).
  */
 export async function runLoad(plan: PlanText, run: (sql: PlannedSql, params: readonly PlanValue[]) => Promise<unknown>,
-  host: { readonly files?: HostFiles; readonly secrets?: HostSecrets; readonly streams?: HostStreams } = {}):
+  host: { readonly files?: HostFiles; readonly secrets?: HostSecrets; readonly streams?: HostStreams; readonly runWithin?: TimedRun } = {}):
   Promise<{ readonly settings: readonly KeptSetting[]; readonly landed: readonly Landed[] }> {
   return inRun('a load', async () => {
     const root = read(plan).root as (Load & { readonly _type: string }) | undefined;
@@ -486,7 +516,9 @@ export async function runLoad(plan: PlanText, run: (sql: PlannedSql, params: rea
     // (HOST_SESSION)
     if (root.cadence !== 'ONCE' && root.cadence !== 'HOST_SESSION') throw new PlanRefusal(`a load's plan is ONCE or HOST_SESSION, not ${root.cadence}`);
     const landed: Landed[] = [];
-    const settings = await deliver(root, { run: (sql, params) => run(sql, params).then(() => []) }, host.files, host.secrets,
+    // its statements within its target's declared timeout, where it declares one (T-H)
+    const send = within(root.target, run, host.runWithin);
+    const settings = await deliver(root, { run: (sql, params) => send(sql, params).then(() => []) }, host.files, host.secrets,
       host.streams, landed);
     return { settings, landed };
   });
@@ -503,14 +535,15 @@ export async function establish(plan: PlanText, session: PlanSession): Promise<v
     const p = read(plan);
     const target = targetOf(p);
     if (target === undefined) return;
-    for (const statement of required(target.session, "its target's session")) await session.run(fromPlan(statement), []);
+    const send = within(target, session.run, session.runWithin);
+    for (const statement of required(target.session, "its target's session")) await send(fromPlan(statement), []);
     const loads = loadsOf(p, target);
     for (const l of loads) {
       if (l.cadence !== 'ONCE' && l.cadence !== 'PER_ACQUISITION') throw new PlanRefusal(`a target's load is ONCE or PER_ACQUISITION, not ${l.cadence}`);
     }
     if (loads.length === 0) return;
-    await inTransaction(target, session.run, async () => {
-      for (const l of loads) await deliver(l, session);
+    await inTransaction(target, send, async () => {
+      for (const l of loads) await deliver(l, { run: send });
     });
   });
 }
@@ -541,8 +574,9 @@ export async function runPlan(plan: PlanText, session: PlanSession,
       // a pivot whose columns the data names: its keys read first, then its body per key (B3: the hosts run it)
       const keyed = root as Keyed;
       checkTarget(keyed.keys, session, o);
-      if (o.established !== true) for (const statement of required((keyed.keys.target as Target).session, "its target's session")) await session.run(fromPlan(statement), []);
-      return keyedRows(keyed, session);
+      const send = within(keyed.keys.target, session.run, session.runWithin);
+      if (o.established !== true) for (const statement of required((keyed.keys.target as Target).session, "its target's session")) await send(fromPlan(statement), []);
+      return keyedRows(keyed, { databaseType: session.databaseType, run: send });
     }
     const steps = root._type === 'sequence' ? (root as { readonly steps: readonly Step[] }).steps
       : root._type === 'tdsResult' || root._type === 'constant' ? [root] : undefined;
@@ -560,6 +594,8 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     const target = JSON.stringify(first!.target);
     if (sqls.some((s) => JSON.stringify(s.target) !== target)) throw new PlanRefusal("a plan's steps run on one database: these name several");
     const t = checkTarget(first!, session, o);
+    // every statement of the target within its declared timeout, where it declares one (T-H)
+    const send = within(t, session.run, session.runWithin);
     for (const s of sent) {
       // a relation of no declared column is a raw grid's: the columns its result reports, read from the real run by
       // the planner's runner (the seam program's S3c, 2026-10-30); this runner writes a host's program, never one
@@ -585,7 +621,7 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     }
     const changes = steps.some((s) => s._type === 'update' || s._type === 'effect') && o.joined !== true;
     // the target's session statements: run by `establish` on a session established for it, else here
-    if (o.established !== true) for (const statement of required(t.session, "its target's session")) await session.run(fromPlan(statement), []);
+    if (o.established !== true) for (const statement of required(t.session, "its target's session")) await send(fromPlan(statement), []);
     const values = new Map<string, PlanValue>();
     const bound = (s: Sql): PlanValue[] => s.slots.map((slot) => {
       // its payload's text from the statement's content, checked against its digest
@@ -601,7 +637,7 @@ export async function runPlan(plan: PlanText, session: PlanSession,
           continue;
         }
         const sql = stepSql(step);
-        const rows = await session.run(fromPlan(sql.statement), bound(sql));
+        const rows = await send(fromPlan(sql.statement), bound(sql));
         if (step._type === 'update') {
           // the database's count, a value it produced, bound where a later step reads it
           const count = (step as { readonly count?: string | null }).count;
@@ -613,7 +649,7 @@ export async function runPlan(plan: PlanText, session: PlanSession,
     };
     // a plan's writes in one transaction, its statements the plan's target's (version 50); a joined run is inside its
     // caller's
-    if (changes) await inTransaction(t, session.run, all);
+    if (changes) await inTransaction(t, send, all);
     else await all();
     // a plan of writes alone answers no row
     return text ?? '[]';
@@ -629,7 +665,8 @@ export async function runPlan(plan: PlanText, session: PlanSession,
  * loads data refused, its columns read as the plan states them (none: the relation the database reports). Any other
  * plan is refused by name.
  */
-export async function runAuthored<T>(plan: PlanText, on: { readonly databaseType: string; run(sql: PlannedSql): Promise<T> },
+export async function runAuthored<T>(plan: PlanText,
+  on: { readonly databaseType: string; run(sql: PlannedSql): Promise<T>; runWithin?(sql: PlannedSql, seconds: number): Promise<T> },
   o: { readonly established?: boolean } = {}): Promise<T> {
   return inRun('an authored statement', async () => {
     const root = read(plan).root;
@@ -642,8 +679,9 @@ export async function runAuthored<T>(plan: PlanText, on: { readonly databaseType
     }
     if (result.sql.slots.length > 0) throw new PlanRefusal("an authored statement binds no value: it is the person's text, as written");
     const t = checkTarget(result.sql, { databaseType: on.databaseType, run: async () => [] }, o);
-    if (o.established !== true) for (const statement of required(t.session, "its target's session")) await on.run(fromPlan(statement));
-    return on.run(fromPlan(result.sql.statement));
+    const send = within(t, (sql: PlannedSql) => on.run(sql), on.runWithin === undefined ? undefined : (sql, _params, seconds) => on.runWithin!(sql, seconds));
+    if (o.established !== true) for (const statement of required(t.session, "its target's session")) await send(fromPlan(statement), []);
+    return send(fromPlan(result.sql.statement), []);
   });
 }
 

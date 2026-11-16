@@ -37,6 +37,31 @@ export function planParams(plan: unknown): readonly string[] {
   return statementParams(root.sql);
 }
 
+/**
+ * THE STATEMENT TIMEOUT A TARGET'S CONNECTION DECLARES (its `queryTimeOutInSeconds`, on the declared connection inside
+ * the target's database; 2026-11-16, the TypeScript batch's T-H): the seconds after which the database is told to stop
+ * each of the target's statements, as upstream applies it to every statement (legend-engine's SQLResult, JDBC's
+ * setQueryTimeout). None where the connection declares none -- a platform database and the catalog never do -- and none
+ * for 0, which JDBC reads as no limit. A value that is not a whole number of seconds, or is below zero (which JDBC
+ * refuses), is refused by name.
+ */
+export function queryTimeOut(target: unknown): number | undefined {
+  const declared = (target as { readonly database?: { readonly connection?: { readonly queryTimeOutInSeconds?: unknown } } } | undefined)
+    ?.database?.connection?.queryTimeOutInSeconds;
+  if (declared === undefined) return undefined;
+  if (typeof declared !== 'number' || !Number.isSafeInteger(declared) || declared < 0) {
+    throw new PlanParamsRefusal(`a connection's queryTimeOutInSeconds is a whole number of seconds, not ${JSON.stringify(declared)}`);
+  }
+  return declared === 0 ? undefined : declared;
+}
+
+/** The statement timeout of `plan`'s answering statement (planParams' plan; queryTimeOut of its target), read beside its
+ *  values on every path that runs a plan's answer as text: none for a text that runs alone. */
+export function planTimeout(plan: unknown): number | undefined {
+  if (plan === undefined || plan === null) return undefined;
+  return queryTimeOut((plan as { readonly root?: { readonly sql?: { readonly target?: unknown } } }).root?.sql?.target);
+}
+
 /** The values `statement`'s slots bind (planParams' rule), in its placeholders' order. */
 export function statementParams(statement: Statement): readonly string[] {
   // what the planner always writes, required (the re-audit's S7, G7, 2026-11-12: `slots ?? []` ran a statement whose

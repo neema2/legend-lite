@@ -57,8 +57,11 @@ export interface QueryEngine {
    * Run raw SQL no planner wrote -- or a plan's statement as its text (a host's pure/v1 execute) -- answering names and
    * values, no types. Same `signal` rules. `params`: the values its `?`s bind, in order (a plan's data: payloads,
    * plan-params.ts, the tenets audit's M3); an engine that binds none refuses them by name, never runs the text alone.
+   * `seconds`: the statement timeout its plan's target's connection declares (plan-params.ts planTimeout; 2026-11-16,
+   * the TypeScript batch's T-H), the database told to stop it then, its failure the database's own; an engine that
+   * stops no statement, or not this one, refuses it by name, never sends it untimed.
    */
-  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[]): Promise<RawTable>;
+  run(sql: PlannedSql, epoch: number, signal?: AbortSignal, params?: readonly string[], seconds?: number): Promise<RawTable>;
   close(): Promise<void>;
 }
 
@@ -74,6 +77,9 @@ export interface HeldConnection {
   /** A statement's rows, each its values by column; one with values to bind, prepared and run with them (refused by
    *  name where the connection prepares none). */
   rows(sql: PlannedSql, params: readonly (string | number | boolean | null)[]): Promise<unknown[][]>;
+  /** `rows`, the database told to stop the statement after `seconds` (QueryEngine.run's `seconds` rule); none where the
+   *  connection stops no statement. */
+  rowsWithin?(sql: PlannedSql, params: readonly (string | number | boolean | null)[], seconds: number): Promise<unknown[][]>;
   /** A statement's answer decoded as the engine's queries are (a catalog read inside the hold). */
   table(sql: PlannedSql): Promise<RawTable>;
   /**

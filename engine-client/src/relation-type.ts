@@ -35,6 +35,9 @@ export interface Plan {
   /** The values the statement's `?`s bind, in order: the plan's own data: payloads, read from its content by digest and
    *  verified once where the host read the plan (plan-params.ts, the tenets audit's M3). None for a text that runs alone. */
   readonly params?: readonly string[];
+  /** The statement timeout its target's connection declares, in seconds (plan-params.ts planTimeout, T-H): the engine
+   *  stops the statement then, or refuses the plan by name. None where it declares none. */
+  readonly timeout?: number;
 }
 
 /**

@@ -13,7 +13,7 @@
 
 import { findAll, isFunction, type Lambda } from '../../../pure-protocol/src/index.ts';
 import type { QueryEngine } from '../engine.ts';
-import { planParams } from '../plan-params.ts';
+import { planParams, planTimeout } from '../plan-params.ts';
 import type { PureModelContextData } from './pmcd.ts';
 import { EngineError, type Engine } from './engine.ts';
 import type { WasmGrammar } from './wasm-grammar.ts';
@@ -66,8 +66,9 @@ export class BrowserEngine implements Engine {
     const { plan, text } = await this.#planner.executePlan(input);
     // the plan's one statement, its values (a data: payload: plan-params.ts, M3) bound to its `?`s, its rows handed back
     // as the engine's decoder read them
-    // run as a run (run-frame.ts: a run plans nothing): the planner asked before it, and after it for the answer's text
-    const raw = await inRun('a query', () => this.#engine.run(plan.run, 0, signal, planParams(plan.plan)));
+    // run as a run (run-frame.ts: a run plans nothing): the planner asked before it, and after it for the answer's text;
+    // within its connection's declared timeout, where it declares one (plan-params.ts planTimeout, T-H)
+    const raw = await inRun('a query', () => this.#engine.run(plan.run, 0, signal, planParams(plan.plan), planTimeout(plan.plan)));
     return this.#planner.executeAnswer(text, hostRows(raw));
   }
 

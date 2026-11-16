@@ -307,7 +307,10 @@ class PlannedSqlTest {
             // the tests of it: the runner's (plan-runner.test.ts) and the tab planner's fake module. 17 -> 19
             // (2026-11-13, the next PR's item 2, the standing witness: plan-runner.test.ts's roads test runs runAuthored
             // as one of the runner's six roads, its plan the planner's answer of the kind -- one call, one kind)
-            Map.entry("engine-client/test/plan-runner.test.ts", 19),
+            // 19 -> 24 (2026-11-16, the TypeScript batch's T-H): the timeout's tests run runAuthored twice (timed, and
+            // refused on a host that stops none) over the planner's answer of the kind, and the playground's door over
+            // a stand-in planner of it (its `authored` member, the answer's kind)
+            Map.entry("engine-client/test/plan-runner.test.ts", 24),
             Map.entry("datacube/test/lite-planner.test.ts", 1));
 
     /**
@@ -1040,7 +1043,11 @@ class PlannedSqlTest {
                 + " person's statement (Boundary.authored), never the text to send");
         String door = s.read(AUTHORED_DOOR);
         int asked = door.indexOf("const plan = await planner.authored(statement);");
-        int ran = door.indexOf("return runAuthored(plan, { databaseType: database.databaseType, run: (sql) => database.engine.run(sql, 0) });");
+        // 2026-11-16 (the TypeScript batch's T-H): the door hands the runner the engine's timed send too -- the same
+        // statement, the database told to stop it after the seconds its plan's connection declares (QueryEngine.run's
+        // `seconds`), never another text
+        int ran = door.indexOf("return runAuthored(plan, { databaseType: database.databaseType, run: (sql) => database.engine.run(sql, 0),\n"
+                + "    runWithin: (sql, seconds) => database.engine.run(sql, 0, undefined, [], seconds) });");
         assertTrue(asked >= 0 && ran > asked, "the playground's door sends the plan's one statement: the person's text as"
                 + " the planner carried it (Boundary.authored), never the text itself: " + AUTHORED_DOOR);
         // a type of planned-sql.ts names the plan it is handed (PlanText, the re-audit's M1); no value of it is imported
